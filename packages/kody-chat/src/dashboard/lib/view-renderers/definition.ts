@@ -6,7 +6,7 @@
  *   user-managed renderer JSON definitions.
  */
 import { z } from "zod";
-import type { RenderedViewAction } from "@dashboard/lib/chat-ui-actions";
+import type { RenderedViewAction } from "../chat-ui-actions";
 
 export const VIEW_RENDERER_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 

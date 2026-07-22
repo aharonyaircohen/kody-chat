@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { executeJourneyRun } from "@dashboard/lib/user-journeys/worker";
-import type { JourneyDefinition } from "@dashboard/lib/user-journeys/contracts";
-import type { JourneyBrowserPage } from "@dashboard/lib/user-journeys/runner";
+import { executeJourneyRun } from "../../../src/dashboard/lib/user-journeys/worker";
+import type { JourneyDefinition } from "../../../src/dashboard/lib/user-journeys/contracts";
+import type { JourneyBrowserPage } from "../../../src/dashboard/lib/user-journeys/runner";
 
 const definition: JourneyDefinition = {
   id: "journey",

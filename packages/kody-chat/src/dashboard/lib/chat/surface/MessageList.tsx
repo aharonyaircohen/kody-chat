@@ -23,15 +23,15 @@ import {
   type SetStateAction,
 } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
-import { MessageActions } from "@dashboard/lib/components/MessageActions";
+import { MarkdownPreview } from "../../components/MarkdownPreview";
+import { MessageActions } from "../../components/MessageActions";
 import { MessageAttachments } from "../../components/MessageAttachments";
-import { TypingIndicator } from "@dashboard/lib/components/TypingIndicator";
+import { TypingIndicator } from "../../components/TypingIndicator";
 import {
   ReasoningPanel,
   ThinkingPanel,
   ToolCallList,
-} from "@dashboard/lib/components/ToolCallCard";
+} from "../../components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
@@ -39,13 +39,13 @@ import {
   isRenderedViewDirective,
   type RenderedViewAction,
   type RenderedViewDirective,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../chat-ui-actions";
 import { RenderedViewCard } from "./RenderedViewCard";
 import {
   resolveTextDirection,
   rtlAwareMarkdownClassName,
   textIsolationStyle,
-} from "@dashboard/lib/text-direction";
+} from "../../text-direction";
 import type { CompactionStatus } from "../../components/kody-chat-compaction";
 import type { AgentHandoff } from "../../chat-types";
 

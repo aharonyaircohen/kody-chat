@@ -3,7 +3,7 @@ import {
   DASHBOARD_NAVIGATION_TARGETS,
   dashboardNavigationCatalogForPrompt,
   resolveDashboardNavigationTarget,
-} from "@dashboard/lib/dashboard-navigation";
+} from "../../src/dashboard/lib/dashboard-navigation";
 
 describe("dashboard navigation catalog", () => {
   it("derives known dashboard pages from the shared nav source", () => {

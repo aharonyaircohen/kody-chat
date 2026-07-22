@@ -11,8 +11,8 @@
 
 import { useState, useEffect } from "react";
 import { Image as ImageIcon } from "lucide-react";
-import type { AttachmentRef } from "@dashboard/lib/chat-types";
-import { getAttachmentDataUrl } from "@dashboard/lib/attachment-store";
+import type { AttachmentRef } from "../chat-types";
+import { getAttachmentDataUrl } from "../attachment-store";
 import { formatFileSize, getFileIcon } from "./kody-chat-helpers";
 
 export function MessageAttachments({

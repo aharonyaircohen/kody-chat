@@ -27,7 +27,7 @@ import {
   parseStaffMentionTrigger,
   replaceStaffMentionTrigger,
   type StaffMentionTrigger,
-} from "@dashboard/lib/mentions/agent-mentions";
+} from "../mentions/agent-mentions";
 import type { ChatTerminalMode } from "../chat/plugins/terminal/types";
 import type { Attachment, Message } from "./kody-chat-types";
 

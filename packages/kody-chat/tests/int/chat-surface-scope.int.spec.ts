@@ -34,12 +34,12 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
 vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: h.resolveBackgroundToken,
 }));
-vi.mock("@dashboard/lib/client-brand", () => ({
+vi.mock("../../src/dashboard/lib/client-brand", () => ({
   resolveClientBrand: h.resolveClientBrand,
 }));
-vi.mock("@dashboard/lib/chat-defaults", async (importOriginal) => {
+vi.mock("../../src/dashboard/lib/chat-defaults", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@dashboard/lib/chat-defaults")>();
+    await importOriginal<typeof import("../../src/dashboard/lib/chat-defaults")>();
   return {
     ...actual,
     loadChatDefaults: vi.fn(async () => ({
@@ -62,10 +62,10 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
-vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
+vi.mock("../../src/dashboard/lib/view-renderers/renderers", () => ({
   loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
 }));
-vi.mock("@dashboard/lib/agent-files", () => ({
+vi.mock("../../src/dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   listResolvedAgentFiles: h.listResolvedAgentFiles,
 }));
@@ -83,11 +83,11 @@ import {
   CLIENT_SURFACE_TOOL_ALLOWLIST,
   mintClientSurfaceTicket,
   SURFACE_TICKET_HEADER,
-} from "@dashboard/lib/chat/platform/surface-scope";
+} from "../../src/dashboard/lib/chat/platform/surface-scope";
 import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,
-} from "@dashboard/lib/chat-output-tools";
+} from "../../src/dashboard/lib/chat-output-tools";
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "surface-scope-int-test-secret";

@@ -12,8 +12,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAuth } from "@dashboard/lib/auth-context";
-import { useTheme } from "@dashboard/providers/Theme";
+import { useAuth } from "../../auth-context";
+import { useTheme } from "../../../providers/Theme";
 import {
   buildWidgetBundleUrl,
   resolveWidgetMount,

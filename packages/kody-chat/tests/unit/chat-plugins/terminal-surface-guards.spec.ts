@@ -27,16 +27,16 @@ import {
   updateFlyConnectionState,
   waitForFlyInputAck,
   type FlyConnectionDeps,
-} from "@dashboard/lib/chat/plugins/terminal/fly-connection";
+} from "../../../src/dashboard/lib/chat/plugins/terminal/fly-connection";
 import {
   openTerminalWebLink,
   usefulCapturedOutput,
-} from "@dashboard/lib/chat/plugins/terminal/terminal-text";
-import { resetTerminalUiForRestart } from "@dashboard/lib/chat/plugins/terminal/xterm-setup";
+} from "../../../src/dashboard/lib/chat/plugins/terminal/terminal-text";
+import { resetTerminalUiForRestart } from "../../../src/dashboard/lib/chat/plugins/terminal/xterm-setup";
 import type {
   ChatTerminalConnectionState,
   TerminalInputSignal,
-} from "@dashboard/lib/chat/plugins/terminal/types";
+} from "../../../src/dashboard/lib/chat/plugins/terminal/types";
 
 interface DepsHarness {
   ref: { current: FlyConnectionDeps };

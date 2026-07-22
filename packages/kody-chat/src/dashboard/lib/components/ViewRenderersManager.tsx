@@ -21,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
@@ -42,12 +42,12 @@ import {
   parseViewRendererDefinitionInput,
   serializeViewRendererDefinition,
   type RendererUiTemplateNode,
-} from "@dashboard/lib/view-renderers/definition";
+} from "../view-renderers/definition";
 import type {
   RenderedViewAction,
   RenderedViewDataValue,
   RenderedViewUiNode,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../chat-ui-actions";
 
 interface RendererRow {
   slug: string;

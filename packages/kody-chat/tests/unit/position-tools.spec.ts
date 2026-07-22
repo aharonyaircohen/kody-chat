@@ -11,12 +11,12 @@ const h = vi.hoisted(() => ({
   setUserState: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/user-state", () => ({
+vi.mock("../../src/dashboard/lib/user-state", () => ({
   getUserState: h.getUserState,
   setUserState: h.setUserState,
 }));
 
-import { createPositionTools } from "@dashboard/../../app/api/kody/chat/tools/position-tools";
+import { createPositionTools } from "../../app/api/kody/chat/tools/position-tools";
 
 const ctx = {
   octokit: {} as Octokit,

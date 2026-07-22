@@ -16,8 +16,8 @@ import { logger } from "@kody-ade/base/logger";
 import {
   invalidateIssueCache,
   invalidatePRCache,
-} from "@dashboard/lib/github-client";
-import { dashboardFileUrl, dashboardTaskUrl } from "@dashboard/lib/thread-link";
+} from "../../../../../src/dashboard/lib/github-client";
+import { dashboardFileUrl, dashboardTaskUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;

@@ -32,7 +32,7 @@ import {
   trustLevelForSubject,
   trustSubjectKey,
   type TrustManifest,
-} from "@dashboard/lib/cto/trust-state";
+} from "../../src/dashboard/lib/cto/trust-state";
 
 function approvals(capability: string, n: number): TrustManifest {
   let m: TrustManifest = structuredClone(EMPTY_TRUST_MANIFEST);

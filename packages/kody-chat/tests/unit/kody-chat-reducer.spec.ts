@@ -16,7 +16,7 @@ import {
   isRecoverable,
   isWatchdogActive,
   type LiveSessionState,
-} from "@dashboard/lib/chat/core/kody-chat-reducer";
+} from "../../src/dashboard/lib/chat/core/kody-chat-reducer";
 
 const withState = (patch: Partial<LiveSessionState>): LiveSessionState => ({
   ...initialLiveState,

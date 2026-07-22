@@ -16,7 +16,7 @@ import type {
   PreviewActDirective,
   RenderedViewDirective,
   SwitchAgentDirective,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../../chat-ui-actions";
 import type { PreparedConversationTurn } from "../conversation/prepare-turn";
 
 /**

@@ -10,7 +10,7 @@ import {
   scheduleEveryToMs,
   scheduleEveryLabel,
   type TickFrontmatter,
-} from "@dashboard/lib/ticked/frontmatter";
+} from "../../src/dashboard/lib/ticked/frontmatter";
 
 describe("splitFrontmatter", () => {
   it("returns an empty frontmatter and the raw body when no block is present", () => {

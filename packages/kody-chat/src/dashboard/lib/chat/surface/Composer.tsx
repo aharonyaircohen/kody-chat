@@ -37,9 +37,9 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
+import { MarkdownEditor } from "../../components/MarkdownEditor";
 import { VoiceButton } from "../../components/VoiceButton";
-import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
+import { SimpleTooltip } from "../../components/SimpleTooltip";
 import {
   bootPhaseLabel,
   formatElapsed,
@@ -48,7 +48,7 @@ import {
 } from "../../components/kody-chat-helpers";
 import type { Attachment } from "../../components/kody-chat-types";
 import type { LivePhase } from "../core/kody-chat-reducer";
-import type { AgentId } from "@dashboard/lib/agents";
+import type { AgentId } from "../../agents";
 import { ChatPluginSlot } from "./ChatPluginProvider";
 
 /** Trailing-button role — computed by the host (spec-pinned there). */

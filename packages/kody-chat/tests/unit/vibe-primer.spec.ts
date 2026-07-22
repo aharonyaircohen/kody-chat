@@ -19,7 +19,7 @@ import {
   applyVibePrimerToMessages,
   applyVibePrimerToContent,
   type ChatMessage,
-} from "@dashboard/lib/vibe/primer";
+} from "../../src/dashboard/lib/vibe/primer";
 
 describe("buildVibePrimer — fresh (no taskContext)", () => {
   const primer = buildVibePrimer(undefined);

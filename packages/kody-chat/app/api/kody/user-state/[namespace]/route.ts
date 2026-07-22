@@ -9,15 +9,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createUserOctokit } from "@dashboard/lib/github-client";
-import { resolveUnifiedActor, type UnifiedActor } from "@dashboard/lib/auth/unified-actor";
+import { createUserOctokit } from "../../../../../src/dashboard/lib/github-client";
+import { resolveUnifiedActor, type UnifiedActor } from "../../../../../src/dashboard/lib/auth/unified-actor";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   getUserState,
   setUserState,
   UserStateError,
   type UserStateServiceContext,
-} from "@dashboard/lib/user-state";
+} from "../../../../../src/dashboard/lib/user-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

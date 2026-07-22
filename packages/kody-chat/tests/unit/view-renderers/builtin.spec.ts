@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
 import {
   BUILTIN_VIEW_RENDERER_DEFINITIONS,
   getBuiltinViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/builtin";
-import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
+} from "../../../src/dashboard/lib/view-renderers/builtin";
+import { buildChatViewCatalog } from "../../../src/dashboard/lib/view-renderers/spec/catalog";
 
 describe("builtin view renderers", () => {
   it("ships the default renderers, validated", () => {

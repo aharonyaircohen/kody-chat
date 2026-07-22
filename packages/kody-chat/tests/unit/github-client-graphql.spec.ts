@@ -44,7 +44,7 @@ import {
   clearGitHubContext,
   clearCache,
   getCacheStats,
-} from "@dashboard/lib/github-client";
+} from "../../src/dashboard/lib/github-client";
 
 function prNode(number: number) {
   return {

@@ -10,7 +10,7 @@
 
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
-import { getOwner, getRepo } from "@dashboard/lib/github-client";
+import { getOwner, getRepo } from "../github-client";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {

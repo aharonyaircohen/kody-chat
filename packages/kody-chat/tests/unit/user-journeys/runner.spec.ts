@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { runJourneyScenario } from "@dashboard/lib/user-journeys/runner";
-import type { JourneyScenario } from "@dashboard/lib/user-journeys/contracts";
+import { runJourneyScenario } from "../../../src/dashboard/lib/user-journeys/runner";
+import type { JourneyScenario } from "../../../src/dashboard/lib/user-journeys/contracts";
 
 function fakePage() {
   const calls: string[] = [];

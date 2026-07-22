@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Blocks, Loader2, Upload } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";

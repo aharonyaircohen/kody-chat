@@ -15,7 +15,7 @@
 import { useMemo } from "react";
 import { Zap } from "lucide-react";
 
-import type { ClientBrand } from "@dashboard/lib/client-brand";
+import type { ClientBrand } from "../client-brand";
 import { directionForLocale } from "../chat/platform/i18n";
 import type { ChatCapabilityGrant } from "../chat/platform";
 import { createBrandingPlugin } from "../chat/plugins/branding";

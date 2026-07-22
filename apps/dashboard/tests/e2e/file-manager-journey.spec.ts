@@ -177,7 +177,10 @@ async function installFileManagerHarness(page: Page) {
 
       if (method === "DELETE" && files.has(path)) {
         files.delete(path);
-        return json(route, { content: null, commit: { sha: `commit-${sequence++}` } });
+        return json(route, {
+          content: null,
+          commit: { sha: `commit-${sequence++}` },
+        });
       }
 
       if (method === "GET" && files.has(path)) {
@@ -251,6 +254,13 @@ function collectRuntimeFailures(page: Page) {
     }
   });
   page.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    const isOptionalMonacoWorker =
+      url.hostname === "cdn.jsdelivr.net" &&
+      url.pathname.includes("/monaco-editor@") &&
+      url.pathname.includes("/assets/editor.worker-") &&
+      url.pathname.endsWith(".js");
+    if (isOptionalMonacoWorker) return;
     failures.push(`${request.method()} ${request.url()} failed`);
   });
   page.on("response", (response) => {

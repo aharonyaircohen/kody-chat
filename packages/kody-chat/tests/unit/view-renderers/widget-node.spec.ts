@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 import {
   parseViewRendererDefinition,
   type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/definition";
-import { resolveViewRendererUi } from "@dashboard/lib/view-renderers/template";
-import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+} from "../../../src/dashboard/lib/view-renderers/definition";
+import { resolveViewRendererUi } from "../../../src/dashboard/lib/view-renderers/template";
+import { isRenderedViewDirective } from "../../../src/dashboard/lib/chat-ui-actions";
 
 function definitionJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({

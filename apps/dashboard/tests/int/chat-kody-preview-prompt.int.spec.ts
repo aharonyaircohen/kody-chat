@@ -43,16 +43,21 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: vi.fn(async () => ({})),
 }));
 
-vi.mock("@dashboard/lib/github-client", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@dashboard/lib/github-client")>();
-  return {
-    ...actual,
-    createUserOctokit: vi.fn(() => ({})),
-    setGitHubContext: vi.fn(),
-    clearGitHubContext: vi.fn(),
-  };
-});
+vi.mock(
+  "../../../../packages/kody-chat/src/dashboard/lib/github-client",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../../packages/kody-chat/src/dashboard/lib/github-client")
+      >();
+    return {
+      ...actual,
+      createUserOctokit: vi.fn(() => ({})),
+      setGitHubContext: vi.fn(),
+      clearGitHubContext: vi.fn(),
+    };
+  },
+);
 
 vi.mock("@kody-ade/workspace/memory/files", () => ({
   invalidateMemoryIndexPromptCache: vi.fn(),
@@ -69,16 +74,19 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@dashboard/lib/view-renderers/renderers")
-    >();
-  return {
-    ...actual,
-    loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
-  };
-});
+vi.mock(
+  "../../../../packages/kody-chat/src/dashboard/lib/view-renderers/renderers",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../../packages/kody-chat/src/dashboard/lib/view-renderers/renderers")
+      >();
+    return {
+      ...actual,
+      loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
+    };
+  },
+);
 
 vi.mock(
   "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",

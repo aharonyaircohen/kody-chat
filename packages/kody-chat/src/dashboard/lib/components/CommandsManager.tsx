@@ -11,7 +11,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -24,8 +24,8 @@ import {
   Trash2,
   FileText,
 } from "lucide-react";
-import { PageShell } from "@dashboard/lib/components/PageShell";
-import { ListSearch } from "@dashboard/lib/components/ListSearch";
+import { PageShell } from "./PageShell";
+import { ListSearch } from "./ListSearch";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
@@ -37,10 +37,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
-import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
+import { useAuth, buildAuthHeaders } from "../auth-context";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 interface CommandRow {
   slug: string;

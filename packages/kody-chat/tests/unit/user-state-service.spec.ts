@@ -24,10 +24,10 @@ vi.mock("@kody-ade/base/events", () => ({
   emitSystemEvent: h.emitSystemEvent,
 }));
 
-import { getUserState, setUserState } from "@dashboard/lib/user-state/service";
-import { _resetUserStateConfigCache } from "@dashboard/lib/user-state/config";
-import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/convex";
-import { UserStateError } from "@dashboard/lib/user-state/types";
+import { getUserState, setUserState } from "../../src/dashboard/lib/user-state/service";
+import { _resetUserStateConfigCache } from "../../src/dashboard/lib/user-state/config";
+import { _resetUserStateDocCache } from "../../src/dashboard/lib/user-state/adapters/convex";
+import { UserStateError } from "../../src/dashboard/lib/user-state/types";
 
 const ctx = {
   octokit: {} as Octokit,

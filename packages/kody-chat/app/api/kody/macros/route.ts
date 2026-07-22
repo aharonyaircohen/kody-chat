@@ -20,7 +20,7 @@ import {
 import {
   setGitHubContext,
   clearGitHubContext,
-} from "@dashboard/lib/github-client";
+} from "../../../../src/dashboard/lib/github-client";
 import {
   readMacrosFile,
   addMacroToFile,

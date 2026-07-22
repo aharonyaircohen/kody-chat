@@ -16,7 +16,7 @@ import {
   SheetTitle,
 } from "@kody-ade/base/ui/sheet";
 
-import type { SettingsNavSection } from "@dashboard/lib/components/settings-nav";
+import type { SettingsNavSection } from "./settings-nav";
 import { RepoSwitcher } from "./RepoSwitcher";
 import { Sidebar } from "./Sidebar";
 

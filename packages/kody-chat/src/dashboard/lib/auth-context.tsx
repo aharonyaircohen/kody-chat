@@ -122,7 +122,7 @@ export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
 export type BrainTerminalActivityLimit = number | "never";
 export type BrainSuspensionMode = "auto" | "never";
 
-interface AuthContextValue {
+export interface AuthContextValue {
   auth: KodyAuth | null;
   loading: boolean;
   logout: () => void;
@@ -638,6 +638,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * Lets an embedding host provide its existing auth state to Kody Chat.
+ * This avoids a second provider reading the same credentials into a separate
+ * React context, while keeping the package independent from the host app.
+ */
+export function KodyAuthBridgeProvider({
+  value,
+  children,
+}: {
+  value: AuthContextValue;
+  children: React.ReactNode;
+}) {
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

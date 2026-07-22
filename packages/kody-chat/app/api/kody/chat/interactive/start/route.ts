@@ -30,11 +30,11 @@ import { logger } from "@kody-ade/base/logger";
 import {
   buildMetaLine,
   writeSessionMeta,
-} from "@dashboard/lib/interactive-session";
+} from "../../../../../../src/dashboard/lib/interactive-session";
 import {
   applyVibePrimerToContent,
   type VibeTaskContext,
-} from "@dashboard/lib/vibe/primer";
+} from "../../../../../../src/dashboard/lib/vibe/primer";
 import {
   chatRunRequest,
   withStoreTarget,

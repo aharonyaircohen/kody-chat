@@ -49,7 +49,7 @@ const MonacoEditor = dynamic(
   { ssr: false, loading: () => null },
 );
 import { slugifyTitle } from "@kody-ade/base/slug";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";

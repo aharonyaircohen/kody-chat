@@ -5,7 +5,7 @@ import { CheckCircle2, CircleAlert, Clock3, Loader2, Plus, Play, RefreshCw, XCir
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { Button } from "@kody-ade/base/ui/button";
 import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { EmptyState } from "../components/EmptyState";
 import { PageShell } from "../components/PageShell";
 import type { JourneyDefinition } from "../user-journeys/contracts";

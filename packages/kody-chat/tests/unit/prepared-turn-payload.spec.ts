@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compilePreparedTurnPayload } from "@dashboard/lib/chat/core/conversation/prepared-turn-payload";
+import { compilePreparedTurnPayload } from "../../src/dashboard/lib/chat/core/conversation/prepared-turn-payload";
 import { preparedTurnFixture } from "../fixtures/prepared-turn";
 
 describe("compilePreparedTurnPayload", () => {

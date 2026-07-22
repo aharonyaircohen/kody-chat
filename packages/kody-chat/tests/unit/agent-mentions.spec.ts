@@ -5,7 +5,7 @@ import {
   hasStaffMention,
   parseStaffMentionTrigger,
   replaceStaffMentionTrigger,
-} from "@dashboard/lib/mentions/agent-mentions";
+} from "../../src/dashboard/lib/mentions/agent-mentions";
 
 describe("extractStaffMentions", () => {
   const known = ["cto", "qa-bot", "release-captain"];

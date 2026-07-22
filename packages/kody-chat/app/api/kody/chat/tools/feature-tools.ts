@@ -10,7 +10,7 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { AGENTS, type AgentConfig } from "@dashboard/lib/agents";
+import { AGENTS, type AgentConfig } from "../../../../../src/dashboard/lib/agents";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   HOME_NAV_ITEM,
@@ -18,7 +18,7 @@ import {
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
-} from "@dashboard/lib/components/settings-nav";
+} from "../../../../../src/dashboard/lib/components/settings-nav";
 
 export interface FeatureEntry {
   id: string;

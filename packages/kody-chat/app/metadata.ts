@@ -5,7 +5,7 @@
  * @ai-summary Shared metadata builders for Kody dashboard routes with OG/Twitter tags
  */
 import type { Metadata } from "next";
-import { fetchIssue } from "@dashboard/lib/github-client";
+import { fetchIssue } from "../src/dashboard/lib/github-client";
 import { GITHUB_OWNER, GITHUB_REPO } from "@kody-ade/base/constants";
 
 const SITE_NAME = "Kody Operations Dashboard";

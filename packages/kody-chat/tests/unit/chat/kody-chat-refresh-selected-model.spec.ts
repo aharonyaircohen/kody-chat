@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { shouldWaitForChatCatalogResolution } from "@dashboard/lib/chat/platform/agent-entries";
+import { shouldWaitForChatCatalogResolution } from "../../../src/dashboard/lib/chat/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Phase 1.6c moved the per-session agent sync effect (and the rest of

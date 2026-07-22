@@ -19,7 +19,7 @@ import {
   setUserState,
   UserStateError,
   type UserStateServiceContext,
-} from "@dashboard/lib/user-state";
+} from "../../../../../src/dashboard/lib/user-state";
 
 interface Ctx {
   octokit: Octokit;

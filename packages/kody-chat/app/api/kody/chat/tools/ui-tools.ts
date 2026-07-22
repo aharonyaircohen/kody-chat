@@ -10,7 +10,7 @@
 import { randomUUID } from "crypto";
 import { jsonSchema, tool } from "ai";
 import { z } from "zod";
-import { AGENTS, type AgentId } from "@dashboard/lib/agents";
+import { AGENTS, type AgentId } from "../../../../../src/dashboard/lib/agents";
 import {
   DASHBOARD_NAVIGATE_DIRECTIVE,
   PREVIEW_ACT_DIRECTIVE,
@@ -20,26 +20,26 @@ import {
   type RenderedViewUiNode,
   type SwitchAgentDirective,
   type SwitchAgentTargetId,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../../../../src/dashboard/lib/chat-ui-actions";
 import {
   dashboardNavigationCatalogForPrompt,
   resolveDashboardNavigationTarget,
-} from "@dashboard/lib/dashboard-navigation";
-import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
-import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
+} from "../../../../../src/dashboard/lib/dashboard-navigation";
+import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/renderers";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import {
   buildChatViewCatalog,
   buildShowViewInputJsonSchema,
-} from "@dashboard/lib/view-renderers/spec/catalog";
-import { validateChatViewSpec } from "@dashboard/lib/view-renderers/spec/validate";
-import { buildChatViewDirective } from "@dashboard/lib/view-renderers/spec/expand";
-import { buildShowViewGuidance } from "@dashboard/lib/view-renderers/spec/prompt";
+} from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
+import { validateChatViewSpec } from "../../../../../src/dashboard/lib/view-renderers/spec/validate";
+import { buildChatViewDirective } from "../../../../../src/dashboard/lib/view-renderers/spec/expand";
+import { buildShowViewGuidance } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
 import {
   FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
-} from "@dashboard/lib/chat-output-tools";
-import { shouldRequireViewOutputForAssistantText } from "@dashboard/lib/view-renderers/chat-intent";
+} from "../../../../../src/dashboard/lib/chat-output-tools";
+import { shouldRequireViewOutputForAssistantText } from "../../../../../src/dashboard/lib/view-renderers/chat-intent";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
   (a) => a.id,

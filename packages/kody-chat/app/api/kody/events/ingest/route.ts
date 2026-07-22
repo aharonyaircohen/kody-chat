@@ -27,12 +27,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { publish, recordIngest } from "@dashboard/lib/chat-event-bus";
+import { publish, recordIngest } from "../../../../../src/dashboard/lib/chat-event-bus";
 import {
   isFromGitHubActions,
   getClientIp,
-} from "@dashboard/lib/webhooks/github-ip";
-import { verifySessionToken } from "@dashboard/lib/chat-token";
+} from "../../../../../src/dashboard/lib/webhooks/github-ip";
+import { verifySessionToken } from "../../../../../src/dashboard/lib/chat-token";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";

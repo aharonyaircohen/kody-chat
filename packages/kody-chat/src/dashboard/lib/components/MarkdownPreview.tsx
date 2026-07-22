@@ -20,14 +20,14 @@ import {
   Lightbulb,
   ShieldAlert,
 } from "lucide-react";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "../utils";
 import {
   detectCalloutKind,
   extractCodeLanguage,
   slugifyHeading,
   stripCalloutMarker,
   type MarkdownCalloutKind,
-} from "@dashboard/lib/markdown-preview-utils";
+} from "../markdown-preview-utils";
 
 interface MarkdownPreviewProps {
   content: string;

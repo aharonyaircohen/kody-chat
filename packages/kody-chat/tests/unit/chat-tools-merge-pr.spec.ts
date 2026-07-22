@@ -28,7 +28,7 @@ const gitDeleteRef = vi.hoisted(() => vi.fn());
 const invalidateIssueCache = vi.hoisted(() => vi.fn());
 const invalidatePRCache = vi.hoisted(() => vi.fn());
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   invalidateIssueCache: (...a: unknown[]) => invalidateIssueCache(...a),
   invalidatePRCache: (...a: unknown[]) => invalidatePRCache(...a),
 }));

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   invalidateIssueCache: vi.fn(),
   invalidatePRCache: vi.fn(),
 }));

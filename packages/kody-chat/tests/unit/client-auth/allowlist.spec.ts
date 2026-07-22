@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isEmailAllowed,
   normalizeClientBrandAuth,
-} from "@dashboard/lib/client-auth/allowlist";
+} from "../../../src/dashboard/lib/client-auth/allowlist";
 
 describe("normalizeClientBrandAuth", () => {
   it("returns undefined for non-objects", () => {

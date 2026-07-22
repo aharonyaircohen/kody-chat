@@ -16,7 +16,7 @@ import {
   KODY_LIVE_APPEND_ENDPOINT,
   KODY_LIVE_TRIGGER_ENDPOINT,
   type KodyLiveTurnConfig,
-} from "@dashboard/lib/chat/core/transports/kody-live";
+} from "../../../../src/dashboard/lib/chat/core/transports/kody-live";
 import {
   jsonResponse,
   installScriptedFetch,

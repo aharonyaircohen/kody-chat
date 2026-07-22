@@ -21,8 +21,8 @@ import {
   saveLiveSession,
   stickyBrainChatId,
   type PersistedLiveSession,
-} from "@dashboard/lib/chat/core/kody-chat-live-session";
-import type { ChatContext } from "@dashboard/lib/chat-types";
+} from "../../../src/dashboard/lib/kody-chat-live-session";
+import type { ChatContext } from "../../../src/dashboard/lib/chat-types";
 
 class MemStorage {
   m = new Map<string, string>();

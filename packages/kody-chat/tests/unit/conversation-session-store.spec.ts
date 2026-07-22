@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   mapConversationDetail,
   reconcileConversationMessages,
-} from "@dashboard/lib/chat/core/conversation/conversation-session-store";
+} from "../../src/dashboard/lib/chat/core/conversation/conversation-session-store";
 
 describe("conversation session store", () => {
   it("hydrates messages and handoffs from the ordered canonical timeline", () => {

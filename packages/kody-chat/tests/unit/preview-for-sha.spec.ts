@@ -41,7 +41,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
   clearCache,
-} from "@dashboard/lib/github-client";
+} from "../../src/dashboard/lib/github-client";
 
 const SHA = "17767ccbe2b2b7a7ed8acf47cfa762ef0181fcc6";
 

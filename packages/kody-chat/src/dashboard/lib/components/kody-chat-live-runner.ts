@@ -44,16 +44,16 @@ import {
   liveAuthFor,
   liveAuthHeaders,
   type LiveScopeKey,
-} from "../chat/core/kody-chat-live-session";
+} from "../kody-chat-live-session";
 import {
   buildRehydrateAction,
   decideLivePersistence,
   shouldRehydrateScope,
 } from "../chat/core/rehydration";
-import { getStoredFlyPerf } from "@dashboard/lib/api";
+import { getStoredFlyPerf } from "../api";
 import { getChatLiveTransport } from "../chat/platform/live-transport";
-import type { AgentId } from "@dashboard/lib/agents";
-import type { ChatContext } from "@dashboard/lib/chat-types";
+import type { AgentId } from "../agents";
+import type { ChatContext } from "../chat-types";
 import { vibeTurnFields, type VibeLiveTaskContext } from "../chat/plugins/vibe";
 import type { Message } from "./kody-chat-types";
 

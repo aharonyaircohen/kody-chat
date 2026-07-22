@@ -11,8 +11,8 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import { recordAudit } from "@dashboard/lib/activity/audit";
-import { mutateSnippets } from "@dashboard/lib/snippets/store";
+import { recordAudit } from "../../../../../src/dashboard/lib/activity/audit";
+import { mutateSnippets } from "../../../../../src/dashboard/lib/snippets/store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

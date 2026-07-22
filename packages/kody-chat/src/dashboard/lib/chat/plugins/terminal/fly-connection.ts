@@ -11,8 +11,8 @@
  *   seq/in-flight/failure keys, input-ack timeout → reconnect, restore
  *   blocks input, reconnect-once notice, bounded fetches.
  */
-import { getStoredBrainTerminalActivityLimit } from "@dashboard/lib/api";
-import { authHeaders } from "../../core/kody-chat-live-session";
+import { getStoredBrainTerminalActivityLimit } from "../../../api";
+import { authHeaders } from "../../../kody-chat-live-session";
 import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,

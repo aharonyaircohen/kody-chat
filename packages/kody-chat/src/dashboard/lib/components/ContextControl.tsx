@@ -59,29 +59,29 @@ import {
   SelectValue,
 } from "@kody-ade/base/ui/select";
 import { AuthGuard } from "../auth-guard";
-import { selectionPath } from "@dashboard/lib/selection-routing";
-import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
-import { cn } from "@dashboard/lib/utils";
+import { selectionPath } from "../selection-routing";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
+import { cn } from "../utils";
 import {
   useCreateContextEntry,
   useDeleteContextEntry,
   useContextEntries,
   useUpdateContextEntry,
-} from "@dashboard/lib/hooks/useContextEntries";
-import { useAgents } from "@dashboard/lib/hooks/useAgents";
-import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
-import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
-import type { ContextEntry } from "@dashboard/lib/api";
+} from "../hooks/useContextEntries";
+import { useAgents } from "../hooks/useAgents";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import type { ContextEntry } from "../api";
 import {
   KODY_CHAT_AGENT,
   QA_AGENT,
   ALL_AGENT,
 } from "@kody-ade/workspace/context/frontmatter";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { ListSearch } from "@dashboard/lib/components/ListSearch";
-import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
-import { PageHeader } from "@dashboard/lib/components/PageShell";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ListSearch } from "./ListSearch";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
+import { PageHeader } from "./PageShell";
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 type StaffOption = { slug: string; label: string; hint: string };

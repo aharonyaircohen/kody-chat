@@ -21,7 +21,7 @@ import type {
   BrainChatModelEntry,
   ChatModelEntry,
 } from "../chat/platform/agent-entries";
-import { authHeaders } from "../chat/core/kody-chat-live-session";
+import { authHeaders } from "../kody-chat-live-session";
 import {
   composeChatModelCatalog,
   KODY_OPENROUTER_FREE_CHAT_MODEL,

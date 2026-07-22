@@ -18,7 +18,7 @@ import {
 import {
   clearGitHubContext,
   setGitHubContext,
-} from "@dashboard/lib/github-client";
+} from "../../../../src/dashboard/lib/github-client";
 import {
   listLanguages,
   readLanguageFile,
@@ -28,7 +28,7 @@ import {
   isValidLanguageCode,
   normalizeClientLanguageCode,
 } from "../../../../src/dashboard/lib/client-language";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../src/dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

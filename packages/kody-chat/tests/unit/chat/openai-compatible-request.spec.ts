@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeOpenAICompatibleRequestBody } from "@dashboard/lib/chat/core/openai-compatible-request";
+import { normalizeOpenAICompatibleRequestBody } from "../../../src/dashboard/lib/chat/core/openai-compatible-request";
 
 describe("normalizeOpenAICompatibleRequestBody", () => {
   it("strips validation-only JSON Schema keywords from tool parameters", () => {

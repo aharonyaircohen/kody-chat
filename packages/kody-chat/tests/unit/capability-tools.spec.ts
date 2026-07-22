@@ -12,7 +12,7 @@ vi.mock("@kody-ade/agency/capabilities", () => ({
   writeCapabilityFile: capabilityFiles.writeCapabilityFile,
   deleteCapabilityFile: capabilityFiles.deleteCapabilityFile,
 }));
-vi.mock("@dashboard/lib/capabilities", () => ({
+vi.mock("../../src/dashboard/lib/capabilities", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
 }));

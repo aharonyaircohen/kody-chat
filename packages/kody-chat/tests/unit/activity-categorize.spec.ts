@@ -5,7 +5,7 @@
  * deliberately NOT inferred here — see categorize.ts.
  */
 import { describe, expect, it } from "vitest";
-import { categorizeRun } from "@dashboard/lib/activity/categorize";
+import { categorizeRun } from "../../src/dashboard/lib/activity/categorize";
 
 describe("categorizeRun", () => {
   it("schedule → scheduled (capability/agents ticks)", () => {

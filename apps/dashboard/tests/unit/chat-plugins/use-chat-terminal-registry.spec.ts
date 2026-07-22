@@ -196,7 +196,7 @@ vi.mock("react", () => ({ ...harness.React, default: harness.React }));
 
 // authHeaders gates every network path in the hook; swap per test.
 const auth = vi.hoisted(() => ({ headers: {} as Record<string, string> }));
-vi.mock("@kody-ade/kody-chat/core/kody-chat-live-session", () => ({
+vi.mock("@kody-ade/kody-chat/kody-chat-live-session", () => ({
   authHeaders: () => auth.headers,
 }));
 

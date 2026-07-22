@@ -103,7 +103,7 @@ calls fall back to `process.env`.
 Replace `process.env.X` with `await getSecret("X", { req })`:
 
 ```typescript
-import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { getSecret } from "../src/dashboard/lib/vault/get-secret";
 
 export async function POST(req: NextRequest) {
   const apiKey = await getSecret("GEMINI_API_KEY", { req });

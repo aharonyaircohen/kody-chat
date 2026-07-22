@@ -15,7 +15,7 @@ import {
   buildCompanyBundle,
   applyCompanyBundle,
 } from "../../../../../tests/fixtures/chat-business-fixtures";
-import { companyBundleSchema } from "@dashboard/lib/company/types";
+import { companyBundleSchema } from "../../../../../src/dashboard/lib/company/types";
 import { readOperators, writeOperators } from "@kody-ade/base/engine/config";
 
 interface Ctx {

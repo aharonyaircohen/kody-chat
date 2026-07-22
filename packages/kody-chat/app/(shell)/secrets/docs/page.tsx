@@ -7,9 +7,9 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
+import { RepoScopedLink } from "../../../../src/dashboard/lib/components/RepoScopedLink";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { MarkdownViewer } from "@dashboard/lib/components/MarkdownViewer";
+import { MarkdownViewer } from "../../../../src/dashboard/lib/components/MarkdownViewer";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

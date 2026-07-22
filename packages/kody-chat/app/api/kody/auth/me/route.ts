@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
-import { createUserOctokit } from "@dashboard/lib/github-client";
+import { createUserOctokit } from "../../../../../src/dashboard/lib/github-client";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const headerAuth = getRequestAuth(req);

@@ -12,13 +12,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, MousePointerClick, X } from "lucide-react";
 import { trackSystemEvent } from "@kody-ade/base/events/client";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+import { MarkdownPreview } from "../../components/MarkdownPreview";
 import {
   getRenderedViewUi,
   type RenderedViewAction,
   type RenderedViewDirective,
   type RenderedViewUiNode,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../chat-ui-actions";
 import { WidgetHost } from "./WidgetHost";
 
 export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveTextDirection } from "@dashboard/lib/text-direction";
+import { resolveTextDirection } from "../../src/dashboard/lib/text-direction";
 
 describe("text direction helpers", () => {
   it("detects RTL titles from the first strong RTL character", () => {

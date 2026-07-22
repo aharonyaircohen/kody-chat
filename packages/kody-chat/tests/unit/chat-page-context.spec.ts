@@ -14,7 +14,7 @@ import {
   dashboardPageContextLine,
   withPageContext,
   applyPageContextToLastUser,
-} from "@dashboard/lib/chat/core/page-context";
+} from "../../src/dashboard/lib/chat/core/page-context";
 
 describe("dashboardPageContextLine", () => {
   it("returns null for missing or blank input", () => {

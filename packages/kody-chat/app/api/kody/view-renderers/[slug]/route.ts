@@ -12,7 +12,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../../src/dashboard/lib/activity/audit";
 import {
   deleteViewRendererDefinitionFile,
   isValidViewRendererSlug,
@@ -21,7 +21,7 @@ import {
   serializeViewRendererDefinition,
   writeViewRendererDefinitionFile,
   type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/renderers";
+} from "../../../../../src/dashboard/lib/view-renderers/renderers";
 
 const saveSchema = z.object({
   definition: z.string().min(2).max(20_000),

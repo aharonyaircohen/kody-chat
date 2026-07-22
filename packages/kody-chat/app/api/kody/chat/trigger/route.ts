@@ -24,18 +24,18 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "../../../../../src/dashboard/lib/chat/platform/surface-scope";
 import { emitSystemEvent } from "@kody-ade/base/events";
 import { logger } from "@kody-ade/base/logger";
-import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
+import { mintSessionToken } from "../../../../../src/dashboard/lib/chat-token";
+import { maybeAppendPluginToolsToken } from "../../../../../src/dashboard/lib/chat/platform/plugin-tools-config";
 import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
-} from "@dashboard/lib/vibe/primer";
-import { applyPageContextToLastUser } from "@dashboard/lib/chat/core/page-context";
-import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { recordSessionStart, recordTurn } from "@dashboard/lib/interactive-session";
+} from "../../../../../src/dashboard/lib/vibe/primer";
+import { applyPageContextToLastUser } from "../../../../../src/dashboard/lib/chat/core/page-context";
+import { recordDispatchFailure } from "../../../../../src/dashboard/lib/health/dispatch-failures";
+import { recordSessionStart, recordTurn } from "../../../../../src/dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
@@ -80,7 +80,7 @@ interface ChatMessage {
   toolCalls?: unknown[];
 }
 
-// Primer logic now lives in @dashboard/lib/vibe/primer so the long-lived
+// Primer logic now lives in the local Vibe primer module so the long-lived
 // runner path (/interactive/append) and this one-shot dispatch path share
 // the same wording.
 

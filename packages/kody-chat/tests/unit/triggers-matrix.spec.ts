@@ -61,10 +61,10 @@ import { triggerSink } from "@kody-ade/base/triggers/sink";
 import { _resetTriggersConfigCache } from "@kody-ade/base/triggers/config";
 import type { TriggerConfig } from "@kody-ade/base/triggers/types";
 import type { SystemEventEnvelope } from "@kody-ade/base/events/types";
-import { ensureTriggerStateWriter } from "@dashboard/lib/user-state/trigger-writer";
-import { _resetUserStateConfigCache } from "@dashboard/lib/user-state/config";
-import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/convex";
-import { getUserState } from "@dashboard/lib/user-state/service";
+import { ensureTriggerStateWriter } from "../../src/dashboard/lib/user-state/trigger-writer";
+import { _resetUserStateConfigCache } from "../../src/dashboard/lib/user-state/config";
+import { _resetUserStateDocCache } from "../../src/dashboard/lib/user-state/adapters/convex";
+import { getUserState } from "../../src/dashboard/lib/user-state/service";
 
 const octokit = {} as Octokit;
 const USER = "operator:matrix";

@@ -17,25 +17,25 @@ import {
   getBuiltinClientBrand,
   resolveClientBrand,
   type ClientBrandResolveContext,
-} from "@dashboard/lib/client-brand";
-import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
+} from "../../../src/dashboard/lib/client-brand";
+import { defaultClientBrandRepoContext } from "../../../src/dashboard/lib/client-brand-default-repo";
 import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-strings";
 import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language-resolver";
-import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
+import { type ClientBrandRepoContext } from "../../../src/dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { auth, signOut } from "@dashboard/lib/client-auth/auth";
+import { auth, signOut } from "../../../src/dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
   isEmailAllowed,
-} from "@dashboard/lib/client-auth/allowlist";
-import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
+} from "../../../src/dashboard/lib/client-auth/allowlist";
+import { resolveConfiguredProviders } from "../../../src/dashboard/lib/client-auth/credentials";
 import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
-import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
+import { PageViewTracker } from "../../../src/dashboard/lib/events/PageViewTracker";
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { BrandSnippets } from "@dashboard/lib/snippets/BrandSnippets";
-import { getSnippets } from "@dashboard/lib/snippets/store";
-import type { SnippetConfig } from "@dashboard/lib/snippets/types";
+import { BrandSnippets } from "../../../src/dashboard/lib/snippets/BrandSnippets";
+import { getSnippets } from "../../../src/dashboard/lib/snippets/store";
+import type { SnippetConfig } from "../../../src/dashboard/lib/snippets/types";
 
 interface ClientChatPageProps {
   params: Promise<{ path: string[] }>;

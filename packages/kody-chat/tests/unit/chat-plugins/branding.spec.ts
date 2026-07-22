@@ -12,12 +12,12 @@ import { describe, expect, it } from "vitest";
 import {
   BRANDING_PLUGIN_ID,
   createBrandingPlugin,
-} from "@dashboard/lib/chat/plugins/branding";
-import { getClientBrand } from "@dashboard/lib/client-brand";
+} from "../../../src/dashboard/lib/chat/plugins/branding";
+import { getClientBrand } from "../../../src/dashboard/lib/client-brand";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
+} from "../../../src/dashboard/lib/chat/platform/registry";
 
 describe("branding chat plugin factory", () => {
   it("declares only the theme capability", () => {

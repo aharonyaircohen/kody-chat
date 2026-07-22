@@ -23,8 +23,8 @@ import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   CLIENT_AUTH_PROVIDERS,
   type ClientAuthProvider,
-} from "@dashboard/lib/client-auth/allowlist";
-import { providerLabel } from "@dashboard/lib/client-auth/catalog";
+} from "../client-auth/allowlist";
+import { providerLabel } from "../client-auth/catalog";
 import type {
   BrandAgentOption,
   BrandLanguageOption,

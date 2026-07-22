@@ -23,12 +23,12 @@ import {
   isPreviewActDirective,
   isRenderedViewDirective,
   isSwitchAgentDirective,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../../chat-ui-actions";
 import {
   FINAL_ANSWER_TOOL,
   getToolErrorMessage,
   isFinalAnswerOutput,
-} from "@dashboard/lib/chat-output-tools";
+} from "../../../chat-output-tools";
 import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
 
 /** `error` ChatEvent code emitted when the stream drops mid-turn. */

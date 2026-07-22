@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import {
   compileNamespaceSchema,
   namespaceSpecSchema,
-} from "@dashboard/lib/user-state/schema-compile";
+} from "../../src/dashboard/lib/user-state/schema-compile";
 
 describe("namespaceSpecSchema", () => {
   it("accepts a minimal valid spec and applies defaults", () => {

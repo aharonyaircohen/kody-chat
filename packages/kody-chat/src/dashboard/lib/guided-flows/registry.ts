@@ -4,9 +4,9 @@ import type {
   GuidedFlowStepDefinition,
 } from "./controller";
 import { getGuidedFlowStep } from "./controller";
-import { getBuiltinViewRendererDefinition } from "@dashboard/lib/view-renderers/builtin";
-import { buildRenderedViewDirective } from "@dashboard/lib/view-renderers/template";
-import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
+import { buildRenderedViewDirective } from "../view-renderers/template";
+import type { RenderedViewDirective } from "../chat-ui-actions";
 
 export const CREATE_WORKFLOW_FLOW_ID = "create-workflow";
 
@@ -96,7 +96,7 @@ export function buildGuidedFlowView(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
   customRenderers?: Readonly<
-    Record<string, import("@dashboard/lib/view-renderers/definition").ViewRendererDefinition>
+    Record<string, import("../view-renderers/definition").ViewRendererDefinition>
   >,
 ): RenderedViewDirective {
   const step: GuidedFlowStepDefinition = getGuidedFlowStep(

@@ -1,4 +1,4 @@
-import type { SessionMeta } from "@dashboard/lib/chat-types";
+import type { SessionMeta } from "../../../chat-types";
 import {
   prepareConversationTurn,
   type AgentIdentity,

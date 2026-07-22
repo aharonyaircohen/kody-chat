@@ -13,7 +13,7 @@ import {
   createChatTraceBuffer,
   readChatTrace,
   trace,
-} from "@dashboard/lib/chat/platform/trace";
+} from "../../../src/dashboard/lib/chat/platform/trace";
 
 describe("chat trace ring buffer", () => {
   it("records events oldest → newest with monotonic seq", () => {

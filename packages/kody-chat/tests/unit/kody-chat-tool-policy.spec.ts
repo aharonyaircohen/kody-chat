@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyVibeToolPolicy } from "../../app/api/kody/chat/kody/vibe-tool-policy";
-import { DEFAULT_CHAT_CAPABILITY } from "@dashboard/lib/chat-defaults/defaults";
+import { DEFAULT_CHAT_CAPABILITY } from "../../src/dashboard/lib/chat-defaults/defaults";
 
 describe("Kody chat tool policy", () => {
   it("keeps issue execution available while blocking PR and write starters", () => {

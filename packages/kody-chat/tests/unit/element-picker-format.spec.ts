@@ -16,7 +16,7 @@ import {
   type PickedElement,
   type PerfReport,
   type PreviewEditChange,
-} from "@dashboard/lib/picker/protocol";
+} from "../../src/dashboard/lib/picker/protocol";
 
 function el(overrides: Partial<PickedElement> = {}): PickedElement {
   return {

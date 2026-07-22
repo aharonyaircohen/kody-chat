@@ -20,9 +20,9 @@ import {
   SURFACE_TICKET_HEADER,
   SURFACE_TICKET_TTL_SEC,
   verifySurfaceTicket,
-} from "@dashboard/lib/chat/platform/surface-scope";
-import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { mintPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
+} from "../../../src/dashboard/lib/chat/platform/surface-scope";
+import { mintSessionToken } from "../../../src/dashboard/lib/chat-token";
+import { mintPluginToolsToken } from "../../../src/dashboard/lib/chat/platform/plugin-tools-config";
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "test-secret-for-surface-scope-hmac";

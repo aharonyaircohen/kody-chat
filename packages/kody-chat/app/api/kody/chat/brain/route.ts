@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "../../../../../src/dashboard/lib/chat/platform/surface-scope";
 import {
   streamBrainChat,
   type BrainAgentIdentity,
@@ -29,10 +29,10 @@ import {
 import {
   withPageContext,
   withDashboardContext,
-} from "@dashboard/lib/chat/core/page-context";
+} from "../../../../../src/dashboard/lib/chat/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
-import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
+import { readResolvedAgentFile } from "../../../../../src/dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s

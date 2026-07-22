@@ -23,12 +23,12 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { appendUserTurn } from "@dashboard/lib/interactive-session";
+import { appendUserTurn } from "../../../../../../src/dashboard/lib/interactive-session";
 import {
   applyVibePrimerToContent,
   type VibeTaskContext,
-} from "@dashboard/lib/vibe/primer";
-import { withPageContext } from "@dashboard/lib/chat/core/page-context";
+} from "../../../../../../src/dashboard/lib/vibe/primer";
+import { withPageContext } from "../../../../../../src/dashboard/lib/chat/core/page-context";
 
 export const runtime = "nodejs";
 

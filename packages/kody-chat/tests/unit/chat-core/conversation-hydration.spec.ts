@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { SessionMeta } from "@dashboard/lib/chat-types";
+import type { SessionMeta } from "../../../src/dashboard/lib/chat-types";
 import {
   mergeHydratedSessions,
   preserveActiveSessionId,
-} from "@dashboard/lib/chat/core/conversation/use-conversation-sessions";
+} from "../../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions";
 
 function session(id: string, updatedAt: string): SessionMeta {
   return {

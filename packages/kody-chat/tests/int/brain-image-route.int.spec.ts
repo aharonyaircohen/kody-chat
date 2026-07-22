@@ -48,7 +48,7 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));

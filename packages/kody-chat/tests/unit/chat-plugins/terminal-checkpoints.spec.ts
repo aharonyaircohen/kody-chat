@@ -14,7 +14,7 @@ import {
   shouldLoadTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
-} from "@dashboard/lib/chat/plugins/terminal/checkpoints";
+} from "../../../src/dashboard/lib/chat/plugins/terminal/checkpoints";
 
 describe("checkpoint transport shims", () => {
   it("maps chat transports onto checkpoint transports", () => {

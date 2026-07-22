@@ -17,7 +17,7 @@ import {
   ChatToolRegistrationError,
   type ChatPlugin,
   type ChatToolServerContext,
-} from "@dashboard/lib/chat/platform";
+} from "../../src/dashboard/lib/chat/platform";
 
 const serverCtx: ChatToolServerContext = {
   owner: "test-owner",

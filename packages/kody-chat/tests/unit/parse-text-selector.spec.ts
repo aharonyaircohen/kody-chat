@@ -12,7 +12,7 @@
  * to match. The dashboard-side parser is the source of truth (tested here).
  */
 import { describe, it, expect } from "vitest";
-import { parseTextSelector } from "@dashboard/lib/picker/protocol";
+import { parseTextSelector } from "../../src/dashboard/lib/picker/protocol";
 
 describe("parseTextSelector", () => {
   it("recognises tag:has-text with double quotes — the bug-from-the-log shape", () => {

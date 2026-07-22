@@ -6,12 +6,12 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { RENDER_VIEW_DIRECTIVE } from "@dashboard/lib/chat-ui-actions";
+import { RENDER_VIEW_DIRECTIVE } from "../../src/dashboard/lib/chat-ui-actions";
 import {
   FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
-} from "@dashboard/lib/chat-output-tools";
+} from "../../src/dashboard/lib/chat-output-tools";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
 const toUIMessageStreamMock = vi.hoisted(() =>
@@ -47,9 +47,9 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: vi.fn(async () => ({})),
 }));
 
-vi.mock("@dashboard/lib/github-client", async (importOriginal) => {
+vi.mock("../../src/dashboard/lib/github-client", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@dashboard/lib/github-client")>();
+    await importOriginal<typeof import("../../src/dashboard/lib/github-client")>();
   return {
     ...actual,
     createUserOctokit: vi.fn(() => ({})),
@@ -73,10 +73,10 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
+vi.mock("../../src/dashboard/lib/view-renderers/renderers", async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import("@dashboard/lib/view-renderers/renderers")
+      typeof import("../../src/dashboard/lib/view-renderers/renderers")
     >();
   return {
     ...actual,

@@ -9,8 +9,8 @@
  */
 import { NextRequest } from "next/server";
 
-import { signIn } from "@dashboard/lib/client-auth/auth";
-import { isSupportedProviderId } from "@dashboard/lib/client-auth/catalog";
+import { signIn } from "../../../../src/dashboard/lib/client-auth/auth";
+import { isSupportedProviderId } from "../../../../src/dashboard/lib/client-auth/catalog";
 
 export const runtime = "nodejs";
 

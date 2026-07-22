@@ -19,12 +19,12 @@ import { logger } from "@kody-ade/base/logger";
 import {
   buildMetaLine,
   writeSessionMeta,
-} from "@dashboard/lib/interactive-session";
+} from "../../../../../../src/dashboard/lib/interactive-session";
 import {
   applyVibePrimerToContent,
   type VibeTaskContext,
-} from "@dashboard/lib/vibe/primer";
-import { mintSessionToken } from "@dashboard/lib/chat-token";
+} from "../../../../../../src/dashboard/lib/vibe/primer";
+import { mintSessionToken } from "../../../../../../src/dashboard/lib/chat-token";
 import {
   chatRunRequest,
   withStoreTarget,

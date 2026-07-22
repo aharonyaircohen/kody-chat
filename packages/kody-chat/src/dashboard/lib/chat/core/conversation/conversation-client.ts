@@ -1,5 +1,3 @@
-import { authHeaders } from "../kody-chat-live-session";
-
 export type ConversationCommand =
   | {
       kind: "append-message";
@@ -75,7 +73,7 @@ export class ConversationClient {
 
   constructor(
     private readonly fetcher: typeof fetch = browserFetch,
-    private readonly headers: () => Record<string, string> = authHeaders,
+    private readonly headers: () => Record<string, string> = () => ({}),
   ) {}
 
   private async request<T>(url: string, init: RequestInit = {}): Promise<T> {

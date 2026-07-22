@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { PageShell } from "@dashboard/lib/components/PageShell";
+import { PageShell } from "./PageShell";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
@@ -40,9 +40,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
+import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   PROVIDER_PRESETS,
   PROVIDER_PRESET_IDS,

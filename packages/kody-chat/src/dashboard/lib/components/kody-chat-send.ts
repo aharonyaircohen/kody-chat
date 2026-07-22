@@ -32,14 +32,14 @@
 
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
-import { AGENT_KODY, AGENTS, type AgentId } from "@dashboard/lib/agents";
+import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
 import { trace, type createChatPluginRegistry } from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
 } from "@kody-ade/brain/repo-scope";
-import { getStoredAuth } from "@dashboard/lib/api";
+import { getStoredAuth } from "../api";
 import type { KodyTask } from "@kody-ade/base/types";
 import {
   authHeaders,
@@ -47,7 +47,7 @@ import {
   isBrainChatPinned,
   liveAuthHeaders,
   brainHeaders,
-} from "../chat/core/kody-chat-live-session";
+} from "../kody-chat-live-session";
 import {
   brainTransport,
   type BrainTurnConfig,
@@ -78,9 +78,9 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { AttachmentRef, ChatContext } from "@dashboard/lib/chat-types";
+import type { AttachmentRef, ChatContext } from "../chat-types";
 import type { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
-import { persistPendingAttachment } from "@dashboard/lib/attachment-store";
+import { persistPendingAttachment } from "../attachment-store";
 import { prepareUiConversationTurn } from "../chat/core/conversation/prepare-ui-turn";
 import type { ConversationRuntime } from "../chat/core/conversation/prepare-turn";
 import {
@@ -92,7 +92,7 @@ import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import {
   extractFirstStaffMentionCandidate,
   type StaffMentionTrigger,
-} from "@dashboard/lib/mentions/agent-mentions";
+} from "../mentions/agent-mentions";
 import {
   pickVibeRequestIssueNumber,
   vibeLiveTaskContext,
@@ -109,8 +109,8 @@ import {
   isSwitchAgentDirective,
   type DashboardNavigateDirective,
   type PreviewActDirective,
-} from "@dashboard/lib/chat-ui-actions";
-import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
+} from "../chat-ui-actions";
+import { SHOW_VIEW_TOOL } from "../chat-output-tools";
 import { extractKodyTerminalPayload } from "@kody-ade/terminal/kody-terminal-directive";
 import { prependConversationSummary } from "../chat/core/conversation-compaction";
 import {

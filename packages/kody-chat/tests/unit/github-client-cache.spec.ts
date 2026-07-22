@@ -63,7 +63,7 @@ import {
   setCache,
   fetchWorkflowRuns,
   fetchKodyRunLogArtifact,
-} from "@dashboard/lib/github-client";
+} from "../../src/dashboard/lib/github-client";
 import type { WorkflowRun } from "@kody-ade/base/types";
 
 // Minimal shapes matching what the mappers in github-client read.

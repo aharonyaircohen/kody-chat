@@ -38,7 +38,7 @@ export async function resolveClientLanguageStrings(
     const { findLanguageFileFromList } = await import("./languages");
     if (context?.owner && context.repo) {
       const { clearGitHubContext, setGitHubContext } = await import(
-        "@dashboard/lib/github-client"
+        "./github-client"
       );
       setGitHubContext(
         context.owner,

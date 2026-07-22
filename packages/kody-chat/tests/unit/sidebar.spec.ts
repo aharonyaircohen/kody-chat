@@ -9,9 +9,7 @@ const SOURCE = readFileSync(
 
 describe("Sidebar navigation items", () => {
   it("sources nav sections from the shared settings-nav list", () => {
-    expect(SOURCE).toContain(
-      'from "@dashboard/lib/components/settings-nav"',
-    );
+    expect(SOURCE).toContain('from "./settings-nav"');
     expect(SOURCE).toContain("hostSections ?? SIDEBAR_NAV_SECTIONS");
   });
 

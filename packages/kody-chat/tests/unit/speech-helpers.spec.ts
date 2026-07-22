@@ -5,7 +5,7 @@
  * caller keeps it until it finishes), and not split mid-number/version.
  */
 import { describe, it, expect } from "vitest";
-import { extractSentences } from "@dashboard/lib/speech-helpers";
+import { extractSentences } from "../../src/dashboard/lib/speech-helpers";
 
 describe("extractSentences", () => {
   it("returns nothing while no sentence is complete", () => {

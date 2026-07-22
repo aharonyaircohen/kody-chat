@@ -2,7 +2,7 @@ import type {
   AgentHandoff,
   ChatMessage,
   SessionMeta,
-} from "@dashboard/lib/chat-types";
+} from "../../../chat-types";
 
 type StoredMessage = {
   kind: "message";

@@ -3,7 +3,7 @@ import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
   buildAgentChatSpeakerOverride,
-} from "@dashboard/lib/agent-chat-identity";
+} from "../../src/dashboard/lib/agent-chat-identity";
 
 describe("buildAgentChatIdentity", () => {
   const agent = {

@@ -15,22 +15,22 @@ import { preparedTurnFixture } from "../fixtures/prepared-turn";
 import {
   kodyDirectTransport,
   sendKodyDirectTurn,
-} from "@dashboard/lib/chat/core/transports/kody-direct";
+} from "../../src/dashboard/lib/chat/core/transports/kody-direct";
 import {
   brainTransport,
   sendBrainTurn,
-} from "@dashboard/lib/chat/core/transports/brain";
-import { runChatTurn } from "@dashboard/lib/chat/core/transports/turn-coordinator";
+} from "../../src/dashboard/lib/chat/core/transports/brain";
+import { runChatTurn } from "../../src/dashboard/lib/chat/core/transports/turn-coordinator";
 import {
   createTransportTurnHandler,
   type TransportTurnHandler,
-} from "@dashboard/lib/components/kody-chat-transport-events";
+} from "../../src/dashboard/lib/components/kody-chat-transport-events";
 import {
   applySettleDecision,
   classifyTurnFailure,
   settleDecision,
-} from "@dashboard/lib/components/kody-chat-send";
-import type { Message } from "@dashboard/lib/components/kody-chat-types";
+} from "../../src/dashboard/lib/components/kody-chat-send";
+import type { Message } from "../../src/dashboard/lib/components/kody-chat-types";
 
 /** In-memory stand-in for KodyChat's session-scoped message store. */
 function messageStore(seed: Message[]) {

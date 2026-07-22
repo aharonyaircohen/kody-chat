@@ -13,7 +13,7 @@ import {
   readReportFile,
   writeReportRun,
   isValidSlug,
-} from "@dashboard/lib/reports-files";
+} from "../../../../../src/dashboard/lib/reports-files";
 
 export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;

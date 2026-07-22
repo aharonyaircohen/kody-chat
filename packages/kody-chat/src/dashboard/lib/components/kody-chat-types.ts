@@ -12,10 +12,10 @@ import type {
   AttachmentRef,
   ChatContext,
   ChatMessage,
-} from "@dashboard/lib/chat-types";
-import type { AgentId } from "@dashboard/lib/agents";
+} from "../chat-types";
+import type { AgentId } from "../agents";
 import type { GoalRef } from "../chat/plugins/goals";
-import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";
+import type { ChatViewDirective } from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 
 export interface Message {

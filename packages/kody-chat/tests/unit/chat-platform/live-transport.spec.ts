@@ -13,13 +13,13 @@ import {
   registerChatLiveTransport,
   resetChatLiveTransportForTests,
   type ChatLiveTransport,
-} from "@dashboard/lib/chat/platform/live-transport";
+} from "../../../src/dashboard/lib/chat/platform/live-transport";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
-import { FULL_GRANT } from "@dashboard/lib/chat/platform/capabilities";
-import type { ChatPlugin } from "@dashboard/lib/chat/platform/types";
+} from "../../../src/dashboard/lib/chat/platform/registry";
+import { FULL_GRANT } from "../../../src/dashboard/lib/chat/platform/capabilities";
+import type { ChatPlugin } from "../../../src/dashboard/lib/chat/platform/types";
 
 const makeTransport = (id: string): ChatLiveTransport => ({
   id,

@@ -29,22 +29,22 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
-import { useTheme } from "@dashboard/providers/Theme";
+import { useTheme } from "../../providers/Theme";
 import { cn } from "@kody-ade/base/utils/ui";
 import {
   shouldEnableSidebarInboxBadgeData,
   shouldEnableSidebarMessagesBadgeData,
   shouldEnableSidebarReportsBadgeData,
-} from "@dashboard/lib/github-background-polling";
-import { useAuth } from "@dashboard/lib/auth-context";
-import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
-import { useNavigationFavorites } from "@dashboard/lib/hooks/useNavigationFavorites";
-import { resolveFavoriteItems } from "@dashboard/lib/navigation-favorites";
+} from "../github-background-polling";
+import { useAuth } from "../auth-context";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useNavigationFavorites } from "../hooks/useNavigationFavorites";
+import { resolveFavoriteItems } from "../navigation-favorites";
 import { repoScopedHref } from "@kody-ade/base/routes";
-import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
-import { InboxBadge } from "@dashboard/lib/components/InboxBadge";
-import { MessagesBadge } from "@dashboard/lib/components/MessagesBadge";
-import { ReportsBadge } from "@dashboard/lib/components/ReportsBadge";
+import { SimpleTooltip } from "./SimpleTooltip";
+import { InboxBadge } from "./InboxBadge";
+import { MessagesBadge } from "./MessagesBadge";
+import { ReportsBadge } from "./ReportsBadge";
 import {
   DASHBOARD_NAV_ITEM,
   SIDEBAR_NAV_SECTIONS,
@@ -52,7 +52,7 @@ import {
   isNavItemActive,
   type SettingsNavItem,
   type SettingsNavSection,
-} from "@dashboard/lib/components/settings-nav";
+} from "./settings-nav";
 
 /** Pull just the `text-…` color token out of an item's `tint` (which is a
  *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */

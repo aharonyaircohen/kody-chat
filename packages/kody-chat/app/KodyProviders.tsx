@@ -8,8 +8,8 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { ThemeProvider } from "@dashboard/providers/Theme";
-import { AuthProvider } from "@dashboard/lib/auth-context";
+import { ThemeProvider } from "../src/dashboard/providers/Theme";
+import { AuthProvider } from "../src/dashboard/lib/auth-context";
 
 function makeQueryClient() {
   return new QueryClient({

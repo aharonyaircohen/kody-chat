@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@dashboard/lib/api", () => ({
+vi.mock("../../../../packages/kody-chat/src/dashboard/lib/api", () => ({
   getStoredAuth: () => ({ userLogin: "alice" }),
 }));
-vi.mock("@kody-ade/kody-chat/core/kody-chat-live-session", () => ({
-  authHeaders: () => ({ Authorization: "Bearer test" }),
-}));
+vi.mock(
+  "../../../../packages/kody-chat/src/dashboard/lib/kody-chat-live-session",
+  () => ({
+    authHeaders: () => ({ Authorization: "Bearer test" }),
+  }),
+);
 
 import {
   deleteAttachment,

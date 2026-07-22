@@ -9,15 +9,15 @@ import { describe, it, expect } from "vitest";
 import {
   RENDER_VIEW_DIRECTIVE,
   type RenderedViewDirective,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../../src/dashboard/lib/chat-ui-actions";
 import {
   chatToMessage,
   messageToChat,
   ISSUE_CREATION_TOOL_NAMES,
   getCreatedIssueNumberFromToolOutput,
   type Message,
-} from "@dashboard/lib/components/kody-chat-types";
-import type { ChatMessage } from "@dashboard/lib/chat-types";
+} from "../../../src/dashboard/lib/components/kody-chat-types";
+import type { ChatMessage } from "../../../src/dashboard/lib/chat-types";
 
 const toolCalls = [
   {

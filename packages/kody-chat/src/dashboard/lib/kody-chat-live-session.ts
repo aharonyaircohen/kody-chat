@@ -13,15 +13,18 @@ import {
   getStoredAuth,
   getStoredBrainConfig,
   getStoredBrainSuspension,
-} from "@dashboard/lib/api";
-import type { ChatContext } from "@dashboard/lib/chat-types";
-import type { LiveScopeKey } from "./kody-chat-reducer";
+} from "./api";
+import type { ChatContext } from "./chat-types";
+import type { LiveScopeKey } from "./chat/core/kody-chat-reducer";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import {
   brainChatIdMapSchema,
   liveSessionMapSchema,
   persistedLiveSessionSchema,
-} from "./live-session-schemas";
+} from "./chat/core/live-session-schemas";
+import type { PersistedLiveSession } from "./chat/core/rehydration";
+
+export type { PersistedLiveSession } from "./chat/core/rehydration";
 
 export type { LiveScopeKey };
 
@@ -168,19 +171,6 @@ export function getLiveScopeKey(
     return "vibe-default";
   }
   return "global";
-}
-
-export interface PersistedLiveSession {
-  sessionId: string;
-  state: "booting" | "ready";
-  startedAt: number;
-  // Captured at /start time. Lets the booting banner render the
-  // "Watching <owner>/<repo>" link after a refresh without waiting for
-  // chat.ready to re-fire on the new SSE connection.
-  target?: { owner: string; repo: string };
-  // Captured when chat.ready arrives (engine ≥ 0.3.79). Survives refresh
-  // so the deep link doesn't downgrade to the workflow-list page.
-  runUrl?: string;
 }
 
 type LiveSessionMap = Record<LiveScopeKey, PersistedLiveSession>;

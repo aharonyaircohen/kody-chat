@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { navLabelForPath } from "@dashboard/lib/components/settings-nav";
+import { navLabelForPath } from "./settings-nav";
 import { useLiveRunner } from "./kody-chat-live-runner";
 import {
   createChatPluginRegistry,
@@ -12,7 +12,7 @@ import {
   type ChatHostEffect,
 } from "../chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
-import { useAuth } from "@dashboard/lib/auth-context";
+import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "@kody-ade/base/types";
 // Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
@@ -36,14 +36,11 @@ import {
   readGoalDirectEffect,
   type GoalDirectEffectPayload,
 } from "../chat/plugins/goals";
-import { useElementPicker } from "@dashboard/lib/picker/useElementPicker";
-import { formatPageInfo } from "@dashboard/lib/picker/protocol";
-import { runPreviewAction } from "@dashboard/lib/picker/run-preview-action";
-import { formatMacrosCatalog, type Macro } from "@dashboard/lib/macros";
-import {
-  authHeaders,
-  clearLiveSession,
-} from "../chat/core/kody-chat-live-session";
+import { useElementPicker } from "../picker/useElementPicker";
+import { formatPageInfo } from "../picker/protocol";
+import { runPreviewAction } from "../picker/run-preview-action";
+import { formatMacrosCatalog, type Macro } from "../macros";
+import { authHeaders, clearLiveSession } from "../kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
 import {
   compactConversationForTurn,
@@ -57,32 +54,29 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { ChatMessage } from "@dashboard/lib/chat-types";
-import {
-  putAttachment,
-  deleteAttachment,
-} from "@dashboard/lib/attachment-store";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import type { ChatMessage } from "../chat-types";
+import { putAttachment, deleteAttachment } from "../attachment-store";
+import { ConfirmDialog } from "./ConfirmDialog";
 import {
   ChatIssueReportDialog,
   type ChatIssueReportState,
-} from "@dashboard/lib/components/ChatIssueReportDialog";
-import { useRemoteStatus } from "@dashboard/lib/hooks/useRemoteStatus";
-import { useAgents } from "@dashboard/lib/hooks/useAgents";
-import { kodyApi } from "@dashboard/lib/api";
+} from "./ChatIssueReportDialog";
+import { useRemoteStatus } from "../hooks/useRemoteStatus";
+import { useAgents } from "../hooks/useAgents";
+import { kodyApi } from "../api";
 import { useChatDataSources } from "./kody-chat-data";
 import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";
-import { PIPER_VOICES } from "@dashboard/lib/voice/voices";
-import { VoiceChatOverlay } from "@dashboard/lib/components/VoiceChatOverlay";
+import { PIPER_VOICES } from "../voice/voices";
+import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
-import { useKodyActionState } from "@dashboard/lib/hooks/useKodyActionState";
-import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
+import { useKodyActionState } from "../hooks/useKodyActionState";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
 import { MessageList } from "../chat/surface/MessageList";
 import { Composer } from "../chat/surface/Composer";
-import type { StaffMentionTrigger } from "@dashboard/lib/mentions/agent-mentions";
+import type { StaffMentionTrigger } from "../mentions/agent-mentions";
 import { EmptyState } from "../chat/surface/EmptyState";
 import type { RecentVibeIssue } from "../chat/plugins/vibe";
 import type {
@@ -90,8 +84,8 @@ import type {
   RenderedViewAction,
   RenderedViewDirective,
   PreviewActDirective,
-} from "@dashboard/lib/chat-ui-actions";
-import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+} from "../chat-ui-actions";
+import { isRenderedViewDirective } from "../chat-ui-actions";
 import {
   consumeGuidedFlowOpenRequest,
   GUIDED_FLOW_OPEN_EVENT,
@@ -432,6 +426,7 @@ export function KodyChat({
   // and never remounts after Settings saves a Brain config — the dropdown
   // entry wouldn't appear until a full page reload.
   const { auth } = useAuth();
+  const effectiveActorLogin = actorLogin ?? auth?.user.login ?? null;
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // Slash command list (builtins + backend `commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
@@ -469,9 +464,14 @@ export function KodyChat({
     useState<
       import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope
     >(desiredSessionScope);
+  const conversationRequestHeaders = useMemo(
+    () => kodyDirectHeaders ?? (auth ? authHeaders() : {}),
+    [auth, kodyDirectHeaders],
+  );
   const sessionHook = useConversationSessions(
     sessionStoreScope,
-    kodyDirectHeaders,
+    conversationRequestHeaders,
+    effectiveActorLogin,
   );
   const createChatSession = sessionHook.createSession;
 
@@ -695,7 +695,7 @@ export function KodyChat({
   const recentVibeIssueRef = useRef<RecentVibeIssue | null>(null);
 
   // Remote dev status (only polls when actorLogin is provided)
-  const { data: remoteStatus } = useRemoteStatus(actorLogin);
+  const { data: remoteStatus } = useRemoteStatus(effectiveActorLogin);
 
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
@@ -746,7 +746,7 @@ export function KodyChat({
     terminalBottomControls,
     terminalSurfaces,
   } = useTerminalHost({
-    actorLogin,
+    actorLogin: effectiveActorLogin,
     vibeMode,
     hideTerminalMode,
     lockedAgentId,
@@ -1113,7 +1113,7 @@ export function KodyChat({
         "Repo",
         auth?.owner && auth?.repo ? `${auth.owner}/${auth.repo}` : null,
       ),
-      reportItem("User", actorLogin),
+      reportItem("User", effectiveActorLogin),
     ]);
 
     const chatItems = compactReportItems([
@@ -1159,7 +1159,7 @@ export function KodyChat({
     };
   }, [
     activeLoading,
-    actorLogin,
+    effectiveActorLogin,
     auth?.owner,
     auth?.repo,
     chatMode,
@@ -1366,7 +1366,7 @@ export function KodyChat({
           onIssueCreated,
           vibeMode,
           context,
-          actorLogin,
+          actorLogin: effectiveActorLogin,
           repoAgentSlugs,
           selectedAgencyAgentSlug,
           agentList,
@@ -1418,7 +1418,7 @@ export function KodyChat({
       effectiveReasoningEffort,
       lockedAgentSlug,
       kodyDirectHeaders,
-      actorLogin,
+      effectiveActorLogin,
       runDashboardNavigateFromDirective,
       sessionHook,
       connectSSE,

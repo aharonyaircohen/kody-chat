@@ -5,7 +5,7 @@
  * @ai-summary Shared data shapes for the client brand admin UI.
  */
 
-import type { ClientBrandAuth } from "@dashboard/lib/client-auth/allowlist";
+import type { ClientBrandAuth } from "../client-auth/allowlist";
 
 export interface BrandRow {
   slug: string;

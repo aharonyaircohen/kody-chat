@@ -32,23 +32,23 @@ import {
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
 import { AuthGuard } from "../auth-guard";
-import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
-import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
-import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
-import { selectionPath } from "@dashboard/lib/selection-routing";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
+import { selectionPath } from "../selection-routing";
 import {
   useCreateMemory,
   useDeleteMemory,
   useMemories,
   useUpdateMemory,
-} from "@dashboard/lib/hooks/useMemory";
-import { cn } from "@dashboard/lib/utils";
-import type { MemoryFile, MemoryType } from "@dashboard/lib/api";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { ListSearch } from "@dashboard/lib/components/ListSearch";
-import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
-import { PageHeader } from "@dashboard/lib/components/PageShell";
+} from "../hooks/useMemory";
+import { cn } from "../utils";
+import type { MemoryFile, MemoryType } from "../api";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ListSearch } from "./ListSearch";
+import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
+import { PageHeader } from "./PageShell";
 
 const MEMORY_TYPES: MemoryType[] = ["user", "feedback", "project", "reference"];
 

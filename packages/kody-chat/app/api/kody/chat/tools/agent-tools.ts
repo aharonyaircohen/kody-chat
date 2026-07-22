@@ -21,9 +21,9 @@ import {
   readAgentFile,
   writeAgentFile,
   isValidSlug,
-} from "@dashboard/lib/agent-files";
-import { normalizeAgentSlug } from "@dashboard/lib/agent-slug";
-import { dashboardAgentUrl } from "@dashboard/lib/thread-link";
+} from "../../../../../src/dashboard/lib/agent-files";
+import { normalizeAgentSlug } from "../../../../../src/dashboard/lib/agent-slug";
+import { dashboardAgentUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;

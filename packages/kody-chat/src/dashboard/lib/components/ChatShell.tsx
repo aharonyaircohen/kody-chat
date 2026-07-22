@@ -23,8 +23,8 @@ import { RepoSwitcher } from "./RepoSwitcher";
 import type {
   SettingsNavItem,
   SettingsNavSection,
-} from "@dashboard/lib/components/settings-nav";
-import { cn } from "@dashboard/lib/utils";
+} from "./settings-nav";
+import { cn } from "../utils";
 
 const RAIL_MIN = 360;
 const RAIL_MAX = 960;

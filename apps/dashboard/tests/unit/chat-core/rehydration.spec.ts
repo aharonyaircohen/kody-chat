@@ -29,7 +29,7 @@ import {
   liveReducer,
   type LiveSessionState,
 } from "@kody-ade/kody-chat/core/kody-chat-reducer";
-import type { PersistedLiveSession } from "@kody-ade/kody-chat/core/kody-chat-live-session";
+import type { PersistedLiveSession } from "@kody-ade/kody-chat/kody-chat-live-session";
 
 const NOW = 1_750_000_000_000;
 

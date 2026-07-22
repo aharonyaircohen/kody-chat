@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { kodyApi } from "@dashboard/lib/api";
+import { kodyApi } from "../../src/dashboard/lib/api";
 
 describe("managed goals API client", () => {
   function stubStoredAuth(value: unknown) {

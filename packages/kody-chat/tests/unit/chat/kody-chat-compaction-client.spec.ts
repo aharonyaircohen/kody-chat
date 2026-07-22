@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { compactConversationForTurn } from "@dashboard/lib/components/kody-chat-compaction";
+import { compactConversationForTurn } from "../../../src/dashboard/lib/components/kody-chat-compaction";
 
 const messages = Array.from({ length: 8 }, (_, index) => ({
   role: (index % 2 ? "assistant" : "user") as "user" | "assistant",

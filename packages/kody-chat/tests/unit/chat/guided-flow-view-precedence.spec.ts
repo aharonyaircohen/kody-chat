@@ -14,9 +14,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { createTransportTurnHandler } from "@dashboard/lib/components/kody-chat-transport-events";
-import type { Message } from "@dashboard/lib/components/kody-chat-types";
-import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+import { createTransportTurnHandler } from "../../../src/dashboard/lib/components/kody-chat-transport-events";
+import type { Message } from "../../../src/dashboard/lib/components/kody-chat-types";
+import type { RenderedViewDirective } from "../../../src/dashboard/lib/chat-ui-actions";
 
 function guidedFlowView(): RenderedViewDirective {
   return {

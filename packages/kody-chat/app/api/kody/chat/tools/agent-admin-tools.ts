@@ -15,8 +15,8 @@ import {
   readAgentFile,
   deleteAgentFile,
   isValidSlug,
-} from "@dashboard/lib/agent-files";
-import { dispatchAgentAsk } from "@dashboard/lib/control-issue";
+} from "../../../../../src/dashboard/lib/agent-files";
+import { dispatchAgentAsk } from "../../../../../src/dashboard/lib/control-issue";
 
 interface Ctx {
   octokit: Octokit;

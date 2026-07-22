@@ -12,7 +12,7 @@ import {
   WIDGET_CONTRACT_VERSION,
   buildWidgetBundleUrl,
   resolveWidgetMount,
-} from "@dashboard/lib/chat/surface/widget-host";
+} from "../../src/dashboard/lib/chat/surface/widget-host";
 
 describe("buildWidgetBundleUrl", () => {
   it("targets the widgets route with owner/repo/token query auth", () => {

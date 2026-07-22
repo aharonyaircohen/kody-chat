@@ -17,11 +17,11 @@ import {
   latestAvailableGuidedFlowDefinitions,
   parseGuidedFlowDefinitionRows,
 } from "@kody-ade/kody-chat/guided-flows/stored";
-import { getBuiltinViewRendererDefinition } from "@dashboard/lib/view-renderers/builtin";
-import { readViewRendererDefinitionFile } from "@dashboard/lib/view-renderers/renderers";
-import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/definition";
+import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
+import { readViewRendererDefinitionFile } from "../../../../../src/dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/definition";
 import type { GuidedFlowDefinition } from "@kody-ade/kody-chat/guided-flows/controller";
-import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 
 interface GuidedFlowToolContext {
   tenantId: string;

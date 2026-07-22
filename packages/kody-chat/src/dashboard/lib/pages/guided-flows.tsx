@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import {
   listAuthoringRendererSlugs,
   buildGuidedFlowDefinition,

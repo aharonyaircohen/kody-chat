@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 
 import { logger } from "@kody-ade/base/logger";
-import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
+import { dashboardTaskUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;

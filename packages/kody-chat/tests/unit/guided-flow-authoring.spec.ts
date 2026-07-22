@@ -5,7 +5,7 @@ import {
   migrateLegacyGuidedFlowDefinition,
   validateGuidedFlowDraft,
   type GuidedFlowDraft,
-} from "@dashboard/lib/guided-flows/authoring";
+} from "../../src/dashboard/lib/guided-flows/authoring";
 
 const validDraft: GuidedFlowDraft = {
   title: "Review a release",

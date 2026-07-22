@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   actionFromLabels,
   mapRunActions,
-} from "@dashboard/lib/activity/action";
+} from "../../src/dashboard/lib/activity/action";
 import type { GitHubIssue, WorkflowRun } from "@kody-ade/base/types";
 
 function issue(over: Partial<GitHubIssue>): GitHubIssue {

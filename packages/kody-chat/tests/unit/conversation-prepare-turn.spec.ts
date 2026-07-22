@@ -3,7 +3,7 @@ import {
   prepareConversationTurn,
   type Conversation,
   type ConversationEntry,
-} from "@dashboard/lib/chat/core/conversation/prepare-turn";
+} from "../../src/dashboard/lib/chat/core/conversation/prepare-turn";
 
 const conversation: Conversation = {
   id: "conversation-1",

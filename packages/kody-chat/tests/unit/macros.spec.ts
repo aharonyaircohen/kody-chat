@@ -14,7 +14,7 @@ import {
   removeMacro,
   writeMacros,
   type Macro,
-} from "@dashboard/lib/macros";
+} from "../../src/dashboard/lib/macros";
 
 describe("recordedStepToAction", () => {
   it("maps click", () => {

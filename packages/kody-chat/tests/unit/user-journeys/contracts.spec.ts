@@ -4,7 +4,7 @@ import {
   journeyDefinitionSchema,
   journeyStatusFromRuns,
   type JourneyDefinition,
-} from "@dashboard/lib/user-journeys/contracts";
+} from "../../../src/dashboard/lib/user-journeys/contracts";
 
 const journey: JourneyDefinition = {
   id: "create-workflow",

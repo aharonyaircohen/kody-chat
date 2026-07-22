@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildManagedGoalState,
   normalizeManagedGoalState,
-} from "@dashboard/lib/managed-goals";
+} from "../../src/dashboard/lib/managed-goals";
 import {
   buildWorkflowDefinition,
   mergeWorkflowDefinition,
   normalizeWorkflowDefinition,
-} from "@dashboard/lib/workflow-definitions";
+} from "../../src/dashboard/lib/workflow-definitions";
 
 describe("model run without approval flag", () => {
   it("stores the flag on managed goals only when enabled", () => {

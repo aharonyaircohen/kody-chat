@@ -3,11 +3,11 @@ import {
   ChatTurnProtocolError,
   ChatTurnStalledError,
   runChatTurn,
-} from "@dashboard/lib/chat/core/transports/turn-coordinator";
+} from "../../../../src/dashboard/lib/chat/core/transports/turn-coordinator";
 import type {
   ChatEvent,
   ChatTransport,
-} from "@dashboard/lib/chat/core/transports/transport-types";
+} from "../../../../src/dashboard/lib/chat/core/transports/transport-types";
 import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
 const INPUT = {

@@ -16,8 +16,8 @@ import {
   readCapabilityFile,
   writeCapabilityFile,
 } from "@kody-ade/agency/capabilities";
-import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
-import { dashboardCapabilityUrl } from "@dashboard/lib/thread-link";
+import { isValidSlug, PERMISSION_MODES } from "../../../../../src/dashboard/lib/capabilities";
+import { dashboardCapabilityUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;

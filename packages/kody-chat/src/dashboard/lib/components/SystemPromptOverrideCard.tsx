@@ -18,8 +18,8 @@ import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Label } from "@kody-ade/base/ui/label";
 import { Textarea } from "@kody-ade/base/ui/textarea";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useAuth, buildAuthHeaders } from "../auth-context";
 import { ENGINE_DEFAULT_SYSTEM_PROMPT } from "../system-prompt/engine-default";
 
 interface SystemPromptResource {

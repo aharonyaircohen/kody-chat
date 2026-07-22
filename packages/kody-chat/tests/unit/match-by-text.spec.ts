@@ -17,7 +17,7 @@ import {
   parseTextSelector,
   matchByText,
   type TextSelectorCandidate,
-} from "@dashboard/lib/picker/protocol";
+} from "../../src/dashboard/lib/picker/protocol";
 
 const candidates: TextSelectorCandidate[] = [
   { tag: "button", textContent: "Start Learning" },

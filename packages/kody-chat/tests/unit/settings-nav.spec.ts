@@ -7,7 +7,7 @@ import {
   SETTINGS_NAV_SECTIONS,
   navLabelForPath,
   type SettingsNavSection,
-} from "@dashboard/lib/components/settings-nav";
+} from "../../src/dashboard/lib/components/settings-nav";
 
 function exposedHrefs(): string[] {
   return [

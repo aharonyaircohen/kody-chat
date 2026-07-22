@@ -25,7 +25,7 @@ import {
   AGENTS,
   type AgentConfig,
   type AgentId,
-} from "@dashboard/lib/agents";
+} from "../agents";
 import {
   buildAgentList,
   shouldWaitForChatCatalogResolution,
@@ -34,7 +34,7 @@ import {
   type ChatModelEntry,
 } from "../chat/platform/agent-entries";
 import { readDefaultChatEntry } from "../chat/platform/default-entry";
-import { readReasoningEffort } from "../chat/core/reasoning-pref";
+import { readReasoningEffort } from "../reasoning-pref";
 import type { ModelReasoning } from "../chat/core/reasoning-adapter";
 import type { UseConversationSessionsResult } from "../chat/core/conversation/use-conversation-sessions";
 

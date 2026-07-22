@@ -13,7 +13,7 @@ import { buildSystemPrompt } from "../../../app/api/kody/chat/kody/system-prompt
 import {
   loadChatDefaults,
   composeBasePrompt,
-} from "@dashboard/lib/chat-defaults";
+} from "../../../src/dashboard/lib/chat-defaults";
 
 describe("Kody chat confirmation boundary", () => {
   it("base prompt pre-authorizes research and reserves approval for actions", async () => {

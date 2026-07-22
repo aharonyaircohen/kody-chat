@@ -14,7 +14,7 @@ import {
   containsToolCallMarkup,
   parseAssistantContent,
   stripToolCallMarkup,
-} from "@dashboard/lib/chat/core/tool-call-strip";
+} from "../../../src/dashboard/lib/chat/core/tool-call-strip";
 
 describe("stripToolCallMarkup", () => {
   it("removes a complete tool_call JSON block", () => {

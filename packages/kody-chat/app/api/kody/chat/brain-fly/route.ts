@@ -33,7 +33,7 @@ import {
 import {
   clearGitHubContext,
   setGitHubContext,
-} from "@dashboard/lib/github-client";
+} from "../../../../../src/dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
 import {
   streamBrainChat,
@@ -48,10 +48,10 @@ import { requestOrigin } from "@kody-ade/base/request-origin";
 import {
   withPageContext,
   withDashboardContext,
-} from "@dashboard/lib/chat/core/page-context";
+} from "../../../../../src/dashboard/lib/chat/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
-import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
+import { readResolvedAgentFile } from "../../../../../src/dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.

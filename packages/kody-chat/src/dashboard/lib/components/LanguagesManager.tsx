@@ -22,8 +22,8 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { buildAuthHeaders, useAuth } from "../auth-context";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
@@ -33,11 +33,11 @@ import {
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
 import { Textarea } from "@kody-ade/base/ui/textarea";
-import { EmptyState } from "@dashboard/lib/components/EmptyState";
-import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
-import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
-import { selectionPath } from "@dashboard/lib/selection-routing";
-import { cn } from "@dashboard/lib/utils";
+import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { selectionPath } from "../selection-routing";
+import { cn } from "../utils";
 import {
   CLIENT_LANGUAGE_STRING_KEYS,
   isValidLanguageCode,

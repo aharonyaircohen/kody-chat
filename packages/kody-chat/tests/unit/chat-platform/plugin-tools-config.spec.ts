@@ -20,9 +20,9 @@ import {
   PLUGIN_TOOLS_MCP_PATH,
   pluginToolsMcpUrl,
   verifyPluginToolsBearer,
-} from "@dashboard/lib/chat/platform/plugin-tools-config";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
-import { mintSessionToken } from "@dashboard/lib/chat-token";
+} from "../../../src/dashboard/lib/chat/platform/plugin-tools-config";
+import { getChatServerToolRegistry } from "../../../src/dashboard/lib/chat/platform/server-tools";
+import { mintSessionToken } from "../../../src/dashboard/lib/chat-token";
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "test-secret-for-plugin-tools-hmac";

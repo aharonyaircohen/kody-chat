@@ -15,7 +15,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
-import { authHeaders } from "../../core/kody-chat-live-session";
+import { authHeaders } from "../../../kody-chat-live-session";
 
 const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000;
 const BRAIN_IMAGE_SAVE_MAX_POLLS = 720; // 2 hours at 10 seconds.

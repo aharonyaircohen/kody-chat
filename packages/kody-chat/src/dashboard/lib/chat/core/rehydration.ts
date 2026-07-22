@@ -21,7 +21,14 @@ import type {
   LiveScopeKey,
   LiveSessionState,
 } from "./kody-chat-reducer";
-import type { PersistedLiveSession } from "./kody-chat-live-session";
+
+export interface PersistedLiveSession {
+  sessionId: string;
+  state: "booting" | "ready";
+  startedAt: number;
+  target?: { owner: string; repo: string };
+  runUrl?: string;
+}
 
 /** What the persistence effect should do for the current reducer state. */
 export type LivePersistenceDecision =

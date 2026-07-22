@@ -23,7 +23,7 @@ export async function register(): Promise<void> {
   // Triggers wiring — the base trigger sink saves matched event data through
   // the product's user-state service (schema validation + entity events).
   const { ensureTriggerStateWriter } = await import(
-    "@dashboard/lib/user-state"
+    "./src/dashboard/lib/user-state"
   );
   ensureTriggerStateWriter();
 

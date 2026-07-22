@@ -6,7 +6,7 @@
  * @ai-summary Kody-specific TTS hook with onEnd callback for conversation loop
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { stripMarkdown, detectLanguage } from "@dashboard/lib/speech-helpers";
+import { stripMarkdown, detectLanguage } from "../speech-helpers";
 
 export interface UseKodyTTSOptions {
   onEnd?: () => void;

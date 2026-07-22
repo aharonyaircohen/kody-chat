@@ -13,7 +13,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../src/dashboard/lib/activity/audit";
 import {
   isValidViewRendererSlug,
   listViewRendererDefinitionFiles,
@@ -22,7 +22,7 @@ import {
   serializeViewRendererDefinition,
   writeViewRendererDefinitionFile,
   type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/renderers";
+} from "../../../../src/dashboard/lib/view-renderers/renderers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

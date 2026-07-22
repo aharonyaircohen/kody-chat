@@ -13,11 +13,11 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
-import { auth as clientAuth } from "@dashboard/lib/client-auth/auth";
+import { auth as clientAuth } from "../client-auth/auth";
 import {
   CLIENT_BRAND_REPO_COOKIE,
   parseClientBrandRepoCookie,
-} from "@dashboard/lib/client-brand-repo-cookie";
+} from "../client-brand-repo-cookie";
 import type { SystemEventBrand } from "@kody-ade/base/events/types";
 
 export type UnifiedActorKind = "operator" | "client";

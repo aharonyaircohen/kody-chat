@@ -17,7 +17,7 @@ import {
   KODY_DIRECT_DROPPED_MESSAGE,
   KODY_DIRECT_ERROR_CODE_DROPPED,
   type KodyDirectTurnConfig,
-} from "@dashboard/lib/chat/core/transports/kody-direct";
+} from "../../../../src/dashboard/lib/chat/core/transports/kody-direct";
 import {
   sseResponse,
   abortingResponse,

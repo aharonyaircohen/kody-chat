@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseGoalMention,
   type GoalRef,
-} from "@dashboard/lib/chat/plugins/goals";
+} from "../../../src/dashboard/lib/chat/plugins/goals";
 
 const GOALS: GoalRef[] = [
   { id: "q4-roadmap", discussionNumber: 12 },

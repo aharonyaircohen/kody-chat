@@ -13,7 +13,7 @@ import {
   formatFileSize,
   getFileIcon,
   shouldCollectPreviewContextForTurn,
-} from "@dashboard/lib/components/kody-chat-helpers";
+} from "../../../src/dashboard/lib/components/kody-chat-helpers";
 
 describe("bootPhaseLabel — Fly timeline", () => {
   it("walks the Fly boot phases by elapsed seconds", () => {

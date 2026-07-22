@@ -58,7 +58,7 @@ import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "@dashboard/lib/dashboard-config/client";
-import { previewChatContextBlock } from "@kody-ade/kody-chat/core/preview-context";
+import { previewChatContextBlock } from "@dashboard/lib/previews/chat-context";
 import {
   getStoredAuth,
   RateLimitError,

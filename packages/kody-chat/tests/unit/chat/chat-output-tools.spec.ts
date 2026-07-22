@@ -6,7 +6,7 @@ import {
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
-} from "@dashboard/lib/chat-output-tools";
+} from "../../../src/dashboard/lib/chat-output-tools";
 
 describe("chat output tools", () => {
   it("classifies structured tool error outputs", () => {

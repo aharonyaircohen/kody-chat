@@ -12,13 +12,13 @@ import {
   composeBasePrompt,
   buildToolIndex,
   CRITICAL_REMINDERS_MD,
-} from "@dashboard/lib/chat-defaults";
+} from "../../../src/dashboard/lib/chat-defaults";
 import {
   DEFAULT_IDENTITY_MD,
   DEFAULT_CHAT_CAPABILITY,
   DEFAULT_WORKFLOWS,
   DEFAULT_SKILLS,
-} from "@dashboard/lib/chat-defaults/defaults";
+} from "../../../src/dashboard/lib/chat-defaults/defaults";
 
 describe("chat-defaults bundle", () => {
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {

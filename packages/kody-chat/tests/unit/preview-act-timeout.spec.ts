@@ -8,7 +8,7 @@
  * turn — not as a vague "timed out".
  */
 import { describe, it, expect } from "vitest";
-import { composeActTimeoutError } from "@dashboard/lib/picker/protocol";
+import { composeActTimeoutError } from "../../src/dashboard/lib/picker/protocol";
 
 describe("composeActTimeoutError", () => {
   it("returns a selector-specific error for click ops", () => {

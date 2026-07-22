@@ -7,7 +7,7 @@ import {
   latestAgentHandoff,
   resolveAgentHandoffForPrompt,
   splitMessagesAtAgentHandoff,
-} from "@dashboard/lib/chat/core/agent-handoff";
+} from "../../src/dashboard/lib/chat/core/agent-handoff";
 
 describe("agent handoff", () => {
   it("creates a persistent switch boundary with display labels", () => {

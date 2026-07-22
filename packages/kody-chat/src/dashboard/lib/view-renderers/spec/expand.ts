@@ -11,7 +11,7 @@ import {
   RENDER_VIEW_DIRECTIVE,
   type RenderedViewDirective,
   type RenderedViewUiNode,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../chat-ui-actions";
 import type { ViewRendererDefinition } from "../definition";
 import { actionIdFromLabel, resolveViewRendererUi } from "../template";
 import type { ChatViewCatalog, ChatViewSpecElement } from "./catalog";

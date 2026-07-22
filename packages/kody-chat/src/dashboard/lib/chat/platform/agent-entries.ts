@@ -6,7 +6,7 @@
  *   the chat picker and default-chat settings.
  */
 
-import { AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
+import { AGENTS, type AgentConfig, type AgentId } from "../../agents";
 import {
   resolveReasoning,
   type ModelReasoning,

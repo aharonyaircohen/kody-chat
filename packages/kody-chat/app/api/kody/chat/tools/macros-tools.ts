@@ -17,7 +17,7 @@ import {
   deleteMacroFromFile,
   renameMacroInFile,
 } from "../../../../../tests/fixtures/chat-business-fixtures";
-import { formatMacroForChat } from "@dashboard/lib/macros";
+import { formatMacroForChat } from "../../../../../src/dashboard/lib/macros";
 
 interface Ctx {
   octokit: Octokit;

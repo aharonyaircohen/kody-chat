@@ -41,7 +41,7 @@ async function load(
         json: async () => meta,
       });
   vi.stubGlobal("fetch", fetchMock);
-  const mod = await import("@dashboard/lib/webhooks/github-ip");
+  const mod = await import("../../src/dashboard/lib/webhooks/github-ip");
   return { mod, fetchMock };
 }
 

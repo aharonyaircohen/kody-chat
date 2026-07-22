@@ -22,7 +22,7 @@ import {
   type VaultDocument,
 } from "@kody-ade/base/vault/store";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../src/dashboard/lib/activity/audit";
 import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";

@@ -5,7 +5,7 @@ import {
   estimateConversationTokens,
   planConversationCompaction,
   type CompactableMessage,
-} from "@dashboard/lib/chat/core/conversation-compaction";
+} from "../../src/dashboard/lib/chat/core/conversation-compaction";
 
 function message(content: string, role: "user" | "assistant" = "user") {
   return { role, content } satisfies CompactableMessage;

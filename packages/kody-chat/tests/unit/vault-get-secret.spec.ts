@@ -19,7 +19,7 @@ const { mGetRequestAuth, mCreateUserOctokit, mReadVault, mIsVaultConfigured } =
   }));
 
 vi.mock("@kody-ade/base/auth", () => ({ getRequestAuth: mGetRequestAuth }));
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   createUserOctokit: mCreateUserOctokit,
 }));
 vi.mock("@kody-ade/base/vault/store", () => ({ readVault: mReadVault }));

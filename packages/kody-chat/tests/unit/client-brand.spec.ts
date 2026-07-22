@@ -14,7 +14,7 @@ vi.mock("@kody-ade/workspace/brands", () => ({
   readBrandFile: h.readBrandFile,
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
 }));
@@ -25,7 +25,7 @@ import {
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
   resolveClientBrand,
-} from "@dashboard/lib/client-brand";
+} from "../../src/dashboard/lib/client-brand";
 
 describe("client brand config", () => {
   beforeEach(() => {

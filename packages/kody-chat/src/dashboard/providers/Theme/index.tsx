@@ -70,4 +70,13 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   return <ThemeContext value={{ setTheme, theme }}>{children}</ThemeContext>;
 };
 
+/** Share an embedding host's live theme state with package-owned surfaces. */
+export const KodyThemeBridgeProvider = ({
+  value,
+  children,
+}: {
+  value: ThemeContextType;
+  children: React.ReactNode;
+}) => <ThemeContext value={value}>{children}</ThemeContext>;
+
 export const useTheme = (): ThemeContextType => use(ThemeContext);

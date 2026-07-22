@@ -1,4 +1,4 @@
-import { getBuiltinViewRendererDefinition } from "@dashboard/lib/view-renderers/builtin";
+import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import type {
   GuidedFlowDefinition,
   GuidedFlowStepDefinition,

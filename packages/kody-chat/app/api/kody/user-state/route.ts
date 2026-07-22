@@ -7,10 +7,10 @@
  *   admin page reads. Schemas themselves are not serialized.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { createUserOctokit } from "@dashboard/lib/github-client";
-import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
+import { createUserOctokit } from "../../../../src/dashboard/lib/github-client";
+import { resolveUnifiedActor } from "../../../../src/dashboard/lib/auth/unified-actor";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { getUserStateNamespaces } from "@dashboard/lib/user-state";
+import { getUserStateNamespaces } from "../../../../src/dashboard/lib/user-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

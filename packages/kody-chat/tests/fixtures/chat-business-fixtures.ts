@@ -10,22 +10,22 @@
  *   tools read identically to the dashboard's — only the storage differs.
  */
 import type { Octokit } from "@octokit/rest";
-import type { Macro } from "@dashboard/lib/macros";
-import type { PreviewAction } from "@dashboard/lib/picker/protocol";
-import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
-import type { InboxManifest } from "@dashboard/lib/inbox/types";
+import type { Macro } from "../../src/dashboard/lib/macros";
+import type { PreviewAction } from "../../src/dashboard/lib/picker/protocol";
+import type { ManagedGoalState } from "../../src/dashboard/lib/managed-goals";
+import type { InboxManifest } from "../../src/dashboard/lib/inbox/types";
 import type {
   NotificationsManifest,
   NotificationRule,
-} from "@dashboard/lib/notifications";
+} from "../../src/dashboard/lib/notifications";
 import type {
   CompanyBundle,
   CompanyImportCounts,
   CompanyImportMode,
   CompanyImportResult,
   ParsedCompanyBundle,
-} from "@dashboard/lib/company/types";
-import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";
+} from "../../src/dashboard/lib/company/types";
+import { COMPANY_BUNDLE_VERSION } from "../../src/dashboard/lib/company/types";
 
 // Report fixtures moved to src/dashboard/lib/reports-files.ts — the
 // @dashboard shim the report tools resolve against in the harness.

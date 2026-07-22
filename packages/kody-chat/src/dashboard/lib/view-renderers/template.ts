@@ -15,7 +15,7 @@ import {
   type RenderedViewDataValue,
   type RenderedViewDirective,
   type RenderedViewUiNode,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../chat-ui-actions";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   RendererActionDefaultSchema,

@@ -57,7 +57,7 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
 }));
 
 // Actor verification normally resolves the token via GitHub — keep the test
-// hermetic. The rest of @dashboard/lib/auth (requireKodyAuth, getRequestAuth)
+// hermetic. The rest of the local auth module (requireKodyAuth, getRequestAuth)
 // stays real so header auth + repo context go through the actual code.
 vi.mock("@kody-ade/base/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@kody-ade/base/auth")>();
@@ -84,7 +84,7 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
-vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
+vi.mock("../../src/dashboard/lib/view-renderers/renderers", () => ({
   loadViewRendererContextForPrompt: vi.fn(async () => ({
     rules: null,
     definitions: [],
@@ -131,8 +131,8 @@ vi.mock("ai", async (importOriginal) => {
 });
 
 import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
-import type { ChatToolServerContext } from "@dashboard/lib/chat/platform";
+import { getChatServerToolRegistry } from "../../src/dashboard/lib/chat/platform/server-tools";
+import type { ChatToolServerContext } from "../../src/dashboard/lib/chat/platform";
 
 function makeRequest(): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {

@@ -10,7 +10,7 @@ import {
   hasRecordedSteps,
   pickRecordingResult,
   type RecordingResult,
-} from "@dashboard/lib/picker/recording";
+} from "../../src/dashboard/lib/picker/recording";
 
 describe("pickRecordingResult", () => {
   const empty: RecordingResult = { steps: [], url: "https://preview.test/a" };

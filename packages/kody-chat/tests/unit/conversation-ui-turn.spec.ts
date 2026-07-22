@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prepareUiConversationTurn } from "@dashboard/lib/chat/core/conversation/prepare-ui-turn";
+import { prepareUiConversationTurn } from "../../src/dashboard/lib/chat/core/conversation/prepare-ui-turn";
 
 describe("prepareUiConversationTurn", () => {
   it("makes the new user message primary and old-agent messages background", () => {

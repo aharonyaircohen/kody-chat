@@ -72,7 +72,7 @@ vi.mock("@kody-ade/brain/store", () => brainStore);
 
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => brainFly);
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));

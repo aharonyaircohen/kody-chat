@@ -9,8 +9,8 @@ import {
   parseViewRendererDefinition,
   serializeViewRendererDefinition,
   type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/renderers";
-import { parseViewRendererDefinitionInput } from "@dashboard/lib/view-renderers/definition";
+} from "../../../src/dashboard/lib/view-renderers/renderers";
+import { parseViewRendererDefinitionInput } from "../../../src/dashboard/lib/view-renderers/definition";
 
 describe("view renderer definitions", () => {
   const decisionRenderer: ViewRendererDefinition = {

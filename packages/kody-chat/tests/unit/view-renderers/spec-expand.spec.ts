@@ -6,14 +6,14 @@
  * @domain view-renderers
  */
 import { describe, expect, it } from "vitest";
-import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
-import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../src/dashboard/lib/view-renderers/builtin";
+import { buildChatViewCatalog } from "../../../src/dashboard/lib/view-renderers/spec/catalog";
 import {
   buildChatViewDirective,
   expandChatViewSpec,
-} from "@dashboard/lib/view-renderers/spec/expand";
-import { validateChatViewSpec } from "@dashboard/lib/view-renderers/spec/validate";
-import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+} from "../../../src/dashboard/lib/view-renderers/spec/expand";
+import { validateChatViewSpec } from "../../../src/dashboard/lib/view-renderers/spec/validate";
+import { isRenderedViewDirective } from "../../../src/dashboard/lib/chat-ui-actions";
 
 const catalog = buildChatViewCatalog([...BUILTIN_VIEW_RENDERER_DEFINITIONS]);
 

@@ -15,8 +15,8 @@ import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { useAuth } from "@dashboard/lib/auth-context";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useAuth } from "../auth-context";
 
 export function VercelBypassCard() {
   const { auth, updateIntegrations } = useAuth();

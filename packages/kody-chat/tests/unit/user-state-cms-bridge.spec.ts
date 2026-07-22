@@ -35,12 +35,12 @@ import {
   cmsBridgeUserStateAdapter,
   parseCmsBridgeCollection,
   KODY_USER_ID_FIELD,
-} from "@dashboard/lib/user-state/adapters/cms-bridge";
-import { CORE_USER_STATE_NAMESPACES } from "@dashboard/lib/user-state/namespaces/core";
+} from "../../src/dashboard/lib/user-state/adapters/cms-bridge";
+import { CORE_USER_STATE_NAMESPACES } from "../../src/dashboard/lib/user-state/namespaces/core";
 import type {
   UserStateDoc,
   UserStateNamespace,
-} from "@dashboard/lib/user-state/types";
+} from "../../src/dashboard/lib/user-state/types";
 
 const ctx = { octokit: {} as Octokit, owner: "acme", repo: "shop" };
 const USER = "client:jane@example.com";

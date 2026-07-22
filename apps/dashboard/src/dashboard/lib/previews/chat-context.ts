@@ -1,6 +1,6 @@
 /**
  * @fileType util
- * @domain chat | preview
+ * @domain dashboard | preview
  * @pattern preview-context
  * @ai-summary Formats the active Preview workspace environment into a compact
  * chat context block. This is the extension-free fallback: the inspector can

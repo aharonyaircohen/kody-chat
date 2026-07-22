@@ -1,5 +1,5 @@
-import { getStoredAuth } from "@dashboard/lib/api";
-import { authHeaders } from "./chat/core/kody-chat-live-session";
+import { getStoredAuth } from "./api";
+import { authHeaders } from "./kody-chat-live-session";
 
 export interface AttachmentRef {
   id: string;

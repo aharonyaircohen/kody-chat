@@ -18,14 +18,14 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@kody-ade/base/logger";
-import { invalidateIssueCache } from "@dashboard/lib/github-client";
-import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
-import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
+import { invalidateIssueCache } from "../../../../../src/dashboard/lib/github-client";
+import { readGoalsManifestFresh } from "../../../../../src/dashboard/lib/goals-server";
+import { GOAL_LABEL_PREFIX, type Goal } from "../../../../../src/dashboard/lib/goals";
 import {
   buildManagedGoalState,
   managedGoalPath,
   slugifyManagedGoalId,
-} from "@dashboard/lib/managed-goals";
+} from "../../../../../src/dashboard/lib/managed-goals";
 import {
   listManagedGoalFiles,
   readManagedGoalFile,

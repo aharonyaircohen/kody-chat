@@ -9,8 +9,8 @@
  */
 "use client";
 
-import { SessionSidebar } from "@dashboard/lib/components/SessionSidebar";
-import type { SessionMeta } from "@dashboard/lib/chat-types";
+import { SessionSidebar } from "../../components/SessionSidebar";
+import type { SessionMeta } from "../../chat-types";
 
 interface SessionsPanelProps {
   /** Whether the panel is open (host-owned state). */

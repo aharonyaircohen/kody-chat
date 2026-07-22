@@ -25,7 +25,7 @@ import {
   loadLiveSession,
   saveLiveSession,
   type PersistedLiveSession,
-} from "@kody-ade/kody-chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/kody-chat-live-session";
 
 class MemStorage {
   m = new Map<string, string>();

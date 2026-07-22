@@ -21,8 +21,8 @@ import type {
   PreviewActDirective,
   RenderedViewDirective,
   SwitchAgentDirective,
-} from "@dashboard/lib/chat-ui-actions";
-import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
+} from "../chat-ui-actions";
+import { SHOW_VIEW_TOOL } from "../chat-output-tools";
 import { stripReasoning } from "../chat/core/reasoning";
 import {
   getCreatedIssueNumberFromToolOutput,

@@ -10,7 +10,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   sendKodyDirectTurn,
   type KodyDirectTurnConfig,
-} from "@dashboard/lib/chat/core/transports/kody-direct";
+} from "../../../../src/dashboard/lib/chat/core/transports/kody-direct";
 import {
   sseResponse,
   installScriptedFetch,

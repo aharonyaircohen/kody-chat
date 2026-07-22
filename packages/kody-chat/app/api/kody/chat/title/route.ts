@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, type ModelMessage } from "ai";
 import { requireKodyAuth } from "@kody-ade/base/auth";
-import { stripReasoning } from "@dashboard/lib/chat/core/reasoning";
+import { stripReasoning } from "../../../../../src/dashboard/lib/chat/core/reasoning";
 import { resolveChatModel } from "../resolve-model";
 
 export const runtime = "nodejs";

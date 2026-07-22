@@ -25,12 +25,12 @@ import { logger } from "@kody-ade/base/logger";
 import {
   verifyPluginToolsBearer,
   type PluginToolsScope,
-} from "@dashboard/lib/chat/platform/plugin-tools-config";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+} from "../../../../../../src/dashboard/lib/chat/platform/plugin-tools-config";
+import { getChatServerToolRegistry } from "../../../../../../src/dashboard/lib/chat/platform/server-tools";
 import {
   ChatToolRegistrationError,
   type ChatToolServerContext,
-} from "@dashboard/lib/chat/platform/tools";
+} from "../../../../../../src/dashboard/lib/chat/platform/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

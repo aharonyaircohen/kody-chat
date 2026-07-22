@@ -16,13 +16,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useVoiceChat, type UseVoiceChatReturn } from "@dashboard/lib/hooks/useVoiceChat";
-import { extractSentences } from "@dashboard/lib/speech-helpers";
+import { useVoiceChat, type UseVoiceChatReturn } from "../hooks/useVoiceChat";
+import { extractSentences } from "../speech-helpers";
 import {
   DEFAULT_VOICE_ID,
   loadVoicePreference,
   saveVoicePreference,
-} from "@dashboard/lib/voice/voices";
+} from "../voice/voices";
 import type { SendTextFn } from "./kody-chat-send";
 
 export interface UseVoiceOrchestrationOptions {

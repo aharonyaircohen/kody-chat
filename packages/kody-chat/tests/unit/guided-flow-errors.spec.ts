@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guidedFlowActionErrorMessage } from "@dashboard/lib/guided-flows/errors";
+import { guidedFlowActionErrorMessage } from "../../src/dashboard/lib/guided-flows/errors";
 
 describe("guided flow action errors", () => {
   it("turns validation failures into an actionable message", () => {

@@ -5,7 +5,7 @@ import {
   hasPreviewAuthParams,
   rebasePreviewAuthUrl,
   stripPreviewAuthParams,
-} from "@dashboard/lib/preview-auth-url";
+} from "../../src/dashboard/lib/preview-auth-url";
 
 describe("preview auth URL helpers", () => {
   it("keeps the ticket on clean same-origin Fly URLs learned from the iframe", () => {

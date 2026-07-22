@@ -35,7 +35,7 @@ const act = vi.hoisted(() => ({ recordAudit: vi.fn() }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@kody-ade/base/vault/crypto", () => cfg);
-vi.mock("@dashboard/lib/activity/audit", () => act);
+vi.mock("../../src/dashboard/lib/activity/audit", () => act);
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));

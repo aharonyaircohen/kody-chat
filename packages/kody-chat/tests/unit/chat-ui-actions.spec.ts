@@ -11,7 +11,7 @@ import {
   getRenderedViewUi,
   isDashboardNavigateDirective,
   isRenderedViewDirective,
-} from "@dashboard/lib/chat-ui-actions";
+} from "../../src/dashboard/lib/chat-ui-actions";
 
 describe("isDashboardNavigateDirective", () => {
   it("accepts internal dashboard navigation directives", () => {

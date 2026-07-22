@@ -12,9 +12,9 @@ import {
   parseCtoAction,
   parseCtoCommand,
   detectCtoRecommendation,
-} from "@dashboard/lib/cto/recommendation";
-import { buildSnippet } from "@dashboard/lib/inbox/types";
-import type { InboxEntry } from "@dashboard/lib/inbox/types";
+} from "../../src/dashboard/lib/cto/recommendation";
+import { buildSnippet } from "../../src/dashboard/lib/inbox/types";
+import type { InboxEntry } from "../../src/dashboard/lib/inbox/types";
 
 const REPO = "acme/widgets";
 

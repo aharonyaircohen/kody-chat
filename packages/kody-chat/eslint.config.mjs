@@ -135,9 +135,7 @@ export default [
     ],
     plugins: { import: importPlugin },
     settings: {
-      // Resolve .ts/.tsx so the relative-path layer zones fire. Alias-form
-      // imports (@dashboard/...) are enforced by the per-layer
-      // no-restricted-imports blocks below — no extra resolver dependency.
+      // Resolve .ts/.tsx so the relative-path layer zones fire.
       "import/resolver": {
         node: { extensions: [".js", ".ts", ".tsx"] },
       },
@@ -169,7 +167,7 @@ export default [
   },
   {
     // Layer zones, alias form. no-restricted-paths only sees resolvable
-    // relative imports; these blocks close the @dashboard/@ alias route.
+    // relative imports; these blocks close the application alias route.
     name: "chat-core-alias-zones",
     files: [
       "src/dashboard/lib/chat/core/**/*.ts",
@@ -182,28 +180,24 @@ export default [
           patterns: [
             {
               group: [
-                "@dashboard/lib/chat/surface*",
                 "@/dashboard/lib/chat/surface*",
               ],
               message: "core must not import surface",
             },
             {
               group: [
-                "@dashboard/lib/chat/plugins*",
                 "@/dashboard/lib/chat/plugins*",
               ],
               message: "core must not import plugins",
             },
             {
               group: [
-                "@dashboard/lib/chat/platform*",
                 "@/dashboard/lib/chat/platform*",
               ],
               message: "core must not import platform",
             },
             {
               group: [
-                "@dashboard/lib/components*",
                 "@/dashboard/lib/components*",
               ],
               message: "core must not import components",
@@ -226,21 +220,18 @@ export default [
           patterns: [
             {
               group: [
-                "@dashboard/lib/chat/surface*",
                 "@/dashboard/lib/chat/surface*",
               ],
               message: "platform must not import surface",
             },
             {
               group: [
-                "@dashboard/lib/chat/plugins*",
                 "@/dashboard/lib/chat/plugins*",
               ],
               message: "platform must not import plugins",
             },
             {
               group: [
-                "@dashboard/lib/components*",
                 "@/dashboard/lib/components*",
               ],
               message: "platform must not import components",
@@ -262,15 +253,13 @@ export default [
         {
           patterns: [
             {
-              group: CHAT_PLUGIN_DIRS.filter((d) => d !== dir).flatMap((d) => [
-                `@dashboard/lib/chat/plugins/${d}*`,
-                `@/dashboard/lib/chat/plugins/${d}*`,
-              ]),
+              group: CHAT_PLUGIN_DIRS.filter((d) => d !== dir).map(
+                (d) => `@/dashboard/lib/chat/plugins/${d}*`,
+              ),
               message: `plugins must not import sibling plugins (${dir})`,
             },
             {
               group: [
-                "@dashboard/lib/chat/core/kody-chat-reducer*",
                 "@/dashboard/lib/chat/core/kody-chat-reducer*",
               ],
               message:

@@ -5,8 +5,8 @@
  * derivation, ordering, and the session cap.
  */
 import { describe, expect, it } from "vitest";
-import { buildFeedSnapshot } from "@dashboard/lib/activity/feed";
-import type { EventLogEntry } from "@dashboard/lib/kody-store/event-log";
+import { buildFeedSnapshot } from "../../src/dashboard/lib/activity/feed";
+import type { EventLogEntry } from "../../src/dashboard/lib/kody-store/event-log";
 
 const NOW = Date.parse("2026-05-17T12:00:00Z");
 

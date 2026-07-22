@@ -30,11 +30,11 @@ import {
   Target,
   X,
 } from "lucide-react";
-import type { AgentConfig, AgentId } from "@dashboard/lib/agents";
-import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
+import type { AgentConfig, AgentId } from "../../agents";
+import { RepoScopedLink } from "../../components/RepoScopedLink";
 import type { ChatDropdownEntry } from "../platform/agent-entries";
 import type { ModelReasoning } from "../core/reasoning-adapter";
-import { writeReasoningEffort } from "../core/reasoning-pref";
+import { writeReasoningEffort } from "../../reasoning-pref";
 import type { KodyTask } from "@kody-ade/base/types";
 import { ChatPluginSlot } from "./ChatPluginProvider";
 

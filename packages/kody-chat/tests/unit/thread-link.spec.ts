@@ -11,7 +11,7 @@ import {
   dashboardTaskUrl,
   dashboardThreadUrl,
   dashboardTodoUrl,
-} from "@dashboard/lib/thread-link";
+} from "../../src/dashboard/lib/thread-link";
 
 describe("dashboard link helpers", () => {
   it("builds internal links for task and file resources", () => {

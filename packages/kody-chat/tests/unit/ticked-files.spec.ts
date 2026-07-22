@@ -9,7 +9,7 @@
  * the strip in place. Pure logic — no GitHub calls.
  */
 import { describe, it, expect } from "vitest";
-import { parseTickedMarkdown } from "@dashboard/lib/ticked/files";
+import { parseTickedMarkdown } from "../../src/dashboard/lib/ticked/files";
 
 describe("parseTickedMarkdown", () => {
   it("strips the title H1 from the body when a frontmatter block precedes it", () => {

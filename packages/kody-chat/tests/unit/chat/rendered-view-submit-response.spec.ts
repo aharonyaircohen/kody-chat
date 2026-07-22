@@ -13,8 +13,8 @@ import {
   buildSubmitResponse,
   hasCheckboxNodes,
   validateGuidedFlowInput,
-} from "@dashboard/lib/chat/surface/RenderedViewCard";
-import type { RenderedViewUiNode } from "@dashboard/lib/chat-ui-actions";
+} from "../../../src/dashboard/lib/chat/surface/RenderedViewCard";
+import type { RenderedViewUiNode } from "../../../src/dashboard/lib/chat-ui-actions";
 
 const approvalCard: RenderedViewUiNode = {
   type: "stack",

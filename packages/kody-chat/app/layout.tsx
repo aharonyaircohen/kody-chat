@@ -16,8 +16,8 @@ import { Toaster } from "@kody-ade/base/ui/toaster";
 import {
   defaultTheme,
   themeLocalStorageKey,
-} from "@dashboard/providers/Theme/shared";
-import "@dashboard/globals.css";
+} from "../src/dashboard/providers/Theme/shared";
+import "../src/dashboard/globals.css";
 
 const assistant = Assistant({
   subsets: ["latin", "hebrew"],

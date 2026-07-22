@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ENGINE_DEFAULT_SYSTEM_PROMPT } from "@dashboard/lib/system-prompt/engine-default";
+import { ENGINE_DEFAULT_SYSTEM_PROMPT } from "../../../src/dashboard/lib/system-prompt/engine-default";
 
 describe("engine default system prompt", () => {
   it("keeps clarifying questions conditional, not mandatory (regression: over-asking)", () => {

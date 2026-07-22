@@ -11,8 +11,8 @@
  */
 "use client";
 
-import { useAuth } from "@dashboard/lib/auth-context";
-import { RepoManager } from "@dashboard/lib/components/RepoManager";
+import { useAuth } from "./auth-context";
+import { RepoManager } from "./components/RepoManager";
 import { Loader2 } from "lucide-react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {

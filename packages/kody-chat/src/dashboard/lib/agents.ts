@@ -184,7 +184,7 @@ export const AGENT_KODY: AgentConfig = {
     "Reply in under a second to first token (no Actions cold start)",
   ],
   // The actual system prompt is composed at runtime from the chat-defaults
-  // bundle (`@dashboard/lib/chat-defaults`). The agentIdentity + workflows + skills
+  // bundle (`chat-defaults`). The agentIdentity + workflows + skills
   // + tool allowlist are data, not source. The string below is a placeholder
   // for any code path that still reads `agent.systemPrompt` directly — the
   // kody-direct route composes the real prompt via `composeBasePrompt(bundle)`.
@@ -254,7 +254,7 @@ export const AGENT_KODY_LIVE_FLY: AgentConfig = {
     "Inherits the engine chat prompt — see kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT.",
 };
 
-// Voice overlay lives in @dashboard/lib/voice/overlay — re-exported here
+// Voice overlay lives in the Dashboard voice module — re-exported here
 // for the small number of legacy callers that still import it via this
 // module. Prefer importing from voice/overlay directly in new code.
 export { VOICE_OVERLAY_PROMPT, applyVoiceOverlay } from "./voice/overlay";

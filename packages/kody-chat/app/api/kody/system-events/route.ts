@@ -10,8 +10,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { ensureTriggerStateWriter } from "@dashboard/lib/user-state";
+import { resolveUnifiedActor } from "../../../../src/dashboard/lib/auth/unified-actor";
+import { ensureTriggerStateWriter } from "../../../../src/dashboard/lib/user-state";
 import { emitSystemEvent, isSystemEventName } from "@kody-ade/base/events";
 import type { SystemEventPayload, SystemEventName } from "@kody-ade/base/events";
 

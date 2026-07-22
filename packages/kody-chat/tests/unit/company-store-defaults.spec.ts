@@ -5,9 +5,9 @@ const githubClient = vi.hoisted(() => ({
   getStoreRepoUrl: vi.fn(() => null),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => githubClient);
+vi.mock("../../src/dashboard/lib/github-client", () => githubClient);
 
-import { getCompanyStoreTarget } from "@dashboard/lib/company-store/assets";
+import { getCompanyStoreTarget } from "../../src/dashboard/lib/company-store/assets";
 
 describe("Company Store defaults", () => {
   beforeEach(() => {

@@ -18,7 +18,7 @@ import {
 import {
   clearGitHubContext,
   setGitHubContext,
-} from "@dashboard/lib/github-client";
+} from "../../../../../src/dashboard/lib/github-client";
 import {
   deleteLanguageFile,
   readLanguageFile,
@@ -29,7 +29,7 @@ import {
   isValidLanguageCode,
   normalizeClientLanguageCode,
 } from "../../../../../src/dashboard/lib/client-language";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../../src/dashboard/lib/activity/audit";
 
 const updateLanguageSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),

@@ -24,8 +24,8 @@
  *   - Model download / inference throws
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { stripMarkdown, detectLanguage } from "@dashboard/lib/speech-helpers";
-import { DEFAULT_VOICE_ID } from "@dashboard/lib/voice/voices";
+import { stripMarkdown, detectLanguage } from "../speech-helpers";
+import { DEFAULT_VOICE_ID } from "../voice/voices";
 import { useKodyTTS, type UseKodyTTSReturn } from "./useKodyTTS";
 
 export interface UseKodyTTSPiperReturn extends UseKodyTTSReturn {

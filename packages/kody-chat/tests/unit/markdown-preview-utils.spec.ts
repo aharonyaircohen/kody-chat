@@ -5,7 +5,7 @@ import {
   extractCodeLanguage,
   slugifyHeading,
   stripCalloutMarker,
-} from "@dashboard/lib/markdown-preview-utils";
+} from "../../src/dashboard/lib/markdown-preview-utils";
 
 describe("markdown preview utilities", () => {
   it("extracts fenced code languages from react-markdown class names", () => {

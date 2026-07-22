@@ -4,13 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildAuthHeaders,
   type KodyAuth,
-} from "@dashboard/lib/auth-context";
+} from "../auth-context";
 import {
   MAX_NAVIGATION_FAVORITES,
   normalizeFavoriteHrefs,
   toggleFavoriteHref,
   type NavigationFavoriteItem,
-} from "@dashboard/lib/navigation-favorites";
+} from "../navigation-favorites";
 
 interface NavigationFavoritesResponse {
   favoriteHrefs?: unknown;

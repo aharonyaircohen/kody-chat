@@ -5,7 +5,7 @@ const github = vi.hoisted(() => ({
   createUserOctokit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   createUserOctokit: github.createUserOctokit,
 }));
 

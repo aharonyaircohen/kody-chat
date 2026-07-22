@@ -31,7 +31,7 @@ vi.mock("@kody-ade/backend/client", () => ({
 vi.mock("@kody-ade/base/company-store/assets", async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import("@dashboard/lib/company-store/assets")
+      typeof import("../../../src/dashboard/lib/company-store/assets")
     >();
   return {
     ...actual,

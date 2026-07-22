@@ -3,12 +3,12 @@
  * @domain view-renderers
  */
 import { describe, expect, it } from "vitest";
-import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/renderers";
 import {
   shouldAllowPreRenderToolCallsForTurn,
   shouldRequireViewOutputForAssistantText,
   shouldRequireViewOutputForTurn,
-} from "@dashboard/lib/view-renderers/chat-intent";
+} from "../../../src/dashboard/lib/view-renderers/chat-intent";
 
 describe("view renderer chat intent", () => {
   const choiceRenderer: ViewRendererDefinition = {

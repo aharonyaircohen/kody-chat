@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   mintSessionToken,
   verifySessionToken,
-} from "@dashboard/lib/chat-token";
+} from "../../src/dashboard/lib/chat-token";
 
 let savedKey: string | undefined;
 

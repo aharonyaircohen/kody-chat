@@ -7,12 +7,12 @@ vi.mock("@kody-ade/base/logger", () => ({
   },
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   invalidateIssueCache: vi.fn(),
   invalidatePRCache: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/capabilities", () => ({
+vi.mock("../../src/dashboard/lib/capabilities", () => ({
   isValidSlug: vi.fn((slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)),
 }));
 

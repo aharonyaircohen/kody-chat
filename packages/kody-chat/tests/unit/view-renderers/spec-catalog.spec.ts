@@ -6,14 +6,14 @@
  * @domain view-renderers
  */
 import { describe, expect, it } from "vitest";
-import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../src/dashboard/lib/view-renderers/builtin";
 import {
   buildChatViewCatalog,
   buildShowViewInputJsonSchema,
   componentNameForSlug,
-} from "@dashboard/lib/view-renderers/spec/catalog";
-import { validateChatViewSpec } from "@dashboard/lib/view-renderers/spec/validate";
-import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/definition";
+} from "../../../src/dashboard/lib/view-renderers/spec/catalog";
+import { validateChatViewSpec } from "../../../src/dashboard/lib/view-renderers/spec/validate";
+import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/definition";
 
 const catalog = buildChatViewCatalog([...BUILTIN_VIEW_RENDERER_DEFINITIONS]);
 

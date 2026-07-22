@@ -25,13 +25,13 @@ vi.mock("@kody-ade/backend/client", () => ({
   }),
 }));
 
-import { userFileKey } from "@dashboard/lib/user-state/user-key";
+import { userFileKey } from "../../src/dashboard/lib/user-state/user-key";
 import {
   convexUserStateAdapter,
   _resetUserStateDocCache,
-} from "@dashboard/lib/user-state/adapters/convex";
-import { CORE_USER_STATE_NAMESPACES } from "@dashboard/lib/user-state/namespaces/core";
-import type { UserStateDoc } from "@dashboard/lib/user-state/types";
+} from "../../src/dashboard/lib/user-state/adapters/convex";
+import { CORE_USER_STATE_NAMESPACES } from "../../src/dashboard/lib/user-state/namespaces/core";
+import type { UserStateDoc } from "../../src/dashboard/lib/user-state/types";
 
 const ctx = { octokit: {} as Octokit, owner: "acme", repo: "shop" };
 const selections = CORE_USER_STATE_NAMESPACES.find(

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getStoredAuth } from "@dashboard/lib/api";
 import type {
   AgencyAgentIdentity,
   ChatMessage,
   SessionMeta,
-} from "@dashboard/lib/chat-types";
+} from "../../../chat-types";
 import type { ConversationCheckpoint } from "../conversation-compaction";
 import {
-  conversationClient as defaultConversationClient,
   createConversationClient,
   type ConversationCommand,
 } from "./conversation-client";
@@ -54,10 +52,6 @@ export interface UseConversationSessionsResult {
     sessionId: string,
     checkpoint: ConversationCheckpoint,
   ) => void;
-}
-
-function actorLogin(): string | null {
-  return getStoredAuth()?.userLogin ?? null;
 }
 
 function runtimeForAgentKey(agentKey?: string) {
@@ -114,12 +108,10 @@ function sessionFromList(value: Record<string, unknown>): SessionMeta {
 export function useConversationSessions(
   scope: ChatSessionScope = "global",
   requestHeaders?: Record<string, string>,
+  actorLogin: string | null = null,
 ): UseConversationSessionsResult {
   const conversationClient = useMemo(
-    () =>
-      requestHeaders
-        ? createConversationClient(requestHeaders)
-        : defaultConversationClient,
+    () => createConversationClient(requestHeaders ?? {}),
     [requestHeaders],
   );
   const [hydrated, setHydrated] = useState(false);
@@ -157,7 +149,7 @@ export function useConversationSessions(
       ...previous,
       [conversationId]: mapped.messages,
     }));
-  }, []);
+  }, [conversationClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +187,7 @@ export function useConversationSessions(
     return () => {
       cancelled = true;
     };
-  }, [loadDetail, scope]);
+  }, [conversationClient, loadDetail, scope]);
 
   const orderedSessions = useMemo(
     () =>
@@ -218,7 +210,7 @@ export function useConversationSessions(
       const id = crypto.randomUUID();
       locallyCreatedSessionIdsRef.current.add(id);
       const now = new Date().toISOString();
-      const login = actorLogin();
+      const login = actorLogin;
       const session: SessionMeta = {
         id,
         title: "New conversation",
@@ -250,12 +242,12 @@ export function useConversationSessions(
       }
       return id;
     },
-    [persist, scope],
+    [actorLogin, conversationClient, persist, scope],
   );
 
   const persistMessageChanges = useCallback(
     (session: SessionMeta, previous: ChatMessage[], next: ChatMessage[]) => {
-      const login = actorLogin();
+      const login = actorLogin;
       if (!login) return;
       for (const change of reconcileConversationMessages(previous, next)) {
         const message = change.message;
@@ -293,7 +285,7 @@ export function useConversationSessions(
         persist(conversationClient.command(session.id, command));
       }
     },
-    [persist],
+    [actorLogin, conversationClient, persist],
   );
 
   const persistUserMessage = useCallback(
@@ -301,7 +293,7 @@ export function useConversationSessions(
       sessionId: string,
       message: ChatMessage & { id: string; role: "user" },
     ) => {
-      const login = actorLogin();
+      const login = actorLogin;
       if (!login)
         throw new Error("Conversation save requires a signed-in user");
       try {
@@ -327,7 +319,7 @@ export function useConversationSessions(
         throw error;
       }
     },
-    [],
+    [actorLogin, conversationClient],
   );
 
   const setSessionMessages = useCallback(
@@ -388,7 +380,7 @@ export function useConversationSessions(
       );
       persist(conversationClient.updateMetadata(sessionId, { title }));
     },
-    [persist],
+    [conversationClient, persist],
   );
 
   const deleteSession = useCallback(
@@ -408,7 +400,7 @@ export function useConversationSessions(
       });
       persist(conversationClient.remove(sessionId));
     },
-    [activeSessionId, persist],
+    [activeSessionId, conversationClient, persist],
   );
 
   const pinSession = useCallback(
@@ -423,7 +415,7 @@ export function useConversationSessions(
       );
       persist(conversationClient.updateMetadata(sessionId, { pinned }));
     },
-    [persist],
+    [conversationClient, persist],
   );
 
   const clearActiveSession = useCallback(() => {
@@ -432,7 +424,7 @@ export function useConversationSessions(
       ...previous,
       [activeSessionId]: [],
     }));
-    const login = actorLogin();
+    const login = actorLogin;
     if (login) {
       persist(
         conversationClient.command(activeSessionId, {
@@ -441,7 +433,7 @@ export function useConversationSessions(
         }),
       );
     }
-  }, [activeSessionId, persist]);
+  }, [activeSessionId, actorLogin, conversationClient, persist]);
 
   const setSessionAgent = useCallback(
     (sessionId: string, agentKey: string) => {
@@ -450,7 +442,7 @@ export function useConversationSessions(
           session.id === sessionId ? { ...session, agentKey } : session,
         ),
       );
-      const login = actorLogin();
+      const login = actorLogin;
       if (login) {
         persist(
           conversationClient.command(sessionId, {
@@ -462,7 +454,7 @@ export function useConversationSessions(
         );
       }
     },
-    [persist],
+    [actorLogin, conversationClient, persist],
   );
 
   const setSessionAgencyAgent = useCallback(
@@ -497,7 +489,7 @@ export function useConversationSessions(
             : item,
         ),
       );
-      const login = actorLogin();
+      const login = actorLogin;
       if (login && session.messageCount > 0) {
         persist(
           conversationClient.command(sessionId, {
@@ -521,7 +513,7 @@ export function useConversationSessions(
         );
       }
     },
-    [persist],
+    [actorLogin, conversationClient, persist],
   );
 
   const setSessionCheckpoint = useCallback(
@@ -533,7 +525,7 @@ export function useConversationSessions(
             : session,
         ),
       );
-      const login = actorLogin();
+      const login = actorLogin;
       const session = sessionsRef.current.find((item) => item.id === sessionId);
       if (login) {
         persist(
@@ -550,7 +542,7 @@ export function useConversationSessions(
         );
       }
     },
-    [persist],
+    [actorLogin, conversationClient, persist],
   );
 
   return {

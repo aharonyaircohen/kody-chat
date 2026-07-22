@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
+import { getClientSurfaceCatalog } from "../../src/dashboard/lib/client-chat-strings";
 
 describe("client surface string catalog", () => {
   it("produces the exact pre-catalog en strings (byte-identical contract)", () => {

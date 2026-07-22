@@ -15,7 +15,7 @@ import {
   NOTIFICATION_EVENTS,
   slugifyRuleName,
   uniqueRuleId,
-} from "@dashboard/lib/notifications";
+} from "../../../../../src/dashboard/lib/notifications";
 import {
   mutateNotificationsManifest,
   readNotificationsManifestFresh,

@@ -10,11 +10,11 @@ const h = vi.hoisted(() => ({
   setUserState: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/user-state/service", () => ({
+vi.mock("../../src/dashboard/lib/user-state/service", () => ({
   setUserState: h.setUserState,
 }));
 
-import { ensureTriggerStateWriter } from "@dashboard/lib/user-state/trigger-writer";
+import { ensureTriggerStateWriter } from "../../src/dashboard/lib/user-state/trigger-writer";
 import { getTriggerStateWriter } from "@kody-ade/base/triggers";
 
 beforeEach(() => {

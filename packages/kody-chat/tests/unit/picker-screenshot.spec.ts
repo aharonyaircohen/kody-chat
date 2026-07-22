@@ -12,7 +12,7 @@ import {
   constrainScreenshotSize,
   extensionForMimeType,
   getDataUrlMimeType,
-} from "@dashboard/lib/picker/screenshot";
+} from "../../src/dashboard/lib/picker/screenshot";
 
 describe("constrainScreenshotSize", () => {
   it("leaves small screenshots unchanged", () => {

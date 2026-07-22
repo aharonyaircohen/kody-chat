@@ -14,9 +14,9 @@ import {
   getStatusFromBranch,
   fetchWorkflowRuns,
   fetchOpenPRs,
-} from "@dashboard/lib/github-client";
+} from "../../../../../src/dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
+import { dashboardTaskUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   owner: string;

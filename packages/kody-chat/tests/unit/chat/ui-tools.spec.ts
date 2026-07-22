@@ -8,9 +8,9 @@ import { createUiTools } from "../../../app/api/kody/chat/tools/ui-tools";
 import {
   FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
-} from "@dashboard/lib/chat-output-tools";
-import { DASHBOARD_NAVIGATE_DIRECTIVE } from "@dashboard/lib/chat-ui-actions";
-import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
+} from "../../../src/dashboard/lib/chat-output-tools";
+import { DASHBOARD_NAVIGATE_DIRECTIVE } from "../../../src/dashboard/lib/chat-ui-actions";
+import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/renderers";
 
 describe("ui tools", () => {
   const decisionRenderer: ViewRendererDefinition = {

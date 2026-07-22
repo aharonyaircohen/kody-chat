@@ -12,7 +12,7 @@ import {
   requireKodyAuth,
 } from "@kody-ade/base/auth";
 import { mutateTriggers } from "@kody-ade/base/triggers";
-import { recordAudit } from "@dashboard/lib/activity/audit";
+import { recordAudit } from "../../../../../src/dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

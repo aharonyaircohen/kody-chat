@@ -20,14 +20,14 @@ import {
   Palette,
   SlashSquare,
 } from "lucide-react";
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
-import { ChatShell } from "@dashboard/lib/components/ChatShell";
+import { AuthGuard } from "../../src/dashboard/lib/auth-guard";
+import { PageViewTracker } from "../../src/dashboard/lib/events/PageViewTracker";
+import { ChatShell } from "../../src/dashboard/lib/components/ChatShell";
 import type {
   SettingsNavItem,
   SettingsNavSection,
-} from "@dashboard/lib/components/settings-nav";
-import { commandsChatPlugin } from "@dashboard/lib/chat/plugins/commands";
+} from "../../src/dashboard/lib/components/settings-nav";
+import { commandsChatPlugin } from "../../src/dashboard/lib/chat/plugins/commands";
 
 const CHAT_HOME: SettingsNavItem = {
   href: "/",

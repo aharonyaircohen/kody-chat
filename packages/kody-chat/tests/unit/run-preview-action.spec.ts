@@ -23,12 +23,12 @@ import {
   runPreviewAction,
   directiveToAction,
   type RunPreviewActionDeps,
-} from "@dashboard/lib/picker/run-preview-action";
-import type { PreviewActDirective } from "@dashboard/lib/chat-ui-actions";
+} from "../../src/dashboard/lib/picker/run-preview-action";
+import type { PreviewActDirective } from "../../src/dashboard/lib/chat-ui-actions";
 import type {
   PreviewAction,
   PreviewActResult,
-} from "@dashboard/lib/picker/protocol";
+} from "../../src/dashboard/lib/picker/protocol";
 
 const directive = (
   partial: Partial<PreviewActDirective> & { op: PreviewActDirective["op"] },

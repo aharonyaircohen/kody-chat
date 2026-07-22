@@ -3,7 +3,7 @@ import {
   ConversationClient,
   createConversationClient,
   type ConversationCommand,
-} from "@dashboard/lib/chat/core/conversation/conversation-client";
+} from "../../src/dashboard/lib/chat/core/conversation/conversation-client";
 
 describe("ConversationClient", () => {
   const fetcher = vi.fn<typeof fetch>();

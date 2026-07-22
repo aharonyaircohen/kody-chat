@@ -45,8 +45,8 @@ import {
   isValidAgentId,
   type AgentConfig,
   type AgentId,
-} from "@dashboard/lib/agents";
-import { applyVoiceOverlay } from "@dashboard/lib/voice/overlay";
+} from "../../../../../src/dashboard/lib/agents";
+import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overlay";
 import {
   requireKodyAuth,
   getRequestAuth,
@@ -58,7 +58,7 @@ import {
   createUserOctokit,
   setGitHubContext,
   clearGitHubContext,
-} from "@dashboard/lib/github-client";
+} from "../../../../../src/dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { emitSystemEvent } from "@kody-ade/base/events";
 import { ensureTriggerStateWriter } from "@kody-ade/kody-chat/user-state";
@@ -66,7 +66,7 @@ import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   resolveClientBrand,
   type ClientBrand,
-} from "@dashboard/lib/client-brand";
+} from "../../../../../src/dashboard/lib/client-brand";
 import { resolveChatModel } from "../resolve-model";
 import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
 import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat/core/attachment-text";
@@ -84,7 +84,7 @@ import {
   filterToolsByAllowlist,
   buildToolIndex,
   CRITICAL_REMINDERS_MD,
-} from "@dashboard/lib/chat-defaults";
+} from "../../../../../src/dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
@@ -111,17 +111,17 @@ import {
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
-} from "@dashboard/lib/chat-output-tools";
-import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+} from "../../../../../src/dashboard/lib/chat-output-tools";
+import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat/core/provider-capabilities";
-import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
-import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
-import { buildViewComponentRules } from "@dashboard/lib/view-renderers/spec/prompt";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
+import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
+import { buildViewComponentRules } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
 import {
   shouldAllowPreRenderToolCallsForTurn,
   shouldRequireViewOutputForTurn,
-} from "@dashboard/lib/view-renderers/chat-intent";
+} from "../../../../../src/dashboard/lib/view-renderers/chat-intent";
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
@@ -151,7 +151,7 @@ import {
 import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/renderers";
+} from "../../../../../src/dashboard/lib/view-renderers/renderers";
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { loadGuidanceForPrompt } from "@kody-ade/workspace/guidance/files";
@@ -160,11 +160,11 @@ import { ensureKodyRuntimeInitialized } from "./runtime-init";
 import {
   isValidSlug as isValidAgentSlug,
   listResolvedAgentFiles,
-} from "@dashboard/lib/agent-files";
+} from "../../../../../src/dashboard/lib/agent-files";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
-} from "@dashboard/lib/agent-chat-identity";
+} from "../../../../../src/dashboard/lib/agent-chat-identity";
 import {
   buildAgentHandoffPrompt,
   buildPreviousAgentContextPrompt,

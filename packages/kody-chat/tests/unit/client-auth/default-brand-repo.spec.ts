@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
+import { defaultClientBrandRepoContext } from "../../../src/dashboard/lib/client-brand-default-repo";
 
 const ORIGINAL = process.env.KODY_CLIENT_BRAND_REPO;
 

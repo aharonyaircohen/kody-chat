@@ -28,7 +28,7 @@ vi.mock("@kody-ade/brain/store", () => ({
   writeBrainApp: (...args: unknown[]) => writeBrainApp(...args),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("../../src/dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));
@@ -47,7 +47,7 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: (...args: unknown[]) => loadContextForPrompt(...args),
 }));
 
-vi.mock("@dashboard/lib/agent-files", () => ({
+vi.mock("../../src/dashboard/lib/agent-files", () => ({
   readResolvedAgentFile: (...args: unknown[]) => readResolvedAgentFile(...args),
 }));
 

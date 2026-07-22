@@ -5,7 +5,7 @@ import {
   renderInstantJobComment,
   InvalidKodyJobError,
   type KodyJob,
-} from "@dashboard/lib/kody-job";
+} from "../../src/dashboard/lib/kody-job";
 
 describe("KodyJob capability dispatch boundary", () => {
   it("assembles a capability run", () => {

@@ -12,7 +12,7 @@
  *   in the first place.
  */
 
-import type { ModelReasoning } from "./reasoning-adapter";
+import type { ModelReasoning } from "./chat/core/reasoning-adapter";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 
 const REASONING_EFFORT_KEY_BASE = "kody-reasoning-effort";

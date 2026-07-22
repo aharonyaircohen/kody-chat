@@ -8,12 +8,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentList,
   type ChatModelEntry,
-} from "@dashboard/lib/chat/platform/agent-entries";
-import { AGENTS } from "@dashboard/lib/agents";
+} from "../../src/dashboard/lib/chat/platform/agent-entries";
+import { AGENTS } from "../../src/dashboard/lib/agents";
 import {
   FALLBACK_REASONING,
   resolveReasoning,
-} from "@dashboard/lib/chat/core/reasoning-adapter";
+} from "../../src/dashboard/lib/chat/core/reasoning-adapter";
 
 const model = (
   over: Partial<ChatModelEntry> & { id: string },

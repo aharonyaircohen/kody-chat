@@ -19,7 +19,7 @@
  *     down as a KodyChat prop (frozen ChatRailApi contract, plan H4).
  *   - `ChatSessionScope = 'vibe-default'` (canonical conversation surface)
  *     and the live-runner scope keys `vibe-<issue>`/`vibe-default`
- *     (chat/core/kody-chat-live-session.ts `getLiveScopeKey`).
+ *     (`kody-chat-live-session.ts` `getLiveScopeKey`).
  *   - Display mode: the host FORCES "ai" while in vibe (platform
  *     `resolveDisplayMode(_, "ai")`) — vibe declares no display mode, so
  *     vibe-suppresses-terminal never becomes a plugin→plugin import.

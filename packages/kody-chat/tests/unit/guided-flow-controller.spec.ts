@@ -5,7 +5,7 @@ import {
   createGuidedFlowInstance,
   goBackGuidedFlow,
   type GuidedFlowDefinition,
-} from "@dashboard/lib/guided-flows/controller";
+} from "../../src/dashboard/lib/guided-flows/controller";
 
 const DEFINITION: GuidedFlowDefinition = {
   id: "example-flow",

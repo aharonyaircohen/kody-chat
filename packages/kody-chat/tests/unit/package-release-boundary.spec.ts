@@ -1,15 +1,52 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const packageRoot = resolve(__dirname, "../..");
 const releaseRoot = resolve(packageRoot, "library");
+const chatCoreRoot = resolve(packageRoot, "src/dashboard/lib/chat/core");
+const productionRoots = [
+  resolve(packageRoot, "app"),
+  resolve(packageRoot, "src"),
+];
+const dashboardImportPrefix = ["@dashboard", "/"].join("");
 
 function readReleaseFile(path: string): string {
   return readFileSync(resolve(releaseRoot, path), "utf8");
 }
 
+function readSourceTree(directory: string): string {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) return [readSourceTree(path)];
+      return /\.(?:ts|tsx)$/.test(entry.name)
+        ? [readFileSync(path, "utf8")]
+        : [];
+    })
+    .join("\n");
+}
+
 describe("external package boundary", () => {
+  it("exposes host context bridges so embedded surfaces use the host's live state", () => {
+    const authContext = readFileSync(
+      resolve(packageRoot, "src/dashboard/lib/auth-context.tsx"),
+      "utf8",
+    );
+    const themeContext = readFileSync(
+      resolve(packageRoot, "src/dashboard/providers/Theme/index.tsx"),
+      "utf8",
+    );
+    const kodyChat = readFileSync(
+      resolve(packageRoot, "src/dashboard/lib/components/KodyChat.tsx"),
+      "utf8",
+    );
+
+    expect(authContext).toContain("export function KodyAuthBridgeProvider");
+    expect(themeContext).toContain("export const KodyThemeBridgeProvider");
+    expect(kodyChat).toContain("actorLogin ?? auth?.user.login ?? null");
+  });
+
   it("publishes only documented compiled entry points", () => {
     const manifest = JSON.parse(readReleaseFile("package.json")) as {
       files: string[];
@@ -50,7 +87,7 @@ describe("external package boundary", () => {
     const manifestText = readReleaseFile("package.json");
 
     expect(manifestText).not.toContain("workspace:");
-    expect(manifestText).not.toContain("@dashboard/");
+    expect(manifestText).not.toContain(dashboardImportPrefix);
     expect(manifestText).not.toContain("@kody-ade/agency");
   });
 
@@ -61,7 +98,20 @@ describe("external package boundary", () => {
       readReleaseFile("src/index.ts"),
     ].join("\n");
 
-    expect(publicSource).not.toContain("@dashboard/");
+    expect(publicSource).not.toContain(dashboardImportPrefix);
     expect(publicSource).not.toContain("@kody-ade/");
+  });
+
+  it("keeps the production chat core independent from Dashboard", () => {
+    const coreSource = readSourceTree(chatCoreRoot);
+
+    expect(coreSource).not.toContain(dashboardImportPrefix);
+    expect(coreSource).not.toContain("@kody-ade/");
+  });
+
+  it("keeps all production package source independent from Dashboard", () => {
+    const productionSource = productionRoots.map(readSourceTree).join("\n");
+
+    expect(productionSource).not.toContain(dashboardImportPrefix);
   });
 });

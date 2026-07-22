@@ -42,6 +42,9 @@ import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
+import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat/auth-context";
+import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat/theme";
+import { useTheme } from "../../providers/Theme";
 import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
@@ -84,7 +87,10 @@ import {
   AGENT_LOOPS_PANEL_ID,
 } from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
-import { brandsChatPlugin, BRANDS_PANEL_ID } from "@kody-ade/kody-chat/plugins/brands";
+import {
+  brandsChatPlugin,
+  BRANDS_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/brands";
 import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
 import {
   capabilitiesChatPlugin,
@@ -104,7 +110,10 @@ import {
   COMPANY_INTENTS_PANEL_ID,
 } from "../chat/plugins/company-intents";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
-import { contextChatPlugin, CONTEXT_PANEL_ID } from "@kody-ade/kody-chat/plugins/context";
+import {
+  contextChatPlugin,
+  CONTEXT_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
@@ -113,19 +122,28 @@ import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
 } from "@kody-ade/kody-chat/plugins/instructions";
-import { memoryChatPlugin, MEMORY_PANEL_ID } from "@kody-ade/kody-chat/plugins/memory";
+import {
+  memoryChatPlugin,
+  MEMORY_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/memory";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
 } from "../chat/plugins/messages";
-import { modelsChatPlugin, MODELS_PANEL_ID } from "@kody-ade/kody-chat/plugins/models";
+import {
+  modelsChatPlugin,
+  MODELS_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/models";
 import {
   notificationsChatPlugin,
   NOTIFICATIONS_PANEL_ID,
 } from "../chat/plugins/notifications";
 import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
 import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
-import { secretsChatPlugin, SECRETS_PANEL_ID } from "@kody-ade/kody-chat/plugins/secrets";
+import {
+  secretsChatPlugin,
+  SECRETS_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/secrets";
 import {
   storeCatalogChatPlugin,
   STORE_CATALOG_PANEL_ID,
@@ -332,7 +350,9 @@ function isPublicRoute(pathname: string | null): boolean {
 export function ChatRailShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const publicRoute = isPublicRoute(pathname);
-  const { auth, loading } = useAuth();
+  const hostAuth = useAuth();
+  const { auth, loading } = hostAuth;
+  const hostTheme = useTheme();
   const { githubUser } = useGitHubIdentity();
   const navSections = useSidebarNavSections();
   const [scope, setScope] = useState<ChatContext | null>(null);
@@ -615,65 +635,71 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   return (
     <ChatRailContext.Provider value={api}>
-      <NotificationsProvider>
-        <SettingsDrawerProvider>
-          <CommandPalette />
-          {/* The shared shell owns the layout (nav | chat | page) — this
+      <KodyAuthBridgeProvider value={hostAuth}>
+        <KodyThemeBridgeProvider value={hostTheme}>
+          <NotificationsProvider>
+            <SettingsDrawerProvider>
+              <CommandPalette />
+              {/* The shared shell owns the layout (nav | chat | page) — this
               wrapper only supplies the dashboard-specific chat pane, header,
               and page content. Shell chrome (repo switcher in the sidepanel,
               rail resize) is inherited from @kody-ade/kody-chat. */}
-          {/* Explicit sections: the Engineer list is the superset (Vibe and
+              {/* Explicit sections: the Engineer list is the superset (Vibe and
               Preview included), so the old Vibe/Engineer toggle is gone. */}
-          <ChatShell
-            title="Kody"
-            sections={navSections}
-            sidebarBrandExtra={<SidebarNotifications />}
-            chat={chatPane}
-            onReportIssue={openIssueReport}
-            isChatHome={isChatRoute}
-            showMobileHeader={false}
-            contentTestId={flipActive ? "chat-first-panel" : undefined}
-          >
-            {!pageOwnsHeader && <AppHeader />}
-            <div className="flex-1 min-h-0 flex flex-col">{pageContent}</div>
-          </ChatShell>
+              <ChatShell
+                title="Kody"
+                sections={navSections}
+                sidebarBrandExtra={<SidebarNotifications />}
+                chat={chatPane}
+                onReportIssue={openIssueReport}
+                isChatHome={isChatRoute}
+                showMobileHeader={false}
+                contentTestId={flipActive ? "chat-first-panel" : undefined}
+              >
+                {!pageOwnsHeader && <AppHeader />}
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {pageContent}
+                </div>
+              </ChatShell>
 
-          {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
+              {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
           so the header stays visible and its hamburger (nav + filters) is
           still reachable while chatting. The rail is desktop-only; on mobile
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
-          {mobileOpen &&
-            auth &&
-            !isChatRoute &&
-            !currentRepoPath.startsWith("/messages") && (
-              <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
-                {auth ? (
-                  <KodyChat
-                    context={scope}
-                    actorLogin={githubUser?.login}
-                    onClose={() => setMobileOpenPersist(false)}
-                    lockedAgentId={lockedAgentId}
-                    vibeMode={isVibeRoute}
-                    onIssueCreated={dispatchIssueCreated}
-                    knownGoals={goals}
-                    onDirectToGoal={directToGoal}
-                    composerInjection={composerInjection}
-                    attachmentInjection={attachmentInjection}
-                    previewContext={previewContext}
-                    plugins={ADMIN_CHAT_PLUGINS}
-                  />
-                ) : (
-                  <div className="flex-1 flex items-center justify-center p-6">
-                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                      Connect a repository to start chatting with Kody.
-                    </p>
+              {mobileOpen &&
+                auth &&
+                !isChatRoute &&
+                !currentRepoPath.startsWith("/messages") && (
+                  <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
+                    {auth ? (
+                      <KodyChat
+                        context={scope}
+                        actorLogin={githubUser?.login}
+                        onClose={() => setMobileOpenPersist(false)}
+                        lockedAgentId={lockedAgentId}
+                        vibeMode={isVibeRoute}
+                        onIssueCreated={dispatchIssueCreated}
+                        knownGoals={goals}
+                        onDirectToGoal={directToGoal}
+                        composerInjection={composerInjection}
+                        attachmentInjection={attachmentInjection}
+                        previewContext={previewContext}
+                        plugins={ADMIN_CHAT_PLUGINS}
+                      />
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center p-6">
+                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                          Connect a repository to start chatting with Kody.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-        </SettingsDrawerProvider>
-      </NotificationsProvider>
+            </SettingsDrawerProvider>
+          </NotificationsProvider>
+        </KodyThemeBridgeProvider>
+      </KodyAuthBridgeProvider>
     </ChatRailContext.Provider>
   );
 }

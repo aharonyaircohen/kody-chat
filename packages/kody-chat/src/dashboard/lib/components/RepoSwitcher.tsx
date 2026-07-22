@@ -20,11 +20,11 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { cn } from "@dashboard/lib/utils";
-import { useAuth, type KodyRepoEntry } from "@dashboard/lib/auth-context";
+import { cn } from "../utils";
+import { useAuth, type KodyRepoEntry } from "../auth-context";
 import { repoSwitchRedirectPath } from "@kody-ade/base/routes";
-import { AddRepoForm } from "@dashboard/lib/components/AddRepoForm";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { AddRepoForm } from "./AddRepoForm";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface RepoGroup {
   owner: string;
