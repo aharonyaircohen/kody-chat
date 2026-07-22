@@ -50,5 +50,7 @@ _tmp-drive.mjs
 
 # Kody runtime scratch; durable runtime state and model definitions live in Convex.
 .kody/
+.kody-engine/
+apps/repos/
 *.tgz
 .vercel

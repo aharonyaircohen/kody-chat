@@ -35,7 +35,7 @@
     "cms:generate-schema": "node scripts/generate-cms-schema.mjs",
     "push:init": "node scripts/generate-vapid-keys.mjs",
     "picker:pack": "node scripts/pack-extension.mjs",
-    "brain:local": "npx -y -p @kody-ade/kody-engine@latest kody-engine brain-serve",
+    "brain:local": "node scripts/run-local-brain.mjs",
     "prepare": "husky"
   },
   "dependencies": {
