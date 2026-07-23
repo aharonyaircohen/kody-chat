@@ -3,6 +3,7 @@ import type { SessionMeta } from "../../../src/dashboard/lib/chat-types";
 import {
   mergeHydratedSessions,
   preserveActiveSessionId,
+  shouldLoadHydratedSessionDetail,
 } from "../../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions";
 
 function session(id: string, updatedAt: string): SessionMeta {
@@ -29,6 +30,30 @@ describe("conversation hydration", () => {
     const refreshed = session("known", "2026-07-21T00:02:00.000Z");
 
     expect(mergeHydratedSessions([refreshed], [stale])).toEqual([refreshed]);
+  });
+
+  it("keeps a newer local choice when the initial server list contains the same session", () => {
+    const remoteBeforeSelection = session(
+      "known",
+      "2026-07-21T00:00:00.000Z",
+    );
+    const locallySelected = {
+      ...session("known", "2026-07-21T00:02:00.000Z"),
+      agentKey: "kody:configured-model",
+    };
+
+    expect(
+      mergeHydratedSessions([remoteBeforeSelection], [locallySelected]),
+    ).toEqual([locallySelected]);
+  });
+
+  it("does not load stale detail over a session created during hydration", () => {
+    expect(
+      shouldLoadHydratedSessionDetail("local-new", new Set(["local-new"])),
+    ).toBe(false);
+    expect(
+      shouldLoadHydratedSessionDetail("remote", new Set(["local-new"])),
+    ).toBe(true);
   });
 
   it("does not replace a conversation the user already activated", () => {

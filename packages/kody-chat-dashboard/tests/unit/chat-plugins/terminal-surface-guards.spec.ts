@@ -20,6 +20,7 @@ import {
   connectFly,
   fetchWithTimeout,
   inputSignalForConnectionState,
+  recoverFlyTerminalAfterExit,
   scheduleFlyReconnect,
   shouldReconnectFlySocket,
   shouldReconnectVisibleRemoteTerminal,
@@ -45,6 +46,7 @@ interface DepsHarness {
   briefSignals: TerminalInputSignal[];
   errors: Array<string | null>;
   states: ChatTerminalConnectionState[];
+  sessionEnds: number[];
 }
 
 function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
@@ -53,6 +55,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
   const briefSignals: TerminalInputSignal[] = [];
   const errors: Array<string | null> = [];
   const states: ChatTerminalConnectionState[] = [];
+  const sessionEnds: number[] = [];
   const deps: FlyConnectionDeps = {
     chatSessionId: "chat-1",
     terminalRef: {
@@ -77,6 +80,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     flyReconnectNoticeRef: { current: false },
     flyReconnectAttemptRef: { current: 0 },
     flyReconnectExhaustedRef: { current: false },
+    flyExitRecoveryAttemptRef: { current: 0 },
     pendingFlyInputAckTimerRef: { current: null },
     setFlyConnectionState: (state) => void states.push(state),
     notifyConnectionState: () => {},
@@ -84,9 +88,9 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     setInputSignal: (signal) => void signals.push(signal),
     setInputSignalBriefly: (signal) => void briefSignals.push(signal),
     appendCapturedOutput: () => {},
-    notifyTerminalSessionEnded: () => {},
-    ...overrides,
+    notifyTerminalSessionEnded: () => void sessionEnds.push(1),
   };
+  Object.assign(deps, overrides);
   return {
     ref: { current: deps },
     writes,
@@ -94,6 +98,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     briefSignals,
     errors,
     states,
+    sessionEnds,
   };
 }
 
@@ -258,6 +263,29 @@ describe("input acknowledgement before 'sent'", () => {
 });
 
 describe("stale connect guards", () => {
+  it("opens one fresh remote session after the bridge exhausts its tunnel recovery", () => {
+    const fetchSpy = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchSpy);
+    const harness = makeDeps();
+    harness.ref.current.flySocketRef.current = fakeSocket();
+    harness.ref.current.flyConnectionStateRef.current = "connected";
+
+    recoverFlyTerminalAfterExit(harness.ref, 0);
+
+    expect(harness.sessionEnds).toHaveLength(0);
+    expect(harness.states.at(-1)).toBe("connecting");
+    vi.advanceTimersByTime(FLY_RECONNECT_DELAY_MS);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/kody/terminal/session",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    recoverFlyTerminalAfterExit(harness.ref, 0);
+    expect(harness.sessionEnds).toHaveLength(1);
+    expect(harness.states.at(-1)).toBe("closed");
+    expect(harness.writes.at(-1)).toContain("Process exited (0)");
+  });
+
   it("recovers both cold-start and established socket failures", () => {
     expect(
       shouldReconnectFlySocket({ state: "connecting", reconnectAttempt: 0 }),

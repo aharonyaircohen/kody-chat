@@ -32,6 +32,7 @@ export const TERMINAL_START_TIMEOUT_MS = 20_000;
 export const FLY_CONNECT_TIMEOUT_MS = 75_000;
 export const FLY_RECONNECT_DELAY_MS = 750;
 export const FLY_RECONNECT_MAX_ATTEMPTS = 3;
+export const FLY_EXIT_RECOVERY_MAX_ATTEMPTS = 1;
 export const FLY_HEARTBEAT_INTERVAL_MS = 25_000;
 
 const NON_RETRYABLE_SESSION_ERRORS = new Set([
@@ -225,6 +226,7 @@ export interface FlyConnectionDeps {
   flyReconnectNoticeRef: { current: boolean };
   flyReconnectAttemptRef: { current: number };
   flyReconnectExhaustedRef: { current: boolean };
+  flyExitRecoveryAttemptRef: { current: number };
   pendingFlyInputAckTimerRef: { current: number | null };
   setFlyConnectionState: (state: ChatTerminalConnectionState) => void;
   notifyConnectionState: (state: ChatTerminalConnectionState) => void;
@@ -349,6 +351,7 @@ export function acknowledgeFlyInput(
   const deps = ref.current;
   clearPendingFlyInputAck(ref);
   if (accepted) {
+    deps.flyExitRecoveryAttemptRef.current = 0;
     deps.setInputSignalBriefly({ tone: "sent", label: "Input sent" });
     return;
   }
@@ -356,6 +359,31 @@ export function acknowledgeFlyInput(
   deps.setError(text);
   deps.setInputSignal({ tone: "blocked", label: "Input blocked" });
   deps.terminalRef.current?.writeln(`\r\n\x1b[31m${text}\x1b[0m`);
+}
+
+export function recoverFlyTerminalAfterExit(
+  ref: FlyDepsRef,
+  code?: number,
+): void {
+  const deps = ref.current;
+  if (
+    deps.flyExitRecoveryAttemptRef.current <
+    FLY_EXIT_RECOVERY_MAX_ATTEMPTS
+  ) {
+    deps.flyExitRecoveryAttemptRef.current += 1;
+    scheduleFlyReconnect(
+      ref,
+      "Terminal process ended unexpectedly; opening a fresh session.",
+    );
+    return;
+  }
+
+  deps.flySocketRef.current = null;
+  deps.notifyTerminalSessionEnded();
+  updateFlyConnectionState(ref, "closed");
+  deps.terminalRef.current?.writeln(
+    `\r\nProcess exited${code === undefined ? "" : ` (${code})`}`,
+  );
 }
 
 export function disconnectFly(ref: FlyDepsRef): void {
@@ -367,6 +395,7 @@ export function disconnectFly(ref: FlyDepsRef): void {
   deps.flyReconnectNoticeRef.current = false;
   deps.flyReconnectAttemptRef.current = 0;
   deps.flyReconnectExhaustedRef.current = false;
+  deps.flyExitRecoveryAttemptRef.current = 0;
   deps.flyConnectSeqRef.current += 1;
   deps.flyConnectInFlightKeyRef.current = null;
   deps.flySocketRef.current?.close(1000, "terminal transport changed");
@@ -549,12 +578,7 @@ export async function connectFly(
       }
       if (message.type === "exit") {
         clearHeartbeat();
-        live.notifyTerminalSessionEnded();
-        live.flySocketRef.current = null;
-        updateFlyConnectionState(ref, "closed");
-        live.terminalRef.current?.writeln(
-          `\r\nProcess exited${message.code === undefined ? "" : ` (${message.code})`}`,
-        );
+        recoverFlyTerminalAfterExit(ref, message.code);
       }
     };
     ws.onclose = (event) => {

@@ -79,11 +79,27 @@ export function mergeHydratedSessions(
   loaded: SessionMeta[],
   locallyCreated: SessionMeta[],
 ): SessionMeta[] {
-  const loadedIds = new Set(loaded.map((session) => session.id));
+  const loadedById = new Map(loaded.map((session) => [session.id, session]));
+  const localById = new Map(
+    locallyCreated.map((session) => [session.id, session]),
+  );
   return [
-    ...locallyCreated.filter((session) => !loadedIds.has(session.id)),
-    ...loaded,
+    ...locallyCreated.filter((session) => !loadedById.has(session.id)),
+    ...loaded.map((remote) => {
+      const local = localById.get(remote.id);
+      if (!local) return remote;
+      return Date.parse(local.updatedAt) > Date.parse(remote.updatedAt)
+        ? local
+        : remote;
+    }),
   ];
+}
+
+export function shouldLoadHydratedSessionDetail(
+  sessionId: string,
+  locallyCreatedSessionIds: ReadonlySet<string>,
+): boolean {
+  return !locallyCreatedSessionIds.has(sessionId);
 }
 
 export function preserveActiveSessionId(
@@ -190,7 +206,15 @@ export function useConversationSessions(
         setActiveSessionId((current) =>
           preserveActiveSessionId(current, firstId),
         );
-        if (firstId) await loadDetail(firstId);
+        if (
+          firstId &&
+          shouldLoadHydratedSessionDetail(
+            firstId,
+            locallyCreatedSessionIdsRef.current,
+          )
+        ) {
+          await loadDetail(firstId);
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -495,11 +519,16 @@ export function useConversationSessions(
 
   const setSessionAgent = useCallback(
     (sessionId: string, agentKey: string) => {
-      setSessions((previous) =>
-        previous.map((session) =>
-          session.id === sessionId ? { ...session, agentKey } : session,
-        ),
-      );
+      setSessions((previous) => {
+        const selectedAt = new Date().toISOString();
+        const next = previous.map((session) =>
+          session.id === sessionId
+            ? { ...session, agentKey, updatedAt: selectedAt }
+            : session,
+        );
+        sessionsRef.current = next;
+        return next;
+      });
       const login = actorLogin;
       if (login) {
         persist(

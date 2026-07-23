@@ -77,6 +77,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     flyReconnectNoticeRef: { current: false },
     flyReconnectAttemptRef: { current: 0 },
     flyReconnectExhaustedRef: { current: false },
+    flyExitRecoveryAttemptRef: { current: 0 },
     pendingFlyInputAckTimerRef: { current: null },
     setFlyConnectionState: (state) => void states.push(state),
     notifyConnectionState: () => {},
@@ -85,8 +86,8 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     setInputSignalBriefly: (signal) => void briefSignals.push(signal),
     appendCapturedOutput: () => {},
     notifyTerminalSessionEnded: () => {},
-    ...overrides,
   };
+  Object.assign(deps, overrides);
   return {
     ref: { current: deps },
     writes,
