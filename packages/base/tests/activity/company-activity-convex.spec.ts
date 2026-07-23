@@ -3,7 +3,7 @@
  * backend: dailyLogs.recent (stream "activity") rows → CompanyActivityRecord
  * list, newest-first, with an in-process cache and error fallback to [].
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getFunctionName } from "convex/server";
 
 const convex = vi.hoisted(() => ({
@@ -46,8 +46,13 @@ function entry(ts: string, capability: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("KODY_SERVICE_KEY", "");
   _resetConvexClient();
   process.env.CONVEX_URL = "https://example.convex.cloud";
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("fetchCompanyActivity (convex)", () => {
