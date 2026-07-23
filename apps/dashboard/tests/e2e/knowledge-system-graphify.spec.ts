@@ -26,9 +26,7 @@ async function json(route: Route, body: unknown) {
   });
 }
 
-test("shows the meaningful graph with focused domain views", async ({
-  page,
-}) => {
+test("shows the published Graphify viewer", async ({ page }) => {
   await page.addInitScript((value) => {
     window.localStorage.setItem("kody_auth", JSON.stringify(value));
   }, auth);
@@ -51,82 +49,16 @@ test("shows the meaningful graph with focused domain views", async ({
         htmlUrl: "http://127.0.0.1:3333/knowledge-graph.html",
         reportUrl: null,
         generatedAt: "2026-07-23T10:00:00.000Z",
-        nodeCount: 42,
-        edgeCount: 84,
+        nodeCount: 113,
+        edgeCount: 132,
       },
     }),
   );
-  await page.route("**/knowledge-graph.json", (route) =>
+  await page.route("**/knowledge-graph.html", (route) =>
     route.fulfill({
       status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        nodes: [
-          {
-            id: "repo:acme/widgets",
-            label: "acme/widgets",
-            type: "repository",
-            domain: "project",
-          },
-          {
-            id: "implementation:review",
-            label: "Review implementation",
-            type: "implementation",
-            domain: "execution",
-          },
-          {
-            id: "agent:kody",
-            label: "Kody",
-            type: "agent",
-            domain: "agency",
-          },
-          {
-            id: "intent:quality",
-            label: "Protect product quality",
-            type: "intent",
-            domain: "business",
-          },
-          {
-            id: "issue:7",
-            label: "Broken release",
-            type: "issue",
-            domain: "work",
-          },
-          {
-            id: "report:health",
-            label: "Release health",
-            type: "report",
-            domain: "quality",
-          },
-        ],
-        edges: [
-          {
-            source: "repo:acme/widgets",
-            target: "agent:kody",
-            relation: "has-agent",
-          },
-          {
-            source: "implementation:review",
-            target: "agent:kody",
-            relation: "run-by",
-          },
-          {
-            source: "intent:quality",
-            target: "implementation:review",
-            relation: "supported-by",
-          },
-          {
-            source: "agent:kody",
-            target: "issue:7",
-            relation: "works-on",
-          },
-          {
-            source: "issue:7",
-            target: "report:health",
-            relation: "measured-by",
-          },
-        ],
-      }),
+      contentType: "text/html",
+      body: "<!doctype html><html><body><main>Graphify viewer</main></body></html>",
     }),
   );
 
@@ -134,30 +66,14 @@ test("shows the meaningful graph with focused domain views", async ({
     waitUntil: "domcontentloaded",
   });
 
-  await expect(page.getByTestId("knowledge-graph")).toBeVisible({
-    timeout: 15_000,
-  });
+  const frame = page.getByTestId("knowledge-graph-frame");
+  await expect(frame).toBeVisible({ timeout: 15_000 });
+  await expect(frame).toHaveAttribute(
+    "src",
+    "http://127.0.0.1:3333/knowledge-graph.html",
+  );
   await expect(
-    page.getByRole("tab", { name: "Overall", selected: true }),
+    page.getByText("113 nodes · 132 relations", { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("tab", { name: "Purpose", selected: false }),
-  ).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Product" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Work" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Agency" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Evidence" })).toBeVisible();
-  await expect(page.getByText("6 entities · 5 areas")).toBeVisible();
-
-  const canvas = page.getByTestId("knowledge-graph-canvas");
-  await page.waitForTimeout(1_800);
-  const settledFrame = await canvas.screenshot();
-  await page.waitForTimeout(700);
-  const laterFrame = await canvas.screenshot();
-  expect(settledFrame.equals(laterFrame)).toBe(true);
-
-  await page.getByRole("tab", { name: "Work" }).click();
-  await expect(page.getByText("3 visible entities")).toBeVisible();
-  await expect(page.getByLabel("Find an entity")).toBeVisible();
-  await expect(page.getByText(/Community \d+/)).toHaveCount(0);
+  await expect(frame.contentFrame().getByText("Graphify viewer")).toBeVisible();
 });
