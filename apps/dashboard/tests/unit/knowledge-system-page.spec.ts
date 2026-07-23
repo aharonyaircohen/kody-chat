@@ -23,11 +23,11 @@ describe("Knowledge System page contract", () => {
     );
     expect(page).not.toContain("cytoscape");
     expect(page).not.toContain("ReactFlow");
-    expect(page).toContain("<iframe");
-    expect(page).toContain("bundle.htmlUrl");
-    expect(page).toContain('data-testid="knowledge-graph-frame"');
-    expect(page).toContain('sandbox="allow-scripts"');
-    expect(page).not.toContain("parseGraphifyGraph");
+    expect(page).not.toContain("<iframe");
+    expect(page).not.toContain("bundle.htmlUrl");
+    expect(page).toContain("bundle.graphUrl");
+    expect(page).toContain("parseKnowledgeGraph");
+    expect(page).toContain("<KnowledgeGraph");
     expect(page).toContain("Last updated");
     expect(page).toContain("Refresh graph");
     expect(page).toContain(
@@ -36,5 +36,14 @@ describe("Knowledge System page contract", () => {
     expect(page).not.toContain(
       "/api/kody/capabilities/knowledge-system-refresh/run",
     );
+
+    const canvas = readFileSync(
+      "src/dashboard/features/knowledge-system/components/KnowledgeGraphCanvas.tsx",
+      "utf8",
+    );
+    expect(canvas).toContain('from "vis-network/standalone"');
+    expect(canvas).toContain('solver: "forceAtlas2Based"');
+    expect(canvas).not.toContain("community");
+    expect(canvas).not.toContain("stabilizationIterationsDone");
   });
 });

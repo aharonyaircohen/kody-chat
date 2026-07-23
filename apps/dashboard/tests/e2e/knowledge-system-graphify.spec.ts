@@ -1,5 +1,5 @@
 /**
- * @fileoverview Browser contract for the repository-scoped Graphify visualization.
+ * @fileoverview Browser contract for the repository-scoped knowledge graph.
  * @testFramework playwright
  * @domain knowledge-system
  */
@@ -26,7 +26,7 @@ async function json(route: Route, body: unknown) {
   });
 }
 
-test("shows the published Graphify viewer", async ({ page }) => {
+test("shows the meaningful interactive knowledge graph", async ({ page }) => {
   await page.addInitScript((value) => {
     window.localStorage.setItem("kody_auth", JSON.stringify(value));
   }, auth);
@@ -46,7 +46,7 @@ test("shows the published Graphify viewer", async ({ page }) => {
     json(route, {
       bundle: {
         graphUrl: "http://127.0.0.1:3333/knowledge-graph.json",
-        htmlUrl: "http://127.0.0.1:3333/knowledge-graph.html",
+        htmlUrl: null,
         reportUrl: null,
         generatedAt: "2026-07-23T10:00:00.000Z",
         nodeCount: 113,
@@ -54,11 +54,46 @@ test("shows the published Graphify viewer", async ({ page }) => {
       },
     }),
   );
-  await page.route("**/knowledge-graph.html", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "text/html",
-      body: "<!doctype html><html><body><main>Graphify viewer</main></body></html>",
+  await page.route("**/knowledge-graph.json", (route) =>
+    json(route, {
+      nodes: [
+        {
+          id: "repo:acme/widgets",
+          label: "acme/widgets",
+          type: "repository",
+          domain: "project",
+        },
+        {
+          id: "goal:ship",
+          label: "Ship safely",
+          type: "goal",
+          domain: "business",
+        },
+        {
+          id: "agent:kody",
+          label: "Kody",
+          type: "agent",
+          domain: "agency",
+        },
+        {
+          id: "issue:7",
+          label: "Broken release",
+          type: "issue",
+          domain: "work",
+        },
+      ],
+      edges: [
+        {
+          source: "repo:acme/widgets",
+          target: "goal:ship",
+          relation: "has-goal",
+        },
+        {
+          source: "agent:kody",
+          target: "issue:7",
+          relation: "works-on",
+        },
+      ],
     }),
   );
 
@@ -66,14 +101,17 @@ test("shows the published Graphify viewer", async ({ page }) => {
     waitUntil: "domcontentloaded",
   });
 
-  const frame = page.getByTestId("knowledge-graph-frame");
-  await expect(frame).toBeVisible({ timeout: 15_000 });
-  await expect(frame).toHaveAttribute(
-    "src",
-    "http://127.0.0.1:3333/knowledge-graph.html",
-  );
+  await expect(page.getByTestId("knowledge-graph")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId("knowledge-graph-canvas")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Overall" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Purpose" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Agency" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Work" })).toBeVisible();
   await expect(
     page.getByText("113 nodes · 132 relations", { exact: false }),
   ).toBeVisible();
-  await expect(frame.contentFrame().getByText("Graphify viewer")).toBeVisible();
+  await expect(page.getByText("4 visible entities")).toBeVisible();
+  await expect(page.getByText("Communities")).toHaveCount(0);
 });
