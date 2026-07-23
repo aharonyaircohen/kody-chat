@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type AccessResult =
+  | {
+      auth: { token: string; owner: string; repo: string };
+      actorLogin: string;
+    }
+  | NextResponse;
+
 const auth = vi.hoisted(() => ({
-  requireKodyAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
-  getRequestAuth: vi.fn(() => ({
-    token: "ghp_viewer",
-    owner: "acme",
-    repo: "widgets",
+  verifyRepoReadAccess: vi.fn(async (): Promise<AccessResult> => ({
+    auth: { token: "ghp_viewer", owner: "acme", repo: "widgets" },
+    actorLogin: "viewer",
+  })),
+  verifyRepoWriteAccess: vi.fn(async (): Promise<AccessResult> => ({
+    auth: { token: "ghp_writer", owner: "acme", repo: "widgets" },
+    actorLogin: "writer",
   })),
 }));
 
@@ -24,11 +33,6 @@ import { GET, POST, PUT } from "../../app/api/kody/knowledge-system/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  auth.getRequestAuth.mockReturnValue({
-    token: "ghp_viewer",
-    owner: "acme",
-    repo: "widgets",
-  });
 });
 
 describe("/api/kody/knowledge-system", () => {
@@ -101,21 +105,29 @@ describe("/api/kody/knowledge-system", () => {
     );
   });
 
-  it("rejects unauthenticated, unscoped, and malformed writes", async () => {
-    auth.requireKodyAuth.mockResolvedValueOnce(
+  it("requires verified read and write access", async () => {
+    auth.verifyRepoReadAccess.mockResolvedValueOnce(
       NextResponse.json({ error: "unauthorized" }, { status: 401 }),
     );
-    const unauthorized = await POST(
+    const unauthorizedRead = await GET(
+      new NextRequest("http://localhost/api/kody/knowledge-system"),
+    );
+    auth.verifyRepoWriteAccess.mockResolvedValueOnce(
+      NextResponse.json({ error: "write_permission_required" }, { status: 403 }),
+    );
+    const unauthorizedWrite = await POST(
       new NextRequest("http://localhost/api/kody/knowledge-system", {
         method: "POST",
       }),
     );
 
-    auth.getRequestAuth.mockReturnValueOnce(null as never);
-    const unscoped = await GET(
-      new NextRequest("http://localhost/api/kody/knowledge-system"),
-    );
+    expect(unauthorizedRead.status).toBe(401);
+    expect(unauthorizedWrite.status).toBe(403);
+    expect(backend.query).not.toHaveBeenCalled();
+    expect(backend.mutation).not.toHaveBeenCalled();
+  });
 
+  it("rejects malformed writes", async () => {
     const malformed = await PUT(
       new NextRequest("http://localhost/api/kody/knowledge-system", {
         method: "PUT",
@@ -123,8 +135,6 @@ describe("/api/kody/knowledge-system", () => {
       }),
     );
 
-    expect(unauthorized.status).toBe(401);
-    expect(unscoped.status).toBe(400);
     expect(malformed.status).toBe(400);
   });
 });

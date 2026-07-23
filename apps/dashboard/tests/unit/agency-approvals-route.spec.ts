@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const auth = vi.hoisted(() => ({
   permission: "write",
@@ -15,11 +15,23 @@ const auth = vi.hoisted(() => ({
       },
     },
   })),
+  verifyRepoWriteAccess: vi.fn(async () =>
+    auth.permission === "write"
+      ? {
+          auth: { owner: "acme", repo: "widgets", token: "token" },
+          actorLogin: "octocat",
+        }
+      : NextResponse.json(
+          { error: "write_permission_required" },
+          { status: 403 },
+        ),
+  ),
 }));
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
+  verifyRepoWriteAccess: auth.verifyRepoWriteAccess,
 }));
 
 const store = vi.hoisted(() => ({

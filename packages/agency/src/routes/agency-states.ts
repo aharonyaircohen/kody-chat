@@ -72,7 +72,9 @@ export async function PUT(req: NextRequest) {
       );
     }
     const existing = existingStates.find(
-      (record) => record.definitionId === state.definitionId,
+      (record) =>
+        record.kind === body.kind &&
+        record.definitionId === state.definitionId,
     );
     if (existing) {
       const previous = parseState(existing.kind, existing.data);

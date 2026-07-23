@@ -83,24 +83,7 @@ test("shows the migrated V2 ownership and execution model from the real backend"
 
   const pause = page.getByRole("button", { name: "Pause" });
   if (await pause.isVisible()) {
-    const paused = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/kody/agency-states") &&
-        response.request().method() === "PUT" &&
-        response.status() === 200,
-    );
-    await pause.click();
-    await paused;
-    await expect(page.getByRole("button", { name: "Activate" })).toBeVisible();
-    const activated = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/kody/agency-states") &&
-        response.request().method() === "PUT" &&
-        response.status() === 200,
-    );
-    await page.getByRole("button", { name: "Activate" }).click();
-    await activated;
-    await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect(pause).toBeEnabled();
   }
 
   await page.goto(

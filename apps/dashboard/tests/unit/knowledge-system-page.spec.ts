@@ -24,5 +24,11 @@ describe("Knowledge System page contract", () => {
     expect(page).toContain("ReactFlow");
     expect(page).toContain("Last updated");
     expect(page).toContain("Refresh graph");
+    expect(page).toContain(
+      "/api/kody/agency-loops/knowledge-system-refresh/run",
+    );
+    expect(page).not.toContain(
+      "/api/kody/capabilities/knowledge-system-refresh/run",
+    );
   });
 });

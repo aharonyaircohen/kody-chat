@@ -99,7 +99,10 @@ export const putState = mutation({
     const existing = await ctx.db
       .query("agencyStates")
       .withIndex("by_tenant", (q) =>
-        q.eq("tenantId", args.tenantId).eq("definitionId", args.definitionId),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("kind", args.kind)
+          .eq("definitionId", args.definitionId),
       )
       .unique();
     if (existing) {
@@ -597,13 +600,17 @@ export const getState = query({
   args: {
     serviceKey: v.optional(v.string()),
     tenantId: v.string(),
+    kind: v.union(v.literal("goal"), v.literal("loop")),
     definitionId: v.string(),
   },
   handler: (ctx, args) =>
     ctx.db
       .query("agencyStates")
       .withIndex("by_tenant", (q) =>
-        q.eq("tenantId", args.tenantId).eq("definitionId", args.definitionId),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("kind", args.kind)
+          .eq("definitionId", args.definitionId),
       )
       .unique(),
 });

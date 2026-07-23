@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import {
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
+} from "@kody-ade/base/auth";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
@@ -31,24 +34,17 @@ const publishSchema = z.object({
   schemaVersion: z.number().int().positive().max(100),
 });
 
-async function context(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError instanceof NextResponse) return { error: authError };
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return {
-      error: NextResponse.json({ error: "no_repo_context" }, { status: 400 }),
-    };
-  }
-  return { tenantId: `${auth.owner}/${auth.repo}` };
+function tenantIdFor(access: { auth: { owner: string; repo: string } }) {
+  return `${access.auth.owner}/${access.auth.repo}`;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const scoped = await context(req);
-  if (scoped.error) return scoped.error;
+  const access = await verifyRepoReadAccess(req);
+  if (access instanceof NextResponse) return access;
+  const tenantId = tenantIdFor(access);
   try {
     const bundle = await createBackendClient().query(api.knowledgeGraphs.get, {
-      tenantId: scoped.tenantId,
+      tenantId,
     });
     return NextResponse.json(
       { bundle },
@@ -61,12 +57,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const scoped = await context(req);
-  if (scoped.error) return scoped.error;
+  const access = await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
+  const tenantId = tenantIdFor(access);
   try {
     const uploadUrl = await createBackendClient().mutation(
       api.knowledgeGraphs.createUpload,
-      { tenantId: scoped.tenantId },
+      { tenantId },
     );
     return NextResponse.json({ uploadUrl });
   } catch (error) {
@@ -76,8 +73,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function PUT(req: NextRequest): Promise<NextResponse> {
-  const scoped = await context(req);
-  if (scoped.error) return scoped.error;
+  const access = await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
+  const tenantId = tenantIdFor(access);
   const parsed = publishSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "validation_error" }, { status: 400 });
@@ -87,7 +85,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       api.knowledgeGraphs.publish,
       {
         ...parsed.data,
-        tenantId: scoped.tenantId,
+        tenantId,
         graphStorageId: parsed.data.graphStorageId as never,
         reportStorageId: parsed.data.reportStorageId as never,
         htmlStorageId: parsed.data.htmlStorageId as never,

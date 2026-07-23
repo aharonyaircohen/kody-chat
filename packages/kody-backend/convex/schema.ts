@@ -356,7 +356,7 @@ export default defineSchema({
     schemaVersion: v.number(),
     data: v.any(),
     updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "definitionId"]),
+  }).index("by_tenant", ["tenantId", "kind", "definitionId"]),
 
   agencyOutputs: defineTable({
     tenantId: v.string(),

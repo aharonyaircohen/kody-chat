@@ -145,7 +145,7 @@ export function KnowledgeSystemPage() {
     setError(null);
     try {
       const response = await fetch(
-        "/api/kody/capabilities/knowledge-system-refresh/run",
+        "/api/kody/agency-loops/knowledge-system-refresh/run",
         {
           method: "POST",
           headers: {
@@ -158,7 +158,7 @@ export function KnowledgeSystemPage() {
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error(
-            "The knowledge-system-refresh capability is not installed for this repository.",
+            "The knowledge-system-refresh Loop is not installed for this repository.",
           );
         }
         throw new Error("Could not start the graph refresh.");
@@ -257,7 +257,7 @@ export function KnowledgeSystemPage() {
           </div>
         ) : !graph ? (
           <div className="grid h-full min-h-[520px] place-items-center px-6 text-center text-sm text-muted-foreground">
-            Run the knowledge-system-refresh capability to build this
+            Run the knowledge-system-refresh Loop to build this
             repository's first graph.
           </div>
         ) : (

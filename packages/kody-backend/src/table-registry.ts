@@ -110,7 +110,7 @@ export const TABLES: readonly TableDef[] = [
   },
   {
     table: "agencyStates",
-    naturalKey: ["definitionId"],
+    naturalKey: ["kind", "definitionId"],
     upsertIndex: "by_tenant",
   },
   {
@@ -202,3 +202,32 @@ export const IMPORTABLE_TABLES: readonly string[] = TABLES.map(
 export const REPO_SCOPED_TABLES: readonly string[] = TABLES.filter(
   (entry) => !entry.global,
 ).map((entry) => entry.table);
+
+/** Repository data that may be exported to the Knowledge Graph builder. */
+export const KNOWLEDGE_GRAPH_TABLES: readonly string[] = [
+  "definitionHeads",
+  "definitionVersions",
+  "catalog",
+  "workflows",
+  "workflowRuns",
+  "userJourneys",
+  "userJourneyVersions",
+  "userJourneyRuns",
+  "intents",
+  "intentDecisions",
+  "goals",
+  "agencyDefinitions",
+  "agencyStates",
+  "agencyOutputs",
+  "reports",
+  "agents",
+  "macros",
+  "agencyRecords",
+  "taskState",
+  "capabilityState",
+  "dailyLogs",
+  "agencyRuns",
+  "runEvents",
+  "manifests",
+  "inboxEntries",
+];

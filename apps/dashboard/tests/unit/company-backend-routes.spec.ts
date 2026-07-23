@@ -5,6 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
+  verifyRepoReadAccess: vi.fn(async () => ({
+    auth: {
+      token: "ghp_test",
+      owner: "acme",
+      repo: "widgets",
+    },
+    actorLogin: "alice",
+  })),
   getRequestAuth: vi.fn(() => ({
     token: "ghp_test",
     owner: "acme",
@@ -46,6 +54,7 @@ const convex = vi.hoisted(() => {
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
+  verifyRepoReadAccess: auth.verifyRepoReadAccess,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
   verifyActorLogin: auth.verifyActorLogin,
@@ -119,6 +128,14 @@ beforeEach(() => {
   convex.mutation.mockImplementation(async () => null);
   convex.query.mockImplementation(async () => []);
   auth.requireKodyAuth.mockResolvedValue(null);
+  auth.verifyRepoReadAccess.mockResolvedValue({
+    auth: {
+      token: "ghp_test",
+      owner: "acme",
+      repo: "widgets",
+    },
+    actorLogin: "alice",
+  });
   auth.getRequestAuth.mockReturnValue({
     token: "ghp_test",
     owner: "acme",
@@ -132,6 +149,25 @@ afterEach(() => {
 });
 
 describe("GET /api/kody/company/backend/export", () => {
+  it("exports only approved business data for the Knowledge Graph", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.query.mockResolvedValue([]);
+
+    const res = await EXPORT(
+      req("/api/kody/company/backend/export?scope=knowledge-graph"),
+    );
+
+    expect(res.status).toBe(200);
+    const queriedTables = convex.query.mock.calls.map(
+      (call) => (call[1] as { table: string }).table,
+    );
+    expect(queriedTables).toContain("agencyDefinitions");
+    expect(queriedTables).toContain("agencyRuns");
+    expect(queriedTables).not.toContain("conversationEntries");
+    expect(queriedTables).not.toContain("conversationTurns");
+    expect(queriedTables).not.toContain("chatEvents");
+  });
+
   it("exports every importable table from Convex as a downloadable dump", async () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
     convex.query.mockImplementation(
@@ -175,7 +211,7 @@ describe("GET /api/kody/company/backend/export", () => {
       goals: [{ tenantId: "acme/widgets", goalId: "goal-1" }],
     });
     // Convex export never touches GitHub.
-    expect(auth.getUserOctokit).not.toHaveBeenCalled();
+    expect(auth.verifyRepoReadAccess).toHaveBeenCalled();
     expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
   });
 
@@ -206,24 +242,18 @@ describe("GET /api/kody/company/backend/export", () => {
     expect(convex.query).not.toHaveBeenCalled();
   });
 
-  it("returns the auth failure response when auth is rejected", async () => {
+  it("returns the repository access failure response when access is rejected", async () => {
     const denied = NextResponse.json(
       { error: "unauthorized" },
       { status: 401 },
     );
-    auth.requireKodyAuth.mockResolvedValue(denied as never);
+    auth.verifyRepoReadAccess.mockResolvedValue(denied as never);
 
     const res = await EXPORT(req("/api/kody/company/backend/export"));
     expect(res.status).toBe(401);
     expect(convex.query).not.toHaveBeenCalled();
   });
 
-  it("returns 400 without repo context headers", async () => {
-    auth.getRequestAuth.mockReturnValue(null as never);
-    const res = await EXPORT(req("/api/kody/company/backend/export"));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("no_repo_context");
-  });
 });
 
 describe("POST /api/kody/company/backend/import", () => {

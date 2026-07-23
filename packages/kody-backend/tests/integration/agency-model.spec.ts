@@ -78,9 +78,57 @@ describe("agency model persistence", () => {
     expect(
       await t.query(api.agencyModel.getState, {
         tenantId,
+        kind: "goal",
         definitionId: "refresh-graph",
       }),
     ).toMatchObject({ data: { progress: 1 } });
+  });
+
+  it("keeps Goal and Loop state separate when their ids match", async () => {
+    const t = setup();
+    await t.mutation(api.agencyModel.putState, {
+      tenantId,
+      definitionId: "shared-id",
+      kind: "goal",
+      schemaVersion: 1,
+      data: {
+        definitionId: "shared-id",
+        lifecycle: "active",
+        progress: 0.5,
+        blockers: [],
+        updatedAt: now,
+      },
+      updatedAt: now,
+    });
+    await t.mutation(api.agencyModel.putState, {
+      tenantId,
+      definitionId: "shared-id",
+      kind: "loop",
+      schemaVersion: 1,
+      data: {
+        definitionId: "shared-id",
+        lifecycle: "active",
+        health: "healthy",
+        failures: 0,
+        updatedAt: now,
+      },
+      updatedAt: now,
+    });
+
+    await expect(
+      t.query(api.agencyModel.getState, {
+        tenantId,
+        kind: "goal",
+        definitionId: "shared-id",
+      }),
+    ).resolves.toMatchObject({ kind: "goal", data: { progress: 0.5 } });
+    await expect(
+      t.query(api.agencyModel.getState, {
+        tenantId,
+        kind: "loop",
+        definitionId: "shared-id",
+      }),
+    ).resolves.toMatchObject({ kind: "loop", data: { health: "healthy" } });
   });
 
   it("stores Run outputs once and queries them by Run", async () => {

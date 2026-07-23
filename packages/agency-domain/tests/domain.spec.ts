@@ -126,6 +126,28 @@ describe("clean AI Agency domain", () => {
         value: true,
       }),
     ).toThrow(/runId/);
+    expect(
+      createRunOutput({
+        kind: "evidence",
+        key: "graph-published",
+        value: true,
+        runId: "run-1",
+        producer: { kind: "workflow", id: "refresh-knowledge" },
+        parentRef: {
+          kind: "goal",
+          id: "knowledge-current",
+          revision: "goal-revision",
+        },
+        contract: "capability-result/v1",
+        createdAt: "2026-07-22T00:01:00.000Z",
+      }),
+    ).toMatchObject({
+      parentRef: {
+        kind: "goal",
+        id: "knowledge-current",
+        revision: "goal-revision",
+      },
+    });
   });
 
   it("reports unresolved ownership and targets", () => {

@@ -146,6 +146,7 @@ export interface RunOutput {
   value: unknown;
   runId: string;
   producer: DefinitionRef;
+  parentRef?: PinnedDefinitionRef & { kind: "goal" | "loop" };
   contract: string;
   createdAt: string;
 }
@@ -778,7 +779,16 @@ export function createRunOutput(value: unknown): RunOutput {
   const input = record(value, "RunOutput");
   exact(
     input,
-    ["kind", "key", "value", "runId", "producer", "contract", "createdAt"],
+    [
+      "kind",
+      "key",
+      "value",
+      "runId",
+      "producer",
+      "parentRef",
+      "contract",
+      "createdAt",
+    ],
     "RunOutput",
   );
   if (
@@ -797,6 +807,15 @@ export function createRunOutput(value: unknown): RunOutput {
       ["agent", "workflow", "capability"],
       "RunOutput producer",
     ),
+    ...(input.parentRef !== undefined
+      ? {
+          parentRef: pinnedReference(
+            input.parentRef,
+            ["goal", "loop"],
+            "RunOutput parentRef",
+          ) as RunOutput["parentRef"],
+        }
+      : {}),
     contract: text(input.contract, "RunOutput contract"),
     createdAt: timestamp(input.createdAt, "RunOutput createdAt"),
   });

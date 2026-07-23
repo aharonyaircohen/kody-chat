@@ -108,4 +108,36 @@ describe("Agency V2 migration planner", () => {
     );
     expect(plan.definitions.goals).toEqual([]);
   });
+
+  it("blocks conditional legacy workflows instead of changing their behavior", () => {
+    const plan = planAgencyV2Migration({
+      tenantId: "acme/widgets",
+      intents: [],
+      operations: [],
+      managedWork: [],
+      workflows: [
+        {
+          id: "conditional-release",
+          capabilities: ["inspect", "deploy", "report"],
+          steps: [
+            {
+              id: "inspect",
+              capability: "inspect",
+              next: [
+                { to: "deploy", when: { approved: true } },
+                { to: "report", default: true },
+              ],
+            },
+            { id: "deploy", capability: "deploy" },
+            { id: "report", capability: "report" },
+          ],
+        },
+      ],
+    });
+
+    expect(plan.issues).toContain(
+      'Workflow "conditional-release" contains conditional transitions and requires manual V2 redesign',
+    );
+    expect(plan.definitions.workflows).toEqual([]);
+  });
 });

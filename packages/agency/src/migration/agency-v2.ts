@@ -329,6 +329,19 @@ function migrateWorkflow(
   const hasExplicitTransitions = sourceSteps.some(
     (step) => (step.next ?? []).length > 0,
   );
+  const hasConditionalTransitions = sourceSteps.some((step) =>
+    (step.next ?? []).some(
+      (transition) =>
+        transition.when !== undefined ||
+        ((step.next?.length ?? 0) > 1 && transition.default === true),
+    ),
+  );
+  if (hasConditionalTransitions) {
+    issues.push(
+      `Workflow "${workflow.id}" contains conditional transitions and requires manual V2 redesign`,
+    );
+    return undefined;
+  }
   if (!hasExplicitTransitions) {
     for (let index = 1; index < sourceSteps.length; index += 1) {
       dependencies.get(sourceSteps[index]!.id)!.push(sourceSteps[index - 1]!.id);

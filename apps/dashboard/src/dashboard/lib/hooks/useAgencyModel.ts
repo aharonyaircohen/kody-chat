@@ -9,8 +9,10 @@ import {
 } from "../api/agency-model";
 
 export const agencyModelQueryKeys = {
-  definitions: ["agency-model-v2", "definitions"] as const,
-  states: ["agency-model-v2", "states"] as const,
+  definitions: (owner: string, repo: string) =>
+    ["agency-model-v2", owner, repo, "definitions"] as const,
+  states: (owner: string, repo: string) =>
+    ["agency-model-v2", owner, repo, "states"] as const,
 };
 
 const retry = (count: number, error: Error) =>
@@ -18,20 +20,25 @@ const retry = (count: number, error: Error) =>
   count < 2;
 
 export function useAgencyDefinitions() {
+  const auth = getStoredAuth();
   return useQuery({
-    queryKey: agencyModelQueryKeys.definitions,
+    queryKey: agencyModelQueryKeys.definitions(
+      auth?.owner ?? "",
+      auth?.repo ?? "",
+    ),
     queryFn: agencyModelApi.definitions,
-    enabled: Boolean(getStoredAuth()),
+    enabled: Boolean(auth),
     staleTime: 30_000,
     retry,
   });
 }
 
 export function useAgencyStates() {
+  const auth = getStoredAuth();
   return useQuery({
-    queryKey: agencyModelQueryKeys.states,
+    queryKey: agencyModelQueryKeys.states(auth?.owner ?? "", auth?.repo ?? ""),
     queryFn: agencyModelApi.states,
-    enabled: Boolean(getStoredAuth()),
+    enabled: Boolean(auth),
     staleTime: 10_000,
     retry,
   });
@@ -39,6 +46,7 @@ export function useAgencyStates() {
 
 export function usePutAgencyState() {
   const queryClient = useQueryClient();
+  const auth = getStoredAuth();
   return useMutation<
     unknown,
     Error,
@@ -46,7 +54,11 @@ export function usePutAgencyState() {
   >({
     mutationFn: ({ kind, state }) => agencyModelApi.putState(kind, state),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: agencyModelQueryKeys.states });
+      if (auth) {
+        void queryClient.invalidateQueries({
+          queryKey: agencyModelQueryKeys.states(auth.owner, auth.repo),
+        });
+      }
       toast.success("Agency state updated");
     },
     onError: (error) =>
