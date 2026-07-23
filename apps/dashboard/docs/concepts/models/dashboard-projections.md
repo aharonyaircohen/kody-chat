@@ -28,3 +28,8 @@ actually mounted route and real API/persistence.
 Open decisions: canonical health formulas, refresh/SLA, edit command model,
 optimistic UI behavior, and compatibility projection removal.
 
+Agent rules: never persist a projection as a Definition; unknown is not healthy;
+optimistic UI must roll back on failed authoritative writes.
+
+Recommended decision: centralize versioned health formulas and expose their
+inputs/reasons to operators.

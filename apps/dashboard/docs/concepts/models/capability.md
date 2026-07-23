@@ -37,6 +37,43 @@ interface CapabilityDefinition {
 Workflows depend on Capabilities. Implementations implement them. Runs pin both
 the Capability and selected Implementation revisions.
 
+## Field meaning
+
+| Field          | Meaning                                          |
+| -------------- | ------------------------------------------------ |
+| `id`           | Stable public action identity                    |
+| `action`       | Machine-oriented verb or action name             |
+| `purpose`      | Why callers use the action                       |
+| `inputSchema`  | Accepted request contract                        |
+| `outputSchema` | Produced result contract                         |
+| `effects`      | External or durable changes the action can cause |
+| `permissions`  | Authority required before execution              |
+| `success`      | Observable success rule                          |
+| `failure`      | Observable failure rule                          |
+
+## Compatibility
+
+Adding optional input/output fields may be compatible. Removing fields,
+changing meaning/types, widening effects, or requiring new permissions is
+breaking unless a reviewed compatibility rule says otherwise. A breaking
+revision requires caller and Implementation migration.
+
+## Failure cases
+
+- Invalid input is rejected before Implementation selection.
+- Missing permission or Policy authority is denied before execution.
+- No compatible Implementation is an explicit dispatch failure.
+- Invalid output fails the Run even if the adapter returned successfully.
+- Undeclared effects are a contract violation and security incident.
+
+## Recommended decisions
+
+- Use JSON Schema 2020-12 with a project-owned validation wrapper.
+- Maintain controlled effect and permission registries.
+- Keep Evidence requirements on Objective/output contracts, not Capability
+  identity.
+- Require review for any effect, permission, or breaking schema change.
+
 ## Human and AI authority
 
 AI may propose contracts and implementations. Humans approve permission,
@@ -54,4 +91,4 @@ the deployment authority; its success condition requires terminal deployment.
 - Effect and permission vocabulary ownership.
 - Deprecation window and caller migration policy.
 - Whether output contracts include Evidence requirements or only data shape.
-
+- Compatibility checker behavior and deprecation period.

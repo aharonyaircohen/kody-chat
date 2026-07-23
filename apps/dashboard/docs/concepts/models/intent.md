@@ -70,14 +70,14 @@ Unknown boundaries are model decisions, not implementation assumptions.
 
 ## Data kinds
 
-| Part | Kind | Mutable? | Identity? | Lifecycle? |
-| --- | --- | --- | --- | --- |
-| IntentDefinition | Authored contract | Immutable after creation | `id` | Yes |
-| IntentState | Runtime State | Yes | References Intent `id` | No independent Lifecycle |
-| Intent decision | RunOutput History | Append-only | Output record and Run | No |
-| Scope | Embedded Value | Through new Definition | No | No |
-| Policy reference | Dependency | Through new Definition | Policy owns identity | Policy-owned |
-| IntentControls | Embedded Value | Through new Definition | No | No |
+| Part             | Kind              | Mutable?                 | Identity?              | Lifecycle?               |
+| ---------------- | ----------------- | ------------------------ | ---------------------- | ------------------------ |
+| IntentDefinition | Authored contract | Immutable after creation | `id`                   | Yes                      |
+| IntentState      | Runtime State     | Yes                      | References Intent `id` | No independent Lifecycle |
+| Intent decision  | RunOutput History | Append-only              | Output record and Run  | No                       |
+| Scope            | Embedded Value    | Through new Definition   | No                     | No                       |
+| Policy reference | Dependency        | Through new Definition   | Policy owns identity   | Policy-owned             |
+| IntentControls   | Embedded Value    | Through new Definition   | No                     | No                       |
 
 A Dashboard projection may combine these for display. It is never another
 authority.
@@ -89,18 +89,18 @@ authority.
 This is the approved semantic contract. The current
 `@kody-ade/agency-domain` shape has not yet completed this migration.
 
-| Field | Type | Required | Meaning | Validation | Excludes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | string | Yes | Stable Intent identity | `^[a-z][a-z0-9-]{0,127}$` | Revision/storage path |
-| `direction` | string | Yes | Short company direction | Non-empty | Execution plan |
-| `description` | string | No | Reason, context, constraints, examples, good outcome | Non-empty when present | Second Intent or route |
-| `priority` | number | Yes | Relative Intent ordering | Positive number | Runtime queue position |
-| `posture` | enum | Yes | Default tradeoff stance | `confidence`, `speed`, `stability-recovery`, `maintenance`, `balanced` | Model/Agent selection |
-| `scope` | Scope | Yes | Included and excluded dimensions | Valid dimension ids and values | Dashboard route state |
-| `priorities` | string[] | Yes | Decision principles | Non-empty strings | Work queue |
-| `measures` | string[] | Yes | Observable success measures | Non-empty strings | Current metric values |
-| `policyRefs` | string[] | Yes | Reusable Policy package ids | Every reference resolves | Copied Policy content |
-| `controls` | IntentControls | Yes | Intent-specific hard limits | Strict, may only tighten resolved Policies | Cadence or reusable guidance |
+| Field         | Type           | Required | Meaning                                              | Validation                                                             | Excludes                     |
+| ------------- | -------------- | -------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------- |
+| `id`          | string         | Yes      | Stable Intent identity                               | `^[a-z][a-z0-9-]{0,127}$`                                              | Revision/storage path        |
+| `direction`   | string         | Yes      | Short company direction                              | Non-empty                                                              | Execution plan               |
+| `description` | string         | No       | Reason, context, constraints, examples, good outcome | Non-empty when present                                                 | Second Intent or route       |
+| `priority`    | number         | Yes      | Relative Intent ordering                             | Positive number                                                        | Runtime queue position       |
+| `posture`     | enum           | Yes      | Default tradeoff stance                              | `confidence`, `speed`, `stability-recovery`, `maintenance`, `balanced` | Model/Agent selection        |
+| `scope`       | Scope          | Yes      | Included and excluded dimensions                     | Valid dimension ids and values                                         | Dashboard route state        |
+| `priorities`  | string[]       | Yes      | Decision principles                                  | Non-empty strings                                                      | Work queue                   |
+| `measures`    | string[]       | Yes      | Observable success measures                          | Non-empty strings                                                      | Current metric values        |
+| `policyRefs`  | string[]       | Yes      | Reusable Policy package ids                          | Every reference resolves                                               | Copied Policy content        |
+| `controls`    | IntentControls | Yes      | Intent-specific hard limits                          | Strict, may only tighten resolved Policies                             | Cadence or reusable guidance |
 
 The current implementation still stores overlapping `deliveryPolicy`, inline
 `policy`, and `constraints`. Those are migration inputs, not the approved Intent
@@ -108,11 +108,11 @@ contract.
 
 ### IntentState
 
-| Field | Type | Required | Meaning | Validation |
-| --- | --- | --- | --- | --- |
-| `definitionId` | string | Yes | Intent identity tracked | Valid id; matches State envelope |
-| `lifecycle` | Lifecycle | Yes | Current availability | `draft`, `active`, `paused`, `retired`, `archived` |
-| `updatedAt` | ISO timestamp | Yes | State transition time | Parseable timestamp |
+| Field          | Type          | Required | Meaning                 | Validation                                         |
+| -------------- | ------------- | -------- | ----------------------- | -------------------------------------------------- |
+| `definitionId` | string        | Yes      | Intent identity tracked | Valid id; matches State envelope                   |
+| `lifecycle`    | Lifecycle     | Yes      | Current availability    | `draft`, `active`, `paused`, `retired`, `archived` |
+| `updatedAt`    | ISO timestamp | Yes      | State transition time   | Parseable timestamp                                |
 
 Lifecycle belongs only in IntentState.
 
@@ -120,15 +120,15 @@ Lifecycle belongs only in IntentState.
 
 Intent decisions are Run outputs, not Definition or State:
 
-| Field | Meaning |
-| --- | --- |
-| `at` | Output creation time |
-| `agent` | Decision-maker or producing Agent |
-| `intentId` | Originating Intent |
-| `action` | Decision action |
-| `reason` | Decision reason |
-| `before` / `after` | Optional change evidence |
-| `resources` | Optional affected references |
+| Field              | Meaning                           |
+| ------------------ | --------------------------------- |
+| `at`               | Output creation time              |
+| `agent`            | Decision-maker or producing Agent |
+| `intentId`         | Originating Intent                |
+| `action`           | Decision action                   |
+| `reason`           | Decision reason                   |
+| `before` / `after` | Optional change evidence          |
+| `resources`        | Optional affected references      |
 
 ### Scope
 
@@ -193,13 +193,13 @@ Implementation enforcement is tracked in
 
 ## Lifecycle
 
-| State | Meaning |
-| --- | --- |
-| `draft` | Direction exists but is not approved for management action |
-| `active` | Operations may serve it and management may review it |
-| `paused` | Direction remains but starts no new management work |
-| `retired` | Direction ended but remains historically addressable |
-| `archived` | Hidden from active management and retained for History |
+| State      | Meaning                                                    |
+| ---------- | ---------------------------------------------------------- |
+| `draft`    | Direction exists but is not approved for management action |
+| `active`   | Operations may serve it and management may review it       |
+| `paused`   | Direction remains but starts no new management work        |
+| `retired`  | Direction ended but remains historically addressable       |
+| `archived` | Hidden from active management and retained for History     |
 
 The transition graph, actor permissions, deletion, and restore policy remain
 open model decisions. Current behavior is documented in the
@@ -207,14 +207,14 @@ open model decisions. Current behavior is documented in the
 
 ## Relationships
 
-| Model | Direction | Cardinality | Type | Rule |
-| --- | --- | --- | --- | --- |
-| Policy | Outgoing | Zero to many | Dependency | Reusable Policy package is referenced, not copied |
-| IntentControls | Embedded | Exactly one | Owned Value | Hard limits may only tighten resolved Policies |
-| Scope | Embedded | Exactly one | Owned Value | Defines where Intent applies |
-| Operation | Incoming | Many-to-many | Dependency | Operation stores `intentIds` and serves the Intent |
-| Run | Incoming | Many | History | Management Run originates from Intent |
-| RunOutput | Incoming through Run | Many | History | Decision/evidence/artifact remains with Run |
+| Model          | Direction            | Cardinality  | Type        | Rule                                               |
+| -------------- | -------------------- | ------------ | ----------- | -------------------------------------------------- |
+| Policy         | Outgoing             | Zero to many | Dependency  | Reusable Policy package is referenced, not copied  |
+| IntentControls | Embedded             | Exactly one  | Owned Value | Hard limits may only tighten resolved Policies     |
+| Scope          | Embedded             | Exactly one  | Owned Value | Defines where Intent applies                       |
+| Operation      | Incoming             | Many-to-many | Dependency  | Operation stores `intentIds` and serves the Intent |
+| Run            | Incoming             | Many         | History     | Management Run originates from Intent              |
+| RunOutput      | Incoming through Run | Many         | History     | Decision/evidence/artifact remains with Run        |
 
 Relationship rules:
 
@@ -337,10 +337,7 @@ Migration requirements and remaining implementation proposals are tracked in
     "Fix responsibility confusion before adding structure",
     "Verify user-facing changes on the real route"
   ],
-  "measures": [
-    "Critical journeys pass",
-    "No unresolved release blocker"
-  ],
+  "measures": ["Critical journeys pass", "No unresolved release blocker"],
   "policyRefs": ["engineering-quality", "release-safety"],
   "controls": {
     "authority": {
@@ -413,15 +410,15 @@ Violates `INT-07`: decisions are RunOutput History.
 
 ## Decisions
 
-| ID | Date | Decision | Why | Evidence | Approved by |
-| --- | --- | --- | --- | --- | --- |
-| `INT-D01` | 2026-07-14 | Intent owns direction and non-negotiable governance, not operating structure | Intent was overloaded | `company-model.md` | User discussion |
-| `INT-D02` | 2026-07-14 | Humans author Intents; existing Agents manage Operations | Separates human authority from delegated management | `company-model.md` | User discussion |
-| `INT-D03` | 2026-07-20 | Intents select reusable Policies; Controls are hard limits | Avoids copied Policy guidance | UI and migration evidence | Partial implementation; live completion unverified |
-| `INT-D04` | 2026-07-23 | Each model separates semantic contract from implementation evidence | Agents need focused context | Model index/template | User |
-| `INT-D05` | 2026-07-23 | Model documents remain normal Markdown with compact sections | Human readability plus agent retrieval | Template | User |
-| `INT-D06` | 2026-07-24 | Each model uses two main documents: meaning and implementation guide | Preserve detail without loading it for every task | `intent.md`, `intent-implementation.md` | User |
-| `INT-D07` | 2026-07-24 | Policies are reusable packages; Intent Controls may only tighten them; cadence belongs to Loop; conflicts fail closed | Keeps governance reusable, deterministic, and separate from scheduling | Intent review discussion | User |
+| ID        | Date       | Decision                                                                                                              | Why                                                                    | Evidence                                | Approved by                                        |
+| --------- | ---------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| `INT-D01` | 2026-07-14 | Intent owns direction and non-negotiable governance, not operating structure                                          | Intent was overloaded                                                  | `company-model.md`                      | User discussion                                    |
+| `INT-D02` | 2026-07-14 | Humans author Intents; existing Agents manage Operations                                                              | Separates human authority from delegated management                    | `company-model.md`                      | User discussion                                    |
+| `INT-D03` | 2026-07-20 | Intents select reusable Policies; Controls are hard limits                                                            | Avoids copied Policy guidance                                          | UI and migration evidence               | Partial implementation; live completion unverified |
+| `INT-D04` | 2026-07-23 | Each model separates semantic contract from implementation evidence                                                   | Agents need focused context                                            | Model index/template                    | User                                               |
+| `INT-D05` | 2026-07-23 | Model documents remain normal Markdown with compact sections                                                          | Human readability plus agent retrieval                                 | Template                                | User                                               |
+| `INT-D06` | 2026-07-24 | Each model uses two main documents: meaning and implementation guide                                                  | Preserve detail without loading it for every task                      | `intent.md`, `intent-implementation.md` | User                                               |
+| `INT-D07` | 2026-07-24 | Policies are reusable packages; Intent Controls may only tighten them; cadence belongs to Loop; conflicts fail closed | Keeps governance reusable, deterministic, and separate from scheduling | Intent review discussion                | User                                               |
 
 ## Open model decisions
 

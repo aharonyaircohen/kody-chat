@@ -22,3 +22,8 @@ across processes and external adapters.
 Open decisions: event schema, ordering guarantees, trace standard, redaction,
 retention, and replay support.
 
+Agent rule: correlation, parent-child lineage, and pinned definition trace are
+separate required links. Never replace them with log text.
+
+Recommended decision: assign monotonic event sequence numbers in Convex and
+propagate W3C trace context to adapters.

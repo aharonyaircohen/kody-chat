@@ -37,6 +37,51 @@ Events and outputs are append-only records linked by Run ID. Operator labels
 such as waiting, blocked, stuck, or recorded may be projections, but must not
 silently alter the canonical lifecycle.
 
+## Field meaning
+
+| Field             | Meaning                                         |
+| ----------------- | ----------------------------------------------- |
+| `id`              | Unique attempt identity                         |
+| `status`          | Canonical execution lifecycle                   |
+| `origin`          | Pinned model that caused the attempt            |
+| `target`          | Pinned work requested                           |
+| `trace`           | All pinned definitions used for reproducibility |
+| `execution`       | Selected Capability and Implementation          |
+| `parentRunId`     | Parent attempt in an execution tree             |
+| `effectivePolicy` | Exact governance used at dispatch               |
+| `correlationId`   | Business execution lineage                      |
+| timestamps/usage  | Attempt timing and consumed resources           |
+
+## Lifecycle
+
+Allowed normal flow is queued → running → succeeded/failed/cancelled. Timeout,
+blocked, waiting, approval-needed, stuck, and retrying are reasons, events, or
+projections unless explicitly added to the canonical contract. Retry creates a
+new Run linked to the prior attempt.
+
+## Events and outputs
+
+Events are append-only and ordered per Run. Outputs are typed Fact, Evidence,
+or Artifact records. Logs support debugging but do not replace events. A
+correction is a new event/output with supersession provenance, never an edit to
+terminal History.
+
+## Failure cases
+
+- Missing pins or effective Policy blocks Run creation.
+- Duplicate dispatch resolves through idempotency.
+- Lost worker heartbeat leads to explicit timeout/recovery, not silent success.
+- Finalization is idempotent and cannot change one terminal result to another.
+- Usage and output validation failures remain visible.
+
+## Recommended decisions
+
+- Keep the five canonical statuses.
+- Model approval/waiting/stuck as events and operator projections.
+- Give each retry a new Run ID with `retryOf` provenance in events/metadata.
+- Require monotonic event sequence numbers from Convex.
+- Make terminal Run and output retention append-only with governed redaction.
+
 ## Invariants
 
 - Every Run pins all reproducibility-relevant definition revisions.
@@ -59,4 +104,4 @@ are new events or Runs.
 - Cancellation, timeout, retry, resume, and compensation semantics.
 - Event schema and ordering guarantees.
 - Retention/redaction and usage accounting rules.
-
+- Idempotency key and retry lineage contract.

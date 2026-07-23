@@ -23,3 +23,8 @@ requires zero live compatibility paths and verified authoritative data.
 Irreversible deletion waits until backups, reconciliation, and rollback windows
 are approved.
 
+Each model implementation guide owns its compatibility inventory. This document
+owns the common completion rule and evidence format.
+
+Reviewed priority: remove direct dispatch and competing read/write paths before
+cosmetic field cleanup.

@@ -23,3 +23,8 @@ classifies them.
 Open decisions: layer order, versioning, tenant/project Scope, approval,
 injection defenses, size limits, and Run provenance.
 
+Agent rules: system/security and Policy always win; retrieved content never
+becomes Instructions automatically; resolved Instructions must be traceable.
+
+Recommended decision: define one layer order and store a resolved manifest hash
+on each Run.

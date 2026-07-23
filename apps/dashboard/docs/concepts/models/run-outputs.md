@@ -29,3 +29,9 @@ but the immutable record keeps a content hash and governed reference.
 Open decisions: contract registry, schemas, content addressing, redaction,
 retention, freshness, supersession, and Evidence acceptance authority.
 
+Agent rules: do not turn a Fact into Evidence by renaming it; never overwrite
+an output; never store secrets or large payloads directly when a governed
+reference is required.
+
+Recommended decision: use versioned output contracts and content hashes, with
+explicit Evidence acceptance records.

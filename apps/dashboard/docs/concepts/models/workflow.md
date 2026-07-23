@@ -36,6 +36,48 @@ interface WorkflowDefinition {
 Workflows are shared dependencies of Goals and Loops. Workflow executions
 produce parent and child Runs with pinned definition revisions.
 
+## Field meaning
+
+| Field           | Meaning                                                 |
+| --------------- | ------------------------------------------------------- |
+| `id`            | Stable Workflow identity                                |
+| `steps[].id`    | Stable step identity within one revision                |
+| `capabilityRef` | Public action contract required by the step             |
+| `dependsOn`     | Steps that must succeed before eligibility              |
+| `input`         | Static input or binding description, not runtime output |
+| `condition`     | Eligibility rule evaluated by the runtime               |
+| `retry`         | Bounded retry for this step attempt                     |
+
+The graph must be finite, acyclic, and have at least one start step. A Workflow
+does not own cadence, business success, approval State, selected
+Implementations, current position, or step outputs.
+
+## Runtime meaning
+
+A Workflow Run pins one Workflow revision. Each eligible step creates a child
+Run for its Capability. Step success means its Capability contract succeeded;
+Workflow success means every required path completed. Goal completion remains a
+separate Evidence decision.
+
+Conditions, input bindings, retries, cancellation, and compensation must be
+deterministic and recorded. Editing a Workflow never changes an active Run.
+
+## Failure cases
+
+- Missing Capability, dependency, or input contract blocks activation.
+- Cycles and unreachable required steps are invalid.
+- A failed required step fails or compensates according to explicit policy.
+- No compatible Implementation blocks that step; it does not silently skip.
+- Duplicate dispatch reuses an idempotency result or creates an explicit retry.
+
+## Recommended decisions
+
+- Keep `dependsOn` as the canonical graph; derive editor arrows from it.
+- Keep approval outside the step type as a dispatch gate.
+- Use a small, sandboxed expression language for conditions and bindings.
+- Make compensation explicit per step before supporting partial rollback.
+- Pin the Workflow revision for the complete Run tree.
+
 ## Human and AI authority
 
 AI may propose a Workflow and low-risk revisions. A human must approve changes
@@ -55,4 +97,5 @@ compatible Implementation.
 - Failure, compensation, and partial-success semantics.
 - Whether approval is a step type or always an external dispatch gate.
 - Revision compatibility for in-flight Runs.
-
+- Required-step, optional-step, and partial-success rules.
+- Workflow input/output contract and binding syntax.

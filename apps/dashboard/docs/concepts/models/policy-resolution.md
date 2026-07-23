@@ -25,3 +25,9 @@ approval and execution.
 Open decisions: exact lattice, action/effect vocabulary, approval expiry,
 policy exception model, and effective Scope representation.
 
+Enforcement belongs in one dispatch service and must be tested with denied,
+ambiguous, expired-approval, reduced-budget, and concurrent-policy-change
+cases.
+
+Reviewed gap: current direct GitHub dispatch paths do not yet prove this full
+resolution before external work begins.

@@ -7,11 +7,11 @@ Load when: Editing, debugging, testing, running, or migrating this model
 
 ## Reading map
 
-| Task | Required sections |
-| --- | --- |
-| Find ownership | Authority and storage, Current implementation |
-| Change runtime | Runtime, API and events, Agent rules |
-| Migrate data | Gaps, Open questions, Agent rules, Verification |
+| Task           | Required sections                               |
+| -------------- | ----------------------------------------------- |
+| Find ownership | Authority and storage, Current implementation   |
+| Change runtime | Runtime, API and events, Agent rules            |
+| Migrate data   | Gaps, Open questions, Agent rules, Verification |
 
 Read the model contract first.
 
@@ -22,18 +22,18 @@ MUST NOT be persisted.
 
 ## Enforcement status
 
-| Rule | Write enforcement | Runtime enforcement | Database | Doctor |
-| --- | --- | --- | --- | --- |
+| Rule     | Write enforcement      | Runtime enforcement    | Database           | Doctor        |
+| -------- | ---------------------- | ---------------------- | ------------------ | ------------- |
 | `MOD-01` | File/symbol or missing | File/symbol or missing | Constraint/missing | Check/missing |
 
 ## Authority and storage
 
-| Data | Authority | Current storage | Scope | Readers | Writers |
-| --- | --- | --- | --- | --- | --- |
-| Definition | Authority | Location | Scope | Symbols | Symbols |
-| State | Authority | Location | Scope | Symbols | Symbols |
-| History | Authority | Location | Scope | Symbols | Symbols |
-| Compatibility | None | Location | Scope | Symbols | Symbols |
+| Data          | Authority | Current storage | Scope | Readers | Writers |
+| ------------- | --------- | --------------- | ----- | ------- | ------- |
+| Definition    | Authority | Location        | Scope | Symbols | Symbols |
+| State         | Authority | Location        | Scope | Symbols | Symbols |
+| History       | Authority | Location        | Scope | Symbols | Symbols |
+| Compatibility | None      | Location        | Scope | Symbols | Symbols |
 
 Name every cache, projection, graph, manifest, index, fallback, and dual-write.
 
@@ -49,8 +49,8 @@ failure recovery, and operator-visible results.
 ## API and events
 
 | Boundary | Method/event | Purpose | Reads | Writes | Authorization |
-| --- | --- | --- | --- | --- | --- |
-| API/job | Method | Purpose | Data | Data | Rule |
+| -------- | ------------ | ------- | ----- | ------ | ------------- |
+| API/job  | Method       | Purpose | Data  | Data   | Rule          |
 
 ## Current implementation
 
@@ -85,18 +85,18 @@ List unapproved proposals. They MUST NOT be treated as target rules.
 
 ## Gaps
 
-| ID | Area | Current | Target | Risk | Migration | Completion proof |
-| --- | --- | --- | --- | --- | --- | --- |
-| `MOD-G01` | Area | Fact | Rule | Effect | Work | Exact check |
+| ID        | Area | Current | Target | Risk   | Migration | Completion proof |
+| --------- | ---- | ------- | ------ | ------ | --------- | ---------------- |
+| `MOD-G01` | Area | Fact    | Rule   | Effect | Work      | Exact check      |
 
 A gap remains open while any fallback, inference, dual-write, compatibility
 reader, or compatibility writer remains.
 
 ## Open questions
 
-| ID | Question | Impact | Options | Owner | Blocks? |
-| --- | --- | --- | --- | --- | --- |
-| `MOD-Q01` | Question | Why | Options | Owner | Yes/no |
+| ID        | Question | Impact | Options | Owner | Blocks? |
+| --------- | -------- | ------ | ------- | ----- | ------- |
+| `MOD-Q01` | Question | Why    | Options | Owner | Yes/no  |
 
 ## Agent rules
 
@@ -140,13 +140,13 @@ reader, or compatibility writer remains.
 
 ### Required proof
 
-| Boundary | Proof | Pass condition |
-| --- | --- | --- |
-| Contract | Unit/architecture | Rules enforced |
-| Persistence | Integration | Correct authority |
-| Runtime | Real path | State/History correct |
-| Dashboard | Canonical browser path | UI and persistence agree |
-| Migration | Compatibility audit | Old paths absent |
+| Boundary    | Proof                  | Pass condition           |
+| ----------- | ---------------------- | ------------------------ |
+| Contract    | Unit/architecture      | Rules enforced           |
+| Persistence | Integration            | Correct authority        |
+| Runtime     | Real path              | State/History correct    |
+| Dashboard   | Canonical browser path | UI and persistence agree |
+| Migration   | Compatibility audit    | Old paths absent         |
 
 ### Stop when
 

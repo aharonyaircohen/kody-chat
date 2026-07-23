@@ -6,14 +6,14 @@ Convex is the sole authority for Dashboard runtime State and History. Runtime
 State must never read from, write to, bootstrap from, dual-write to, or fall
 back to GitHub.
 
-| Data | Authority |
-| --- | --- |
-| Active State, Runs, events, approvals, outputs | Convex |
-| Current definition heads/revisions | selected agency definition store; consolidation required |
-| Repository content and Engine definitions | GitHub/repository |
-| Store assets and distributable packages | Kody Store |
-| UI projections and caches | derived, rebuildable |
-| Optional GitHub CMS content | only explicit selected CMS adapter |
+| Data                                           | Authority                                                |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| Active State, Runs, events, approvals, outputs | Convex                                                   |
+| Current definition heads/revisions             | selected agency definition store; consolidation required |
+| Repository content and Engine definitions      | GitHub/repository                                        |
+| Store assets and distributable packages        | Kody Store                                               |
+| UI projections and caches                      | derived, rebuildable                                     |
+| Optional GitHub CMS content                    | only explicit selected CMS adapter                       |
 
 Every authoritative record carries tenant identity. Server authorization derives
 tenant/user Scope; client-supplied tenant identifiers are never trusted alone.
@@ -23,3 +23,8 @@ bindings unless explicitly included by a governed format.
 Current repository/file compatibility paths must be inventoried per model.
 Migration is incomplete while any runtime fallback or dual-write remains.
 
+Reviewed result: current clean agency Definitions, State, and History are
+Convex-backed. Some file-named adapters now wrap Convex; names and unused
+Octokit arguments must not be mistaken for GitHub storage.
+
+Agent rule: verify the actual adapter before claiming authority from a filename.

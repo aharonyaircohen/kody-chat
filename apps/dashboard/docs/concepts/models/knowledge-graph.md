@@ -23,3 +23,8 @@ exact current contract is not certified by this Draft.
 Open decisions: canonical node/edge taxonomy, inference confidence, staleness,
 rebuild strategy, redaction, and graph versioning.
 
+Agent rules: never write domain changes through graph mutation; never treat an
+inferred edge as an ownership fact; preserve tenant and source access rules.
+
+Recommended decision: version derivation rules and make every graph record
+rebuildable from named source revisions/events.

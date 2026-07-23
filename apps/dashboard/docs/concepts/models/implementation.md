@@ -42,6 +42,42 @@ portable semantic definition unless a dedicated contract approves them.
 - Removing an Implementation is blocked while active configuration requires it;
   History retains its pinned identity.
 
+## Field meaning
+
+| Field                          | Meaning                                        |
+| ------------------------------ | ---------------------------------------------- |
+| `id`                           | Stable Implementation identity                 |
+| `capabilityRef`                | Capability this realizes                       |
+| `compatibleCapabilityRevision` | Exact revision or approved compatibility range |
+| `type`                         | Execution family: Agent or script              |
+| `agentRef`                     | Required acting identity for Agent execution   |
+
+Portable meaning is separate from an environment binding. A binding may name a
+package, command, deployment, provider, model, tools, secrets, or endpoint for
+one environment. Availability and health are runtime State.
+
+## Selection
+
+Selection first filters by compatibility, Lifecycle, environment, permissions,
+Policy, Scope, and health. Ranking only happens after eligibility. Ties,
+fallback, and no-match results must be deterministic and explainable.
+
+## Failure cases
+
+- Incompatible Capability revision blocks selection.
+- Missing binding, secret, deployment, or Agent blocks that candidate.
+- Unhealthy candidates are excluded according to explicit policy.
+- Adapter failure is recorded on the Run; hidden fallback is forbidden.
+- Output contract failure means execution failed.
+
+## Recommended decisions
+
+- Use explicit compatibility ranges with exact pinning on Run.
+- Keep environment bindings as separately governed records.
+- Require deterministic selection with a recorded reason.
+- Allow fallback only as an explicit ranked selection policy.
+- Retain deployment and attestation provenance with the selected revision.
+
 ## Human and AI authority
 
 AI may propose or generate an Implementation. Humans approve deployment,
@@ -54,4 +90,4 @@ as required by Policy.
 - Portable definition versus environment binding schema.
 - Selection ranking, fallback, and health semantics.
 - Ownership of build, deployment, rollback, and attestation metadata.
-
+- Lifecycle and health model for bindings.

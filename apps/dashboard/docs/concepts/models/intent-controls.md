@@ -25,3 +25,8 @@ Intent Control, Trigger, or product projection before changing persistence.
 Open decisions: exact target schema, whether Controls are revisioned separately,
 and which delivery fields survive after cadence removal.
 
+Agent rules: Controls only tighten; unknown comparisons fail closed; cadence
+must migrate to Loop Trigger rather than survive as a second schedule.
+
+Recommended decision: keep Controls embedded in an Intent revision unless
+reuse becomes a proven requirement.

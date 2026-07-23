@@ -6,8 +6,13 @@ Domain identity is `{ kind, id }`. Revision belongs to the immutable persistence
 envelope, not the semantic definition.
 
 ```ts
-interface DefinitionRef { kind: ReferenceKind; id: string }
-interface PinnedDefinitionRef extends DefinitionRef { revision: string }
+interface DefinitionRef {
+  kind: ReferenceKind;
+  id: string;
+}
+interface PinnedDefinitionRef extends DefinitionRef {
+  revision: string;
+}
 ```
 
 Definitions may use unpinned references to express a dependency on the current
@@ -23,3 +28,8 @@ allows them.
 Open decisions: revision identifier format, optimistic concurrency token,
 compatibility ranges, head selection, and retention.
 
+Agent rules: definitions may use current-head references only before dispatch;
+Runs always pin. Never select “latest” from timestamps when a head exists.
+
+Recommended decision: use content-derived immutable revision IDs and one
+explicit head record with compare-and-set updates.

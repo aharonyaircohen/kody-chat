@@ -21,3 +21,8 @@ inference. Concurrent edits must conflict rather than silently overwrite.
 Open decisions: revision format, head schema, draft publication, compatibility,
 rollback, retention, and cross-tenant portability.
 
+Agent rule: never infer current revision from array order, timestamps, or
+record IDs. Every edit carries an expected head and conflicts on mismatch.
+
+Recommended decision: consolidate on content-addressed revisions plus one
+compare-and-set head store.

@@ -7,13 +7,13 @@ Load when: Editing, debugging, testing, running, or migrating Intent
 
 ## Reading map
 
-| Task | Required sections |
-| --- | --- |
-| Find current ownership | Authority and storage, Current implementation |
-| Change an Intent path | Runtime, API and events, Agent rules |
-| Fix UI projection | Projection behavior, Current implementation, Gaps |
-| Change Policy handling | Runtime, Gaps, Open questions |
-| Remove legacy data | Authority and storage, Gaps, Agent rules, Verification |
+| Task                   | Required sections                                      |
+| ---------------------- | ------------------------------------------------------ |
+| Find current ownership | Authority and storage, Current implementation          |
+| Change an Intent path  | Runtime, API and events, Agent rules                   |
+| Fix UI projection      | Projection behavior, Current implementation, Gaps      |
+| Change Policy handling | Runtime, Gaps, Open questions                          |
+| Remove legacy data     | Authority and storage, Gaps, Agent rules, Verification |
 
 Read [`intent.md`](intent.md) first. It owns Intent meaning and the approved
 contract. This guide describes current implementation, migration debt, and proof.
@@ -27,12 +27,12 @@ authority.
 ### Lifecycle mapping
 
 | IntentState | Dashboard status |
-| --- | --- |
-| `draft` | `active` |
-| `active` | `active` |
-| `paused` | `paused` |
-| `retired` | `archived` |
-| `archived` | `archived` |
+| ----------- | ---------------- |
+| `draft`     | `active`         |
+| `active`    | `active`         |
+| `paused`    | `paused`         |
+| `retired`   | `archived`       |
+| `archived`  | `archived`       |
 
 Mapping `draft` to `active` hides a meaningful lifecycle state.
 
@@ -46,15 +46,15 @@ Decisions are projected from:
 3. `output.contract === "company-intent-decision"` or
    `output.key === "decision"`.
 
-| Projected field | Source |
-| --- | --- |
-| `at` | RunOutput creation time |
-| `agent` | Decision payload Agent or producing Agent |
-| `intentId` | Originating Intent |
-| `action` | Decision action or Run target |
-| `reason` | Decision reason |
-| `before` / `after` | Optional change evidence |
-| `resources` | Optional affected resource references |
+| Projected field    | Source                                    |
+| ------------------ | ----------------------------------------- |
+| `at`               | RunOutput creation time                   |
+| `agent`            | Decision payload Agent or producing Agent |
+| `intentId`         | Originating Intent                        |
+| `action`           | Decision action or Run target             |
+| `reason`           | Decision reason                           |
+| `before` / `after` | Optional change evidence                  |
+| `resources`        | Optional affected resource references     |
 
 Decision history MUST NOT be copied into IntentDefinition or IntentState.
 
@@ -85,29 +85,29 @@ The projected `CompanyIntentRecord` MUST NOT be persisted as IntentDefinition.
 
 ## Enforcement status
 
-| Rule | Write enforcement | Runtime enforcement | Database | Doctor |
-| --- | --- | --- | --- | --- |
-| `INT-00` | `createIntentDefinition` | Model-change route revalidates | Definition data uses `v.any()` | Missing |
-| `INT-01` | Domain Definition contains only `id`; envelope creates `recordId` | Identical envelope revision is reused | Tenant + record id lookup in mutation | Missing |
-| `INT-02` | `createIntentState` | `agencyModel.putState` checks envelope match | Indexed by tenant, kind, definition id | Missing |
-| `INT-04` | `IntentDefinition` has no portfolio | Projection derives portfolio | No foreign-key constraint | Missing |
-| `INT-05` | Operation validator checks ids | Operation readiness checks existence | No foreign key | Partial |
-| `INT-06` | Definition requires Policy | Intended trigger-dispatch enforcement | Dispatch may store policy snapshot/hash | Real-path proof missing |
-| `INT-09` | UI validates Policy ref slug | Manual Run loads matching guidance | No foreign key | Missing; unmatched refs are omitted |
-| `INT-10` | Definitions are append-only | Runs may pin Definition refs | No deletion route found in inspected path | Missing |
+| Rule     | Write enforcement                                                 | Runtime enforcement                          | Database                                  | Doctor                              |
+| -------- | ----------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------- | ----------------------------------- |
+| `INT-00` | `createIntentDefinition`                                          | Model-change route revalidates               | Definition data uses `v.any()`            | Missing                             |
+| `INT-01` | Domain Definition contains only `id`; envelope creates `recordId` | Identical envelope revision is reused        | Tenant + record id lookup in mutation     | Missing                             |
+| `INT-02` | `createIntentState`                                               | `agencyModel.putState` checks envelope match | Indexed by tenant, kind, definition id    | Missing                             |
+| `INT-04` | `IntentDefinition` has no portfolio                               | Projection derives portfolio                 | No foreign-key constraint                 | Missing                             |
+| `INT-05` | Operation validator checks ids                                    | Operation readiness checks existence         | No foreign key                            | Partial                             |
+| `INT-06` | Definition requires Policy                                        | Intended trigger-dispatch enforcement        | Dispatch may store policy snapshot/hash   | Real-path proof missing             |
+| `INT-09` | UI validates Policy ref slug                                      | Manual Run loads matching guidance           | No foreign key                            | Missing; unmatched refs are omitted |
+| `INT-10` | Definitions are append-only                                       | Runs may pin Definition refs                 | No deletion route found in inspected path | Missing                             |
 
 “Documented” is not “enforced.”
 
 ## Authority and storage
 
-| Data | Canonical authority | Current storage | Scope | Readers | Writers |
-| --- | --- | --- | --- | --- | --- |
-| Definition | Agency domain `IntentDefinition` | Convex `agencyDefinitions`; immutable envelope with content-derived `recordId` | Tenant = repository | Definitions API, projections, Run route | Model-change API, migration |
-| Lifecycle | `IntentState` | Convex `agencyStates` | Tenant = repository | States API, projections, Run route | Model-change API |
-| Run decisions | Run and RunOutput | Convex Agency Runs and `agencyOutputs` | Tenant = repository | Observations API, projection | Engine/runtime |
-| Policy content | Guidance Policy files | Workspace/Store guidance via `listGuidanceFiles("policy")` | Configured company/workspace | Intent UI, manual Run route | Guidance APIs/tools |
-| Legacy combined Intent | Compatibility only | Convex `intents` | Tenant = repository | Legacy Intent API, migration input | Legacy POST/PATCH |
-| Legacy decisions | Compatibility only | Convex `intentDecisions` | Tenant = repository | Legacy Intent store | Legacy append function |
+| Data                   | Canonical authority              | Current storage                                                                | Scope                        | Readers                                 | Writers                     |
+| ---------------------- | -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------- | --------------------------- |
+| Definition             | Agency domain `IntentDefinition` | Convex `agencyDefinitions`; immutable envelope with content-derived `recordId` | Tenant = repository          | Definitions API, projections, Run route | Model-change API, migration |
+| Lifecycle              | `IntentState`                    | Convex `agencyStates`                                                          | Tenant = repository          | States API, projections, Run route      | Model-change API            |
+| Run decisions          | Run and RunOutput                | Convex Agency Runs and `agencyOutputs`                                         | Tenant = repository          | Observations API, projection            | Engine/runtime              |
+| Policy content         | Guidance Policy files            | Workspace/Store guidance via `listGuidanceFiles("policy")`                     | Configured company/workspace | Intent UI, manual Run route             | Guidance APIs/tools         |
+| Legacy combined Intent | Compatibility only               | Convex `intents`                                                               | Tenant = repository          | Legacy Intent API, migration input      | Legacy POST/PATCH           |
+| Legacy decisions       | Compatibility only               | Convex `intentDecisions`                                                       | Tenant = repository          | Legacy Intent store                     | Legacy append function      |
 
 The main `useCompanyIntents` path reads `agencyDefinitions`, `agencyStates`, and
 Agency observations. It does not read the legacy `intents` table.
@@ -183,17 +183,17 @@ Current reliability facts:
 
 ## API and events
 
-| Boundary | Method/event | Purpose | Reads | Writes | Authorization |
-| --- | --- | --- | --- | --- | --- |
-| `/api/kody/agency-definitions` | GET | List immutable Definitions | `agencyDefinitions` | None | Kody auth + repository context |
-| `/api/kody/agency-states` | GET | List aggregate States | `agencyStates` | None | Kody auth + repository context |
-| `/api/kody/agency-observations` | GET | List Runs and outputs | Agency Runs, outputs | None | Kody auth + repository context |
-| `/api/kody/agency-model-changes` | POST | Validate and apply Definition/State change | Existing Definitions | `agencyDefinitions`, `agencyStates` | Verified repository write access |
-| `/api/kody/company/intents/<id>/run` | POST | Dispatch management review | Intent Definition/State, Policy guidance | GitHub dispatch; later Run/history | Kody auth, actor, GitHub token |
-| `/api/kody/agency-migration` | GET/POST | Preview/apply legacy migration | Legacy models | Agency Definitions/States | Verified repository write access |
-| `/api/kody/company/intents` | GET/POST | Legacy list/create | Legacy `intents` | Legacy `intents` | Kody auth; actor for writes |
-| `/api/kody/company/intents/<id>` | PATCH | Legacy update | Legacy `intents` | Legacy `intents` | Kody auth + actor |
-| `kody.yml`: `agency-portfolio-management` | Workflow dispatch | Execute review | Dispatch inputs, guidance | Runs and outputs | GitHub + Engine policy |
+| Boundary                                  | Method/event      | Purpose                                    | Reads                                    | Writes                              | Authorization                    |
+| ----------------------------------------- | ----------------- | ------------------------------------------ | ---------------------------------------- | ----------------------------------- | -------------------------------- |
+| `/api/kody/agency-definitions`            | GET               | List immutable Definitions                 | `agencyDefinitions`                      | None                                | Kody auth + repository context   |
+| `/api/kody/agency-states`                 | GET               | List aggregate States                      | `agencyStates`                           | None                                | Kody auth + repository context   |
+| `/api/kody/agency-observations`           | GET               | List Runs and outputs                      | Agency Runs, outputs                     | None                                | Kody auth + repository context   |
+| `/api/kody/agency-model-changes`          | POST              | Validate and apply Definition/State change | Existing Definitions                     | `agencyDefinitions`, `agencyStates` | Verified repository write access |
+| `/api/kody/company/intents/<id>/run`      | POST              | Dispatch management review                 | Intent Definition/State, Policy guidance | GitHub dispatch; later Run/history  | Kody auth, actor, GitHub token   |
+| `/api/kody/agency-migration`              | GET/POST          | Preview/apply legacy migration             | Legacy models                            | Agency Definitions/States           | Verified repository write access |
+| `/api/kody/company/intents`               | GET/POST          | Legacy list/create                         | Legacy `intents`                         | Legacy `intents`                    | Kody auth; actor for writes      |
+| `/api/kody/company/intents/<id>`          | PATCH             | Legacy update                              | Legacy `intents`                         | Legacy `intents`                    | Kody auth + actor                |
+| `kody.yml`: `agency-portfolio-management` | Workflow dispatch | Execute review                             | Dispatch inputs, guidance                | Runs and outputs                    | GitHub + Engine policy           |
 
 ## Current implementation
 
@@ -276,31 +276,31 @@ Still proposed:
 
 ## Gaps
 
-| ID | Area | Current | Target | Risk | Migration | Completion proof |
-| --- | --- | --- | --- | --- | --- | --- |
-| `INT-G01` | Storage authority | Clean agency tables and legacy `intents` both have live routes | One clean authority | Readers can see different data | Remove legacy readers/writers | Search and route tests prove no legacy CRUD |
-| `INT-G02` | Definition selection | Newest `createdAt`, then record id | Explicit immutable head/revision | Concurrent writes choose implicitly | Canonical head or compare-and-swap | Concurrency integration test |
-| `INT-G03` | Lifecycle | Any Lifecycle replacement; Draft projects Active | Enforced graph and visible Draft | Invalid transitions, hidden readiness | Transition service + UI | Transition tests + browser proof |
-| `INT-G04` | Policy boundary | Refs, inline Policy, delivery Policy, Constraints overlap | `policyRefs` + tightening Controls; cadence in Loop | Current shape contradicts approved contract | Migrate domain, projections, UI, and dispatch | Domain tests + multi-Intent merge + Run snapshot |
-| `INT-G05` | Missing Policy refs | Manual Run omits unmatched refs | Resolve before activation/dispatch; fail closed | Expected governance is absent | Add reference validation | Missing-ref activation and API rejection |
-| `INT-G06` | Scope | Domain supports include/exclude; UI supports two includes | Approved scope semantics | UI edit can lose exclusions | Preserve/expose or restrict | Round-trip tests |
-| `INT-G07` | Projection loss | Compatibility shape cannot represent all fields | Lossless editing | Hidden values replaced by defaults | Model-aware edit contract | Round-trip fixture |
-| `INT-G08` | Decisions | Run outputs and legacy table coexist | One history authority | Histories disagree | Remove legacy decision path | No legacy read/write + UI proof |
-| `INT-G09` | Browser proof | Spec mocks legacy API | Current agency API contract | Test passes while real path breaks | Rewrite mock + live journey | Canonical route + Convex evidence |
-| `INT-G10` | Runtime proof | Route traced; full policy application unproven | Policy-checked traceable Run | Docs overclaim enforcement | Real review + inspect evidence | Workflow, Run, output, policy |
+| ID        | Area                 | Current                                                        | Target                                              | Risk                                        | Migration                                     | Completion proof                                 |
+| --------- | -------------------- | -------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| `INT-G01` | Storage authority    | Clean agency tables and legacy `intents` both have live routes | One clean authority                                 | Readers can see different data              | Remove legacy readers/writers                 | Search and route tests prove no legacy CRUD      |
+| `INT-G02` | Definition selection | Newest `createdAt`, then record id                             | Explicit immutable head/revision                    | Concurrent writes choose implicitly         | Canonical head or compare-and-swap            | Concurrency integration test                     |
+| `INT-G03` | Lifecycle            | Any Lifecycle replacement; Draft projects Active               | Enforced graph and visible Draft                    | Invalid transitions, hidden readiness       | Transition service + UI                       | Transition tests + browser proof                 |
+| `INT-G04` | Policy boundary      | Refs, inline Policy, delivery Policy, Constraints overlap      | `policyRefs` + tightening Controls; cadence in Loop | Current shape contradicts approved contract | Migrate domain, projections, UI, and dispatch | Domain tests + multi-Intent merge + Run snapshot |
+| `INT-G05` | Missing Policy refs  | Manual Run omits unmatched refs                                | Resolve before activation/dispatch; fail closed     | Expected governance is absent               | Add reference validation                      | Missing-ref activation and API rejection         |
+| `INT-G06` | Scope                | Domain supports include/exclude; UI supports two includes      | Approved scope semantics                            | UI edit can lose exclusions                 | Preserve/expose or restrict                   | Round-trip tests                                 |
+| `INT-G07` | Projection loss      | Compatibility shape cannot represent all fields                | Lossless editing                                    | Hidden values replaced by defaults          | Model-aware edit contract                     | Round-trip fixture                               |
+| `INT-G08` | Decisions            | Run outputs and legacy table coexist                           | One history authority                               | Histories disagree                          | Remove legacy decision path                   | No legacy read/write + UI proof                  |
+| `INT-G09` | Browser proof        | Spec mocks legacy API                                          | Current agency API contract                         | Test passes while real path breaks          | Rewrite mock + live journey                   | Canonical route + Convex evidence                |
+| `INT-G10` | Runtime proof        | Route traced; full policy application unproven                 | Policy-checked traceable Run                        | Docs overclaim enforcement                  | Real review + inspect evidence                | Workflow, Run, output, policy                    |
 
 ## Open questions
 
-| ID | Question | Impact | Options | Owner | Blocks? |
-| --- | --- | --- | --- | --- | --- |
-| `INT-Q03` | Is Draft visible/editable? | Current projection says Active | Expose; remove; infer readiness | Product + domain | Lifecycle UI |
-| `INT-Q04` | Legal transitions and actors? | Generic writes allow all | Fixed role-based state machine | Product + security | Yes |
-| `INT-Q05` | How is current Definition selected? | Timestamps race | Head + compare-and-swap; explicit revision | Runtime | Concurrent editing |
-| `INT-Q07` | Repository-local or portable Intent? | Tenant is one repo; scope may name many | Repository; portable company; central | Product + domain | Multi-repo |
-| `INT-Q08` | Deletion and restore policy? | Runs need reproducibility | No hard delete; archive; protected delete | Domain + runtime | Yes |
-| `INT-Q09` | When remove legacy stores? | Second authority remains | After migration audit + real proof | Runtime | Migration completion |
-| `INT-Q10` | First-class Intent health? | Intent owns direction, not progress | Derived; none; management assessment | Product + domain | Before health UI |
-| `INT-Q11` | How does priority order Intents and handle ties? | Managers and UI need deterministic focus ordering | Lower number wins; higher number wins; explicit rank | Product + domain | Before priority-driven management |
+| ID        | Question                                         | Impact                                            | Options                                              | Owner              | Blocks?                           |
+| --------- | ------------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------- | ------------------ | --------------------------------- |
+| `INT-Q03` | Is Draft visible/editable?                       | Current projection says Active                    | Expose; remove; infer readiness                      | Product + domain   | Lifecycle UI                      |
+| `INT-Q04` | Legal transitions and actors?                    | Generic writes allow all                          | Fixed role-based state machine                       | Product + security | Yes                               |
+| `INT-Q05` | How is current Definition selected?              | Timestamps race                                   | Head + compare-and-swap; explicit revision           | Runtime            | Concurrent editing                |
+| `INT-Q07` | Repository-local or portable Intent?             | Tenant is one repo; scope may name many           | Repository; portable company; central                | Product + domain   | Multi-repo                        |
+| `INT-Q08` | Deletion and restore policy?                     | Runs need reproducibility                         | No hard delete; archive; protected delete            | Domain + runtime   | Yes                               |
+| `INT-Q09` | When remove legacy stores?                       | Second authority remains                          | After migration audit + real proof                   | Runtime            | Migration completion              |
+| `INT-Q10` | First-class Intent health?                       | Intent owns direction, not progress               | Derived; none; management assessment                 | Product + domain   | Before health UI                  |
+| `INT-Q11` | How does priority order Intents and handle ties? | Managers and UI need deterministic focus ordering | Lower number wins; higher number wins; explicit rank | Product + domain   | Before priority-driven management |
 
 ## Agent rules
 
@@ -367,16 +367,16 @@ or migration changes.
 
 ### Required proof
 
-| Boundary | Proof | Pass condition |
-| --- | --- | --- |
-| Contract | Agency domain unit/boundary tests | Fields and exclusions enforced |
-| Projection | Dashboard unit tests | Full supported round-trip |
-| Persistence | Backend integration tests | Immutable Definition + separate State |
-| API | Agency-model and Run route tests | Auth, refs, Lifecycle gates |
-| Dashboard | Current-API mocked canonical route | UI matches request/projection |
-| Live path | Real Dashboard + Convex + repository | UI and persisted records agree |
-| Runtime | Real manual review | Dispatch, Run, output, decision agree |
-| Migration | Compatibility search + tests | Old paths and stale mocks absent |
+| Boundary    | Proof                                | Pass condition                        |
+| ----------- | ------------------------------------ | ------------------------------------- |
+| Contract    | Agency domain unit/boundary tests    | Fields and exclusions enforced        |
+| Projection  | Dashboard unit tests                 | Full supported round-trip             |
+| Persistence | Backend integration tests            | Immutable Definition + separate State |
+| API         | Agency-model and Run route tests     | Auth, refs, Lifecycle gates           |
+| Dashboard   | Current-API mocked canonical route   | UI matches request/projection         |
+| Live path   | Real Dashboard + Convex + repository | UI and persisted records agree        |
+| Runtime     | Real manual review                   | Dispatch, Run, output, decision agree |
+| Migration   | Compatibility search + tests         | Old paths and stale mocks absent      |
 
 Generic “tests pass” is insufficient.
 

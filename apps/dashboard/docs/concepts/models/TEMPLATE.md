@@ -26,26 +26,26 @@ responsibility.
 
 ## Data kinds
 
-| Part | Kind | Mutable? | Identity? | Lifecycle? |
-| --- | --- | --- | --- | --- |
-| Definition | Authored contract | No | Yes | Yes |
-| State | Runtime State | Yes | References Definition | No |
-| Event/output | History | Append-only | Yes | No |
-| Value | Embedded contract | Through owner | No | No |
+| Part         | Kind              | Mutable?      | Identity?             | Lifecycle? |
+| ------------ | ----------------- | ------------- | --------------------- | ---------- |
+| Definition   | Authored contract | No            | Yes                   | Yes        |
+| State        | Runtime State     | Yes           | References Definition | No         |
+| Event/output | History           | Append-only   | Yes                   | No         |
+| Value        | Embedded contract | Through owner | No                    | No         |
 
 ## Contract
 
 ### Definition
 
-| Field | Type | Required | Meaning | Validation | Excludes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | string | Yes | Stable identity | Exact rule | Storage/runtime data |
+| Field | Type   | Required | Meaning         | Validation | Excludes             |
+| ----- | ------ | -------- | --------------- | ---------- | -------------------- |
+| `id`  | string | Yes      | Stable identity | Exact rule | Storage/runtime data |
 
 ### State
 
-| Field | Type | Required | Meaning | Validation |
-| --- | --- | --- | --- | --- |
-| `definitionId` | string | Yes | Definition tracked | Existing Definition |
+| Field          | Type   | Required | Meaning            | Validation          |
+| -------------- | ------ | -------- | ------------------ | ------------------- |
+| `definitionId` | string | Yes      | Definition tracked | Existing Definition |
 
 ### History
 
@@ -70,17 +70,17 @@ draft -> active -> paused -> retired -> archived
 ```
 
 | State | Meaning | Enter when | Allowed exits |
-| --- | --- | --- | --- |
-| Draft | Meaning | Conditions | Transitions |
+| ----- | ------- | ---------- | ------------- |
+| Draft | Meaning | Conditions | Transitions   |
 
 Define semantic creation, change, retirement, archive, restore, deletion, and
 reference-protection rules. Put current mechanics in the implementation guide.
 
 ## Relationships
 
-| Model | Direction | Cardinality | Type | Rule |
-| --- | --- | --- | --- | --- |
-| Related model | Incoming/outgoing | One/many | Ownership/dependency | Exact meaning |
+| Model         | Direction         | Cardinality | Type                 | Rule          |
+| ------------- | ----------------- | ----------- | -------------------- | ------------- |
+| Related model | Incoming/outgoing | One/many    | Ownership/dependency | Exact meaning |
 
 Define revision pinning, missing references, cycles, shared ownership, and
 deletion impact.
@@ -112,9 +112,9 @@ Name the violated rule ID.
 
 ## Decisions
 
-| ID | Date | Decision | Why | Evidence | Approved by |
-| --- | --- | --- | --- | --- | --- |
-| `MOD-D01` | YYYY-MM-DD | Decision | Reason | Source | Owner |
+| ID        | Date       | Decision | Why    | Evidence | Approved by |
+| --------- | ---------- | -------- | ------ | -------- | ----------- |
+| `MOD-D01` | YYYY-MM-DD | Decision | Reason | Source   | Owner       |
 
 ## Open model decisions
 

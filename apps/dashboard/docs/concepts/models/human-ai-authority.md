@@ -24,3 +24,8 @@ Canonical.
 Open decisions: owner roles, approval thresholds, emergency authority,
 delegation, expiry, and appeal/audit process.
 
+Agent rule: AI may draft any model change but cannot approve its own authority
+increase, destructive change, or evidence-bar reduction.
+
+Recommended decision: bind approval to an exact change hash and expire it after
+any material definition or Policy change.

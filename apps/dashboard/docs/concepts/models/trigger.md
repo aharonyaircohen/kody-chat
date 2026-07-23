@@ -25,3 +25,9 @@ Convex-owned State.
 Open decisions: schedule grammar, event registry, condition sandbox, replay
 horizon, and exact idempotency key.
 
+Agent rules: Trigger only creates eligibility; it never grants permission or
+directly mutates Loop health. Duplicate delivery must use the same activation
+key.
+
+Recommended decision: standardize schedule grammar and use one activation key
+per `{loop revision, trigger occurrence}`.

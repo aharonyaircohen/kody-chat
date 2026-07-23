@@ -23,3 +23,8 @@ Open decisions: report taxonomy, schema, retention, regeneration, delivery,
 redaction, and whether Report needs domain identity or remains an Artifact
 contract.
 
+Agent rules: a Report cannot become the source for Facts it merely summarizes;
+regeneration creates a new version; delivery cadence belongs to a Loop.
+
+Recommended decision: keep Report as a typed Artifact until independent
+lifecycle or editing proves it needs entity identity.

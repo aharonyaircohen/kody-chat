@@ -25,3 +25,8 @@ whether action is needed.
 Open decisions: Evidence contract vocabulary, evaluator ownership, freshness
 windows, partial satisfaction, and human override rules.
 
+Agent rules: do not write activities as desired states; do not lower Evidence
+requirements after execution; do not treat progress or Run success as proof.
+
+Recommended decision: require at least one named Evidence contract for active
+Goals and Loops, with evaluator, freshness, and Scope recorded.

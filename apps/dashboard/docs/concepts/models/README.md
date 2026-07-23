@@ -33,15 +33,15 @@ relationships. A detailed model document owns the exact contract for its model.
 Different sources answer different questions. Do not use one source as authority
 for a question it does not own.
 
-| Question | Authority |
-| --- | --- |
-| What does the model mean? | Reviewed or Canonical model document |
-| What is the approved target contract? | Canonical model document and accepted Decisions |
-| What does the product currently accept? | Current validators and type contracts |
-| What is currently persisted? | Current persistence schema plus a checked stored record |
-| What happens at runtime? | Current service, route, job, or Engine path plus a real execution |
-| What does the user see? | Current mounted Dashboard route plus browser verification |
-| Is a migration complete? | No compatibility reader, writer, fallback, inference, or dual-write remains; required proof passes |
+| Question                                | Authority                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| What does the model mean?               | Reviewed or Canonical model document                                                               |
+| What is the approved target contract?   | Canonical model document and accepted Decisions                                                    |
+| What does the product currently accept? | Current validators and type contracts                                                              |
+| What is currently persisted?            | Current persistence schema plus a checked stored record                                            |
+| What happens at runtime?                | Current service, route, job, or Engine path plus a real execution                                  |
+| What does the user see?                 | Current mounted Dashboard route plus browser verification                                          |
+| Is a migration complete?                | No compatibility reader, writer, fallback, inference, or dual-write remains; required proof passes |
 
 When sources disagree:
 
@@ -73,17 +73,17 @@ Every core model requires:
 - `<model>-implementation.md` for current storage, readers, writers, runtime,
   APIs, gaps, migration, Agent rules, verification, and sources.
 
-| Order | Model | Contract | Implementation | Status |
-| --- | --- | --- | --- | --- |
-| 1 | Intent | [`intent.md`](intent.md) | [`intent-implementation.md`](intent-implementation.md) | Draft / Partially verified |
-| 2 | Operation | [`operation.md`](operation.md) | [`operation-implementation.md`](operation-implementation.md) | Draft / Partially verified |
-| 3 | Goal | [`goal.md`](goal.md) | [`goal-implementation.md`](goal-implementation.md) | Draft / Partially verified |
-| 4 | Loop | [`loop.md`](loop.md) | [`loop-implementation.md`](loop-implementation.md) | Draft / Partially verified |
-| 5 | Workflow | [`workflow.md`](workflow.md) | [`workflow-implementation.md`](workflow-implementation.md) | Draft / Partially verified |
-| 6 | Capability | [`capability.md`](capability.md) | [`capability-implementation.md`](capability-implementation.md) | Draft / Partially verified |
-| 7 | Implementation | [`implementation.md`](implementation.md) | [`implementation-guide.md`](implementation-guide.md) | Draft / Partially verified |
-| 8 | Agent | [`agent.md`](agent.md) | [`agent-implementation.md`](agent-implementation.md) | Draft / Partially verified |
-| 9 | Run | [`run.md`](run.md) | [`run-implementation.md`](run-implementation.md) | Draft / Partially verified |
+| Order | Model          | Contract                                 | Implementation                                                 | Status                     |
+| ----- | -------------- | ---------------------------------------- | -------------------------------------------------------------- | -------------------------- |
+| 1     | Intent         | [`intent.md`](intent.md)                 | [`intent-implementation.md`](intent-implementation.md)         | Draft / Partially verified |
+| 2     | Operation      | [`operation.md`](operation.md)           | [`operation-implementation.md`](operation-implementation.md)   | Draft / Partially verified |
+| 3     | Goal           | [`goal.md`](goal.md)                     | [`goal-implementation.md`](goal-implementation.md)             | Draft / Partially verified |
+| 4     | Loop           | [`loop.md`](loop.md)                     | [`loop-implementation.md`](loop-implementation.md)             | Draft / Partially verified |
+| 5     | Workflow       | [`workflow.md`](workflow.md)             | [`workflow-implementation.md`](workflow-implementation.md)     | Draft / Partially verified |
+| 6     | Capability     | [`capability.md`](capability.md)         | [`capability-implementation.md`](capability-implementation.md) | Draft / Partially verified |
+| 7     | Implementation | [`implementation.md`](implementation.md) | [`implementation-guide.md`](implementation-guide.md)           | Draft / Partially verified |
+| 8     | Agent          | [`agent.md`](agent.md)                   | [`agent-implementation.md`](agent-implementation.md)           | Draft / Partially verified |
+| 9     | Run            | [`run.md`](run.md)                       | [`run-implementation.md`](run-implementation.md)               | Draft / Partially verified |
 
 ### Shared value contracts
 
@@ -93,34 +93,34 @@ requires a separate implementation guide.
 Values must not be promoted to independent entities unless identity, ownership,
 and Lifecycle are explicitly approved.
 
-| Order | Contract | Purpose | Status |
-| --- | --- | --- | --- |
-| 10 | [Objective](objective.md) | Desired state, required Evidence, and Scope | Draft |
-| 11 | [Trigger](trigger.md) | Activation type and configuration | Draft |
-| 12 | [Policy](policy.md) | Reusable governance package | Draft |
-| 13 | [Intent Controls](intent-controls.md) | Intent-specific hard limits that only tighten Policy | Draft; merge rule approved |
-| 14 | [Constraint](constraint.md) | Reusable deny or approval rule where still needed | Draft |
-| 15 | [Scope](scope.md) | Included and excluded dimensions | Draft |
-| 16 | [Definition Reference and Revision](definition-reference.md) | Domain identity, immutable envelope revision, and pinning | Draft |
-| 17 | [Fact, Evidence, and Artifact](run-outputs.md) | Typed Run outputs and provenance | Draft |
+| Order | Contract                                                     | Purpose                                                   | Status                     |
+| ----- | ------------------------------------------------------------ | --------------------------------------------------------- | -------------------------- |
+| 10    | [Objective](objective.md)                                    | Desired state, required Evidence, and Scope               | Draft                      |
+| 11    | [Trigger](trigger.md)                                        | Activation type and configuration                         | Draft                      |
+| 12    | [Policy](policy.md)                                          | Reusable governance package                               | Draft                      |
+| 13    | [Intent Controls](intent-controls.md)                        | Intent-specific hard limits that only tighten Policy      | Draft; merge rule approved |
+| 14    | [Constraint](constraint.md)                                  | Reusable deny or approval rule where still needed         | Draft                      |
+| 15    | [Scope](scope.md)                                            | Included and excluded dimensions                          | Draft                      |
+| 16    | [Definition Reference and Revision](definition-reference.md) | Domain identity, immutable envelope revision, and pinning | Draft                      |
+| 17    | [Fact, Evidence, and Artifact](run-outputs.md)               | Typed Run outputs and provenance                          | Draft                      |
 
 ### Cross-model rules
 
 These documents define behavior no single model may own.
 
-| Order | Document | Required decision | Status |
-| --- | --- | --- | --- |
-| 18 | Model index and reading rules | Source precedence and loading behavior | This document |
-| 19 | [Relationship and ownership map](relationships.md) | Every ownership/dependency edge and cardinality | Draft |
-| 20 | [Definition, State, and History](data-families.md) | Data-family boundaries and allowed references | Draft |
-| 21 | [Policy and Controls resolution](policy-resolution.md) | Policy composition, tightening, multi-Intent merge, conflict handling | Draft; merge rule approved |
-| 22 | [Lifecycle and deletion](lifecycle-deletion.md) | Shared statuses, model-specific transitions, restore, reference protection | Draft |
-| 23 | [Definition versioning](definition-versioning.md) | Immutable revisions, current-head selection, concurrency | Draft |
-| 24 | [Dispatch and approval](dispatch-approval.md) | Policy resolution, approvals, idempotency, capacity, execution boundary | Draft |
-| 25 | [Run tracing and provenance](run-tracing.md) | Correlation, pinned Definitions, events, outputs | Draft |
-| 26 | [Storage authority and tenant Scope](storage-authority.md) | Convex, repository, Store, portability, projections | Draft; runtime rule canonical |
-| 27 | [Migration and compatibility removal](migration.md) | Legacy inventory, phases, removal proof | Draft |
-| 28 | [Human and AI authority](human-ai-authority.md) | Proposal, approval, mutation, escalation, forbidden autonomy | Draft |
+| Order | Document                                                   | Required decision                                                          | Status                        |
+| ----- | ---------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------- |
+| 18    | Model index and reading rules                              | Source precedence and loading behavior                                     | This document                 |
+| 19    | [Relationship and ownership map](relationships.md)         | Every ownership/dependency edge and cardinality                            | Draft                         |
+| 20    | [Definition, State, and History](data-families.md)         | Data-family boundaries and allowed references                              | Draft                         |
+| 21    | [Policy and Controls resolution](policy-resolution.md)     | Policy composition, tightening, multi-Intent merge, conflict handling      | Draft; merge rule approved    |
+| 22    | [Lifecycle and deletion](lifecycle-deletion.md)            | Shared statuses, model-specific transitions, restore, reference protection | Draft                         |
+| 23    | [Definition versioning](definition-versioning.md)          | Immutable revisions, current-head selection, concurrency                   | Draft                         |
+| 24    | [Dispatch and approval](dispatch-approval.md)              | Policy resolution, approvals, idempotency, capacity, execution boundary    | Draft                         |
+| 25    | [Run tracing and provenance](run-tracing.md)               | Correlation, pinned Definitions, events, outputs                           | Draft                         |
+| 26    | [Storage authority and tenant Scope](storage-authority.md) | Convex, repository, Store, portability, projections                        | Draft; runtime rule canonical |
+| 27    | [Migration and compatibility removal](migration.md)        | Legacy inventory, phases, removal proof                                    | Draft                         |
+| 28    | [Human and AI authority](human-ai-authority.md)            | Proposal, approval, mutation, escalation, forbidden autonomy               | Draft                         |
 
 ### Derived and product surfaces
 
@@ -128,13 +128,13 @@ Document these after the core model and required cross-model rules are stable.
 They are projections, reasoning inputs, or operator surfaces, not automatic new
 agency entities.
 
-| Order | Surface | Required boundary | Status |
-| --- | --- | --- | --- |
-| 29 | [Knowledge Graph](knowledge-graph.md) | Derived projection; never source of truth | Draft; implementation in progress |
-| 30 | [Context](context.md) | Background Facts used for reasoning | Draft |
-| 31 | [Instructions](instructions.md) | Chat and response behavior | Draft |
-| 32 | [Reports](reports.md) | Produced summaries and retained outputs | Draft |
-| 33 | [Dashboard projections and health](dashboard-projections.md) | Derived display/edit shapes and health formulas | Draft |
+| Order | Surface                                                      | Required boundary                               | Status                            |
+| ----- | ------------------------------------------------------------ | ----------------------------------------------- | --------------------------------- |
+| 29    | [Knowledge Graph](knowledge-graph.md)                        | Derived projection; never source of truth       | Draft; implementation in progress |
+| 30    | [Context](context.md)                                        | Background Facts used for reasoning             | Draft                             |
+| 31    | [Instructions](instructions.md)                              | Chat and response behavior                      | Draft                             |
+| 32    | [Reports](reports.md)                                        | Produced summaries and retained outputs         | Draft                             |
+| 33    | [Dashboard projections and health](dashboard-projections.md) | Derived display/edit shapes and health formulas | Draft                             |
 
 ### Recommended sequence
 
@@ -204,3 +204,25 @@ An implementation guide is Verified current only when:
 
 Documentation guides implementation. Schemas, validators, architecture tests,
 and real-path verification enforce it.
+
+## Full review result
+
+All documents in this roadmap have now received a consistency review. The
+contracts remain **Draft** where business decisions are still open, and the
+implementation guides remain **Partially verified** where static source
+inspection has not been followed by real persistence/runtime/browser proof.
+
+The highest-priority system gaps found across the set are:
+
+1. Goal and Loop manual execution can dispatch GitHub Actions before the
+   documented Run-first boundary is proven.
+2. Definition revisions currently have competing head-selection approaches.
+3. Legacy combined product shapes remain beside clean agency Definitions and
+   State.
+4. Policy, approval, Scope, capacity, and idempotency are not yet proven through
+   one shared dispatch service.
+5. Dashboard health and extra status labels need centralized formulas and
+   mappings.
+
+Do not add more model types to solve these gaps. Fix the shared execution,
+versioning, and migration boundaries first.

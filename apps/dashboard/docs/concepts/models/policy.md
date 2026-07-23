@@ -26,3 +26,9 @@ status. The fully resolved snapshot and hash are stored on each Run.
 Open decisions: Policy identity/revisions, inheritance order, action
 vocabulary, exception authority, and exact assurance lattice.
 
+Agent rules: never use priority to bypass Policy; never treat approval as
+permission to override a deny; never recompute old Run Policy from current
+heads.
+
+Recommended decision: make Policy independently revisioned and store the full
+resolved snapshot plus hash on every Run.

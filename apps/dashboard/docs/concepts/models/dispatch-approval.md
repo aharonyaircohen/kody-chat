@@ -25,3 +25,9 @@ result. Retry creates a linked new attempt, not a rewritten Run.
 Open decisions: approval entity schema, expiry/revocation, capacity leases,
 idempotency key scope, and transaction boundaries.
 
+Agent rule: no adapter call may occur before authoritative Run creation,
+approval validation, and capacity reservation. Goal, Loop, Workflow, and
+Capability must use this same boundary.
+
+Reviewed gap: Goal and Loop manual routes currently dispatch GitHub Actions
+directly.

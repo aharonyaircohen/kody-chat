@@ -25,3 +25,8 @@ Scope is not permission: an action must pass both Scope and authority checks.
 Open decisions: dimension registry, wildcard semantics, empty-include meaning,
 resource resolution, and how the effective Scope is stored on Run.
 
+Agent rules: never assume an absent dimension means global access; never trust
+client-supplied tenant Scope; exclusions always win.
+
+Recommended decision: maintain a controlled dimension registry and store the
+resolved Scope or canonical hash on Run.
