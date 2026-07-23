@@ -22,12 +22,12 @@ const navSource = readFileSync(
 );
 
 describe("Agency Runs page", () => {
-  it("only exposes user-owned agency run tabs", () => {
+  it("exposes every user-owned agency run boundary", () => {
     expect(pageSource).toContain('label: "Goals"');
     expect(pageSource).toContain('label: "Loops"');
     expect(pageSource).toContain('label: "Workflows"');
+    expect(pageSource).toContain('label: "Capabilities"');
     expect(pageSource).not.toContain('label: "All"');
-    expect(pageSource).not.toContain('label: "Capabilities"');
   });
 
   it("is linked from AI Agency navigation", () => {

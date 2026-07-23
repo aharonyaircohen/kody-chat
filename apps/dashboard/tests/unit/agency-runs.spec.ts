@@ -91,17 +91,23 @@ describe("agency runs", () => {
       "test-repo",
       50,
     );
-    expect(payload.counts).toEqual({ goal: 0, loop: 1, workflow: 1 });
+    expect(payload.counts).toEqual({
+      goal: 0,
+      loop: 1,
+      workflow: 1,
+      capability: 1,
+    });
     expect(payload.source).toEqual({
       path: "convex:agencyRuns",
-      updatedAt: "2026-07-05T10:02:00.000Z",
+      updatedAt: "2026-07-05T10:03:00.000Z",
       etag: null,
     });
     expect(payload.runs.map((run) => `${run.kind}:${run.targetId}`)).toEqual([
+      "capability:ignored",
       "workflow:release-queue",
       "loop:ci-health",
     ]);
-    expect(payload.runs[0]).toMatchObject({
+    expect(payload.runs[1]).toMatchObject({
       model: "claude/claude-haiku-4-5-20251001",
       implementation: "release-prepare",
       origin: "manual",
