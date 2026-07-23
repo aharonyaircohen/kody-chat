@@ -158,6 +158,20 @@ describe("buildTree", () => {
 });
 
 describe("applyTreeOverlay", () => {
+  it("does not let a navigation placeholder turn a known file into a folder", () => {
+    const entries = [file("README.md", "README.md", 100)];
+
+    expect(
+      applyTreeOverlay(entries, "", {
+        upserts: {
+          "README.md": dir("README.md", "README.md"),
+        },
+        deletes: {},
+        version: 1,
+      }),
+    ).toEqual(entries);
+  });
+
   it("shows newly-created entries before GitHub's directory listing catches up", () => {
     const entries = [file("old.ts", "src/old.ts")];
 

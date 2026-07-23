@@ -22,7 +22,10 @@ function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function installFileManagerHarness(page: Page) {
+async function installFileManagerHarness(
+  page: Page,
+  options: { fileReadDelayMs?: number } = {},
+) {
   const files = new Map<string, MockFile>([
     ["README.md", { content: "# Workspace\n", sha: "readme-sha" }],
     ["notes.md", { content: "Committed notes\n", sha: "notes-sha" }],
@@ -184,6 +187,11 @@ async function installFileManagerHarness(page: Page) {
       }
 
       if (method === "GET" && files.has(path)) {
+        if (options.fileReadDelayMs) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.fileReadDelayMs),
+          );
+        }
         const file = files.get(path)!;
         return json(route, {
           type: "file",
@@ -386,6 +394,64 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByText("Unsaved browser draft", { exact: true }),
     ).toBeVisible();
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps a file in place while its contents load", async ({ page }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    await installFileManagerHarness(page, { fileReadDelayMs: 3_000 });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    const treeItems = page.getByRole("treeitem");
+    await expect(treeItems).toHaveCount(2);
+    await expect(treeItems.nth(0)).toContainText("README.md");
+    await expect(treeItems.nth(1)).toContainText("notes.md");
+
+    await page.evaluate(() => {
+      const snapshots: Array<Array<{ text: string; expanded: string | null }>> =
+        [];
+      const capture = () => {
+        snapshots.push(
+          [...document.querySelectorAll('[role="treeitem"]')].map((item) => ({
+            text: item.textContent?.trim() ?? "",
+            expanded: item.getAttribute("aria-expanded"),
+          })),
+        );
+      };
+      capture();
+      new MutationObserver(capture).observe(document.body, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+      Object.assign(window, { __fileTreeSnapshots: snapshots });
+    });
+
+    const notes = page.getByRole("treeitem", { name: "notes.md 16 B" });
+    await notes.click();
+    await expect(page).toHaveURL(/\/files\/notes\.md$/);
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
+
+    const loadingSnapshots = await page.evaluate(
+      () =>
+        (
+          window as typeof window & {
+            __fileTreeSnapshots: Array<
+              Array<{ text: string; expanded: string | null }>
+            >;
+          }
+        ).__fileTreeSnapshots,
+    );
+    const stableSnapshot = [
+      { text: "README.md12 B", expanded: null },
+      { text: "notes.md16 B", expanded: null },
+    ];
+    expect(loadingSnapshots).not.toEqual([]);
+    expect(loadingSnapshots.every((snapshot) =>
+      JSON.stringify(snapshot) === JSON.stringify(stableSnapshot),
+    )).toBe(true);
     expect(runtimeFailures).toEqual([]);
   });
 });

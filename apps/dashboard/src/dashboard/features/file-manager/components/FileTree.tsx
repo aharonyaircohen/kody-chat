@@ -142,7 +142,8 @@ export function applyTreeOverlay(
   for (const entry of Object.values(overlay.upserts)) {
     if (
       parentTreePath(entry.path) === normalizedDir &&
-      !isDeleted(entry.path)
+      !isDeleted(entry.path) &&
+      !byPath.has(entry.path)
     ) {
       byPath.set(entry.path, entry);
     }

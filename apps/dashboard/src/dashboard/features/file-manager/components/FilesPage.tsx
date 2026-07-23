@@ -181,6 +181,9 @@ export function FilesPage({
   const [selectedPath, setSelectedPath] = useState<string | null>(
     initialRepoPath || null,
   );
+  const [openingPathType, setOpeningPathType] = useState<RepoPathType | null>(
+    null,
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("viewer");
   const [panelState, setPanelState] = useState<PanelState>("split");
   const [showNewFileDialog, setShowNewFileDialog] = useState(false);
@@ -225,11 +228,8 @@ export function FilesPage({
     [selectedPath],
   );
 
-  const selectedPathType: RepoPathType | null = selectedFile
-    ? "file"
-    : selectedPath
-      ? "dir"
-      : null;
+  const selectedPathType: RepoPathType | null =
+    openingPathType ?? (selectedFile ? "file" : selectedPath ? "dir" : null);
   const isSelectedProtected = Boolean(
     selectedPath &&
     protectedPaths
@@ -261,10 +261,19 @@ export function FilesPage({
       ...treeOverlay,
       upserts,
     };
-  }, [selectedFile, selectedPath, selectedPathType, treeOverlay, workspaceRoot]);
+  }, [
+    selectedFile,
+    selectedPath,
+    selectedPathType,
+    treeOverlay,
+    workspaceRoot,
+  ]);
 
   const currentFolder = useMemo(() => {
-    const selectedFolder = currentFolderPath(selectedPath, selectedPathType);
+    const selectedFolder = currentFolderPath(
+      selectedPath,
+      selectedPathType === "symlink" ? "file" : selectedPathType,
+    );
     return selectedFolder === workspaceRoot ||
       selectedFolder.startsWith(`${workspaceRoot}/`)
       ? selectedFolder
@@ -309,6 +318,7 @@ export function FilesPage({
       const requestId = ++openRequestRef.current;
 
       if (!normalizedPath) {
+        setOpeningPathType(null);
         setSelectedPath(null);
         setSelectedFile(null);
         setViewMode("viewer");
@@ -316,6 +326,7 @@ export function FilesPage({
         return;
       }
 
+      setOpeningPathType(options.typeHint ?? null);
       setSelectedPath(normalizedPath);
       if (options.typeHint === "dir") {
         setSelectedFile(null);
@@ -334,6 +345,7 @@ export function FilesPage({
         if (requestId !== openRequestRef.current) return;
 
         if (file) {
+          setOpeningPathType(null);
           setSelectedPath(file.path);
           setSelectedFile({
             path: file.path,
@@ -351,6 +363,7 @@ export function FilesPage({
           await listDir(octokit!, auth!.owner, auth!.repo, normalizedPath);
         }
         if (requestId !== openRequestRef.current) return;
+        setOpeningPathType(null);
         setSelectedFile(null);
         setViewMode("viewer");
       } catch (err) {
@@ -359,6 +372,7 @@ export function FilesPage({
           isExpectedDeletedPath(normalizedPath, deletedPathsRef.current)
         ) {
           if (requestId !== openRequestRef.current) return;
+          setOpeningPathType(null);
           setSelectedPath(null);
           setSelectedFile(null);
           setViewMode("viewer");
@@ -366,6 +380,7 @@ export function FilesPage({
         }
         toast.error(err instanceof Error ? err.message : "Failed to open file");
         if (requestId !== openRequestRef.current) return;
+        setOpeningPathType(null);
         setSelectedPath(null);
         setSelectedFile(null);
         setViewMode("viewer");
