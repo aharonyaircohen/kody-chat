@@ -20,8 +20,6 @@
 import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
-const CONVEX_URL =
-  process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 const RUN_REAL = process.env.RUN_REAL_E2E === "1";
@@ -67,11 +65,6 @@ test.describe("Real chat flow @real", () => {
     if (!BASE_URL || !TEST_TOKEN || !TEST_REPO) {
       test.skip(true, "BASE_URL / E2E_GITHUB_TOKEN / E2E_GITHUB_REPO required");
     }
-    if (!CONVEX_URL)
-      test.skip(
-        true,
-        "NEXT_PUBLIC_CONVEX_URL / CONVEX_URL required to read chat events",
-      );
   });
 
   test.beforeEach(async ({ page }) => {
@@ -155,34 +148,39 @@ test.describe("Real chat flow @real", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
     await appendPromise;
 
-    // Phase 1 — engine-side ground truth: read the session's chat events
-    // straight from Convex (chatEvents.since, the deliberately-public query
-    // the live transport subscribes to — the /events/poll route was removed
-    // with the polling fallback). If this fails, the server pipeline is
-    // broken (dispatch / workflow / kody / events ingest).
+    // Phase 1 — engine-side ground truth: read the canonical conversation
+    // through the same deployed Dashboard that started the runner. Never use
+    // a local CONVEX_URL here: a deployed BASE_URL may point at a different
+    // backend, which creates a false failure even while the UI has the reply.
     const deadline = Date.now() + 150_000;
 
     let markerFound = false;
     while (Date.now() < deadline) {
-      const res = await fetch(`${CONVEX_URL}/api/query`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: "chatEvents:since",
-          args: { tenantId: "global", sessionId, afterSeq: -1 },
-          format: "json",
-        }),
-      });
-      if (res.status === 200) {
-        const data = (await res.json()) as { status?: string; value?: unknown };
-        const body = JSON.stringify(data.value ?? "");
-        if (
-          data.status === "success" &&
-          new RegExp(`pong\\s+${marker}`, "i").test(body)
-        ) {
-          markerFound = true;
-          break;
-        }
+      const res = await page.request.get(
+        `${BASE_URL}/api/kody/chat/conversations/${sessionId}`,
+        {
+          headers: {
+            "x-kody-token": TEST_TOKEN,
+            "x-kody-owner": owner,
+            "x-kody-repo": repo,
+          },
+        },
+      );
+      if (res.ok()) {
+        const data = (await res.json()) as {
+          entries?: Array<{
+            entry?: { kind?: string; role?: string; content?: string };
+          }>;
+        };
+        markerFound = Boolean(
+          data.entries?.some(
+            ({ entry }) =>
+              entry?.kind === "message" &&
+              entry.role === "assistant" &&
+              new RegExp(`pong\\s+${marker}`, "i").test(entry.content ?? ""),
+          ),
+        );
+        if (markerFound) break;
       }
       await new Promise((r) => setTimeout(r, 5_000));
     }

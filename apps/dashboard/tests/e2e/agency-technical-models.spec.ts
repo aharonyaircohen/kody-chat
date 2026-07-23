@@ -69,7 +69,7 @@ async function installHarness(page: Page) {
       ],
     }),
   );
-  await page.route("**/api/kody/implementations", (route) =>
+  await page.route("**/api/kody/implementations?*", (route) =>
     json(route, {
       implementations: [
         {

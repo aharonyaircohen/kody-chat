@@ -10,11 +10,22 @@ export const append = serviceMutation({
     idempotencyKey: v.optional(v.string()),
   },
   handler: async (ctx, { tenantId, sessionId, event, idempotencyKey }) => {
-    if (idempotencyKey) {
+    const eventRunId =
+      event &&
+      typeof event === "object" &&
+      !Array.isArray(event) &&
+      typeof (event as Record<string, unknown>).runId === "string"
+        ? ((event as Record<string, unknown>).runId as string).trim()
+        : ""
+    const effectiveIdempotencyKey = idempotencyKey?.trim() || eventRunId
+    if (effectiveIdempotencyKey) {
       const existing = await ctx.db
         .query("chatEvents")
         .withIndex("by_idempotency", (q) =>
-          q.eq("tenantId", tenantId).eq("sessionId", sessionId).eq("idempotencyKey", idempotencyKey),
+          q
+            .eq("tenantId", tenantId)
+            .eq("sessionId", sessionId)
+            .eq("idempotencyKey", effectiveIdempotencyKey),
         )
         .unique()
       if (existing) return existing._id
@@ -30,7 +41,9 @@ export const append = serviceMutation({
       sessionId,
       seq,
       event,
-      ...(idempotencyKey ? { idempotencyKey } : {}),
+      ...(effectiveIdempotencyKey
+        ? { idempotencyKey: effectiveIdempotencyKey }
+        : {}),
     })
   },
 })

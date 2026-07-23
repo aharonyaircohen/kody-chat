@@ -24,6 +24,27 @@ describe("append idempotency", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("chatEvents.append uses the event runId when two transports deliver the same event", async () => {
+    const t = setup();
+    const args = {
+      tenantId: TENANT,
+      sessionId: "s1",
+      event: {
+        event: "chat.message",
+        runId: "chat-s1-message",
+        payload: { content: "pong" },
+      },
+    };
+    await t.mutation(api.chatEvents.append, args);
+    await t.mutation(api.chatEvents.append, args);
+    const rows = await t.query(api.chatEvents.since, {
+      tenantId: TENANT,
+      sessionId: "s1",
+      afterSeq: -1,
+    });
+    expect(rows).toHaveLength(1);
+  });
+
   it("runEvents.append dedupes on idempotencyKey", async () => {
     const t = setup();
     const args = {

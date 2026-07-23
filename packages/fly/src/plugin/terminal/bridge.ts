@@ -1201,6 +1201,31 @@ function createFlyConsoleSession(claims, key) {
         return;
       }
       if (
+        session.ready &&
+        session.inputBytes === 0 &&
+        !session.timedOut &&
+        session.startAttempts < MAX_SSH_START_ATTEMPTS
+      ) {
+        session.ready = false;
+        session.restoring = false;
+        session.pendingOutput = "";
+        if (tmuxName) killTmuxSession(tmuxName);
+        sendToSession(session, {
+          type: "output",
+          data:
+            "Retrying terminal after early tunnel exit (" +
+            (session.startAttempts + 1) +
+            "/" +
+            MAX_SSH_START_ATTEMPTS +
+            ")...\r\n",
+        });
+        session.retryTimer = setTimeout(
+          startChild,
+          sshStartRetryDelayMs(session.startAttempts),
+        );
+        return;
+      }
+      if (
         !session.ready &&
         !session.timedOut &&
         session.startAttempts < MAX_SSH_START_ATTEMPTS

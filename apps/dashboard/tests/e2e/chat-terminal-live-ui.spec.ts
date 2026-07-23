@@ -21,8 +21,6 @@ const REPO_SLUG =
   "";
 const STORE_REPO_URL = process.env.KODY_LIVE_STORE_REPO_URL;
 const STORE_REF = process.env.KODY_LIVE_STORE_REF;
-const BRAIN_URL = process.env.BRAIN_CHAT_URL ?? "";
-const BRAIN_API_KEY = process.env.BRAIN_CHAT_API_KEY ?? "";
 const WAIT_MS = Number(process.env.KODY_LIVE_UI_WAIT_MS ?? 75_000);
 
 test.setTimeout(Math.max(180_000, WAIT_MS + 120_000));
@@ -56,13 +54,36 @@ async function installAuth(contextPage: Page, owner: string, repo: string) {
       token: TEST_TOKEN,
       user,
       loggedInAt: Date.now(),
-      ...(BRAIN_URL && BRAIN_API_KEY
-        ? { brain: { url: BRAIN_URL, apiKey: BRAIN_API_KEY } }
-        : {}),
       ...(STORE_REPO_URL ? { storeRepoUrl: STORE_REPO_URL } : {}),
       ...(STORE_REF ? { storeRef: STORE_REF } : {}),
     },
   );
+  return user;
+}
+
+function repoHeaders(owner: string, repo: string): Record<string, string> {
+  return {
+    "x-kody-token": TEST_TOKEN,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  };
+}
+
+async function setRepoBrainChatEnabled(
+  page: Page,
+  owner: string,
+  repo: string,
+  actorLogin: string,
+  enabled: boolean,
+): Promise<void> {
+  const response = await page.request.put(
+    `${BASE_URL}/api/kody/dashboard-config`,
+    {
+      headers: repoHeaders(owner, repo),
+      data: { brainFlyChatEnabled: enabled, actorLogin },
+    },
+  );
+  expect(response.ok(), "Repo Brain chat setting must be writable").toBe(true);
 }
 
 async function visibleTerminalText(page: Page): Promise<string> {
@@ -169,9 +190,23 @@ test.describe("Brain terminal live UI", () => {
     const repo = parseSlug(REPO_SLUG);
     expect(TEST_TOKEN, "live GitHub token").toBeTruthy();
     expect(repo, "live repository slug").not.toBeNull();
-    expect(BRAIN_URL, "live Brain URL").toBeTruthy();
-    expect(BRAIN_API_KEY, "live Brain API key").toBeTruthy();
-    await installAuth(page, repo!.owner, repo!.repo);
+    const user = await installAuth(page, repo!.owner, repo!.repo);
+    const configResponse = await page.request.get(
+      `${BASE_URL}/api/kody/dashboard-config`,
+      { headers: repoHeaders(repo!.owner, repo!.repo) },
+    );
+    expect(configResponse.ok()).toBe(true);
+    const currentConfig = (await configResponse.json()) as {
+      config?: { brainFlyChatEnabled?: boolean };
+    };
+    const wasEnabled = currentConfig.config?.brainFlyChatEnabled === true;
+    await setRepoBrainChatEnabled(
+      page,
+      repo!.owner,
+      repo!.repo,
+      user.login,
+      true,
+    );
 
     let conversationId = "";
     page.on("response", async (response) => {
@@ -187,93 +222,92 @@ test.describe("Brain terminal live UI", () => {
       }
     });
 
-    await page.goto(`${BASE_URL}/repo/${repo!.owner}/${repo!.repo}`, {
-      waitUntil: "domcontentloaded",
-    });
-    const chat = page.locator('[aria-label="Kody chat"]');
-    const stop = chat.getByRole("button", { name: "Stop run" });
-    if (await stop.isVisible()) await stop.click();
-    const newConversation = chat.getByRole("button", {
-      name: "New conversation",
-    });
-    await expect(newConversation).toBeEnabled({ timeout: 30_000 });
-    await newConversation.click();
+    try {
+      await page.goto(`${BASE_URL}/repo/${repo!.owner}/${repo!.repo}`, {
+        waitUntil: "domcontentloaded",
+      });
+      const chat = page.locator('[aria-label="Kody chat"]');
+      const stop = chat.getByRole("button", { name: "Stop run" });
+      if (await stop.isVisible()) await stop.click();
+      const newConversation = chat.getByRole("button", {
+        name: "New conversation",
+      });
+      await expect(newConversation).toBeEnabled({ timeout: 30_000 });
+      await newConversation.click();
 
-    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
-    await modelPicker.click();
-    const brainOption = chat
-      .locator('[role="listbox"]:visible button[role="option"]')
-      .filter({ hasText: /Brain/i })
-      .first();
-    await expect(brainOption).toBeVisible({ timeout: 30_000 });
-    await brainOption.click();
-    await expect(modelPicker).toContainText(/Brain/i);
+      const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+      await modelPicker.click();
+      const brainOption = chat
+        .locator('[role="listbox"]:visible button[role="option"]')
+        .filter({ hasText: /^Repo Brain/ })
+        .first();
+      await expect(brainOption).toBeVisible({ timeout: 30_000 });
+      await brainOption.click();
+      await expect(modelPicker).toContainText("Repo Brain");
 
-    const marker = `BRAIN_CHAT_E2E_${Date.now()}`;
-    await chat
-      .locator("textarea")
-      .fill(`Reply with exactly ${marker} and no other text.`);
-    const brainResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith("/api/kody/chat/brain"),
-    );
-    await chat.getByRole("button", { name: "Send message" }).click();
-    const brainResponse = await brainResponsePromise;
-    expect(brainResponse.status(), "real Brain chat route must succeed").toBe(
-      200,
-    );
-    await expect(
-      chat
-        .locator('[data-role="assistant"]')
-        .filter({ hasText: marker })
-        .last(),
-    ).toBeVisible({ timeout: 300_000 });
-    await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
-
-    if (conversationId) {
-      await expect
-        .poll(
-          async () => {
-            const persistedResponse = await page.request.get(
-              `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
-              {
-                headers: {
-                  "x-kody-token": TEST_TOKEN,
-                  "x-kody-owner": repo!.owner,
-                  "x-kody-repo": repo!.repo,
-                },
-              },
-            );
-            if (!persistedResponse.ok()) return false;
-            const persisted = (await persistedResponse.json()) as {
-              entries?: Array<{
-                entry?: { kind?: string; role?: string; content?: string };
-              }>;
-            };
-            return Boolean(
-              persisted.entries?.some(
-                ({ entry }) =>
-                  entry?.kind === "message" &&
-                  entry.role === "assistant" &&
-                  entry.content?.includes(marker),
-              ),
-            );
-          },
-          { timeout: 30_000, intervals: [250, 500, 1000] },
-        )
-        .toBe(true);
-      const cleanup = await page.request.delete(
-        `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
-        {
-          headers: {
-            "x-kody-token": TEST_TOKEN,
-            "x-kody-owner": repo!.owner,
-            "x-kody-repo": repo!.repo,
-          },
-        },
+      const marker = `BRAIN_CHAT_E2E_${Date.now()}`;
+      await chat
+        .locator("textarea")
+        .fill(`Reply with exactly ${marker} and no other text.`);
+      const brainResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          response.url().endsWith("/api/kody/chat/brain-fly"),
       );
-      expect(cleanup.ok()).toBe(true);
+      await chat.getByRole("button", { name: "Send message" }).click();
+      const brainResponse = await brainResponsePromise;
+      expect(
+        brainResponse.status(),
+        "real Repo Brain chat route must succeed",
+      ).toBe(200);
+      await expect(
+        chat
+          .locator('[data-role="assistant"]')
+          .filter({ hasText: marker })
+          .last(),
+      ).toBeVisible({ timeout: 300_000 });
+      await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
+
+      if (conversationId) {
+        await expect
+          .poll(
+            async () => {
+              const persistedResponse = await page.request.get(
+                `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+                { headers: repoHeaders(repo!.owner, repo!.repo) },
+              );
+              if (!persistedResponse.ok()) return false;
+              const persisted = (await persistedResponse.json()) as {
+                entries?: Array<{
+                  entry?: { kind?: string; role?: string; content?: string };
+                }>;
+              };
+              return Boolean(
+                persisted.entries?.some(
+                  ({ entry }) =>
+                    entry?.kind === "message" &&
+                    entry.role === "assistant" &&
+                    entry.content?.includes(marker),
+                ),
+              );
+            },
+            { timeout: 30_000, intervals: [250, 500, 1000] },
+          )
+          .toBe(true);
+        const cleanup = await page.request.delete(
+          `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+          { headers: repoHeaders(repo!.owner, repo!.repo) },
+        );
+        expect(cleanup.ok()).toBe(true);
+      }
+    } finally {
+      await setRepoBrainChatEnabled(
+        page,
+        repo!.owner,
+        repo!.repo,
+        user.login,
+        wasEnabled,
+      );
     }
   });
 

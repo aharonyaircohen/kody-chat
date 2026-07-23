@@ -258,13 +258,13 @@ describe("input acknowledgement before 'sent'", () => {
 });
 
 describe("stale connect guards", () => {
-  it("lets the bridge own startup retries and the browser own established socket recovery", () => {
+  it("recovers both cold-start and established socket failures", () => {
     expect(
       shouldReconnectFlySocket({ state: "connecting", reconnectAttempt: 0 }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldReconnectFlySocket({ state: "restoring", reconnectAttempt: 0 }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldReconnectFlySocket({ state: "connected", reconnectAttempt: 0 }),
     ).toBe(true);

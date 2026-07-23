@@ -131,15 +131,16 @@ export function shouldSkipFlyConnect(args: {
   );
 }
 
-/** Keep SSH startup retries in the bridge; only recover an established socket. */
+/** Recover bounded cold-start and established socket failures. */
 export function shouldReconnectFlySocket(args: {
   state: ChatTerminalConnectionState;
   reconnectAttempt: number;
 }): boolean {
-  if (args.state === "connected") return true;
   return (
-    args.reconnectAttempt > 0 &&
-    (args.state === "connecting" || args.state === "restoring")
+    args.reconnectAttempt < FLY_RECONNECT_MAX_ATTEMPTS &&
+    (args.state === "connecting" ||
+      args.state === "restoring" ||
+      args.state === "connected")
   );
 }
 
@@ -564,7 +565,11 @@ export async function connectFly(
       live.notifyTerminalSessionEnded();
       const state = live.flyConnectionStateRef.current;
       if (state === "error") return;
-      if (event.code === 1000) {
+      if (
+        event.code === 1000 &&
+        state !== "connecting" &&
+        state !== "restoring"
+      ) {
         updateFlyConnectionState(ref, "closed");
         return;
       }
@@ -595,7 +600,7 @@ export async function connectFly(
     terminal.writeln(`\x1b[31m${message}\x1b[0m`);
     const retryable =
       !(err instanceof RemoteTerminalSessionError) || err.retryable;
-    if (retryable && ref.current.flyReconnectAttemptRef.current > 0) {
+    if (retryable) {
       scheduleFlyReconnect(ref, message);
     }
   } finally {
