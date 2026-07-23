@@ -653,12 +653,12 @@ describe("store catalog import route", () => {
     );
   });
 
-  it("rejects legacy store item kinds", async () => {
+  it("rejects unknown store item kinds", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
     const res = await POST(
-      req({ kind: "implementation", slug: "ship-feature" }),
+      req({ kind: "skill", slug: "ship-feature" }),
     );
 
     expect(res.status).toBe(400);

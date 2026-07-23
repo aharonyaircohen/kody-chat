@@ -660,6 +660,8 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/workflows"),
       navItemForHref("/guided-flows"),
       navItemForHref("/capabilities"),
+      navItemForHref("/capability-contracts"),
+      navItemForHref("/implementations"),
       navItemForHref("/store-catalog"),
       navItemForHref("/company"),
     ],
