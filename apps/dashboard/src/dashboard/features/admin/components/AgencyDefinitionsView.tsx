@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pause, Play, RefreshCw } from "lucide-react";
 import type {
   GoalDefinition,
+  CapabilityDefinition,
+  ImplementationDefinition,
   IntentDefinition,
   LoopDefinition,
   OperationDefinition,
@@ -18,6 +20,7 @@ import { selectionPath } from "@dashboard/lib/selection-routing";
 import {
   useAgencyDefinitions,
   useAgencyStates,
+  useMigrateAgencyModel,
   usePutAgencyState,
 } from "@dashboard/lib/hooks/useAgencyModel";
 import type {
@@ -25,13 +28,29 @@ import type {
   AgencyStateRecord,
 } from "@dashboard/lib/api/agency-model";
 
-type PublicKind = "intent" | "operation" | "goal" | "loop";
+type PublicKind =
+  | "intent"
+  | "operation"
+  | "goal"
+  | "loop"
+  | "capability"
+  | "implementation";
 
 const copy: Record<PublicKind, { title: string; singular: string; path: string }> = {
   intent: { title: "Intents", singular: "Intent", path: "/company-intents" },
   operation: { title: "Operations", singular: "Operation", path: "/operations" },
   goal: { title: "Goals", singular: "Goal", path: "/agent-goals" },
   loop: { title: "Loops", singular: "Loop", path: "/agent-loops" },
+  capability: {
+    title: "Capability contracts",
+    singular: "Capability",
+    path: "/capability-contracts",
+  },
+  implementation: {
+    title: "Implementations",
+    singular: "Implementation",
+    path: "/implementations",
+  },
 };
 
 export function AgencyDefinitionsView({
@@ -44,6 +63,7 @@ export function AgencyDefinitionsView({
   const router = useRouter();
   const definitions = useAgencyDefinitions();
   const states = useAgencyStates();
+  const migrate = useMigrateAgencyModel();
   const records = useMemo(
     () => (definitions.data ?? []).filter((record) => record.kind === kind),
     [definitions.data, kind],
@@ -76,7 +96,31 @@ export function AgencyDefinitionsView({
           </p>
         </header>
         {records.length === 0 ? (
-          <EmptyState icon={null} title={`No ${copy[kind].title.toLowerCase()}`} hint="No V2 definitions exist for this repository." />
+          <div>
+            <EmptyState
+              icon={null}
+              title={`No ${copy[kind].title.toLowerCase()}`}
+              hint="No current definitions exist for this repository."
+              action={
+                kind === "implementation" ? (
+                  <Button
+                    onClick={() => migrate.mutate()}
+                    disabled={migrate.isPending}
+                  >
+                    {migrate.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Migrate agency model
+                  </Button>
+                ) : undefined
+              }
+            />
+            {migrate.error ? (
+              <p className="px-4 pb-4 text-sm text-destructive" role="alert">
+                {migrate.error.message}
+              </p>
+            ) : null}
+          </div>
         ) : (
           <div className="divide-y divide-border/60">
             {records.map((record) => {
@@ -130,6 +174,12 @@ function DefinitionDetail({
   const loops = definitions.filter((item) => item.kind === "loop") as Array<AgencyDefinitionRecord & { data: LoopDefinition }>;
   const workflows = definitions.filter((item) => item.kind === "workflow") as Array<AgencyDefinitionRecord & { data: WorkflowDefinition }>;
   const data = record.data;
+  const capability =
+    record.kind === "capability" ? (data as CapabilityDefinition) : null;
+  const implementation =
+    record.kind === "implementation"
+      ? (data as ImplementationDefinition)
+      : null;
   const operationId = "operationId" in data ? data.operationId : null;
   const operation = operations.find((item) => item.data.id === operationId)?.data;
   const targetGoal =
@@ -145,6 +195,23 @@ function DefinitionDetail({
           ? targetGoal.executionRef.id
         : null;
   const workflow = workflows.find((item) => item.data.id === workflowId)?.data;
+  const linkedImplementations =
+    record.kind === "capability"
+      ? definitions.filter(
+          (item) =>
+            item.kind === "implementation" &&
+            "capabilityRef" in item.data &&
+            item.data.capabilityRef.id === data.id,
+        )
+      : [];
+  const linkedCapability =
+    record.kind === "implementation" && "capabilityRef" in data
+      ? definitions.find(
+          (item) =>
+            item.kind === "capability" &&
+            item.data.id === data.capabilityRef.id,
+        )
+      : null;
   const ownedOperations =
     record.kind === "intent"
       ? operations.filter((item) => item.data.intentIds.includes(data.id))
@@ -201,6 +268,23 @@ function DefinitionDetail({
           {"targetRef" in data ? <Fact label="Target" value={`${data.targetRef.kind}:${data.targetRef.id}`} /> : null}
           {"trigger" in data ? <Fact label="Trigger" value={formatValue(data.trigger)} /> : null}
           {workflow ? <div><div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Workflow {workflow.id}</div><ol className="space-y-2">{workflow.steps.map((step) => <li key={step.id} className="rounded-md border p-3"><span className="font-mono">{step.id}</span><span className="mx-2 text-muted-foreground">→</span><span className="font-mono">{step.capabilityRef.id}</span>{step.dependsOn.length ? <div className="mt-1 text-xs text-muted-foreground">after {step.dependsOn.join(", ")}</div> : null}</li>)}</ol></div> : null}
+        </CardContent></Card>
+      ) : null}
+
+      {record.kind === "capability" ? (
+        <Card><CardHeader><CardTitle>Execution implementations</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+          <Fact label="Input contract" value={formatValue(capability!.inputSchema)} />
+          <Fact label="Output contract" value={formatValue(capability!.outputSchema)} />
+          <Fact label="Implementations" value={linkedImplementations.map((item) => item.data.id).join(", ") || "None available"} />
+        </CardContent></Card>
+      ) : null}
+
+      {record.kind === "implementation" ? (
+        <Card><CardHeader><CardTitle>Execution model</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+          <Fact label="Capability" value={linkedCapability?.data.id ?? implementation!.capabilityRef.id} />
+          <Fact label="Type" value={implementation!.type} />
+          {implementation!.type === "agent" ? <Fact label="Agent" value={implementation!.agentRef.id} /> : null}
+          <Fact label="Compatible contract revision" value={implementation!.compatibleCapabilityRevision} />
         </CardContent></Card>
       ) : null}
 

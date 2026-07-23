@@ -7,6 +7,18 @@ const writes = vi.hoisted(() => ({
   putState: vi.fn(async () => undefined),
 }));
 
+vi.mock("@kody-ade/base/company-store/assets", () => ({
+  companyStoreAssetPath: vi.fn(async (_client, kind: string, id: string) => `${kind}/${id}`),
+  readCompanyStoreText: vi.fn(async (_client, path: string) => {
+    const id = path.split("/")[1];
+    return JSON.stringify({
+      id,
+      capabilityRef: { id, revision: "test-revision" },
+      type: "agent",
+      agentRef: "developer",
+    });
+  }),
+}));
 vi.mock("@kody-ade/agency/routes/repo-write-access", () => ({
   verifyRepoWriteAccess: vi.fn(async () => ({
     auth: { owner: "acme", repo: "widgets", token: "token" },

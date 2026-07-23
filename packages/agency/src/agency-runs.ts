@@ -14,7 +14,7 @@ import {
 } from "./backend/agency-runs-store";
 import { listGoals } from "./backend/goals-state";
 
-export type AgencyRunKind = "goal" | "loop" | "workflow";
+export type AgencyRunKind = "goal" | "loop" | "workflow" | "capability";
 export type AgencyRunOrigin = "manual" | "scheduled" | "event" | "local";
 export type AgencyRunStatus =
   | "running"
@@ -69,6 +69,9 @@ export interface AgencyRunSummary {
   capability: string | null;
   workflow: string | null;
   implementation: string | null;
+  parentRunId?: string | null;
+  capabilityRevision?: string | null;
+  implementationRevision?: string | null;
   agent: string | null;
   model: string | null;
   modelProvider: string | null;
@@ -135,6 +138,9 @@ interface RunIndexRow {
   capability?: unknown;
   workflow?: unknown;
   implementation?: unknown;
+  parentRunId?: unknown;
+  capabilityRevision?: unknown;
+  implementationRevision?: unknown;
   agent?: unknown;
   model?: unknown;
   modelProvider?: unknown;
@@ -178,7 +184,10 @@ function stringValue(value: unknown): string | null {
 }
 
 function kindValue(value: unknown): AgencyRunKind | null {
-  return value === "goal" || value === "loop" || value === "workflow"
+  return value === "goal" ||
+    value === "loop" ||
+    value === "workflow" ||
+    value === "capability"
     ? value
     : null;
 }
@@ -732,6 +741,9 @@ function rowToAgencyRun(row: RunIndexRow): AgencyRunSummary | null {
     capability: stringValue(row.capability),
     workflow: stringValue(row.workflow),
     implementation: stringValue(row.implementation),
+    parentRunId: stringValue(row.parentRunId),
+    capabilityRevision: stringValue(row.capabilityRevision),
+    implementationRevision: stringValue(row.implementationRevision),
     agent: stringValue(row.agent),
     model: stringValue(row.model),
     modelProvider: stringValue(row.modelProvider),
@@ -899,6 +911,7 @@ export async function listAgencyRuns({
         goal: runs.filter((run) => run.kind === "goal").length,
         loop: runs.filter((run) => run.kind === "loop").length,
         workflow: runs.filter((run) => run.kind === "workflow").length,
+        capability: runs.filter((run) => run.kind === "capability").length,
       },
       computedAt: new Date().toISOString(),
       source: {

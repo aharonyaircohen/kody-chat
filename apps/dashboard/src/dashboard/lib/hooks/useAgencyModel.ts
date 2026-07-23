@@ -67,3 +67,23 @@ export function usePutAgencyState() {
       }),
   });
 }
+
+export function useMigrateAgencyModel() {
+  const queryClient = useQueryClient();
+  const auth = getStoredAuth();
+  return useMutation<{ created: number; reused: number }, Error>({
+    mutationFn: agencyModelApi.migrate,
+    onSuccess: (result) => {
+      if (auth) {
+        void queryClient.invalidateQueries({
+          queryKey: agencyModelQueryKeys.definitions(auth.owner, auth.repo),
+        });
+      }
+      toast.success("Agency model migrated", {
+        description: `${result.created} created, ${result.reused} already current`,
+      });
+    },
+    onError: (error) =>
+      toast.error("Agency migration failed", { description: error.message }),
+  });
+}

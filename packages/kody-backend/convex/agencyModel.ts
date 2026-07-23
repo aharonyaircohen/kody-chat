@@ -4,6 +4,7 @@ import {
   createCapabilityDefinition,
   createGoalDefinition,
   createIntentDefinition,
+  createImplementationDefinition,
   createLoopDefinition,
   createOperationDefinition,
   createGoalState,
@@ -24,6 +25,7 @@ const definitionKind = v.union(
   v.literal("loop"),
   v.literal("workflow"),
   v.literal("capability"),
+  v.literal("implementation"),
   v.literal("agent"),
 );
 
@@ -34,6 +36,7 @@ function validateDefinition(kind: string, data: unknown) {
   if (kind === "loop") return createLoopDefinition(data);
   if (kind === "workflow") return createWorkflowDefinition(data);
   if (kind === "capability") return createCapabilityDefinition(data);
+  if (kind === "implementation") return createImplementationDefinition(data);
   if (kind === "agent") return createAgentDefinition(data);
   throw new Error("Unsupported Agency Definition kind");
 }
@@ -518,6 +521,7 @@ export const createRunRecord = mutation({
       v.literal("loop"),
       v.literal("workflow"),
       v.literal("capability"),
+      v.literal("implementation"),
     ),
     subjectId: v.string(),
     run: v.any(),
@@ -590,6 +594,8 @@ function assertSameRunIdentity(
     stable(previous.origin) !== stable(next.origin) ||
     stable(previous.target) !== stable(next.target) ||
     stable(previous.trace) !== stable(next.trace) ||
+    stable(previous.execution) !== stable(next.execution) ||
+    previous.parentRunId !== next.parentRunId ||
     stable(previous.effectivePolicy) !== stable(next.effectivePolicy)
   ) {
     throw new Error("Agency Run immutable context changed");

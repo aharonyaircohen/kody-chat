@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createCapabilityDefinition,
+  createImplementationDefinition,
   createGoalDefinition,
   createGoalState,
   createLoopDefinition,
@@ -16,6 +17,67 @@ const objective = {
 };
 
 describe("clean AI Agency domain", () => {
+  it("separates the canonical capability contract from its execution model", () => {
+    const capability = createCapabilityDefinition({
+      id: "build-knowledge-graph",
+      action: "Build a knowledge graph",
+      purpose: "Produce a current project knowledge graph",
+      inputSchema: {
+        type: "object",
+        required: ["repository"],
+        properties: { repository: { type: "string" } },
+      },
+      outputSchema: {
+        type: "object",
+        required: ["graph"],
+        properties: { graph: { type: "object" } },
+      },
+      effects: ["artifact.write"],
+      permissions: ["repository.read"],
+      success: "A valid graph artifact is produced",
+      failure: "No graph artifact is published",
+    });
+    const implementation = createImplementationDefinition({
+      id: "graphify-knowledge-graph",
+      capabilityRef: {
+        kind: "capability",
+        id: "build-knowledge-graph",
+      },
+      compatibleCapabilityRevision: "contract-hash",
+      type: "agent",
+      agentRef: { kind: "agent", id: "knowledge-engineer" },
+    });
+
+    expect(capability).toMatchObject({ id: "build-knowledge-graph" });
+    expect(implementation).toMatchObject({
+      type: "agent",
+      capabilityRef: { id: "build-knowledge-graph" },
+    });
+    expect(implementation).not.toHaveProperty("prompt");
+    expect(implementation).not.toHaveProperty("model");
+    expect(implementation).not.toHaveProperty("tools");
+  });
+
+  it("requires an agent only for agent implementations", () => {
+    expect(() =>
+      createImplementationDefinition({
+        id: "run-graph-script",
+        capabilityRef: { kind: "capability", id: "build-knowledge-graph" },
+        compatibleCapabilityRevision: "contract-hash",
+        type: "script",
+        agentRef: { kind: "agent", id: "developer" },
+      }),
+    ).toThrow(/agentRef/);
+    expect(() =>
+      createImplementationDefinition({
+        id: "graphify-knowledge-graph",
+        capabilityRef: { kind: "capability", id: "build-knowledge-graph" },
+        compatibleCapabilityRevision: "contract-hash",
+        type: "agent",
+      }),
+    ).toThrow(/agentRef/);
+  });
+
   it("contains no persistence version or storage metadata", () => {
     expect(() =>
       createGoalDefinition({
@@ -42,8 +104,13 @@ describe("clean AI Agency domain", () => {
       createCapabilityDefinition({
         id: "build-knowledge-graph",
         action: "Build a knowledge graph",
-        input: "repository",
-        output: "graph",
+        purpose: "Produce project knowledge",
+        inputSchema: { type: "object" },
+        outputSchema: { type: "object" },
+        effects: [],
+        permissions: [],
+        success: "A graph is produced",
+        failure: "No graph is produced",
         steps: ["extract", "publish"],
       }),
     ).toThrow(/steps/);
@@ -146,6 +213,71 @@ describe("clean AI Agency domain", () => {
         kind: "goal",
         id: "knowledge-current",
         revision: "goal-revision",
+      },
+    });
+  });
+
+  it("pins capability and implementation on execution runs", () => {
+    expect(
+      createRun({
+        id: "run-implementation",
+        status: "running",
+        origin: { kind: "goal", id: "knowledge-current", revision: "goal-ref" },
+        target: {
+          kind: "capability",
+          id: "build-knowledge-graph",
+          revision: "contract-ref",
+        },
+        execution: {
+          capability: {
+            kind: "capability",
+            id: "build-knowledge-graph",
+            revision: "contract-ref",
+          },
+          implementation: {
+            kind: "implementation",
+            id: "graphify-knowledge-graph",
+            revision: "implementation-ref",
+          },
+        },
+        parentRunId: "run-workflow",
+        trace: [
+          { kind: "goal", id: "knowledge-current", revision: "goal-ref" },
+          {
+            kind: "capability",
+            id: "build-knowledge-graph",
+            revision: "contract-ref",
+          },
+          {
+            kind: "implementation",
+            id: "graphify-knowledge-graph",
+            revision: "implementation-ref",
+          },
+        ],
+        effectivePolicy: {
+          hash: "policy-hash",
+          policy: {
+            approval: "none",
+            authority: { allow: ["repository.read"], deny: [] },
+            budget: {
+              maxRuns: 1,
+              maxTokens: 1000,
+              maxCostUsd: 10,
+              maxDurationSeconds: 300,
+            },
+            maxConcurrentRuns: 1,
+            riskyActions: [],
+          },
+          constraints: [],
+        },
+        correlationId: "corr-implementation",
+        startedAt: "2026-07-22T00:00:00.000Z",
+      }),
+    ).toMatchObject({
+      parentRunId: "run-workflow",
+      execution: {
+        capability: { id: "build-knowledge-graph" },
+        implementation: { id: "graphify-knowledge-graph" },
       },
     });
   });

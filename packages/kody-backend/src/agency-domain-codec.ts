@@ -3,6 +3,7 @@ import {
   createCapabilityDefinition,
   createGoalDefinition,
   createIntentDefinition,
+  createImplementationDefinition,
   createLoopDefinition,
   createOperationDefinition,
   createWorkflowDefinition,
@@ -10,13 +11,21 @@ import {
   type AgentDefinition,
   type GoalDefinition,
   type IntentDefinition,
+  type ImplementationDefinition,
   type LoopDefinition,
   type OperationDefinition,
   type WorkflowDefinition,
 } from "@kody-ade/agency-domain";
 
 export type AgencyDefinitionKind =
-  "intent" | "operation" | "goal" | "loop" | "workflow" | "capability" | "agent";
+  | "intent"
+  | "operation"
+  | "goal"
+  | "loop"
+  | "workflow"
+  | "capability"
+  | "implementation"
+  | "agent";
 export type AgencyDefinition =
   | AgentDefinition
   | IntentDefinition
@@ -24,7 +33,8 @@ export type AgencyDefinition =
   | GoalDefinition
   | LoopDefinition
   | WorkflowDefinition
-  | CapabilityDefinition;
+  | CapabilityDefinition
+  | ImplementationDefinition;
 
 export interface AgencyDefinitionEnvelope {
   schemaVersion: number;
@@ -46,6 +56,7 @@ function decodeData(
   if (kind === "loop") return createLoopDefinition(data);
   if (kind === "workflow") return createWorkflowDefinition(data);
   if (kind === "agent") return createAgentDefinition(data);
+  if (kind === "implementation") return createImplementationDefinition(data);
   return createCapabilityDefinition(data);
 }
 
@@ -83,6 +94,7 @@ export function decodeAgencyDefinition(value: unknown): AgencyDefinition {
     envelope.kind !== "loop" &&
     envelope.kind !== "workflow" &&
     envelope.kind !== "capability" &&
+    envelope.kind !== "implementation" &&
     envelope.kind !== "agent"
   ) {
     throw new Error("Invalid agency definition kind");

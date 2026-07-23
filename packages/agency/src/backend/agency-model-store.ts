@@ -9,6 +9,7 @@ export const AGENCY_DEFINITION_KINDS = [
   "loop",
   "workflow",
   "capability",
+  "implementation",
   "agent",
 ] as const;
 export type AgencyDefinitionKind = (typeof AGENCY_DEFINITION_KINDS)[number];

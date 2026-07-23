@@ -1,5 +1,12 @@
 # Kody capability contracts
 
+> The canonical current boundary is
+> [`Capability and Implementation`](../../../docs/capability-implementations.md).
+> Capability owns the stable action contract. Implementation owns prompts,
+> Agents, models, tools, skills, MCP, scripts, bindings, and runtime settings.
+> Older combined `profile.json` examples below are migration history, not the
+> target write format.
+
 A **capability** is a reusable way the agency can produce a result. The canonical
 storage is `backend definitions (capabilities)<slug>/profile.json` plus `capability.md`.
 For the canonical model, see [`concepts/company-model.md`](concepts/company-model.md).

@@ -4,6 +4,11 @@
  * legacy snapshot is persisted before immutable V2 definitions are created.
  */
 import { NextRequest, NextResponse } from "next/server";
+import type { Octokit } from "@octokit/rest";
+import {
+  companyStoreAssetPath,
+  readCompanyStoreText,
+} from "@kody-ade/base/company-store/assets";
 import {
   agencyDefinitionRecordId,
   createStoredAgencyDefinition,
@@ -127,47 +132,68 @@ async function buildSnapshot(req: NextRequest) {
           ...(record.workflow.steps ? { steps: record.workflow.steps } : {}),
         })),
     };
-    return { access, snapshot };
+    return { access, snapshot, client };
   } finally {
     clearGitHubContext();
   }
 }
 
-function capabilityDefinitions(
+async function readStoreDefinitions(
+  client: Octokit,
+  kind: "capabilities" | "implementations",
   requiredIds: string[],
-  capabilities: Array<{ slug: string; describe: string; landing: string }>,
-): {
-  definitions: Array<{ id: string; action: string; input: string; output: string }>;
-  missing: string[];
-} {
-  const byId = new Map(capabilities.map((capability) => [capability.slug, capability]));
-  const missing = requiredIds.filter((id) => !byId.has(id));
-  return {
-    definitions: requiredIds.flatMap((id) => {
-      const capability = byId.get(id);
-      if (!capability) return [];
-      return [
-        {
-          id,
-          action: capability.describe || id,
-          input: "JSON object",
-          output: capability.landing === "pr" ? "Pull request" : "Execution result",
-        },
-      ];
+) {
+  return await Promise.all(
+    requiredIds.map(async (id) => {
+      const root = await companyStoreAssetPath(client, kind, id);
+      const raw = await readCompanyStoreText(client, `${root}/definition.json`);
+      return raw ? JSON.parse(raw) : null;
     }),
-    missing,
-  };
+  );
 }
 
 async function preview(req: NextRequest) {
   const built = await buildSnapshot(req);
   if (built instanceof NextResponse) return built;
   const plan = planAgencyV2Migration(built.snapshot);
-  const capabilities = capabilityDefinitions(
-    plan.requiredCapabilityIds,
-    built.snapshot.capabilities,
+  const [capabilities, implementations] = await Promise.all([
+    readStoreDefinitions(
+      built.client,
+      "capabilities",
+      plan.requiredCapabilityIds,
+    ),
+    readStoreDefinitions(
+      built.client,
+      "implementations",
+      plan.requiredCapabilityIds,
+    ),
+  ]);
+  const capabilityDefinitions = capabilities.filter(
+    (definition): definition is { id: string } => definition !== null,
   );
-  return { ...built, plan, capabilityDefinitions: capabilities.definitions, missingCapabilities: capabilities.missing };
+  const implementationDefinitions = implementations.filter(
+    (definition): definition is { id: string } => definition !== null,
+  );
+  const implementationIds = new Set(
+    implementationDefinitions.map((definition) => definition.id),
+  );
+  const missingImplementations = plan.requiredCapabilityIds.filter(
+    (id) => !implementationIds.has(id),
+  );
+  const capabilityIds = new Set(
+    capabilityDefinitions.map((definition) => definition.id),
+  );
+  const missingCapabilities = plan.requiredCapabilityIds.filter(
+    (id) => !capabilityIds.has(id),
+  );
+  return {
+    ...built,
+    plan,
+    capabilityDefinitions,
+    implementationDefinitions,
+    missingCapabilities,
+    missingImplementations,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -177,7 +203,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       plan: result.plan,
       missingCapabilities: result.missingCapabilities,
-      canApply: result.plan.issues.length === 0 && result.missingCapabilities.length === 0,
+      missingImplementations: result.missingImplementations,
+      canApply:
+        result.plan.issues.length === 0 &&
+        result.missingCapabilities.length === 0 &&
+        result.missingImplementations.length === 0,
     });
   } catch {
     return NextResponse.json({ error: "migration_preview_failed" }, { status: 500 });
@@ -191,9 +221,19 @@ export async function POST(req: NextRequest) {
     const issues = [
       ...result.plan.issues,
       ...result.missingCapabilities.map((id) => `Missing Capability "${id}"`),
+      ...result.missingImplementations.map(
+        (id) => `Missing Implementation for Capability "${id}"`,
+      ),
     ];
     if (issues.length > 0) {
-      return NextResponse.json({ error: "migration_blocked", issues }, { status: 409 });
+      return NextResponse.json(
+        {
+          error: "migration_blocked",
+          message: `Migration blocked: ${issues.join("; ")}`,
+          issues,
+        },
+        { status: 409 },
+      );
     }
     const migrationId = `agency-v2-${Date.now()}`;
     await getConvexClient().mutation(backendApi.repoDocs.save, {
@@ -207,6 +247,7 @@ export async function POST(req: NextRequest) {
       ["operation", result.plan.definitions.operations],
       ["workflow", result.plan.definitions.workflows],
       ["capability", result.capabilityDefinitions],
+      ["implementation", result.implementationDefinitions],
       ["goal", result.plan.definitions.goals],
       ["loop", result.plan.definitions.loops],
     ];

@@ -373,6 +373,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
+        href: "/implementations",
+        label: "Implementations",
+        icon: Cpu,
+        description: "Technical execution models for capability contracts.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
         href: "/store-catalog",
         label: "Store Catalog",
         icon: Package,

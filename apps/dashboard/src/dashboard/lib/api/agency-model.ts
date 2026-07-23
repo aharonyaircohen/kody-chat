@@ -4,6 +4,7 @@ import type {
   GoalDefinition,
   GoalState,
   IntentDefinition,
+  ImplementationDefinition,
   LoopDefinition,
   LoopState,
   OperationDefinition,
@@ -18,6 +19,7 @@ export type AgencyDefinitionData =
   | LoopDefinition
   | WorkflowDefinition
   | CapabilityDefinition
+  | ImplementationDefinition
   | AgentDefinition;
 
 export type AgencyDefinitionRecord = {
@@ -29,6 +31,7 @@ export type AgencyDefinitionRecord = {
     | "loop"
     | "workflow"
     | "capability"
+    | "implementation"
     | "agent";
   schemaVersion: number;
   data: AgencyDefinitionData;
@@ -44,6 +47,13 @@ export type AgencyStateRecord = {
 };
 
 export const agencyModelApi = {
+  migrate: async (): Promise<{ created: number; reused: number }> => {
+    const response = await fetch(`${API_BASE}/agency-migration`, {
+      method: "POST",
+      headers: buildHeaders(),
+    });
+    return await handleResponse<{ created: number; reused: number }>(response);
+  },
   definitions: async (): Promise<AgencyDefinitionRecord[]> => {
     const response = await fetch(`${API_BASE}/agency-definitions`, {
       headers: buildHeaders(),

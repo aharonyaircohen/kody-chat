@@ -107,6 +107,17 @@ interface CapabilitySummary {
   capabilityKind?: "observe" | "act" | "verify" | null;
 }
 interface CapabilityDetail extends CapabilitySummary {
+  contract?: {
+    action: string;
+    purpose: string;
+    inputSchema: Record<string, unknown>;
+    outputSchema: Record<string, unknown>;
+    effects: string[];
+    permissions: string[];
+    success: string;
+    failure: string;
+  };
+  documentation?: string;
   /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
@@ -770,7 +781,9 @@ function CapabilityDetail({
                 ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                {e.agent ? (
+                {detail?.contract ? (
+                  <span>public action contract</span>
+                ) : e.agent ? (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
                     profile agent: {e.agent}
@@ -893,6 +906,48 @@ function CapabilityContentBody({
   }
 
   const userTools = (detail.tools ?? []).filter((t) => !t.startsWith("mcp__"));
+
+  if (detail.contract) {
+    const contract = detail.contract;
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+        <ContentSection icon={FileCode} title="Contract" subtitle="What this capability promises">
+          <div className="space-y-3 text-sm">
+            <p className="text-white/85">{contract.purpose}</p>
+            <div>
+              <span className="text-white/45">Action </span>
+              <code className="text-white/85">{contract.action}</code>
+            </div>
+            <div>
+              <span className="text-white/45">Success </span>
+              <span className="text-white/85">{contract.success}</span>
+            </div>
+            <div>
+              <span className="text-white/45">Failure </span>
+              <span className="text-white/85">{contract.failure}</span>
+            </div>
+          </div>
+        </ContentSection>
+        <ContentSection icon={FileCode} title="Input" subtitle="Canonical JSON Schema">
+          <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 overflow-auto whitespace-pre-wrap break-words text-white/85">
+            {JSON.stringify(contract.inputSchema, null, 2)}
+          </pre>
+        </ContentSection>
+        <ContentSection icon={FileCode} title="Output" subtitle="Canonical JSON Schema">
+          <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 overflow-auto whitespace-pre-wrap break-words text-white/85">
+            {JSON.stringify(contract.outputSchema, null, 2)}
+          </pre>
+        </ContentSection>
+        {detail.documentation ? (
+          <ContentSection icon={FileCode} title="Documentation" subtitle="Capability guidance, not a runtime prompt">
+            <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-white/85">
+              {detail.documentation}
+            </pre>
+          </ContentSection>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">

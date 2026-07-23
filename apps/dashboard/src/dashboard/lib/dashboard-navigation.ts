@@ -77,6 +77,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["capabilities", "tools", "capability"],
     when: "Use when the user asks to manage reusable Kody capabilities.",
   },
+  "/implementations": {
+    aliases: ["implementations", "execution models", "runtime adapters"],
+    when: "Use when the user asks how a capability is technically executed.",
+  },
   "/agents": {
     aliases: ["agents", "staff", "personas"],
     when: "Use when the user asks to manage agent identities.",

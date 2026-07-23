@@ -242,7 +242,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("deletes the Convex capability projection", async () => {
-    h.readCapabilityFile.mockResolvedValue({
+    h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
     });
@@ -269,7 +269,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("updates the engine definition and Convex projection together", async () => {
-    h.readCapabilityFile.mockResolvedValue({
+    h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
       prompt: "Old instructions",

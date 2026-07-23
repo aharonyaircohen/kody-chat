@@ -11,7 +11,7 @@ import {
   deleteCapabilityFile,
   isValidSlug,
   PERMISSION_MODES,
-  readCapabilityFile,
+  readResolvedCapabilityFile,
   writeCapabilityFile,
 } from "@kody-ade/agency/capabilities";
 import { clearGitHubContext, setGitHubContext } from "@kody-ade/agency/github";
@@ -54,7 +54,7 @@ async function getCapability(
   _tenantId: string,
   slug: string,
 ): Promise<any | null> {
-  return readCapabilityFile(slug);
+  return readResolvedCapabilityFile(slug);
 }
 
 export async function GET(

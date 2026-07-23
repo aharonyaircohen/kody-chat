@@ -118,6 +118,19 @@ export interface CapabilityWorkflowSummary {
 }
 
 export interface CapabilityDetail extends CapabilitySummary {
+  /** Canonical public contract. Present for the separated model only. */
+  contract?: {
+    action: string;
+    purpose: string;
+    inputSchema: Record<string, unknown>;
+    outputSchema: Record<string, unknown>;
+    effects: string[];
+    permissions: string[];
+    success: string;
+    failure: string;
+  };
+  /** Human-readable Capability documentation; never an execution prompt. */
+  documentation?: string;
   /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
@@ -147,6 +160,59 @@ function parseProfileJson(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function summaryFromContract(
+  slug: string,
+  contract: Record<string, unknown>,
+  htmlUrl = "",
+  extra: Partial<CapabilitySummary> = {},
+): CapabilitySummary {
+  return {
+    slug,
+    describe:
+      typeof contract.purpose === "string" ? contract.purpose : slug,
+    landing: "comment",
+    updatedAt: null,
+    htmlUrl,
+    agent: null,
+    every: null,
+    isWorkflow: false,
+    workflowSteps: [],
+    capabilityKind: null,
+    ...extra,
+  };
+}
+
+function detailContract(
+  contract: Record<string, unknown>,
+): CapabilityDetail["contract"] | undefined {
+  if (
+    typeof contract.action !== "string" ||
+    typeof contract.purpose !== "string" ||
+    !contract.inputSchema ||
+    typeof contract.inputSchema !== "object" ||
+    Array.isArray(contract.inputSchema) ||
+    !contract.outputSchema ||
+    typeof contract.outputSchema !== "object" ||
+    Array.isArray(contract.outputSchema)
+  ) {
+    return undefined;
+  }
+  return {
+    action: contract.action,
+    purpose: contract.purpose,
+    inputSchema: contract.inputSchema as Record<string, unknown>,
+    outputSchema: contract.outputSchema as Record<string, unknown>,
+    effects: Array.isArray(contract.effects)
+      ? contract.effects.filter((value): value is string => typeof value === "string")
+      : [],
+    permissions: Array.isArray(contract.permissions)
+      ? contract.permissions.filter((value): value is string => typeof value === "string")
+      : [],
+    success: typeof contract.success === "string" ? contract.success : "",
+    failure: typeof contract.failure === "string" ? contract.failure : "",
+  };
 }
 
 function workflowStepsFromProfile(profile: Record<string, unknown>): string[] {
@@ -320,6 +386,19 @@ function summaryFromProfile(
 function definitionSummary(
   definition: CapabilityDefinition,
 ): CapabilitySummary | null {
+  const contractRaw = definition.bundle.files["definition.json"];
+  if (typeof contractRaw === "string") {
+    const contract = parseProfileJson(contractRaw);
+    return contract
+      ? {
+          ...summaryFromContract(definition.slug, contract, "", {
+            source: definition.source ?? "local",
+            readOnly: definition.source === "store",
+          }),
+          updatedAt: definition.updatedAt,
+        }
+      : null;
+  }
   const profileRaw = definition.bundle.files["profile.json"];
   if (typeof profileRaw !== "string") return null;
   const profile = parseProfileJson(profileRaw);
@@ -336,6 +415,26 @@ function definitionSummary(
 function definitionDetail(
   definition: CapabilityDefinition,
 ): CapabilityDetail | null {
+  const contractRaw = definition.bundle.files["definition.json"];
+  if (typeof contractRaw === "string") {
+    const contract = parseProfileJson(contractRaw);
+    const summary = definitionSummary(definition);
+    if (!summary || !contract) return null;
+    const documentation = definition.bundle.files[CAPABILITY_BODY_FILE] ?? "";
+    return {
+      ...summary,
+      contract: detailContract(contract),
+      documentation,
+      prompt: "",
+      model: "inherit",
+      permissionMode: "default",
+      tools: [],
+      skills: [],
+      shellScripts: [],
+      mcpServers: [],
+      profileJson: contractRaw,
+    };
+  }
   const profileRaw = definition.bundle.files["profile.json"];
   if (typeof profileRaw !== "string") return null;
   const profile = parseProfileJson(profileRaw);
@@ -441,6 +540,21 @@ async function readStoreCapabilitySummary(
   storage: CapabilityStorage = CAPABILITY_STORAGE,
 ): Promise<CapabilitySummary | null> {
   const base = await companyStoreAssetPath(octokit, storage.storeKind, slug);
+  const contractRaw = await readCompanyStoreText(
+    octokit,
+    `${base}/definition.json`,
+  );
+  if (contractRaw) {
+    const contract = parseProfileJson(contractRaw);
+    return contract
+      ? summaryFromContract(
+          slug,
+          contract,
+          buildCompanyStoreHtmlUrl(storage.storeKind, slug),
+          { source: "store", readOnly: true },
+        )
+      : null;
+  }
   const profileRaw = await readCompanyStoreText(
     octokit,
     `${base}/profile.json`,
@@ -491,6 +605,37 @@ async function readStoreCapabilityFile(
 ): Promise<CapabilityDetail | null> {
   if (!isValidSlug(slug)) return null;
   const base = await companyStoreAssetPath(octokit, storage.storeKind, slug);
+  const contractRaw = await readCompanyStoreText(
+    octokit,
+    `${base}/definition.json`,
+  );
+  if (contractRaw) {
+    const contract = parseProfileJson(contractRaw);
+    if (!contract) return null;
+    const documentation =
+      (await readCompanyStoreText(
+        octokit,
+        `${base}/${storage.bodyFile}`,
+      )) ?? "";
+    return {
+      ...summaryFromContract(
+        slug,
+        contract,
+        buildCompanyStoreHtmlUrl(storage.storeKind, slug),
+        { source: "store", readOnly: true },
+      ),
+      contract: detailContract(contract),
+      documentation,
+      prompt: "",
+      model: "inherit",
+      permissionMode: "default",
+      tools: [],
+      skills: [],
+      shellScripts: [],
+      mcpServers: [],
+      profileJson: contractRaw,
+    };
+  }
   const profileRaw = await readCompanyStoreText(
     octokit,
     `${base}/profile.json`,
@@ -646,7 +791,10 @@ export async function readCompanyStoreCapabilityFolderFiles(
   );
   const files: Record<string, string> = {};
   await readCompanyStoreFolderRecursive(octokit, root, "", files);
-  return typeof files["profile.json"] === "string" ? files : null;
+  return typeof files["definition.json"] === "string" ||
+    typeof files["profile.json"] === "string"
+    ? files
+    : null;
 }
 
 export interface WriteCapabilityOptions {

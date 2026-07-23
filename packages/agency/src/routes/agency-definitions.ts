@@ -5,6 +5,7 @@ import {
   createCapabilityDefinition,
   createGoalDefinition,
   createIntentDefinition,
+  createImplementationDefinition,
   createLoopDefinition,
   createOperationDefinition,
   createWorkflowDefinition,
@@ -29,6 +30,8 @@ function validate(kind: AgencyDefinitionKind, definition: unknown) {
   if (kind === "loop") return createLoopDefinition(definition);
   if (kind === "workflow") return createWorkflowDefinition(definition);
   if (kind === "capability") return createCapabilityDefinition(definition);
+  if (kind === "implementation")
+    return createImplementationDefinition(definition);
   return createAgentDefinition(definition);
 }
 

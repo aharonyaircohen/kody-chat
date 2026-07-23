@@ -1,6 +1,11 @@
 export type Lifecycle = "draft" | "active" | "paused" | "retired" | "archived";
 export type ReferenceKind =
-  "goal" | "loop" | "workflow" | "capability" | "agent";
+  | "goal"
+  | "loop"
+  | "workflow"
+  | "capability"
+  | "implementation"
+  | "agent";
 export interface DefinitionRef {
   kind: ReferenceKind;
   id: string;
@@ -69,9 +74,31 @@ export interface LoopDefinition {
 export interface CapabilityDefinition {
   id: string;
   action: string;
-  input: string;
-  output: string;
+  purpose: string;
+  inputSchema: JsonSchema;
+  outputSchema: JsonSchema;
+  effects: string[];
+  permissions: string[];
+  success: string;
+  failure: string;
 }
+export interface JsonSchema {
+  readonly [key: string]: unknown;
+}
+export type ImplementationDefinition =
+  | {
+      id: string;
+      capabilityRef: DefinitionRef & { kind: "capability" };
+      compatibleCapabilityRevision: string;
+      type: "agent";
+      agentRef: DefinitionRef & { kind: "agent" };
+    }
+  | {
+      id: string;
+      capabilityRef: DefinitionRef & { kind: "capability" };
+      compatibleCapabilityRevision: string;
+      type: "script";
+    };
 export interface WorkflowStep {
   id: string;
   capabilityRef: DefinitionRef & { kind: "capability" };
@@ -126,6 +153,11 @@ export interface Run {
   origin: PinnedDefinitionRef;
   target: PinnedDefinitionRef;
   trace: PinnedDefinitionRef[];
+  execution?: {
+    capability: PinnedDefinitionRef & { kind: "capability" };
+    implementation: PinnedDefinitionRef & { kind: "implementation" };
+  };
+  parentRunId?: string;
   effectivePolicy: {
     hash: string;
     policy: Policy;
@@ -436,13 +468,89 @@ export function createCapabilityDefinition(
   value: unknown,
 ): CapabilityDefinition {
   const input = record(value, "CapabilityDefinition");
-  exact(input, ["id", "action", "input", "output"], "CapabilityDefinition");
+  exact(
+    input,
+    [
+      "id",
+      "action",
+      "purpose",
+      "inputSchema",
+      "outputSchema",
+      "effects",
+      "permissions",
+      "success",
+      "failure",
+    ],
+    "CapabilityDefinition",
+  );
   return Object.freeze({
     id: identifier(input.id, "CapabilityDefinition id"),
     action: text(input.action, "CapabilityDefinition action"),
-    input: text(input.input, "CapabilityDefinition input"),
-    output: text(input.output, "CapabilityDefinition output"),
+    purpose: text(input.purpose, "CapabilityDefinition purpose"),
+    inputSchema: Object.freeze({
+      ...record(input.inputSchema, "CapabilityDefinition inputSchema"),
+    }),
+    outputSchema: Object.freeze({
+      ...record(input.outputSchema, "CapabilityDefinition outputSchema"),
+    }),
+    effects: strings(input.effects, "CapabilityDefinition effects"),
+    permissions: strings(
+      input.permissions,
+      "CapabilityDefinition permissions",
+    ),
+    success: text(input.success, "CapabilityDefinition success"),
+    failure: text(input.failure, "CapabilityDefinition failure"),
   });
+}
+
+export function createImplementationDefinition(
+  value: unknown,
+): ImplementationDefinition {
+  const input = record(value, "ImplementationDefinition");
+  exact(
+    input,
+    [
+      "id",
+      "capabilityRef",
+      "compatibleCapabilityRevision",
+      "type",
+      "agentRef",
+    ],
+    "ImplementationDefinition",
+  );
+  const base = {
+    id: identifier(input.id, "ImplementationDefinition id"),
+    capabilityRef: reference(
+      input.capabilityRef,
+      ["capability"],
+      "ImplementationDefinition capabilityRef",
+    ) as ImplementationDefinition["capabilityRef"],
+    compatibleCapabilityRevision: text(
+      input.compatibleCapabilityRevision,
+      "ImplementationDefinition compatibleCapabilityRevision",
+    ),
+  };
+  if (input.type === "agent") {
+    if (input.agentRef === undefined) {
+      throw new Error("Agent ImplementationDefinition requires agentRef");
+    }
+    return Object.freeze({
+      ...base,
+      type: "agent",
+      agentRef: reference(
+        input.agentRef,
+        ["agent"],
+        "ImplementationDefinition agentRef",
+      ) as Extract<ImplementationDefinition, { type: "agent" }>["agentRef"],
+    });
+  }
+  if (input.type === "script") {
+    if (input.agentRef !== undefined) {
+      throw new Error("Script ImplementationDefinition cannot have agentRef");
+    }
+    return Object.freeze({ ...base, type: "script" });
+  }
+  throw new Error("ImplementationDefinition type is invalid");
 }
 
 export function createWorkflowDefinition(value: unknown): WorkflowDefinition {
@@ -687,6 +795,8 @@ export function createRun(value: unknown): Run {
       "origin",
       "target",
       "trace",
+      "execution",
+      "parentRunId",
       "effectivePolicy",
       "correlationId",
       "startedAt",
@@ -745,10 +855,25 @@ export function createRun(value: unknown): Run {
     trace: input.trace.map((item) =>
       pinnedReference(
         item,
-        ["goal", "loop", "workflow", "capability", "agent"],
+        [
+          "goal",
+          "loop",
+          "workflow",
+          "capability",
+          "implementation",
+          "agent",
+        ],
         "Run trace item",
       ),
     ),
+    ...(input.execution !== undefined
+      ? {
+          execution: parseRunExecution(input.execution),
+        }
+      : {}),
+    ...(input.parentRunId !== undefined
+      ? { parentRunId: identifier(input.parentRunId, "Run parentRunId") }
+      : {}),
     effectivePolicy: Object.freeze({
       hash: text(effectivePolicy.hash, "Run effectivePolicy hash"),
       policy: createPolicy(effectivePolicy.policy),
@@ -773,6 +898,23 @@ export function createRun(value: unknown): Run {
       : {}),
   };
   return terminal ? Object.freeze(run) : run;
+}
+
+function parseRunExecution(value: unknown): NonNullable<Run["execution"]> {
+  const input = record(value, "Run execution");
+  exact(input, ["capability", "implementation"], "Run execution");
+  return Object.freeze({
+    capability: pinnedReference(
+      input.capability,
+      ["capability"],
+      "Run execution capability",
+    ) as NonNullable<Run["execution"]>["capability"],
+    implementation: pinnedReference(
+      input.implementation,
+      ["implementation"],
+      "Run execution implementation",
+    ) as NonNullable<Run["execution"]>["implementation"],
+  });
 }
 
 export function createRunOutput(value: unknown): RunOutput {

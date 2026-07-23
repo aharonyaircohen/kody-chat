@@ -36,6 +36,7 @@ const TABS: Array<{ kind: AgencyRunKind; label: string }> = [
   { kind: "goal", label: "Goals" },
   { kind: "loop", label: "Loops" },
   { kind: "workflow", label: "Workflows" },
+  { kind: "capability", label: "Capabilities" },
 ];
 
 function formatTime(value: string | null): string {
@@ -113,6 +114,8 @@ function kindHref(run: AgencyRunSummary): string {
     return `/agent-goals/${encodeURIComponent(run.targetId)}`;
   if (run.kind === "loop")
     return `/agent-loops/${encodeURIComponent(run.targetId)}`;
+  if (run.kind === "capability")
+    return `/capability-contracts/${encodeURIComponent(run.targetId)}`;
   return `/workflows/${encodeURIComponent(run.targetId)}`;
 }
 
@@ -466,6 +469,13 @@ export function operatorRunFactLines(run: AgencyRunSummary): string[] {
     modelLabel(run) ? `Model: ${modelLabel(run)}.` : null,
     run.kodyRunId ? `Kody run: ${run.kodyRunId}.` : null,
     run.githubRunId ? `GitHub run: ${run.githubRunId}.` : null,
+    run.parentRunId ? `Parent run: ${run.parentRunId}.` : null,
+    run.capabilityRevision
+      ? `Capability revision: ${run.capabilityRevision}.`
+      : null,
+    run.implementationRevision
+      ? `Implementation revision: ${run.implementationRevision}.`
+      : null,
     run.startedAt ? `Started: ${formatTime(run.startedAt)}.` : null,
     run.updatedAt ? `Updated: ${formatTime(run.updatedAt)}.` : null,
     run.durationMs !== null
@@ -1117,7 +1127,7 @@ export function AgencyRunsPage() {
       }
       contentClassName="space-y-4"
     >
-      <div className="grid gap-2 md:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-4">
         {TABS.map((tab) => {
           const active = selectedKind === tab.kind;
           const count = data?.counts[tab.kind] ?? 0;
