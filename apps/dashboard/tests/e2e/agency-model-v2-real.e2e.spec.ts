@@ -116,7 +116,7 @@ test("shows the migrated V2 ownership and execution model from the real backend"
     page.getByRole("region", { name: "Repository knowledge graph" }),
   ).toBeVisible();
   await expect(page.getByText("No graph published yet")).toHaveCount(0);
-  await expect(page.getByTestId("knowledge-graph-canvas")).toBeVisible({
+  await expect(page.getByTestId("knowledge-graph-frame")).toBeVisible({
     timeout: 30_000,
   });
 

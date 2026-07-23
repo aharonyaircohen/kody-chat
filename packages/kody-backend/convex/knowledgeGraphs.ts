@@ -3,7 +3,8 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import { v } from "convex/values";
 
 const MAX_GRAPH_BYTES = 64 * 1024 * 1024;
-const MAX_COMPANION_BYTES = 16 * 1024 * 1024;
+const MAX_REPORT_BYTES = 16 * 1024 * 1024;
+const MAX_HTML_BYTES = 64 * 1024 * 1024;
 
 function assertCount(name: string, value: number): void {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -95,7 +96,7 @@ export const publish = mutation({
         ctx,
         args.reportStorageId,
         "Knowledge report",
-        MAX_COMPANION_BYTES,
+        MAX_REPORT_BYTES,
       );
     }
     if (args.htmlStorageId) {
@@ -103,7 +104,7 @@ export const publish = mutation({
         ctx,
         args.htmlStorageId,
         "Knowledge visualization",
-        MAX_COMPANION_BYTES,
+        MAX_HTML_BYTES,
       );
     }
 

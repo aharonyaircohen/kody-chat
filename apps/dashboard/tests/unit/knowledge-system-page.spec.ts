@@ -21,12 +21,12 @@ describe("Knowledge System page contract", () => {
       "src/dashboard/features/knowledge-system/components/KnowledgeSystemPage.tsx",
       "utf8",
     );
-    expect(page).toContain("cytoscape");
+    expect(page).not.toContain("cytoscape");
     expect(page).not.toContain("ReactFlow");
-    expect(page).toContain('data-testid="knowledge-graph-canvas"');
-    expect(page).toContain('data-testid="knowledge-graph-fit"');
-    expect(page).toContain('data-testid="knowledge-graph-relayout"');
-    expect(page).toContain('mouseover", "node"');
+    expect(page).toContain('data-testid="knowledge-graph-frame"');
+    expect(page).toContain("bundle.htmlUrl");
+    expect(page).toContain('sandbox="allow-scripts"');
+    expect(page).not.toContain("parseGraphifyGraph");
     expect(page).toContain("Last updated");
     expect(page).toContain("Refresh graph");
     expect(page).toContain(

@@ -35,11 +35,17 @@ describe("knowledgeGraphs", () => {
       "application/json",
     );
     const reportStorageId = await store(t, "# Project graph", "text/markdown");
+    const htmlStorageId = await store(
+      t,
+      "<!doctype html><title>Project graph</title>",
+      "text/html",
+    );
 
     await t.mutation(knowledgeGraphs.publish as never, {
       tenantId: TENANT,
       graphStorageId,
       reportStorageId,
+      htmlStorageId,
       generatedAt: NOW,
       sourceRevision: "abc123",
       nodeCount: 1,
@@ -58,6 +64,7 @@ describe("knowledgeGraphs", () => {
       tenantId: TENANT,
       graphStorageId,
       reportStorageId,
+      htmlStorageId,
       generatedAt: NOW,
       sourceRevision: "abc123",
       nodeCount: 1,
@@ -65,6 +72,7 @@ describe("knowledgeGraphs", () => {
       schemaVersion: 1,
     });
     expect((stored as { graphUrl?: string }).graphUrl).toMatch(/^https?:\/\//);
+    expect((stored as { htmlUrl?: string }).htmlUrl).toMatch(/^https?:\/\//);
     expect(otherTenant).toBeNull();
   });
 

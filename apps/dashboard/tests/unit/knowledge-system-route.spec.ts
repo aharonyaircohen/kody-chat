@@ -85,6 +85,7 @@ describe("/api/kody/knowledge-system", () => {
         body: JSON.stringify({
           graphStorageId: "kg012345678901234567890123456789",
           reportStorageId: "kg112345678901234567890123456789",
+          htmlStorageId: "kg212345678901234567890123456789",
           generatedAt: "2026-07-22T10:00:00.000Z",
           sourceRevision: "abc123",
           nodeCount: 20,
@@ -100,6 +101,7 @@ describe("/api/kody/knowledge-system", () => {
       expect.objectContaining({
         tenantId: "acme/widgets",
         graphStorageId: "kg012345678901234567890123456789",
+        htmlStorageId: "kg212345678901234567890123456789",
         nodeCount: 20,
       }),
     );
@@ -113,7 +115,10 @@ describe("/api/kody/knowledge-system", () => {
       new NextRequest("http://localhost/api/kody/knowledge-system"),
     );
     auth.verifyRepoWriteAccess.mockResolvedValueOnce(
-      NextResponse.json({ error: "write_permission_required" }, { status: 403 }),
+      NextResponse.json(
+        { error: "write_permission_required" },
+        { status: 403 },
+      ),
     );
     const unauthorizedWrite = await POST(
       new NextRequest("http://localhost/api/kody/knowledge-system", {
