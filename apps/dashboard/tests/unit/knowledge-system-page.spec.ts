@@ -21,7 +21,9 @@ describe("Knowledge System page contract", () => {
       "src/dashboard/features/knowledge-system/components/KnowledgeSystemPage.tsx",
       "utf8",
     );
-    expect(page).toContain("ReactFlow");
+    expect(page).toContain("cytoscape");
+    expect(page).not.toContain("ReactFlow");
+    expect(page).toContain('data-testid="knowledge-graph-canvas"');
     expect(page).toContain("Last updated");
     expect(page).toContain("Refresh graph");
     expect(page).toContain(

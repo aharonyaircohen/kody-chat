@@ -76,7 +76,9 @@ test("shows the migrated V2 ownership and execution model from the real backend"
     page.getByRole("heading", { name: "knowledge-system-refresh" }),
   ).toBeVisible();
   await expect(page.getByText("Operation", { exact: true })).toBeVisible();
-  await expect(page.getByText("Workflow refresh-knowledge-system")).toBeVisible();
+  await expect(
+    page.getByText("Workflow refresh-knowledge-system"),
+  ).toBeVisible();
   await expect(page.getByText("build-knowledge-graph")).toBeVisible();
   await expect(page.getByText("create-knowledge-report")).toBeVisible();
   await expect(page.getByText("publish-knowledge-system")).toBeVisible();
@@ -93,7 +95,9 @@ test("shows the migrated V2 ownership and execution model from the real backend"
   await expect(
     page.getByRole("heading", { name: "knowledge-system-current" }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Current state" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Current state" }),
+  ).toBeVisible();
   await expect(page.getByText("progress", { exact: true })).toBeVisible();
 
   const bundleResponse = page.waitForResponse(
@@ -101,10 +105,9 @@ test("shows the migrated V2 ownership and execution model from the real backend"
       response.url().includes("/api/kody/knowledge-system") &&
       response.status() === 200,
   );
-  await page.goto(
-    `${BASE_URL}/repo/${owner}/${repo}/knowledge-system`,
-    { waitUntil: "domcontentloaded" },
-  );
+  await page.goto(`${BASE_URL}/repo/${owner}/${repo}/knowledge-system`, {
+    waitUntil: "domcontentloaded",
+  });
   await bundleResponse;
   await expect(
     page.getByRole("heading", { name: "Knowledge System" }),
@@ -113,15 +116,21 @@ test("shows the migrated V2 ownership and execution model from the real backend"
     page.getByRole("region", { name: "Repository knowledge graph" }),
   ).toBeVisible();
   await expect(page.getByText("No graph published yet")).toHaveCount(0);
-  await expect(page.locator(".react-flow__node").first()).toBeVisible({
+  await expect(page.getByTestId("knowledge-graph-canvas")).toBeVisible({
     timeout: 30_000,
   });
 
   await page.goto(`${BASE_URL}/repo/${owner}/${repo}/agency-runs`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page.getByRole("heading", { name: "Agency Runs" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Agency Runs" }),
+  ).toBeVisible();
   await page.getByRole("button").filter({ hasText: "Workflows" }).click();
-  await expect(page.getByText("Refresh Knowledge System").first()).toBeVisible();
-  await expect(page.getByText("success", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Refresh Knowledge System").first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("success", { exact: true }).first(),
+  ).toBeVisible();
 });

@@ -1,14 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Background,
-  Controls,
-  ReactFlow,
-  type Edge,
-  type Node,
-  type NodeMouseHandler,
-} from "@xyflow/react";
+import { useRef } from "react";
+import cytoscape, { type Core, type LayoutOptions } from "cytoscape";
+import fcose from "cytoscape-fcose";
 import { RefreshCw, Search } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
@@ -19,6 +14,7 @@ import {
   type KnowledgeGraph,
   type KnowledgeGraphNode,
 } from "@dashboard/lib/knowledge-system/graph";
+import { toCytoscapeElements } from "@dashboard/lib/knowledge-system/graph-view";
 
 type Bundle = {
   graphUrl: string;
@@ -39,42 +35,83 @@ const DOMAIN_COLORS: Record<string, string> = {
   knowledge: "#e879f9",
   other: "#94a3b8",
 };
-const MAX_VISIBLE_NODES = 1_500;
 
-function graphElements(graph: KnowledgeGraph): {
-  nodes: Node[];
-  edges: Edge[];
-} {
-  const visibleNodes = graph.nodes.slice(0, MAX_VISIBLE_NODES);
-  const ids = new Set(visibleNodes.map((node) => node.id));
-  const columns = Math.max(1, Math.ceil(Math.sqrt(visibleNodes.length)));
-  return {
-    nodes: visibleNodes.map((node, index) => ({
-      id: node.id,
-      position: {
-        x: (index % columns) * 210,
-        y: Math.floor(index / columns) * 100,
+cytoscape.use(fcose);
+
+function mountGraph(
+  container: HTMLDivElement,
+  graph: KnowledgeGraph,
+  onSelect: (nodeId: string) => void,
+): Core {
+  const cy = cytoscape({
+    container,
+    elements: toCytoscapeElements(graph),
+    layout: {
+      name: "fcose",
+      quality: "draft",
+      randomize: true,
+      animate: false,
+      numIter: graph.nodes.length > 2_000 ? 40 : 100,
+      nodeSeparation: 60,
+      fit: true,
+    } as LayoutOptions,
+    minZoom: 0.02,
+    maxZoom: 8,
+    wheelSensitivity: 0.15,
+    textureOnViewport: true,
+    hideEdgesOnViewport: true,
+    style: [
+      {
+        selector: "node",
+        style: {
+          width: 8,
+          height: 8,
+          "background-color": (element: { data: (key: string) => string }) =>
+            DOMAIN_COLORS[element.data("domain")] ?? DOMAIN_COLORS.other,
+          label: "",
+          "overlay-opacity": 0,
+        },
       },
-      data: { label: node.label },
-      style: {
-        width: 180,
-        border: `1px solid ${DOMAIN_COLORS[node.domain] ?? DOMAIN_COLORS.other}`,
-        borderRadius: 10,
-        background: "#111827",
-        color: "#e5e7eb",
-        fontSize: 12,
+      {
+        selector: "node:selected",
+        style: {
+          width: 18,
+          height: 18,
+          label: "data(label)",
+          "font-size": 12,
+          color: "#e5e7eb",
+          "text-background-color": "#020617",
+          "text-background-opacity": 0.9,
+          "text-background-padding": "4px",
+          "text-wrap": "ellipsis",
+          "text-max-width": "220px",
+          "z-index": 10,
+        },
       },
-    })),
-    edges: graph.edges
-      .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
-      .map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        label: edge.relation,
-        style: { stroke: "#475569" },
-      })),
-  };
+      {
+        selector: "edge",
+        style: {
+          width: 1,
+          "line-color": "#475569",
+          "target-arrow-color": "#64748b",
+          "target-arrow-shape": "triangle",
+          "curve-style": "haystack",
+          opacity: 0.35,
+        },
+      },
+      {
+        selector: "edge:selected",
+        style: {
+          width: 2,
+          opacity: 1,
+          "line-color": "#f8fafc",
+          "target-arrow-color": "#f8fafc",
+        },
+      },
+    ],
+  });
+  cy.on("tap", "node", (event) => onSelect(event.target.id()));
+  return cy;
 }
 
 export function KnowledgeSystemPage() {
@@ -87,6 +124,8 @@ export function KnowledgeSystemPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const graphInstanceRef = useRef<Core | null>(null);
 
   const load = useCallback(async () => {
     if (!auth) return;
@@ -134,10 +173,20 @@ export function KnowledgeSystemPage() {
     () => (graph ? filterKnowledgeGraph(graph, query, domains) : null),
     [graph, query, domains],
   );
-  const elements = useMemo(
-    () => (filtered ? graphElements(filtered) : { nodes: [], edges: [] }),
-    [filtered],
-  );
+  useEffect(() => {
+    const container = graphContainerRef.current;
+    if (!container || !filtered) return;
+
+    graphInstanceRef.current?.destroy();
+    graphInstanceRef.current = mountGraph(container, filtered, (nodeId) => {
+      setSelected(graph?.nodes.find((node) => node.id === nodeId) ?? null);
+    });
+
+    return () => {
+      graphInstanceRef.current?.destroy();
+      graphInstanceRef.current = null;
+    };
+  }, [filtered, graph]);
 
   const refresh = async () => {
     if (!auth || refreshing) return;
@@ -172,10 +221,6 @@ export function KnowledgeSystemPage() {
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const onNodeClick: NodeMouseHandler = (_event, node) => {
-    setSelected(graph?.nodes.find((item) => item.id === node.id) ?? null);
   };
 
   return (
@@ -257,29 +302,17 @@ export function KnowledgeSystemPage() {
           </div>
         ) : !graph ? (
           <div className="grid h-full min-h-[520px] place-items-center px-6 text-center text-sm text-muted-foreground">
-            Run the knowledge-system-refresh Loop to build this
-            repository's first graph.
+            Run the knowledge-system-refresh Loop to build this repository's
+            first graph.
           </div>
         ) : (
-          <ReactFlow
-            nodes={elements.nodes}
-            edges={elements.edges}
-            onNodeClick={onNodeClick}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            fitView
-            minZoom={0.05}
-          >
-            <Background color="#334155" gap={24} />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+          <div
+            ref={graphContainerRef}
+            data-testid="knowledge-graph-canvas"
+            className="h-full min-h-[520px] w-full"
+            aria-label="Interactive knowledge graph"
+          />
         )}
-        {filtered && filtered.nodes.length > MAX_VISIBLE_NODES ? (
-          <p className="absolute bottom-3 left-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground">
-            Showing the first {MAX_VISIBLE_NODES.toLocaleString()} matching
-            nodes. Narrow the graph with search or a domain.
-          </p>
-        ) : null}
       </section>
 
       {selected ? (
