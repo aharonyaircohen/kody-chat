@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  createCapabilityDefinition,
+  type CapabilityDefinition,
+} from "@kody-ade/agency-domain";
 import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
+import {
+  companyStoreAssetPath,
+  readCompanyStoreText,
+} from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { readStoreImplementation } from "../implementations/files";
 import { listStoredAgencyDefinitions } from "../backend/agency-model-store";
+import { listStoredAgencyRuns } from "../backend/agency-runs-store";
 import { resolveCapabilityImplementations } from "../implementation-resolution";
 import {
   clearGitHubContext,
@@ -34,10 +43,11 @@ export async function GET(
   );
   try {
     const octokit = getOctokit();
-    const [implementation, engine, definitions] = await Promise.all([
+    const [implementation, engine, definitions, runs] = await Promise.all([
       readStoreImplementation(octokit, slug),
       getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
       listStoredAgencyDefinitions(auth.owner, auth.repo),
+      listStoredAgencyRuns(auth.owner, auth.repo, 100),
     ]);
     if (!implementation) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -51,9 +61,73 @@ export async function GET(
       implementation.capabilityId,
       repositoryBinding,
     );
+    const capabilityRoot = await companyStoreAssetPath(
+      octokit,
+      "capabilities",
+      implementation.capabilityId,
+    );
+    const capabilityRaw = await readCompanyStoreText(
+      octokit,
+      `${capabilityRoot}/definition.json`,
+    );
+    let capabilityContract: CapabilityDefinition | null = null;
+    if (capabilityRaw) {
+      try {
+        capabilityContract = createCapabilityDefinition(
+          JSON.parse(capabilityRaw),
+        );
+      } catch {
+        capabilityContract = null;
+      }
+    }
+    const recentRuns = runs
+      .filter((record) => {
+        if (
+          record.subjectType === "implementation" &&
+          record.subjectId === implementation.id
+        ) {
+          return true;
+        }
+        const run =
+          record.run &&
+          typeof record.run === "object" &&
+          !Array.isArray(record.run)
+            ? (record.run as Record<string, unknown>)
+            : {};
+        const execution =
+          run.execution &&
+          typeof run.execution === "object" &&
+          !Array.isArray(run.execution)
+            ? (run.execution as Record<string, unknown>)
+            : {};
+        const implementationRef =
+          execution.implementation &&
+          typeof execution.implementation === "object" &&
+          !Array.isArray(execution.implementation)
+            ? (execution.implementation as Record<string, unknown>)
+            : {};
+        return implementationRef.id === implementation.id;
+      })
+      .slice(0, 5)
+      .map((record) => {
+        const run =
+          record.run &&
+          typeof record.run === "object" &&
+          !Array.isArray(record.run)
+            ? (record.run as Record<string, unknown>)
+            : {};
+        return {
+          runId: record.runId,
+          status:
+            typeof run.status === "string" ? run.status : "unknown",
+          updatedAt: record.updatedAt,
+        };
+      });
     return NextResponse.json({
       implementation: {
         ...implementation,
+        capabilityContract,
+        recentRuns,
         selected: resolution.selected?.data.id === implementation.id,
         selection:
           resolution.selected?.data.id === implementation.id

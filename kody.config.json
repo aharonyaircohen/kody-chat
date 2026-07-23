@@ -19,6 +19,24 @@
   "agent": {
     "model": "minimax/MiniMax-M3"
   },
+  "execution": {
+    "capabilityBindings": {
+      "agency-operations-management": "agency-operations-management",
+      "agency-portfolio-management": "agency-portfolio-management",
+      "agency-supervisor": "agency-supervisor",
+      "ai-agency-health-matrix": "ai-agency-health-matrix",
+      "build-knowledge-graph": "build-knowledge-graph",
+      "ceo-performance-review": "ceo-performance-review",
+      "company-portfolio-management": "company-portfolio-management",
+      "create-knowledge-report": "create-knowledge-report",
+      "dev-ci-health": "dev-ci-health",
+      "observe-agency-flow": "observe-agency-flow",
+      "observe-repo-ci": "observe-repo-ci",
+      "operate-findings": "operate-findings",
+      "publish-knowledge-system": "publish-knowledge-system",
+      "repo-source-health": "repo-source-health"
+    }
+  },
   "company": {
     "activeAgents": [
       "ceo",
@@ -37,8 +55,13 @@
       "observe-agency-flow",
       "operate-findings",
       "dev-ci-health",
-      "knowledge-system-refresh",
+      "build-knowledge-graph",
+      "create-knowledge-report",
+      "publish-knowledge-system",
       "ceo-performance-review"
+    ],
+    "activeWorkflows": [
+      "refresh-knowledge-system"
     ],
     "activeGoals": [
       {

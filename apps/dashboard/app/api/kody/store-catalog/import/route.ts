@@ -30,6 +30,7 @@ import {
   listStoreImplementations,
   readStoreImplementation,
 } from "@kody-ade/agency/implementations/files";
+import { publishStoreImplementationPackage } from "@kody-ade/agency/implementations/publish";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -315,6 +316,26 @@ function goalCapabilitySlugs(state: ManagedGoalState): string[] {
   return [];
 }
 
+function goalWorkflowSlug(state: ManagedGoalState): string | null {
+  if (state.workflowRef?.id) return state.workflowRef.id;
+  return state.loopTarget?.type === "workflow" ? state.loopTarget.id : null;
+}
+
+async function addWorkflowDependencies(
+  octokit: Octokit,
+  plan: ActivationPlan,
+  slug: string,
+): Promise<void> {
+  addPlanSlug(plan, "activeWorkflows", slug);
+  const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
+  const workflow = workflows.find((item) => item.id === slug);
+  if (!workflow) throw dependencyNotFound("workflow", slug);
+
+  for (const capabilitySlug of workflow.workflow.capabilities) {
+    await addCapabilityDependencies(octokit, plan, capabilitySlug);
+  }
+}
+
 async function removalBlockersFor({
   octokit,
   config,
@@ -448,15 +469,7 @@ async function activationPlanFor(
   }
 
   if (kind === "workflow") {
-    addPlanSlug(plan, "activeWorkflows", slug);
-    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
-    const workflow = workflows.find((item) => item.id === slug);
-    if (!workflow) throw dependencyNotFound(kind, slug);
-
-    for (const capabilitySlug of workflow.workflow.capabilities) {
-      await addCapabilityDependencies(octokit, plan, capabilitySlug);
-    }
-
+    await addWorkflowDependencies(octokit, plan, slug);
     return plan;
   }
 
@@ -468,13 +481,17 @@ async function activationPlanFor(
   for (const capabilitySlug of goalCapabilitySlugs(goal.state)) {
     await addCapabilityDependencies(octokit, plan, capabilitySlug);
   }
+  const workflowSlug = goalWorkflowSlug(goal.state);
+  if (workflowSlug) {
+    await addWorkflowDependencies(octokit, plan, workflowSlug);
+  }
 
   return plan;
 }
 
 async function publishDefinition(
   tenantId: string,
-  kind: "agent" | "capability" | "goal",
+  kind: "agent" | "capability" | "goal" | "implementation" | "asset",
   slug: string,
   files: Record<string, string>,
 ): Promise<void> {
@@ -590,6 +607,11 @@ async function publishAgencyImplementation(
       { status: 409 },
     );
   }
+  await publishStoreImplementationPackage(
+    octokit,
+    `${owner}/${repo}`,
+    implementation,
+  );
   const createdAt = new Date().toISOString();
   await applyStoredAgencyModelChange({
     owner,
@@ -858,7 +880,11 @@ async function removeStoreReference({
   );
 
   const tenantId = `${owner}/${repo}`;
-  if (kind === "agent" || kind === "capability") {
+  if (
+    kind === "agent" ||
+    kind === "capability" ||
+    kind === "implementation"
+  ) {
     await createBackendClient().mutation(backendApi.definitions.retire, {
       tenantId,
       kind,

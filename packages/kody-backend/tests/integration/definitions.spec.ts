@@ -6,6 +6,39 @@ const TENANT = "acme/app";
 const CREATED_AT = "2026-07-18T00:00:00.000Z";
 
 describe("versioned agency definitions", () => {
+  it("stores technical Implementation packages and reusable assets without making them agency entities", async () => {
+    const t = setup();
+    for (const [kind, slug, files] of [
+      [
+        "implementation",
+        "safe-deployer",
+        { "runtime.json": "{}\n", "scripts/deploy.sh": "#!/bin/sh\n" },
+      ],
+      [
+        "asset",
+        "skill-release-review",
+        { "skills/release-review/SKILL.md": "# Release review\n" },
+      ],
+    ] as const) {
+      await t.mutation(api.definitions.publish, {
+        tenantId: TENANT,
+        kind,
+        slug,
+        version: `sha256:${slug}`,
+        bundle: { schemaVersion: 1, files },
+        source: "store",
+        createdAt: CREATED_AT,
+      });
+      expect(
+        await t.query(api.definitions.getCurrent, {
+          tenantId: TENANT,
+          kind,
+          slug,
+        }),
+      ).toMatchObject({ kind, slug, bundle: { files } });
+    }
+  });
+
   it("keeps immutable history while advancing the current definition", async () => {
     const t = setup();
 

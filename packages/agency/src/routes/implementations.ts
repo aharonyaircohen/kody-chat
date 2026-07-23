@@ -54,8 +54,24 @@ export async function GET(req: NextRequest) {
         );
       }
     }
+    const requestedLimit = Number(req.nextUrl.searchParams.get("limit"));
+    const limit = Number.isInteger(requestedLimit)
+      ? Math.max(1, Math.min(requestedLimit, 100))
+      : 100;
+    const cursor = req.nextUrl.searchParams.get("cursor");
+    const start = cursor
+      ? implementations.findIndex(
+          (implementation) => implementation.id.localeCompare(cursor) > 0,
+        )
+      : 0;
+    const page =
+      start < 0 ? [] : implementations.slice(start, start + limit);
+    const nextCursor =
+      start >= 0 && start + page.length < implementations.length
+        ? page.at(-1)?.id ?? null
+        : null;
     return NextResponse.json({
-      implementations: implementations.map((implementation) => {
+      implementations: page.map((implementation) => {
         const selection = selected.get(implementation.id);
         return {
           ...implementation,
@@ -63,6 +79,7 @@ export async function GET(req: NextRequest) {
           selection: selection ?? "available",
         };
       }),
+      nextCursor,
     });
   } catch (error) {
     return NextResponse.json(

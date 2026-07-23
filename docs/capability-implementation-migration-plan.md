@@ -2,350 +2,300 @@
 
 ## Status
 
-In progress. The Kody Chat model/storage cutover, restored Dashboard surfaces,
-separate Store Capability/Implementation definitions, consumer migration, and
-Engine resolution are implemented. Store and Engine changes are published, and
-the connected consumer resolves its repository Implementation. Final Kody Chat
-release checks, deployment, and deployed production proof remain.
+Approved and in progress.
 
-The data-model migration must not redesign the existing Dashboard product.
-Intent, Operation, Goal, Loop, and Capability keep their established
-user-facing pages and management flows, but those experiences must be
-reimplemented against the new definitions, states, references, and execution
-boundaries. This is not a rollback to legacy storage or mixed models.
-Capability Contract and Implementation are technical model boundaries with
-their own inspectable Dashboard and Store surfaces. They must not absorb
-business ownership from Intent, Operation, Goal, or Loop.
+The previous executor-based direction is rejected. Kody has no Executor agency
+model.
 
-## Acceptance matrix
+## Approved model
 
-The migration is complete only when every item below has executable evidence:
+### Capability
 
-- [ ] The shared domain models Capability and Implementation separately.
-- [ ] Capability owns canonical input and output schemas.
-- [ ] Backend persistence and APIs support Implementation definitions and
-      repository execution bindings.
-- [ ] Store has separate `capabilities/` and `implementations/` roots with no
-      combined authoritative profiles or self-references.
-- [ ] Engine resolves explicit override, repository binding, or one compatible
-      Implementation and rejects ambiguity or unavailability.
-- [ ] Engine compiles both agent and script Implementations and validates
-      canonical input and output.
-- [ ] Runs pin Capability and Implementation provenance and workflow execution
-      creates capability child Runs.
-- [ ] Dashboard preserves the existing Intent, Operation, Goal, Loop, and
-      Capability experiences while reading and writing the new model.
-- [ ] Every preserved page uses the new authoritative definition/state split
-      and does not restore legacy records, mixed ownership, or compatibility
-      writes.
-- [ ] Dashboard exposes standalone Capability Contract and Implementation pages
-      with clear navigation and Store visibility.
-- [ ] Existing Capability detail also shows its canonical contract and resolved
-      technical Implementation in context.
-- [ ] Knowledge graph connects Capability, Implementation, Run, and output
-      provenance.
-- [ ] Legacy readers, writers, slug-equality resolution, and silent fallbacks
-      are removed after cutover.
-- [ ] Focused tests, full repository gates, and the real local browser journey
-      pass.
-- [ ] Packages are published, deployed runtime is updated, and production E2E
-      proof passes.
+A Capability defines the stable technical action Kody offers.
 
-## Goal
+It owns:
 
-Complete the AI Agency execution model so Kody has a clean, scalable boundary
-between:
+- identity and purpose;
+- canonical input and output contracts;
+- allowed effects and permissions;
+- success and failure meaning.
 
-- the stable action Kody offers (`Capability`);
-- the technical way that action runs (`Implementation`);
-- the process that combines actions (`Workflow`);
-- the identity that applies judgment (`Agent`);
-- the execution history and evidence (`Run` and outputs).
+It does not own:
 
-This is a full migration across:
+- prompts;
+- skills;
+- tools;
+- scripts;
+- Agent selection;
+- runtime settings;
+- schedules;
+- Workflow steps;
+- runtime state.
 
-- `kody-chat` shared domain, backend, APIs, and Dashboard;
-- `kody-store` definitions and runtime assets;
-- `kody2` resolution, execution, validation, and provenance;
-- consumer repository hydration and live workflows.
+### Implementation
 
-## Current problems
+An Implementation is one complete technical method for running one Capability.
+It is similar to a runnable Kody skill package, but it is not itself a Skill.
 
-The current system has a good Purpose and runtime foundation, but the
-Capability/Implementation boundary is incomplete:
+Its portable Definition owns:
 
-1. `CapabilityDefinition` exists, but `ImplementationDefinition` does not.
-2. Store capability folders combine:
-   - the public action contract;
-   - engine runtime configuration;
-   - agent configuration;
-   - prompts;
-   - tools and skills;
-   - scripts;
-   - output parsing.
-3. Store profiles often point `implementations` back to their own capability
-   slug.
-4. Engine dispatch resolves a combined profile instead of resolving a
-   Capability to a compatible Implementation.
-5. Runs do not record complete Capability and Implementation provenance.
-6. Backend definition storage cannot represent Implementation.
-7. Dashboard Capability detail currently mixes public action ownership with
-   runtime details; dedicated Capability Contract and Implementation pages must
-   make that boundary explicit while Capability detail still shows its resolved
-   relationship in context.
-8. Store capability listing and capability detail resolution use different
-   sources, causing Store detail pages to return `not_found`.
-9. Documentation conflicts about who owns canonical input and output contracts.
+- identity;
+- Capability reference;
+- compatible Capability revision;
+- execution type: `agent` or `script`;
+- Agent reference for agent-based execution.
 
-## Target system
+Its package may own:
+
+- prompt templates;
+- local or shared skills;
+- tools and MCP servers;
+- scripts;
+- hooks, commands, and subagents;
+- input and output mappings;
+- parsing and validation;
+- runtime requirements and settings;
+- implementation-specific tests.
+
+Different prompts, skills, scripts, mappings, or execution behavior may justify
+different Implementations. Sharing the same agent runtime does not make two
+Implementations duplicates.
+
+### Skill
+
+A Skill is a reusable instruction or method asset used by an Implementation.
+It is not an AI Agency entity.
+
+An Implementation may:
+
+- contain a private Skill;
+- depend on a shared Skill;
+- combine supporting Skills when they serve one atomic action.
+
+Combining independent actions belongs to a Workflow, not one Implementation.
+
+### Other ownership
+
+- Agent owns identity, judgment, and general behavior.
+- Workflow owns ordered Capability calls, conditions, mappings, and retries.
+- Loop owns continuous purpose and triggering.
+- Run owns one execution attempt and pins the Capability and Implementation.
+- Repository execution binding selects an Implementation; it is configuration,
+  not an agency model.
+
+## System map
 
 ```text
 Purpose
 Intent -> Operation -> Goal / Loop
 
-Orchestration
-Goal / Loop -> Workflow -> Capability call
-
 Execution
-Capability -> Implementation -> Run
+Workflow -> Capability -> Implementation -> Run
 
 Decision
-Agent + Policy + Constraints + Scope
+Agent + Policies + Constraints
 
 Knowledge
-Run -> Facts + Evidence + Artifacts -> Knowledge Graph
+Facts + Evidence + Artifacts -> Knowledge Graph
 ```
 
-Implementation is an execution model. It is not a new business-ownership layer
-and it does not sit between Intent, Operation, Goal, or Loop.
+## Verified current state
 
-## Model ownership
+The Store currently contains:
 
-### Intent
+- 116 Capabilities;
+- 116 same-named Implementations;
+- 83 agent Implementations;
+- 33 script Implementations;
+- 67 prompt files;
+- 51 packages with local Skills;
+- 13 groups of exactly copied Skill assets;
+- no Implementation-local script files;
+- one runtime adapter, `kody-engine-profile`.
 
-Owns direction, priorities, policy, and business-level constraints.
+The one-to-one count is not proof of duplication. Most packages contain a
+distinct prompt, Skill set, script flow, mapping, or output behavior.
 
-Does not own execution, schedules, or runtime configuration.
+The main problems are:
 
-### Operation
+1. aliases are stored as Implementations;
+2. legacy graph methods remain beside the unified graph method;
+3. some multi-action coordination is stored as an Implementation instead of a
+   Workflow;
+4. test fixtures appear in the production catalog;
+5. scheduler and runtime-control services appear as agency Implementations;
+6. deterministic script methods are incorrectly typed as agent methods;
+7. task-specific scripts live in the Engine or consumer repository instead of
+   their Implementation package;
+8. shared Skill assets are copied into multiple packages;
+9. Dashboard catalog entries mirror Capability names without clearly showing
+   the technical method.
 
-Owns one accountable business or operational area.
+## Recommended catalog size
 
-Does not own prompts, scripts, tools, or execution details.
+The complete inventory produces 92 Implementations.
 
-### Goal
+This is not a quota. The final number must follow ownership and behavior. Do not
+merge distinct methods merely to reduce the count.
 
-Owns one finite Objective and a reference to a Workflow or Capability.
+The result removes or moves 26 of the original 116 entries and adds two missing
+atomic methods required by the new `cleanup` Workflow:
 
-Does not own scheduling, implementation selection, or runtime progress inside
-its immutable Definition.
+- `cleanup-branches`;
+- `clear-empty-goals`.
 
-### Loop
+### Retire aliases
 
-Owns one continuous Objective, Trigger, target, and reconciliation rules.
+Remove these six copied aliases and migrate references to their real method:
 
-Does not own Workflow steps or Implementation details.
+- `ci-health` -> `ci-check`;
+- `kody-analyzer` -> `kody-chat`;
+- `kody-mem` -> `kody-chat`;
+- `kody-operator` -> `kody-chat`;
+- `kody-vibe` -> `kody-chat`;
+- `memory-compaction` -> `compact-memory`.
 
-### Workflow
+### Retire legacy graph methods
 
-Owns ordered Capability calls, dependencies, conditions, retries, and data
-mapping between canonical Capability contracts.
+Replace these five legacy graph Implementations with the unified
+`build-knowledge-graph` method:
 
-Does not own prompts, tools, agents, runtime adapters, or business purpose.
+- `analyze-agency-structure`;
+- `analyze-ci-health`;
+- `analyze-dependencies`;
+- `analyze-documentation`;
+- `analyze-pull-requests`.
 
-### Capability
+The graph Workflow may still request domain views. Those views are inputs or
+steps of the unified graph method, not separate business-purpose
+Implementations.
 
-Owns one stable executable action contract:
+### Move coordination to Workflows
 
-- identity and public action;
-- purpose;
-- canonical input schema;
-- canonical output schema;
-- allowed effects and required permissions;
-- success and failure semantics;
-- compatibility requirements for Implementations.
+These four packages sequence independent actions and should become Workflows
+that call their existing Capabilities:
 
-Capability does not own:
+- `cleanup`;
+- `code-health`;
+- `docs-health`;
+- `quality-watch`.
 
-- prompts;
-- model selection;
-- scripts;
-- tools;
-- skills;
-- MCP servers;
-- scheduling;
-- Workflow steps;
-- runtime state.
+Their component Implementations remain:
 
-Canonical inputs and outputs belong to Capability so multiple Implementations
-remain interchangeable.
+- `architecture-audit`;
+- `type-debt`;
+- `docs-readme`;
+- `docs-code`;
+- `security-audit`;
+- `coverage-floor`;
+- `flaky-test-quarantine`;
+- `dependency-bump`;
+- `dead-code-sweep`;
+- other referenced atomic methods.
 
-### Implementation
+### Remove test-only packages from production catalog
 
-Owns one technical method that satisfies one Capability:
+Move these four to Engine or Store test fixtures:
 
-- `capabilityRef`;
-- execution type;
-- compatible Capability contract revision;
-- optional `agentRef`;
-- health and availability metadata outside the immutable Definition.
+- `job-live-verify`;
+- `plan-verify`;
+- `probe-skill`;
+- `task-job-fail-once`.
 
-Implementation types are a closed discriminated union:
+### Move runtime services out of the agency catalog
 
-- `agent`;
-- `script`;
+These seven items are scheduler, dispatcher, worker, or state-controller
+services rather than Capability Implementations:
 
-Do not add `workflow`, `orchestrator`, `container`, or `watch` Implementation
-types:
+- `capability-scheduler`;
+- `capability-tick`;
+- `capability-tick-scripted`;
+- `dispatch-due-loops`;
+- `goal-manager`;
+- `goal-scheduler`;
+- `task-jobs`.
 
-- multi-step composition belongs to Workflow;
-- recurring activation belongs to Loop;
-- deployment/container details belong to runtime adapters;
-- internal technical helpers remain private Implementations or shared engine
-  services.
+They remain application or Engine services where needed. Removing them from the
+Store catalog must not remove runtime behavior.
 
-Do not add a `service` type until a real service-backed Capability and its
-contract tests exist. The union is intentionally exhaustive and extendable,
-not speculative.
+### Keep separate methods separate
 
-The portable Implementation Definition stays deliberately small:
+Do not merge these merely because they share infrastructure:
 
-- identity;
-- Capability reference and compatible contract revision;
-- `agent` or `script` execution type;
-- Agent reference when the type is `agent`.
+- the seven agency model creators;
+- plan, research, review, run, fix, fix-ci, reproduce, resolve, and UI review;
+- release steps with different safety and state transitions;
+- deployment and publication methods with different targets;
+- health, audit, QA, and documentation methods with distinct contracts.
 
-The Implementation package, through an adapter-owned runtime manifest, owns:
+The agency model creators may share validation and PR-opening helpers, but each
+keeps its own Capability contract and Implementation.
 
-- canonical-to-runtime input binding;
-- runtime-to-canonical output parsing;
-- runtime requirements;
-- optional model/runtime settings;
-- tools, skills, MCP servers, and scripts;
-- adapter timeouts and transport retries;
-- runtime credentials and environment requirements.
+## Type and package corrections
 
-Workflow owns execution retries. Runtime manifests may retry only lower-level
-transport operations inside one execution attempt.
+### Correct deterministic types
 
-### Agent
+These retained deterministic methods should be script Implementations, not
+agent Implementations:
 
-Owns identity, role, judgment, permissions, and general behavior.
+- `auto-fix-ci`;
+- `auto-resolve`;
+- `auto-sync`;
+- `ci-check`;
+- `job-gap-scan`;
+- `preview-health`;
+- `redispatch`;
+- `revert`;
+- `task-memory-extractor`.
 
-An Agent does not own a business process, Capability contract, schedule, or
-task-specific prompt.
+Each migration must preserve its current inputs, outputs, safety checks, and
+side effects.
 
-### Prompt
+### Own implementation-specific scripts
 
-Prompt is not an agency model.
-
-For an agent-based Implementation, the final prompt is assembled for one Run:
+Retained script Implementations must package their task-specific code under:
 
 ```text
-Agent identity
-+ Capability contract
-+ optional Implementation task template
-+ canonical Run input
-+ effective Policy and Constraints
-= temporary Run prompt
+implementations/<id>/scripts/
 ```
 
-- Agent owns stable identity instructions.
-- Capability owns the task contract.
-- Agent-based Implementation may own an optional task-specific prompt template.
-- Script Implementations have no prompt.
-- The assembled prompt is runtime data and is not a durable Definition.
+Generic Engine lifecycle helpers may remain in the Engine. Business or
+task-specific shell code must not remain hidden in an Engine registry or
+consumer sidecar.
 
-### Run
+### Share reusable Skill assets
 
-Owns one execution attempt and complete provenance:
+Exactly copied Skill assets should have one Store-owned source and be resolved
+as declared dependencies.
 
-- origin Goal or Loop;
-- requested Workflow or Capability;
-- resolved Capability revision;
-- resolved Implementation revision;
-- parent Run for Workflow steps;
-- effective Policy and Constraints;
-- canonical input;
-- terminal status and usage;
-- canonical outputs;
-- technical failure details.
+Initial duplicated groups include:
 
-Workflow execution creates a parent Run. Each Capability step creates a child
-Run with its selected Implementation.
+- architecture audit;
+- type debt;
+- dead-code sweep;
+- dependency bump;
+- coverage floor;
+- flaky-test quarantine;
+- security audit;
+- docs code;
+- docs README;
+- GitHub Actions documentation;
+- design-system guidance;
+- Next.js guidance;
+- React guidance.
 
-### Outputs and Knowledge
+This deduplicates assets without merging distinct Implementations.
 
-Facts, Evidence, and Artifacts record:
+Implementation-private Skills stay inside their package.
 
-- source Run;
-- Capability producer;
-- Implementation provenance;
-- owning Goal or Loop when applicable;
-- contract identity;
-- creation time.
-
-The Knowledge Graph derives relationships from these records. It is not a
-source of operational truth.
-
-## Clean architecture
-
-```text
-Pure domain contracts
-    <- application services
-        <- ports
-            <- persistence, Store, Engine, GitHub, Convex, and UI adapters
-```
-
-### Domain rules
-
-- Domain code imports no UI, Engine, database, Convex, GitHub, filesystem, or
-  Store modules.
-- Domain entities contain no storage paths, schema versions, migration flags,
-  transport fields, or provider-specific configuration.
-- Definitions are immutable.
-- State and availability are separate from Definitions.
-- All unions are exhaustive and validated at construction.
-- Canonical contracts use typed schemas, not descriptive strings.
-- References are explicit and pinned when stored on a Run.
-- Invalid relationships fail at the boundary; they are never silently repaired.
-
-### Application rules
-
-Application services own:
-
-- Capability-to-Implementation resolution;
-- compatibility checks;
-- Workflow execution;
-- prompt assembly;
-- input and output validation;
-- implementation availability;
-- policy resolution;
-- lifecycle and deletion protection.
-
-Application services depend on ports, never concrete adapters.
-
-### Adapter rules
-
-Adapters own:
-
-- Convex records and indexes;
-- Store folder formats;
-- Engine execution profiles;
-- GitHub and filesystem access;
-- Dashboard transport payloads;
-- migration envelopes;
-- runtime provider configuration.
-
-Store definitions compile into Engine execution profiles. Engine profile fields
-must not leak into the pure domain model.
-
-## Target Store layout
+## Target Store shape
 
 ```text
 agents/
 capabilities/
 implementations/
+shared/
+  skills/
 workflows/
 goals/
 loops/
@@ -355,494 +305,282 @@ policies/
 constraints/
 ```
 
-### Capability folder
-
-```text
-capabilities/<capability-id>/
-  definition.json
-  capability.md
-```
-
-- `definition.json` is the canonical machine-readable contract.
-- `capability.md` explains purpose, safety, and examples.
-- It contains no model, prompt, tool, skill, MCP, or script configuration.
-
-### Implementation folder
-
 ```text
 implementations/<implementation-id>/
   definition.json
-  runtime.json                # Engine adapter configuration
-  prompt.md                   # agent type only; optional
-  scripts/                    # optional
-  skills/                     # optional
-  tests/                      # implementation contract fixtures
+  runtime.json
+  prompt.md                 # agent only, optional
+  skills/                   # private skills, optional
+  scripts/                  # task-specific scripts, optional
+  agents/                   # optional subagents
+  hooks/                    # optional
+  tests/                    # contract fixtures
 ```
 
-- `definition.json` references exactly one Capability.
-- `runtime.json` contains provider and Engine adapter configuration and is not
-  part of the pure domain Definition.
-- Store validation rejects prompts on script Implementations.
-- Store validation checks that runtime bindings satisfy the Capability schema.
-- No TypeScript lives in Store implementation folders.
+`runtime.json` is adapter configuration. It is not part of the pure domain
+Definition.
 
-### Hydrated consumer layout
+## Clean architecture rules
 
-Store domain assets are hydrated into an immutable definition cache.
-An Engine adapter compiles Implementation definitions into internal execution
-profiles under runtime-owned generated storage.
+```text
+Pure domain contracts
+    <- application services
+        <- ports
+            <- Store, Engine, Convex, GitHub, filesystem, and UI adapters
+```
 
-Generated profiles are never committed and are never treated as domain truth.
-
-## Resolution rules
-
-Capability invocation resolves an Implementation in this order:
-
-1. explicit authorized override;
-2. repository-scoped execution binding;
-3. exactly one compatible available Implementation;
-4. otherwise fail with an actionable ambiguity or unavailable error.
-
-There is no hidden model-based selection and no slug-equality fallback in the
-final system.
-
-An execution binding is repository-scoped application configuration, not an
-agency Definition. Capability never points back to a default Implementation;
-this keeps the stable contract independent from its adapters.
-
-Selection checks:
-
-- Capability and Implementation revisions exist;
-- Implementation references the Capability;
-- canonical contract compatibility passes;
-- required permissions are allowed;
-- runtime and credentials are available;
-- Policy and Constraints permit execution.
-
-The selected and pinned Implementation is recorded before work begins.
+- Domain entities import no Engine, Store, UI, database, or provider code.
+- Domain entities contain no schema version, storage path, migration flag, or
+  runtime-provider field.
+- Capability and Implementation Definitions are immutable.
+- Runtime availability and health are separate state.
+- Capability owns canonical contracts.
+- Implementation owns canonical-to-runtime and runtime-to-canonical mapping.
+- Workflow calls Capabilities, never hardcoded Implementations.
+- Implementation resolution is explicit and deterministic.
+- Equal Capability and Implementation slugs are never used as a fallback.
+- Terminal Runs pin exact Capability and Implementation revisions.
+- No business purpose, schedule, or Workflow is hidden inside an
+  Implementation.
+- No capability-specific branch is added to the generic Engine runner.
+- No permanent dual read or dual write remains after migration.
+- No domain model name contains a format version.
 
 ## Migration phases
 
-### Phase 0: Baseline and immediate regression protection
+### Phase 0: Lock the corrected architecture
 
-1. Freeze new legacy combined-profile features.
-2. Inventory every Store capability and classify it as:
-   - public Capability plus agent Implementation;
-   - public Capability plus script Implementation;
-   - unsupported runtime shape requiring an explicit architecture decision;
-   - Workflow disguised as a Capability;
-   - Loop disguised as a scheduled/watch Capability;
-   - internal engine helper.
-3. Capture current production definitions, Runs, workflows, graph output, and
-   Dashboard journeys.
-4. Add a regression test for Store capability detail resolution.
-5. Fix Store capability detail reads to use the same resolved source as list.
-6. Record baseline performance and output fixtures.
+1. Replace the drifted documentation with the approved ownership model.
+2. Add architecture tests that reject:
+   - Executor as an agency entity;
+   - prompts, tools, or scripts on Capability;
+   - Workflow or schedule fields on Implementation;
+   - missing Capability references on Implementation;
+   - script Implementations with prompts.
+3. Freeze creation of new one-to-one copied Store records.
 
 Exit gate:
 
-- complete inventory with no unclassified assets;
-- failing Store detail journey reproduced and protected;
-- current live matrix recorded.
+- one ownership table is authoritative;
+- no active documentation describes Implementation as only a runtime adapter;
+- architecture tests fail on the rejected shapes.
 
-### Phase 1: Approve contracts and architecture rules
+### Phase 1: Create the migration inventory
 
-1. Replace conflicting documentation with one ownership table.
-2. Define exact Capability input/output schema types using one documented,
-   portable JSON Schema subset. Domain code owns the supported contract;
-   adapters own validator-library integration.
-3. Define `ImplementationDefinition` as a discriminated union.
-4. Define bindings, availability, compatibility, and resolution errors.
-5. Extend Run and output provenance contracts.
-6. Define lifecycle, reference protection, archive, and deletion rules.
-7. Add architecture tests for forbidden dependencies and fields.
-
-Exit gate:
-
-- domain contracts reviewed independently;
-- every field has one owner;
-- every model has one responsibility;
-- no Engine or persistence field appears in domain contracts.
-
-### Phase 2: Shared domain and codecs
-
-1. Add Capability contract schemas and Implementation definitions to the shared
-   domain.
-2. Split domain modules by responsibility instead of growing one large file.
-3. Add constructors and exhaustive validators.
-4. Add relationship validation:
-   - Implementation -> Capability;
-   - Workflow step -> Capability;
-   - agent Implementation -> Agent;
-   - Run -> pinned Capability and Implementation.
-5. Add adapter-owned envelopes and codecs.
-6. Keep old readers in a named compatibility adapter only.
-7. Make all new writes use the new definitions.
-
-Do not dual-write old and new formats.
+1. Generate a machine-readable inventory for all 116 Implementations.
+2. Record:
+   - Capability and compatible revision;
+   - type and Agent;
+   - prompt;
+   - private and shared Skills;
+   - tools, scripts, hooks, subagents, and MCP servers;
+   - input/output mappings;
+   - side effects and permissions;
+   - catalog visibility;
+   - proposed action: keep, retire, workflow, fixture, service, or retype.
+3. Require a reason and destination for every removed item.
+4. Make the analyzer read-only by default.
 
 Exit gate:
 
-- domain unit and property tests pass;
-- compatibility fixtures read old records;
-- new records contain no legacy fields.
+- all 116 entries are classified;
+- the 26 proposed removals have verified replacement paths;
+- no behavior is removed without a destination.
 
-### Phase 3: Backend persistence and application services
+### Phase 2: Correct shared contracts and persistence
 
-1. Add Implementation to immutable definition storage and indexes.
-2. Add current-head queries without weakening revision history.
-3. Extend Run persistence for parent/child runs and Implementation provenance.
-4. Extend output persistence with Capability and Implementation provenance.
-5. Build application services for:
-   - definition lifecycle;
-   - relationship validation;
-   - resolution;
-   - availability;
-   - reference-safe deletion.
-6. Keep repository scope derived from verified access.
-7. Add pagination and repository-scoped cache keys.
+1. Keep Capability and Implementation as separate domain entities.
+2. Keep Implementation tied to one Capability and compatible revision.
+3. Keep agent and script as the exhaustive implementation types.
+4. Keep repository execution binding as application configuration.
+5. Store immutable Implementation definitions and current availability
+   separately.
+6. Extend Run and output provenance where incomplete.
+7. Add reference-safe archive and deletion rules.
 
 Exit gate:
 
-- API and persistence integration tests pass;
-- cross-repository reads and writes are rejected;
-- same-slug Capability and Implementation records cannot collide.
+- domain tests cover every invariant;
+- Capability and Implementation ids cannot collide in persistence;
+- terminal Runs pin both revisions;
+- no storage or runtime fields leak into domain definitions.
 
-### Phase 4: Store schema, compiler, and migration tooling
+### Phase 3: Rebuild Store packages
 
-1. Add `implementations` to Store roots and manifests.
-2. Create strict validators for Capability and Implementation definitions.
-3. Create a deterministic compiler:
-   - Store Implementation -> Engine internal execution profile.
-4. Create a one-time migration analyzer that produces:
-   - proposed Capability;
-   - proposed Implementation;
-   - proposed Workflow or Loop corrections;
-   - blocking ambiguities;
-   - no writes by default.
-5. Add an explicit apply mode after review.
-6. Preserve prompts, scripts, skills, and behavior byte-for-byte where ownership
-   does not change.
-7. Add snapshot and round-trip tests for every Store asset.
+1. Retire aliases and redirect all references explicitly.
+2. Replace the five legacy graph packages.
+3. Convert four composite packages into Workflows.
+4. move test-only packages to fixtures.
+5. move runtime services out of the agency catalog.
+6. Retype deterministic implementations as scripts.
+7. Move implementation-specific script code into its package.
+8. Extract exact copied Skills into shared Store assets.
+9. Keep each retained Implementation independently installable and testable.
+10. Update Store manifest and validation.
 
 Exit gate:
 
-- dry-run classifies the full Store;
-- compiler output matches current behavior fixtures;
-- no asset is silently dropped or guessed.
+- the catalog contains only real technical methods;
+- 92 evidence-backed Implementations remain;
+- all retained packages pass contract fixtures;
+- no task-specific implementation code is missing from its package;
+- no copied Skill directories remain.
 
-### Phase 5: Engine resolution and execution
+### Phase 4: Correct Engine resolution and execution
 
-1. Introduce a generic Capability invocation port.
-2. Resolve and pin an Implementation before execution.
-3. Compile Implementation definitions into internal execution profiles.
-4. Keep the generic runner role-agnostic.
-5. Validate canonical input before runtime mapping.
-6. Validate canonical output after runtime parsing.
-7. Split Workflow parent Runs from Capability child Runs.
-8. Assemble prompts only for agent Implementations.
-9. Keep operator text fenced as untrusted input.
-10. Record resolution decisions and provenance.
-11. Remove capability-name and business-purpose branches from Engine code.
+1. Resolve an Implementation by:
+   - authorized run override;
+   - repository execution binding;
+   - the only compatible available Implementation;
+   - otherwise fail clearly.
+2. Remove slug-equality fallback.
+3. Compile the full Implementation package into the runtime profile.
+4. Validate canonical input before mapping.
+5. Validate canonical output after execution.
+6. Assemble prompts only for agent Implementations.
+7. Run script Implementations without loading an agent.
+8. Keep scheduling, dispatching, and state control in application services.
+9. Record the resolved Implementation before execution starts.
 
 Exit gate:
 
-- agent, script, and service contract tests pass;
-- ambiguous and unavailable resolutions fail clearly;
-- no-agent executions never load a prompt;
-- full Engine tests and package verification pass.
+- agent and script contract tests pass;
+- ambiguity and missing methods fail clearly;
+- services removed from Store still run correctly;
+- no capability-specific logic enters the generic runner.
 
-### Phase 6: Graph-system canary
+### Phase 5: Migrate Kody Chat storage and APIs
 
-Migrate the Knowledge System first:
+1. Store real Implementation definitions, not Capability copies.
+2. Keep Convex as the owner of Dashboard runtime state.
+3. Update import, Store catalog, detail, migration, and resolution APIs.
+4. Remove legacy readers, writers, bootstraps, and fallback records.
+5. Protect repository scope and immutable revisions.
+6. Add pagination and repository-scoped cache keys.
 
-1. Create clean graph Capability contracts.
-2. Move Graphify, report generation, and publishing into separate
+Exit gate:
+
+- API integration tests pass;
+- Store list and detail use the same source;
+- no Implementation content returns `not_found`;
+- no runtime state reads from or writes to GitHub.
+
+### Phase 6: Restore and correct Dashboard surfaces
+
+1. Preserve the established Intent, Operation, Goal, Loop, Workflow, Capability,
+   and Run page design and behavior.
+2. Keep a visible technical Implementations page.
+3. Show for each Implementation:
+   - Capability contract;
+   - type and Agent;
+   - prompt presence;
+   - Skills, tools, scripts, hooks, and MCP servers;
+   - mappings and requirements;
+   - availability and recent Runs;
+   - Store source.
+4. Capability detail shows its compatible Implementations.
+5. Run detail shows the exact resolved Implementation.
+6. Workflows show Capability steps, not hardcoded implementation details.
+7. Internal services and test fixtures never appear as catalog
    Implementations.
-3. Keep business composition in the refresh Workflow.
-4. Keep activation in the refresh Loop.
-5. Run old and proposed compiled behavior against the same frozen input fixture
-   for comparison only.
-6. Switch the canary consumer to the new path.
-7. Verify Runs, outputs, graph relationships, and Dashboard visibility.
-
-This comparison is not permanent runtime dual execution.
 
 Exit gate:
 
-- graph output remains correct;
-- each Run shows Capability and Implementation;
-- no business purpose is duplicated in Implementation definitions.
+- established pages retain their visible behavior;
+- Implementations page shows real technical methods;
+- Capability and Implementation content loads;
+- browser tests cover loading, errors, empty states, and navigation.
 
-### Phase 7: Dashboard and API migration
+### Phase 7: Migrate consumers
 
-1. Restore the established user-facing behavior and visual structure of:
-   Company Intents, Operations, Goals, Loops, and Capabilities.
-2. Treat the old components as behavior references, not as storage or domain
-   authorities. Refactor or replace their data adapters where required by the
-   new model.
-3. Map each existing experience to the new ownership model:
-   - Company Intents read and write `IntentDefinition`;
-   - Operations read and write `OperationDefinition` and show referenced Goals
-     and Loops without owning their runtime state;
-   - Goals combine immutable `GoalDefinition` with mutable `GoalState`;
-   - Loops combine immutable `LoopDefinition` with mutable `LoopState`, and
-     expose Objective and Trigger separately;
-   - Capabilities use the canonical `Capability` contract and show the resolved
-     technical method in context;
-   - execution history comes only from `Run`, including resolved Capability and
-     Implementation provenance.
-4. Preserve the existing visible features while moving each write to its
-   correct boundary:
-   - definition changes create a new immutable definition revision;
-   - pause, resume, progress, schedule cursor, facts, blockers, and evidence
-     update mutable state;
-   - run actions dispatch through Workflow or Capability references;
-   - UI forms never write runtime fields into Capability or business fields
-     into Implementation.
-5. Restore standalone Capability Contracts and Implementations pages in
-   Dashboard navigation, backed by the new model and Store sources.
-6. Keep Capability and Implementation as separate domain, Store, API,
-   persistence, resolution, and Run-provenance models.
-7. Adapt the existing page data sources to the new definitions and state
-   records without replacing their components or reducing their features.
-8. Preserve all existing create, edit, run, pause, scheduling, state, evidence,
-   and detail interactions unless a verified model invariant makes one invalid.
-9. Extend the existing Capability detail with:
-   - canonical contract;
-   - safety;
-   - inputs and outputs;
-   - resolved technical method;
-   - availability and recent Runs.
-10. Show technical Implementation details only in context where they help:
-    Capability detail, Run detail, diagnostics, or Store source links. Do not
-    create a second operator-facing catalog.
-11. Workflow pages continue to show Capability steps, not hardwired technical
-    profiles.
-12. Run pages show the resolved Implementation and parent/child execution tree.
-13. Add clear empty, loading, unavailable, ambiguous, and error states to the
-    existing experiences.
-14. Keep Store assets read-only and link to their exact source.
-15. Remove legacy mixed data adapters only after the restored pages work
-    completely against the new model.
+For each connected consumer repository:
+
+1. back up current definitions and bindings;
+2. hydrate corrected Store packages;
+3. migrate explicit execution bindings;
+4. move consumer-side implementation scripts into Store packages where
+   portable;
+5. preserve repository-specific configuration as inputs or binding config;
+6. verify active Goals, Loops, Workflows, and Runs;
+7. remove old hydrated copies and fallbacks after proof.
 
 Exit gate:
 
-- canonical repository URLs work;
-- Company Intents, Operations, Goals, Loops, and Capabilities retain their
-  previous visible features and interaction quality;
-- browser and API evidence proves each page reads and writes only its new model
-  boundary;
-- no legacy managed record is restored as an authority;
-- Capability Contracts and Implementations are visible as separate pages;
-- Store and local detail pages use the same source resolution;
-- browser tests assert visible behavior and failed requests;
-- runtime details are clearly technical and do not appear as Capability
-  ownership.
+- every active Capability resolves;
+- active Loops keep their cadence;
+- workflows produce the same required outputs;
+- no consumer depends on a retired alias or hidden sidecar implementation.
 
-### Phase 8: Full Store and consumer migration
+### Phase 8: Full verification
 
-Migrate in bounded groups:
+Required proof:
 
-1. graph and knowledge;
-2. deterministic/script capabilities;
-3. agent capabilities;
-4. delivery and QA;
-5. agency management;
-6. internal helpers;
-7. Workflow and Loop corrections.
+- domain and architecture tests;
+- Store validation for every package;
+- compiler and resolution tests;
+- backend and API integration tests;
+- Engine typecheck and full tests;
+- Kody Chat typecheck and full tests;
+- real local Dashboard browser journey;
+- one real agent Implementation run;
+- one real script Implementation run;
+- Knowledge System graph refresh;
+- persisted Run and output provenance;
+- consumer repository isolation;
+- production Dashboard journey.
 
-For each group:
+A skipped browser, consumer, or production journey is not a pass.
 
-- run migration dry-run;
-- review generated definitions;
-- apply;
-- compile;
-- run Store tests;
-- run Engine contract tests;
-- hydrate a dedicated test consumer;
-- run live workflows;
-- compare required outputs;
-- commit only after the group passes.
+### Phase 9: Publish and clean up
 
-Then migrate consumer repository bindings and remove self-referencing
-`implementations` fields.
+1. Commit each repository from the exact tested source.
+2. Publish shared packages in dependency order.
+3. Update consumers to the published versions.
+4. Deploy the Dashboard.
+5. Verify deployed package and application revisions.
+6. Run production proof.
+7. Remove temporary compatibility only after production passes.
 
-Exit gate:
+Completion requires separate confirmation of:
 
-- all Store assets use the new structure;
-- all active consumers hydrate and resolve successfully;
-- no combined profile remains authoritative.
+- implemented;
+- tested;
+- committed;
+- pushed;
+- published;
+- deployed;
+- production verified.
 
-### Phase 9: Remove compatibility
+## Main risks
 
-1. Stop reading legacy combined folders.
-2. Remove slug-equality resolution.
-3. Remove legacy `implementation` and `implementations` Capability fields.
-4. Remove legacy editors, routes, codecs, and documentation.
-5. Remove compatibility tests after replacement coverage exists.
-6. Add repository-wide forbidden-pattern tests.
-7. Confirm no runtime fallback, bootstrap, or dual reader remains.
+| Risk | Protection |
+| --- | --- |
+| Distinct methods are merged because they share a runner | Compare prompts, assets, mappings, effects, and contracts |
+| Runtime behavior disappears when services leave Store | Move services first and run parity tests |
+| Script behavior remains hidden in consumer repositories | Package task-specific scripts before cutover |
+| Shared Skill extraction changes content | Content hashes and byte-for-byte fixtures |
+| Active bindings point to retired aliases | Reference inventory and explicit redirects |
+| UI redesign hides migration regressions | Preserve existing components and browser journeys |
+| Partial multi-repository release breaks resolution | Ordered publishing, compatibility window, and live canary |
 
-Exit gate:
+## Completion rules
 
-- search and architecture tests prove zero active legacy paths;
-- new Store structure is the only write and read path.
+The migration is complete only when:
 
-### Phase 10: Release and production proof
+- every Capability and Implementation has one responsibility;
+- 92 evidence-backed Implementations remain;
+- each retained Implementation is a complete technical method;
+- prompts, Skills, tools, scripts, mappings, and runtime settings have one
+  clear owner;
+- shared assets are reused without merging distinct methods;
+- Workflows own composition;
+- Loops own triggers;
+- Engine services are not agency catalog items;
+- test fixtures are not production catalog items;
+- all active consumers resolve and run;
+- local and production E2E proof passes;
+- all temporary compatibility paths are removed.
 
-Release in dependency order:
+## Approval
 
-1. shared domain package;
-2. additive backend schema and functions;
-3. Engine package that reads legacy assets and compiles new assets;
-4. Dashboard that can read both shapes but writes only the new shape;
-5. Store definitions and compiler inputs;
-6. consumer bindings;
-7. compatibility removal in later Engine and Dashboard releases.
-
-For every release:
-
-- build from the exact committed source;
-- publish or deploy once;
-- verify the deployed version;
-- preserve the previous immutable revision for rollback.
-
-Final production proof:
-
-- the original Intent, Operation, Goal, Loop, and Capability journeys work;
-- Capability detail loads its contract and resolved technical method in place;
-- standalone Capability Contracts and Implementations pages load and preserve
-  their model boundary;
-- one agent Implementation runs;
-- one script Implementation runs;
-- Workflow parent and child Runs appear;
-- canonical inputs and outputs validate;
-- Knowledge Graph contains Capability -> Implementation -> Run relationships;
-- repository isolation and authorization pass.
-
-## Testing strategy
-
-### Domain
-
-- constructor and invariant tests;
-- exhaustive-union tests;
-- property tests for schema compatibility;
-- relationship and deletion protection tests;
-- serialization round trips.
-
-### Store
-
-- schema tests for every asset;
-- full inventory migration tests;
-- compiler snapshots;
-- prompt prohibition for non-agent Implementations;
-- no TypeScript in implementation folders;
-- no Workflow or Loop fields in Capability or Implementation.
-
-### Engine
-
-- resolver precedence and ambiguity tests;
-- availability and permission tests;
-- input binding and output parsing tests;
-- prompt assembly and untrusted-input tests;
-- parent/child Run provenance;
-- no capability-specific branching;
-- full typecheck, unit, integration, package, and E2E suites.
-
-### Backend and APIs
-
-- immutable revision tests;
-- repository scope and authorization tests;
-- concurrency and idempotency tests;
-- pagination and index tests;
-- migration fixture compatibility;
-- reference-safe archive and delete tests.
-
-### Dashboard
-
-- component and hook tests;
-- repository-scoped query keys;
-- API contract tests;
-- regression tests that compare the restored Intent, Operation, Goal, Loop,
-  and Capability surfaces with their pre-migration behavior;
-- browser tests for Capability, Workflow, and Run journeys, including technical
-  Implementation information shown in context;
-- navigation tests proving Capability Contracts and Implementations are not
-  exposed as standalone products;
-- visible error and empty-state tests;
-- accessibility and responsive layout checks.
-
-### Live proof
-
-At baseline, after every phase, and for the final deployed candidate:
-
-- `pnpm verify`;
-- Dashboard browser gate;
-- live local UI matrix;
-- deployed live UI matrix;
-- Store full tests;
-- Engine typecheck, full tests, package verification, and live tester;
-- production canary workflow with persisted Run and output evidence.
-
-A skipped live journey is not a pass.
-
-## Quality gates
-
-The migration is not complete unless all of these are true:
-
-- one authoritative definition for every model;
-- one owner for every field;
-- no duplicated domain types;
-- no `any` at new domain or API boundaries;
-- no silent fallback or guessed migration;
-- no permanent dual reads or writes;
-- no provider, Store, filesystem, or UI dependency in domain code;
-- no business-specific logic in the generic Engine runner;
-- no prompts for non-agent Implementations;
-- no Workflow or schedule hidden inside Capability or Implementation;
-- no unscoped backend or frontend caches;
-- no unpinned Capability or Implementation on terminal Runs;
-- no active legacy identifiers after compatibility removal;
-- all changed user journeys pass against the real mounted app and persistence.
-
-## Main drawbacks
-
-These are drawbacks of the proposed migration:
-
-1. More concepts are visible to developers and advanced operators.
-2. Authoring one action requires a Capability and at least one Implementation.
-3. Resolution and version pinning add runtime checks.
-4. Existing Runs and Store assets need careful compatibility readers.
-5. Dashboard and migration tooling become larger before legacy removal makes
-   the system smaller.
-6. Multi-repository release ordering is operationally expensive.
-
-These costs are justified only if Kody needs multiple execution methods,
-portable Capability contracts, reliable provenance, and long-term extension by
-new runtimes. Kody does need those properties; continuing with combined folders
-would preserve ambiguity and make future runtimes harder to add safely.
-
-## Explicit non-goals
-
-- Do not redesign Intent, Operation, Goal, or Loop again.
-- Do not turn Implementation into business ownership.
-- Do not make Prompt a persisted agency model.
-- Do not add automatic AI-based Implementation selection.
-- Do not add new runtime providers during the migration.
-- Do not keep legacy and new models permanently.
-- Do not put format version numbers into domain entity names or business logic.
-
-## Approval decision
-
-Approve only if these core rules are accepted:
-
-1. Capability owns the canonical action and input/output contract.
-2. Implementation owns one technical method and runtime bindings.
-3. Agent identity is separate; prompts are optional runtime templates only for
-   agent Implementations.
-4. Workflow calls Capabilities, not Implementations.
-5. Resolution is explicit, deterministic, validated, and recorded.
-6. Store definitions compile into Engine profiles; Engine profiles are not
-   domain truth.
-7. Compatibility is temporary and is removed before completion.
+Approved by the user. Implementation and verification are in progress.

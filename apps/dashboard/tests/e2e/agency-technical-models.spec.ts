@@ -109,6 +109,32 @@ async function installHarness(page: Page) {
         runtime: { adapter: "kody-engine-profile" },
         promptTemplate: "Inspect release health.",
         files: ["definition.json", "runtime.json", "prompt.md"],
+        assets: {
+          skills: ["release-inspection"],
+          tools: ["Read"],
+          scripts: [],
+          hooks: [],
+          commands: [],
+          subagents: [],
+          plugins: [],
+          mcpServers: [],
+          cliTools: ["gh"],
+          inputMappings: [],
+          outputMappings: [],
+          requirements: [],
+        },
+        capabilityContract: {
+          id: "release-watch",
+          action: "release-watch",
+          purpose: "Watch release health.",
+          inputSchema: { type: "object" },
+          outputSchema: { type: "object" },
+          effects: ["comment"],
+          permissions: ["gh"],
+          success: "Release health is known.",
+          failure: "Release health could not be read.",
+        },
+        recentRuns: [],
       },
     }),
   );
@@ -181,6 +207,13 @@ test("shows Implementations as a Store model", async ({ page }) => {
     { waitUntil: "domcontentloaded" },
   );
 
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByTestId(
+      "store-catalog-import-implementation-release-watch-agent",
+    ),
+  ).toContainText("Selected automatically");
+  await page.getByRole("button", { name: "Close" }).click();
   await expect(
     page.getByRole("tab", { name: "Implementations" }),
   ).toHaveAttribute("aria-selected", "true");
@@ -189,10 +222,4 @@ test("shows Implementations as a Store model", async ({ page }) => {
       "store-catalog-row-implementation-release-watch-agent",
     ),
   ).toBeVisible();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(
-    page.getByTestId(
-      "store-catalog-import-implementation-release-watch-agent",
-    ),
-  ).toContainText("Selected automatically");
 });

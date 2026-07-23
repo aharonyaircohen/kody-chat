@@ -10,6 +10,11 @@ import {
   readCompanyStoreText,
 } from "@kody-ade/base/company-store/assets";
 import {
+  listStoreImplementations,
+  readStoreImplementation,
+} from "@kody-ade/agency/implementations/files";
+import { publishStoreImplementationPackage } from "@kody-ade/agency/implementations/publish";
+import {
   agencyDefinitionRecordId,
   applyStoredAgencyModelChange,
   type AgencyDefinitionKind,
@@ -152,7 +157,7 @@ async function buildSnapshot(req: NextRequest) {
 
 async function readStoreDefinitions(
   client: Octokit,
-  kind: "capabilities" | "implementations",
+  kind: "capabilities",
   requiredIds: string[],
 ) {
   return await Promise.all(
@@ -168,29 +173,50 @@ async function preview(req: NextRequest) {
   const built = await buildSnapshot(req);
   if (built instanceof NextResponse) return built;
   const plan = planAgencyV2Migration(built.snapshot);
-  const [capabilities, implementations] = await Promise.all([
+  const [capabilities, implementationSummaries] = await Promise.all([
     readStoreDefinitions(
       built.client,
       "capabilities",
       plan.requiredCapabilityIds,
     ),
-    readStoreDefinitions(
-      built.client,
-      "implementations",
-      plan.requiredCapabilityIds,
-    ),
+    listStoreImplementations(built.client),
   ]);
+  const requiredCapabilityIds = new Set(plan.requiredCapabilityIds);
+  const implementations = (
+    await Promise.all(
+      implementationSummaries
+        .filter((implementation) =>
+          requiredCapabilityIds.has(implementation.capabilityId),
+        )
+        .map((implementation) =>
+          readStoreImplementation(built.client, implementation.id),
+        ),
+    )
+  ).filter((implementation) => implementation !== null);
   const capabilityDefinitions = capabilities.filter(
     (definition): definition is { id: string } => definition !== null,
   );
-  const implementationDefinitions = implementations.filter(
-    (definition): definition is { id: string } => definition !== null,
+  const capabilityRevisions = new Map(
+    capabilityDefinitions.map((definition) => [
+      definition.id,
+      agencyDefinitionRecordId("capability", definition).split(":").at(-1),
+    ]),
   );
-  const implementationIds = new Set(
-    implementationDefinitions.map((definition) => definition.id),
+  const compatibleImplementations = implementations.filter(
+    (implementation) =>
+      capabilityRevisions.get(implementation.capabilityId) ===
+      implementation.compatibleCapabilityRevision,
+  );
+  const implementationDefinitions = compatibleImplementations.map(
+    (implementation) => implementation.definition,
+  );
+  const implementedCapabilityIds = new Set(
+    compatibleImplementations.map(
+      (implementation) => implementation.capabilityId,
+    ),
   );
   const missingImplementations = plan.requiredCapabilityIds.filter(
-    (id) => !implementationIds.has(id),
+    (id) => !implementedCapabilityIds.has(id),
   );
   const capabilityIds = new Set(
     capabilityDefinitions.map((definition) => definition.id),
@@ -203,6 +229,7 @@ async function preview(req: NextRequest) {
     plan,
     capabilityDefinitions,
     implementationDefinitions,
+    compatibleImplementations,
     missingCapabilities,
     missingImplementations,
   };
@@ -257,6 +284,13 @@ export async function POST(req: NextRequest) {
       doc: result.snapshot,
       updatedAt: result.snapshot.capturedAt,
     });
+    for (const implementation of result.compatibleImplementations) {
+      await publishStoreImplementationPackage(
+        result.client,
+        result.snapshot.tenantId,
+        implementation,
+      );
+    }
     const groups: Array<[AgencyDefinitionKind, Array<{ id: string }>]> = [
       ["intent", result.plan.definitions.intents],
       ["operation", result.plan.definitions.operations],

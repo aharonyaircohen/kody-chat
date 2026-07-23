@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +16,7 @@ import { Badge } from "@kody-ade/base/ui/badge";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@kody-ade/base/ui/card";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
+import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 
@@ -35,6 +36,26 @@ type ImplementationDetail = ImplementationSummary & {
   runtime: Record<string, unknown> | null;
   promptTemplate: string | null;
   files: string[];
+  assets: {
+    skills: string[];
+    tools: string[];
+    scripts: string[];
+    hooks: string[];
+    commands: string[];
+    subagents: string[];
+    plugins: string[];
+    mcpServers: string[];
+    cliTools: string[];
+    inputMappings: string[];
+    outputMappings: string[];
+    requirements: string[];
+  };
+  capabilityContract: Record<string, unknown> | null;
+  recentRuns: Array<{
+    runId: string;
+    status: string;
+    updatedAt: string;
+  }>;
   repositoryBinding: string | null;
 };
 
@@ -55,6 +76,24 @@ async function readJson<T>(
   return payload;
 }
 
+async function readAllImplementations(
+  headers: Record<string, string>,
+): Promise<ImplementationSummary[]> {
+  const implementations: ImplementationSummary[] = [];
+  let cursor: string | null = null;
+  do {
+    const params = new URLSearchParams({ limit: "100" });
+    if (cursor) params.set("cursor", cursor);
+    const page = await readJson<{
+      implementations: ImplementationSummary[];
+      nextCursor: string | null;
+    }>(`/api/kody/implementations?${params}`, headers);
+    implementations.push(...page.implementations);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return implementations;
+}
+
 export function ImplementationsView({
   selectedId,
 }: {
@@ -62,17 +101,12 @@ export function ImplementationsView({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
   const { auth } = useAuth();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const list = useQuery({
     queryKey: ["agency-implementations", auth?.owner, auth?.repo],
-    queryFn: async () =>
-      (
-        await readJson<{ implementations: ImplementationSummary[] }>(
-          "/api/kody/implementations",
-          headers,
-        )
-      ).implementations,
+    queryFn: async () => readAllImplementations(headers),
     enabled: Boolean(auth),
     staleTime: 30_000,
   });
@@ -148,6 +182,17 @@ export function ImplementationsView({
   }
 
   const implementations = list.data ?? [];
+  const query = search.trim().toLowerCase();
+  const visibleImplementations = query
+    ? implementations.filter((implementation) =>
+        [
+          implementation.id,
+          implementation.capabilityId,
+          implementation.type,
+          implementation.agentId ?? "",
+        ].some((value) => value.toLowerCase().includes(query)),
+      )
+    : implementations;
   const selectedSummary =
     implementations.find((item) => item.id === selectedId) ?? null;
 
@@ -159,6 +204,15 @@ export function ImplementationsView({
           <p className="mt-1 text-sm text-muted-foreground">
             {implementations.length} technical execution models in the Store
           </p>
+          <div className="mt-4">
+            <ListSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search Implementations..."
+              ariaLabel="Search Implementations"
+              accent="emerald"
+            />
+          </div>
         </header>
         {implementations.length === 0 ? (
           <EmptyState
@@ -168,7 +222,7 @@ export function ImplementationsView({
           />
         ) : (
           <div className="divide-y divide-border/60">
-            {implementations.map((implementation) => (
+            {visibleImplementations.map((implementation) => (
               <Button
                 key={implementation.id}
                 type="button"
@@ -199,6 +253,12 @@ export function ImplementationsView({
                 </div>
               </Button>
             ))}
+            {visibleImplementations.length === 0 ? (
+              <EmptyState
+                icon={<Cpu className="h-5 w-5" />}
+                title="No matching Implementations"
+              />
+            ) : null}
           </div>
         )}
       </aside>
@@ -299,8 +359,52 @@ function ImplementationDetailView({
         </ValueCard>
       </div>
 
+      <JsonCard
+        title="Capability contract"
+        value={implementation.capabilityContract}
+      />
       <JsonCard title="Implementation definition" value={implementation.definition} />
-      <JsonCard title="Runtime configuration" value={implementation.runtime} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Technical assets</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          {(
+            [
+              ["Skills", implementation.assets.skills],
+              ["Tools", implementation.assets.tools],
+              ["Scripts", implementation.assets.scripts],
+              ["Hooks", implementation.assets.hooks],
+              ["Commands", implementation.assets.commands],
+              ["Subagents", implementation.assets.subagents],
+              ["Plugins", implementation.assets.plugins],
+              ["MCP servers", implementation.assets.mcpServers],
+              ["CLI tools", implementation.assets.cliTools],
+              ["Input mappings", implementation.assets.inputMappings],
+              ["Output mappings", implementation.assets.outputMappings],
+              ["Requirements", implementation.assets.requirements],
+            ] as const
+          ).map(([label, values]) => (
+            <div key={label}>
+              <p className="text-xs font-medium text-muted-foreground">
+                {label}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {values.length > 0 ? (
+                  values.map((value) => (
+                    <Badge key={value} variant="outline">
+                      {value}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">None</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -312,6 +416,36 @@ function ImplementationDetailView({
           </pre>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Recent Runs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {implementation.recentRuns.length > 0 ? (
+            <div className="divide-y divide-border/60">
+              {implementation.recentRuns.map((run) => (
+                <div
+                  key={run.runId}
+                  className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                >
+                  <span className="font-mono text-xs">{run.runId}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{run.status}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(run.updatedAt).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No recorded Runs</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <JsonCard title="Runtime configuration" value={implementation.runtime} />
 
       <Card>
         <CardHeader>

@@ -9,7 +9,7 @@ function tenantIdFor(owner: string, repo: string): string {
 
 export type StoredAgencyRun = {
   runId: string
-  subjectType: "goal" | "loop" | "workflow" | "capability"
+  subjectType: "goal" | "loop" | "workflow" | "capability" | "implementation"
   subjectId: string
   run: unknown
   updatedAt: string

@@ -82,6 +82,28 @@ describe("clean AI Agency domain", () => {
     ).toThrow(/agentRef/);
   });
 
+  it("keeps runtime assets, workflows, and schedules out of Implementation definitions", () => {
+    const base = {
+      id: "graphify-knowledge-graph",
+      capabilityRef: { kind: "capability" as const, id: "build-knowledge-graph" },
+      compatibleCapabilityRevision: "contract-hash",
+      type: "agent" as const,
+      agentRef: { kind: "agent" as const, id: "knowledge-engineer" },
+    };
+
+    for (const rejected of [
+      { prompt: "Build the graph" },
+      { tools: ["Read"] },
+      { scripts: ["build.sh"] },
+      { schedule: "0 * * * *" },
+      { workflow: ["extract", "publish"] },
+    ]) {
+      expect(() =>
+        createImplementationDefinition({ ...base, ...rejected }),
+      ).toThrow(/unknown field/i);
+    }
+  });
+
   it("contains no persistence version or storage metadata", () => {
     expect(() =>
       createGoalDefinition({

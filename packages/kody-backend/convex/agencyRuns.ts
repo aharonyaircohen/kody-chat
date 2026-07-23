@@ -29,6 +29,7 @@ export const save = mutation({
       v.literal("loop"),
       v.literal("workflow"),
       v.literal("capability"),
+      v.literal("implementation"),
     ),
     subjectId: v.string(),
     run: v.any(),

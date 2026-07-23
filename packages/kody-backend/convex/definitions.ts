@@ -5,6 +5,8 @@ const kind = v.union(
   v.literal("agent"),
   v.literal("capability"),
   v.literal("goal"),
+  v.literal("implementation"),
+  v.literal("asset"),
 );
 const source = v.union(v.literal("local"), v.literal("store"));
 

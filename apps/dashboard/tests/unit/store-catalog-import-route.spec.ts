@@ -52,6 +52,8 @@ const backend = vi.hoisted(() => ({
 const implementationFiles = vi.hoisted(() => ({
   listStoreImplementations: vi.fn(),
   readStoreImplementation: vi.fn(),
+  readStoreImplementationBundle: vi.fn(),
+  readStoreSharedAssetBundle: vi.fn(),
 }));
 
 const agencyModel = vi.hoisted(() => ({
@@ -114,6 +116,10 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 vi.mock("@kody-ade/agency/implementations/files", () => ({
   listStoreImplementations: implementationFiles.listStoreImplementations,
   readStoreImplementation: implementationFiles.readStoreImplementation,
+  readStoreImplementationBundle:
+    implementationFiles.readStoreImplementationBundle,
+  readStoreSharedAssetBundle:
+    implementationFiles.readStoreSharedAssetBundle,
 }));
 
 vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
@@ -173,6 +179,8 @@ describe("store catalog import route", () => {
             "release-prepare",
             "release-merge",
             "vercel-production-deploy",
+            "build-knowledge-graph",
+            "publish-knowledge-system",
           ];
         }
         return [];
@@ -213,6 +221,25 @@ describe("store catalog import route", () => {
           scheduleMode: "agentLoop",
         },
       },
+      {
+        id: "knowledge-system-refresh",
+        path: "todos/knowledge-system-refresh.json",
+        state: {
+          version: 1,
+          state: "inactive",
+          type: "agentLoop",
+          destination: { outcome: "Knowledge stays current", evidence: [] },
+          capabilities: [],
+          route: [],
+          facts: {},
+          blockers: [],
+          scheduleMode: "agentLoop",
+          loopTarget: {
+            type: "workflow",
+            id: "refresh-knowledge-system",
+          },
+        },
+      },
     ]);
     managedGoals.managedGoalModel.mockImplementation(
       (goal: { state: { scheduleMode?: string } }) =>
@@ -227,11 +254,26 @@ describe("store catalog import route", () => {
             capabilities: ["release-watch"],
           },
         },
+        {
+          id: "refresh-knowledge-system",
+          workflow: {
+            name: "Refresh Knowledge System",
+            capabilities: [
+              "build-knowledge-graph",
+              "publish-knowledge-system",
+            ],
+          },
+        },
       ],
     );
     capabilities.readResolvedCapabilityFile.mockImplementation(
       async (slug: string) =>
-        ["ship-feature", "release-watch"].includes(slug)
+        [
+          "ship-feature",
+          "release-watch",
+          "build-knowledge-graph",
+          "publish-knowledge-system",
+        ].includes(slug)
           ? {
               slug,
               agent: slug === "release-watch" ? "atlas-agent" : null,
@@ -251,6 +293,11 @@ describe("store catalog import route", () => {
     engineConfig.writeConfigPatch.mockResolvedValue({ sha: "next-sha" });
     implementationFiles.listStoreImplementations.mockResolvedValue([]);
     implementationFiles.readStoreImplementation.mockResolvedValue(null);
+    implementationFiles.readStoreImplementationBundle.mockResolvedValue({
+      "definition.json": "{}\n",
+      "runtime.json": "{}\n",
+    });
+    implementationFiles.readStoreSharedAssetBundle.mockResolvedValue(null);
     agencyModel.applyStoredAgencyModelChange.mockResolvedValue({
       created: 2,
       reused: 0,
@@ -287,6 +334,23 @@ describe("store catalog import route", () => {
       runtime: {},
       promptTemplate: "Run it",
       files: ["definition.json", "runtime.json"],
+      assets: {
+        skills: ["shared-release-review"],
+        tools: [],
+        scripts: [],
+        hooks: [],
+        commands: [],
+        subagents: [],
+        plugins: [],
+        mcpServers: [],
+        cliTools: [],
+        inputMappings: [],
+        outputMappings: [],
+        requirements: [],
+      },
+    });
+    implementationFiles.readStoreSharedAssetBundle.mockResolvedValue({
+      "skills/shared-release-review/SKILL.md": "# Shared release review\n",
     });
     companyStore.readCompanyStoreText.mockImplementation(
       async (_octokit: unknown, path: string) =>
@@ -317,6 +381,24 @@ describe("store catalog import route", () => {
       path: "execution.capabilityBindings",
     });
     expect(agencyModel.applyStoredAgencyModelChange).toHaveBeenCalledOnce();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        kind: "implementation",
+        slug: "release-watch-agent",
+        source: "store",
+      }),
+    );
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        kind: "asset",
+        slug: "skill-shared-release-review",
+        source: "store",
+      }),
+    );
     expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
       octokit,
       "acme",
@@ -370,6 +452,31 @@ describe("store catalog import route", () => {
           files: { "agent.md": "# Atlas Agent\n" },
         },
       }),
+    );
+  });
+
+  it("activates a Goal target Workflow and its Capability dependencies", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const res = await POST(
+      req({ kind: "agentLoop", slug: "knowledge-system-refresh" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      expect.objectContaining({
+        activeCapabilities: [
+          "build-knowledge-graph",
+          "publish-knowledge-system",
+        ],
+        activeGoals: ["knowledge-system-refresh"],
+        activeWorkflows: ["refresh-knowledge-system"],
+      }),
+      "chore(kody): add store agentLoop knowledge-system-refresh",
     );
   });
 

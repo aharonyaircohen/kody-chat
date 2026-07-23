@@ -16,6 +16,7 @@ export type StoreAssetKind =
   | "workflows"
   | "commands"
   | "goals"
+  | "shared"
   | "agent"
   | "agents";
 type StoreManifestKind =
@@ -24,6 +25,7 @@ type StoreManifestKind =
   | "workflows"
   | "commands"
   | "goals"
+  | "shared"
   | "agent";
 export type AssetSource = "local" | "store";
 

@@ -3,7 +3,21 @@ import { NextRequest } from "next/server";
 
 const writes = vi.hoisted(() => ({
   backup: vi.fn(async () => undefined),
-  applyChange: vi.fn(async () => ({ created: 5, reused: 0, states: 3 })),
+  applyChange: vi.fn(async (_input?: {
+    change: {
+      definitions: Array<{
+        kind: string;
+        data: { id: string };
+      }>;
+      states: unknown[];
+    };
+  }) => ({
+    created: 5,
+    reused: 0,
+    states: 3,
+  })),
+  implementationRevision: "",
+  publishImplementation: vi.fn(async () => undefined),
 }));
 
 vi.mock("@kody-ade/base/company-store/assets", () => ({
@@ -14,11 +28,63 @@ vi.mock("@kody-ade/base/company-store/assets", () => ({
     const id = path.split("/")[1];
     return JSON.stringify({
       id,
-      capabilityRef: { id, revision: "test-revision" },
-      type: "agent",
-      agentRef: "developer",
+      action: `Run ${id}`,
+      purpose: `Run ${id}`,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      effects: [],
+      permissions: [],
+      success: "Done",
+      failure: "Failed",
     });
   }),
+}));
+vi.mock("@kody-ade/agency/implementations/files", () => ({
+  listStoreImplementations: vi.fn(async () => [
+    {
+      id: "safe-deployer",
+      capabilityId: "deploy",
+      compatibleCapabilityRevision: writes.implementationRevision,
+      type: "agent",
+      agentId: "developer",
+      htmlUrl: "https://example.test/safe-deployer",
+    },
+  ]),
+  readStoreImplementation: vi.fn(async (_client, id: string) => ({
+    id,
+    capabilityId: "deploy",
+    compatibleCapabilityRevision: writes.implementationRevision,
+    type: "agent",
+    agentId: "developer",
+    htmlUrl: "https://example.test/safe-deployer",
+    definition: {
+      id,
+      capabilityRef: { kind: "capability", id: "deploy" },
+      compatibleCapabilityRevision: writes.implementationRevision,
+      type: "agent",
+      agentRef: { kind: "agent", id: "developer" },
+    },
+    runtime: {},
+    promptTemplate: null,
+    files: [],
+    assets: {
+      skills: [],
+      tools: [],
+      scripts: [],
+      hooks: [],
+      commands: [],
+      subagents: [],
+      plugins: [],
+      mcpServers: [],
+      cliTools: [],
+      inputMappings: [],
+      outputMappings: [],
+      requirements: [],
+    },
+  })),
+}));
+vi.mock("@kody-ade/agency/implementations/publish", () => ({
+  publishStoreImplementationPackage: writes.publishImplementation,
 }));
 vi.mock("@kody-ade/agency/routes/repo-write-access", () => ({
   verifyRepoWriteAccess: vi.fn(async () => ({
@@ -114,8 +180,26 @@ vi.mock(
 );
 
 import { GET, POST } from "../../app/api/kody/agency-migration/route";
+import { agencyDefinitionRecordId } from "@kody-ade/agency/backend/agency-model-store";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  const capability = {
+    id: "deploy",
+    action: "Run deploy",
+    purpose: "Run deploy",
+    inputSchema: { type: "object" },
+    outputSchema: { type: "object" },
+    effects: [],
+    permissions: [],
+    success: "Done",
+    failure: "Failed",
+  };
+  writes.implementationRevision =
+    agencyDefinitionRecordId("capability", capability)
+      .split(":")
+      .at(-1) ?? "";
+});
 
 describe("agency V2 migration route", () => {
   it("previews a complete migration without writing", async () => {
@@ -139,6 +223,11 @@ describe("agency V2 migration route", () => {
     );
     expect(response.status).toBe(201);
     expect(writes.backup).toHaveBeenCalledOnce();
+    expect(writes.publishImplementation).toHaveBeenCalledWith(
+      {},
+      "acme/widgets",
+      expect.objectContaining({ id: "safe-deployer" }),
+    );
     expect(writes.applyChange).toHaveBeenCalledWith(
       expect.objectContaining({
         change: expect.objectContaining({
@@ -146,6 +235,16 @@ describe("agency V2 migration route", () => {
           states: expect.any(Array),
         }),
       }),
+    );
+    const definitions =
+      writes.applyChange.mock.calls[0]?.[0]?.change.definitions ?? [];
+    expect(definitions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "implementation",
+          data: expect.objectContaining({ id: "safe-deployer" }),
+        }),
+      ]),
     );
     expect(writes.backup.mock.invocationCallOrder[0]).toBeLessThan(
       writes.applyChange.mock.invocationCallOrder[0]!,
