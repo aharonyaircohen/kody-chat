@@ -59,7 +59,7 @@ describe("conversation session store", () => {
     ]);
   });
 
-  it("produces one append then updates the same streaming message", () => {
+  it("keeps streaming assistant drafts out of durable storage", () => {
     const previous: (typeof pending)[] = [];
     const pending = {
       id: "a1",
@@ -69,18 +69,37 @@ describe("conversation session store", () => {
       isLoading: true,
     };
     const append = reconcileConversationMessages(previous, [pending]);
-    const update = reconcileConversationMessages(
+    const streamed = reconcileConversationMessages(
       [pending],
-      [{ ...pending, text: "Done", isLoading: false }],
+      [{ ...pending, text: "Still typing" }],
     );
 
-    expect(append).toEqual([
-      expect.objectContaining({ kind: "append", message: pending }),
-    ]);
-    expect(update).toEqual([
+    expect(append).toEqual([]);
+    expect(streamed).toEqual([]);
+  });
+
+  it("appends the complete assistant message once streaming finishes", () => {
+    const pending = {
+      id: "a1",
+      role: "assistant" as const,
+      text: "Still typing",
+      timestamp: "2026-07-20T10:00:00.000Z",
+      isLoading: true,
+    };
+
+    expect(
+      reconcileConversationMessages(
+        [pending],
+        [{ ...pending, text: "Done", isLoading: false }],
+      ),
+    ).toEqual([
       expect.objectContaining({
-        kind: "update",
-        message: expect.objectContaining({ id: "a1" }),
+        kind: "append",
+        message: expect.objectContaining({
+          id: "a1",
+          text: "Done",
+          isLoading: false,
+        }),
       }),
     ]);
   });
@@ -132,7 +151,7 @@ describe("conversation session store", () => {
       ),
     ).toEqual([
       expect.objectContaining({
-        kind: "update",
+        kind: "append",
         message: expect.objectContaining({ view: renderedView }),
       }),
     ]);

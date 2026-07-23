@@ -167,7 +167,18 @@ export function reconcileConversationMessages(
   for (const message of next) {
     if (!message.id) continue;
     const stored = previousById.get(message.id);
+    if (message.role === "assistant" && message.isLoading) {
+      continue;
+    }
     if (!stored) {
+      changes.push({ kind: "append", message });
+      continue;
+    }
+    if (
+      message.role === "assistant" &&
+      stored.isLoading &&
+      !message.isLoading
+    ) {
       changes.push({ kind: "append", message });
       continue;
     }

@@ -30,6 +30,10 @@ export interface UseConversationSessionsResult {
     sessionId: string,
     message: ChatMessage & { id: string; role: "user" },
   ) => Promise<void>;
+  persistAssistantMessage: (
+    sessionId: string,
+    message: ChatMessage & { id: string; role: "assistant" },
+  ) => Promise<void>;
   setMessages: (messages: MessageUpdater) => void;
   setSessionMessages: (
     sessionId: string,
@@ -338,6 +342,44 @@ export function useConversationSessions(
     [actorLogin, conversationClient],
   );
 
+  const persistAssistantMessage = useCallback(
+    async (
+      sessionId: string,
+      message: ChatMessage & { id: string; role: "assistant" },
+    ) => {
+      const login = actorLogin;
+      if (!login)
+        throw new Error("Conversation save requires a signed-in user");
+      const session = sessionsRef.current.find((item) => item.id === sessionId);
+      try {
+        await conversationClient.command(sessionId, {
+          kind: "append-message",
+          actorLogin: login,
+          entryId: message.id,
+          idempotencyKey: message.id,
+          role: "assistant",
+          agent: message.agent ??
+            session?.agencyAgent ?? { slug: "kody", title: "Kody" },
+          content: message.text,
+          view: message.view,
+          status: "committed",
+          turnId: message.turnId ?? message.id,
+          attachmentIds: message.attachments?.map((item) =>
+            storedAttachmentId(item.id),
+          ),
+          createdAt: message.timestamp,
+        });
+        setPersistenceError(null);
+      } catch (error) {
+        setPersistenceError(
+          error instanceof Error ? error.message : "Conversation save failed",
+        );
+        throw error;
+      }
+    },
+    [actorLogin, conversationClient],
+  );
+
   const setSessionMessages = useCallback(
     (
       sessionId: string,
@@ -568,6 +610,7 @@ export function useConversationSessions(
     messages,
     persistenceError,
     persistUserMessage,
+    persistAssistantMessage,
     setMessages,
     setSessionMessages,
     getSessionMessages: (sessionId) => messagesBySession[sessionId] ?? [],

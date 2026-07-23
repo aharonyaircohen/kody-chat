@@ -112,6 +112,20 @@ test.describe("Kody direct agent", () => {
   test("selecting Kody and sending a message streams reply into the assistant bubble", async ({
     page,
   }) => {
+    const conversationCommands: Array<Record<string, unknown>> = [];
+    await page.route(
+      "**/api/kody/chat/conversations/*/commands",
+      async (route) => {
+        conversationCommands.push(
+          route.request().postDataJSON() as Record<string, unknown>,
+        );
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      },
+    );
     // Mock the direct-chat endpoint with the AI-SDK UI-message-stream SSE
     // shape the client actually parses (`data: {type:"text-delta",...}`) so
     // we verify the stream-reading path without hitting the model.
@@ -120,7 +134,9 @@ test.describe("Kody direct agent", () => {
         status: 200,
         headers: { "content-type": "text/event-stream" },
         body:
-          'data: {"type":"text-delta","delta":"Hello from Kody direct!"}\n\n' +
+          'data: {"type":"text-delta","delta":"Hello "}\n\n' +
+          'data: {"type":"text-delta","delta":"from Kody "}\n\n' +
+          'data: {"type":"text-delta","delta":"direct!"}\n\n' +
           'data: {"type":"finish"}\n\n' +
           "data: [DONE]\n\n",
       }),
@@ -148,5 +164,26 @@ test.describe("Kody direct agent", () => {
     await expect(page.getByText("Hello from Kody direct!").first()).toBeVisible(
       { timeout: 15_000 },
     );
+    await expect
+      .poll(
+        () =>
+          conversationCommands.filter(
+            (command) =>
+              command.kind === "append-message" && command.role === "assistant",
+          ),
+        { timeout: 10_000 },
+      )
+      .toEqual([
+        expect.objectContaining({
+          content: "Hello from Kody direct!",
+          status: "committed",
+        }),
+      ]);
+    expect(
+      conversationCommands.some(
+        (command) =>
+          command.role === "assistant" && command.status === "pending",
+      ),
+    ).toBe(false);
   });
 });

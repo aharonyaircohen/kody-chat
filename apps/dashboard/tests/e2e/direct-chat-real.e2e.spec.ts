@@ -86,6 +86,24 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     ).toBeTruthy();
 
     let conversationId = "";
+    let assistantWriteCount = 0;
+    page.on("request", (request) => {
+      if (request.method() !== "POST" || !request.url().endsWith("/commands")) {
+        return;
+      }
+      const command = request.postDataJSON() as {
+        kind?: string;
+        role?: string;
+        entryId?: string;
+      };
+      if (
+        (command.kind === "append-message" && command.role === "assistant") ||
+        (command.kind === "update-message" &&
+          command.entryId?.startsWith("assistant:"))
+      ) {
+        assistantWriteCount += 1;
+      }
+    });
     page.on("response", async (response) => {
       if (
         response.request().method() === "POST" &&
@@ -175,7 +193,12 @@ test.describe("Direct Kody chat — real model and persistence", () => {
             const persisted = (await persistedResponse.json()) as {
               conversation?: { runtime?: { kind?: string; modelId?: string } };
               entries?: Array<{
-                entry?: { kind?: string; role?: string; content?: string };
+                entry?: {
+                  kind?: string;
+                  role?: string;
+                  content?: string;
+                  status?: string;
+                };
               }>;
             };
             return {
@@ -185,7 +208,14 @@ test.describe("Direct Kody chat — real model and persistence", () => {
                 ({ entry }) =>
                   entry?.kind === "message" &&
                   entry.role === "assistant" &&
+                  entry.status === "committed" &&
                   entry.content?.includes(marker),
+              ),
+              assistantPending: persisted.entries?.some(
+                ({ entry }) =>
+                  entry?.kind === "message" &&
+                  entry.role === "assistant" &&
+                  entry.status === "pending",
               ),
             };
           },
@@ -198,7 +228,9 @@ test.describe("Direct Kody chat — real model and persistence", () => {
             modelId: `kody:${configuredModel!.id}`,
           },
           assistantPersisted: true,
+          assistantPending: false,
         });
+      expect(assistantWriteCount).toBe(1);
 
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(

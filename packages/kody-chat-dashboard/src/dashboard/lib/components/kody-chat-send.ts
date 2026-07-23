@@ -73,6 +73,7 @@ import {
 import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
 import {
   chatToMessage,
+  messageToChat,
   type Message,
   type ToolCall,
   type Attachment,
@@ -553,10 +554,16 @@ async function runSendTextInner(
   const currentMessageId = crypto.randomUUID();
   const uiSessionId =
     sessionHook.activeSession?.id ?? sessionHook.createSession();
+  let turnMessages =
+    sessionHook.activeSession?.id === uiSessionId
+      ? messages
+      : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
   const setMessages = (
     updater: Message[] | ((prev: Message[]) => Message[]),
   ) => {
-    setMessagesForSession(uiSessionId, updater);
+    turnMessages =
+      typeof updater === "function" ? updater(turnMessages) : updater;
+    setMessagesForSession(uiSessionId, turnMessages, { persist: false });
   };
   const displayContent = options.displayContent ?? messageContent;
   const optimisticAttachmentRefs: AttachmentRef[] = currentAttachments.map(
@@ -571,24 +578,20 @@ async function runSendTextInner(
   // A send must feel immediate. Storage, context collection, compaction, and
   // attachment upload can take seconds, so render the user's bubble before
   // awaiting any of them.
-  setMessagesForSession(
-    uiSessionId,
-    (prev) => [
-      ...prev,
-      {
-        id: currentMessageId,
-        role: "user",
-        content: displayContent,
-        timestamp,
-        attachments:
-          optimisticAttachmentRefs.length > 0
-            ? optimisticAttachmentRefs
-            : undefined,
-        ...(options.hidden ? { hidden: true } : {}),
-      },
-    ],
-    { persist: false },
-  );
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: currentMessageId,
+      role: "user",
+      content: displayContent,
+      timestamp,
+      attachments:
+        optimisticAttachmentRefs.length > 0
+          ? optimisticAttachmentRefs
+          : undefined,
+      ...(options.hidden ? { hidden: true } : {}),
+    },
+  ]);
 
   // Upload pending attachment blobs to the conversation store before the
   // message is committed. Only the canonical attachment ids and metadata
@@ -651,7 +654,7 @@ async function runSendTextInner(
     previewContext,
     backend: effectiveAgent.backend,
   });
-  const turnMessages =
+  const priorTurnMessages =
     sessionHook.activeSession?.id === uiSessionId
       ? messages
       : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
@@ -674,7 +677,7 @@ async function runSendTextInner(
   //    They come from aborted turns or turns where the model only
   //    produced reasoning. Sending them back makes the model "continue
   //    from nothing" and often regress into apologies.
-  const cleanedTurnMessages = turnMessages
+  const cleanedTurnMessages = priorTurnMessages
     .map((m) => {
       if (m.role !== "assistant") return m;
       if (m.isError) return null;
@@ -769,6 +772,27 @@ async function runSendTextInner(
   setLoading(true);
   setToolCalls([]);
   const durableTurnId = crypto.randomUUID();
+  const persistSettledAssistant = async () => {
+    const currentUserIndex = turnMessages.findIndex(
+      (item) => item.id === currentMessageId,
+    );
+    const turnReplies = turnMessages.slice(currentUserIndex + 1);
+    const message =
+      turnReplies.find((item) => item.id === `assistant:${durableTurnId}`) ??
+      [...turnReplies]
+        .reverse()
+        .find((item) => item.role === "assistant" && !item.isLoading);
+    if (!message || message.isLoading) return;
+    const stored = messageToChat(message);
+    await sessionHook
+      .persistAssistantMessage(uiSessionId, {
+        ...stored,
+        id: stored.id ?? `assistant:${durableTurnId}`,
+        role: "assistant",
+        turnId: durableTurnId,
+      })
+      .catch(() => undefined);
+  };
 
   // Placeholder assistant message — will be replaced by SSE events
   setMessages((prev) => [
@@ -1003,6 +1027,7 @@ async function runSendTextInner(
 
       // FINISH_STRATEGIES.brain — clear typing, unmark loading bubbles.
       applyBrainFinish({ setMessages, setLoading });
+      await persistSettledAssistant();
       // Voice mode: defense-in-depth strip of `<think>` blocks before
       // handing the reply to TTS. The brain server is expected to drop
       // them when voiceMode is set, but the dashboard should never
@@ -1018,6 +1043,7 @@ async function runSendTextInner(
         setMessages,
         setLoading,
       });
+      await persistSettledAssistant();
       return null;
     } finally {
       if (brainAbortBySessionRef.current.get(uiSessionId) === abort) {
@@ -1279,6 +1305,7 @@ async function runSendTextInner(
         turn: kodyTurn.state,
         assistantDisplayOverride,
       });
+      await persistSettledAssistant();
       // Apply any UI-control directives the model emitted. Done after
       // the assistant bubble settles so the agent flip doesn't race
       // the in-flight render or interrupt voice TTS that is still
@@ -1390,6 +1417,7 @@ async function runSendTextInner(
         settleDecision("kody-direct", classifyTurnFailure(err)),
         { setMessages, setLoading },
       );
+      await persistSettledAssistant();
       return null;
     } finally {
       // Drop the controller so the next turn starts fresh.
