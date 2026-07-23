@@ -3,11 +3,9 @@
  * @domain variables
  * @pattern model-list
  * @ai-summary Typed accessor for the LLM_MODELS variable. Each entry binds
- *   a model to its own API key + endpoint, routed through one of two
- *   protocols: Anthropic Messages API (`@ai-sdk/anthropic`, full Claude
- *   features incl. prompt caching) or OpenAI Chat Completions
- *   (`@ai-sdk/openai-compatible`, covers everyone else — Gemini, GPT,
- *   Groq, OpenRouter, Mistral). One model entry, one secret, one provider.
+ *   a model to its own API key + endpoint. The saved adapter selects a
+ *   provider adapter; model names remain configuration data and never select
+ *   runtime code.
  */
 
 import { z } from "zod";
@@ -22,60 +20,80 @@ export const VAR_LLM_MODELS = "LLM_MODELS";
 export const PROVIDER_PRESETS = {
   anthropic: {
     label: "Anthropic (Claude)",
+    adapter: "anthropic" as const,
+    adapterBaseURL: "https://api.anthropic.com/v1",
     protocol: "anthropic" as const,
     baseURL: "https://api.anthropic.com/v1",
     keyHint: "ANTHROPIC_API_KEY",
   },
   google: {
-    label: "Google (Gemini, OpenAI-compat)",
+    label: "Google (Gemini)",
+    adapter: "google" as const,
+    adapterBaseURL: "https://generativelanguage.googleapis.com/v1beta",
     protocol: "openai" as const,
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
     keyHint: "GEMINI_API_KEY",
   },
   openai: {
     label: "OpenAI",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.openai.com/v1",
     protocol: "openai" as const,
     baseURL: "https://api.openai.com/v1",
     keyHint: "OPENAI_API_KEY",
   },
   openrouter: {
     label: "OpenRouter",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://openrouter.ai/api/v1",
     protocol: "openai" as const,
     baseURL: "https://openrouter.ai/api/v1",
     keyHint: "OPENROUTER_API_KEY",
   },
   groq: {
     label: "Groq",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.groq.com/openai/v1",
     protocol: "openai" as const,
     baseURL: "https://api.groq.com/openai/v1",
     keyHint: "GROQ_API_KEY",
   },
   mistral: {
     label: "Mistral",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.mistral.ai/v1",
     protocol: "openai" as const,
     baseURL: "https://api.mistral.ai/v1",
     keyHint: "MISTRAL_API_KEY",
   },
   deepseek: {
     label: "DeepSeek",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.deepseek.com/v1",
     protocol: "openai" as const,
     baseURL: "https://api.deepseek.com/v1",
     keyHint: "DEEPSEEK_API_KEY",
   },
   xai: {
     label: "xAI (Grok)",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.x.ai/v1",
     protocol: "openai" as const,
     baseURL: "https://api.x.ai/v1",
     keyHint: "XAI_API_KEY",
   },
   minimax: {
     label: "MiniMax",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.minimax.io/v1",
     protocol: "openai" as const,
     baseURL: "https://api.minimax.io/v1",
     keyHint: "MINIMAX_API_KEY",
   },
   custom: {
     label: "Custom endpoint",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "",
     protocol: "openai" as const,
     baseURL: "",
     keyHint: "API_KEY",
@@ -89,23 +107,30 @@ export const PROVIDER_PRESET_IDS = Object.keys(
 
 export const ChatProtocolSchema = z.enum(["anthropic", "openai"]);
 export type ChatProtocol = z.infer<typeof ChatProtocolSchema>;
+export const ChatAdapterSchema = z.enum([
+  "anthropic",
+  "google",
+  "openai-compatible",
+]);
+export type ChatAdapter = z.infer<typeof ChatAdapterSchema>;
 
-export const ChatModelSchema = z.object({
+const ChatModelConfigSchema = z.object({
   /** Stable id, also the React key. Free-form; the UI defaults to
    * `<provider>/<modelName>` but the user can change it. */
   id: z.string().min(1).max(160),
   /** Human label for the dropdown. */
   label: z.string().min(1).max(80),
-  /** Which preset this entry was created from. Drives the UI's defaults,
-   * not the runtime — runtime uses `protocol` + `baseURL` directly. */
+  /** Which preset this entry was created from. Drives UI defaults. */
   provider: z.enum(
     PROVIDER_PRESET_IDS as [ProviderPreset, ...ProviderPreset[]],
   ),
-  /** Wire protocol — picks the SDK at request time. */
+  /** Dashboard chat adapter. Independent from the engine wire protocol. */
+  adapter: ChatAdapterSchema.optional(),
+  /** Optional endpoint override for the Dashboard chat adapter. */
+  adapterBaseURL: z.string().max(512).optional(),
+  /** Engine wire protocol. Dashboard chat uses `adapter` independently. */
   protocol: ChatProtocolSchema,
-  /** Endpoint base URL (without trailing slash). Empty string means
-   * "use the SDK default" (only valid for `anthropic` + api.anthropic.com,
-   * which the SDK already targets). */
+  /** Engine endpoint base URL (without trailing slash). */
   baseURL: z.string().max(512).default(""),
   /** Model id exactly as the provider expects it on the wire. */
   modelName: z.string().min(1).max(160),
@@ -163,6 +188,25 @@ export const ChatModelSchema = z.object({
     .optional(),
 });
 
+/**
+ * Existing Google entries used the provider's OpenAI-compatible endpoint.
+ * Move those records to Google's native adapter while loading them so saved
+ * client configuration starts preserving Google-only tool metadata without a
+ * manual migration.
+ */
+type ChatModelConfig = z.infer<typeof ChatModelConfigSchema>;
+
+export const ChatModelSchema = ChatModelConfigSchema.transform(
+  (model): ChatModelConfig => {
+    const preset = PROVIDER_PRESETS[model.provider];
+    return {
+      ...model,
+      adapter: model.adapter ?? preset.adapter,
+      adapterBaseURL: model.adapterBaseURL ?? preset.adapterBaseURL,
+    };
+  },
+);
+
 export const ChatModelsSchema = z.array(ChatModelSchema);
 
 export type ChatModel = z.infer<typeof ChatModelSchema>;
@@ -170,11 +214,11 @@ export type ChatModel = z.infer<typeof ChatModelSchema>;
 export type EngineRuntimeModelConfig = {
   /** The legacy engine model string, kept for older runtime paths. */
   spec: string;
-  /** Dashboard provider preset id; runtime behavior uses protocol/baseURL. */
+  /** Dashboard provider preset id. */
   provider: ProviderPreset;
-  /** Wire protocol selected in /models. */
+  /** Engine wire protocol selected in /models. */
   protocol: ChatProtocol;
-  /** Endpoint base URL from /models, when needed by the protocol. */
+  /** Engine endpoint base URL from /models. */
   baseURL?: string;
   /** Model id exactly as the provider expects it on the wire. */
   modelName: string;

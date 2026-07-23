@@ -12,12 +12,10 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import type { LanguageModel } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
-import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat-dashboard/core/openai-compatible-request";
+import { chatModelAdapter, chatModelAdapterBaseURL } from "./model-adapters";
 import { supportsVision } from "@kody-ade/kody-chat-dashboard/core/vision-support";
 import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import {
@@ -231,36 +229,20 @@ export async function resolveChatModel(
     };
   }
 
-  // Pick the SDK by wire protocol. `anthropic` keeps Claude's native
-  // features; `openai` covers every OpenAI-compatible endpoint.
-  let model: LanguageModel;
-  if (resolvedModel.protocol === "anthropic") {
-    const anthropic = createAnthropic({
-      apiKey,
-      ...(resolvedModel.baseURL ? { baseURL: resolvedModel.baseURL } : {}),
-    });
-    model = anthropic(resolvedModel.modelName);
-  } else {
-    if (!resolvedModel.baseURL) {
-      return {
-        error: NextResponse.json(
-          {
-            error: "model_base_url_missing",
-            fallback: "kody-live",
-            message: `Model ${resolvedModel.id} has no baseURL. Edit it under /models.`,
-          },
-          { status: 409 },
-        ),
-      };
-    }
-    const openai = createOpenAICompatible({
-      name: resolvedModel.provider,
-      apiKey,
-      baseURL: resolvedModel.baseURL,
-      transformRequestBody: normalizeOpenAICompatibleRequestBody,
-    });
-    model = openai(resolvedModel.modelName);
+  const adapter = chatModelAdapter(resolvedModel);
+  if (adapter.requiresBaseURL && !chatModelAdapterBaseURL(resolvedModel)) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "model_base_url_missing",
+          fallback: "kody-live",
+          message: `Model ${resolvedModel.id} has no baseURL. Edit it under /models.`,
+        },
+        { status: 409 },
+      ),
+    };
   }
+  const model: LanguageModel = adapter.create(resolvedModel, apiKey);
 
   return { model, resolvedModel, apiKey };
 }

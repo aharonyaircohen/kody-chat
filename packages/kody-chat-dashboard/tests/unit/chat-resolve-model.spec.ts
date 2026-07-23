@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
@@ -10,6 +11,12 @@ import { resolveChatModel } from "../../app/api/kody/chat/resolve-model";
 
 vi.mock("@ai-sdk/anthropic", () => ({
   createAnthropic: vi.fn(() => vi.fn((modelName: string) => ({ modelName }))),
+}));
+
+vi.mock("@ai-sdk/google", () => ({
+  createGoogleGenerativeAI: vi.fn(() =>
+    vi.fn((modelName: string) => ({ modelName })),
+  ),
 }));
 
 vi.mock("@ai-sdk/openai-compatible", () => ({
@@ -116,6 +123,39 @@ describe("resolveChatModel", () => {
     if ("error" in result) return;
     expect(result.resolvedModel.modelName).toBe("MiniMax-M3");
     expect(result.model).toMatchObject({ modelName: "MiniMax-M3" });
+    expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
+  });
+
+  it("routes every Google model through the native Google adapter", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "google/client-added-model",
+        label: "Client-added Google model",
+        provider: "google",
+        adapter: "google",
+        adapterBaseURL: "https://generativelanguage.googleapis.com/v1beta",
+        protocol: "openai",
+        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+        modelName: "client-added-model",
+        apiKeySecret: "GEMINI_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "google/client-added-model",
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.model).toMatchObject({ modelName: "client-added-model" });
+    expect(createGoogleGenerativeAI).toHaveBeenCalledWith({
+      apiKey: "provider-key",
+      baseURL: "https://generativelanguage.googleapis.com/v1beta",
+    });
+    expect(createOpenAICompatible).not.toHaveBeenCalled();
   });
 
   it("rejects an embedding model with a clear chat-model error", async () => {

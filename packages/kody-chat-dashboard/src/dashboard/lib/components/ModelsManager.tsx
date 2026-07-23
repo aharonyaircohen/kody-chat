@@ -46,6 +46,7 @@ import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   PROVIDER_PRESETS,
   PROVIDER_PRESET_IDS,
+  type ChatAdapter,
   type ChatModel,
   type ChatProtocol,
   type ProviderPreset,
@@ -116,6 +117,8 @@ function blankModel(): ChatModel {
     id: "",
     label: "",
     provider: "anthropic",
+    adapter: p.adapter,
+    adapterBaseURL: p.adapterBaseURL,
     protocol: p.protocol,
     baseURL: p.baseURL,
     modelName: "",
@@ -421,13 +424,15 @@ function ModelEditor({
   );
 
   // When the user picks a different preset, refresh the auto-managed
-  // fields. The user's modelName + label survive — only baseURL/protocol/
-  // key-hint update so they can quickly try different providers.
+  // fields. The user's modelName + label survive — only adapter/protocol,
+  // endpoints, and key hint update.
   const applyPreset = (preset: ProviderPreset) => {
     const p = PROVIDER_PRESETS[preset];
     setDraft((cur) => ({
       ...cur,
       provider: preset,
+      adapter: p.adapter,
+      adapterBaseURL: p.adapterBaseURL,
       protocol: p.protocol,
       baseURL: p.baseURL,
       // Only overwrite the key hint when the user hasn't typed a custom
@@ -459,6 +464,11 @@ function ModelEditor({
       draft.protocol === "openai" && !draft.baseURL.trim()
         ? "Required for OpenAI-compatible models"
         : null,
+    adapterBaseURL:
+      draft.adapter === "openai-compatible" &&
+      !draft.adapterBaseURL?.trim()
+        ? "Required for OpenAI-compatible chat"
+        : null,
     id: idClash ? "Another model already uses this id" : null,
   };
   const canSave =
@@ -467,6 +477,7 @@ function ModelEditor({
     !errors.modelName &&
     !errors.apiKeySecret &&
     !errors.baseURL &&
+    !errors.adapterBaseURL &&
     !errors.id;
 
   const handleSave = () => {
@@ -623,7 +634,45 @@ function ModelEditor({
           {advancedOpen && (
             <div className="space-y-3 pt-1 border-t border-white/[0.06]">
               <div>
-                <Label className="text-xs">Base URL</Label>
+                <Label className="text-xs">Chat adapter</Label>
+                <select
+                  value={draft.adapter ?? PROVIDER_PRESETS[draft.provider].adapter}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({
+                      ...cur,
+                      adapter: ev.target.value as ChatAdapter,
+                    }))
+                  }
+                  className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-xs font-mono"
+                >
+                  <option value="anthropic">anthropic</option>
+                  <option value="google">google</option>
+                  <option value="openai-compatible">
+                    openai-compatible
+                  </option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Chat API URL</Label>
+                <Input
+                  value={draft.adapterBaseURL ?? ""}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({
+                      ...cur,
+                      adapterBaseURL: ev.target.value.trim(),
+                    }))
+                  }
+                  placeholder="https://api.example.com/v1"
+                  className="font-mono text-xs"
+                />
+                {errors.adapterBaseURL && (
+                  <p className="text-[11px] text-rose-300 mt-1">
+                    {errors.adapterBaseURL}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs">Engine API URL</Label>
                 <Input
                   value={draft.baseURL}
                   onChange={(ev) =>
@@ -642,7 +691,7 @@ function ModelEditor({
                 )}
               </div>
               <div>
-                <Label className="text-xs">Protocol</Label>
+                <Label className="text-xs">Engine protocol</Label>
                 <select
                   value={draft.protocol}
                   onChange={(ev) =>
@@ -654,7 +703,7 @@ function ModelEditor({
                   className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-xs font-mono"
                 >
                   <option value="anthropic">anthropic</option>
-                  <option value="openai">openai</option>
+                  <option value="openai">openai-compatible</option>
                 </select>
               </div>
               <div>
