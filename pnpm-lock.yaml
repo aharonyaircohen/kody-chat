@@ -133,6 +133,12 @@ importers:
       convex:
         specifier: ^1.17.0
         version: 1.42.2(react@19.2.7)
+      cytoscape:
+        specifier: 3.34.0
+        version: 3.34.0
+      cytoscape-fcose:
+        specifier: 2.2.0
+        version: 2.2.0(cytoscape@3.34.0)
       dompurify:
         specifier: ^3.4.11
         version: 3.4.12

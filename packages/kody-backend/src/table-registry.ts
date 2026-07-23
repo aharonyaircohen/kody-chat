@@ -230,4 +230,5 @@ export const KNOWLEDGE_GRAPH_TABLES: readonly string[] = [
   "runEvents",
   "manifests",
   "inboxEntries",
+  "repoDocs",
 ];

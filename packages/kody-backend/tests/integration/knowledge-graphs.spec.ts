@@ -115,6 +115,49 @@ describe("knowledgeGraphs", () => {
     expect(stored).toMatchObject({ graphStorageId: secondGraph, nodeCount: 1 });
   });
 
+  it("clears an optional artifact even when its old file is already missing", async () => {
+    const t = setup();
+    const firstGraph = await store(
+      t,
+      '{"nodes":[],"edges":[]}',
+      "application/json",
+    );
+    const oldHtml = await store(t, "<!doctype html>", "text/html");
+    const secondGraph = await store(
+      t,
+      '{"nodes":[{"id":"new"}],"edges":[]}',
+      "application/json",
+    );
+
+    await t.mutation(knowledgeGraphs.publish as never, {
+      tenantId: TENANT,
+      graphStorageId: firstGraph,
+      htmlStorageId: oldHtml,
+      generatedAt: NOW,
+      nodeCount: 0,
+      edgeCount: 0,
+      schemaVersion: 1,
+    });
+    await t.run(async (ctx) => ctx.storage.delete(oldHtml));
+
+    await expect(
+      t.mutation(knowledgeGraphs.publish as never, {
+        tenantId: TENANT,
+        graphStorageId: secondGraph,
+        generatedAt: "2026-07-22T11:00:00.000Z",
+        nodeCount: 1,
+        edgeCount: 0,
+        schemaVersion: 1,
+      }),
+    ).resolves.toBeDefined();
+
+    const stored = await t.query(knowledgeGraphs.get as never, {
+      tenantId: TENANT,
+    });
+    expect(stored).toMatchObject({ graphStorageId: secondGraph });
+    expect(stored).not.toHaveProperty("htmlStorageId");
+  });
+
   it("rejects a missing graph file and invalid counts", async () => {
     const t = setup();
     const missing = "kg000000000000000000000000000000" as Id<"_storage">;

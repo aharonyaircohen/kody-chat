@@ -8,12 +8,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireKodyAuth,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
+  getOctokit,
 } from "@dashboard/lib/github-client";
 import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
 import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
@@ -191,16 +191,13 @@ export async function GET(req: NextRequest) {
   setGitHubContext(
     headerAuth.owner,
     headerAuth.repo,
-    headerAuth.token,
+    undefined,
     headerAuth.storeRepoUrl,
     headerAuth.storeRef,
   );
 
   try {
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
+    const octokit = getOctokit();
 
     const [
       capabilities,

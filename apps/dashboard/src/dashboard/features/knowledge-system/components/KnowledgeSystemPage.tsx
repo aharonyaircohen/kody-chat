@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { KnowledgeGraph } from "./KnowledgeGraph";
+import {
+  parseKnowledgeGraph,
+  type KnowledgeGraph as KnowledgeGraphData,
+} from "../model/knowledge-graph";
 
 type Bundle = {
   graphUrl: string;
@@ -18,6 +23,7 @@ type Bundle = {
 export function KnowledgeSystemPage() {
   const { auth, loading: authLoading } = useAuth();
   const [bundle, setBundle] = useState<Bundle | null>(null);
+  const [graph, setGraph] = useState<KnowledgeGraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +31,7 @@ export function KnowledgeSystemPage() {
   const load = useCallback(async () => {
     if (!auth) {
       setBundle(null);
+      setGraph(null);
       setLoading(false);
       return;
     }
@@ -39,6 +46,17 @@ export function KnowledgeSystemPage() {
       if (!response.ok) throw new Error("Could not load the knowledge graph.");
       const data = (await response.json()) as { bundle: Bundle | null };
       setBundle(data.bundle);
+      if (!data.bundle) {
+        setGraph(null);
+        return;
+      }
+      const graphResponse = await fetch(data.bundle.graphUrl, {
+        cache: "no-store",
+      });
+      if (!graphResponse.ok) {
+        throw new Error("Could not load the published graph data.");
+      }
+      setGraph(parseKnowledgeGraph(await graphResponse.json()));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -98,7 +116,7 @@ export function KnowledgeSystemPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {bundle
-              ? `Last updated ${new Date(bundle.generatedAt).toLocaleString()} · ${bundle.nodeCount.toLocaleString()} nodes · ${bundle.edgeCount.toLocaleString()} relations`
+              ? `Last updated ${new Date(bundle.generatedAt).toLocaleString()} · ${(graph?.nodes.length ?? bundle.nodeCount).toLocaleString()} nodes · ${(graph?.edges.length ?? bundle.edgeCount).toLocaleString()} relations`
               : "No graph published yet"}
           </p>
         </div>
@@ -137,19 +155,11 @@ export function KnowledgeSystemPage() {
             Run the knowledge-system-refresh Loop to build this
             repository&apos;s first graph.
           </div>
-        ) : bundle.htmlUrl ? (
-          <iframe
-            src={bundle.htmlUrl}
-            title="Interactive repository knowledge graph"
-            data-testid="knowledge-graph-frame"
-            sandbox="allow-scripts"
-            referrerPolicy="no-referrer"
-            className="h-full min-h-[520px] w-full border-0 bg-slate-950"
-          />
+        ) : graph ? (
+          <KnowledgeGraph graph={graph} />
         ) : (
           <div className="grid h-full min-h-[520px] place-items-center px-6 text-center text-sm text-muted-foreground">
-            Refresh the Knowledge System to publish Graphify&apos;s rich
-            visualization.
+            The published graph has no visible knowledge yet.
           </div>
         )}
       </section>

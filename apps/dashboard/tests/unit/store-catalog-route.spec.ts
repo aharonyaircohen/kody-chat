@@ -16,6 +16,7 @@ const auth = vi.hoisted(() => ({
 const githubClient = vi.hoisted(() => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  getOctokit: vi.fn(),
 }));
 
 const capabilities = vi.hoisted(() => ({
@@ -64,6 +65,7 @@ vi.mock("@kody-ade/base/auth", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: githubClient.setGitHubContext,
   clearGitHubContext: githubClient.clearGitHubContext,
+  getOctokit: githubClient.getOctokit,
 }));
 
 vi.mock("@dashboard/lib/capabilities", () => ({
@@ -114,6 +116,7 @@ describe("store catalog route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auth.getUserOctokit.mockResolvedValue({});
+    githubClient.getOctokit.mockReturnValue({ source: "server" });
     capabilities.listStoreCapabilityFiles.mockResolvedValue([]);
     agents.listStoreAgentFiles.mockResolvedValue([]);
     commands.listStoreCommandFiles.mockResolvedValue([]);
@@ -128,6 +131,33 @@ describe("store catalog route", () => {
       },
       sha: "config-sha",
     });
+  });
+
+  it("loads the Store without using the project GitHub token", async () => {
+    const serverOctokit = { source: "server" };
+    githubClient.getOctokit.mockReturnValue(serverOctokit);
+    auth.getUserOctokit.mockRejectedValue(new Error("Bad credentials"));
+
+    const res = await GET(req());
+
+    expect(res.status).toBe(200);
+    expect(auth.getUserOctokit).not.toHaveBeenCalled();
+    expect(githubClient.setGitHubContext).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      undefined,
+      "aharonyaircohen/kody-store",
+      "main",
+    );
+    expect(capabilities.listStoreCapabilityFiles).toHaveBeenCalledWith(
+      serverOctokit,
+    );
+    expect(engineConfig.getEngineConfig).toHaveBeenCalledWith(
+      serverOctokit,
+      "acme",
+      "widgets",
+      { force: true },
+    );
   });
 
   it("lists Implementation models and marks the resolved one selected", async () => {

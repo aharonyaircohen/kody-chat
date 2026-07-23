@@ -113,7 +113,12 @@ export const publish = mutation({
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
       .unique();
     const updatedAt = new Date().toISOString();
-    const next = { ...args, updatedAt };
+    const next = {
+      ...args,
+      reportStorageId: args.reportStorageId,
+      htmlStorageId: args.htmlStorageId,
+      updatedAt,
+    };
 
     let id;
     if (existing) {
@@ -135,7 +140,9 @@ export const publish = mutation({
         existing.htmlStorageId,
       ].filter((file): file is Id<"_storage"> => Boolean(file));
       for (const file of oldFiles) {
-        if (!retained.has(file)) await ctx.storage.delete(file);
+        if (!retained.has(file) && (await ctx.db.system.get(file))) {
+          await ctx.storage.delete(file);
+        }
       }
     }
     return id;
