@@ -18,6 +18,7 @@ async function seedAuth(page: Page): Promise<void> {
     );
     localStorage.removeItem("kody-sessions-v3:test-owner/test-repo");
     localStorage.removeItem("kody-sessions-v3");
+    localStorage.removeItem("kody-chat:sessions-panel-pinned");
   });
 }
 
@@ -37,15 +38,37 @@ test("shows OpenRouter Free in the chat header model picker", async ({
   await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
 
   const chat = page.locator('[aria-label="Kody chat"]').first();
+  const conversations = chat.getByLabel("Toggle conversations");
+  if ((await conversations.getAttribute("aria-expanded")) === "true") {
+    await chat
+      .getByTestId("session-sidebar")
+      .getByLabel("Close conversations")
+      .click();
+  }
   const picker = chat.getByLabel("Model").first();
   await expect(picker).toBeVisible({ timeout: 15_000 });
   await expect(picker).toContainText("OpenRouter Free");
   await picker.click();
 
-  const menu = chat.locator('[role="listbox"]:visible').first();
+  const listbox = chat
+    .locator('[role="listbox"]:visible')
+    .filter({ has: page.getByRole("option", { name: /OpenRouter Free/ }) })
+    .first();
+  const menu = listbox.locator("..");
+  await expect(menu).toBeVisible();
   await expect(
-    menu.locator('button[role="option"]').filter({
+    listbox.locator('button[role="option"]').filter({
       hasText: "OpenRouter Free",
     }),
   ).toBeVisible();
+
+  if ((page.viewportSize()?.width ?? 0) >= 600) {
+    const chatBox = await chat.boundingBox();
+    const menuBox = await menu.boundingBox();
+    expect(chatBox).not.toBeNull();
+    expect(menuBox).not.toBeNull();
+    expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(
+      chatBox!.x + chatBox!.width + 1,
+    );
+  }
 });

@@ -380,8 +380,16 @@ export function HeaderControls({
             </span>
           </button>
           {agentMenuOpen && (
-            <div className="absolute start-0 top-full z-30 mt-1 min-w-[220px] rounded-md border bg-popover p-1 shadow-md">
-              <ul role="listbox">
+            <div
+              data-testid="chat-model-menu"
+              className="absolute start-0 top-full z-30 mt-1 w-60 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-1 shadow-md"
+              style={{ width: "min(15rem, calc(100vw - 2rem))" }}
+            >
+              <ul
+                role="listbox"
+                className="w-full min-w-0 overflow-hidden"
+                style={{ width: "100%" }}
+              >
                 {agentList.map((entry) => {
                   const Icon = entry.icon;
                   const selected =
@@ -407,7 +415,7 @@ export function HeaderControls({
                           <span className="block truncate font-medium">
                             {entry.name}
                           </span>
-                          <span className="block truncate text-xs text-muted-foreground">
+                          <span className="block whitespace-normal break-words text-xs text-muted-foreground">
                             {entry.description}
                           </span>
                         </span>
