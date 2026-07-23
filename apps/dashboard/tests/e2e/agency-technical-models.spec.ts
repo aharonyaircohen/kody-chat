@@ -151,7 +151,9 @@ test("shows a standalone Capability Contract", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("Input contract")).toBeVisible();
   await expect(page.getByText("Output contract")).toBeVisible();
-  await expect(page.getByText("Watch release health.")).toBeVisible();
+  await expect(
+    page.getByRole("main").getByText("Watch release health."),
+  ).toBeVisible();
 });
 
 test("shows a standalone Implementation with Store runtime data", async ({
