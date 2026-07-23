@@ -50,7 +50,8 @@ function mountGraph(
       name: "fcose",
       quality: "draft",
       randomize: true,
-      animate: false,
+      animate: graph.nodes.length <= 5_000,
+      animationDuration: 900,
       numIter: graph.nodes.length > 2_000 ? 40 : 100,
       nodeSeparation: 60,
       fit: true,
@@ -58,22 +59,50 @@ function mountGraph(
     minZoom: 0.02,
     maxZoom: 8,
     wheelSensitivity: 0.15,
+    autoungrabify: false,
+    boxSelectionEnabled: false,
     textureOnViewport: true,
     hideEdgesOnViewport: true,
     style: [
       {
         selector: "node",
         style: {
-          width: 8,
-          height: 8,
+          width: (element: { degree: () => number }) =>
+            Math.min(18, 5 + Math.sqrt(element.degree()) * 1.6),
+          height: (element: { degree: () => number }) =>
+            Math.min(18, 5 + Math.sqrt(element.degree()) * 1.6),
           "background-color": (element: { data: (key: string) => string }) =>
             DOMAIN_COLORS[element.data("domain")] ?? DOMAIN_COLORS.other,
           label: "",
           "overlay-opacity": 0,
+          "transition-property": "opacity, width, height",
+          "transition-duration": 180,
         },
       },
       {
         selector: "node:selected",
+        style: {
+          width: 18,
+          height: 18,
+          label: "data(label)",
+          "font-size": 12,
+          color: "#e5e7eb",
+          "text-background-color": "#020617",
+          "text-background-opacity": 0.9,
+          "text-background-padding": "4px",
+          "text-wrap": "ellipsis",
+          "text-max-width": "220px",
+          "z-index": 10,
+        },
+      },
+      {
+        selector: ".faded",
+        style: {
+          opacity: 0.08,
+        },
+      },
+      {
+        selector: "node.hovered",
         style: {
           width: 18,
           height: 18,
@@ -95,8 +124,10 @@ function mountGraph(
           "line-color": "#475569",
           "target-arrow-color": "#64748b",
           "target-arrow-shape": "triangle",
-          "curve-style": "haystack",
+          "curve-style": "bezier",
           opacity: 0.35,
+          "transition-property": "opacity, width",
+          "transition-duration": 180,
         },
       },
       {
@@ -109,6 +140,16 @@ function mountGraph(
         },
       },
     ],
+  });
+  cy.on("mouseover", "node", (event) => {
+    const node = event.target;
+    cy.elements().addClass("faded");
+    node.closedNeighborhood().removeClass("faded");
+    node.addClass("hovered");
+  });
+  cy.on("mouseout", "node", (event) => {
+    event.target.removeClass("hovered");
+    cy.elements().removeClass("faded");
   });
   cy.on("tap", "node", (event) => onSelect(event.target.id()));
   return cy;
@@ -306,12 +347,49 @@ export function KnowledgeSystemPage() {
             first graph.
           </div>
         ) : (
-          <div
-            ref={graphContainerRef}
-            data-testid="knowledge-graph-canvas"
-            className="h-full min-h-[520px] w-full"
-            aria-label="Interactive knowledge graph"
-          />
+          <>
+            <div
+              ref={graphContainerRef}
+              data-testid="knowledge-graph-canvas"
+              className="h-full min-h-[520px] w-full"
+              aria-label="Interactive knowledge graph"
+            />
+            <div className="absolute bottom-3 left-3 flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                data-testid="knowledge-graph-fit"
+                onClick={() => graphInstanceRef.current?.fit(undefined, 40)}
+              >
+                Fit graph
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                data-testid="knowledge-graph-relayout"
+                onClick={() => {
+                  const instance = graphInstanceRef.current;
+                  if (!instance) return;
+                  instance
+                    .layout({
+                      name: "fcose",
+                      quality: "draft",
+                      randomize: false,
+                      animate: true,
+                      animationDuration: 900,
+                      numIter: (filtered?.nodes.length ?? 0) > 2_000 ? 40 : 100,
+                      nodeSeparation: 60,
+                      fit: true,
+                    } as LayoutOptions)
+                    .run();
+                }}
+              >
+                Re-layout
+              </Button>
+            </div>
+          </>
         )}
       </section>
 

@@ -24,6 +24,9 @@ describe("Knowledge System page contract", () => {
     expect(page).toContain("cytoscape");
     expect(page).not.toContain("ReactFlow");
     expect(page).toContain('data-testid="knowledge-graph-canvas"');
+    expect(page).toContain('data-testid="knowledge-graph-fit"');
+    expect(page).toContain('data-testid="knowledge-graph-relayout"');
+    expect(page).toContain('mouseover", "node"');
     expect(page).toContain("Last updated");
     expect(page).toContain("Refresh graph");
     expect(page).toContain(
