@@ -286,9 +286,7 @@ describe("ensureTerminalBridge", () => {
 
     expect(tmuxSession).toBeTruthy();
     expect(tmuxSession).toContain('"new-session"');
-    expect(tmuxSession).toMatch(
-      /"-e",\s*"FLY_API_TOKEN=" \+ claims\.flyToken/,
-    );
+    expect(tmuxSession).toMatch(/"-e",\s*"FLY_API_TOKEN=" \+ claims\.flyToken/);
     expect(tmuxSession).toMatch(
       /"-e",\s*"FLY_ACCESS_TOKEN=" \+ claims\.flyToken/,
     );
@@ -359,6 +357,23 @@ describe("ensureTerminalBridge", () => {
     expect(attachSession).not.toContain(
       "if (!session.child.stdin.destroyed) {\n        session.child.stdin.write(msg.data);",
     );
+  });
+
+  it("blocks input while an established terminal tunnel is being restored", () => {
+    const consoleSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function createFlyConsoleSession[\s\S]*?\n}\n\nfunction attachSocketToSession/,
+    )?.[0];
+    const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
+    )?.[0];
+
+    expect(consoleSession).toBeTruthy();
+    expect(attachSession).toBeTruthy();
+    expect(consoleSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
+    expect(attachSession).toContain("if (!session.ready || session.detaching)");
+    expect(attachSession).toContain('message: "Terminal is reconnecting."');
   });
 
   it("does not mirror typed input when the wrapped process enables PTY echo", async () => {

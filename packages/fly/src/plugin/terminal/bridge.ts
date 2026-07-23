@@ -1207,9 +1207,13 @@ function createFlyConsoleSession(claims, key) {
         session.startAttempts < MAX_SSH_START_ATTEMPTS
       ) {
         session.ready = false;
-        session.restoring = false;
+        session.restoring = true;
         session.pendingOutput = "";
         if (tmuxName) killTmuxSession(tmuxName);
+        sendToSession(
+          session,
+          restoreStartMessage(session.outputBuffer || ""),
+        );
         sendToSession(session, {
           type: "output",
           data:
@@ -1338,6 +1342,14 @@ function attachSocketToSession(socket, session) {
       session.inputBytes += Buffer.byteLength(inputData);
       session.lastTouched = Date.now();
       console.log("terminal input bytes=" + session.inputBytes);
+      if (!session.ready || session.detaching) {
+        sendJson(socket, {
+          type: "input-rejected",
+          id: msg.id,
+          message: "Terminal is reconnecting.",
+        });
+        return;
+      }
       if (!inputData) {
         sendJson(socket, {
           type: "input-accepted",
@@ -1375,7 +1387,9 @@ function attachSocketToSession(socket, session) {
     }
   });
 
-  const isRestoring = Boolean(session.key && session.ready);
+  const isRestoring = Boolean(
+    session.key && (session.ready || session.restoring || session.detaching),
+  );
   if (isRestoring) {
     sendJson(socket, restoreStartMessage(session.outputBuffer || ""));
     setTimeout(() => {

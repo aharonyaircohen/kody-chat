@@ -112,6 +112,9 @@ async function waitForTerminalText(page: Page, text: string, timeout = 45_000) {
 }
 
 async function waitForBrainTerminalReady(page: Page) {
+  await expect(page.getByLabel("Terminal command input")).toBeEnabled({
+    timeout: 120_000,
+  });
   await expect
     .poll(() => visibleTerminalText(page), {
       timeout: 120_000,
