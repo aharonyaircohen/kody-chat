@@ -1,5 +1,7 @@
 export type Lifecycle = "draft" | "active" | "paused" | "retired" | "archived";
 export type ReferenceKind =
+  | "intent"
+  | "operation"
   | "goal"
   | "loop"
   | "workflow"
@@ -45,7 +47,11 @@ export interface Objective {
 }
 export type Trigger =
   | { type: "manual" }
-  | { type: "schedule"; every: string }
+  | {
+      type: "schedule";
+      every: string;
+      at?: { time: string; timezone: string };
+    }
   | { type: "event"; event: string }
   | { type: "webhook"; event: string }
   | { type: "condition"; expression: string };
@@ -114,7 +120,19 @@ export interface WorkflowDefinition {
 export interface IntentDefinition {
   id: string;
   direction: string;
+  description?: string;
+  priority: number;
+  posture:
+    "confidence" | "speed" | "stability-recovery" | "maintenance" | "balanced";
+  scope: Scope;
   priorities: string[];
+  measures: string[];
+  policyRefs: string[];
+  deliveryPolicy: {
+    cadence: "manual" | "15m" | "1d" | "1w";
+    assurance: "light" | "standard" | "strict";
+    blockerSensitivity: "low" | "standard" | "strict";
+  };
   policy: Policy;
   constraints: Constraint[];
 }
@@ -122,6 +140,7 @@ export interface OperationDefinition {
   id: string;
   name: string;
   responsibility: string;
+  doesNotOwn: string[];
   intentIds: string[];
 }
 export interface AgentDefinition {
@@ -130,6 +149,16 @@ export interface AgentDefinition {
   role: string;
   permissions: string[];
   constraints: Constraint[];
+}
+export interface IntentState {
+  definitionId: string;
+  lifecycle: Lifecycle;
+  updatedAt: string;
+}
+export interface OperationState {
+  definitionId: string;
+  lifecycle: Lifecycle;
+  updatedAt: string;
 }
 export interface GoalState {
   definitionId: string;
@@ -338,11 +367,7 @@ function pinnedReference(
 ): PinnedDefinitionRef {
   const input = record(value, label);
   exact(input, ["kind", "id", "revision"], label);
-  const base = reference(
-    { kind: input.kind, id: input.id },
-    kinds,
-    label,
-  );
+  const base = reference({ kind: input.kind, id: input.id }, kinds, label);
   return Object.freeze({
     ...base,
     revision: text(input.revision, `${label}.revision`),
@@ -388,8 +413,22 @@ function parseTrigger(value: unknown): Trigger {
     return { type };
   }
   if (type === "schedule") {
-    exact(input, ["type", "every"], "Trigger");
-    return { type, every: text(input.every, "Trigger every") };
+    exact(input, ["type", "every", "at"], "Trigger");
+    const at =
+      input.at === undefined ? undefined : record(input.at, "Trigger at");
+    if (at) exact(at, ["time", "timezone"], "Trigger at");
+    return {
+      type,
+      every: text(input.every, "Trigger every"),
+      ...(at
+        ? {
+            at: {
+              time: text(at.time, "Trigger at time"),
+              timezone: text(at.timezone, "Trigger at timezone"),
+            },
+          }
+        : {}),
+    };
   }
   if (type === "event" || type === "webhook") {
     exact(input, ["type", "event"], "Trigger");
@@ -436,7 +475,10 @@ export function createLoopDefinition(value: unknown): LoopDefinition {
     ["maxAttempts", "backoffSeconds", "timeoutSeconds"],
     "ReconciliationPolicy failure",
   );
-  if (!Number.isInteger(failure.maxAttempts) || (failure.maxAttempts as number) < 1)
+  if (
+    !Number.isInteger(failure.maxAttempts) ||
+    (failure.maxAttempts as number) < 1
+  )
     throw new Error("ReconciliationPolicy failure maxAttempts is invalid");
   if (typeof failure.backoffSeconds !== "number" || failure.backoffSeconds < 0)
     throw new Error("ReconciliationPolicy failure backoffSeconds is invalid");
@@ -494,10 +536,7 @@ export function createCapabilityDefinition(
       ...record(input.outputSchema, "CapabilityDefinition outputSchema"),
     }),
     effects: strings(input.effects, "CapabilityDefinition effects"),
-    permissions: strings(
-      input.permissions,
-      "CapabilityDefinition permissions",
-    ),
+    permissions: strings(input.permissions, "CapabilityDefinition permissions"),
     success: text(input.success, "CapabilityDefinition success"),
     failure: text(input.failure, "CapabilityDefinition failure"),
   });
@@ -509,13 +548,7 @@ export function createImplementationDefinition(
   const input = record(value, "ImplementationDefinition");
   exact(
     input,
-    [
-      "id",
-      "capabilityRef",
-      "compatibleCapabilityRevision",
-      "type",
-      "agentRef",
-    ],
+    ["id", "capabilityRef", "compatibleCapabilityRevision", "type", "agentRef"],
     "ImplementationDefinition",
   );
   const base = {
@@ -635,13 +668,94 @@ export function createIntentDefinition(value: unknown): IntentDefinition {
   const input = record(value, "IntentDefinition");
   exact(
     input,
-    ["id", "direction", "priorities", "policy", "constraints"],
+    [
+      "id",
+      "direction",
+      "description",
+      "priority",
+      "posture",
+      "scope",
+      "priorities",
+      "measures",
+      "policyRefs",
+      "deliveryPolicy",
+      "policy",
+      "constraints",
+    ],
     "IntentDefinition",
   );
+  const priority = input.priority ?? 100;
+  if (
+    typeof priority !== "number" ||
+    !Number.isFinite(priority) ||
+    priority < 0
+  ) {
+    throw new Error("IntentDefinition priority must be a non-negative number");
+  }
+  const posture = input.posture ?? "balanced";
+  if (
+    posture !== "confidence" &&
+    posture !== "speed" &&
+    posture !== "stability-recovery" &&
+    posture !== "maintenance" &&
+    posture !== "balanced"
+  ) {
+    throw new Error("IntentDefinition posture is invalid");
+  }
+  const delivery = record(
+    input.deliveryPolicy ?? {},
+    "IntentDefinition deliveryPolicy",
+  );
+  exact(
+    delivery,
+    ["cadence", "assurance", "blockerSensitivity"],
+    "IntentDefinition deliveryPolicy",
+  );
+  const cadence = (delivery.cadence ??
+    "manual") as IntentDefinition["deliveryPolicy"]["cadence"];
+  if (
+    cadence !== "manual" &&
+    cadence !== "15m" &&
+    cadence !== "1d" &&
+    cadence !== "1w"
+  ) {
+    throw new Error("IntentDefinition delivery cadence is invalid");
+  }
+  const assurance = (delivery.assurance ??
+    "standard") as IntentDefinition["deliveryPolicy"]["assurance"];
+  if (
+    assurance !== "light" &&
+    assurance !== "standard" &&
+    assurance !== "strict"
+  ) {
+    throw new Error("IntentDefinition delivery assurance is invalid");
+  }
+  const blockerSensitivity = (delivery.blockerSensitivity ??
+    "standard") as IntentDefinition["deliveryPolicy"]["blockerSensitivity"];
+  if (
+    blockerSensitivity !== "low" &&
+    blockerSensitivity !== "standard" &&
+    blockerSensitivity !== "strict"
+  ) {
+    throw new Error("IntentDefinition delivery blocker sensitivity is invalid");
+  }
   return Object.freeze({
     id: identifier(input.id, "IntentDefinition id"),
     direction: text(input.direction, "IntentDefinition direction"),
+    ...(input.description !== undefined
+      ? { description: text(input.description, "IntentDefinition description") }
+      : {}),
+    priority,
+    posture,
+    scope: parseScope(input.scope ?? { include: {}, exclude: {} }),
     priorities: strings(input.priorities, "IntentDefinition priorities"),
+    measures: strings(input.measures ?? [], "IntentDefinition measures"),
+    policyRefs: strings(input.policyRefs ?? [], "IntentDefinition policyRefs"),
+    deliveryPolicy: {
+      cadence,
+      assurance,
+      blockerSensitivity,
+    },
     policy: createPolicy(input.policy),
     constraints: parseConstraints(
       input.constraints,
@@ -673,7 +787,7 @@ export function createOperationDefinition(value: unknown): OperationDefinition {
   const input = record(value, "OperationDefinition");
   exact(
     input,
-    ["id", "name", "responsibility", "intentIds"],
+    ["id", "name", "responsibility", "doesNotOwn", "intentIds"],
     "OperationDefinition",
   );
   return Object.freeze({
@@ -682,6 +796,10 @@ export function createOperationDefinition(value: unknown): OperationDefinition {
     responsibility: text(
       input.responsibility,
       "OperationDefinition responsibility",
+    ),
+    doesNotOwn: strings(
+      input.doesNotOwn ?? [],
+      "OperationDefinition doesNotOwn",
     ),
     intentIds: strings(input.intentIds, "OperationDefinition intentIds"),
   });
@@ -716,6 +834,27 @@ export function assertLifecycleTransition(
     throw new Error(`Invalid lifecycle transition from "${from}" to "${to}"`);
   }
   return to;
+}
+
+function createSimpleState(
+  value: unknown,
+  label: "IntentState" | "OperationState",
+): IntentState | OperationState {
+  const input = record(value, label);
+  exact(input, ["definitionId", "lifecycle", "updatedAt"], label);
+  return {
+    definitionId: identifier(input.definitionId, `${label} definitionId`),
+    lifecycle: lifecycle(input.lifecycle),
+    updatedAt: timestamp(input.updatedAt, `${label} updatedAt`),
+  };
+}
+
+export function createIntentState(value: unknown): IntentState {
+  return createSimpleState(value, "IntentState");
+}
+
+export function createOperationState(value: unknown): OperationState {
+  return createSimpleState(value, "OperationState");
 }
 
 export function createGoalState(value: unknown): GoalState {
@@ -829,11 +968,16 @@ export function createRun(value: unknown): Run {
     throw new Error("Run trace is required");
   if (input.usage !== undefined && !terminal)
     throw new Error("Only a terminal Run can record usage");
-  const usage = input.usage === undefined ? undefined : record(input.usage, "Run usage");
+  const usage =
+    input.usage === undefined ? undefined : record(input.usage, "Run usage");
   if (usage) {
     exact(usage, ["tokens", "costUsd", "durationSeconds"], "Run usage");
     for (const field of ["tokens", "costUsd", "durationSeconds"] as const) {
-      if (typeof usage[field] !== "number" || usage[field] < 0 || !Number.isFinite(usage[field]))
+      if (
+        typeof usage[field] !== "number" ||
+        usage[field] < 0 ||
+        !Number.isFinite(usage[field])
+      )
         throw new Error(`Run usage ${field} is invalid`);
     }
   }
@@ -846,7 +990,11 @@ export function createRun(value: unknown): Run {
   const run: Run = {
     id: identifier(input.id, "Run id"),
     status: input.status as Run["status"],
-    origin: pinnedReference(input.origin, ["goal", "loop"], "Run origin"),
+    origin: pinnedReference(
+      input.origin,
+      ["intent", "operation", "goal", "loop"],
+      "Run origin",
+    ),
     target: pinnedReference(
       input.target,
       ["goal", "workflow", "capability"],
@@ -856,6 +1004,8 @@ export function createRun(value: unknown): Run {
       pinnedReference(
         item,
         [
+          "intent",
+          "operation",
           "goal",
           "loop",
           "workflow",

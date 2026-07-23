@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { createIntentDefinition } from "@kody-ade/agency-domain";
 
 const store = vi.hoisted(() => ({
   definitions: [] as Array<Record<string, unknown>>,
@@ -7,7 +8,9 @@ const store = vi.hoisted(() => ({
   createStoredAgencyDefinition: vi.fn(async () => undefined),
 }));
 vi.mock("../src/backend/agency-model-store", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../src/backend/agency-model-store")>()),
+  ...(await importOriginal<
+    typeof import("../src/backend/agency-model-store")
+  >()),
   listStoredAgencyDefinitions: store.listStoredAgencyDefinitions,
   createStoredAgencyDefinition: store.createStoredAgencyDefinition,
 }));
@@ -59,7 +62,10 @@ describe("agency definitions route", () => {
     const body = await response.json();
     expect(body.recordId).toMatch(/^intent:product-quality:[a-f0-9]{64}$/);
     expect(store.createStoredAgencyDefinition).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "intent", data: definition }),
+      expect.objectContaining({
+        kind: "intent",
+        data: createIntentDefinition(definition),
+      }),
     );
   });
 
@@ -103,7 +109,9 @@ describe("agency definitions route", () => {
       },
     ];
     const response = await GET(
-      new NextRequest("https://dash.test/api/kody/agency-definitions?kind=operation"),
+      new NextRequest(
+        "https://dash.test/api/kody/agency-definitions?kind=operation",
+      ),
     );
 
     expect(response.status).toBe(200);

@@ -13,33 +13,30 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import {
+  listStoredAgencyDefinitions,
+  listStoredAgencyStates,
+} from "@kody-ade/agency/backend/agency-model-store";
+import {
+  currentAgencyDefinition,
+  currentAgencyState,
+} from "@kody-ade/agency/agency-model-read";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  managedGoalPath,
-  type ManagedGoalRecord,
-  type ManagedGoalState,
-} from "@dashboard/lib/managed-goals";
-import {
-  listCompanyStoreGoalTemplateFiles,
-  readManagedGoalFile,
-  writeManagedGoalFile,
-} from "@dashboard/lib/managed-goals-files";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
-function activeGoalResponse(
-  goal: ManagedGoalRecord,
-  ref: string,
-) {
+const goalIdPattern = /^[a-z][a-z0-9-]{0,127}$/;
+
+function activeGoalResponse(goalId: string, ref: string) {
   return NextResponse.json({
     ok: true,
     workflowId: "kody.yml",
     ref,
     action: "goal-manager",
-    goal,
+    goalId,
   });
 }
 
@@ -56,9 +53,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  try {
-    managedGoalPath(id);
-  } catch {
+  if (!goalIdPattern.test(id)) {
     return NextResponse.json({ error: "invalid_goal_id" }, { status: 400 });
   }
 
@@ -75,49 +70,16 @@ export async function POST(
 
   setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
-    const existing = await readManagedGoalFile(
-      id,
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-    );
-
-    let goal: ManagedGoalRecord | null = null;
-    if (existing) {
-      goal = {
-        id,
-        path: existing.path,
-        state: existing.state,
-        source: "local",
-        recordType: "instance",
-      };
-    } else {
-      const storeGoals = await listCompanyStoreGoalTemplateFiles(octokit);
-      const storeGoal = storeGoals.find((candidate) => candidate.id === id);
-      if (!storeGoal) {
-        return NextResponse.json({ error: "not_found" }, { status: 404 });
-      }
-      const state: ManagedGoalState = {
-        ...storeGoal.state,
-        sourceTemplate:
-          typeof storeGoal.state.sourceTemplate === "string"
-            ? storeGoal.state.sourceTemplate
-            : id,
-      };
-      const path = managedGoalPath(id);
-      await writeManagedGoalFile({
-        owner: headerAuth.owner,
-        repo: headerAuth.repo,
-        id,
-        state,
-      });
-      goal = {
-        id,
-        path,
-        state,
-        source: "local",
-        recordType: "instance",
-      };
+    const [definitions, states] = await Promise.all([
+      listStoredAgencyDefinitions(headerAuth.owner, headerAuth.repo),
+      listStoredAgencyStates(headerAuth.owner, headerAuth.repo),
+    ]);
+    if (!currentAgencyDefinition(definitions, "goal", id)) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    const state = currentAgencyState(states, "goal", id);
+    if (state?.data.lifecycle !== "active") {
+      return NextResponse.json({ error: "goal_not_active" }, { status: 409 });
     }
 
     const repoMeta = await octokit.rest.repos.get({
@@ -149,7 +111,7 @@ export async function POST(
       detail: `manual workflow dispatch for goal ${id}`,
     });
 
-    return activeGoalResponse(goal, ref);
+    return activeGoalResponse(id, ref);
   } catch (err: any) {
     console.error("[managed-goals/run] dispatch failed", err);
     return NextResponse.json(

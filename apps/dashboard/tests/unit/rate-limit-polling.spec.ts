@@ -12,7 +12,9 @@ describe("rate limit polling guardrails", () => {
       source("src/dashboard/features/previews/components/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
-      source("node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts"),
+      source(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts",
+      ),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
       source("src/dashboard/features/admin/components/BrainImagesManager.tsx"),
@@ -25,13 +27,13 @@ describe("rate limit polling guardrails", () => {
     expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
       "const AGENCY_RUNS_REFETCH_MS = 120_000",
     );
-    // Convex live subscriptions replace the interval entirely; the guarded
-    // cadence remains only as the no-Convex fallback.
+    // Agency model reads stay behind authenticated server routes. Their
+    // bounded polling avoids exposing the backend service key to the browser.
     expect(source("src/dashboard/lib/hooks/useManagedGoals.ts")).toContain(
-      "refetchInterval: live ? false : 60_000",
+      "refetchInterval: 60_000",
     );
     expect(source("src/dashboard/lib/hooks/useCompanyIntents.ts")).toContain(
-      "refetchInterval: live ? false : 120_000",
+      "refetchInterval: 120_000",
     );
   });
 
@@ -40,14 +42,16 @@ describe("rate limit polling guardrails", () => {
       "discoveredImagesCache.get",
     );
     expect(
-      source("node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
+      source(
+        "node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts",
+      ),
     ).toContain("listFlyInventoryCached");
     const brainImageManagement = source(
       "../../packages/brain/src/image-management.ts",
     );
-    expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
-      brainImageManagement.indexOf("refresh: true"),
-    );
+    expect(
+      brainImageManagement.indexOf("getTerminalBridgeExecJob"),
+    ).toBeLessThan(brainImageManagement.indexOf("refresh: true"));
     expect(source("../../packages/agency/src/agency-runs.ts")).toContain(
       "WORKFLOW_OVERLAY_TTL_MS = 60_000",
     );
@@ -57,8 +61,8 @@ describe("rate limit polling guardrails", () => {
     expect(
       source("../../packages/agency/src/managed-goal-run-logs.ts"),
     ).toContain("runLogsCache.get");
-    expect(
-      source("src/dashboard/lib/company-intents-read-cache.ts"),
-    ).toContain("companyIntentRecordsCache");
+    expect(source("src/dashboard/lib/company-intents-read-cache.ts")).toContain(
+      "companyIntentRecordsCache",
+    );
   });
 });

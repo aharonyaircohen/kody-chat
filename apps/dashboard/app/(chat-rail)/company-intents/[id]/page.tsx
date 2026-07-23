@@ -5,7 +5,7 @@
  * @ai-summary Selected AI Agency Intent route. Keeps intent selection
  * addressable at `/company-intents/<id>`.
  */
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { CompanyIntentsView } from "@dashboard/features/admin/components/CompanyIntentsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +22,5 @@ export default async function SelectedCompanyIntentPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <AgencyDefinitionsView kind="intent" selectedId={id} />;
+  return <CompanyIntentsView selectedId={id} />;
 }

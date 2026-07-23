@@ -5,7 +5,7 @@
  * @ai-summary Selected Goal route. Keeps goal selection addressable at
  * `/agent-goals/<id>`.
  */
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +22,5 @@ export default async function SelectedAgentGoalPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <AgencyDefinitionsView kind="goal" selectedId={id} />;
+  return <ManagedModelsView model="agentGoal" selectedId={id} />;
 }

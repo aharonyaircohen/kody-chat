@@ -24,10 +24,7 @@ export interface ManagedGoalWorkflowRef {
   source?: "local" | "store";
 }
 export type ManagedGoalTypeId =
-  | "improve"
-  | "agentLoop"
-  | "release"
-  | "checklist";
+  "improve" | "agentLoop" | "release" | "checklist";
 export type ManagedGoalModel = "agentGoal" | "agentLoop";
 
 const LEGACY_ROUTINE_TYPE_IDS = new Set(["maintain", "monitor", "routine"]);
@@ -444,6 +441,7 @@ export function collapseManagedGoalRecordsForList(
 
 export interface CreateManagedGoalInput {
   id?: string;
+  operationId?: string;
   templateId?: string;
   type: string;
   outcome: string;
@@ -460,6 +458,7 @@ export interface CreateManagedGoalInput {
 
 export interface SimpleManagedGoalCreateFields {
   id?: string;
+  operationId?: string;
   goalType: ManagedGoalTypeId;
   schedule: ManagedGoalSchedule;
   preferredRunTime?: ManagedGoalPreferredRunTime | null;
@@ -716,6 +715,9 @@ export function buildSimpleManagedGoalCreateInput(
 ): CreateManagedGoalInput {
   return {
     ...(fields.id?.trim() ? { id: fields.id.trim() } : {}),
+    ...(fields.operationId?.trim()
+      ? { operationId: fields.operationId.trim() }
+      : {}),
     type: fields.goalType,
     schedule: fields.schedule,
     ...(fields.preferredRunTime
@@ -751,7 +753,9 @@ export function buildManagedGoalState(
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
       schedule: input.schedule ?? "manual",
-      ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
+      ...(input.runWithoutApproval === true
+        ? { runWithoutApproval: true }
+        : {}),
       capabilities: [],
       route: [],
       stage: "waiting",

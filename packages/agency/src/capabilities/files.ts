@@ -131,6 +131,20 @@ export interface CapabilityDetail extends CapabilitySummary {
   };
   /** Human-readable Capability documentation; never an execution prompt. */
   documentation?: string;
+  implementationResolution?: {
+    status: "resolved" | "ambiguous" | "unavailable";
+    capabilityRevision: string | null;
+    selectedId?: string;
+    repositoryBinding?: string;
+    candidates: Array<{
+      id: string;
+      type: "agent" | "script";
+      compatibleCapabilityRevision: string;
+      agentId?: string;
+      runtime: Record<string, unknown> | null;
+      promptTemplate: string | null;
+    }>;
+  };
   /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
@@ -170,8 +184,7 @@ function summaryFromContract(
 ): CapabilitySummary {
   return {
     slug,
-    describe:
-      typeof contract.purpose === "string" ? contract.purpose : slug,
+    describe: typeof contract.purpose === "string" ? contract.purpose : slug,
     landing: "comment",
     updatedAt: null,
     htmlUrl,
@@ -205,10 +218,14 @@ function detailContract(
     inputSchema: contract.inputSchema as Record<string, unknown>,
     outputSchema: contract.outputSchema as Record<string, unknown>,
     effects: Array.isArray(contract.effects)
-      ? contract.effects.filter((value): value is string => typeof value === "string")
+      ? contract.effects.filter(
+          (value): value is string => typeof value === "string",
+        )
       : [],
     permissions: Array.isArray(contract.permissions)
-      ? contract.permissions.filter((value): value is string => typeof value === "string")
+      ? contract.permissions.filter(
+          (value): value is string => typeof value === "string",
+        )
       : [],
     success: typeof contract.success === "string" ? contract.success : "",
     failure: typeof contract.failure === "string" ? contract.failure : "",
@@ -613,10 +630,8 @@ async function readStoreCapabilityFile(
     const contract = parseProfileJson(contractRaw);
     if (!contract) return null;
     const documentation =
-      (await readCompanyStoreText(
-        octokit,
-        `${base}/${storage.bodyFile}`,
-      )) ?? "";
+      (await readCompanyStoreText(octokit, `${base}/${storage.bodyFile}`)) ??
+      "";
     return {
       ...summaryFromContract(
         slug,

@@ -8,6 +8,7 @@
 import type { Octokit } from "@octokit/rest";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { createCapabilityDefinition } from "@kody-ade/agency-domain";
 
 import {
   getRequestAuth,
@@ -21,6 +22,14 @@ import {
   companyStoreAssetPath,
   readCompanyStoreText,
 } from "@dashboard/lib/company-store/assets";
+import {
+  agencyDefinitionRecordId,
+  applyStoredAgencyModelChange,
+} from "@kody-ade/agency/backend/agency-model-store";
+import {
+  listStoreImplementations,
+  readStoreImplementation,
+} from "@kody-ade/agency/implementations/files";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -56,6 +65,7 @@ export const revalidate = 0;
 type ImportKind =
   | "agent"
   | "capability"
+  | "implementation"
   | "agentGoal"
   | "agentLoop"
   | "workflow"
@@ -101,6 +111,7 @@ const importSchema = z.object({
   kind: z.enum([
     "agent",
     "capability",
+    "implementation",
     "agentGoal",
     "agentLoop",
     "workflow",
@@ -114,6 +125,7 @@ function validSlug(kind: ImportKind, slug: string): boolean {
   switch (kind) {
     case "agent":
     case "capability":
+    case "implementation":
     case "agentGoal":
     case "agentLoop":
     case "command":
@@ -124,7 +136,9 @@ function validSlug(kind: ImportKind, slug: string): boolean {
   }
 }
 
-function configFieldFor(kind: ImportKind): ActiveConfigField {
+function configFieldFor(
+  kind: Exclude<ImportKind, "implementation">,
+): ActiveConfigField {
   if (kind === "agent") return "activeAgents";
   if (kind === "capability") return "activeCapabilities";
   if (kind === "command") return "activeCommands";
@@ -134,6 +148,7 @@ function configFieldFor(kind: ImportKind): ActiveConfigField {
 }
 
 function configPathFor(kind: ImportKind): string {
+  if (kind === "implementation") return "execution.capabilityBindings";
   return `company.${configFieldFor(kind)}`;
 }
 
@@ -240,6 +255,10 @@ async function assertStoreItemExists(
       (candidate) => validSlug("capability", candidate),
     );
     if (slugs.includes(slug)) return;
+  } else if (kind === "implementation") {
+    const implementations = await listStoreImplementations(octokit);
+    if (implementations.some((implementation) => implementation.id === slug))
+      return;
   } else if (kind === "command") {
     const slugs = await listCompanyStoreMarkdownAssetSlugs(
       octokit,
@@ -404,6 +423,20 @@ async function activationPlanFor(
     return plan;
   }
 
+  if (kind === "implementation") {
+    const implementation = await readStoreImplementation(octokit, slug);
+    if (!implementation) throw dependencyNotFound(kind, slug);
+    await addCapabilityDependencies(
+      octokit,
+      plan,
+      implementation.capabilityId,
+    );
+    if (implementation.agentId) {
+      addPlanSlug(plan, "activeAgents", implementation.agentId);
+    }
+    return plan;
+  }
+
   if (kind === "command") {
     addPlanSlug(plan, "activeCommands", slug);
     return plan;
@@ -505,6 +538,91 @@ async function publishActivationPlan(
   }
 }
 
+async function publishAgencyImplementation(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  implementationId: string,
+): Promise<{
+  capabilityId: string;
+  implementationId: string;
+}> {
+  const implementation = await readStoreImplementation(
+    octokit,
+    implementationId,
+  );
+  if (!implementation)
+    throw dependencyNotFound("implementation", implementationId);
+  const capabilityRoot = await companyStoreAssetPath(
+    octokit,
+    "capabilities",
+    implementation.capabilityId,
+  );
+  const capabilityRaw = await readCompanyStoreText(
+    octokit,
+    `${capabilityRoot}/definition.json`,
+  );
+  if (!capabilityRaw)
+    throw dependencyNotFound("capability", implementation.capabilityId);
+  let capability: ReturnType<typeof createCapabilityDefinition>;
+  try {
+    capability = createCapabilityDefinition(JSON.parse(capabilityRaw));
+  } catch {
+    throw Object.assign(
+      new Error(
+        `Store Capability "${implementation.capabilityId}" has an invalid contract.`,
+      ),
+      { status: 409 },
+    );
+  }
+  const capabilityRecordId = agencyDefinitionRecordId(
+    "capability",
+    capability,
+  );
+  const capabilityRevision = capabilityRecordId.split(":").at(-1);
+  if (
+    capabilityRevision !== implementation.compatibleCapabilityRevision
+  ) {
+    throw Object.assign(
+      new Error(
+        `Implementation "${implementationId}" is not compatible with the current Capability revision.`,
+      ),
+      { status: 409 },
+    );
+  }
+  const createdAt = new Date().toISOString();
+  await applyStoredAgencyModelChange({
+    owner,
+    repo,
+    change: {
+      definitions: [
+        {
+          recordId: capabilityRecordId,
+          kind: "capability",
+          schemaVersion: 1,
+          data: capability,
+          createdAt,
+        },
+        {
+          recordId: agencyDefinitionRecordId(
+            "implementation",
+            implementation.definition,
+          ),
+          kind: "implementation",
+          schemaVersion: 1,
+          data: implementation.definition,
+          createdAt,
+        },
+      ],
+      states: [],
+    },
+  });
+  return {
+    capabilityId: implementation.capabilityId,
+    implementationId: implementation.id,
+  };
+}
+
 async function addStoreReference({
   octokit,
   owner,
@@ -525,6 +643,51 @@ async function addStoreReference({
   });
   const plan = await activationPlanFor(octokit, kind, slug);
   await publishActivationPlan(octokit, owner, repo, plan);
+  if (kind === "implementation") {
+    const published = await publishAgencyImplementation(
+      octokit,
+      owner,
+      repo,
+      slug,
+    );
+    const nextActiveCapabilities = addSlugs(
+      config.company?.activeCapabilities,
+      plan.activeCapabilities,
+    );
+    const nextBindings = {
+      ...(config.execution?.capabilityBindings ?? {}),
+      [published.capabilityId]: published.implementationId,
+    };
+    const alreadySelected =
+      config.execution?.capabilityBindings?.[published.capabilityId] ===
+        published.implementationId &&
+      sameStringList(
+        config.company?.activeCapabilities,
+        nextActiveCapabilities,
+      );
+    if (alreadySelected) {
+      return {
+        imported: false,
+        status: "already_local",
+        path: configPathFor(kind),
+      };
+    }
+    await writeConfigPatch(
+      octokit,
+      owner,
+      repo,
+      {
+        activeCapabilities: nextActiveCapabilities,
+        capabilityBindings: nextBindings,
+      },
+      `chore(kody): select store implementation ${slug}`,
+    );
+    return {
+      imported: true,
+      status: "imported",
+      path: configPathFor(kind),
+    };
+  }
   const nextActiveAgents =
     plan.activeAgents.length > 0
       ? addSlugs(config.company?.activeAgents, plan.activeAgents)
@@ -627,7 +790,20 @@ async function removeStoreReference({
   const patch: ConfigPatch = {};
   const path = configPathFor(kind);
 
-  if (kind === "agent") {
+  if (kind === "implementation") {
+    const implementation = await readStoreImplementation(octokit, slug);
+    if (!implementation) {
+      return { removed: false, status: "already_missing", path };
+    }
+    const currentBindings = config.execution?.capabilityBindings ?? {};
+    if (currentBindings[implementation.capabilityId] !== slug) {
+      return { removed: false, status: "already_missing", path };
+    }
+    const nextBindings = { ...currentBindings };
+    delete nextBindings[implementation.capabilityId];
+    patch.capabilityBindings =
+      Object.keys(nextBindings).length > 0 ? nextBindings : null;
+  } else if (kind === "agent") {
     const current = config.company?.activeAgents ?? [];
     const next = current.filter((value) => value !== slug);
     if (next.length === current.length) {

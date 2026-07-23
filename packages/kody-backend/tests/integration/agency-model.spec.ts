@@ -27,7 +27,7 @@ describe("agency model persistence", () => {
           objective: {
             desiredState: "Graph is current",
             requiredEvidence: ["published"],
-          scope: { include: { repository: [tenantId] }, exclude: {} },
+            scope: { include: { repository: [tenantId] }, exclude: {} },
           },
           executionRef: { kind: "workflow", id: "refresh-knowledge" },
         },
@@ -131,6 +131,116 @@ describe("agency model persistence", () => {
     ).resolves.toMatchObject({ kind: "loop", data: { health: "healthy" } });
   });
 
+  it("applies Definition revisions and mutable state in one transaction", async () => {
+    const t = setup();
+    await t.mutation(api.agencyModel.applyChange, {
+      tenantId,
+      definitions: [
+        {
+          schemaVersion: 1,
+          recordId: "intent:quality:revision",
+          kind: "intent",
+          data: {
+            id: "quality",
+            direction: "Keep quality high",
+            priorities: [],
+            policy: {
+              authority: { allow: ["*"], deny: [] },
+              approval: "none",
+              riskyActions: [],
+              budget: {
+                maxRuns: 10,
+                maxTokens: 1000,
+                maxCostUsd: 1,
+                maxDurationSeconds: 60,
+              },
+              maxConcurrentRuns: 1,
+            },
+            constraints: [],
+          },
+          createdAt: now,
+        },
+      ],
+      states: [
+        {
+          definitionId: "quality",
+          kind: "intent",
+          schemaVersion: 1,
+          data: {
+            definitionId: "quality",
+            lifecycle: "active",
+            updatedAt: now,
+          },
+          updatedAt: now,
+        },
+      ],
+    });
+
+    await expect(
+      t.query(api.agencyModel.listDefinitions, { tenantId }),
+    ).resolves.toHaveLength(1);
+    await expect(
+      t.query(api.agencyModel.getState, {
+        tenantId,
+        kind: "intent",
+        definitionId: "quality",
+      }),
+    ).resolves.toMatchObject({ data: { lifecycle: "active" } });
+  });
+
+  it("rolls back an entire model change when its state has no Definition", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.agencyModel.applyChange, {
+        tenantId,
+        definitions: [
+          {
+            schemaVersion: 1,
+            recordId: "intent:quality:revision",
+            kind: "intent",
+            data: {
+              id: "quality",
+              direction: "Keep quality high",
+              priorities: [],
+              policy: {
+                authority: { allow: ["*"], deny: [] },
+                approval: "none",
+                riskyActions: [],
+                budget: {
+                  maxRuns: 10,
+                  maxTokens: 1000,
+                  maxCostUsd: 1,
+                  maxDurationSeconds: 60,
+                },
+                maxConcurrentRuns: 1,
+              },
+              constraints: [],
+            },
+            createdAt: now,
+          },
+        ],
+        states: [
+          {
+            definitionId: "missing",
+            kind: "goal",
+            schemaVersion: 1,
+            data: {
+              definitionId: "missing",
+              lifecycle: "active",
+              progress: 0,
+              blockers: [],
+              updatedAt: now,
+            },
+            updatedAt: now,
+          },
+        ],
+      }),
+    ).rejects.toThrow(/Definition/i);
+    await expect(
+      t.query(api.agencyModel.listDefinitions, { tenantId }),
+    ).resolves.toHaveLength(0);
+  });
+
   it("stores Run outputs once and queries them by Run", async () => {
     const t = setup();
     const output = {
@@ -153,7 +263,9 @@ describe("agency model persistence", () => {
         envelope: { schemaVersion: 1, recordId: "output-1", data: output },
       }),
     ).rejects.toThrow(/append-only/i);
-    expect(await t.query(api.agencyModel.listOutputs, { tenantId, runId: "run-1" })).toHaveLength(1);
+    expect(
+      await t.query(api.agencyModel.listOutputs, { tenantId, runId: "run-1" }),
+    ).toHaveLength(1);
   });
 
   it("reserves each Trigger firing only once", async () => {
@@ -172,7 +284,9 @@ describe("agency model persistence", () => {
       correlationId: "correlation-1",
       policyHash: "policy-1",
       effectivePolicy: { approval: "none" },
-      definitionRefs: [{ kind: "loop", id: "refresh-graph", revision: "loop-1" }],
+      definitionRefs: [
+        { kind: "loop", id: "refresh-graph", revision: "loop-1" },
+      ],
       maxConcurrentRuns: 1,
       requiresApproval: false,
       approvalScopeKind: "loop" as const,
@@ -181,8 +295,12 @@ describe("agency model persistence", () => {
       now,
     };
 
-    await expect(t.mutation(api.agencyModel.reserveDispatch, input)).resolves.toMatchObject({ acquired: true });
-    await expect(t.mutation(api.agencyModel.reserveDispatch, input)).resolves.toMatchObject({ acquired: false });
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, input),
+    ).resolves.toMatchObject({ acquired: true });
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, input),
+    ).resolves.toMatchObject({ acquired: false });
     await t.mutation(api.agencyModel.finishDispatch, {
       tenantId,
       idempotencyKey: input.idempotencyKey,
@@ -277,7 +395,9 @@ describe("agency model persistence", () => {
       approvalAction: "workflow:refresh-knowledge",
       now,
     };
-    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toEqual({
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, reservation),
+    ).resolves.toEqual({
       acquired: false,
       reason: "approval-required",
     });
@@ -290,8 +410,12 @@ describe("agency model persistence", () => {
       approvedBy: "operator",
       approvedAt: now,
     });
-    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toMatchObject({ acquired: true });
-    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toMatchObject({
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, reservation),
+    ).resolves.toMatchObject({ acquired: true });
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, reservation),
+    ).resolves.toMatchObject({
       acquired: false,
       reason: "duplicate",
     });
@@ -302,18 +426,35 @@ describe("agency model persistence", () => {
     const activeRun = {
       id: "run-1",
       status: "running" as const,
-      origin: { kind: "loop" as const, id: "refresh-loop", revision: "loop-rev" },
-      target: { kind: "workflow" as const, id: "refresh-knowledge", revision: "workflow-rev" },
+      origin: {
+        kind: "loop" as const,
+        id: "refresh-loop",
+        revision: "loop-rev",
+      },
+      target: {
+        kind: "workflow" as const,
+        id: "refresh-knowledge",
+        revision: "workflow-rev",
+      },
       trace: [
         { kind: "loop" as const, id: "refresh-loop", revision: "loop-rev" },
-        { kind: "workflow" as const, id: "refresh-knowledge", revision: "workflow-rev" },
+        {
+          kind: "workflow" as const,
+          id: "refresh-knowledge",
+          revision: "workflow-rev",
+        },
       ],
       effectivePolicy: {
         hash: "policy-hash",
         policy: {
           approval: "none" as const,
           authority: { allow: ["refresh-knowledge"], deny: [] },
-          budget: { maxRuns: 1, maxTokens: 1000, maxCostUsd: 10, maxDurationSeconds: 300 },
+          budget: {
+            maxRuns: 1,
+            maxTokens: 1000,
+            maxCostUsd: 10,
+            maxDurationSeconds: 300,
+          },
           maxConcurrentRuns: 1,
           riskyActions: [],
         },

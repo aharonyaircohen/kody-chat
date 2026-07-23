@@ -13,6 +13,12 @@ const h = vi.hoisted(() => ({
   getRequestAuth: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  getOctokit: vi.fn(() => ({ rest: {} })),
+  companyStoreAssetPath: vi.fn(
+    async (_octokit: unknown, kind: string, slug: string) => `${kind}/${slug}`,
+  ),
+  readCompanyStoreText: vi.fn(),
+  listStoredAgencyDefinitions: vi.fn(),
   listCapabilityFiles: vi.fn(),
   readCapabilityFile: vi.fn(),
   readResolvedCapabilityFile: vi.fn(),
@@ -40,6 +46,14 @@ vi.mock("@kody-ade/base/auth", () => ({
 vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
+  getOctokit: h.getOctokit,
+}));
+vi.mock("@kody-ade/base/company-store/assets", () => ({
+  companyStoreAssetPath: h.companyStoreAssetPath,
+  readCompanyStoreText: h.readCompanyStoreText,
+}));
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  listStoredAgencyDefinitions: h.listStoredAgencyDefinitions,
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
@@ -95,7 +109,11 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 
 import { GET, POST } from "../../app/api/kody/capabilities/route";
-import { DELETE, PATCH } from "../../app/api/kody/capabilities/[slug]/route";
+import {
+  DELETE,
+  GET as GET_DETAIL,
+  PATCH,
+} from "../../app/api/kody/capabilities/[slug]/route";
 
 function authHeaders() {
   return {
@@ -223,6 +241,86 @@ describe("POST /api/kody/capabilities", () => {
         resource: "ship-feature",
       }),
     );
+  });
+});
+
+describe("GET /api/kody/capabilities/[slug]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.requireKodyAuth.mockResolvedValue(null);
+    h.getRequestAuth.mockReturnValue({
+      token: "ghp_test-token",
+      owner: "acme",
+      repo: "widgets",
+      storeRepoUrl: "https://github.com/acme/kody-store",
+      storeRef: "stable",
+    });
+    h.readResolvedCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      contract: { action: "ship-feature" },
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: { execution: {} },
+      sha: "config-sha",
+    });
+    h.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "capability:ship-feature:revision",
+        kind: "capability",
+        schemaVersion: 1,
+        data: { id: "ship-feature" },
+        createdAt: "2026-07-23T00:00:00.000Z",
+      },
+      {
+        recordId: "implementation:ship-feature-runner:revision",
+        kind: "implementation",
+        schemaVersion: 1,
+        data: {
+          id: "ship-feature-runner",
+          capabilityRef: { kind: "capability", id: "ship-feature" },
+          compatibleCapabilityRevision: "revision",
+          type: "agent",
+          agentRef: { kind: "agent", id: "kody" },
+        },
+        createdAt: "2026-07-23T00:00:00.000Z",
+      },
+    ]);
+    h.readCompanyStoreText.mockImplementation(async (_octokit, path: string) =>
+      path.endsWith("runtime.json")
+        ? JSON.stringify({ adapter: "kody-engine-profile" })
+        : "Run the task.",
+    );
+  });
+
+  it("loads Store detail with repository context and shows its resolved Implementation", async () => {
+    const response = await GET_DETAIL(
+      request("https://dash.test/api/kody/capabilities/ship-feature"),
+      params(),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(h.setGitHubContext).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      "ghp_test-token",
+      "https://github.com/acme/kody-store",
+      "stable",
+    );
+    expect(body.capability.implementationResolution).toMatchObject({
+      status: "resolved",
+      selectedId: "ship-feature-runner",
+      candidates: [
+        {
+          id: "ship-feature-runner",
+          type: "agent",
+          agentId: "kody",
+          runtime: { adapter: "kody-engine-profile" },
+          promptTemplate: "Run the task.",
+        },
+      ],
+    });
+    expect(h.clearGitHubContext).toHaveBeenCalled();
   });
 });
 

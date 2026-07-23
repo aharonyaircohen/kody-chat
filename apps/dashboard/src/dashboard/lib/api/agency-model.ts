@@ -3,12 +3,16 @@ import type {
   CapabilityDefinition,
   GoalDefinition,
   GoalState,
+  IntentState,
   IntentDefinition,
   ImplementationDefinition,
   LoopDefinition,
   LoopState,
+  OperationState,
   OperationDefinition,
   WorkflowDefinition,
+  Run,
+  RunOutput,
 } from "@kody-ade/agency-domain";
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
@@ -40,10 +44,26 @@ export type AgencyDefinitionRecord = {
 
 export type AgencyStateRecord = {
   definitionId: string;
-  kind: "goal" | "loop";
+  kind: "intent" | "operation" | "goal" | "loop";
   schemaVersion: number;
-  data: GoalState | LoopState;
+  data: IntentState | OperationState | GoalState | LoopState;
   updatedAt: string;
+};
+
+export type AgencyObservations = {
+  runs: Array<{
+    runId: string;
+    subjectType: "goal" | "loop" | "workflow" | "capability";
+    subjectId: string;
+    run: Run;
+    updatedAt: string;
+  }>;
+  outputs: Array<{
+    recordId: string;
+    runId: string;
+    schemaVersion: number;
+    data: RunOutput;
+  }>;
 };
 
 export const agencyModelApi = {
@@ -59,9 +79,20 @@ export const agencyModelApi = {
       headers: buildHeaders(),
       cache: "no-store",
     });
-    return (await handleResponse<{ definitions: AgencyDefinitionRecord[] }>(
-      response,
-    )).definitions;
+    return (
+      await handleResponse<{ definitions: AgencyDefinitionRecord[] }>(response)
+    ).definitions;
+  },
+  createDefinition: async <T extends AgencyDefinitionData>(
+    kind: AgencyDefinitionRecord["kind"],
+    definition: T,
+  ): Promise<T> => {
+    const response = await fetch(`${API_BASE}/agency-definitions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({ kind, definition }),
+    });
+    return (await handleResponse<{ definition: T }>(response)).definition;
   },
   states: async (): Promise<AgencyStateRecord[]> => {
     const response = await fetch(`${API_BASE}/agency-states`, {
@@ -72,15 +103,42 @@ export const agencyModelApi = {
       .states;
   },
   putState: async (
-    kind: "goal" | "loop",
-    state: GoalState | LoopState,
-  ): Promise<GoalState | LoopState> => {
+    kind: "intent" | "operation" | "goal" | "loop",
+    state: IntentState | OperationState | GoalState | LoopState,
+  ): Promise<IntentState | OperationState | GoalState | LoopState> => {
     const response = await fetch(`${API_BASE}/agency-states`, {
       method: "PUT",
       headers: buildHeaders(),
       body: JSON.stringify({ kind, state }),
     });
-    return (await handleResponse<{ state: GoalState | LoopState }>(response))
-      .state;
+    return (
+      await handleResponse<{
+        state: IntentState | OperationState | GoalState | LoopState;
+      }>(response)
+    ).state;
+  },
+  applyChange: async (change: {
+    definitions: Array<{
+      kind: AgencyDefinitionRecord["kind"];
+      definition: AgencyDefinitionData;
+    }>;
+    states: Array<{
+      kind: AgencyStateRecord["kind"];
+      state: IntentState | OperationState | GoalState | LoopState;
+    }>;
+  }): Promise<{ created: number; reused: number; states: number }> => {
+    const response = await fetch(`${API_BASE}/agency-model-changes`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(change),
+    });
+    return await handleResponse(response);
+  },
+  observations: async (): Promise<AgencyObservations> => {
+    const response = await fetch(`${API_BASE}/agency-observations`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    return await handleResponse<AgencyObservations>(response);
   },
 };

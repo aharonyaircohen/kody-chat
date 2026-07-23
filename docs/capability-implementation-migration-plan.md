@@ -2,7 +2,20 @@
 
 ## Status
 
-Approved and in progress.
+In progress. The Kody Chat model/storage cutover, restored Dashboard surfaces,
+separate Store Capability/Implementation definitions, consumer migration, and
+Engine resolution are implemented. Store and Engine changes are published, and
+the connected consumer resolves its repository Implementation. Final Kody Chat
+release checks, deployment, and deployed production proof remain.
+
+The data-model migration must not redesign the existing Dashboard product.
+Intent, Operation, Goal, Loop, and Capability keep their established
+user-facing pages and management flows, but those experiences must be
+reimplemented against the new definitions, states, references, and execution
+boundaries. This is not a rollback to legacy storage or mixed models.
+Capability Contract and Implementation are technical model boundaries with
+their own inspectable Dashboard and Store surfaces. They must not absorb
+business ownership from Intent, Operation, Goal, or Loop.
 
 ## Acceptance matrix
 
@@ -20,8 +33,15 @@ The migration is complete only when every item below has executable evidence:
       canonical input and output.
 - [ ] Runs pin Capability and Implementation provenance and workflow execution
       creates capability child Runs.
-- [ ] Dashboard lists and opens Capabilities and Implementations, and their
-      relationship is visible.
+- [ ] Dashboard preserves the existing Intent, Operation, Goal, Loop, and
+      Capability experiences while reading and writing the new model.
+- [ ] Every preserved page uses the new authoritative definition/state split
+      and does not restore legacy records, mixed ownership, or compatibility
+      writes.
+- [ ] Dashboard exposes standalone Capability Contract and Implementation pages
+      with clear navigation and Store visibility.
+- [ ] Existing Capability detail also shows its canonical contract and resolved
+      technical Implementation in context.
 - [ ] Knowledge graph connects Capability, Implementation, Run, and output
       provenance.
 - [ ] Legacy readers, writers, slug-equality resolution, and silent fallbacks
@@ -69,8 +89,10 @@ Capability/Implementation boundary is incomplete:
    Capability to a compatible Implementation.
 5. Runs do not record complete Capability and Implementation provenance.
 6. Backend definition storage cannot represent Implementation.
-7. Dashboard has no Implementation page and currently tries to render runtime
-   details as Capability content.
+7. Dashboard Capability detail currently mixes public action ownership with
+   runtime details; dedicated Capability Contract and Implementation pages must
+   make that boundary explicit while Capability detail still shows its resolved
+   relationship in context.
 8. Store capability listing and capability detail resolution use different
    sources, causing Store detail pages to return `not_found`.
 9. Documentation conflicts about who owns canonical input and output contracts.
@@ -554,33 +576,69 @@ Exit gate:
 
 ### Phase 7: Dashboard and API migration
 
-1. Add repository-scoped Implementation APIs.
-2. Add Implementation list and detail pages.
-3. Change Capability pages to show only:
-   - contract;
+1. Restore the established user-facing behavior and visual structure of:
+   Company Intents, Operations, Goals, Loops, and Capabilities.
+2. Treat the old components as behavior references, not as storage or domain
+   authorities. Refactor or replace their data adapters where required by the
+   new model.
+3. Map each existing experience to the new ownership model:
+   - Company Intents read and write `IntentDefinition`;
+   - Operations read and write `OperationDefinition` and show referenced Goals
+     and Loops without owning their runtime state;
+   - Goals combine immutable `GoalDefinition` with mutable `GoalState`;
+   - Loops combine immutable `LoopDefinition` with mutable `LoopState`, and
+     expose Objective and Trigger separately;
+   - Capabilities use the canonical `Capability` contract and show the resolved
+     technical method in context;
+   - execution history comes only from `Run`, including resolved Capability and
+     Implementation provenance.
+4. Preserve the existing visible features while moving each write to its
+   correct boundary:
+   - definition changes create a new immutable definition revision;
+   - pause, resume, progress, schedule cursor, facts, blockers, and evidence
+     update mutable state;
+   - run actions dispatch through Workflow or Capability references;
+   - UI forms never write runtime fields into Capability or business fields
+     into Implementation.
+5. Restore standalone Capability Contracts and Implementations pages in
+   Dashboard navigation, backed by the new model and Store sources.
+6. Keep Capability and Implementation as separate domain, Store, API,
+   persistence, resolution, and Run-provenance models.
+7. Adapt the existing page data sources to the new definitions and state
+   records without replacing their components or reducing their features.
+8. Preserve all existing create, edit, run, pause, scheduling, state, evidence,
+   and detail interactions unless a verified model invariant makes one invalid.
+9. Extend the existing Capability detail with:
+   - canonical contract;
    - safety;
    - inputs and outputs;
-   - linked Implementations;
-   - recent Runs.
-4. Implementation pages show:
-   - type;
-   - Capability link;
-   - Agent link when applicable;
-   - domain requirements and adapter runtime configuration as separate sections;
-   - prompt presence, tools, skills, scripts, and MCP;
+   - resolved technical method;
    - availability and recent Runs.
-5. Workflow pages show Capability steps, not hardwired technical profiles.
-6. Run pages show the resolved Implementation and parent/child execution tree.
-7. Add clear empty, loading, unavailable, ambiguous, and error states.
-8. Keep Store assets read-only and link to their exact source.
-9. Remove legacy mixed editors after migration.
+10. Show technical Implementation details only in context where they help:
+    Capability detail, Run detail, diagnostics, or Store source links. Do not
+    create a second operator-facing catalog.
+11. Workflow pages continue to show Capability steps, not hardwired technical
+    profiles.
+12. Run pages show the resolved Implementation and parent/child execution tree.
+13. Add clear empty, loading, unavailable, ambiguous, and error states to the
+    existing experiences.
+14. Keep Store assets read-only and link to their exact source.
+15. Remove legacy mixed data adapters only after the restored pages work
+    completely against the new model.
 
 Exit gate:
 
 - canonical repository URLs work;
+- Company Intents, Operations, Goals, Loops, and Capabilities retain their
+  previous visible features and interaction quality;
+- browser and API evidence proves each page reads and writes only its new model
+  boundary;
+- no legacy managed record is restored as an authority;
+- Capability Contracts and Implementations are visible as separate pages;
 - Store and local detail pages use the same source resolution;
 - browser tests assert visible behavior and failed requests;
-- no runtime details are shown as Capability ownership.
+- runtime details are clearly technical and do not appear as Capability
+  ownership.
 
 ### Phase 8: Full Store and consumer migration
 
@@ -652,8 +710,10 @@ For every release:
 
 Final production proof:
 
-- Capability detail loads;
-- linked Implementations appear;
+- the original Intent, Operation, Goal, Loop, and Capability journeys work;
+- Capability detail loads its contract and resolved technical method in place;
+- standalone Capability Contracts and Implementations pages load and preserve
+  their model boundary;
 - one agent Implementation runs;
 - one script Implementation runs;
 - Workflow parent and child Runs appear;
@@ -704,7 +764,12 @@ Final production proof:
 - component and hook tests;
 - repository-scoped query keys;
 - API contract tests;
-- browser tests for Capability, Implementation, Workflow, and Run journeys;
+- regression tests that compare the restored Intent, Operation, Goal, Loop,
+  and Capability surfaces with their pre-migration behavior;
+- browser tests for Capability, Workflow, and Run journeys, including technical
+  Implementation information shown in context;
+- navigation tests proving Capability Contracts and Implementations are not
+  exposed as standalone products;
 - visible error and empty-state tests;
 - accessibility and responsive layout checks.
 

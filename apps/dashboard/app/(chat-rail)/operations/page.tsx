@@ -1,6 +1,6 @@
 /** @fileType page @domain agency-operations @pattern operations-page */
 import type { Metadata } from "next";
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { OperationsView } from "@dashboard/lib/components/OperationsView";
 
 export const metadata: Metadata = {
   title: "Operations — Kody Operations Dashboard",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function OperationsPage() {
-  return <AgencyDefinitionsView kind="operation" />;
+  return <OperationsView />;
 }

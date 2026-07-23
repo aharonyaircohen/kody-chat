@@ -18,16 +18,40 @@ export type StoredAgencyDefinition = {
   recordId: string;
   kind: AgencyDefinitionKind;
   schemaVersion: number;
-  data: { id: string } & Record<string, unknown>;
+  data: { id: string };
   createdAt: string;
 };
 
 export type StoredAgencyState = {
   definitionId: string;
-  kind: "goal" | "loop";
+  kind: "intent" | "operation" | "goal" | "loop";
   schemaVersion: number;
-  data: Record<string, unknown>;
+  data: { definitionId: string; lifecycle?: unknown };
   updatedAt: string;
+};
+
+export type StoredAgencyModelChange = {
+  definitions: Array<{
+    recordId: string;
+    kind: AgencyDefinitionKind;
+    schemaVersion: number;
+    data: { id: string };
+    createdAt: string;
+  }>;
+  states: Array<{
+    definitionId: string;
+    kind: StoredAgencyState["kind"];
+    schemaVersion: number;
+    data: { definitionId: string; lifecycle?: unknown };
+    updatedAt: string;
+  }>;
+};
+
+export type StoredAgencyOutput = {
+  recordId: string;
+  runId: string;
+  schemaVersion: number;
+  data: unknown;
 };
 
 function canonical(value: unknown): string {
@@ -61,9 +85,12 @@ export async function listStoredAgencyDefinitions(
   owner: string,
   repo: string,
 ): Promise<StoredAgencyDefinition[]> {
-  return (await createBackendClient().query(backendApi.agencyModel.listDefinitions, {
-    tenantId: tenantIdFor(owner, repo),
-  })) as StoredAgencyDefinition[];
+  return (await createBackendClient().query(
+    backendApi.agencyModel.listDefinitions,
+    {
+      tenantId: tenantIdFor(owner, repo),
+    },
+  )) as StoredAgencyDefinition[];
 }
 
 export async function createStoredAgencyDefinition(input: {
@@ -74,16 +101,19 @@ export async function createStoredAgencyDefinition(input: {
   data: unknown;
   createdAt: string;
 }): Promise<void> {
-  await createBackendClient().mutation(backendApi.agencyModel.createDefinition, {
-    tenantId: tenantIdFor(input.owner, input.repo),
-    envelope: {
-      schemaVersion: 1,
-      recordId: input.recordId,
-      kind: input.kind,
-      data: input.data,
+  await createBackendClient().mutation(
+    backendApi.agencyModel.createDefinition,
+    {
+      tenantId: tenantIdFor(input.owner, input.repo),
+      envelope: {
+        schemaVersion: 1,
+        recordId: input.recordId,
+        kind: input.kind,
+        data: input.data,
+      },
+      createdAt: input.createdAt,
     },
-    createdAt: input.createdAt,
-  });
+  );
 }
 
 export async function listStoredAgencyStates(
@@ -98,7 +128,7 @@ export async function listStoredAgencyStates(
 export async function putStoredAgencyState(input: {
   owner: string;
   repo: string;
-  kind: "goal" | "loop";
+  kind: "intent" | "operation" | "goal" | "loop";
   data: { definitionId: string };
   updatedAt: string;
 }): Promise<void> {
@@ -110,4 +140,33 @@ export async function putStoredAgencyState(input: {
     data: input.data,
     updatedAt: input.updatedAt,
   });
+}
+
+export async function applyStoredAgencyModelChange(input: {
+  owner: string;
+  repo: string;
+  change: StoredAgencyModelChange;
+}): Promise<{ created: number; reused: number; states: number }> {
+  return (await createBackendClient().mutation(
+    backendApi.agencyModel.applyChange,
+    {
+      tenantId: tenantIdFor(input.owner, input.repo),
+      definitions: input.change.definitions,
+      states: input.change.states,
+    },
+  )) as { created: number; reused: number; states: number };
+}
+
+export async function listStoredAgencyOutputs(
+  owner: string,
+  repo: string,
+  limit = 500,
+): Promise<StoredAgencyOutput[]> {
+  return (await createBackendClient().query(
+    backendApi.agencyModel.listOutputs,
+    {
+      tenantId: tenantIdFor(owner, repo),
+      limit,
+    },
+  )) as StoredAgencyOutput[];
 }

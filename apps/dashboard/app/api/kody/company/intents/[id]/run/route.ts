@@ -15,22 +15,28 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
+import {
+  listStoredAgencyDefinitions,
+  listStoredAgencyStates,
+} from "@kody-ade/agency/backend/agency-model-store";
+import {
+  currentAgencyDefinition,
+  currentAgencyState,
+} from "@kody-ade/agency/agency-model-read";
+import type { IntentDefinition } from "@kody-ade/agency-domain";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
-import {
-  formatSelectedPolicyGuidance,
-  isCompanyIntentId,
-} from "@dashboard/lib/company-intents";
-import { readCompanyIntentRecord } from "@dashboard/lib/company-intents-store";
+import { formatSelectedPolicyGuidance } from "@dashboard/lib/company-intents";
 import { listGuidanceFiles } from "@kody-ade/workspace/guidance/files";
 
 const runSchema = z.object({
   actorLogin: z.string().trim().optional(),
 });
+const intentIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,127}$/);
 
 export async function POST(
   req: NextRequest,
@@ -40,7 +46,7 @@ export async function POST(
   if (authResult instanceof NextResponse) return authResult;
 
   const { id } = await params;
-  if (!isCompanyIntentId(id)) {
+  if (!intentIdSchema.safeParse(id).success) {
     return NextResponse.json({ error: "invalid_intent_id" }, { status: 400 });
   }
 
@@ -72,14 +78,18 @@ export async function POST(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const existing = await readCompanyIntentRecord(
-      headerAuth.owner,
-      headerAuth.repo,
-      id,
-    );
-    if (!existing) {
+    const [definitions, states] = await Promise.all([
+      listStoredAgencyDefinitions(headerAuth.owner, headerAuth.repo),
+      listStoredAgencyStates(headerAuth.owner, headerAuth.repo),
+    ]);
+    const intentRecord = currentAgencyDefinition(definitions, "intent", id);
+    if (!intentRecord) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    if (currentAgencyState(states, "intent", id)?.data.lifecycle !== "active") {
+      return NextResponse.json({ error: "intent_not_active" }, { status: 409 });
+    }
+    const intent = intentRecord.data as unknown as IntentDefinition;
 
     const repoMeta = await octokit.rest.repos.get({
       owner: headerAuth.owner,
@@ -88,7 +98,7 @@ export async function POST(
     const ref = repoMeta.data.default_branch || "main";
     const policies = await listGuidanceFiles("policy");
     const selectedPolicyGuidance = formatSelectedPolicyGuidance(
-      existing.intent.policyRefs,
+      intent.policyRefs,
       policies,
     );
     const inputs = await buildKodyWorkflowDispatchInputs(octokit, {

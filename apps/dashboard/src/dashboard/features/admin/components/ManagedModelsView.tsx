@@ -76,6 +76,7 @@ import {
   useUpdateManagedGoal,
 } from "@dashboard/lib/hooks/useManagedGoals";
 import { useWorkflowDefinitions } from "@dashboard/lib/hooks/useWorkflowDefinitions";
+import { useOperations } from "@dashboard/lib/hooks/useOperations";
 import {
   MANAGED_GOAL_TYPES,
   buildSimpleManagedGoalCreateInput,
@@ -95,7 +96,10 @@ import {
   type ManagedGoalWorkflowRef,
 } from "@dashboard/lib/managed-goals";
 import type { WorkflowDefinitionRecord } from "@dashboard/lib/workflow-definitions";
-import { scheduleEveryLabel, type ScheduleEvery } from "@dashboard/lib/ticked/frontmatter";
+import {
+  scheduleEveryLabel,
+  type ScheduleEvery,
+} from "@dashboard/lib/ticked/frontmatter";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 import { cn } from "@dashboard/lib/utils";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
@@ -815,6 +819,7 @@ function NewGoalDialog({
   onCreated?: (goal: ManagedGoalRecord) => void;
 }) {
   const createGoal = useCreateManagedGoal();
+  const { data: operationData, isLoading: operationsLoading } = useOperations();
   const { data: capabilities = [], isLoading: capabilitiesLoading } =
     useCapabilities();
   const goalTypes = useMemo(
@@ -839,6 +844,9 @@ function NewGoalDialog({
     [preferredRunTimeZone],
   );
   const [outcome, setOutcome] = useState("");
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(
+    null,
+  );
   const [loopTargetType, setLoopTargetType] =
     useState<ManagedLoopTarget["type"]>("goal");
   const [agentGoalExecutionTarget, setAgentGoalExecutionTarget] =
@@ -872,6 +880,15 @@ function NewGoalDialog({
   const capabilityOptions = useMemo(
     () => capabilitySelectOptions(capabilities, selectedGoalType.capabilities),
     [capabilities, selectedGoalType.capabilities],
+  );
+  const operationOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      (operationData?.operations ?? []).map((record) => ({
+        value: record.id,
+        label: record.operation.name,
+        description: record.operation.responsibility,
+      })),
+    [operationData?.operations],
   );
   const routeSteps = useMemo(
     () =>
@@ -908,6 +925,7 @@ function NewGoalDialog({
     : undefined;
   const canSubmit =
     outcome.trim().length > 0 &&
+    !!selectedOperationId &&
     (isRoutine
       ? !!loopTarget
       : agentGoalExecutionTarget === "workflow"
@@ -956,6 +974,7 @@ function NewGoalDialog({
     setPreferredRunAt("");
     setPreferredRunTimeZone(defaultTimeZone);
     setOutcome("");
+    setSelectedOperationId(null);
     setLoopTargetType("goal");
     setAgentGoalExecutionTarget("workflow");
     setSelectedLoopGoalId(null);
@@ -967,6 +986,16 @@ function NewGoalDialog({
   useEffect(() => {
     if (open) reset();
   }, [open, reset]);
+
+  useEffect(() => {
+    if (
+      selectedOperationId &&
+      operationOptions.some((option) => option.value === selectedOperationId)
+    ) {
+      return;
+    }
+    setSelectedOperationId(operationOptions[0]?.value ?? null);
+  }, [operationOptions, selectedOperationId]);
 
   useEffect(() => {
     if (isRoutine || agentGoalExecutionTarget !== "workflow") return;
@@ -1010,6 +1039,7 @@ function NewGoalDialog({
     );
     const created = await createGoal.mutateAsync(
       buildSimpleManagedGoalCreateInput({
+        operationId: selectedOperationId ?? undefined,
         goalType,
         schedule,
         preferredRunTime: isRoutine ? preferredRunTime : undefined,
@@ -1052,6 +1082,21 @@ function NewGoalDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
+          <div className="space-y-2">
+            <Label htmlFor="goal-operation">Operation owner</Label>
+            <SearchableSelect
+              id="goal-operation"
+              options={operationOptions}
+              value={selectedOperationId}
+              onChange={setSelectedOperationId}
+              placeholder={
+                operationsLoading ? "Loading operations..." : "Select operation"
+              }
+              searchPlaceholder="Search operations..."
+              emptyLabel="Create an Operation before adding Goals or Loops"
+              disabled={operationsLoading}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="goal-outcome">{intentLabel}</Label>
             <Textarea

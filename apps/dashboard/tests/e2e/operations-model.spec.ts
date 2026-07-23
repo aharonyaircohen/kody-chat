@@ -3,7 +3,7 @@
  * @testFramework playwright
  * @domain agency-operations
  */
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 const NOW = "2026-07-14T10:00:00.000Z";
 const auth = {
@@ -17,26 +17,6 @@ const auth = {
     id: 1,
   },
   loggedInAt: Date.now(),
-};
-
-type Status = "proposed" | "provisioning" | "active" | "paused" | "retired";
-type OperationRecord = {
-  id: string;
-  path: string;
-  activationIssues: string[];
-  operation: {
-    version: 1;
-    id: string;
-    name: string;
-    responsibility: string;
-    doesNotOwn: string[];
-    intentIds: string[];
-    goals: string[];
-    loops: string[];
-    status: Status;
-    createdAt: string;
-    updatedAt: string;
-  };
 };
 
 async function json(route: Route, body: unknown, status = 200) {
@@ -69,75 +49,136 @@ test("creates, activates, runs, pauses, retires, and deletes an Operation", asyn
   page,
 }) => {
   const requests: Array<{ method: string; path: string; body: unknown }> = [];
-  const catalog = {
-    intents: ["reliable-delivery"],
-    goals: ["web-release"],
-    loops: ["deployment-health"],
-  };
-  let record: OperationRecord | null = null;
+  const definitions: Array<{
+    recordId: string;
+    kind: string;
+    schemaVersion: number;
+    data: Record<string, unknown>;
+    createdAt: string;
+  }> = [
+    {
+      recordId: "intent:reliable-delivery:1",
+      kind: "intent",
+      schemaVersion: 1,
+      data: { id: "reliable-delivery" },
+      createdAt: NOW,
+    },
+    {
+      recordId: "goal:web-release:1",
+      kind: "goal",
+      schemaVersion: 1,
+      data: {
+        id: "web-release",
+        operationId: "unassigned",
+        objective: {
+          desiredState: "Release is live",
+          requiredEvidence: [],
+          scope: { include: {}, exclude: {} },
+        },
+        executionRef: { kind: "capability", id: "ship-release" },
+      },
+      createdAt: NOW,
+    },
+    {
+      recordId: "loop:deployment-health:1",
+      kind: "loop",
+      schemaVersion: 1,
+      data: {
+        id: "deployment-health",
+        operationId: "unassigned",
+        objective: {
+          desiredState: "Deployment stays healthy",
+          requiredEvidence: [],
+          scope: { include: {}, exclude: {} },
+        },
+        trigger: { type: "schedule", every: "1h" },
+        targetRef: { kind: "capability", id: "check-deployment" },
+        reconciliationPolicy: {
+          overlap: "skip",
+          missed: "coalesce",
+          failure: {
+            maxAttempts: 3,
+            backoffSeconds: 30,
+            timeoutSeconds: 900,
+          },
+        },
+      },
+      createdAt: NOW,
+    },
+  ];
+  const states: Array<{
+    definitionId: string;
+    kind: string;
+    schemaVersion: number;
+    data: Record<string, unknown>;
+    updatedAt: string;
+  }> = [];
 
-  await page.route("**/api/kody/operations**", async (route) => {
+  await page.route("**/api/kody/agency-definitions**", (route) =>
+    json(route, { definitions }),
+  );
+  await page.route("**/api/kody/agency-states**", (route) =>
+    json(route, { states }),
+  );
+  await page.route("**/api/kody/agency-model-changes", async (route) => {
+    const body = route.request().postDataJSON() as {
+      definitions: Array<{ kind: string; definition: Record<string, unknown> }>;
+      states: Array<{ kind: string; state: Record<string, unknown> }>;
+    };
+    requests.push({ method: "POST", path: "/agency-model-changes", body });
+    for (const item of body.definitions) {
+      const id = String(item.definition.id);
+      const existing = definitions.findIndex(
+        (record) => record.kind === item.kind && record.data.id === id,
+      );
+      const record = {
+        recordId: `${item.kind}:${id}:${requests.length}`,
+        kind: item.kind,
+        schemaVersion: 1,
+        data: item.definition,
+        createdAt: NOW,
+      };
+      if (existing >= 0) definitions[existing] = record;
+      else definitions.push(record);
+    }
+    for (const item of body.states) {
+      const id = String(item.state.definitionId);
+      const existing = states.findIndex(
+        (record) => record.kind === item.kind && record.definitionId === id,
+      );
+      const record = {
+        definitionId: id,
+        kind: item.kind,
+        schemaVersion: 1,
+        data: item.state,
+        updatedAt: NOW,
+      };
+      if (existing >= 0) states[existing] = record;
+      else states.push(record);
+    }
+    await json(route, {
+      created: body.definitions.length,
+      reused: 0,
+      states: body.states.length,
+    });
+  });
+  await page.route("**/api/kody/operations/*/run", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace("/api/kody/operations", "");
-    const method = request.method();
-    const body = request.postDataJSON?.() ?? null;
-
-    if (method === "GET" && path === "") {
-      await json(route, { operations: record ? [record] : [], catalog });
-      return;
-    }
-    requests.push({ method, path, body });
-
-    if (method === "POST" && path === "") {
-      const input = body as Omit<
-        OperationRecord["operation"],
-        "version" | "status" | "createdAt" | "updatedAt"
-      >;
-      record = {
-        id: input.id || "release-operations",
-        path: "operations/release-operations/operation.json",
-        activationIssues: [],
-        operation: {
-          version: 1,
-          ...input,
-          id: input.id || "release-operations",
-          status: "proposed",
-          createdAt: NOW,
-          updatedAt: NOW,
-        },
-      };
-      await json(route, { operation: record }, 201);
-      return;
-    }
-    if (method === "PATCH" && record && path === `/${record.id}`) {
-      const patch = body as Partial<OperationRecord["operation"]>;
-      record = {
-        ...record,
-        operation: { ...record.operation, ...patch, updatedAt: NOW },
-      };
-      await json(route, { operation: record });
-      return;
-    }
-    if (method === "POST" && record && path === `/${record.id}/run`) {
-      await json(route, {
-        ok: true,
-        workflowId: "kody.yml",
-        ref: "main",
-        action: "agency-operations-management",
-        operationId: record.id,
-      });
-      return;
-    }
-    if (method === "DELETE" && record && path === `/${record.id}`) {
-      record = null;
-      await json(route, { success: true });
-      return;
-    }
-    await json(route, { error: "not_found" }, 404);
+    requests.push({ method: request.method(), path, body: null });
+    await json(route, {
+      ok: true,
+      workflowId: "kody.yml",
+      ref: "main",
+      action: "agency-operations-management",
+      operationId: path.split("/")[1],
+    });
   });
 
-  await page.goto("/operations", { waitUntil: "domcontentloaded" });
+  await page.goto("/repo/acme/widgets/operations", {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page.getByRole("heading", { name: "Operations" })).toBeVisible();
   await page.getByRole("button", { name: "New Operation" }).click();
 
@@ -151,7 +192,7 @@ test("creates, activates, runs, pauses, retires, and deletes an Operation", asyn
   await Promise.all([
     page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/kody/operations") &&
+        response.url().endsWith("/api/kody/agency-model-changes") &&
         response.request().method() === "POST",
     ),
     form.getByRole("button", { name: "Create Operation" }).click(),
@@ -189,11 +230,11 @@ test("creates, activates, runs, pauses, retires, and deletes an Operation", asyn
   await expect(page.getByText("No Operations yet")).toBeVisible();
 
   expect(requests.map(({ method, path }) => `${method} ${path}`)).toEqual([
-    "POST ",
-    "PATCH /release-operations",
+    "POST /agency-model-changes",
+    "POST /agency-model-changes",
     "POST /release-operations/run",
-    "PATCH /release-operations",
-    "PATCH /release-operations",
-    "DELETE /release-operations",
+    "POST /agency-model-changes",
+    "POST /agency-model-changes",
+    "POST /agency-model-changes",
   ]);
 });

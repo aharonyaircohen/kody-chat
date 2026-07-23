@@ -2,25 +2,43 @@ import {
   createGoalDefinition,
   createGoalState,
   createIntentDefinition,
+  createIntentState,
   createLoopDefinition,
   createLoopState,
   createOperationDefinition,
+  createOperationState,
   createWorkflowDefinition,
   type GoalDefinition,
   type GoalState,
   type IntentDefinition,
+  type IntentState,
   type LoopDefinition,
   type LoopState,
   type OperationDefinition,
+  type OperationState,
   type WorkflowDefinition,
 } from "@kody-ade/agency-domain";
 
 type LegacyIntent = {
   id: string;
   for: string;
+  description?: string;
+  priority?: number;
+  posture?:
+    "confidence" | "speed" | "stability-recovery" | "maintenance" | "balanced";
+  status?: "active" | "paused" | "archived";
+  scope?: { repos?: string[]; areas?: string[] };
   principles?: string[];
+  metrics?: string[];
+  policyRefs?: string[];
+  updatedAt?: string;
   controls?: {
-    release?: { approval?: string };
+    release?: {
+      cadence?: "manual" | "15m" | "1d" | "1w";
+      qaDepth?: "light" | "standard" | "strict";
+      blockerLevel?: "low" | "standard" | "strict";
+      approval?: string;
+    };
     automation?: {
       maxConcurrentGoals?: number;
       maxDailyActions?: number;
@@ -33,9 +51,12 @@ type LegacyOperation = {
   id: string;
   name: string;
   responsibility: string;
+  doesNotOwn?: string[];
   intentIds: string[];
   goals: string[];
   loops: string[];
+  status?: "proposed" | "provisioning" | "active" | "paused" | "retired";
+  updatedAt?: string;
 };
 
 type LegacyManagedWork = {
@@ -49,6 +70,7 @@ type LegacyManagedWork = {
   }>;
   capabilities?: string[];
   schedule?: string;
+  preferredRunTime?: { time: string; timezone: string };
   workflowRef?: { id: string };
   loopTarget?: { type: "goal" | "workflow" | "capability"; id: string };
   state?: "inactive" | "active" | "paused" | "done";
@@ -96,7 +118,12 @@ export type AgencyV2MigrationPlan = {
     loops: LoopDefinition[];
     workflows: WorkflowDefinition[];
   };
-  states: { goals: GoalState[]; loops: LoopState[] };
+  states: {
+    intents: IntentState[];
+    operations: OperationState[];
+    goals: GoalState[];
+    loops: LoopState[];
+  };
   requiredCapabilityIds: string[];
   issues: string[];
 };
@@ -109,7 +136,25 @@ export function planAgencyV2Migration(
     createIntentDefinition({
       id: intent.id,
       direction: intent.for,
+      ...(intent.description ? { description: intent.description } : {}),
+      priority: intent.priority ?? 100,
+      posture: intent.posture ?? "balanced",
+      scope: {
+        include: {
+          repository: intent.scope?.repos ?? [],
+          area: intent.scope?.areas ?? [],
+        },
+        exclude: {},
+      },
       priorities: intent.principles ?? [],
+      measures: intent.metrics ?? [],
+      policyRefs: intent.policyRefs ?? [],
+      deliveryPolicy: {
+        cadence: intent.controls?.release?.cadence ?? "manual",
+        assurance: intent.controls?.release?.qaDepth ?? "standard",
+        blockerSensitivity:
+          intent.controls?.release?.blockerLevel ?? "standard",
+      },
       policy: legacyPolicy(intent),
       constraints: (intent.controls?.automation?.requiresHumanFor ?? []).map(
         (action, index) => ({
@@ -135,6 +180,7 @@ export function planAgencyV2Migration(
         id: operation.id,
         name: operation.name,
         responsibility: operation.responsibility,
+        doesNotOwn: operation.doesNotOwn ?? [],
         intentIds: operation.intentIds,
       }),
     ];
@@ -146,6 +192,32 @@ export function planAgencyV2Migration(
   const loops: LoopDefinition[] = [];
   const goalStates: GoalState[] = [];
   const loopStates: LoopState[] = [];
+  const intentStates = input.intents.map((intent) =>
+    createIntentState({
+      definitionId: intent.id,
+      lifecycle:
+        intent.status === "paused"
+          ? "paused"
+          : intent.status === "archived"
+            ? "archived"
+            : "active",
+      updatedAt: validTimestamp(intent.updatedAt),
+    }),
+  );
+  const operationStates = input.operations.map((operation) =>
+    createOperationState({
+      definitionId: operation.id,
+      lifecycle:
+        operation.status === "active"
+          ? "active"
+          : operation.status === "paused"
+            ? "paused"
+            : operation.status === "retired"
+              ? "retired"
+              : "draft",
+      updatedAt: validTimestamp(operation.updatedAt),
+    }),
+  );
   const capabilityIds = new Set<string>();
 
   for (const workflow of input.workflows ?? []) {
@@ -164,7 +236,8 @@ export function planAgencyV2Migration(
     const generatedWorkflow = workflowFromLegacyWork(work);
     if (generatedWorkflow) {
       workflows.push(generatedWorkflow);
-      for (const step of generatedWorkflow.steps) capabilityIds.add(step.capabilityRef.id);
+      for (const step of generatedWorkflow.steps)
+        capabilityIds.add(step.capabilityRef.id);
     }
     if (work.model === "goal") {
       const executionRef = work.workflowRef
@@ -173,12 +246,15 @@ export function planAgencyV2Migration(
           ? { kind: "workflow" as const, id: generatedWorkflow.id }
           : (work.capabilities ?? []).length === 1
             ? { kind: "capability" as const, id: work.capabilities![0]! }
-          : undefined;
+            : undefined;
       if (!executionRef) {
-        issues.push(`Goal "${work.id}" has no Workflow or Capability execution target`);
+        issues.push(
+          `Goal "${work.id}" has no Workflow or Capability execution target`,
+        );
         continue;
       }
-      if (executionRef.kind === "capability") capabilityIds.add(executionRef.id);
+      if (executionRef.kind === "capability")
+        capabilityIds.add(executionRef.id);
       goals.push(
         createGoalDefinition({
           id: work.id,
@@ -198,9 +274,11 @@ export function planAgencyV2Migration(
           ? { kind: "workflow" as const, id: generatedWorkflow.id }
           : (work.capabilities ?? []).length === 1
             ? { kind: "capability" as const, id: work.capabilities![0]! }
-          : undefined;
+            : undefined;
     if (!targetRef) {
-      issues.push(`Loop "${work.id}" has no Goal, Workflow, or Capability target`);
+      issues.push(
+        `Loop "${work.id}" has no Goal, Workflow, or Capability target`,
+      );
       continue;
     }
     if (targetRef.kind === "capability") capabilityIds.add(targetRef.id);
@@ -212,13 +290,17 @@ export function planAgencyV2Migration(
         trigger:
           !work.schedule || work.schedule === "manual"
             ? { type: "manual" }
-            : { type: "schedule", every: work.schedule },
+            : {
+                type: "schedule",
+                every: work.schedule,
+                ...(work.preferredRunTime ? { at: work.preferredRunTime } : {}),
+              },
         targetRef,
-      reconciliationPolicy: {
-        overlap: "skip",
-        missed: "coalesce",
-        failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
-      },
+        reconciliationPolicy: {
+          overlap: "skip",
+          missed: "coalesce",
+          failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
+        },
       }),
     );
     loopStates.push(migrateLoopState(work));
@@ -226,14 +308,20 @@ export function planAgencyV2Migration(
 
   const workflowIds = new Set(workflows.map((workflow) => workflow.id));
   for (const goal of goals) {
-    if (goal.executionRef.kind === "workflow" && !workflowIds.has(goal.executionRef.id)) {
+    if (
+      goal.executionRef.kind === "workflow" &&
+      !workflowIds.has(goal.executionRef.id)
+    ) {
       issues.push(
         `Goal "${goal.id}" references missing Workflow "${goal.executionRef.id}"`,
       );
     }
   }
   for (const loop of loops) {
-    if (loop.targetRef.kind === "workflow" && !workflowIds.has(loop.targetRef.id)) {
+    if (
+      loop.targetRef.kind === "workflow" &&
+      !workflowIds.has(loop.targetRef.id)
+    ) {
       issues.push(
         `Loop "${loop.id}" references missing Workflow "${loop.targetRef.id}"`,
       );
@@ -242,7 +330,12 @@ export function planAgencyV2Migration(
 
   return {
     definitions: { intents, operations, goals, loops, workflows },
-    states: { goals: goalStates, loops: loopStates },
+    states: {
+      intents: intentStates,
+      operations: operationStates,
+      goals: goalStates,
+      loops: loopStates,
+    },
     requiredCapabilityIds: [...capabilityIds].sort(),
     issues,
   };
@@ -261,7 +354,9 @@ function migrateGoalState(work: LegacyManagedWork): GoalState {
 }
 
 function migrateLoopState(work: LegacyManagedWork): LoopState {
-  const capabilityStates = Object.values(work.scheduleState?.capabilities ?? {});
+  const capabilityStates = Object.values(
+    work.scheduleState?.capabilities ?? {},
+  );
   const lastFiredAt = latestTimestamp([
     work.scheduleState?.lastGoalTickAt,
     ...capabilityStates.map((state) => state.lastFiredAt),
@@ -294,17 +389,23 @@ function validTimestamp(value?: string): string {
     : new Date().toISOString();
 }
 
-function latestTimestamp(values: Array<string | undefined>): string | undefined {
+function latestTimestamp(
+  values: Array<string | undefined>,
+): string | undefined {
   return sortedTimestamps(values).at(-1);
 }
 
-function earliestTimestamp(values: Array<string | undefined>): string | undefined {
+function earliestTimestamp(
+  values: Array<string | undefined>,
+): string | undefined {
   return sortedTimestamps(values)[0];
 }
 
 function sortedTimestamps(values: Array<string | undefined>): string[] {
   return values
-    .filter((value): value is string => !!value && !Number.isNaN(Date.parse(value)))
+    .filter(
+      (value): value is string => !!value && !Number.isNaN(Date.parse(value)),
+    )
     .map((value) => new Date(value).toISOString())
     .sort();
 }
@@ -325,7 +426,9 @@ function migrateWorkflow(
               : [],
         }));
   const ids = new Set(sourceSteps.map((step) => step.id));
-  const dependencies = new Map(sourceSteps.map((step) => [step.id, [] as string[]]));
+  const dependencies = new Map(
+    sourceSteps.map((step) => [step.id, [] as string[]]),
+  );
   const hasExplicitTransitions = sourceSteps.some(
     (step) => (step.next ?? []).length > 0,
   );
@@ -344,7 +447,9 @@ function migrateWorkflow(
   }
   if (!hasExplicitTransitions) {
     for (let index = 1; index < sourceSteps.length; index += 1) {
-      dependencies.get(sourceSteps[index]!.id)!.push(sourceSteps[index - 1]!.id);
+      dependencies
+        .get(sourceSteps[index]!.id)!
+        .push(sourceSteps[index - 1]!.id);
     }
   }
   for (const step of sourceSteps) {
@@ -364,8 +469,15 @@ function migrateWorkflow(
       dependencies.get(transition.to)!.push(step.id);
     }
   }
-  if (hasCycle(sourceSteps.map((step) => step.id), dependencies)) {
-    issues.push(`Workflow "${workflow.id}" contains a cycle and requires manual V2 redesign`);
+  if (
+    hasCycle(
+      sourceSteps.map((step) => step.id),
+      dependencies,
+    )
+  ) {
+    issues.push(
+      `Workflow "${workflow.id}" contains a cycle and requires manual V2 redesign`,
+    );
     return undefined;
   }
   return createWorkflowDefinition({
@@ -377,7 +489,10 @@ function migrateWorkflow(
       ...(step.inputs
         ? {
             input: Object.fromEntries(
-              Object.entries(step.inputs).map(([key, value]) => [key, { from: value.from }]),
+              Object.entries(step.inputs).map(([key, value]) => [
+                key,
+                { from: value.from },
+              ]),
             ),
           }
         : {}),

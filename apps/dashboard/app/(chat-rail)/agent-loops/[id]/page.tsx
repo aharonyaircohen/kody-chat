@@ -5,7 +5,7 @@
  * @ai-summary Selected Loop route. Keeps loop selection addressable at
  * `/agent-loops/<id>`.
  */
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +22,5 @@ export default async function SelectedAgentLoopPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <AgencyDefinitionsView kind="loop" selectedId={id} />;
+  return <ManagedModelsView model="agentLoop" selectedId={id} />;
 }

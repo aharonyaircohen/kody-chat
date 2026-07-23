@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   assertLifecycleTransition,
   createGoalState,
+  createIntentState,
   createLoopState,
+  createOperationState,
   type GoalState,
+  type IntentState,
   type LoopState,
+  type OperationState,
 } from "@kody-ade/agency-domain";
 import {
   listStoredAgencyDefinitions,
@@ -13,10 +17,14 @@ import {
 } from "../backend/agency-model-store";
 import { verifyRepoWriteAccess } from "./repo-write-access";
 
-type AgencyState = GoalState | LoopState;
+type AgencyState = IntentState | OperationState | GoalState | LoopState;
+type AgencyStateKind = "intent" | "operation" | "goal" | "loop";
 
-function parseState(kind: "goal" | "loop", value: unknown): AgencyState {
-  return kind === "goal" ? createGoalState(value) : createLoopState(value);
+function parseState(kind: AgencyStateKind, value: unknown): AgencyState {
+  if (kind === "intent") return createIntentState(value);
+  if (kind === "operation") return createOperationState(value);
+  if (kind === "goal") return createGoalState(value);
+  return createLoopState(value);
 }
 
 export async function GET(req: NextRequest) {
@@ -36,10 +44,17 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const access = await verifyRepoWriteAccess(req);
   if (access instanceof NextResponse) return access;
-  const body = (await req.json().catch(() => null)) as
-    | { kind?: unknown; state?: unknown }
-    | null;
-  if (!body || (body.kind !== "goal" && body.kind !== "loop")) {
+  const body = (await req.json().catch(() => null)) as {
+    kind?: unknown;
+    state?: unknown;
+  } | null;
+  if (
+    !body ||
+    (body.kind !== "intent" &&
+      body.kind !== "operation" &&
+      body.kind !== "goal" &&
+      body.kind !== "loop")
+  ) {
     return NextResponse.json({ error: "validation_error" }, { status: 400 });
   }
   let state: AgencyState;
@@ -73,8 +88,7 @@ export async function PUT(req: NextRequest) {
     }
     const existing = existingStates.find(
       (record) =>
-        record.kind === body.kind &&
-        record.definitionId === state.definitionId,
+        record.kind === body.kind && record.definitionId === state.definitionId,
     );
     if (existing) {
       const previous = parseState(existing.kind, existing.data);

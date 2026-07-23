@@ -43,6 +43,14 @@ const engineConfig = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
 }));
 
+const implementations = vi.hoisted(() => ({
+  listStoreImplementations: vi.fn(),
+}));
+
+const agencyModel = vi.hoisted(() => ({
+  listStoredAgencyDefinitions: vi.fn(),
+}));
+
 function storeUrl(slug: string): string {
   return `https://github.com/acme/store/tree/main/legacy/capabilities/${slug}`;
 }
@@ -88,6 +96,14 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
 }));
 
+vi.mock("@kody-ade/agency/implementations/files", () => ({
+  listStoreImplementations: implementations.listStoreImplementations,
+}));
+
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  listStoredAgencyDefinitions: agencyModel.listStoredAgencyDefinitions,
+}));
+
 import { GET } from "../../app/api/kody/store-catalog/route";
 
 function req(): NextRequest {
@@ -103,12 +119,72 @@ describe("store catalog route", () => {
     commands.listStoreCommandFiles.mockResolvedValue([]);
     managedGoals.listCompanyStoreGoalTemplateFiles.mockResolvedValue([]);
     workflows.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([]);
+    implementations.listStoreImplementations.mockResolvedValue([]);
+    agencyModel.listStoredAgencyDefinitions.mockResolvedValue([]);
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
         defaultImplementation: "run",
         company: {},
       },
       sha: "config-sha",
+    });
+  });
+
+  it("lists Implementation models and marks the resolved one selected", async () => {
+    implementations.listStoreImplementations.mockResolvedValue([
+      {
+        id: "release-watch-agent",
+        capabilityId: "release-watch",
+        compatibleCapabilityRevision: "revision-1",
+        type: "agent",
+        agentId: "atlas-agent",
+        htmlUrl:
+          "https://github.com/acme/store/tree/main/implementations/release-watch-agent",
+      },
+    ]);
+    agencyModel.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "capability:release-watch:revision-1",
+        kind: "capability",
+        schemaVersion: 1,
+        data: { id: "release-watch" },
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        recordId: "implementation:release-watch-agent:impl-revision",
+        kind: "implementation",
+        schemaVersion: 1,
+        data: {
+          id: "release-watch-agent",
+          capabilityRef: { kind: "capability", id: "release-watch" },
+          compatibleCapabilityRevision: "revision-1",
+          type: "agent",
+          agentRef: { kind: "agent", id: "atlas-agent" },
+        },
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        company: { activeCapabilities: ["release-watch"] },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await GET(req());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(
+      json.items.find(
+        (item: { kind: string }) => item.kind === "implementation",
+      ),
+    ).toMatchObject({
+      slug: "release-watch-agent",
+      capabilityId: "release-watch",
+      implementationType: "agent",
+      installed: true,
+      selection: "automatic",
     });
   });
 

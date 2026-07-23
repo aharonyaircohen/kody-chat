@@ -6,7 +6,13 @@ import {
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import {
+  companyStoreAssetPath,
+  readCompanyStoreText,
+} from "@kody-ade/base/company-store/assets";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@kody-ade/base/activity/audit";
+import type { ImplementationDefinition } from "@kody-ade/agency-domain";
 import {
   deleteCapabilityFile,
   isValidSlug,
@@ -14,7 +20,13 @@ import {
   readResolvedCapabilityFile,
   writeCapabilityFile,
 } from "@kody-ade/agency/capabilities";
-import { clearGitHubContext, setGitHubContext } from "@kody-ade/agency/github";
+import {
+  clearGitHubContext,
+  getOctokit,
+  setGitHubContext,
+} from "@kody-ade/agency/github";
+import { listStoredAgencyDefinitions } from "../backend/agency-model-store";
+import { resolveCapabilityImplementations } from "../implementation-resolution";
 
 const skillSchema = z.object({
   name: z.string().min(1).max(64),
@@ -57,6 +69,77 @@ async function getCapability(
   return readResolvedCapabilityFile(slug);
 }
 
+function parseRuntime(raw: string | null): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function implementationPresentation(
+  owner: string,
+  repo: string,
+  capabilityId: string,
+) {
+  const definitions = await listStoredAgencyDefinitions(owner, repo);
+  const octokit = getOctokit();
+  const { config } = await getEngineConfig(octokit, owner, repo);
+  const repositoryBinding =
+    config.execution?.capabilityBindings?.[capabilityId];
+  const resolution = resolveCapabilityImplementations(
+    definitions,
+    capabilityId,
+    repositoryBinding,
+  );
+  const candidates = await Promise.all(
+    resolution.candidates.map(async (record) => {
+      const definition = record.data as unknown as ImplementationDefinition;
+      let runtime: Record<string, unknown> | null = null;
+      let promptTemplate: string | null = null;
+      try {
+        const root = await companyStoreAssetPath(
+          octokit,
+          "implementations",
+          definition.id,
+        );
+        const [runtimeRaw, promptRaw] = await Promise.all([
+          readCompanyStoreText(octokit, `${root}/runtime.json`),
+          definition.type === "agent"
+            ? readCompanyStoreText(octokit, `${root}/prompt.md`)
+            : Promise.resolve(null),
+        ]);
+        runtime = parseRuntime(runtimeRaw);
+        promptTemplate = promptRaw?.trim() || null;
+      } catch {
+        // The immutable Definition remains useful even if its runtime package
+        // is temporarily unavailable.
+      }
+      return {
+        id: definition.id,
+        type: definition.type,
+        compatibleCapabilityRevision: definition.compatibleCapabilityRevision,
+        ...(definition.type === "agent"
+          ? { agentId: definition.agentRef.id }
+          : {}),
+        runtime,
+        promptTemplate,
+      };
+    }),
+  );
+  return {
+    status: resolution.status,
+    capabilityRevision: resolution.capabilityRevision,
+    ...(resolution.selected ? { selectedId: resolution.selected.data.id } : {}),
+    ...(repositoryBinding ? { repositoryBinding } : {}),
+    candidates,
+  };
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
@@ -72,10 +155,29 @@ export async function GET(
   const { slug } = await params;
   if (!isValidSlug(slug))
     return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "repository_context_required" },
+      { status: 400 },
+    );
+  }
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
   try {
     const capability = await getCapability(tenantId, slug);
+    const implementationResolution = capability
+      ? await implementationPresentation(auth.owner, auth.repo, slug)
+      : null;
     return capability
-      ? NextResponse.json({ capability })
+      ? NextResponse.json({
+          capability: { ...capability, implementationResolution },
+        })
       : NextResponse.json({ error: "not_found" }, { status: 404 });
   } catch (error) {
     return NextResponse.json(
@@ -86,6 +188,8 @@ export async function GET(
       },
       { status: 503 },
     );
+  } finally {
+    clearGitHubContext();
   }
 }
 

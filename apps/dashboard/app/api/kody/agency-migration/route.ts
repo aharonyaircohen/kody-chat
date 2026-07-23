@@ -11,8 +11,7 @@ import {
 } from "@kody-ade/base/company-store/assets";
 import {
   agencyDefinitionRecordId,
-  createStoredAgencyDefinition,
-  putStoredAgencyState,
+  applyStoredAgencyModelChange,
   type AgencyDefinitionKind,
 } from "@kody-ade/agency/backend/agency-model-store";
 import { listCapabilityFiles } from "@kody-ade/agency/capabilities";
@@ -55,7 +54,10 @@ async function buildSnapshot(req: NextRequest) {
     const octokit = (await import("@kody-ade/base/auth")).getUserOctokit;
     const client = await octokit(req);
     if (!client) {
-      return NextResponse.json({ error: "request_auth_required" }, { status: 401 });
+      return NextResponse.json(
+        { error: "request_auth_required" },
+        { status: 401 },
+      );
     }
     const [
       intentRecords,
@@ -64,15 +66,14 @@ async function buildSnapshot(req: NextRequest) {
       capabilities,
       localWorkflows,
       storeWorkflows,
-    ] =
-      await Promise.all([
-        listCompanyIntentRecords(auth.owner, auth.repo),
-        listOperationFiles(client, auth.owner, auth.repo),
-        listManagedGoalFiles(client, auth.owner, auth.repo),
-        listCapabilityFiles(),
-        listWorkflowDefinitionFiles(auth.owner, auth.repo),
-        listCompanyStoreWorkflowDefinitionFiles(client),
-      ]);
+    ] = await Promise.all([
+      listCompanyIntentRecords(auth.owner, auth.repo),
+      listOperationFiles(client, auth.owner, auth.repo),
+      listManagedGoalFiles(client, auth.owner, auth.repo),
+      listCapabilityFiles(),
+      listWorkflowDefinitionFiles(auth.owner, auth.repo),
+      listCompanyStoreWorkflowDefinitionFiles(client),
+    ]);
     const referencedWorkflowIds = new Set(
       managedRecords.flatMap((record) => {
         const target = record.state.loopTarget;
@@ -97,7 +98,10 @@ async function buildSnapshot(req: NextRequest) {
       operations: operationRecords.map((record) => record.operation),
       managedWork: managedWork.map((record) => ({
         id: record.id,
-        model: managedGoalModel(record) === "agentLoop" ? ("loop" as const) : ("goal" as const),
+        model:
+          managedGoalModel(record) === "agentLoop"
+            ? ("loop" as const)
+            : ("goal" as const),
         destination: record.state.destination,
         route: record.state.route.map((step) => ({
           stage: step.stage,
@@ -106,8 +110,15 @@ async function buildSnapshot(req: NextRequest) {
         })),
         capabilities: record.state.capabilities,
         ...(record.state.schedule ? { schedule: record.state.schedule } : {}),
-        ...(record.state.workflowRef ? { workflowRef: { id: record.state.workflowRef.id } } : {}),
-        ...(record.state.loopTarget ? { loopTarget: record.state.loopTarget } : {}),
+        ...(record.state.preferredRunTime
+          ? { preferredRunTime: record.state.preferredRunTime }
+          : {}),
+        ...(record.state.workflowRef
+          ? { workflowRef: { id: record.state.workflowRef.id } }
+          : {}),
+        ...(record.state.loopTarget
+          ? { loopTarget: record.state.loopTarget }
+          : {}),
         state: record.state.state,
         facts: record.state.facts,
         blockers: record.state.blockers,
@@ -124,7 +135,8 @@ async function buildSnapshot(req: NextRequest) {
       ]
         .filter(
           (record, index, records) =>
-            records.findIndex((candidate) => candidate.id === record.id) === index,
+            records.findIndex((candidate) => candidate.id === record.id) ===
+            index,
         )
         .map((record) => ({
           id: record.id,
@@ -210,7 +222,10 @@ export async function GET(req: NextRequest) {
         result.missingImplementations.length === 0,
     });
   } catch {
-    return NextResponse.json({ error: "migration_preview_failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "migration_preview_failed" },
+      { status: 500 },
+    );
   }
 }
 
@@ -251,51 +266,47 @@ export async function POST(req: NextRequest) {
       ["goal", result.plan.definitions.goals],
       ["loop", result.plan.definitions.loops],
     ];
-    let created = 0;
-    let reused = 0;
-    for (const [kind, definitions] of groups) {
-      for (const definition of definitions) {
-        try {
-          await createStoredAgencyDefinition({
-            owner: result.access.auth.owner,
-            repo: result.access.auth.repo,
-            recordId: agencyDefinitionRecordId(kind, definition),
-            kind,
-            data: definition,
-            createdAt: result.snapshot.capturedAt,
-          });
-          created += 1;
-        } catch (error) {
-          if (error instanceof Error && /immutable|already exists/i.test(error.message)) {
-            reused += 1;
-          } else {
-            throw error;
-          }
-        }
-      }
-    }
-    for (const state of result.plan.states.goals) {
-      await putStoredAgencyState({
-        owner: result.access.auth.owner,
-        repo: result.access.auth.repo,
-        kind: "goal",
-        data: state,
-        updatedAt: state.updatedAt,
-      });
-    }
-    for (const state of result.plan.states.loops) {
-      await putStoredAgencyState({
-        owner: result.access.auth.owner,
-        repo: result.access.auth.repo,
-        kind: "loop",
-        data: state,
-        updatedAt: state.updatedAt,
-      });
-    }
-    return NextResponse.json({ ok: true, migrationId, created, reused }, { status: 201 });
+    const stateGroups = [
+      ["intent", result.plan.states.intents],
+      ["operation", result.plan.states.operations],
+      ["goal", result.plan.states.goals],
+      ["loop", result.plan.states.loops],
+    ] as const;
+    const change = {
+      definitions: groups.flatMap(([kind, definitions]) =>
+        definitions.map((definition) => ({
+          recordId: agencyDefinitionRecordId(kind, definition),
+          kind,
+          schemaVersion: 1,
+          data: definition,
+          createdAt: result.snapshot.capturedAt,
+        })),
+      ),
+      states: stateGroups.flatMap(([kind, states]) =>
+        states.map((state) => ({
+          definitionId: state.definitionId,
+          kind,
+          schemaVersion: 1,
+          data: state,
+          updatedAt: state.updatedAt,
+        })),
+      ),
+    };
+    const applied = await applyStoredAgencyModelChange({
+      owner: result.access.auth.owner,
+      repo: result.access.auth.repo,
+      change,
+    });
+    return NextResponse.json(
+      { ok: true, migrationId, ...applied },
+      { status: 201 },
+    );
   } catch (error) {
     return NextResponse.json(
-      { error: "migration_apply_failed", message: error instanceof Error ? error.message : "Migration failed" },
+      {
+        error: "migration_apply_failed",
+        message: error instanceof Error ? error.message : "Migration failed",
+      },
       { status: 500 },
     );
   }

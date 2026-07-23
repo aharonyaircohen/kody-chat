@@ -153,6 +153,8 @@ describe("settings navigation", () => {
       "/workflows",
       "/guided-flows",
       "/capabilities",
+      "/capability-contracts",
+      "/implementations",
       "/store-catalog",
       "/company",
     ]);

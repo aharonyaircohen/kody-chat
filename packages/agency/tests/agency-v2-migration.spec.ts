@@ -42,7 +42,10 @@ describe("Agency V2 migration planner", () => {
         {
           id: "health-watch",
           model: "loop",
-          destination: { outcome: "Service stays healthy", evidence: ["report"] },
+          destination: {
+            outcome: "Service stays healthy",
+            evidence: ["report"],
+          },
           route: [],
           schedule: "1h",
           loopTarget: { type: "workflow", id: "health-check" },
@@ -61,6 +64,7 @@ describe("Agency V2 migration planner", () => {
       id: "delivery",
       name: "Delivery",
       responsibility: "Ship safely",
+      doesNotOwn: [],
       intentIds: ["quality"],
     });
     expect(plan.definitions.goals[0]).toMatchObject({
@@ -70,14 +74,20 @@ describe("Agency V2 migration planner", () => {
     });
     expect(plan.definitions.workflows[0]?.steps).toHaveLength(2);
     expect(plan.definitions.workflows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "health-check" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: "health-check" })]),
     );
     expect(plan.definitions.loops[0]).toMatchObject({
       id: "health-watch",
       operationId: "delivery",
       trigger: { type: "schedule", every: "1h" },
+    });
+    expect(plan.states.intents[0]).toMatchObject({
+      definitionId: "quality",
+      lifecycle: "active",
+    });
+    expect(plan.states.operations[0]).toMatchObject({
+      definitionId: "delivery",
+      lifecycle: "draft",
     });
   });
 
@@ -86,8 +96,22 @@ describe("Agency V2 migration planner", () => {
       tenantId: "acme/widgets",
       intents: [],
       operations: [
-        { id: "one", name: "One", responsibility: "One", intentIds: [], goals: ["g"], loops: [] },
-        { id: "two", name: "Two", responsibility: "Two", intentIds: [], goals: ["g"], loops: [] },
+        {
+          id: "one",
+          name: "One",
+          responsibility: "One",
+          intentIds: [],
+          goals: ["g"],
+          loops: [],
+        },
+        {
+          id: "two",
+          name: "Two",
+          responsibility: "Two",
+          intentIds: [],
+          goals: ["g"],
+          loops: [],
+        },
       ],
       managedWork: [
         {

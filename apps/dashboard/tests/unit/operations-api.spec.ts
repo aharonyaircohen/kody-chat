@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   verifyActorLogin: vi.fn(),
   buildDispatchInputs: vi.fn(),
   createWorkflowDispatch: vi.fn(),
+  listStoredAgencyDefinitions: vi.fn(),
+  listStoredAgencyStates: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -45,6 +47,10 @@ vi.mock("@dashboard/lib/kody-workflow-dispatch", () => ({
 }));
 
 vi.mock("@dashboard/lib/activity/audit", () => ({ recordAudit: vi.fn() }));
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  listStoredAgencyDefinitions: h.listStoredAgencyDefinitions,
+  listStoredAgencyStates: h.listStoredAgencyStates,
+}));
 
 import { GET, POST } from "../../app/api/kody/operations/route";
 import {
@@ -111,6 +117,51 @@ beforeEach(() => {
     action: "agency-operations-management",
     message: "Operate Operation release",
   });
+  h.listStoredAgencyDefinitions.mockResolvedValue([
+    {
+      recordId: "intent:reliable-delivery:current",
+      kind: "intent",
+      schemaVersion: 1,
+      data: { id: "reliable-delivery" },
+      createdAt: "2026-07-14T10:00:00.000Z",
+    },
+    {
+      recordId: "operation:release:current",
+      kind: "operation",
+      schemaVersion: 1,
+      data: {
+        id: "release",
+        name: "Release",
+        responsibility: "Ship approved changes safely.",
+        doesNotOwn: ["Product priority"],
+        intentIds: ["reliable-delivery"],
+      },
+      createdAt: "2026-07-14T10:00:00.000Z",
+    },
+    {
+      recordId: "goal:web-release:current",
+      kind: "goal",
+      schemaVersion: 1,
+      data: { id: "web-release", operationId: "release" },
+      createdAt: "2026-07-14T10:00:00.000Z",
+    },
+    {
+      recordId: "loop:deployment-health:current",
+      kind: "loop",
+      schemaVersion: 1,
+      data: { id: "deployment-health", operationId: "release" },
+      createdAt: "2026-07-14T10:00:00.000Z",
+    },
+  ]);
+  h.listStoredAgencyStates.mockResolvedValue([
+    {
+      definitionId: "release",
+      kind: "operation",
+      schemaVersion: 1,
+      data: { definitionId: "release", lifecycle: "active" },
+      updatedAt: "2026-07-14T10:00:00.000Z",
+    },
+  ]);
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -302,14 +353,18 @@ describe("Operations API", () => {
   });
 
   it("runs only an active, still-valid Operation with its exact scope", async () => {
-    h.readOperationFile.mockResolvedValue(stored);
+    h.listStoredAgencyStates.mockResolvedValueOnce([
+      {
+        definitionId: "release",
+        kind: "operation",
+        schemaVersion: 1,
+        data: { definitionId: "release", lifecycle: "paused" },
+        updatedAt: "2026-07-14T10:00:00.000Z",
+      },
+    ]);
     let response = await RUN(request("POST", "/release/run", {}), params);
     expect(response.status).toBe(409);
 
-    h.readOperationFile.mockResolvedValue({
-      ...stored,
-      operation: { ...operation, status: "active" },
-    });
     response = await RUN(request("POST", "/release/run", {}), params);
     const body = await response.json();
 
@@ -323,22 +378,19 @@ describe("Operations API", () => {
       expect.anything(),
       expect.objectContaining({
         action: "agency-operations-management",
-        message: expect.stringContaining("operations/release/operation.json"),
+        message: expect.stringContaining("Agency model"),
       }),
     );
     expect(h.createWorkflowDispatch).toHaveBeenCalledTimes(1);
   });
 
   it("revalidates active scope immediately before dispatch", async () => {
-    h.readOperationFile.mockResolvedValue({
-      ...stored,
-      operation: { ...operation, status: "active" },
-    });
-    h.loadOperationCatalog.mockResolvedValue({
-      intents: ["reliable-delivery"],
-      goals: [],
-      loops: ["deployment-health"],
-    });
+    h.listStoredAgencyDefinitions.mockResolvedValue(
+      (await h.listStoredAgencyDefinitions()).filter(
+        (record: { kind: string; data: { id: string } }) =>
+          !(record.kind === "intent" && record.data.id === "reliable-delivery"),
+      ),
+    );
 
     const response = await RUN(request("POST", "/release/run", {}), params);
     const body = await response.json();

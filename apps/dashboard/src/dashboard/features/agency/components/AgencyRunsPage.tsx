@@ -20,9 +20,15 @@ import {
 } from "lucide-react";
 
 import { Button } from "@kody-ade/base/ui/button";
-import { useAgencyRunDetail, useAgencyRuns } from "@dashboard/lib/hooks/useAgencyRuns";
+import {
+  useAgencyRunDetail,
+  useAgencyRuns,
+} from "@dashboard/lib/hooks/useAgencyRuns";
 import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
-import { DEFAULT_KODY_STORE_REPO_URL, useAuth } from "@dashboard/lib/auth-context";
+import {
+  DEFAULT_KODY_STORE_REPO_URL,
+  useAuth,
+} from "@dashboard/lib/auth-context";
 import type {
   AgencyRunKind,
   AgencyRunStatus,
@@ -115,7 +121,7 @@ function kindHref(run: AgencyRunSummary): string {
   if (run.kind === "loop")
     return `/agent-loops/${encodeURIComponent(run.targetId)}`;
   if (run.kind === "capability")
-    return `/capability-contracts/${encodeURIComponent(run.targetId)}`;
+    return `/capabilities/${encodeURIComponent(run.targetId)}`;
   return `/workflows/${encodeURIComponent(run.targetId)}`;
 }
 

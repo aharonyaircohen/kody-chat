@@ -373,10 +373,17 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
+        href: "/capability-contracts",
+        label: "Capability Contracts",
+        icon: ScrollText,
+        description: "Canonical inputs, outputs, effects, and permissions.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/implementations",
         label: "Implementations",
         icon: Cpu,
-        description: "Technical execution models for capability contracts.",
+        description: "Technical execution models for Capability Contracts.",
         tint: "text-violet-300 bg-violet-500/10",
       },
       {

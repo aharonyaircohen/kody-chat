@@ -30,6 +30,9 @@ import {
   type ActiveGoalConfigEntry,
 } from "@kody-ade/base/engine/config";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
+import { listStoreImplementations } from "@kody-ade/agency/implementations/files";
+import { listStoredAgencyDefinitions } from "@kody-ade/agency/backend/agency-model-store";
+import { resolveCapabilityImplementations } from "@kody-ade/agency/implementation-resolution";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,6 +43,7 @@ type CatalogKind =
   | "agentLoop"
   | "workflow"
   | "capability"
+  | "implementation"
   | "command"
   | "feature";
 
@@ -64,11 +68,16 @@ interface CatalogItem {
   uninstallBlockedBy?: CatalogReferenceBlocker[];
   /** Dashboard route to a setup wizard offered after install (features). */
   setupHref?: string | null;
+  capabilityId?: string | null;
+  compatibleCapabilityRevision?: string | null;
+  implementationType?: "agent" | "script" | null;
+  selection?: "repository" | "automatic" | "available";
 }
 
 type ActiveCatalogConfig = {
   agents: Set<string>;
   capabilities: Set<string>;
+  implementations: Set<string>;
   commands: Set<string>;
   goals: Set<string>;
   workflows: Set<string>;
@@ -85,6 +94,8 @@ function isCatalogItemInstalled(
 ): boolean {
   if (item.kind === "agent") return active.agents.has(item.slug);
   if (item.kind === "capability") return active.capabilities.has(item.slug);
+  if (item.kind === "implementation")
+    return active.implementations.has(item.slug);
   if (item.kind === "command") return active.commands.has(item.slug);
   if (item.kind === "workflow") return active.workflows.has(item.slug);
   if (item.kind === "feature") return active.features.has(item.slug);
@@ -197,23 +208,50 @@ export async function GET(req: NextRequest) {
       storeCommands,
       goalTemplates,
       storeWorkflows,
+      implementations,
       engineConfig,
+      agencyDefinitions,
     ] = await Promise.all([
       listStoreCapabilityFiles(octokit),
       listStoreAgentFiles(octokit),
       listStoreCommandFiles(new Set(), octokit),
       listCompanyStoreGoalTemplateFiles(octokit),
       listCompanyStoreWorkflowDefinitionFiles(octokit),
+      listStoreImplementations(octokit),
       getEngineConfig(octokit, headerAuth.owner, headerAuth.repo, {
         force: true,
       }),
+      listStoredAgencyDefinitions(headerAuth.owner, headerAuth.repo),
     ]);
 
     const items: CatalogItem[] = [];
     const config = engineConfig.config;
+    const activeCapabilityIds = new Set(
+      config.company?.activeCapabilities ?? [],
+    );
+    const capabilityBindings =
+      config.execution?.capabilityBindings ?? {};
+    const selectedImplementations = new Map<
+      string,
+      "repository" | "automatic"
+    >();
+    for (const capabilityId of activeCapabilityIds) {
+      const resolution = resolveCapabilityImplementations(
+        agencyDefinitions,
+        capabilityId,
+        capabilityBindings[capabilityId],
+      );
+      if (resolution.selected) {
+        selectedImplementations.set(
+          resolution.selected.data.id,
+          capabilityBindings[capabilityId] ? "repository" : "automatic",
+        );
+      }
+    }
     const active = {
       agents: new Set(config.company?.activeAgents ?? []),
-      capabilities: new Set(config.company?.activeCapabilities ?? []),
+      capabilities: activeCapabilityIds,
+      implementations: new Set(selectedImplementations.keys()),
       commands: new Set(config.company?.activeCommands ?? []),
       goals: new Set((config.company?.activeGoals ?? []).map(activeGoalSlug)),
       workflows: new Set(config.company?.activeWorkflows ?? []),
@@ -231,6 +269,21 @@ export async function GET(req: NextRequest) {
         htmlUrl: item.htmlUrl,
         agent: item.agent,
         schedule: item.every ?? null,
+      });
+    }
+
+    for (const item of implementations) {
+      items.push({
+        slug: item.id,
+        title: item.id,
+        description: `Implements ${item.capabilityId} with a ${item.type} runtime.`,
+        kind: "implementation",
+        htmlUrl: item.htmlUrl,
+        agent: item.agentId ?? null,
+        capabilityId: item.capabilityId,
+        compatibleCapabilityRevision: item.compatibleCapabilityRevision,
+        implementationType: item.type,
+        selection: selectedImplementations.get(item.id) ?? "available",
       });
     }
 

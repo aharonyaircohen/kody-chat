@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyRepoWriteAccess } from "@kody-ade/base/auth";
-import { listStoredAgencyDefinitions } from "@kody-ade/agency/backend/agency-model-store";
+import {
+  listStoredAgencyDefinitions,
+  listStoredAgencyStates,
+} from "@kody-ade/agency/backend/agency-model-store";
+import {
+  currentAgencyDefinition,
+  currentAgencyState,
+} from "@kody-ade/agency/agency-model-read";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
 const loopIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,127}$/);
@@ -18,16 +25,18 @@ export async function POST(
     return NextResponse.json({ error: "invalid_loop_id" }, { status: 400 });
   }
 
-  const definitions = await listStoredAgencyDefinitions(
-    access.auth.owner,
-    access.auth.repo,
-  );
-  const loopExists = definitions.some(
-    (definition) =>
-      definition.kind === "loop" && definition.data.id === parsedId.data,
-  );
-  if (!loopExists) {
+  const [definitions, states] = await Promise.all([
+    listStoredAgencyDefinitions(access.auth.owner, access.auth.repo),
+    listStoredAgencyStates(access.auth.owner, access.auth.repo),
+  ]);
+  if (!currentAgencyDefinition(definitions, "loop", parsedId.data)) {
     return NextResponse.json({ error: "loop_not_found" }, { status: 404 });
+  }
+  if (
+    currentAgencyState(states, "loop", parsedId.data)?.data.lifecycle !==
+    "active"
+  ) {
+    return NextResponse.json({ error: "loop_not_active" }, { status: 409 });
   }
 
   try {
@@ -57,6 +66,9 @@ export async function POST(
       { status: 202 },
     );
   } catch {
-    return NextResponse.json({ error: "loop_dispatch_failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "loop_dispatch_failed" },
+      { status: 500 },
+    );
   }
 }

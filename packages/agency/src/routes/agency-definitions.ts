@@ -16,8 +16,8 @@ import {
   createStoredAgencyDefinition,
   listStoredAgencyDefinitions,
   type AgencyDefinitionKind,
-  type StoredAgencyDefinition,
 } from "../backend/agency-model-store";
+import { currentAgencyDefinitions } from "../agency-model-read";
 import { verifyRepoWriteAccess } from "./repo-write-access";
 
 const kindSchema = z.enum(AGENCY_DEFINITION_KINDS);
@@ -35,31 +35,30 @@ function validate(kind: AgencyDefinitionKind, definition: unknown) {
   return createAgentDefinition(definition);
 }
 
-function latestByDomainId(records: StoredAgencyDefinition[]) {
-  const latest = new Map<string, StoredAgencyDefinition>();
-  for (const record of records) {
-    const key = `${record.kind}:${record.data.id}`;
-    const current = latest.get(key);
-    if (!current || current.createdAt < record.createdAt) latest.set(key, record);
-  }
-  return [...latest.values()];
-}
-
 export async function GET(req: NextRequest) {
   const access = await verifyRepoWriteAccess(req);
   if (access instanceof NextResponse) return access;
-  const parsedKind = kindSchema.optional().safeParse(req.nextUrl.searchParams.get("kind") ?? undefined);
+  const parsedKind = kindSchema
+    .optional()
+    .safeParse(req.nextUrl.searchParams.get("kind") ?? undefined);
   if (!parsedKind.success) {
     return NextResponse.json({ error: "validation_error" }, { status: 400 });
   }
   try {
-    const all = await listStoredAgencyDefinitions(access.auth.owner, access.auth.repo);
-    const definitions = latestByDomainId(all).filter(
-      (record) => parsedKind.data === undefined || record.kind === parsedKind.data,
+    const all = await listStoredAgencyDefinitions(
+      access.auth.owner,
+      access.auth.repo,
+    );
+    const definitions = currentAgencyDefinitions(all).filter(
+      (record) =>
+        parsedKind.data === undefined || record.kind === parsedKind.data,
     );
     return NextResponse.json({ definitions });
   } catch {
-    return NextResponse.json({ error: "definition_list_failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "definition_list_failed" },
+      { status: 500 },
+    );
   }
 }
 
@@ -75,7 +74,10 @@ export async function POST(req: NextRequest) {
     definition = validate(parsed.data.kind, parsed.data.definition);
   } catch (error) {
     return NextResponse.json(
-      { error: "invalid_definition", message: error instanceof Error ? error.message : "Invalid definition" },
+      {
+        error: "invalid_definition",
+        message: error instanceof Error ? error.message : "Invalid definition",
+      },
       { status: 400 },
     );
   }
@@ -92,9 +94,15 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ recordId, definition }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && /immutable|already exists/i.test(error.message)) {
+    if (
+      error instanceof Error &&
+      /immutable|already exists/i.test(error.message)
+    ) {
       return NextResponse.json({ recordId, definition }, { status: 200 });
     }
-    return NextResponse.json({ error: "definition_create_failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "definition_create_failed" },
+      { status: 500 },
+    );
   }
 }

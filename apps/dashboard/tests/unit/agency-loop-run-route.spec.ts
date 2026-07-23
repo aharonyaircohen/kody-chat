@@ -33,6 +33,18 @@ const store = vi.hoisted(() => ({
       createdAt: "2026-07-23T00:00:00.000Z",
     },
   ]),
+  listStoredAgencyStates: vi.fn(async () => [
+    {
+      definitionId: "knowledge-system-refresh",
+      kind: "loop",
+      schemaVersion: 1,
+      data: {
+        definitionId: "knowledge-system-refresh",
+        lifecycle: "active",
+      },
+      updatedAt: "2026-07-23T00:00:00.000Z",
+    },
+  ]),
 }));
 const dispatch = vi.hoisted(() => ({
   buildKodyWorkflowDispatchInputs: vi.fn(async () => ({

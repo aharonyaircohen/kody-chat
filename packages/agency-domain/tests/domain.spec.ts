@@ -4,7 +4,11 @@ import {
   createImplementationDefinition,
   createGoalDefinition,
   createGoalState,
+  createIntentDefinition,
+  createIntentState,
   createLoopDefinition,
+  createOperationDefinition,
+  createOperationState,
   createRun,
   createRunOutput,
   relationshipIssues,
@@ -124,11 +128,11 @@ describe("clean AI Agency domain", () => {
         objective,
         trigger: { type: "schedule", every: "1h" },
         targetRef: { kind: "workflow", id: "refresh-knowledge" },
-      reconciliationPolicy: {
-        overlap: "skip",
-        missed: "coalesce",
-        failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
-      },
+        reconciliationPolicy: {
+          overlap: "skip",
+          missed: "coalesce",
+          failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
+        },
       }),
     ).toMatchObject({ id: "knowledge-refresh" });
   });
@@ -155,14 +159,85 @@ describe("clean AI Agency domain", () => {
     ).toThrow(/objective/);
   });
 
+  it("keeps Intent and Operation governance in definitions and lifecycle in state", () => {
+    const intent = createIntentDefinition({
+      id: "company-growth",
+      direction: "Grow the company sustainably",
+      description: "Focus the portfolio on measurable growth.",
+      priority: 1,
+      posture: "balanced",
+      scope: {
+        include: { repository: ["acme/app"], area: ["growth"] },
+        exclude: {},
+      },
+      priorities: ["Prefer measurable outcomes"],
+      measures: ["Qualified leads"],
+      policyRefs: ["release-policy"],
+      deliveryPolicy: {
+        cadence: "1w",
+        assurance: "strict",
+        blockerSensitivity: "standard",
+      },
+      policy: {
+        approval: "risky-actions",
+        authority: { allow: ["plan"], deny: [] },
+        budget: {
+          maxRuns: 5,
+          maxTokens: 10000,
+          maxCostUsd: 20,
+          maxDurationSeconds: 3600,
+        },
+        maxConcurrentRuns: 1,
+        riskyActions: ["production"],
+      },
+      constraints: [],
+    });
+    const operation = createOperationDefinition({
+      id: "growth",
+      name: "Growth",
+      responsibility: "Own measurable company growth",
+      doesNotOwn: ["Product delivery"],
+      intentIds: [intent.id],
+    });
+
+    expect(intent).toMatchObject({
+      priority: 1,
+      posture: "balanced",
+      measures: ["Qualified leads"],
+    });
+    expect(operation.doesNotOwn).toEqual(["Product delivery"]);
+    expect(
+      createIntentState({
+        definitionId: intent.id,
+        lifecycle: "active",
+        updatedAt: "2026-07-23T00:00:00.000Z",
+      }),
+    ).toMatchObject({ lifecycle: "active" });
+    expect(
+      createOperationState({
+        definitionId: operation.id,
+        lifecycle: "paused",
+        updatedAt: "2026-07-23T00:00:00.000Z",
+      }),
+    ).toMatchObject({ lifecycle: "paused" });
+  });
+
   it("freezes terminal Runs and requires provenance on outputs", () => {
     const run = createRun({
       id: "run-1",
       status: "succeeded",
-      origin: { kind: "loop", id: "knowledge-refresh", revision: "loop-ref" },
-      target: { kind: "workflow", id: "refresh-knowledge", revision: "workflow-ref" },
+      origin: {
+        kind: "intent",
+        id: "knowledge-quality",
+        revision: "intent-ref",
+      },
+      target: {
+        kind: "workflow",
+        id: "refresh-knowledge",
+        revision: "workflow-ref",
+      },
       trace: [
-        { kind: "loop", id: "knowledge-refresh", revision: "loop-ref" },
+        { kind: "intent", id: "knowledge-quality", revision: "intent-ref" },
         { kind: "workflow", id: "refresh-knowledge", revision: "workflow-ref" },
       ],
       effectivePolicy: {

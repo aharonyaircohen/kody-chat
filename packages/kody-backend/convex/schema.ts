@@ -354,7 +354,12 @@ export default defineSchema({
   agencyStates: defineTable({
     tenantId: v.string(),
     definitionId: v.string(),
-    kind: v.union(v.literal("goal"), v.literal("loop")),
+    kind: v.union(
+      v.literal("intent"),
+      v.literal("operation"),
+      v.literal("goal"),
+      v.literal("loop"),
+    ),
     schemaVersion: v.number(),
     data: v.any(),
     updatedAt: v.string(),

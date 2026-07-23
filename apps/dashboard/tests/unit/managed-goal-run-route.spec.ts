@@ -3,9 +3,8 @@ import { NextRequest } from "next/server";
 
 const h = vi.hoisted(() => ({
   getUserOctokit: vi.fn(),
-  readManagedGoalFile: vi.fn(),
-  listCompanyStoreGoalTemplateFiles: vi.fn(async () => []),
-  writeManagedGoalFile: vi.fn(),
+  listStoredAgencyDefinitions: vi.fn(),
+  listStoredAgencyStates: vi.fn(),
   buildKodyWorkflowDispatchInputs: vi.fn(async () => ({
     implementation: "goal-manager",
     message: "web-release",
@@ -31,10 +30,9 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/managed-goals-files", () => ({
-  readManagedGoalFile: h.readManagedGoalFile,
-  listCompanyStoreGoalTemplateFiles: h.listCompanyStoreGoalTemplateFiles,
-  writeManagedGoalFile: h.writeManagedGoalFile,
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  listStoredAgencyDefinitions: h.listStoredAgencyDefinitions,
+  listStoredAgencyStates: h.listStoredAgencyStates,
 }));
 
 vi.mock("@dashboard/lib/kody-workflow-dispatch", () => ({
@@ -74,23 +72,21 @@ describe("managed goal run route", () => {
     };
 
     h.getUserOctokit.mockResolvedValue(mockOctokit);
-    h.readManagedGoalFile.mockResolvedValue({
-      sha: "state-sha",
-      path: "legacy/todos/web-release.json",
-      state: {
-        version: 1,
-        state: "active",
-        type: "release",
-        destination: {
-          outcome: "Ship web release.",
-          evidence: ["releaseDone"],
-        },
-        capabilities: ["release"],
-        route: [],
-        facts: {},
-        blockers: [],
+    h.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "goal:web-release:current",
+        kind: "goal",
+        data: { id: "web-release" },
+        createdAt: "2026-07-23T00:00:00.000Z",
       },
-    });
+    ]);
+    h.listStoredAgencyStates.mockResolvedValue([
+      {
+        definitionId: "web-release",
+        kind: "goal",
+        data: { definitionId: "web-release", lifecycle: "active" },
+      },
+    ]);
 
     const res = await POST(
       makeRequest("web-release"),
@@ -104,6 +100,7 @@ describe("managed goal run route", () => {
       workflowId: "kody.yml",
       ref: "dev",
       action: "goal-manager",
+      goalId: "web-release",
     });
     expect(h.buildKodyWorkflowDispatchInputs).toHaveBeenCalledWith(
       mockOctokit,
@@ -142,20 +139,21 @@ describe("managed goal run route", () => {
         },
       },
     });
-    h.readManagedGoalFile.mockResolvedValue({
-      sha: "state-sha",
-      path: "legacy/todos/web-release.json",
-      state: {
-        version: 1,
-        state: "active",
-        type: "release",
-        destination: { outcome: "Ship web release.", evidence: [] },
-        capabilities: [],
-        route: [],
-        facts: {},
-        blockers: [],
+    h.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "goal:web-release:current",
+        kind: "goal",
+        data: { id: "web-release" },
+        createdAt: "2026-07-23T00:00:00.000Z",
       },
-    });
+    ]);
+    h.listStoredAgencyStates.mockResolvedValue([
+      {
+        definitionId: "web-release",
+        kind: "goal",
+        data: { definitionId: "web-release", lifecycle: "active" },
+      },
+    ]);
 
     const res = await POST(
       makeRequest("web-release"),
@@ -167,5 +165,37 @@ describe("managed goal run route", () => {
       error: "dispatch_failed",
       message: "workflow dispatch unavailable",
     });
+  });
+
+  it("does not dispatch an inactive Goal", async () => {
+    h.getUserOctokit.mockResolvedValue({
+      rest: {
+        repos: { get: vi.fn() },
+        actions: { createWorkflowDispatch: vi.fn() },
+      },
+    });
+    h.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "goal:web-release:current",
+        kind: "goal",
+        data: { id: "web-release" },
+        createdAt: "2026-07-23T00:00:00.000Z",
+      },
+    ]);
+    h.listStoredAgencyStates.mockResolvedValue([
+      {
+        definitionId: "web-release",
+        kind: "goal",
+        data: { definitionId: "web-release", lifecycle: "paused" },
+      },
+    ]);
+
+    const response = await POST(
+      makeRequest("web-release"),
+      makeParams("web-release"),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "goal_not_active" });
   });
 });

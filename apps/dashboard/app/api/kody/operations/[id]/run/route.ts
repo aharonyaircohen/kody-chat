@@ -5,11 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
-  isOperationId,
-  operationActivationIssues,
-  operationOwnershipIssues,
-  operationPath,
-} from "@kody-ade/agency/operations";
+  listStoredAgencyDefinitions,
+  listStoredAgencyStates,
+} from "@kody-ade/agency/backend/agency-model-store";
+import { operationReadiness } from "@kody-ade/agency/agency-model-read";
 import {
   getRequestAuth,
   getUserOctokit,
@@ -22,13 +21,8 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
-import {
-  listOperationFiles,
-  loadOperationCatalog,
-  readOperationFile,
-} from "@dashboard/lib/operation-files";
-
 const runSchema = z.object({ actorLogin: z.string().trim().optional() });
+const operationIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,127}$/);
 
 export async function POST(
   req: NextRequest,
@@ -37,7 +31,7 @@ export async function POST(
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
   const { id } = await params;
-  if (!isOperationId(id))
+  if (!operationIdSchema.safeParse(id).success)
     return NextResponse.json(
       { error: "invalid_operation_id" },
       { status: 400 },
@@ -64,26 +58,20 @@ export async function POST(
     const octokit = await getUserOctokit(req);
     if (!octokit)
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    const current = await readOperationFile(octokit, auth.owner, auth.repo, id);
-    if (!current)
+    const [definitions, states] = await Promise.all([
+      listStoredAgencyDefinitions(auth.owner, auth.repo),
+      listStoredAgencyStates(auth.owner, auth.repo),
+    ]);
+    const readiness = operationReadiness(definitions, states, id);
+    if (!readiness.operation)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    if (current.operation.status !== "active") {
+    if (readiness.issues.includes("Operation is not active")) {
       return NextResponse.json(
         { error: "operation_not_active" },
         { status: 409 },
       );
     }
-    const [catalog, records] = await Promise.all([
-      loadOperationCatalog(octokit, auth.owner, auth.repo),
-      listOperationFiles(octokit, auth.owner, auth.repo),
-    ]);
-    const issues = [
-      ...operationActivationIssues(current.operation, catalog),
-      ...operationOwnershipIssues(
-        current.operation,
-        records.map((record) => record.operation),
-      ),
-    ];
+    const issues = readiness.issues;
     if (issues.length > 0) {
       return NextResponse.json(
         { error: "operation_not_ready", issues },
@@ -97,8 +85,8 @@ export async function POST(
     const ref = repoMeta.data.default_branch || "main";
     const message = [
       `Operate Operation ${id}.`,
-      `Load its authoritative scope from ${operationPath(id)}.`,
-      `Act only on Goals [${current.operation.goals.join(", ")}] and Loops [${current.operation.loops.join(", ")}].`,
+      "Load its authoritative definition and state from the Agency model.",
+      `Act only on Goals [${readiness.goals.join(", ")}] and Loops [${readiness.loops.join(", ")}].`,
       "The linked Intent policy and Operation exclusions are mandatory.",
     ].join(" ");
     const inputs = await buildKodyWorkflowDispatchInputs(octokit, {

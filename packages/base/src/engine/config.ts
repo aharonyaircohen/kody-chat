@@ -45,6 +45,10 @@ export interface KodyConfig {
      */
     reasoningEffort?: string;
   };
+  /** Repository-owned deterministic Capability to Implementation bindings. */
+  execution?: {
+    capabilityBindings?: Record<string, string>;
+  };
   /** Implementation that runs for a bare `@kody` comment on an **issue**. */
   defaultImplementation?: string;
   /** Implementation that runs for a bare `@kody` comment on a **PR**. */
@@ -243,6 +247,7 @@ async function fetchConfig(
     return {
       config: {
         agent: parsed.agent,
+        execution: parsed.execution,
         github: parsed.github,
         defaultImplementation: parsed.defaultImplementation,
         defaultPrImplementation: parsed.defaultPrImplementation,
@@ -685,6 +690,7 @@ export interface ConfigPatch {
   activeFeatures?: string[] | null;
   defaultBranch?: string | null;
   perImplementation?: Record<string, string> | null;
+  capabilityBindings?: Record<string, string> | null;
   /** Bare-`@kody` issue default (`defaultImplementation`).
    * also carried by the company bundle. */
   defaultImplementation?: string | null;
@@ -826,6 +832,35 @@ export async function writeConfigPatch(
           const { perImplementation: _drop, ...rest } = prevAgent;
           if (Object.keys(rest).length > 0) next.agent = rest;
           else delete next.agent;
+        }
+      }
+
+      if (patch.capabilityBindings !== undefined) {
+        const cleaned = patch.capabilityBindings
+          ? Object.fromEntries(
+              Object.entries(patch.capabilityBindings)
+                .map(([capabilityId, implementationId]) => [
+                  capabilityId.trim(),
+                  implementationId.trim(),
+                ])
+                .filter(
+                  ([capabilityId, implementationId]) =>
+                    /^[a-z][a-z0-9-]{0,127}$/.test(capabilityId) &&
+                    /^[a-z][a-z0-9-]{0,127}$/.test(implementationId),
+                ),
+            )
+          : {};
+        const previous =
+          typeof existing.execution === "object" &&
+          existing.execution !== null
+            ? (existing.execution as Record<string, unknown>)
+            : {};
+        if (Object.keys(cleaned).length > 0) {
+          next.execution = { ...previous, capabilityBindings: cleaned };
+        } else {
+          const { capabilityBindings: _drop, ...rest } = previous;
+          if (Object.keys(rest).length > 0) next.execution = rest;
+          else delete next.execution;
         }
       }
 

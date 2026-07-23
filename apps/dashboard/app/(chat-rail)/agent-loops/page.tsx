@@ -5,7 +5,7 @@
  * @ai-summary AgentLoop page for ongoing schedule/health operating models.
  */
 
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -15,5 +15,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function AgentLoopsPage() {
-  return <AgencyDefinitionsView kind="loop" />;
+  return <ManagedModelsView model="agentLoop" />;
 }

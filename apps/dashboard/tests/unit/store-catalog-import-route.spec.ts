@@ -49,6 +49,19 @@ const backend = vi.hoisted(() => ({
   mutation: vi.fn(async () => null),
 }));
 
+const implementationFiles = vi.hoisted(() => ({
+  listStoreImplementations: vi.fn(),
+  readStoreImplementation: vi.fn(),
+}));
+
+const agencyModel = vi.hoisted(() => ({
+  agencyDefinitionRecordId: vi.fn(
+    (kind: string, definition: { id: string }) =>
+      `${kind}:${definition.id}:revision-1`,
+  ),
+  applyStoredAgencyModelChange: vi.fn(),
+}));
+
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
@@ -96,6 +109,16 @@ vi.mock("@kody-ade/backend/client", () => ({
 vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
   writeConfigPatch: engineConfig.writeConfigPatch,
+}));
+
+vi.mock("@kody-ade/agency/implementations/files", () => ({
+  listStoreImplementations: implementationFiles.listStoreImplementations,
+  readStoreImplementation: implementationFiles.readStoreImplementation,
+}));
+
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  agencyDefinitionRecordId: agencyModel.agencyDefinitionRecordId,
+  applyStoredAgencyModelChange: agencyModel.applyStoredAgencyModelChange,
 }));
 
 import { DELETE, POST } from "../../app/api/kody/store-catalog/import/route";
@@ -226,6 +249,86 @@ describe("store catalog import route", () => {
     );
     engineConfig.getEngineConfig.mockResolvedValue(baseConfig());
     engineConfig.writeConfigPatch.mockResolvedValue({ sha: "next-sha" });
+    implementationFiles.listStoreImplementations.mockResolvedValue([]);
+    implementationFiles.readStoreImplementation.mockResolvedValue(null);
+    agencyModel.applyStoredAgencyModelChange.mockResolvedValue({
+      created: 2,
+      reused: 0,
+      states: 0,
+    });
+  });
+
+  it("selects an Implementation and publishes its compatible model pair", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    implementationFiles.listStoreImplementations.mockResolvedValue([
+      {
+        id: "release-watch-agent",
+        capabilityId: "release-watch",
+        compatibleCapabilityRevision: "revision-1",
+        type: "agent",
+        agentId: "atlas-agent",
+      },
+    ]);
+    implementationFiles.readStoreImplementation.mockResolvedValue({
+      id: "release-watch-agent",
+      capabilityId: "release-watch",
+      compatibleCapabilityRevision: "revision-1",
+      type: "agent",
+      agentId: "atlas-agent",
+      htmlUrl: "https://example.test",
+      definition: {
+        id: "release-watch-agent",
+        capabilityRef: { kind: "capability", id: "release-watch" },
+        compatibleCapabilityRevision: "revision-1",
+        type: "agent",
+        agentRef: { kind: "agent", id: "atlas-agent" },
+      },
+      runtime: {},
+      promptTemplate: "Run it",
+      files: ["definition.json", "runtime.json"],
+    });
+    companyStore.readCompanyStoreText.mockImplementation(
+      async (_octokit: unknown, path: string) =>
+        path.endsWith("/definition.json")
+          ? JSON.stringify({
+              id: "release-watch",
+              action: "release-watch",
+              purpose: "Watch releases",
+              inputSchema: { type: "object" },
+              outputSchema: { type: "object" },
+              effects: [],
+              permissions: [],
+              success: "Done",
+              failure: "Failed",
+            })
+          : "# Atlas Agent\n",
+    );
+
+    const res = await POST(
+      req({ kind: "implementation", slug: "release-watch-agent" }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "implementation",
+      slug: "release-watch-agent",
+      imported: true,
+      path: "execution.capabilityBindings",
+    });
+    expect(agencyModel.applyStoredAgencyModelChange).toHaveBeenCalledOnce();
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      {
+        activeCapabilities: ["release-watch"],
+        capabilityBindings: {
+          "release-watch": "release-watch-agent",
+        },
+      },
+      "chore(kody): select store implementation release-watch-agent",
+    );
   });
 
   it("publishes a store agent to the backend before linking config", async () => {

@@ -143,10 +143,25 @@ export const goalsApi = {
     ok: true;
     workflowId: string;
     ref: string;
-    goal: ManagedGoalRecord;
+    goalId: string;
   }> => {
     const res = await fetch(
       `${API_BASE}/goals/managed/${encodeURIComponent(id)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    return handleResponse(res);
+  },
+  runLoop: async (
+    id: string,
+  ): Promise<{
+    ok: true;
+    loopId: string;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/agency-loops/${encodeURIComponent(id)}/run`,
       {
         method: "POST",
         headers: buildHeaders(),

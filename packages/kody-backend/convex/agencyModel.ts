@@ -8,15 +8,15 @@ import {
   createLoopDefinition,
   createOperationDefinition,
   createGoalState,
+  createIntentState,
   createLoopState,
+  createOperationState,
   createRunOutput,
   createRun,
   createWorkflowDefinition,
+  assertLifecycleTransition,
 } from "@kody-ade/agency-domain";
-import {
-  serviceMutation as mutation,
-  serviceQuery as query,
-} from "./lib/auth";
+import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 
 const definitionKind = v.union(
   v.literal("intent"),
@@ -27,6 +27,12 @@ const definitionKind = v.union(
   v.literal("capability"),
   v.literal("implementation"),
   v.literal("agent"),
+);
+const stateKind = v.union(
+  v.literal("intent"),
+  v.literal("operation"),
+  v.literal("goal"),
+  v.literal("loop"),
 );
 
 function validateDefinition(kind: string, data: unknown) {
@@ -40,6 +46,124 @@ function validateDefinition(kind: string, data: unknown) {
   if (kind === "agent") return createAgentDefinition(data);
   throw new Error("Unsupported Agency Definition kind");
 }
+
+function validateState(kind: string, data: unknown) {
+  if (kind === "intent") return createIntentState(data);
+  if (kind === "operation") return createOperationState(data);
+  if (kind === "goal") return createGoalState(data);
+  if (kind === "loop") return createLoopState(data);
+  throw new Error("Unsupported Agency State kind");
+}
+
+export const applyChange = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    definitions: v.array(
+      v.object({
+        schemaVersion: v.number(),
+        recordId: v.string(),
+        kind: definitionKind,
+        data: v.any(),
+        createdAt: v.string(),
+      }),
+    ),
+    states: v.array(
+      v.object({
+        definitionId: v.string(),
+        kind: stateKind,
+        schemaVersion: v.number(),
+        data: v.any(),
+        updatedAt: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existingDefinitions = await ctx.db
+      .query("agencyDefinitions")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+    const availableDefinitions = new Set(
+      existingDefinitions.map(
+        (definition) => `${definition.kind}:${definition.data.id}`,
+      ),
+    );
+    const validatedDefinitions = args.definitions.map((envelope) => {
+      const data = validateDefinition(envelope.kind, envelope.data);
+      availableDefinitions.add(`${envelope.kind}:${data.id}`);
+      return { envelope, data };
+    });
+    const validatedStates = args.states.map((state) => {
+      const data = validateState(state.kind, state.data);
+      if (data.definitionId !== state.definitionId) {
+        throw new Error("Agency State does not match Definition");
+      }
+      if (!availableDefinitions.has(`${state.kind}:${state.definitionId}`)) {
+        throw new Error(
+          `Agency State Definition "${state.kind}:${state.definitionId}" was not found`,
+        );
+      }
+      return { state, data };
+    });
+
+    let created = 0;
+    let reused = 0;
+    for (const { envelope, data } of validatedDefinitions) {
+      const existing = await ctx.db
+        .query("agencyDefinitions")
+        .withIndex("by_tenant", (q) =>
+          q.eq("tenantId", args.tenantId).eq("recordId", envelope.recordId),
+        )
+        .unique();
+      if (existing) {
+        reused += 1;
+        continue;
+      }
+      await ctx.db.insert("agencyDefinitions", {
+        tenantId: args.tenantId,
+        schemaVersion: envelope.schemaVersion,
+        recordId: envelope.recordId,
+        kind: envelope.kind,
+        data,
+        createdAt: envelope.createdAt,
+      });
+      created += 1;
+    }
+
+    for (const { state, data } of validatedStates) {
+      const existing = await ctx.db
+        .query("agencyStates")
+        .withIndex("by_tenant", (q) =>
+          q
+            .eq("tenantId", args.tenantId)
+            .eq("kind", state.kind)
+            .eq("definitionId", state.definitionId),
+        )
+        .unique();
+      if (existing) {
+        const previous = validateState(existing.kind, existing.data);
+        if (previous.lifecycle !== data.lifecycle) {
+          assertLifecycleTransition(previous.lifecycle, data.lifecycle);
+        }
+        await ctx.db.patch(existing._id, {
+          schemaVersion: state.schemaVersion,
+          data,
+          updatedAt: state.updatedAt,
+        });
+      } else {
+        await ctx.db.insert("agencyStates", {
+          tenantId: args.tenantId,
+          definitionId: state.definitionId,
+          kind: state.kind,
+          schemaVersion: state.schemaVersion,
+          data,
+          updatedAt: state.updatedAt,
+        });
+      }
+    }
+    return { created, reused, states: validatedStates.length };
+  },
+});
 
 export const createDefinition = mutation({
   args: {
@@ -85,7 +209,7 @@ export const putState = mutation({
     serviceKey: v.optional(v.string()),
     tenantId: v.string(),
     definitionId: v.string(),
-    kind: v.union(v.literal("goal"), v.literal("loop")),
+    kind: stateKind,
     schemaVersion: v.number(),
     data: v.any(),
     updatedAt: v.string(),
@@ -93,9 +217,13 @@ export const putState = mutation({
   handler: async (ctx, args) => {
     const { serviceKey: _serviceKey, ...state } = args;
     const data =
-      args.kind === "goal"
-        ? createGoalState(args.data)
-        : createLoopState(args.data);
+      args.kind === "intent"
+        ? createIntentState(args.data)
+        : args.kind === "operation"
+          ? createOperationState(args.data)
+          : args.kind === "goal"
+            ? createGoalState(args.data)
+            : createLoopState(args.data);
     if (data.definitionId !== args.definitionId) {
       throw new Error("Agency State does not match Definition");
     }
@@ -149,6 +277,7 @@ export const listOutputs = query({
     serviceKey: v.optional(v.string()),
     tenantId: v.string(),
     runId: v.optional(v.string()),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const runId = args.runId;
@@ -160,10 +289,12 @@ export const listOutputs = query({
         )
         .collect();
     }
+    const limit = Math.max(1, Math.min(1000, Math.floor(args.limit ?? 500)));
     return ctx.db
       .query("agencyOutputs")
       .withIndex("by_tenant_record", (q) => q.eq("tenantId", args.tenantId))
-      .collect();
+      .order("desc")
+      .take(limit);
   },
 });
 
@@ -200,13 +331,18 @@ export const reserveDispatch = mutation({
     now: v.string(),
   },
   handler: async (ctx, args) => {
-    if (!Number.isInteger(args.maxConcurrentRuns) || args.maxConcurrentRuns <= 0) {
+    if (
+      !Number.isInteger(args.maxConcurrentRuns) ||
+      args.maxConcurrentRuns <= 0
+    ) {
       throw new Error("Agency Dispatch concurrency limit is invalid");
     }
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     if (existing) {
@@ -269,7 +405,11 @@ export const reserveDispatch = mutation({
         updatedAt: args.now,
       };
       if (existing) await ctx.db.patch(existing._id, waiting);
-      else await ctx.db.insert("agencyDispatches", { ...waiting, createdAt: args.now });
+      else
+        await ctx.db.insert("agencyDispatches", {
+          ...waiting,
+          createdAt: args.now,
+        });
       return {
         acquired: false,
         dispatchId: existing?._id,
@@ -313,7 +453,11 @@ export const reserveDispatch = mutation({
           updatedAt: args.now,
         };
         if (existing) await ctx.db.patch(existing._id, waiting);
-        else await ctx.db.insert("agencyDispatches", { ...waiting, createdAt: args.now });
+        else
+          await ctx.db.insert("agencyDispatches", {
+            ...waiting,
+            createdAt: args.now,
+          });
         return {
           acquired: false,
           dispatchId: existing?._id,
@@ -369,7 +513,9 @@ export const recordSkippedDispatch = mutation({
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     if (existing) return existing._id;
@@ -403,11 +549,14 @@ export const finishDispatch = mutation({
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     if (!existing) throw new Error("Agency Dispatch reservation not found");
-    if (existing.status !== "reserved") throw new Error("Agency Dispatch is already terminal");
+    if (existing.status !== "reserved")
+      throw new Error("Agency Dispatch is already terminal");
     if (existing.reservationId !== args.reservationId) {
       throw new Error("Agency Dispatch reservation is stale");
     }
@@ -606,7 +755,12 @@ export const getState = query({
   args: {
     serviceKey: v.optional(v.string()),
     tenantId: v.string(),
-    kind: v.union(v.literal("goal"), v.literal("loop")),
+    kind: v.union(
+      v.literal("intent"),
+      v.literal("operation"),
+      v.literal("goal"),
+      v.literal("loop"),
+    ),
     definitionId: v.string(),
   },
   handler: (ctx, args) =>

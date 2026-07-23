@@ -40,6 +40,7 @@ import { PageShell } from "@dashboard/lib/components/PageShell";
 import { cn } from "@dashboard/lib/utils";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 import { Button } from "@kody-ade/base/ui/button";
+import { Badge } from "@kody-ade/base/ui/badge";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
@@ -118,6 +119,20 @@ interface CapabilityDetail extends CapabilitySummary {
     failure: string;
   };
   documentation?: string;
+  implementationResolution?: {
+    status: "resolved" | "ambiguous" | "unavailable";
+    capabilityRevision: string | null;
+    selectedId?: string;
+    repositoryBinding?: string;
+    candidates: Array<{
+      id: string;
+      type: "agent" | "script";
+      compatibleCapabilityRevision: string;
+      agentId?: string;
+      runtime: Record<string, unknown> | null;
+      promptTemplate: string | null;
+    }>;
+  };
   /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
@@ -288,6 +303,30 @@ async function deleteApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
 }
 
+async function bindImplementationApi(
+  headers: Record<string, string>,
+  capabilityId: string,
+  implementationId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/kody/capabilities/${encodeURIComponent(capabilityId)}/implementation-binding`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ implementationId }),
+    },
+  );
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!response.ok) {
+    throw new Error(
+      payload.message || payload.error || `HTTP ${response.status}`,
+    );
+  }
+}
+
 export function CapabilitiesManager({
   selectedSlug = null,
   basePath = "/capabilities",
@@ -363,7 +402,6 @@ function CapabilityEditorPageInner({
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
-
   const back = () => router.push(basePath);
 
   return (
@@ -529,6 +567,28 @@ function CapabilitiesManagerInner({
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
+  const bindImplementation = useMutation({
+    mutationFn: ({
+      capabilityId,
+      implementationId,
+    }: {
+      capabilityId: string;
+      implementationId: string;
+    }) => bindImplementationApi(headers, capabilityId, implementationId),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: capabilityQueryKeys.detail(
+          variables.capabilityId,
+          queryScope,
+        ),
+      });
+      toast.success("Implementation selected");
+    },
+    onError: (error: Error) =>
+      toast.error("Failed to select Implementation", {
+        description: error.message,
+      }),
+  });
 
   return (
     <>
@@ -607,6 +667,13 @@ function CapabilitiesManagerInner({
                 onDelete={() => {
                   setDeleting(selected.slug);
                 }}
+                onSelectImplementation={(implementationId) =>
+                  bindImplementation.mutate({
+                    capabilityId: selected.slug,
+                    implementationId,
+                  })
+                }
+                selectingImplementation={bindImplementation.isPending}
               />
             )
           ) : (
@@ -748,6 +815,8 @@ function CapabilityDetail({
   onBack,
   onEdit,
   onDelete,
+  onSelectImplementation,
+  selectingImplementation,
 }: {
   exec: CapabilitySummary;
   detail: CapabilityDetail | null;
@@ -756,6 +825,8 @@ function CapabilityDetail({
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSelectImplementation: (implementationId: string) => void;
+  selectingImplementation: boolean;
 }) {
   return (
     <article className="min-h-full">
@@ -860,6 +931,8 @@ function CapabilityDetail({
         detail={detail}
         loading={detailLoading}
         error={detailError}
+        onSelectImplementation={onSelectImplementation}
+        selectingImplementation={selectingImplementation}
       />
     </article>
   );
@@ -873,10 +946,14 @@ function CapabilityContentBody({
   detail,
   loading,
   error,
+  onSelectImplementation,
+  selectingImplementation,
 }: {
   detail: CapabilityDetail | null;
   loading: boolean;
   error: string | null;
+  onSelectImplementation: (implementationId: string) => void;
+  selectingImplementation: boolean;
 }) {
   if (loading) {
     return (
@@ -911,7 +988,11 @@ function CapabilityContentBody({
     const contract = detail.contract;
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
-        <ContentSection icon={FileCode} title="Contract" subtitle="What this capability promises">
+        <ContentSection
+          icon={FileCode}
+          title="Contract"
+          subtitle="What this capability promises"
+        >
           <div className="space-y-3 text-sm">
             <p className="text-white/85">{contract.purpose}</p>
             <div>
@@ -928,18 +1009,35 @@ function CapabilityContentBody({
             </div>
           </div>
         </ContentSection>
-        <ContentSection icon={FileCode} title="Input" subtitle="Canonical JSON Schema">
+        <ContentSection
+          icon={FileCode}
+          title="Input"
+          subtitle="Canonical JSON Schema"
+        >
           <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 overflow-auto whitespace-pre-wrap break-words text-white/85">
             {JSON.stringify(contract.inputSchema, null, 2)}
           </pre>
         </ContentSection>
-        <ContentSection icon={FileCode} title="Output" subtitle="Canonical JSON Schema">
+        <ContentSection
+          icon={FileCode}
+          title="Output"
+          subtitle="Canonical JSON Schema"
+        >
           <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 overflow-auto whitespace-pre-wrap break-words text-white/85">
             {JSON.stringify(contract.outputSchema, null, 2)}
           </pre>
         </ContentSection>
+        <ImplementationResolutionSection
+          resolution={detail.implementationResolution}
+          onSelect={onSelectImplementation}
+          selecting={selectingImplementation}
+        />
         {detail.documentation ? (
-          <ContentSection icon={FileCode} title="Documentation" subtitle="Capability guidance, not a runtime prompt">
+          <ContentSection
+            icon={FileCode}
+            title="Documentation"
+            subtitle="Capability guidance, not a runtime prompt"
+          >
             <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-white/85">
               {detail.documentation}
             </pre>
@@ -1113,6 +1211,117 @@ function CapabilityContentBody({
         </div>
       </details>
     </div>
+  );
+}
+
+function ImplementationResolutionSection({
+  resolution,
+  onSelect,
+  selecting,
+}: {
+  resolution: CapabilityDetail["implementationResolution"];
+  onSelect: (implementationId: string) => void;
+  selecting: boolean;
+}) {
+  if (!resolution) return null;
+  const selected = resolution.candidates.find(
+    (candidate) => candidate.id === resolution.selectedId,
+  );
+  const statusLabel =
+    resolution.status === "resolved"
+      ? "Resolved"
+      : resolution.status === "ambiguous"
+        ? "Needs a repository binding"
+        : "Unavailable";
+  return (
+    <ContentSection
+      icon={Cpu}
+      title="Implementation"
+      subtitle="The technical method selected for this repository"
+      count={resolution.candidates.length}
+    >
+      <div className="space-y-3 text-sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge
+            variant={resolution.status === "resolved" ? "secondary" : "outline"}
+          >
+            {statusLabel}
+          </Badge>
+          {selected ? (
+            <>
+              <code className="text-white/85">{selected.id}</code>
+              <span className="text-white/45">·</span>
+              <span className="text-white/65">{selected.type}</span>
+              {selected.agentId ? (
+                <span className="text-white/65">agent {selected.agentId}</span>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+        {resolution.status === "ambiguous" ? (
+          <p className="text-amber-200/80">
+            More than one compatible implementation exists. Select one in
+            repository execution settings before this capability can run.
+          </p>
+        ) : null}
+        {resolution.status === "unavailable" ? (
+          <p className="text-rose-200/80">
+            No compatible implementation is available for the current capability
+            revision.
+          </p>
+        ) : null}
+        {resolution.candidates.length > 0 ? (
+          <div className="space-y-2">
+            {resolution.candidates.map((candidate) => (
+              <details
+                key={candidate.id}
+                className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3"
+                open={candidate.id === resolution.selectedId}
+              >
+                <summary className="cursor-pointer font-mono text-xs text-white/85">
+                  {candidate.id}
+                </summary>
+                <div className="pt-3 space-y-3">
+                  {candidate.id !== resolution.selectedId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={selecting}
+                      onClick={() => onSelect(candidate.id)}
+                    >
+                      Use for this repository
+                    </Button>
+                  ) : resolution.repositoryBinding ? (
+                    <p className="text-xs text-emerald-300/80">
+                      Selected by repository binding.
+                    </p>
+                  ) : null}
+                  {candidate.runtime ? (
+                    <pre className="text-[11px] font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-white/75">
+                      {JSON.stringify(candidate.runtime, null, 2)}
+                    </pre>
+                  ) : (
+                    <EmptyHint text="Runtime manifest is not available." />
+                  )}
+                  {candidate.promptTemplate ? (
+                    <ContentSection
+                      icon={FileCode}
+                      title="Task template"
+                      subtitle="Optional agent Implementation prompt"
+                    >
+                      <pre className="text-[11px] font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-white/75">
+                        {candidate.promptTemplate}
+                      </pre>
+                    </ContentSection>
+                  ) : null}
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </ContentSection>
   );
 }
 

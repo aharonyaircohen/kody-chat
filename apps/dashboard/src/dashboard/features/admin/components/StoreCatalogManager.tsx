@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CheckCircle2,
+  Cpu,
   Download,
   ExternalLink,
   History,
@@ -52,6 +53,7 @@ export type CatalogKind =
   | "agentLoop"
   | "workflow"
   | "capability"
+  | "implementation"
   | "command"
   | "feature";
 
@@ -70,6 +72,10 @@ interface StoreCatalogItem {
   schedule?: string | null;
   installed?: boolean;
   setupHref?: string | null;
+  capabilityId?: string | null;
+  compatibleCapabilityRevision?: string | null;
+  implementationType?: "agent" | "script" | null;
+  selection?: "repository" | "automatic" | "available";
   uninstallBlockedBy?: Array<{
     kind: CatalogItemKind;
     slug: string;
@@ -97,6 +103,7 @@ const KIND_FILTERS: Array<{
   { id: "agentLoop", label: "Loops", icon: History },
   { id: "workflow", label: "Workflows", icon: Workflow },
   { id: "capability", label: "Capabilities", icon: Layers },
+  { id: "implementation", label: "Implementations", icon: Cpu },
   { id: "command", label: "Commands", icon: Bot },
   { id: "feature", label: "Features", icon: Package },
 ];
@@ -107,6 +114,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   agentLoop: "Loop",
   workflow: "Workflow",
   capability: "Capability",
+  implementation: "Implementation",
   command: "Command",
   feature: "Feature",
 };
@@ -192,6 +200,18 @@ const KIND_COLORS: Record<
     tint: "bg-emerald-500/10",
     text: "text-emerald-700 dark:text-emerald-100",
   },
+  implementation: {
+    tabActive:
+      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
+    icon: "text-violet-600 dark:text-violet-300",
+    iconHover:
+      "group-hover:text-violet-600 dark:group-hover:text-violet-300",
+    borderHover: "hover:border-violet-500/30",
+    tint: "bg-violet-500/10",
+    text: "text-violet-700 dark:text-violet-100",
+  },
   command: {
     tabActive:
       "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-100",
@@ -269,6 +289,8 @@ function queryText(item: StoreCatalogItem): string {
     displayKindLabel(item),
     item.action,
     item.agent,
+    item.capabilityId,
+    item.compatibleCapabilityRevision,
     ...(item.workflowSteps ?? []),
   ]
     .filter(Boolean)
@@ -743,7 +765,7 @@ function CatalogCard({
         {item.installed ? (
           <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-100">
             <CheckCircle2 className="h-3 w-3" />
-            Installed
+            {item.kind === "implementation" ? "Selected" : "Installed"}
           </span>
         ) : (
           <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
@@ -778,9 +800,13 @@ function CatalogDetail({
   const uninstallBlocked = installed && blockers.length > 0;
   const workflowSteps = item.workflowSteps ?? [];
   const statusLabel = installed
-    ? uninstallBlocked
-      ? "Installed, in use"
-      : "Installed"
+    ? item.kind === "implementation"
+      ? item.selection === "automatic"
+        ? "Selected automatically"
+        : "Selected for repository"
+      : uninstallBlocked
+        ? "Installed, in use"
+        : "Installed"
     : "Available";
   const sourceLabel = item.htmlUrl ? "Store source" : "Store catalog";
 
@@ -810,7 +836,7 @@ function CatalogDetail({
           {installed ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-100">
               <CheckCircle2 className="h-3 w-3" />
-              Installed
+              {item.kind === "implementation" ? "Selected" : "Installed"}
             </span>
           ) : null}
         </DialogDescription>
@@ -885,6 +911,26 @@ function CatalogDetail({
             {item.action ? (
               <InfoRow label="Action" value={item.action} mono />
             ) : null}
+            {item.capabilityId ? (
+              <InfoRow
+                label="Capability Contract"
+                value={item.capabilityId}
+                mono
+              />
+            ) : null}
+            {item.implementationType ? (
+              <InfoRow
+                label="Runtime type"
+                value={item.implementationType}
+              />
+            ) : null}
+            {item.compatibleCapabilityRevision ? (
+              <InfoRow
+                label="Compatible revision"
+                value={item.compatibleCapabilityRevision}
+                mono
+              />
+            ) : null}
             {item.schedule ? (
               <InfoRow label="Schedule" value={item.schedule} />
             ) : null}
@@ -922,7 +968,12 @@ function CatalogDetail({
         <Button
           size="sm"
           onClick={installed ? onUninstall : onInstall}
-          disabled={busy || uninstallBlocked}
+          disabled={
+            busy ||
+            uninstallBlocked ||
+            (item.kind === "implementation" &&
+              item.selection === "automatic")
+          }
           data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
           variant={installed ? "outline" : "default"}
           className="gap-1"
@@ -936,11 +987,21 @@ function CatalogDetail({
           )}
           {busy
             ? installed
-              ? "Uninstalling..."
-              : "Installing..."
+              ? item.kind === "implementation"
+                ? "Updating selection..."
+                : "Uninstalling..."
+              : item.kind === "implementation"
+                ? "Selecting..."
+                : "Installing..."
             : installed
-              ? "Uninstall"
-              : "Install"}
+              ? item.kind === "implementation"
+                ? item.selection === "automatic"
+                  ? "Selected automatically"
+                  : "Use automatic selection"
+                : "Uninstall"
+              : item.kind === "implementation"
+                ? "Select"
+                : "Install"}
         </Button>
       </div>
     </DialogContent>

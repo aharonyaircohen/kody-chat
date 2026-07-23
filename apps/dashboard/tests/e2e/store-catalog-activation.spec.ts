@@ -12,6 +12,7 @@ import { expect, test, type Page } from "@playwright/test";
 type CatalogKind =
   | "agent"
   | "capability"
+  | "implementation"
   | "agentGoal"
   | "agentLoop"
   | "workflow"
@@ -28,6 +29,10 @@ interface CatalogItem {
   action?: string | null;
   agent?: string | null;
   schedule?: string | null;
+  capabilityId?: string | null;
+  compatibleCapabilityRevision?: string | null;
+  implementationType?: "agent" | "script" | null;
+  selection?: "repository" | "automatic" | "available";
   installed?: boolean;
   uninstallBlockedBy?: Array<{
     kind: CatalogKind;
@@ -64,6 +69,17 @@ const catalogSeeds: CatalogItem[] = [
     kind: "capability",
     htmlUrl: null,
     agent: "atlas-agent",
+  },
+  {
+    slug: "release-watch-agent",
+    title: "Release Watch Agent",
+    description: "Runs the Release Watch Capability.",
+    kind: "implementation",
+    htmlUrl: null,
+    capabilityId: "release-watch",
+    compatibleCapabilityRevision: "revision-1",
+    implementationType: "agent",
+    selection: "available",
   },
   {
     slug: "bug-flow",

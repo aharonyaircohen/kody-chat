@@ -85,6 +85,44 @@ describe("getEngineConfig", () => {
       { template: "weekly-check", every: "1w" },
     ]);
   });
+
+  it("preserves repository Capability bindings", async () => {
+    const { octokit } = octokitWithConfig({
+      github: { owner: "o", repo: "r" },
+      execution: {
+        capabilityBindings: { "build-graph": "graphify" },
+      },
+    });
+
+    const { config } = await getEngineConfig(octokit, "o", "binding-read", {
+      force: true,
+    });
+
+    expect(config.execution?.capabilityBindings).toEqual({
+      "build-graph": "graphify",
+    });
+  });
+});
+
+describe("writeConfigPatch — Capability bindings", () => {
+  it("writes cleaned bindings under execution without changing other execution settings", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      github: { owner: "o", repo: "r" },
+      execution: { transport: "github-actions" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      capabilityBindings: {
+        "build-graph": "graphify",
+        "Bad Capability": "ignored",
+      },
+    });
+
+    expect(lastWritten().execution).toEqual({
+      transport: "github-actions",
+      capabilityBindings: { "build-graph": "graphify" },
+    });
+  });
 });
 
 describe("writeConfigPatch — reasoningEffort", () => {

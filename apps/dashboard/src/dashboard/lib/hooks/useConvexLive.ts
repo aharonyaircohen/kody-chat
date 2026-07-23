@@ -34,8 +34,7 @@ function stampOf(docs: unknown): string {
 
 function useTenantStamp(
   queryRef:
-    | typeof backendApi.goals.liveList
-    | typeof backendApi.intents.liveList,
+    typeof backendApi.goals.liveList | typeof backendApi.intents.liveList,
 ): string | undefined {
   // CONVEX_LIVE_ENABLED is a build-time constant, so hook order is stable.
   if (!CONVEX_LIVE_ENABLED) return undefined;
@@ -114,9 +113,7 @@ export function useChatEventsLive(
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const docs = useQuery(
     backendApi.chatEvents.since,
-    sessionId
-      ? { tenantId: CHAT_EVENTS_TENANT, sessionId, afterSeq }
-      : "skip",
+    sessionId ? { tenantId: CHAT_EVENTS_TENANT, sessionId, afterSeq } : "skip",
   ) as ChatEventDoc[] | undefined;
   if (!docs) return undefined;
   // Stored payloads are key-escaped (Convex reserves $/_ prefixes) —
@@ -157,8 +154,15 @@ export function useWorkflowRunStateLive(
 
   const doc = docs.find((d) => d.runId === targetRunId);
   // Stored payloads are key-escaped — see useChatEventsLive.
-  const state = doc ? normalizeWorkflowRunState(deepUnescapeKeys(doc.state)) : null;
+  const state = doc
+    ? normalizeWorkflowRunState(deepUnescapeKeys(doc.state))
+    : null;
   return state
-    ? { workflowId, runId: targetRunId, state, ...(doc?.runner ? { runner: doc.runner } : {}) }
+    ? {
+        workflowId,
+        runId: targetRunId,
+        state,
+        ...(doc?.runner ? { runner: doc.runner } : {}),
+      }
     : null;
 }

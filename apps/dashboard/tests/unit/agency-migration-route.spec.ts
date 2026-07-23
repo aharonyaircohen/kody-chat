@@ -3,12 +3,13 @@ import { NextRequest } from "next/server";
 
 const writes = vi.hoisted(() => ({
   backup: vi.fn(async () => undefined),
-  create: vi.fn(async () => undefined),
-  putState: vi.fn(async () => undefined),
+  applyChange: vi.fn(async () => ({ created: 5, reused: 0, states: 3 })),
 }));
 
 vi.mock("@kody-ade/base/company-store/assets", () => ({
-  companyStoreAssetPath: vi.fn(async (_client, kind: string, id: string) => `${kind}/${id}`),
+  companyStoreAssetPath: vi.fn(
+    async (_client, kind: string, id: string) => `${kind}/${id}`,
+  ),
   readCompanyStoreText: vi.fn(async (_client, path: string) => {
     const id = path.split("/")[1];
     return JSON.stringify({
@@ -39,7 +40,13 @@ vi.mock("@dashboard/lib/company-intents-store", () => ({
         id: "quality",
         for: "Keep quality high",
         principles: [],
-        controls: { automation: { maxConcurrentGoals: 1, maxDailyActions: 5, requiresHumanFor: [] } },
+        controls: {
+          automation: {
+            maxConcurrentGoals: 1,
+            maxDailyActions: 5,
+            requiresHumanFor: [],
+          },
+        },
       },
     },
   ]),
@@ -73,9 +80,7 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   ]),
 }));
 vi.mock("@dashboard/lib/managed-goals", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@dashboard/lib/managed-goals")
-  >()),
+  ...(await importOriginal<typeof import("@dashboard/lib/managed-goals")>()),
   managedGoalModel: vi.fn(() => "agentGoal"),
 }));
 vi.mock("@dashboard/lib/workflow-definition-files", () => ({
@@ -98,13 +103,15 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
   tenantIdFor: (owner: string, repo: string) => `${owner}/${repo}`,
   getConvexClient: () => ({ mutation: writes.backup }),
 }));
-vi.mock("@kody-ade/agency/backend/agency-model-store", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@kody-ade/agency/backend/agency-model-store")
-  >()),
-  createStoredAgencyDefinition: writes.create,
-  putStoredAgencyState: writes.putState,
-}));
+vi.mock(
+  "@kody-ade/agency/backend/agency-model-store",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@kody-ade/agency/backend/agency-model-store")
+    >()),
+    applyStoredAgencyModelChange: writes.applyChange,
+  }),
+);
 
 import { GET, POST } from "../../app/api/kody/agency-migration/route";
 
@@ -116,21 +123,32 @@ describe("agency V2 migration route", () => {
       new NextRequest("https://dash.test/api/kody/agency-migration"),
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ canApply: true, missingCapabilities: [] });
+    expect(await response.json()).toMatchObject({
+      canApply: true,
+      missingCapabilities: [],
+    });
     expect(writes.backup).not.toHaveBeenCalled();
-    expect(writes.create).not.toHaveBeenCalled();
+    expect(writes.applyChange).not.toHaveBeenCalled();
   });
 
   it("backs up legacy data before writing immutable definitions", async () => {
     const response = await POST(
-      new NextRequest("https://dash.test/api/kody/agency-migration", { method: "POST" }),
+      new NextRequest("https://dash.test/api/kody/agency-migration", {
+        method: "POST",
+      }),
     );
     expect(response.status).toBe(201);
     expect(writes.backup).toHaveBeenCalledOnce();
-    expect(writes.create).toHaveBeenCalled();
-    expect(writes.putState).toHaveBeenCalled();
+    expect(writes.applyChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        change: expect.objectContaining({
+          definitions: expect.any(Array),
+          states: expect.any(Array),
+        }),
+      }),
+    );
     expect(writes.backup.mock.invocationCallOrder[0]).toBeLessThan(
-      writes.create.mock.invocationCallOrder[0]!,
+      writes.applyChange.mock.invocationCallOrder[0]!,
     );
   });
 });

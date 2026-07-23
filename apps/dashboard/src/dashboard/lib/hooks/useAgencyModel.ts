@@ -3,10 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getStoredAuth, NoTokenError, SessionExpiredError } from "../api";
-import {
-  agencyModelApi,
-  type AgencyStateRecord,
-} from "../api/agency-model";
+import { agencyModelApi, type AgencyStateRecord } from "../api/agency-model";
 
 export const agencyModelQueryKeys = {
   definitions: (owner: string, repo: string) =>
@@ -50,7 +47,10 @@ export function usePutAgencyState() {
   return useMutation<
     unknown,
     Error,
-    { kind: "goal" | "loop"; state: AgencyStateRecord["data"] }
+    {
+      kind: "intent" | "operation" | "goal" | "loop";
+      state: AgencyStateRecord["data"];
+    }
   >({
     mutationFn: ({ kind, state }) => agencyModelApi.putState(kind, state),
     onSuccess: () => {

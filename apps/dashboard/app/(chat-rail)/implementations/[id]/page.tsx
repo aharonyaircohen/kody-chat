@@ -1,5 +1,5 @@
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
+import { ImplementationsView } from "@dashboard/features/admin/components/ImplementationsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function ImplementationPage({
   const { id } = await params;
   return (
     <AuthGuard>
-      <AgencyDefinitionsView kind="implementation" selectedId={id} />
+      <ImplementationsView selectedId={id} />
     </AuthGuard>
   );
 }
