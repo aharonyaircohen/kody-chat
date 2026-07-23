@@ -283,6 +283,30 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
   });
 
+  it("keeps route instructions in the top-level system prompt", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "ask me a question and ask for approval to confirm it",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const options = streamTextMock.mock.calls[0]?.[0];
+    expect(options?.messages).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: "system" })]),
+    );
+    expect(options?.system).toContain(
+      "finish this turn with `show_view`",
+    );
+  });
+
   it("exposes a working show_view spec contract for approval renderer requests", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
@@ -433,7 +457,11 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     // Two corrective re-runs after the silent original, then give up.
     expect(streamTextMock).toHaveBeenCalledTimes(3);
     const retryMessages = streamTextMock.mock.calls[1]?.[0]?.messages;
-    expect(JSON.stringify(retryMessages)).toContain(
+    const retrySystem = streamTextMock.mock.calls[1]?.[0]?.system;
+    expect(retryMessages).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: "system" })]),
+    );
+    expect(retrySystem).toContain(
       "Call `show_view` NOW",
     );
     expect(writer.merge).toHaveBeenCalledTimes(3);
@@ -528,5 +556,43 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       activeTools: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
       toolChoice: "required",
     });
+  });
+
+  it("puts textual tool-call correction in the per-step system prompt", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "look into this bug" }],
+      }),
+    );
+
+    const options = streamTextMock.mock.calls[0]?.[0];
+    const prepareStep = options?.prepareStep as
+      | ((input: {
+          steps: Array<{
+            toolResults: Array<{ toolName: string; output: unknown }>;
+            text?: string;
+          }>;
+          messages: Array<{ role: string; content: string }>;
+        }) => {
+          system?: string;
+          messages?: Array<{ role: string; content: string }>;
+        })
+      | undefined;
+    const prepared = prepareStep?.({
+      steps: [
+        {
+          toolResults: [],
+          text: '<tool_call>{"name":"list_goals"}</tool_call>',
+        },
+      ],
+      messages: [{ role: "user", content: "look into this bug" }],
+    });
+
+    expect(prepared?.messages).toBeUndefined();
+    expect(prepared?.system).toContain(
+      "Your previous message wrote a tool invocation as PLAIN TEXT",
+    );
   });
 });

@@ -38,6 +38,9 @@ describe("image-grounded chat turns", () => {
     expect(KODY_ROUTE_SOURCE).toContain("const hasImageParts");
     expect(KODY_ROUTE_SOURCE).toContain("const groundedSystemPrompt");
     expect(KODY_ROUTE_SOURCE).toContain("This turn includes an image");
-    expect(KODY_ROUTE_SOURCE).toContain("system: groundedSystemPrompt");
+    expect(KODY_ROUTE_SOURCE).toContain("groundedSystemPrompt,");
+    expect(KODY_ROUTE_SOURCE).toContain(
+      "system: buildTurnSystemPrompt(additionalSystemInstructions)",
+    );
   });
 });

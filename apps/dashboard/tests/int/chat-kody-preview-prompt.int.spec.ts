@@ -414,7 +414,11 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     // Two corrective re-runs after the silent original, then give up.
     expect(streamTextMock).toHaveBeenCalledTimes(3);
     const retryMessages = streamTextMock.mock.calls[1]?.[0]?.messages;
-    expect(JSON.stringify(retryMessages)).toContain("Call `show_view` NOW");
+    const retrySystem = streamTextMock.mock.calls[1]?.[0]?.system;
+    expect(retryMessages).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: "system" })]),
+    );
+    expect(retrySystem).toContain("Call `show_view` NOW");
     expect(writer.merge).toHaveBeenCalledTimes(3);
   });
 

@@ -11,10 +11,12 @@ const providerCases: Array<{
   name: string;
   key: string | undefined;
   model: ChatModel;
+  expectsOpaqueToolMetadata?: boolean;
 }> = [
   {
     name: "Gemini 3.6 Flash",
     key: process.env.GEMINI_API_KEY,
+    expectsOpaqueToolMetadata: true,
     model: {
       id: "google/gemini-3.6-flash",
       label: "Gemini 3.6 Flash",
@@ -65,10 +67,11 @@ const providerCases: Array<{
 describe.skipIf(!RUN_LIVE)("live provider adapter tool loops", () => {
   it.each(providerCases)(
     "$name preserves a two-step streamed tool loop",
-    async ({ key, model }) => {
+    async ({ key, model, expectsOpaqueToolMetadata }) => {
       expect(key, `${model.apiKeySecret} is required`).toBeTruthy();
 
       const calls: Array<{ name: string; args: unknown }> = [];
+      const toolCallMetadata: unknown[] = [];
       const languageModel = chatModelAdapter(model).create(model, key!);
       const response = streamText({
         model: languageModel,
@@ -109,6 +112,9 @@ describe.skipIf(!RUN_LIVE)("live provider adapter tool loops", () => {
       let finalText = "";
       for await (const part of response.fullStream) {
         if (part.type === "text-delta") finalText += part.text;
+        if (part.type === "tool-call") {
+          toolCallMetadata.push(part.providerMetadata);
+        }
         if (part.type === "error") throw part.error;
       }
 
@@ -123,6 +129,17 @@ describe.skipIf(!RUN_LIVE)("live provider adapter tool loops", () => {
         },
       ]);
       expect(finalText.trim()).not.toBe("");
+      if (expectsOpaqueToolMetadata) {
+        expect(toolCallMetadata).toHaveLength(2);
+        expect(
+          toolCallMetadata.every(
+            (metadata) =>
+              metadata != null &&
+              typeof metadata === "object" &&
+              Object.keys(metadata).length > 0,
+          ),
+        ).toBe(true);
+      }
     },
     120_000,
   );

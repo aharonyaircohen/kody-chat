@@ -795,6 +795,7 @@ async function handleKodyDirectPost(
   let modelMessages = modelIsVision
     ? messages
     : inlineImagePartsForTextModel(messages);
+  const turnSystemInstructions: string[] = [];
   const repo = getRequestAuth(repoScopedReq);
   const durableIdentity =
     repo &&
@@ -992,28 +993,18 @@ async function handleKodyDirectPost(
         }${verifiedActorLogin ? ` (via chat by @${verifiedActorLogin})` : ""}`,
       });
       invalidateMemoryIndexPromptCache();
-      modelMessages = [
-        ...modelMessages,
-        {
-          role: "system",
-          content:
-            `Explicit memory request already persisted to Convex memory/${file.id}.md ` +
-            `as ${file.meta.type}. Do not call remember/update_memory again. ` +
-            "Briefly confirm it was saved.",
-        },
-      ];
+      turnSystemInstructions.push(
+        `Explicit memory request already persisted to Convex memory/${file.id}.md ` +
+          `as ${file.meta.type}. Do not call remember/update_memory again. ` +
+          "Briefly confirm it was saved.",
+      );
     } catch (err) {
-      modelMessages = [
-        ...modelMessages,
-        {
-          role: "system",
-          content:
-            "Explicit memory request could not be persisted before response. " +
-            `Tell the user it failed and include this error: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-        },
-      ];
+      turnSystemInstructions.push(
+        "Explicit memory request could not be persisted before response. " +
+          `Tell the user it failed and include this error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+      );
     }
   }
   const vibeMode = body.vibeMode === true;
@@ -1494,43 +1485,24 @@ async function handleKodyDirectPost(
     Boolean(explicitViewRequest) &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
   if (explicitViewRequest && !forceShowViewTool) {
-    modelMessages = [
-      ...modelMessages,
-      {
-        role: "system",
-        content:
-          "The latest user message asks to render a UI card, but `show_view` is not available in this chat's tool set. Tell the user the UI tool is unavailable; do not claim the card was rendered.",
-      },
-    ];
+    turnSystemInstructions.push(
+      "The latest user message asks to render a UI card, but `show_view` is not available in this chat's tool set. Tell the user the UI tool is unavailable; do not claim the card was rendered.",
+    );
   } else if (explicitViewRequest) {
-    modelMessages = [
-      ...modelMessages,
-      {
-        role: "system",
-        content: buildExplicitViewRequestInstruction(explicitViewRequest),
-      },
-    ];
+    turnSystemInstructions.push(
+      buildExplicitViewRequestInstruction(explicitViewRequest),
+    );
   } else if (requireViewOutput) {
-    modelMessages = [
-      ...modelMessages,
-      {
-        role: "system",
-        content:
-          "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
-      },
-    ];
+    turnSystemInstructions.push(
+      "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
+    );
   }
   if (failedToolFamilies.length > 0) {
-    modelMessages = [
-      ...modelMessages,
-      {
-        role: "system",
-        content:
-          `Tool families UNAVAILABLE this turn (their configuration failed to load): ${failedToolFamilies.join(", ")}. ` +
-          "If the user asks for a related action, state plainly that the tools are unavailable right now and suggest retrying. " +
-          "NEVER simulate these tool calls, never invent ids or results, and never claim data was read or written.",
-      },
-    ];
+    turnSystemInstructions.push(
+      `Tool families UNAVAILABLE this turn (their configuration failed to load): ${failedToolFamilies.join(", ")}. ` +
+        "If the user asks for a related action, state plainly that the tools are unavailable right now and suggest retrying. " +
+        "NEVER simulate these tool calls, never invent ids or results, and never claim data was read or written.",
+    );
   }
 
   // Build the system prompt. The tool index (name + description) is
@@ -1626,6 +1598,14 @@ async function handleKodyDirectPost(
 
 This turn includes an image from the user. For questions about what is visible in the image, answer from the attached image itself. Do not substitute current page context, task context, memory, or prior turns when they conflict with the image. If the image is unreadable or unavailable, say that instead of guessing.`
     : systemPrompt;
+  const buildTurnSystemPrompt = (additionalInstructions: string[] = []) =>
+    [
+      groundedSystemPrompt,
+      ...turnSystemInstructions,
+      ...additionalInstructions,
+    ]
+      .filter((section) => section.trim().length > 0)
+      .join("\n\n");
 
   // Build a tool-name → description map from the merged tool set. Every
   // tool in this repo calls `tool({ description, inputSchema, execute })`
@@ -1699,10 +1679,13 @@ This turn includes an image from the user. For questions about what is visible i
     );
     armHeartbeat(30_000);
     armHeartbeat(60_000);
-    const runModelTurn = (turnMessages: typeof modelMessages) =>
+    const runModelTurn = (
+      turnMessages: typeof modelMessages,
+      additionalSystemInstructions: string[] = [],
+    ) =>
       streamText({
         model,
-        system: groundedSystemPrompt,
+        system: buildTurnSystemPrompt(additionalSystemInstructions),
         messages: turnMessages,
         tools,
         ...(forceShowViewTool
@@ -1719,7 +1702,7 @@ This turn includes an image from the user. For questions about what is visible i
             }),
         ...(!forceShowViewTool
           ? {
-              prepareStep: ({ steps, messages: stepMessages }) => {
+              prepareStep: ({ steps }) => {
                 const finalAnswerNeedsView = steps.some((step) =>
                   step.toolResults.some(
                     (result) =>
@@ -1764,14 +1747,9 @@ This turn includes an image from the user. For questions about what is visible i
                   ),
                   ...(fabricatedToolCall
                     ? {
-                        messages: [
-                          ...stepMessages,
-                          {
-                            role: "system" as const,
-                            content:
-                              "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
-                          },
-                        ],
+                        system: buildTurnSystemPrompt([
+                          "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
+                        ]),
                       }
                     : {}),
                 };
@@ -1987,14 +1965,10 @@ This turn includes an image from the user. For questions about what is visible i
               { traceId, retry: retryCount + 1, requireViewOutput },
               "kody-direct: turn ended silent (retrying)",
             );
-            attempt = runModelTurn([
-              ...modelMessages,
-              {
-                role: "system",
-                content: requireViewOutput
-                  ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
-                  : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
-              },
+            attempt = runModelTurn(modelMessages, [
+              requireViewOutput
+                ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
+                : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
             ]);
             writer.merge(
               attempt.toUIMessageStream({
