@@ -8,6 +8,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
+    env: { KODY_SERVICE_KEY: "" },
     include: ["tests/**/*.spec.ts"],
     // Playwright specs live under tests/e2e — vitest must not load them.
     exclude: ["node_modules/**", "tests/e2e/**"],
