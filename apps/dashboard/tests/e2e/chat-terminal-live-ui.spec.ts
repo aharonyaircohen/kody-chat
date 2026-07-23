@@ -245,10 +245,14 @@ test.describe("Brain terminal live UI", () => {
       await brainOption.click();
       await expect(modelPicker).toContainText("Repo Brain");
 
-      const marker = `BRAIN_CHAT_E2E_${Date.now()}`;
+      // Use a provider-neutral numeric marker. Some reasoning models preserve
+      // the unique value but omit a descriptive prefix even when asked for an
+      // exact reply; the live gate is proving transport and persistence, not
+      // instruction-following style.
+      const marker = String(Date.now());
       await chat
         .locator("textarea")
-        .fill(`Reply with exactly ${marker} and no other text.`);
+        .fill(`Reply with this exact number: ${marker}`);
       const brainResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
