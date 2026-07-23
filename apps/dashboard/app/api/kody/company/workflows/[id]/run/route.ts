@@ -28,6 +28,7 @@ import {
   isWorkflowDefinitionId,
   validateWorkflowDefinition,
 } from "@dashboard/lib/workflow-definitions";
+import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 import {
   readCompanyStoreCapabilityWorkflowDefinitionFile,
   readCompanyStoreWorkflowDefinitionFile,
@@ -57,6 +58,33 @@ function workflowNotRunnableResponse() {
 
 function newWorkflowRunId(): string {
   return `run-${Date.now().toString(36)}`;
+}
+
+async function dispatchKnowledgeSystemRefresh(
+  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
+  auth: NonNullable<ReturnType<typeof getRequestAuth>>,
+) {
+  const repository = await octokit.rest.repos.get({
+    owner: auth.owner,
+    repo: auth.repo,
+  });
+  const ref = repository.data.default_branch || "main";
+  const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+    owner: auth.owner,
+    repo: auth.repo,
+    ref,
+    action: "refresh-knowledge-system",
+    storeRepoUrl: auth.storeRepoUrl,
+    storeRef: auth.storeRef,
+  });
+  await octokit.rest.actions.createWorkflowDispatch({
+    owner: auth.owner,
+    repo: auth.repo,
+    workflow_id: "kody.yml",
+    ref,
+    inputs,
+  });
+  return ref;
 }
 
 export async function POST(
@@ -150,6 +178,26 @@ export async function POST(
     const runId = requestedRunId && /^run-[a-z0-9]+$/.test(requestedRunId)
       ? requestedRunId
       : newWorkflowRunId();
+    if (id === "refresh-knowledge-system") {
+      const ref = await dispatchKnowledgeSystemRefresh(octokit, headerAuth);
+      recordAudit(req, {
+        action: "workflow.run",
+        resource: id,
+        detail: `manual GitHub dispatch for workflow ${id}`,
+      });
+      return NextResponse.json(
+        {
+          ok: true,
+          runner: "github",
+          ref,
+          workflow: id,
+          runId,
+          action: id,
+        },
+        { status: 202 },
+      );
+    }
+
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `company-workflow-${id}-${runId}`,
       runRequest: withStoreTarget(workflowRunRequest(id, runId), headerAuth),
