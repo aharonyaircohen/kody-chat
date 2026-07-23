@@ -198,9 +198,10 @@ describe("ensureTerminalBridge", () => {
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.child = null");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("Retrying terminal tunnel");
-    expect(consoleSession).toContain("session.inputBytes === 0");
+    expect(consoleSession).toContain("session.sockets.size > 0");
+    expect(consoleSession).not.toContain("session.inputBytes === 0");
     expect(consoleSession).toContain(
-      "Retrying terminal after early tunnel exit",
+      "Retrying terminal after unexpected tunnel exit",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;",

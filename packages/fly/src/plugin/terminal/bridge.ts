@@ -1202,7 +1202,7 @@ function createFlyConsoleSession(claims, key) {
       }
       if (
         session.ready &&
-        session.inputBytes === 0 &&
+        session.sockets.size > 0 &&
         !session.timedOut &&
         session.startAttempts < MAX_SSH_START_ATTEMPTS
       ) {
@@ -1213,7 +1213,7 @@ function createFlyConsoleSession(claims, key) {
         sendToSession(session, {
           type: "output",
           data:
-            "Retrying terminal after early tunnel exit (" +
+            "Retrying terminal after unexpected tunnel exit (" +
             (session.startAttempts + 1) +
             "/" +
             MAX_SSH_START_ATTEMPTS +
