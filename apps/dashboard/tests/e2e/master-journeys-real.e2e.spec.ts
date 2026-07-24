@@ -214,7 +214,9 @@ test.describe("Master live user journeys", () => {
       page.getByRole("heading", { name: "Memory", exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
-      page.getByText("Repository workspace", { exact: true }),
+      page
+        .getByRole("main")
+        .getByText("Repository workspace", { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
       page.getByRole("button", { name: "New memory" }),
