@@ -16,12 +16,9 @@ vi.mock("../../src/dashboard/lib/capabilities", () => ({
   isValidSlug: vi.fn((slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)),
 }));
 
-const backend = vi.hoisted(() => ({ query: vi.fn() }));
-vi.mock("@kody-ade/backend/api", () => ({
-  api: { definitions: { getCurrent: "definitions.getCurrent" } },
-}));
-vi.mock("@kody-ade/backend/client", () => ({
-  createBackendClient: () => backend,
+const capabilities = vi.hoisted(() => ({ readCapabilityFile: vi.fn() }));
+vi.mock("@kody-ade/agency/capabilities", () => ({
+  readCapabilityFile: capabilities.readCapabilityFile,
 }));
 
 const { createKodyTools } =
@@ -63,7 +60,7 @@ afterEach(() => {
 describe("kody dispatch tools use capabilities", () => {
   it("refuses to run an issue command when the capability folder is missing", async () => {
     const { ctx, createComment } = createCtx();
-    backend.query.mockResolvedValue(null);
+    capabilities.readCapabilityFile.mockResolvedValue(null);
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_run_issue.execute?.(
@@ -82,30 +79,15 @@ describe("kody dispatch tools use capabilities", () => {
 
   it("posts the capability action for issue dispatch", async () => {
     const { ctx, createComment } = createCtx();
-    backend.query.mockResolvedValue({
-      tenantId: "test-owner/test-repo",
-      kind: "capability",
+    capabilities.readCapabilityFile.mockResolvedValue({
       slug: "feature",
-      bundle: {
-        files: {
-          "profile.json": JSON.stringify({
-            name: "feature",
-            describe: "Feature",
-            model: "inherit",
-            permissionMode: "acceptEdits",
-            tools: [],
-            skills: [],
-            shellScripts: [],
-            mcpServers: [],
-            landing: "pr",
-          }),
-          "capability.md": "Ship the feature",
-        },
+      instructions: "Ship the feature",
+      simpleContract: {
+        input: { name: "request", schema: {} },
+        output: { name: "result", schema: {} },
       },
-      source: "local",
-      version: 1,
-      contentHash: "test",
-      publishedAt: "2026-07-18T00:00:00.000Z",
+      skills: [],
+      capabilityTools: [],
     });
 
     const tools = createKodyTools(ctx);
@@ -123,7 +105,7 @@ describe("kody dispatch tools use capabilities", () => {
       triggered: true,
       url: "/repo/test-owner/test-repo/123",
     });
-    expect(backend.query).toHaveBeenCalled();
+    expect(capabilities.readCapabilityFile).toHaveBeenCalledWith("feature");
     expect(createComment).toHaveBeenCalledWith({
       owner: "test-owner",
       repo: "test-repo",
@@ -134,7 +116,7 @@ describe("kody dispatch tools use capabilities", () => {
 
   it("refuses PR dispatch when the command has no capability", async () => {
     const { ctx, createComment } = createCtx({ isPr: true });
-    backend.query.mockResolvedValue(null);
+    capabilities.readCapabilityFile.mockResolvedValue(null);
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_fix_pr.execute?.(

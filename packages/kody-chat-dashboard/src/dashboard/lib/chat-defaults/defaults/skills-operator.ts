@@ -22,11 +22,11 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
   slug: "create-capability",
   title: "create-capability",
-  body: `Backend capability \`capabilities/<slug>/\` is a callable agency capability: \`profile.json\` holds execution settings and \`capability.md\` holds the instructions. First call \`read_capability_creation_guide\`. Never first turn.
+  body: `A Capability is exactly one folder with \`instructions.md\`, \`contract.json\`, \`skills/\`, and \`tools/\`. First call \`read_capability_creation_guide\`. Never first turn.
 
-Sufficiency: name, clear instructions, landing, needed tools, optional skills, and optional scripts. Capabilities produce the result; the owning agent/goal/loop decides when and why to run them. Show the profile and instructions, then call \`create_or_update_capability\` only after the user approves.
+Sufficiency: folder name, clear instructions, one input, one output, needed tools, and optional skills. A direct Capability uses Kody; a Workflow chooses one Agent for all its steps. Show the four-folder contents, then call \`create_or_update_capability\` only after the user approves.
 
-**Key fields:** \`slug\` is the capability name, \`instructions\` become \`capability.md\`, and \`landing\` controls whether the result opens a PR or comments. Ownership belongs outside the capability; do not put owner/schedule/goals into the capability itself.`,
+Do not put an Agent, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in \`contract.json\`.`,
 };
 
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {

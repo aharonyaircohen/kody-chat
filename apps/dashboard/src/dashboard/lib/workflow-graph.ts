@@ -316,8 +316,8 @@ export function graphWorkflowDefinition(
     };
   });
   return {
-    version: 1,
     name: name.trim(),
+    agent: "kody",
     capabilities: Array.from(
       new Set(capabilityNodes.map((node) => node.capability ?? node.id)),
     ),

@@ -9,8 +9,9 @@
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface WorkflowDefinition {
-  version: 1;
   name: string;
+  /** One Agent runs every step. Direct Capability runs use Kody. */
+  agent: string;
   capabilities: string[];
   startAt?: string;
   steps?: WorkflowStepDefinition[];
@@ -52,6 +53,7 @@ export interface WorkflowDefinitionRecord {
 export interface CreateWorkflowDefinitionInput {
   id?: string;
   name: string;
+  agent?: string;
   capabilities: string[];
   startAt?: string;
   steps?: WorkflowStepDefinition[];
@@ -60,6 +62,7 @@ export interface CreateWorkflowDefinitionInput {
 
 export interface UpdateWorkflowDefinitionInput {
   name?: string;
+  agent?: string;
   capabilities?: string[];
   startAt?: string;
   steps?: WorkflowStepDefinition[];
@@ -78,6 +81,7 @@ export interface WorkflowValidationOptions {
 
 const WORKFLOW_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
+const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 const WORKFLOW_DATA_PATH =
   /^(facts|evidence|artifacts|result|workflow|lastOutcome)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+$/;
 
@@ -195,6 +199,9 @@ export function normalizeWorkflowDefinition(
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  const requestedAgent =
+    typeof raw.agent === "string" ? raw.agent.trim().toLowerCase() : "";
+  const agent = AGENT_ID_PATTERN.test(requestedAgent) ? requestedAgent : "kody";
   const steps = normalizeWorkflowSteps(raw.steps);
   const capabilities = normalizeWorkflowCapabilities([
     ...normalizeWorkflowCapabilities(raw.capabilities),
@@ -212,8 +219,8 @@ export function normalizeWorkflowDefinition(
 
   if (!name || capabilities.length === 0) return null;
   return {
-    version: 1,
     name,
+    agent,
     capabilities,
     ...(startAt && WORKFLOW_ID_PATTERN.test(startAt) ? { startAt } : {}),
     ...(steps.length > 0 ? { steps } : {}),
@@ -229,8 +236,10 @@ export function buildWorkflowDefinition(
 ): WorkflowDefinition {
   const now = new Date().toISOString();
   return {
-    version: 1,
     name: input.name.trim(),
+    agent: AGENT_ID_PATTERN.test((input.agent ?? "kody").trim().toLowerCase())
+      ? (input.agent ?? "kody").trim().toLowerCase()
+      : "kody",
     capabilities: normalizeWorkflowCapabilities(input.capabilities),
     ...(input.startAt ? { startAt: input.startAt } : {}),
     ...(input.steps && input.steps.length > 0 ? { steps: input.steps } : {}),
@@ -247,6 +256,7 @@ export function mergeWorkflowDefinition(
   return buildWorkflowDefinition(
     {
       name: input.name ?? existing.name,
+      agent: input.agent ?? existing.agent,
       capabilities: input.capabilities ?? existing.capabilities,
       startAt: input.startAt ?? existing.startAt,
       steps: input.steps ?? existing.steps,
@@ -296,7 +306,10 @@ export function validateWorkflowDefinition(
         `steps[${index}].capability`,
         `Capability ${step.capability} is not declared by this workflow.`,
       );
-    if (options.knownCapabilities && !options.knownCapabilities.has(step.capability))
+    if (
+      options.knownCapabilities &&
+      !options.knownCapabilities.has(step.capability)
+    )
       addIssue(
         issues,
         "unknown_capability",
@@ -464,10 +477,7 @@ function addIssue(
 }
 
 function isWorkflowConditionValue(value: unknown): boolean {
-  if (
-    value === null ||
-    ["string", "number", "boolean"].includes(typeof value)
-  )
+  if (value === null || ["string", "number", "boolean"].includes(typeof value))
     return true;
   return (
     Array.isArray(value) &&

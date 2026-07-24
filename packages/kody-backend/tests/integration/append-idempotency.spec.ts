@@ -81,24 +81,6 @@ describe("append idempotency", () => {
     ).toHaveLength(1);
   });
 
-  it("intents.appendDecision dedupes on idempotencyKey", async () => {
-    const t = setup();
-    const args = {
-      tenantId: TENANT,
-      intentId: "i1",
-      decision: { at: NOW, agent: "alice", action: "approve", reason: "ok" },
-      idempotencyKey: "k1",
-    };
-    await t.mutation(api.intents.appendDecision, args);
-    await t.mutation(api.intents.appendDecision, args);
-    expect(
-      await t.query(api.intents.listDecisions, {
-        tenantId: TENANT,
-        intentId: "i1",
-      }),
-    ).toHaveLength(1);
-  });
-
   it("userJourneys.appendRunEvent dedupes on idempotencyKey", async () => {
     const t = setup();
     const args = {

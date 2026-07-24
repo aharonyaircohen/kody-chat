@@ -8,7 +8,7 @@ import {
 } from "../backend/agency-approvals-store";
 import { verifyRepoWriteAccess } from "./repo-write-access";
 
-const scopeKindSchema = z.enum(["loop", "goal", "workflow", "capability"]);
+const scopeKindSchema = z.enum(["loop", "workflow", "capability"]);
 const identifierSchema = z
   .string()
   .trim()

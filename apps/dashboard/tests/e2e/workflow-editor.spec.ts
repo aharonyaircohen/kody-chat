@@ -13,6 +13,7 @@ const fixture = {
   workflow: {
     version: 1,
     name: "Release readiness",
+    agent: "developer",
     capabilities: ["inspect", "repair", "verify"],
     startAt: "inspect",
     steps: [
@@ -34,6 +35,7 @@ const fixture = {
 
 interface WorkflowWriteBody {
   name?: string;
+  agent?: string;
   capabilities?: string[];
   startAt?: string;
   steps?: Array<{
@@ -140,6 +142,29 @@ async function mockWorkflowApis(
       }),
     });
   });
+  await page.route("**/api/kody/agents", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        agent: [
+          {
+            slug: "developer",
+            title: "Developer",
+            body: "Build software.",
+            updatedAt: "2026-07-15T00:00:00.000Z",
+            htmlUrl: "",
+          },
+          {
+            slug: "reviewer",
+            title: "Reviewer",
+            body: "Review software.",
+            updatedAt: "2026-07-15T00:00:00.000Z",
+            htmlUrl: "",
+          },
+        ],
+      }),
+    });
+  });
   await page.route("**/api/kody/cto/trust", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -166,32 +191,34 @@ test.describe("workflow visual authoring", () => {
     await expect(page.getByText("repair", { exact: true })).toBeVisible();
     await expect(page.getByText("verify", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    const editDialog = page.getByRole("dialog");
+    await expect(editDialog).toBeVisible();
+    await editDialog.getByLabel("Agent", { exact: true }).selectOption("reviewer");
 
-    await page
-      .getByRole("dialog")
-      .getByTestId("rf__edge-inspect-repair-0")
-      .click();
+    await editDialog.getByTestId("rf__edge-inspect-repair-0").click();
     await expect(page.getByText("When should this branch run?")).toBeVisible();
     await page
       .getByRole("button", { name: "Use a simple result check" })
       .click();
     await page.getByLabel("When should this branch run?").selectOption("fail");
 
-    await page.getByLabel("Capability to add").selectOption("verify");
-    await page.getByRole("button", { name: "Add step" }).click();
+    await editDialog.getByLabel("Capability to add").selectOption("verify");
+    await editDialog.getByRole("button", { name: "Add step" }).click();
     await expect(
       page.getByRole("button", { name: "Remove step verify-2" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Remove step verify-2" }).click();
+    await editDialog
+      .getByRole("button", { name: "Remove step verify-2" })
+      .click();
     await expect(
       page.getByRole("button", { name: "Remove step verify-2" }),
     ).toHaveCount(0);
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByRole("button", { name: "Save workflow" }).click();
+    await editDialog.getByRole("button", { name: "Add step" }).click();
+    await editDialog.getByRole("button", { name: "Save workflow" }).click();
 
     await expect.poll(() => writes.length).toBe(1);
     expect(writes[0]?.method).toBe("PATCH");
+    expect(writes[0]?.body.agent).toBe("reviewer");
     expect(writes[0]?.body.steps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -217,17 +244,24 @@ test.describe("workflow visual authoring", () => {
     await page.goto(BASE_URL + "/workflows");
 
     await page.getByRole("button", { name: "New workflow" }).click();
-    await page.getByLabel("Workflow name").fill("New release flow");
-    await page.getByLabel("Capability to add").selectOption("inspect");
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByLabel("Capability to add").selectOption("verify");
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByRole("button", { name: "Create workflow" }).click();
+    const createDialog = page.getByRole("dialog");
+    await createDialog.getByLabel("Workflow name").fill("New release flow");
+    await createDialog
+      .getByLabel("Agent", { exact: true })
+      .selectOption("developer");
+    await createDialog.getByLabel("Capability to add").selectOption("inspect");
+    await createDialog.getByRole("button", { name: "Add step" }).click();
+    await createDialog.getByLabel("Capability to add").selectOption("verify");
+    await createDialog.getByRole("button", { name: "Add step" }).click();
+    await createDialog
+      .getByRole("button", { name: "Create workflow" })
+      .click();
 
     await expect.poll(() => writes.length).toBe(1);
     expect(writes[0]?.method).toBe("POST");
     expect(writes[0]?.body).toMatchObject({
       name: "New release flow",
+      agent: "developer",
       capabilities: ["inspect", "verify"],
       startAt: "inspect",
     });
@@ -254,9 +288,14 @@ test.describe("workflow visual authoring", () => {
     );
     await page.goto(BASE_URL + "/workflows/release-readiness");
 
-    await page.getByRole("button", { name: "Delete workflow release-readiness" }).click();
+    await page
+      .getByRole("button", { name: "Delete workflow release-readiness" })
+      .click();
     await expect(page.getByRole("dialog")).toContainText("Delete workflow");
-    await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Delete" })
+      .click();
 
     await expect.poll(() => deleted).toBe(true);
     await expect(page.getByText("Select a workflow")).toBeVisible();
@@ -273,17 +312,32 @@ test.describe("workflow visual authoring", () => {
     await page.goto(BASE_URL + "/workflows");
 
     await page.getByRole("button", { name: "New workflow" }).click();
-    await page.getByLabel("Workflow name").fill("Broken release flow");
-    await page.getByLabel("Capability to add").selectOption("inspect");
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByLabel("Capability to add").selectOption("repair");
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByLabel("Capability to add").selectOption("verify");
-    await page.getByRole("button", { name: "Add step" }).click();
-    await page.getByRole("button", { name: "Remove step repair" }).click();
-    await page.getByRole("button", { name: "Create workflow" }).click();
+    const invalidDialog = page.getByRole("dialog");
+    await invalidDialog
+      .getByLabel("Workflow name")
+      .fill("Broken release flow");
+    await invalidDialog
+      .getByLabel("Capability to add")
+      .selectOption("inspect");
+    await invalidDialog.getByRole("button", { name: "Add step" }).click();
+    await invalidDialog
+      .getByLabel("Capability to add")
+      .selectOption("repair");
+    await invalidDialog.getByRole("button", { name: "Add step" }).click();
+    await invalidDialog
+      .getByLabel("Capability to add")
+      .selectOption("verify");
+    await invalidDialog.getByRole("button", { name: "Add step" }).click();
+    await invalidDialog
+      .getByRole("button", { name: "Remove step repair" })
+      .click();
+    await invalidDialog
+      .getByRole("button", { name: "Create workflow" })
+      .click();
 
-    await expect(page.getByRole("alert")).toContainText("verify can never run");
+    await expect(invalidDialog.getByRole("alert")).toContainText(
+      "verify can never run",
+    );
     expect(writes).toHaveLength(0);
   });
 });

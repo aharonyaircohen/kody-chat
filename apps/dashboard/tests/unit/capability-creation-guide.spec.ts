@@ -12,22 +12,17 @@ const CAPABILITY_TOOLS_SOURCE = readFileSync(
 describe("capability creation guide wiring", () => {
   it("documents the user-facing capability contract", () => {
     expect(CAPABILITY_GUIDE).toContain(
-      "A **capability** is a reusable way the agency can produce a result.",
+      "A Capability is one small executable method.",
     );
-    expect(CAPABILITY_GUIDE).toContain("backend definitions");
+    expect(CAPABILITY_GUIDE).toContain("instructions.md");
+    expect(CAPABILITY_GUIDE).toContain("contract.json");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
-    expect(CAPABILITY_GUIDE).toMatch(
-      /A capability contract defines what reusable ability exists and how it is safely\s+exposed\./,
-    );
+    expect(CAPABILITY_GUIDE).not.toContain("Implementation");
   });
 
   it("exposes a guide tool before capability creation", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("read_capability_creation_guide");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("canCreateCapability: true");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("docs/capabilities.md");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain(
-      "Before calling it, call read_capability_creation_guide",
-    );
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("contract.json");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
       "read_capability_creation_guide",
     );
@@ -49,10 +44,10 @@ describe("capability creation guide wiring", () => {
   it("uses capability storage and workflow dispatch", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("listLocalCapabilityFiles");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("readCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFile");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFolderFiles");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("deleteCapabilityFile");
     expect(CAPABILITY_TOOLS_SOURCE).not.toContain("api.catalog");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: action }");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: slug }");
   });
 
   it("exposes the validated workflow creator instead of dashboard authoring", () => {

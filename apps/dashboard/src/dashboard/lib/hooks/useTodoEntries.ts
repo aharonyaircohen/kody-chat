@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   kodyApi,
   type TodoEntry,
+  type TodoWrite,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
@@ -77,20 +78,7 @@ export function useCreateTodo(actorLogin?: string) {
   return useMutation<
     TodoEntry,
     Error,
-    {
-      title: string;
-      description?: string;
-      items?: Array<{
-        id?: string;
-        title: string;
-        body?: string;
-        assignee?: string | null;
-        completed?: boolean;
-        createdAt?: string;
-        completedAt?: string | null;
-        meta?: Record<string, unknown>;
-      }>;
-    }
+    TodoWrite
   >({
     mutationFn: (data) =>
       kodyApi.todos.create({ ...data, ...(actorLogin && { actorLogin }) }),
@@ -113,11 +101,7 @@ export function useUpdateTodo(slug: string, actorLogin?: string) {
   return useMutation<
     TodoEntry,
     Error,
-    {
-      title?: string;
-      description?: string;
-      items?: TodoEntry["items"];
-    }
+    Partial<TodoWrite>
   >({
     mutationFn: (data) =>
       kodyApi.todos.update(slug, {

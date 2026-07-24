@@ -27,10 +27,10 @@ import {
 import {
   isWorkflowDefinitionId,
   validateWorkflowDefinition,
+  type WorkflowDefinition,
 } from "@dashboard/lib/workflow-definitions";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 import {
-  readCompanyStoreCapabilityWorkflowDefinitionFile,
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
@@ -42,17 +42,6 @@ function activeStringSet(values: string[] | undefined): Set<string> {
       (value): value is string =>
         typeof value === "string" && value.trim().length > 0,
     ),
-  );
-}
-
-function workflowNotRunnableResponse() {
-  return NextResponse.json(
-    {
-      error: "workflow_not_runnable",
-      message:
-        "Only capability-backed Store workflows can be run immediately right now.",
-    },
-    { status: 409 },
   );
 }
 
@@ -136,29 +125,16 @@ export async function POST(
       headerAuth.repo,
       { force: true },
     );
-    const activeCapabilities = activeStringSet(
-      config.company?.activeCapabilities,
-    );
     const activeWorkflows = activeStringSet(config.company?.activeWorkflows);
 
-    let workflow = null;
-    if (activeCapabilities.has(id)) {
-      workflow = await readCompanyStoreCapabilityWorkflowDefinitionFile(
-        id,
-        octokit,
+    let workflow: { workflow: WorkflowDefinition } | null =
+      await readWorkflowDefinitionFile(
+      id,
+      headerAuth.owner,
+      headerAuth.repo,
       );
-      if (!workflow || workflow.runnable !== true) {
-        return workflowNotRunnableResponse();
-      }
-    } else {
-      workflow = await readWorkflowDefinitionFile(
-        id,
-        headerAuth.owner,
-        headerAuth.repo,
-      );
-      if (!workflow && activeWorkflows.has(id)) {
-        workflow = await readCompanyStoreWorkflowDefinitionFile(id, octokit);
-      }
+    if (!workflow && activeWorkflows.has(id)) {
+      workflow = await readCompanyStoreWorkflowDefinitionFile(id, octokit);
     }
     if (!workflow) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -200,7 +176,10 @@ export async function POST(
 
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `company-workflow-${id}-${runId}`,
-      runRequest: withStoreTarget(workflowRunRequest(id, runId), headerAuth),
+      runRequest: withStoreTarget(
+        workflowRunRequest(id, runId, workflow.workflow.agent),
+        headerAuth,
+      ),
     });
     if (!run.ok) {
       return NextResponse.json(

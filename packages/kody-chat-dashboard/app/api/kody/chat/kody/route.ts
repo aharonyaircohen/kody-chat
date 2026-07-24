@@ -90,7 +90,6 @@ import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
-import { createGoalTools } from "../tools/goal-tools";
 import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
@@ -1098,12 +1097,14 @@ async function handleKodyDirectPost(
       )
     ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);
     const capPrompts = caps
-      .map((cap) => cap.prompt?.trim())
+      .map((cap) => cap.instructions.trim())
       .filter((p): p is string => !!p);
     if (capPrompts.length > 0) {
       activeAgentIdentity = `${activeAgentIdentity}\n\n${capPrompts.join("\n\n")}`;
     }
-    capabilityToolNames = caps.flatMap((cap) => cap.tools ?? []);
+    capabilityToolNames = caps.flatMap((cap) =>
+      cap.capabilityTools.map((tool) => tool.name),
+    );
   }
 
   // Build the per-request tool set FIRST. The tool list feeds into the
@@ -1143,11 +1144,6 @@ async function handleKodyDirectPost(
         actorLogin: verifiedActorLogin,
         previewContext:
           typeof body.previewContext === "string" ? body.previewContext : null,
-      }),
-      ...createGoalTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
       }),
       ...createAgentTools({
         octokit,

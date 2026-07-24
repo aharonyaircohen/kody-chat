@@ -22,9 +22,6 @@ const itemByHref = (href: string): SettingsNavItem => {
 describe("sidebar active route matching", () => {
   it("keeps detail pages selected under their side panel item", () => {
     expect(
-      isNavItemActive("/agent-goals/goal-1", "", itemByHref("/agent-goals")),
-    ).toBe(true);
-    expect(
       isNavItemActive("/agent-loops/loop-1", "", itemByHref("/agent-loops")),
     ).toBe(true);
     expect(
@@ -73,9 +70,9 @@ describe("sidebar active route matching", () => {
   });
 
   it("does not lose selected state when an exact page has query params", () => {
-    expect(
-      isNavItemActive("/agent-goals", "view=mine", itemByHref("/agent-goals")),
-    ).toBe(true);
+    expect(isNavItemActive("/agency", "view=mine", itemByHref("/agency"))).toBe(
+      true,
+    );
   });
 
   it("keeps Views selected for dynamic preview pages", () => {
@@ -87,7 +84,7 @@ describe("sidebar active route matching", () => {
 
   it("resolves labels for side panel detail routes", () => {
     expect(navLabelForPath("/123/preview/docs")).toBe("Tasks");
-    expect(navLabelForPath("/agent-goals/goal-1")).toBe("Goals");
+    expect(navLabelForPath("/agent-loops/loop-1")).toBe("Loops");
     expect(navLabelForPath("/store-catalog/capability/build-preview")).toBe(
       "Store Catalog",
     );

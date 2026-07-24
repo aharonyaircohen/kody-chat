@@ -29,12 +29,6 @@ describe("rate limit polling guardrails", () => {
     );
     // Agency model reads stay behind authenticated server routes. Their
     // bounded polling avoids exposing the backend service key to the browser.
-    expect(source("src/dashboard/lib/hooks/useManagedGoals.ts")).toContain(
-      "refetchInterval: 60_000",
-    );
-    expect(source("src/dashboard/lib/hooks/useCompanyIntents.ts")).toContain(
-      "refetchInterval: 120_000",
-    );
   });
 
   it("uses server-side caches for expensive repeated reads", () => {
@@ -52,17 +46,5 @@ describe("rate limit polling guardrails", () => {
     expect(
       brainImageManagement.indexOf("getTerminalBridgeExecJob"),
     ).toBeLessThan(brainImageManagement.indexOf("refresh: true"));
-    expect(source("../../packages/agency/src/agency-runs.ts")).toContain(
-      "WORKFLOW_OVERLAY_TTL_MS = 60_000",
-    );
-    expect(source("src/dashboard/lib/managed-goals-files.ts")).toContain(
-      "managedGoalFilesCache.get",
-    );
-    expect(
-      source("../../packages/agency/src/managed-goal-run-logs.ts"),
-    ).toContain("runLogsCache.get");
-    expect(source("src/dashboard/lib/company-intents-read-cache.ts")).toContain(
-      "companyIntentRecordsCache",
-    );
   });
 });

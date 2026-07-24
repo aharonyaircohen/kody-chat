@@ -122,10 +122,10 @@ export function FileSpacesManager() {
   return (
     <AuthGuard>
       <PageShell
-        title="File spaces"
+        title="Manage Spaces"
         icon={FolderOpen}
         iconClassName="text-amber-300"
-        subtitle="Focused markdown workspaces from this repository"
+        subtitle="Add and organize repository-backed knowledge spaces"
         backHref={null}
         width="wide"
         actions={
@@ -163,7 +163,7 @@ export function FileSpacesManager() {
           <div className="overflow-hidden rounded-md border border-border bg-card/40">
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold">Repository spaces</h2>
+                <h2 className="text-sm font-semibold">Knowledge spaces</h2>
                 <p className="text-xs text-muted-foreground">
                   Each space maps to a markdown folder in this repository.
                 </p>

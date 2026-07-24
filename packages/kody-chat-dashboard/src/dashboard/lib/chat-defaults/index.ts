@@ -8,7 +8,7 @@
  *   agentIdentity (who the agent is)
  *   + capability (kody-chat) → glue + skill index
  *   + workflows (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
- *   + skills (diagnose-pr, report-advise, goal-planner, create-issue, …) → reusable method
+ *   + skills (diagnose-pr, report-advise, todo-planner, create-issue, …) → reusable method
  *
  * Product-owned defaults are embedded and versioned with the Dashboard.
  */
@@ -223,10 +223,10 @@ export function composeChatPrompt(
     );
   }
 
-  // Goals namespace + memory index (only when a repo is connected).
+  // Todo guidance + memory index (only when a repo is connected).
   if (sections.repo) {
     parts.push(
-      `## Goals and missions\n\nKody has two separate planning surfaces. Keep the words distinct.\n\n1. **Goal** means the managed AI Agency outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.\n2. **Mission** means the older task grouping on the task page. Missions are stored in the legacy goal manifest, surfaced as GitHub Discussions referenced by **#<number>**, and still use \`goal:<id>\` labels for task membership. Use \`list_goals\` / \`get_goal\` when the user says mission or references one of those discussion numbers. Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change mission task membership.\n\n\`/goal\` should create a managed AI Agency goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.`,
+      `## Todos\n\nFinite Agency outcomes are Todos. Use \`list_todo_lists\`, \`read_todo_list\`, and \`create_or_update_todo_list\` to inspect or change them. A Todo may track evidence, blockers, and related Runs; it does not own scheduling, routing, or Agent selection.`,
     );
     if (sections.memoryIndex && sections.memoryIndex.trim().length > 0) {
       parts.push(

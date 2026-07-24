@@ -17,13 +17,12 @@ import {
   readCapabilityFile,
   writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
-import { createCapabilityDefinition } from "@kody-ade/agency-domain";
+import { createCapabilityContract } from "@kody-ade/agency-domain";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { isValidSlug } from "@dashboard/lib/capabilities";
-import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -46,24 +45,14 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    let defaults = { issue: null as string | null, pr: null as string | null };
     if (!headerAuth)
       return NextResponse.json(
         { error: "repository_context_required" },
         { status: 400, headers: NO_STORE_HEADERS },
       );
-    const { config } = await getProjectedEngineConfig(
-      {} as never,
-      headerAuth.owner,
-      headerAuth.repo,
-    );
-    defaults = {
-      issue: config.defaultImplementation ?? null,
-      pr: config.defaultPrImplementation ?? null,
-    };
     const projected = await listCapabilityFiles();
     return NextResponse.json(
-      { capabilities: projected, defaults },
+      { capabilities: projected },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {
@@ -95,15 +84,17 @@ export async function GET(req: NextRequest) {
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 const createCapabilitySchema = z.object({
   slug: z.string().min(1).max(64),
-  action: z.string().min(1),
-  purpose: z.string().min(1),
+  instructions: z.string().min(1),
+  inputName: z.string().min(1).max(80).default("request"),
   inputSchema: jsonObjectSchema,
+  outputName: z.string().min(1).max(80).default("result"),
   outputSchema: jsonObjectSchema,
-  effects: z.array(z.string()).default([]),
-  permissions: z.array(z.string()).default([]),
-  success: z.string().min(1),
-  failure: z.string().min(1),
-  documentation: z.string().default(""),
+  skills: z
+    .array(z.object({ path: z.string().min(1), content: z.string() }))
+    .default([]),
+  tools: z
+    .array(z.object({ path: z.string().min(1), content: z.string() }))
+    .default([]),
   actorLogin: z.string().optional(),
 });
 
@@ -126,13 +117,19 @@ export async function POST(req: NextRequest) {
     const slug = input.slug;
     if (!isValidSlug(slug)) {
       return NextResponse.json(
-        { error: "invalid_slug", message: "Use lowercase letters, numbers, and dashes." },
+        {
+          error: "invalid_slug",
+          message: "Use lowercase letters, numbers, and dashes.",
+        },
         { status: 400 },
       );
     }
     if (await readCapabilityFile(slug)) {
       return NextResponse.json(
-        { error: "slug_taken", message: `Capability "${slug}" already exists.` },
+        {
+          error: "slug_taken",
+          message: `Capability "${slug}" already exists.`,
+        },
         { status: 409 },
       );
     }
@@ -145,25 +142,23 @@ export async function POST(req: NextRequest) {
         { error: "repository_context_required" },
         { status: 400 },
       );
-    const definition = createCapabilityDefinition({
-      id: slug,
-      action: input.action,
-      purpose: input.purpose,
-      inputSchema: input.inputSchema,
-      outputSchema: input.outputSchema,
-      effects: input.effects,
-      permissions: input.permissions,
-      success: input.success,
-      failure: input.failure,
+    const contract = createCapabilityContract({
+      input: { name: input.inputName, schema: input.inputSchema },
+      output: { name: input.outputName, schema: input.outputSchema },
     });
+    const files: Record<string, string> = {
+      "instructions.md": `${input.instructions.trim()}\n`,
+      "contract.json": `${JSON.stringify(contract, null, 2)}\n`,
+    };
+    for (const skill of input.skills) {
+      files[`skills/${skill.path}`] = skill.content;
+    }
+    for (const tool of input.tools) {
+      files[`tools/${tool.path}`] = tool.content;
+    }
     await writeCapabilityFolderFiles({
       slug,
-      files: {
-        "definition.json": `${JSON.stringify(definition, null, 2)}\n`,
-        "capability.md": input.documentation.trim()
-          ? `${input.documentation.trim()}\n`
-          : "",
-      },
+      files,
     });
     const capability = await readCapabilityFile(slug);
     recordAudit(req, {

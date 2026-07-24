@@ -108,7 +108,6 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/kody-tools.ts",
       "app/api/kody/chat/tools/task-tools.ts",
       "app/api/kody/chat/tools/bug-tools.ts",
-      "app/api/kody/chat/tools/goal-tools.ts",
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
@@ -229,7 +228,7 @@ describe("chat-defaults bundle", () => {
 
     expect(analyzer!.body).toContain("diagnose-pr");
     expect(analyzer!.body).toContain("report-advise");
-    expect(analyzer!.body).toContain("goal-planner");
+    expect(analyzer!.body).toContain("todo-planner");
 
     expect(operator!.body).toContain("create-issue");
     expect(operator!.body).toContain("create-capability");
@@ -260,9 +259,9 @@ describe("chat-defaults bundle", () => {
       "create-issue",
       "create-workflow",
       "diagnose-pr",
-      "goal-planner",
       "memory",
       "report-advise",
+      "todo-planner",
       "vibe",
     ]);
   });
@@ -344,7 +343,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
     // Goals / missions namespace block.
-    expect(prompt).toContain("## Goals and missions");
+    expect(prompt).toContain("## Todos");
     // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");
     expect(prompt).toContain("### kody-analyzer");
@@ -355,7 +354,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("## Skills");
     expect(prompt).toContain("### diagnose-pr");
     expect(prompt).toContain("### report-advise");
-    expect(prompt).toContain("### goal-planner");
+    expect(prompt).toContain("### todo-planner");
     expect(prompt).toContain("### create-issue");
     expect(prompt).toContain("### create-capability");
     expect(prompt).toContain("### create-agent");
@@ -371,7 +370,7 @@ describe("composeChatPrompt", () => {
     const bundle = await loadChatDefaults();
     const prompt = composeChatPrompt(bundle, { repo: null });
     expect(prompt).not.toContain("## Connected repository");
-    expect(prompt).not.toContain("## Goals and missions");
+    expect(prompt).not.toContain("## Todos");
   });
 
   it("appends the Current page block when currentPage is set", async () => {

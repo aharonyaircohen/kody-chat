@@ -77,9 +77,9 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["capabilities", "tools", "capability"],
     when: "Use when the user asks to manage reusable Kody capabilities.",
   },
-  "/implementations": {
-    aliases: ["implementations", "execution models", "runtime adapters"],
-    when: "Use when the user asks how a Capability is technically executed.",
+  "/agency": {
+    aliases: ["agency", "agency intent", "agency overview"],
+    when: "Use when the user asks to inspect or edit the Agency intent.",
   },
   "/agents": {
     aliases: ["agents", "staff", "personas"],
@@ -95,10 +95,6 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
       { aliases: [...page.aliases], when: page.when },
     ]),
   ),
-  "/agent-goals": {
-    aliases: ["goals", "missions", "outcomes"],
-    when: "Use when the user asks to inspect or manage goals.",
-  },
   "/agent-loops": {
     aliases: ["loops", "recurring work", "cadence"],
     when: "Use when the user asks to inspect or manage operational loops.",

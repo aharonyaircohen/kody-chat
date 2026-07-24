@@ -1,415 +1,157 @@
 import { describe, expect, it } from "vitest";
 import {
-  createCapabilityDefinition,
-  createImplementationDefinition,
-  createGoalDefinition,
-  createGoalState,
-  createIntentDefinition,
-  createIntentState,
+  createAgencyDefinition,
+  createCapabilityContract,
   createLoopDefinition,
-  createOperationDefinition,
-  createOperationState,
   createRun,
-  createRunOutput,
-  relationshipIssues,
+  createTodo,
+  createWorkflowDefinition,
 } from "../src/index";
 
-const objective = {
-  desiredState: "The knowledge graph is current",
-  requiredEvidence: ["graph-published"],
-  scope: { include: { repository: ["acme/app"] }, exclude: {} },
-};
-
-describe("clean AI Agency domain", () => {
-  it("separates the canonical capability contract from its execution model", () => {
-    const capability = createCapabilityDefinition({
-      id: "build-knowledge-graph",
-      action: "Build a knowledge graph",
-      purpose: "Produce a current project knowledge graph",
-      inputSchema: {
-        type: "object",
-        required: ["repository"],
-        properties: { repository: { type: "string" } },
-      },
-      outputSchema: {
-        type: "object",
-        required: ["graph"],
-        properties: { graph: { type: "object" } },
-      },
-      effects: ["artifact.write"],
-      permissions: ["repository.read"],
-      success: "A valid graph artifact is produced",
-      failure: "No graph artifact is published",
-    });
-    const implementation = createImplementationDefinition({
-      id: "graphify-knowledge-graph",
-      capabilityRef: {
-        kind: "capability",
-        id: "build-knowledge-graph",
-      },
-      compatibleCapabilityRevision: "contract-hash",
-      type: "agent",
-      agentRef: { kind: "agent", id: "knowledge-engineer" },
-    });
-
-    expect(capability).toMatchObject({ id: "build-knowledge-graph" });
-    expect(implementation).toMatchObject({
-      type: "agent",
-      capabilityRef: { id: "build-knowledge-graph" },
-    });
-    expect(implementation).not.toHaveProperty("prompt");
-    expect(implementation).not.toHaveProperty("model");
-    expect(implementation).not.toHaveProperty("tools");
+describe("simple AI Agency domain", () => {
+  it("keeps Agency intent as plain text", () => {
+    expect(
+      createAgencyDefinition({ intent: "Make delivery reliable." }),
+    ).toEqual({ intent: "Make delivery reliable." });
+    expect(() =>
+      createAgencyDefinition({
+        intent: "Make delivery reliable.",
+        priority: 1,
+      }),
+    ).toThrow(/unknown field "priority"/i);
   });
 
-  it("requires an agent only for agent implementations", () => {
-    expect(() =>
-      createImplementationDefinition({
-        id: "run-graph-script",
-        capabilityRef: { kind: "capability", id: "build-knowledge-graph" },
-        compatibleCapabilityRevision: "contract-hash",
-        type: "script",
-        agentRef: { kind: "agent", id: "developer" },
+  it("accepts exactly one Capability input and output", () => {
+    expect(
+      createCapabilityContract({
+        input: { name: "request", schema: { type: "object" } },
+        output: { name: "result", schema: { type: "object" } },
       }),
-    ).toThrow(/agentRef/);
-    expect(() =>
-      createImplementationDefinition({
-        id: "graphify-knowledge-graph",
-        capabilityRef: { kind: "capability", id: "build-knowledge-graph" },
-        compatibleCapabilityRevision: "contract-hash",
-        type: "agent",
-      }),
-    ).toThrow(/agentRef/);
-  });
+    ).toEqual({
+      input: { name: "request", schema: { type: "object" } },
+      output: { name: "result", schema: { type: "object" } },
+    });
 
-  it("keeps runtime assets, workflows, and schedules out of Implementation definitions", () => {
-    const base = {
-      id: "graphify-knowledge-graph",
-      capabilityRef: { kind: "capability" as const, id: "build-knowledge-graph" },
-      compatibleCapabilityRevision: "contract-hash",
-      type: "agent" as const,
-      agentRef: { kind: "agent" as const, id: "knowledge-engineer" },
-    };
-
-    for (const rejected of [
-      { prompt: "Build the graph" },
-      { tools: ["Read"] },
-      { scripts: ["build.sh"] },
-      { schedule: "0 * * * *" },
-      { workflow: ["extract", "publish"] },
+    for (const forbidden of [
+      { agent: "developer" },
+      { model: "provider/model" },
+      { schedule: "hourly" },
+      { workflow: ["inspect", "repair"] },
+      { implementation: "legacy-profile" },
+      { version: 2 },
     ]) {
       expect(() =>
-        createImplementationDefinition({ ...base, ...rejected }),
+        createCapabilityContract({
+          input: { name: "request", schema: {} },
+          output: { name: "result", schema: {} },
+          ...forbidden,
+        }),
       ).toThrow(/unknown field/i);
     }
   });
 
-  it("contains no persistence version or storage metadata", () => {
-    expect(() =>
-      createGoalDefinition({
-        id: "refresh-graph",
-        operationId: "knowledge",
-        objective,
-        executionRef: { kind: "workflow", id: "refresh-knowledge" },
-        version: 2,
+  it("puts one Agent on the Workflow, not its steps", () => {
+    expect(
+      createWorkflowDefinition({
+        id: "release",
+        agent: "developer",
+        steps: [
+          {
+            id: "inspect",
+            capabilityRef: { kind: "capability", id: "inspect" },
+          },
+          {
+            id: "publish",
+            capabilityRef: { kind: "capability", id: "publish" },
+            dependsOn: ["inspect"],
+            condition: "inspect.succeeded",
+          },
+        ],
       }),
-    ).toThrow(/unknown field "version"/i);
+    ).toMatchObject({ id: "release", agent: "developer" });
+    expect(() =>
+      createWorkflowDefinition({
+        id: "release",
+        agent: "developer",
+        steps: [
+          {
+            id: "inspect",
+            capabilityRef: { kind: "capability", id: "inspect" },
+            agent: "reviewer",
+          },
+        ],
+      }),
+    ).toThrow(/unknown field "agent"/i);
   });
 
-  it("keeps schedules out of Goals and steps out of Capabilities", () => {
-    expect(() =>
-      createGoalDefinition({
-        id: "refresh-graph",
-        operationId: "knowledge",
-        objective,
-        executionRef: { kind: "workflow", id: "refresh-knowledge" },
-        trigger: { type: "schedule", every: "1h" },
+  it("keeps Todo finite and free of execution configuration", () => {
+    expect(
+      createTodo({
+        id: "ship-release",
+        outcome: "The release is live",
+        status: "in-progress",
+        evidence: ["deployment-url"],
+        checklist: [{ id: "verify", text: "Verify release", done: false }],
+        blockers: [],
+        runIds: ["run-1"],
       }),
-    ).toThrow(/trigger/);
+    ).toMatchObject({ status: "in-progress", runIds: ["run-1"] });
     expect(() =>
-      createCapabilityDefinition({
-        id: "build-knowledge-graph",
-        action: "Build a knowledge graph",
-        purpose: "Produce project knowledge",
-        inputSchema: { type: "object" },
-        outputSchema: { type: "object" },
-        effects: [],
-        permissions: [],
-        success: "A graph is produced",
-        failure: "No graph is produced",
-        steps: ["extract", "publish"],
+      createTodo({
+        id: "ship-release",
+        outcome: "The release is live",
+        status: "todo",
+        evidence: [],
+        checklist: [],
+        blockers: [],
+        runIds: [],
+        workflow: "release",
       }),
-    ).toThrow(/steps/);
+    ).toThrow(/workflow/);
   });
 
-  it("keeps Trigger and target inside Loop", () => {
+  it("keeps Loop to trigger, target, input, and enabled", () => {
     expect(
       createLoopDefinition({
-        id: "knowledge-refresh",
-        operationId: "knowledge",
-        objective,
-        trigger: { type: "schedule", every: "1h" },
-        targetRef: { kind: "workflow", id: "refresh-knowledge" },
-        reconciliationPolicy: {
-          overlap: "skip",
-          missed: "coalesce",
-          failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
-        },
+        id: "daily-check",
+        trigger: { type: "schedule", every: "1d" },
+        target: { kind: "workflow", id: "release" },
+        input: { repository: "acme/app" },
+        enabled: true,
       }),
-    ).toMatchObject({ id: "knowledge-refresh" });
-  });
-
-  it("keeps mutable State separate from Definition", () => {
-    expect(
-      createGoalState({
-        definitionId: "refresh-graph",
-        lifecycle: "active",
-        progress: 0,
-        blockers: [],
-        updatedAt: "2026-07-22T00:00:00.000Z",
-      }),
-    ).toMatchObject({ progress: 0 });
+    ).toMatchObject({ id: "daily-check", enabled: true });
     expect(() =>
-      createGoalState({
-        definitionId: "refresh-graph",
-        lifecycle: "active",
-        progress: 0,
-        blockers: [],
-        objective,
-        updatedAt: "2026-07-22T00:00:00.000Z",
+      createLoopDefinition({
+        id: "daily-check",
+        trigger: { type: "schedule", every: "1d" },
+        target: { kind: "workflow", id: "release" },
+        input: {},
+        enabled: true,
+        health: "healthy",
       }),
-    ).toThrow(/objective/);
+    ).toThrow(/health/);
   });
 
-  it("keeps Intent and Operation governance in definitions and lifecycle in state", () => {
-    const intent = createIntentDefinition({
-      id: "company-growth",
-      direction: "Grow the company sustainably",
-      description: "Focus the portfolio on measurable growth.",
-      priority: 1,
-      posture: "balanced",
-      scope: {
-        include: { repository: ["acme/app"], area: ["growth"] },
-        exclude: {},
-      },
-      priorities: ["Prefer measurable outcomes"],
-      measures: ["Qualified leads"],
-      policyRefs: ["release-policy"],
-      deliveryPolicy: {
-        cadence: "1w",
-        assurance: "strict",
-        blockerSensitivity: "standard",
-      },
-      policy: {
-        approval: "risky-actions",
-        authority: { allow: ["plan"], deny: [] },
-        budget: {
-          maxRuns: 5,
-          maxTokens: 10000,
-          maxCostUsd: 20,
-          maxDurationSeconds: 3600,
-        },
-        maxConcurrentRuns: 1,
-        riskyActions: ["production"],
-      },
-      constraints: [],
-    });
-    const operation = createOperationDefinition({
-      id: "growth",
-      name: "Growth",
-      responsibility: "Own measurable company growth",
-      doesNotOwn: ["Product delivery"],
-      intentIds: [intent.id],
-    });
-
-    expect(intent).toMatchObject({
-      priority: 1,
-      posture: "balanced",
-      measures: ["Qualified leads"],
-    });
-    expect(operation.doesNotOwn).toEqual(["Product delivery"]);
-    expect(
-      createIntentState({
-        definitionId: intent.id,
-        lifecycle: "active",
-        updatedAt: "2026-07-23T00:00:00.000Z",
-      }),
-    ).toMatchObject({ lifecycle: "active" });
-    expect(
-      createOperationState({
-        definitionId: operation.id,
-        lifecycle: "paused",
-        updatedAt: "2026-07-23T00:00:00.000Z",
-      }),
-    ).toMatchObject({ lifecycle: "paused" });
-  });
-
-  it("freezes terminal Runs and requires provenance on outputs", () => {
+  it("records the Agent used by a Run and has no Implementation reference", () => {
     const run = createRun({
       id: "run-1",
       status: "succeeded",
-      origin: {
-        kind: "intent",
-        id: "knowledge-quality",
-        revision: "intent-ref",
-      },
-      target: {
-        kind: "workflow",
-        id: "refresh-knowledge",
-        revision: "workflow-ref",
-      },
-      trace: [
-        { kind: "intent", id: "knowledge-quality", revision: "intent-ref" },
-        { kind: "workflow", id: "refresh-knowledge", revision: "workflow-ref" },
-      ],
-      effectivePolicy: {
-        hash: "policy-hash",
-        policy: {
-          approval: "none",
-          authority: { allow: ["refresh-knowledge"], deny: [] },
-          budget: {
-            maxRuns: 1,
-            maxTokens: 1000,
-            maxCostUsd: 10,
-            maxDurationSeconds: 300,
-          },
-          maxConcurrentRuns: 1,
-          riskyActions: [],
-        },
-        constraints: [],
-      },
-      correlationId: "corr-1",
-      startedAt: "2026-07-22T00:00:00.000Z",
-      finishedAt: "2026-07-22T00:01:00.000Z",
+      target: { kind: "workflow", id: "release" },
+      agent: "developer",
+      startedAt: "2026-07-24T00:00:00.000Z",
+      finishedAt: "2026-07-24T00:01:00.000Z",
     });
-    expect(Object.isFrozen(run)).toBe(true);
+    expect(run).toMatchObject({ agent: "developer" });
+    expect(run).not.toHaveProperty("execution");
     expect(() =>
-      createRunOutput({
-        kind: "evidence",
-        key: "graph-published",
-        value: true,
-      }),
-    ).toThrow(/runId/);
-    expect(
-      createRunOutput({
-        kind: "evidence",
-        key: "graph-published",
-        value: true,
-        runId: "run-1",
-        producer: { kind: "workflow", id: "refresh-knowledge" },
-        parentRef: {
-          kind: "goal",
-          id: "knowledge-current",
-          revision: "goal-revision",
-        },
-        contract: "capability-result/v1",
-        createdAt: "2026-07-22T00:01:00.000Z",
-      }),
-    ).toMatchObject({
-      parentRef: {
-        kind: "goal",
-        id: "knowledge-current",
-        revision: "goal-revision",
-      },
-    });
-  });
-
-  it("pins capability and implementation on execution runs", () => {
-    expect(
       createRun({
-        id: "run-implementation",
+        id: "run-2",
         status: "running",
-        origin: { kind: "goal", id: "knowledge-current", revision: "goal-ref" },
-        target: {
-          kind: "capability",
-          id: "build-knowledge-graph",
-          revision: "contract-ref",
-        },
-        execution: {
-          capability: {
-            kind: "capability",
-            id: "build-knowledge-graph",
-            revision: "contract-ref",
-          },
-          implementation: {
-            kind: "implementation",
-            id: "graphify-knowledge-graph",
-            revision: "implementation-ref",
-          },
-        },
-        parentRunId: "run-workflow",
-        trace: [
-          { kind: "goal", id: "knowledge-current", revision: "goal-ref" },
-          {
-            kind: "capability",
-            id: "build-knowledge-graph",
-            revision: "contract-ref",
-          },
-          {
-            kind: "implementation",
-            id: "graphify-knowledge-graph",
-            revision: "implementation-ref",
-          },
-        ],
-        effectivePolicy: {
-          hash: "policy-hash",
-          policy: {
-            approval: "none",
-            authority: { allow: ["repository.read"], deny: [] },
-            budget: {
-              maxRuns: 1,
-              maxTokens: 1000,
-              maxCostUsd: 10,
-              maxDurationSeconds: 300,
-            },
-            maxConcurrentRuns: 1,
-            riskyActions: [],
-          },
-          constraints: [],
-        },
-        correlationId: "corr-implementation",
-        startedAt: "2026-07-22T00:00:00.000Z",
+        target: { kind: "capability", id: "inspect" },
+        agent: "kody",
+        startedAt: "2026-07-24T00:00:00.000Z",
+        implementation: "legacy",
       }),
-    ).toMatchObject({
-      parentRunId: "run-workflow",
-      execution: {
-        capability: { id: "build-knowledge-graph" },
-        implementation: { id: "graphify-knowledge-graph" },
-      },
-    });
-  });
-
-  it("reports unresolved ownership and targets", () => {
-    const goal = createGoalDefinition({
-      id: "refresh-graph",
-      operationId: "missing-operation",
-      objective,
-      executionRef: { kind: "workflow", id: "missing-workflow" },
-    });
-    expect(
-      relationshipIssues(goal, {
-        operations: [],
-        goals: [],
-        workflows: [],
-        capabilities: [],
-      }),
-    ).toEqual([
-      'Missing Operation "missing-operation"',
-      'Missing Workflow "missing-workflow"',
-    ]);
-  });
-
-  it("uses typed scope and rejects unbounded arbitrary fields", () => {
-    expect(() =>
-      createGoalDefinition({
-        id: "refresh-graph",
-        operationId: "knowledge",
-        objective: {
-          ...objective,
-          scope: { repository: "acme/app" },
-        },
-        executionRef: { kind: "workflow", id: "refresh-knowledge" },
-      }),
-    ).toThrow(/unknown field "repository"/i);
+    ).toThrow(/implementation/);
   });
 });

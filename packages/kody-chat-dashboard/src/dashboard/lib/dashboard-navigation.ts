@@ -68,6 +68,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["capabilities", "tools", "capability"],
     when: "Use when the user asks to manage reusable Kody capabilities.",
   },
+  "/agency": {
+    aliases: ["agency", "agency intent", "agency overview"],
+    when: "Use when the user asks to inspect or edit the Agency intent.",
+  },
   "/agents": {
     aliases: ["agents", "staff", "personas"],
     when: "Use when the user asks to manage agent identities.",
@@ -79,10 +83,6 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
   "/languages": {
     aliases: ["languages", "translations", "locales"],
     when: "Use when the user asks to manage client chat languages or translations.",
-  },
-  "/agent-goals": {
-    aliases: ["goals", "missions", "outcomes"],
-    when: "Use when the user asks to inspect or manage goals.",
   },
   "/agent-loops": {
     aliases: ["loops", "recurring work", "cadence"],

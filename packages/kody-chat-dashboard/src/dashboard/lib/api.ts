@@ -19,11 +19,6 @@ import type {
   WorkflowRun,
 } from "@kody-ade/base/types";
 import type {
-  CompanyIntentInput,
-  CompanyIntentRecord,
-  CompanyIntentStatus,
-} from "./company-intents";
-import type {
   CreateWorkflowDefinitionInput,
   UpdateWorkflowDefinitionInput,
   WorkflowDefinitionRecord,
@@ -1636,12 +1631,6 @@ export interface GoalsListResponse {
   capabilities?: { discussionsEnabled: boolean };
 }
 
-import type {
-  CreateManagedGoalInput,
-  ManagedGoalRecord,
-} from "./managed-goals";
-import type { ManagedGoalRunLogsPayload } from "./managed-goal-run-logs";
-
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
     const res = await fetch(`${API_BASE}/goals`, {
@@ -1664,86 +1653,6 @@ export const goalsApi = {
     });
     return handleResponse<GoalsListResponse>(res);
   },
-  listManaged: async (): Promise<ManagedGoalRecord[]> => {
-    const res = await fetch(`${API_BASE}/goals/managed`, {
-      headers: buildHeaders(),
-      cache: "no-store",
-    });
-    const payload = await handleResponse<{ goals: ManagedGoalRecord[] }>(res);
-    return payload.goals;
-  },
-  createManaged: async (
-    data: CreateManagedGoalInput & { actorLogin?: string },
-  ): Promise<ManagedGoalRecord> => {
-    const res = await fetch(`${API_BASE}/goals/managed`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
-    return payload.goal;
-  },
-
-  updateManaged: async (
-    id: string,
-    data: import("./managed-goals").UpdateManagedGoalInput,
-  ): Promise<ManagedGoalRecord> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
-      {
-        method: "PATCH",
-        headers: buildHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
-    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
-    return payload.goal;
-  },
-
-  removeManaged: async (id: string): Promise<void> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-        headers: buildHeaders(),
-      },
-    );
-    await handleResponse<{ success: boolean }>(res);
-  },
-
-  runManaged: async (
-    id: string,
-  ): Promise<{
-    ok: true;
-    workflowId: string;
-    ref: string;
-    goal: ManagedGoalRecord;
-  }> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/run`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-      },
-    );
-    return handleResponse(res);
-  },
-
-  runHistory: async (
-    id: string,
-    limit = 8,
-  ): Promise<ManagedGoalRunLogsPayload> => {
-    const params = new URLSearchParams({ limit: String(limit) });
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/runs?${params}`,
-      {
-        headers: buildHeaders(),
-        cache: "no-store",
-      },
-    );
-    return handleResponse<ManagedGoalRunLogsPayload>(res);
-  },
-
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
     const res = await fetch(
       `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
@@ -2557,8 +2466,7 @@ export const companyApi = {
   },
 };
 
-/** The dashboard-editable slice of kody.config.json (see /engine).
- * `perImplementation` (model routing) is edited on /models, the rest here. */
+/** The dashboard-editable slice of kody.config.json. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -2571,18 +2479,8 @@ export interface EngineEditableConfig {
   activeAgents?: string[];
   activeCapabilities?: string[];
   activeCommands?: string[];
-  activeGoals?: Array<
-    | string
-    | {
-        template: string;
-        every?: string;
-        idPrefix?: string;
-        facts?: Record<string, unknown>;
-      }
-  >;
   activeWorkflows?: string[];
   defaultBranch: string;
-  perImplementation: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary
    * via Zod, so the client only needs the string channel. */
@@ -2612,70 +2510,6 @@ export const jobsApi = {
   },
 };
 
-// ============ Company Intents API ============
-
-export const companyIntentsApi = {
-  list: async (): Promise<CompanyIntentRecord[]> => {
-    const res = await fetch(`${API_BASE}/company/intents`, {
-      headers: buildHeaders(),
-      cache: "no-store",
-    });
-    const payload = await handleResponse<{ intents: CompanyIntentRecord[] }>(
-      res,
-    );
-    return payload.intents;
-  },
-  create: async (
-    data: CompanyIntentInput & { actorLogin?: string },
-  ): Promise<CompanyIntentRecord> => {
-    const res = await fetch(`${API_BASE}/company/intents`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ intent: CompanyIntentRecord }>(res);
-    return payload.intent;
-  },
-  update: async (
-    id: string,
-    data: Partial<CompanyIntentInput> & {
-      status?: CompanyIntentStatus;
-      actorLogin?: string;
-    },
-  ): Promise<CompanyIntentRecord> => {
-    const res = await fetch(
-      `${API_BASE}/company/intents/${encodeURIComponent(id)}`,
-      {
-        method: "PATCH",
-        headers: buildHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
-    const payload = await handleResponse<{ intent: CompanyIntentRecord }>(res);
-    return payload.intent;
-  },
-  run: async (
-    id: string,
-    actorLogin?: string,
-  ): Promise<{
-    ok: true;
-    workflowId: string;
-    ref: string;
-    action: string;
-    intentId: string;
-  }> => {
-    const res = await fetch(
-      `${API_BASE}/company/intents/${encodeURIComponent(id)}/run`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify({ ...(actorLogin ? { actorLogin } : {}) }),
-      },
-    );
-    return handleResponse(res);
-  },
-};
-
 // ============ Combined API ============
 
 export const kodyApi = {
@@ -2695,7 +2529,6 @@ export const kodyApi = {
   todos: todosApi,
   memory: memoryApi,
   company: companyApi,
-  companyIntents: companyIntentsApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,

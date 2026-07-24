@@ -29,7 +29,6 @@ import {
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
-  Network,
   Package,
   Palette,
   Route,
@@ -37,7 +36,6 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  Target,
   Users,
   Workflow,
   type LucideIcon,
@@ -288,20 +286,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "AI Agency",
     items: [
+      {
+        href: "/agency",
+        label: "Overview",
+        icon: Compass,
+        description: "The Agency's plain-text intent.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
       TODOS_NAV_ITEM,
       {
         href: "/agency-runs",
-        label: "Agency Runs",
+        label: "Runs",
         icon: Route,
-        description: "Kody runs for goals, loops, and workflows.",
+        description: "Execution history for capabilities and workflows.",
         tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
-        href: "/knowledge-system",
-        label: "Knowledge System",
-        icon: Network,
-        description: "Explore this repository's connected knowledge graph.",
-        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/agents",
@@ -310,50 +308,32 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Agent identities that execute your capabilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
-
-      {
-        href: "/company-intents",
-        label: "Intents",
-        icon: Compass,
-        description:
-          "Company outcomes, priorities, principles, measures, and hard rules.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
-        href: "/operations",
-        label: "Operations",
-        icon: Building2,
-        description: "Responsibility boundaries that own Goals and Loops.",
-        tint: "text-indigo-300 bg-indigo-500/10",
-      },
-      {
-        href: "/agent-goals",
-        label: "Goals",
-        icon: Target,
-        description: "Finite outcomes driven by missing evidence.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
       {
         href: "/agent-loops",
         label: "Loops",
         icon: History,
-        description: "Operational loops driven by schedule and health.",
+        description: "Simple triggers for a workflow or capability.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
         href: "/workflows",
         label: "Workflows",
         icon: Workflow,
-        description: "Ordered capability queues.",
+        description: "Visual capability flows.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
-        description: "Manage reusable capabilities.",
+        description: "Simple executable folders.",
         tint: "text-amber-300 bg-amber-500/10",
       },
+    ],
+  },
+  {
+    title: "Store",
+    items: [
       {
         href: "/store-catalog",
         label: "Store Catalog",

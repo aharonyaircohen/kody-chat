@@ -10,8 +10,8 @@ export const DEFAULT_WORKFLOW_KODY_ANALYZER: ChatWorkflowEntry = {
 
 Skills:
 - diagnose-pr — analyze a Kody PR and find gaps between claims and diff.
-- report-advise — read a report and recommend create-issue / attach-to-mission / no-action.
-- goal-planner — decompose a mission into concrete well-specced tasks.
+- report-advise — read a report and recommend create-issue / add-Todo / no-action.
+- todo-planner — decompose a finite outcome into concrete Todos.
 
 Output shape: use agentIdentity's deep question shape: verdict, ### Findings, ### What's missing or risky.`,
 };

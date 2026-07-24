@@ -12,6 +12,35 @@ export interface CapabilitySummary {
   readOnly?: boolean;
 }
 
+export interface CapabilityContract {
+  input: { name: string; schema: Record<string, unknown> };
+  output: { name: string; schema: Record<string, unknown> };
+}
+
+export interface CapabilityAsset {
+  name: string;
+  content?: string;
+  body?: string;
+}
+
+export interface CapabilityDetail extends CapabilitySummary {
+  instructions: string;
+  simpleContract: CapabilityContract;
+  skills: CapabilityAsset[];
+  capabilityTools: CapabilityAsset[];
+}
+
+export interface CapabilityWriteInput {
+  slug?: string;
+  instructions: string;
+  inputName: string;
+  inputSchema: Record<string, unknown>;
+  outputName: string;
+  outputSchema: Record<string, unknown>;
+  skills: Array<{ path: string; content: string }>;
+  tools: Array<{ path: string; content: string }>;
+}
+
 export const capabilitiesApi = {
   list: async (): Promise<CapabilitySummary[]> => {
     const res = await fetch(`${API_BASE}/capabilities`, {
@@ -22,6 +51,49 @@ export const capabilitiesApi = {
       capabilities: CapabilitySummary[];
     }>(res);
     return data.capabilities;
+  },
+
+  get: async (slug: string): Promise<CapabilityDetail> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      { headers: buildHeaders(), cache: "no-store" },
+    );
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  create: async (input: CapabilityWriteInput): Promise<CapabilityDetail> => {
+    const res = await fetch(`${API_BASE}/capabilities`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(input),
+    });
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  update: async (
+    slug: string,
+    input: CapabilityWriteInput,
+  ): Promise<CapabilityDetail> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  remove: async (slug: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      { method: "DELETE", headers: buildHeaders() },
+    );
+    await handleResponse(res);
   },
 
   run: async (

@@ -1,0 +1,28 @@
+import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { CapabilityWorkspace } from "@dashboard/features/admin/components/CapabilitiesManager";
+import { buildKodyMetadata } from "../../../../../metadata";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = buildKodyMetadata({
+  title: "Capability files — Kody Operations Dashboard",
+  description: "Browse and edit a capability folder.",
+  path: "/capabilities",
+});
+
+export default async function CapabilityFilesPage({
+  params,
+}: {
+  params: Promise<{ slug: string; path?: string[] }>;
+}) {
+  const { slug, path = [] } = await params;
+  return (
+    <AuthGuard>
+      <CapabilityWorkspace
+        slug={slug}
+        basePath="/capabilities"
+        initialPath={path.join("/") || `${slug}/instructions.md`}
+      />
+    </AuthGuard>
+  );
+}

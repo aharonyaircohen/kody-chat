@@ -11,8 +11,8 @@ function workflow(
   startAt = "inspect",
 ): WorkflowDefinition {
   return {
-    version: 1 as const,
     name: "Agent workflow",
+    agent: "kody",
     capabilities: ["inspect", "repair", "publish"],
     startAt,
     steps,

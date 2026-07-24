@@ -24,15 +24,15 @@ describe("definition proposals", () => {
     await saveProposal(t, "issue-42-abc", [
       { path: "agents/reviewer.md", content: "# Reviewer\n" },
       {
-        path: "capabilities/review/profile.json",
-        content: '{"name":"review"}\n',
+        path: "capabilities/review/contract.json",
+        content: '{"input":{},"output":{}}\n',
       },
-      { path: "capabilities/review/capability.md", content: "# Review\n" },
+      { path: "capabilities/review/instructions.md", content: "# Review\n" },
       {
         path: "workflows/review.json",
         content: JSON.stringify({
-          version: 1,
           name: "Review",
+          agent: "kody",
           steps: [{ id: "review", capability: "review" }],
         }),
       },
@@ -65,8 +65,8 @@ describe("definition proposals", () => {
       source: "local",
       bundle: {
         files: {
-          "profile.json": '{"name":"review"}\n',
-          "capability.md": "# Review\n",
+          "contract.json": '{"input":{},"output":{}}\n',
+          "instructions.md": "# Review\n",
         },
       },
     });
@@ -77,7 +77,7 @@ describe("definition proposals", () => {
       }),
     ).toMatchObject({
       source: "local",
-      definition: { version: 1, name: "Review" },
+      definition: { name: "Review", agent: "kody" },
     });
   });
 

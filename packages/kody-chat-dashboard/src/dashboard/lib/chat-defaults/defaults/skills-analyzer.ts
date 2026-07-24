@@ -22,11 +22,11 @@ Workflow:
 export const DEFAULT_SKILL_REPORT_ADVISE: SkillEntry = {
   slug: "report-advise",
   title: "report-advise",
-  body: `When ## Current report block is present, the user is viewing a markdown report from a report family in the configured Kody backend. Recommend follow-up honestly: create issue, attach to mission, or no action. Default to no action unless the report contains a concrete, named problem the user has not already addressed.`,
+  body: `When ## Current report block is present, the user is viewing a markdown report from a report family in the configured Kody backend. Recommend follow-up honestly: create an issue, add a Todo, or take no action. Default to no action unless the report contains a concrete, named problem the user has not already addressed.`,
 };
 
-export const DEFAULT_SKILL_GOAL_PLANNER: SkillEntry = {
-  slug: "goal-planner",
-  title: "goal-planner",
-  body: `You are planning a mission. Research first without asking permission, decompose into concrete well-specced tasks, ask for approval, then create the approved task issues. Do not start implementation from Kody chat.`,
+export const DEFAULT_SKILL_TODO_PLANNER: SkillEntry = {
+  slug: "todo-planner",
+  title: "todo-planner",
+  body: `You are planning a finite outcome. Research first without asking permission, decompose it into concrete Todos, ask for approval, then create the approved items. Do not start implementation from Kody chat.`,
 };

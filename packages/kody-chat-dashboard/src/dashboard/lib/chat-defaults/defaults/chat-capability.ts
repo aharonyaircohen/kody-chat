@@ -128,12 +128,6 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "list_reports",
     "read_report",
     "publish_report",
-    // ── Goals (repo-gated) ─────────────────────────────────────────────────
-    "get_goal",
-    "list_goals",
-    "attach_task_to_goal",
-    "detach_task_from_goal",
-    "create_task_for_goal",
     // ── Memory (repo-gated) ────────────────────────────────────────────────
     "remember",
     "recall",
@@ -152,7 +146,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
   skills: [
     "diagnose-pr",
     "report-advise",
-    "goal-planner",
+    "todo-planner",
     "create-issue",
     "create-capability",
     "create-agent",

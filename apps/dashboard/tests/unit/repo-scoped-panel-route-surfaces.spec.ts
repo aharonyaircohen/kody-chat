@@ -70,13 +70,11 @@ describe("repo-scoped panel route surfaces", () => {
       "SecretsManager.tsx",
       "CommandsManager.tsx",
       "ModelsManager.tsx",
-      "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
       "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
       "RunnerManager.tsx",
       "NotificationsManager.tsx",
-      "ManagedModelsView.tsx",
     ]) {
       expect(sourceFile(file), file).not.toMatch(directRepoOwnedLinkHref);
     }
@@ -90,7 +88,6 @@ describe("repo-scoped panel route surfaces", () => {
       // DocsView is now a thin wrapper around the file-manager FilesPage,
       // which owns the repo-scoped navigation.
       "src/dashboard/features/file-manager/components/FilesPage.tsx",
-      "CompanyIntentsView.tsx",
       "PreviewWorkspace.tsx",
       "MessagesView.tsx",
       "TodoControl.tsx",

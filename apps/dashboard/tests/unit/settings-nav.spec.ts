@@ -91,10 +91,7 @@ describe("settings navigation", () => {
       "/tasks",
       "/vibe",
       "/preview",
-      "/todos",
       "/inbox",
-      "/agency-runs",
-      "/knowledge-system",
     ]);
   });
 
@@ -113,23 +110,32 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
   });
 
-  it("shows Intent, Operation, and owned work in scaling order", () => {
+  it("shows only the simple Agency surfaces in product order", () => {
     const agency = sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency");
-    expect(agency.indexOf("/company-intents")).toBeLessThan(
-      agency.indexOf("/operations"),
-    );
-    expect(agency.indexOf("/operations")).toBeLessThan(
-      agency.indexOf("/agent-goals"),
-    );
-    expect(navLabelForPath("/operations")).toBe("Operations");
+    expect(agency).toEqual([
+      "/agency",
+      "/todos",
+      "/agency-runs",
+      "/agents",
+      "/agent-loops",
+      "/workflows",
+      "/capabilities",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
+      "/store-catalog",
+      "/company",
+    ]);
+    expect(navLabelForPath("/agency-runs")).toBe("Runs");
   });
 
   it("orders the desktop rail around work and collapsible ownership groups", () => {
     expect(SIDEBAR_NAV_SECTIONS.map((section) => section.title)).toEqual([
       "Work",
       "Agency",
+      "Store",
       "Quality",
       "Workspace",
+      "Knowledge",
       "Content",
       "Chat",
       "Client",
@@ -139,24 +145,43 @@ describe("settings navigation", () => {
       "/tasks",
       "/vibe",
       "/preview",
-      "/todos",
       "/inbox",
-      "/agency-runs",
-      "/knowledge-system",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
+      "/agency",
+      "/todos",
+      "/agency-runs",
       "/agents",
-      "/company-intents",
-      "/operations",
-      "/agent-goals",
       "/agent-loops",
       "/workflows",
-      "/guided-flows",
       "/capabilities",
-      "/implementations",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
       "/store-catalog",
       "/company",
     ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Workspace")).toEqual([
+      "/org",
+      "/messages",
+      "/reports",
+      "/files",
+      "/changelog",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Knowledge")).toEqual([
+      "/knowledge-system",
+      "/docs",
+      "/context",
+      "/memory",
+      "/file-spaces",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Chat")).not.toEqual(
+      expect.arrayContaining([
+        "/context",
+        "/memory",
+        "/policies",
+        "/constraints",
+      ]),
+    );
     expect(SIDEBAR_NAV_SECTIONS.every((section) => section.collapsible)).toBe(
       true,
     );
@@ -168,13 +193,20 @@ describe("settings navigation", () => {
     expect(
       activeCollapsibleNavSectionTitle(
         SIDEBAR_NAV_SECTIONS,
-        "/agent-goals",
+        "/capabilities/example",
         "",
       ),
     ).toBe("Agency");
     expect(
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/memory", ""),
-    ).toBe("Chat");
+    ).toBe("Knowledge");
+    expect(
+      activeCollapsibleNavSectionTitle(
+        SIDEBAR_NAV_SECTIONS,
+        "/file-spaces",
+        "",
+      ),
+    ).toBe("Knowledge");
     expect(
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");

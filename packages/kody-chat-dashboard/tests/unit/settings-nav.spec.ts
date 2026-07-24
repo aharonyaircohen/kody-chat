@@ -81,15 +81,20 @@ describe("settings navigation", () => {
     ]);
   });
 
-  it("shows the agency scaling path in model order", () => {
+  it("shows only the simple Agency surfaces in product order", () => {
     const hrefs = sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency");
-    expect(hrefs.indexOf("/company-intents")).toBeLessThan(
-      hrefs.indexOf("/operations"),
-    );
-    expect(hrefs.indexOf("/operations")).toBeLessThan(
-      hrefs.indexOf("/agent-goals"),
-    );
-    expect(navLabelForPath("/operations")).toBe("Operations");
+    expect(hrefs).toEqual([
+      "/agency",
+      "/todos",
+      "/agency-runs",
+      "/agents",
+      "/agent-loops",
+      "/workflows",
+      "/capabilities",
+    ]);
+    expect(navLabelForPath("/operations")).toBeNull();
+    expect(navLabelForPath("/agent-goals")).toBeNull();
+    expect(navLabelForPath("/company-intents")).toBeNull();
   });
 
   it("keeps Views active for selected saved preview routes", () => {

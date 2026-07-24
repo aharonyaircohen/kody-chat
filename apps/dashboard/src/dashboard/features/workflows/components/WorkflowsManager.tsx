@@ -30,6 +30,7 @@ import {
 } from "@dashboard/lib/cto/trust-state";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { useCapabilities } from "@dashboard/lib/hooks/useCapabilities";
+import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
@@ -101,6 +102,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   } = useWorkflowDefinitions();
   const { data: capabilities = [], isLoading: capabilitiesLoading } =
     useCapabilities();
+  const { data: agents = [], isLoading: agentsLoading } = useAgents();
   const createWorkflow = useCreateWorkflowDefinition();
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
@@ -209,14 +211,29 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 }));
               }}
               onResume={async (currentRunId) => {
-                const run = await runWorkflow.mutateAsync({ id: selectedWorkflow.id, mode: "resume", runId: currentRunId });
-                setActiveRunIds((current) => ({ ...current, [selectedWorkflow.id]: run.runId }));
+                const run = await runWorkflow.mutateAsync({
+                  id: selectedWorkflow.id,
+                  mode: "resume",
+                  runId: currentRunId,
+                });
+                setActiveRunIds((current) => ({
+                  ...current,
+                  [selectedWorkflow.id]: run.runId,
+                }));
               }}
               onRetry={async () => {
                 const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
-                setActiveRunIds((current) => ({ ...current, [selectedWorkflow.id]: run.runId }));
+                setActiveRunIds((current) => ({
+                  ...current,
+                  [selectedWorkflow.id]: run.runId,
+                }));
               }}
-              onStop={(currentRunId) => stopWorkflow.mutateAsync({ workflowId: selectedWorkflow.id, runId: currentRunId })}
+              onStop={(currentRunId) =>
+                stopWorkflow.mutateAsync({
+                  workflowId: selectedWorkflow.id,
+                  runId: currentRunId,
+                })
+              }
               runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
@@ -280,6 +297,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
         open={createOpen}
         capabilities={capabilities}
         capabilitiesLoading={capabilitiesLoading}
+        agents={agents}
+        agentsLoading={agentsLoading}
         saving={createWorkflow.isPending}
         onOpenChange={setCreateOpen}
         onSubmit={async (payload) => {
@@ -319,6 +338,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
         initial={editingWorkflow ?? undefined}
         capabilities={capabilities}
         capabilitiesLoading={capabilitiesLoading}
+        agents={agents}
+        agentsLoading={agentsLoading}
         saving={updateWorkflow.isPending}
         onOpenChange={(open) => {
           if (!open) setEditingWorkflow(null);
@@ -428,19 +449,43 @@ function WorkflowDetail({
           </Button>
           {latestRun?.state.status === "running" && latestRunId ? (
             latestRun.runner?.kind === "fly" ? (
-              <Button variant="destructive" size="sm" onClick={() => void onStop(latestRunId)} disabled={stopPending}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => void onStop(latestRunId)}
+                disabled={stopPending}
+              >
                 Stop
               </Button>
             ) : (
-              <span className="text-xs text-muted-foreground" title="Shared runners cannot be stopped safely.">
+              <span
+                className="text-xs text-muted-foreground"
+                title="Shared runners cannot be stopped safely."
+              >
                 Stop unavailable on shared runner
               </span>
             )
           ) : null}
-          {latestRun && latestRun.state.status !== "running" && latestRun.state.status !== "done" ? (
+          {latestRun &&
+          latestRun.state.status !== "running" &&
+          latestRun.state.status !== "done" ? (
             <>
-              <Button variant="outline" size="sm" onClick={() => void onResume(latestRunId!)} disabled={runPending}>Resume</Button>
-              <Button variant="outline" size="sm" onClick={() => void onRetry()} disabled={runPending}>Retry</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void onResume(latestRunId!)}
+                disabled={runPending}
+              >
+                Resume
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void onRetry()}
+                disabled={runPending}
+              >
+                Retry
+              </Button>
             </>
           ) : null}
           <div className="flex min-w-0 items-center gap-2">
@@ -452,6 +497,8 @@ function WorkflowDetail({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="font-mono">{workflow.id}</span>
+            <span>·</span>
+            <span>Agent: {workflow.workflow.agent}</span>
             {workflow.htmlUrl ? (
               <>
                 <span>·</span>

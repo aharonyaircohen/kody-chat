@@ -22,6 +22,42 @@ import {
 import { useFileSpaces } from "@dashboard/features/file-spaces/use-file-spaces";
 
 const CONTENT_SECTION_TITLE = "Content";
+const KNOWLEDGE_SECTION_TITLE = "Knowledge";
+const DOCS_HREF = "/docs";
+
+export interface SidebarNavExtensions {
+  collectionItems: readonly SettingsNavItem[];
+  customSpaceItems: readonly SettingsNavItem[];
+}
+
+export function extendSidebarNavSections(
+  sections: readonly SettingsNavSection[],
+  { collectionItems, customSpaceItems }: SidebarNavExtensions,
+): readonly SettingsNavSection[] {
+  return sections.map((section) => {
+    if (section.title === CONTENT_SECTION_TITLE && collectionItems.length) {
+      return { ...section, items: [...section.items, ...collectionItems] };
+    }
+    if (
+      section.title === KNOWLEDGE_SECTION_TITLE &&
+      customSpaceItems.length
+    ) {
+      const docsIndex = section.items.findIndex(
+        (item) => item.href === DOCS_HREF,
+      );
+      const insertAt = docsIndex === -1 ? section.items.length : docsIndex + 1;
+      return {
+        ...section,
+        items: [
+          ...section.items.slice(0, insertAt),
+          ...customSpaceItems,
+          ...section.items.slice(insertAt),
+        ],
+      };
+    }
+    return section;
+  });
+}
 
 export function useSidebarNavSections(): readonly SettingsNavSection[] {
   const { auth } = useAuth();
@@ -57,14 +93,9 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
         description: `Markdown files from /${space.rootPath}.`,
         tint: "text-amber-300 bg-amber-500/10",
       }));
-    return SIDEBAR_NAV_SECTIONS.map((section) => {
-      if (section.title === CONTENT_SECTION_TITLE && collectionItems.length) {
-        return { ...section, items: [...section.items, ...collectionItems] };
-      }
-      if (section.title === "Workspace" && customSpaceItems.length) {
-        return { ...section, items: [...section.items, ...customSpaceItems] };
-      }
-      return section;
+    return extendSidebarNavSections(SIDEBAR_NAV_SECTIONS, {
+      collectionItems,
+      customSpaceItems,
     });
   }, [cmsQuery.data, fileSpacesQuery.data]);
 }

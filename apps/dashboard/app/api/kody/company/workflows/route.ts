@@ -27,18 +27,12 @@ import {
   saveProjectedWorkflow,
 } from "@dashboard/lib/backend/repo-projection";
 import {
-  collapseManagedGoalRecordsForList,
-  type ManagedGoalRecord,
-} from "@dashboard/lib/managed-goals";
-import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
-import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
   validateWorkflowDefinition,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
-  listCompanyStoreCapabilityWorkflowDefinitionFiles,
   listCompanyStoreWorkflowDefinitionFiles,
   listWorkflowDefinitionFiles,
   readWorkflowDefinitionFile,
@@ -63,6 +57,7 @@ const workflowStepSchema = z.object({
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
+  agent: z.string().trim().min(1).max(80).default("kody"),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
   startAt: z.string().trim().min(1).max(80).optional(),
   steps: z.array(workflowStepSchema).min(1).optional(),
@@ -101,15 +96,6 @@ function activeCapabilitySlugs(config: KodyConfig): string[] {
     (slug): slug is string =>
       typeof slug === "string" && slug.trim().length > 0,
   );
-}
-
-function referencedWorkflowSlugs(goals: ManagedGoalRecord[]): string[] {
-  const ids = new Set<string>();
-  for (const goal of goals) {
-    const id = goal.state.workflowRef?.id?.trim();
-    if (id) ids.add(id);
-  }
-  return Array.from(ids);
 }
 
 export async function GET(req: NextRequest) {
@@ -158,17 +144,7 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
-    const activeCapabilityIds = new Set(activeCapabilitySlugs(config));
-    const managedGoals = collapseManagedGoalRecordsForList(
-      await listManagedGoalFiles(octokit, headerAuth.owner, headerAuth.repo),
-    );
-    const referencedWorkflowIds = new Set(
-      referencedWorkflowSlugs(managedGoals),
-    );
-    const storeWorkflowIds = new Set([
-      ...activeWorkflowIds,
-      ...referencedWorkflowIds,
-    ]);
+    const storeWorkflowIds = activeWorkflowIds;
     const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
     const storeWorkflows =
       storeWorkflowIds.size > 0
@@ -177,24 +153,9 @@ export async function GET(req: NextRequest) {
               storeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
           )
         : [];
-    const visibleIds = new Set([
-      ...localIds,
-      ...storeWorkflows.map((workflow) => workflow.id),
-    ]);
-    const storeCapabilityWorkflows =
-      activeCapabilityIds.size > 0
-        ? (
-            await listCompanyStoreCapabilityWorkflowDefinitionFiles(
-              octokit,
-              activeCapabilityIds,
-            )
-          ).filter((workflow) => !visibleIds.has(workflow.id))
-        : [];
-    const workflows = [
-      ...localWorkflows,
-      ...storeWorkflows,
-      ...storeCapabilityWorkflows,
-    ].sort((a, b) => a.id.localeCompare(b.id));
+    const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
     await Promise.all(
       workflows.map((workflow) =>
         saveProjectedWorkflow(

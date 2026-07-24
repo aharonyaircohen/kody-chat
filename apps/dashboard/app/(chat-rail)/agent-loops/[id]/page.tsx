@@ -1,26 +1,22 @@
-/**
- * @fileType page
- * @domain kody
- * @pattern agent-loop-selected-page
- * @ai-summary Selected Loop route. Keeps loop selection addressable at
- * `/agent-loops/<id>`.
- */
-import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { LoopsPage } from "@dashboard/features/agency/components/LoopsPage";
 import { buildKodyMetadata } from "../../../metadata";
 
-export const dynamic = "force-dynamic";
-
 export const metadata = buildKodyMetadata({
-  title: "Loop - Kody Operations Dashboard",
-  description: "View a selected Kody loop.",
+  title: "Loop — Kody Operations Dashboard",
+  description: "Inspect a recurring workflow or capability trigger.",
   path: "/agent-loops",
 });
 
-export default async function SelectedAgentLoopPage({
+export default async function LoopDetailRoute({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <ManagedModelsView model="agentLoop" selectedId={id} />;
+  return (
+    <AuthGuard>
+      <LoopsPage selectedId={id} />
+    </AuthGuard>
+  );
 }

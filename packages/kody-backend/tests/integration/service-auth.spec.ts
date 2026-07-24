@@ -9,10 +9,11 @@ describe("service-key auth", () => {
   it("rejects a protected mutation without a serviceKey", async () => {
     const t = setupWithoutKey()
     await expect(
-      t.mutation(api.goals.save, {
+      t.mutation(api.agents.save, {
         tenantId: "t",
-        goalId: "g",
-        state: {},
+        slug: "kody",
+        frontmatter: {},
+        body: "Kody",
         updatedAt: new Date().toISOString(),
       }),
     ).rejects.toThrow(/serviceKey/)
@@ -21,17 +22,17 @@ describe("service-key auth", () => {
   it("rejects a protected query with a wrong serviceKey", async () => {
     const t = setupWithoutKey()
     await expect(
-      t.query(api.goals.list, { tenantId: "t", serviceKey: "wrong-key" }),
+      t.query(api.agents.list, { tenantId: "t", serviceKey: "wrong-key" }),
     ).rejects.toThrow(/serviceKey/)
   })
 
   it("accepts a protected call with the right serviceKey", async () => {
     const t = setupWithoutKey()
-    const goals = await t.query(api.goals.list, {
+    const agents = await t.query(api.agents.list, {
       tenantId: "t",
       serviceKey: TEST_SERVICE_KEY,
     })
-    expect(goals).toEqual([])
+    expect(agents).toEqual([])
   })
 
   it("never persists the serviceKey on inserted docs", async () => {

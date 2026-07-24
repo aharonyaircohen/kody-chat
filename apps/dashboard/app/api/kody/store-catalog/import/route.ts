@@ -2,13 +2,12 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern store-catalog-import-api
- * @ai-summary Add one Store catalog asset by reference.
+ * @ai-summary Activate or remove a simple Store asset reference.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createCapabilityDefinition } from "@kody-ade/agency-domain";
 
 import {
   getRequestAuth,
@@ -17,765 +16,205 @@ import {
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import {
-  listCompanyStoreAssetSlugs,
-  listCompanyStoreMarkdownAssetSlugs,
-  companyStoreAssetPath,
-  readCompanyStoreText,
-} from "@dashboard/lib/company-store/assets";
-import {
-  agencyDefinitionRecordId,
-  applyStoredAgencyModelChange,
-} from "@kody-ade/agency/backend/agency-model-store";
-import {
-  listStoreImplementations,
-  readStoreImplementation,
-} from "@kody-ade/agency/implementations/files";
-import { publishStoreImplementationPackage } from "@kody-ade/agency/implementations/publish";
+  getEngineConfig,
+  writeConfigPatch,
+  type ConfigPatch,
+} from "@kody-ade/base/engine/config";
+import { listStoreCommandFiles } from "@kody-ade/workspace/commands/files";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
+import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
+import { readCompanyStoreCapabilityFolderFiles } from "@dashboard/lib/capabilities";
+import { getBuiltinFeature } from "@dashboard/lib/features/catalog";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  getEngineConfig,
-  writeConfigPatch,
-  type ActiveGoalConfigEntry,
-  type ConfigPatch,
-} from "@kody-ade/base/engine/config";
-import {
-  readCompanyStoreCapabilityFolderFiles,
-  readResolvedCapabilityFile,
-} from "@dashboard/lib/capabilities";
-import { api as backendApi } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
-import {
-  definitionVersion,
-  type DefinitionBundle,
-} from "@kody-ade/backend/definition-bundle";
-import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
-import {
-  managedGoalModel,
-  type ManagedGoalState,
-} from "@dashboard/lib/managed-goals";
-import { getBuiltinFeature } from "@dashboard/lib/features/catalog";
-import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
+  isWorkflowDefinitionId,
+  type WorkflowDefinition,
+} from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
+import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type ImportKind =
-  | "agent"
-  | "capability"
-  | "implementation"
-  | "agentGoal"
-  | "agentLoop"
-  | "workflow"
-  | "command"
-  | "feature";
-
-type ActiveConfigField =
+  "agent" | "capability" | "workflow" | "loop" | "command" | "feature";
+type ActiveField =
   | "activeAgents"
   | "activeCapabilities"
-  | "activeCommands"
-  | "activeGoals"
   | "activeWorkflows"
+  | "activeCommands"
   | "activeFeatures";
 
-type ImportResult = {
-  imported: boolean;
-  status: "imported" | "already_local";
-  path: string;
-};
-
-type RemoveResult = {
-  removed: boolean;
-  status: "removed" | "already_missing";
-  path: string;
-};
-
-type StoreReferenceBlocker = {
-  kind: ImportKind;
-  slug: string;
-  title?: string;
-};
-
-type ActivationPlan = {
-  activeAgents: string[];
-  activeCapabilities: string[];
-  activeCommands: string[];
-  activeGoals: string[];
-  activeWorkflows: string[];
-  activeFeatures: string[];
-};
-
-const importSchema = z.object({
+const requestSchema = z.object({
   kind: z.enum([
     "agent",
     "capability",
-    "implementation",
-    "agentGoal",
-    "agentLoop",
     "workflow",
+    "loop",
     "command",
     "feature",
   ]),
   slug: z.string().min(1).max(128),
 });
 
+const fieldByKind: Record<Exclude<ImportKind, "loop">, ActiveField> = {
+  agent: "activeAgents",
+  capability: "activeCapabilities",
+  workflow: "activeWorkflows",
+  command: "activeCommands",
+  feature: "activeFeatures",
+};
+
 function validSlug(kind: ImportKind, slug: string): boolean {
-  switch (kind) {
-    case "agent":
-    case "capability":
-    case "implementation":
-    case "agentGoal":
-    case "agentLoop":
-    case "command":
-    case "feature":
-      return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-    case "workflow":
-      return isWorkflowDefinitionId(slug);
-  }
+  return kind === "workflow"
+    ? isWorkflowDefinitionId(slug)
+    : /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
-function configFieldFor(
-  kind: Exclude<ImportKind, "implementation">,
-): ActiveConfigField {
-  if (kind === "agent") return "activeAgents";
-  if (kind === "capability") return "activeCapabilities";
-  if (kind === "command") return "activeCommands";
-  if (kind === "workflow") return "activeWorkflows";
-  if (kind === "feature") return "activeFeatures";
-  return "activeGoals";
+function append(current: string[] | undefined, values: string[]): string[] {
+  return [...new Set([...(current ?? []), ...values])];
 }
 
-function configPathFor(kind: ImportKind): string {
-  if (kind === "implementation") return "execution.capabilityBindings";
-  return `company.${configFieldFor(kind)}`;
+function without(current: string[] | undefined, value: string): string[] {
+  return (current ?? []).filter((entry) => entry !== value);
 }
 
-function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
-  return typeof entry === "string" ? entry : entry.template;
-}
-
-function addSlugs(entries: string[] | undefined, slugs: string[]): string[] {
-  return [...new Set([...(entries ?? []), ...slugs])];
-}
-
-function addGoals(
-  entries: ActiveGoalConfigEntry[] | undefined,
-  slugs: string[],
-): ActiveGoalConfigEntry[] {
-  const next = [...(entries ?? [])];
-  for (const slug of slugs) {
-    if (!next.some((entry) => activeGoalSlug(entry) === slug)) {
-      next.push(slug);
-    }
-  }
-  return next;
-}
-
-function sameStringList(a: string[] | undefined, b: string[]): boolean {
-  const current = a ?? [];
-  return (
-    current.length === b.length && current.every((value, i) => value === b[i])
-  );
-}
-
-function hasGoal(
-  entries: ActiveGoalConfigEntry[] | undefined,
+async function readStoreWorkflow(
+  octokit: Octokit,
   slug: string,
-): boolean {
-  return (entries ?? []).some((entry) => activeGoalSlug(entry) === slug);
-}
-
-function removeGoal(
-  entries: ActiveGoalConfigEntry[] | undefined,
-  slug: string,
-): ActiveGoalConfigEntry[] {
-  return (entries ?? []).filter((entry) => activeGoalSlug(entry) !== slug);
-}
-
-function emptyActivationPlan(): ActivationPlan {
-  return {
-    activeAgents: [],
-    activeCapabilities: [],
-    activeCommands: [],
-    activeGoals: [],
-    activeWorkflows: [],
-    activeFeatures: [],
-  };
-}
-
-function addPlanSlug(
-  plan: ActivationPlan,
-  field: keyof ActivationPlan,
-  slug: string | null | undefined,
-): void {
-  if (!slug) return;
-  if (!plan[field].includes(slug)) plan[field].push(slug);
-}
-
-function dependencyNotFound(kind: string, slug: string): Error {
-  return Object.assign(
-    new Error(`Store dependency "${slug}" (${kind}) was not found.`),
-    { status: 404 },
+): Promise<WorkflowDefinition | null> {
+  const record = (await listCompanyStoreWorkflowDefinitionFiles(octokit)).find(
+    (entry) => entry.id === slug,
   );
+  return record?.workflow ?? null;
 }
 
-function storeReferenceInUse(
-  kind: ImportKind,
-  slug: string,
-  blockers: StoreReferenceBlocker[],
-): Error {
-  return Object.assign(
-    new Error(
-      `Store ${kind} "${slug}" is used by ${blockers
-        .map((blocker) => blocker.title || blocker.slug)
-        .join(", ")}.`,
-    ),
-    { status: 409, blockers },
-  );
-}
-
-async function assertStoreItemExists(
+async function assertExists(
   octokit: Octokit,
   kind: ImportKind,
   slug: string,
-): Promise<void> {
+): Promise<WorkflowDefinition | StoreLoop | null> {
   if (kind === "agent") {
-    const slugs = await listCompanyStoreMarkdownAssetSlugs(
-      octokit,
-      "agents",
-      (candidate) => validSlug("agent", candidate),
+    const found = (await listStoreAgentFiles(octokit)).some(
+      (entry) => entry.slug === slug,
     );
-    if (slugs.includes(slug)) return;
+    if (!found)
+      throw Object.assign(new Error("Store Agent not found."), { status: 404 });
   } else if (kind === "capability") {
-    const slugs = await listCompanyStoreAssetSlugs(
-      octokit,
-      "capabilities",
-      (candidate) => validSlug("capability", candidate),
-    );
-    if (slugs.includes(slug)) return;
-  } else if (kind === "implementation") {
-    const implementations = await listStoreImplementations(octokit);
-    if (implementations.some((implementation) => implementation.id === slug))
-      return;
-  } else if (kind === "command") {
-    const slugs = await listCompanyStoreMarkdownAssetSlugs(
-      octokit,
-      "commands",
-      (candidate) => validSlug("command", candidate),
-    );
-    if (slugs.includes(slug)) return;
+    if (!(await readCompanyStoreCapabilityFolderFiles(slug, octokit))) {
+      throw Object.assign(new Error("Store Capability not found."), {
+        status: 404,
+      });
+    }
   } else if (kind === "workflow") {
-    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
-    if (workflows.some((workflow) => workflow.id === slug)) return;
-  } else if (kind === "feature") {
-    if (getBuiltinFeature(slug)) return;
-  } else {
-    const goals = await listCompanyStoreGoalTemplateFiles(octokit);
-    if (goals.some((goal) => goal.id === slug)) return;
-  }
-
-  throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
-    status: 404,
-  });
-}
-
-async function addCapabilityDependencies(
-  octokit: Octokit,
-  plan: ActivationPlan,
-  slug: string,
-): Promise<void> {
-  if (!validSlug("capability", slug)) {
-    throw dependencyNotFound("capability", slug);
-  }
-
-  addPlanSlug(plan, "activeCapabilities", slug);
-
-  const capability = await readResolvedCapabilityFile(slug, octokit);
-  if (!capability) throw dependencyNotFound("capability", slug);
-
-  if (capability.agent) {
-    if (!validSlug("agent", capability.agent)) {
-      throw dependencyNotFound("agent", capability.agent);
+    const workflow = await readStoreWorkflow(octokit, slug);
+    if (!workflow) {
+      throw Object.assign(new Error("Store Workflow not found."), {
+        status: 404,
+      });
     }
-    addPlanSlug(plan, "activeAgents", capability.agent);
-  }
-}
-
-function goalCapabilitySlugs(state: ManagedGoalState): string[] {
-  const compatibility = state as ManagedGoalState & {
-    capabilities?: unknown;
-  };
-  if (Array.isArray(compatibility.capabilities)) {
-    return compatibility.capabilities.filter(
-      (capability): capability is string => typeof capability === "string",
+    return workflow;
+  } else if (kind === "loop") {
+    const loop = await readStoreLoop(octokit, slug);
+    if (!loop) {
+      throw Object.assign(new Error("Store Loop not found."), { status: 404 });
+    }
+    return loop;
+  } else if (kind === "command") {
+    const found = (await listStoreCommandFiles(new Set(), octokit)).some(
+      (entry) => entry.slug === slug,
     );
+    if (!found)
+      throw Object.assign(new Error("Store Command not found."), {
+        status: 404,
+      });
+  } else if (!getBuiltinFeature(slug)) {
+    throw Object.assign(new Error("Store Feature not found."), { status: 404 });
   }
-  return [];
+  return null;
 }
 
-function goalWorkflowSlug(state: ManagedGoalState): string | null {
-  if (state.workflowRef?.id) return state.workflowRef.id;
-  return state.loopTarget?.type === "workflow" ? state.loopTarget.id : null;
-}
-
-async function addWorkflowDependencies(
+async function activeWorkflowBlockers(
   octokit: Octokit,
-  plan: ActivationPlan,
+  activeWorkflowIds: string[] | undefined,
+  kind: "agent" | "capability",
   slug: string,
-): Promise<void> {
-  addPlanSlug(plan, "activeWorkflows", slug);
-  const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
-  const workflow = workflows.find((item) => item.id === slug);
-  if (!workflow) throw dependencyNotFound("workflow", slug);
-
-  for (const capabilitySlug of workflow.workflow.capabilities) {
-    await addCapabilityDependencies(octokit, plan, capabilitySlug);
-  }
+) {
+  const active = new Set(activeWorkflowIds ?? []);
+  return (await listCompanyStoreWorkflowDefinitionFiles(octokit))
+    .filter(
+      (entry) =>
+        active.has(entry.id) &&
+        (kind === "agent"
+          ? entry.workflow.agent === slug
+          : entry.workflow.capabilities.includes(slug)),
+    )
+    .map((entry) => ({
+      kind: "workflow" as const,
+      slug: entry.id,
+      title: entry.workflow.name || entry.id,
+    }));
 }
 
-async function removalBlockersFor({
-  octokit,
-  config,
-  kind,
-  slug,
-}: {
-  octokit: Octokit;
-  config: {
-    company?: {
-      activeCapabilities?: string[];
-      activeGoals?: ActiveGoalConfigEntry[];
-      activeWorkflows?: string[];
-    };
-  };
-  kind: ImportKind;
-  slug: string;
-}): Promise<StoreReferenceBlocker[]> {
-  if (kind === "agent") {
-    const activeCapabilities = config.company?.activeCapabilities ?? [];
-    const blockers: StoreReferenceBlocker[] = [];
-    for (const capabilitySlug of activeCapabilities) {
-      const capability = await readResolvedCapabilityFile(
-        capabilitySlug,
-        octokit,
-      );
-      if (capability?.agent === slug) {
-        blockers.push({ kind: "capability", slug: capabilitySlug });
-      }
-    }
-    return blockers;
-  }
-
-  if (kind !== "capability") return [];
-
-  const activeWorkflows = new Set(config.company?.activeWorkflows ?? []);
-  const activeGoals = new Set(
-    (config.company?.activeGoals ?? []).map(activeGoalSlug),
-  );
-  const [workflows, goals] = await Promise.all([
-    listCompanyStoreWorkflowDefinitionFiles(octokit),
-    listCompanyStoreGoalTemplateFiles(octokit),
-  ]);
-  const blockers: StoreReferenceBlocker[] = [];
-
-  for (const workflow of workflows) {
-    if (
-      activeWorkflows.has(workflow.id) &&
-      workflow.workflow.capabilities.includes(slug)
-    ) {
-      blockers.push({
-        kind: "workflow",
-        slug: workflow.id,
-        title: workflow.workflow.name || workflow.id,
-      });
-    }
-  }
-
-  for (const goal of goals) {
-    if (
-      activeGoals.has(goal.id) &&
-      goalCapabilitySlugs(goal.state).includes(slug)
-    ) {
-      blockers.push({
-        kind: managedGoalModel(goal),
-        slug: goal.id,
-        title: goal.state.destination?.outcome || goal.id,
-      });
-    }
-  }
-
-  return blockers;
-}
-
-async function assertRemovableReference(args: {
-  octokit: Octokit;
-  config: {
-    company?: {
-      activeCapabilities?: string[];
-      activeGoals?: ActiveGoalConfigEntry[];
-      activeWorkflows?: string[];
-    };
-  };
-  kind: ImportKind;
-  slug: string;
-}): Promise<void> {
-  const blockers = await removalBlockersFor(args);
-  if (blockers.length > 0) {
-    throw storeReferenceInUse(args.kind, args.slug, blockers);
-  }
-}
-
-async function activationPlanFor(
+async function activate(
   octokit: Octokit,
+  owner: string,
+  repo: string,
   kind: ImportKind,
   slug: string,
-): Promise<ActivationPlan> {
-  const plan = emptyActivationPlan();
-
-  if (kind === "agent") {
-    addPlanSlug(plan, "activeAgents", slug);
-    return plan;
-  }
-
-  if (kind === "capability") {
-    await addCapabilityDependencies(octokit, plan, slug);
-    return plan;
-  }
-
-  if (kind === "implementation") {
-    const implementation = await readStoreImplementation(octokit, slug);
-    if (!implementation) throw dependencyNotFound(kind, slug);
-    await addCapabilityDependencies(
-      octokit,
-      plan,
-      implementation.capabilityId,
-    );
-    if (implementation.agentId) {
-      addPlanSlug(plan, "activeAgents", implementation.agentId);
-    }
-    return plan;
-  }
-
-  if (kind === "command") {
-    addPlanSlug(plan, "activeCommands", slug);
-    return plan;
-  }
-
-  if (kind === "feature") {
-    addPlanSlug(plan, "activeFeatures", slug);
-    return plan;
-  }
-
-  if (kind === "workflow") {
-    await addWorkflowDependencies(octokit, plan, slug);
-    return plan;
-  }
-
-  addPlanSlug(plan, "activeGoals", slug);
-  const goals = await listCompanyStoreGoalTemplateFiles(octokit);
-  const goal = goals.find((item) => item.id === slug);
-  if (!goal) throw dependencyNotFound(kind, slug);
-
-  for (const capabilitySlug of goalCapabilitySlugs(goal.state)) {
-    await addCapabilityDependencies(octokit, plan, capabilitySlug);
-  }
-  const workflowSlug = goalWorkflowSlug(goal.state);
-  if (workflowSlug) {
-    await addWorkflowDependencies(octokit, plan, workflowSlug);
-  }
-
-  return plan;
-}
-
-async function publishDefinition(
-  tenantId: string,
-  kind: "agent" | "capability" | "goal" | "implementation" | "asset",
-  slug: string,
-  files: Record<string, string>,
-): Promise<void> {
-  const bundle: DefinitionBundle = { schemaVersion: 1, files };
-  await createBackendClient().mutation(backendApi.definitions.publish, {
-    tenantId,
-    kind,
-    slug,
-    version: definitionVersion(bundle),
-    bundle,
-    source: "store",
-    createdAt: new Date().toISOString(),
-  });
-}
-
-async function publishActivationPlan(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  plan: ActivationPlan,
-): Promise<void> {
-  const tenantId = `${owner}/${repo}`;
-
-  for (const slug of plan.activeAgents) {
-    const path = await companyStoreAssetPath(octokit, "agents", `${slug}.md`);
-    const raw = await readCompanyStoreText(octokit, path);
-    if (raw === null) throw dependencyNotFound("agent", slug);
-    await publishDefinition(tenantId, "agent", slug, { "agent.md": raw });
-  }
-
-  for (const slug of plan.activeCapabilities) {
-    const files = await readCompanyStoreCapabilityFolderFiles(slug, octokit);
-    if (!files) throw dependencyNotFound("capability", slug);
-    await publishDefinition(tenantId, "capability", slug, files);
-  }
-
-  if (plan.activeGoals.length > 0) {
-    const goals = await listCompanyStoreGoalTemplateFiles(octokit);
-    for (const slug of plan.activeGoals) {
-      const goal = goals.find((candidate) => candidate.id === slug);
-      if (!goal) throw dependencyNotFound("goal", slug);
-      await publishDefinition(tenantId, "goal", slug, {
-        "state.json": `${JSON.stringify(goal.state, null, 2)}\n`,
-      });
-    }
-  }
-
-  if (plan.activeWorkflows.length > 0) {
-    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
-    for (const slug of plan.activeWorkflows) {
-      const workflow = workflows.find((candidate) => candidate.id === slug);
-      if (!workflow) throw dependencyNotFound("workflow", slug);
-      await createBackendClient().mutation(backendApi.workflows.save, {
+) {
+  const workflow = await assertExists(octokit, kind, slug);
+  if (kind === "loop") {
+    const storeLoop = workflow as StoreLoop;
+    const tenantId = `${owner}/${repo}`;
+    const existing = await createBackendClient().query(
+      backendApi.repoDocs.get,
+      {
         tenantId,
-        workflowId: slug,
-        definition: workflow.workflow,
-        source: "store",
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  }
-}
-
-async function publishAgencyImplementation(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  implementationId: string,
-): Promise<{
-  capabilityId: string;
-  implementationId: string;
-}> {
-  const implementation = await readStoreImplementation(
-    octokit,
-    implementationId,
-  );
-  if (!implementation)
-    throw dependencyNotFound("implementation", implementationId);
-  const capabilityRoot = await companyStoreAssetPath(
-    octokit,
-    "capabilities",
-    implementation.capabilityId,
-  );
-  const capabilityRaw = await readCompanyStoreText(
-    octokit,
-    `${capabilityRoot}/definition.json`,
-  );
-  if (!capabilityRaw)
-    throw dependencyNotFound("capability", implementation.capabilityId);
-  let capability: ReturnType<typeof createCapabilityDefinition>;
-  try {
-    capability = createCapabilityDefinition(JSON.parse(capabilityRaw));
-  } catch {
-    throw Object.assign(
-      new Error(
-        `Store Capability "${implementation.capabilityId}" has an invalid contract.`,
-      ),
-      { status: 409 },
+        kind: `loop:${slug}`,
+      },
     );
+    if (existing) return { imported: false, status: "already_local" as const };
+    await createBackendClient().mutation(backendApi.repoDocs.save, {
+      tenantId,
+      kind: `loop:${slug}`,
+      doc: storeLoop.loop,
+      updatedAt: new Date().toISOString(),
+    });
+    return { imported: true, status: "imported" as const };
   }
-  const capabilityRecordId = agencyDefinitionRecordId(
-    "capability",
-    capability,
-  );
-  const capabilityRevision = capabilityRecordId.split(":").at(-1);
-  if (
-    capabilityRevision !== implementation.compatibleCapabilityRevision
-  ) {
-    throw Object.assign(
-      new Error(
-        `Implementation "${implementationId}" is not compatible with the current Capability revision.`,
-      ),
-      { status: 409 },
-    );
-  }
-  await publishStoreImplementationPackage(
-    octokit,
-    `${owner}/${repo}`,
-    implementation,
-  );
-  const createdAt = new Date().toISOString();
-  await applyStoredAgencyModelChange({
-    owner,
-    repo,
-    change: {
-      definitions: [
-        {
-          recordId: capabilityRecordId,
-          kind: "capability",
-          schemaVersion: 1,
-          data: capability,
-          createdAt,
-        },
-        {
-          recordId: agencyDefinitionRecordId(
-            "implementation",
-            implementation.definition,
-          ),
-          kind: "implementation",
-          schemaVersion: 1,
-          data: implementation.definition,
-          createdAt,
-        },
-      ],
-      states: [],
-    },
-  });
-  return {
-    capabilityId: implementation.capabilityId,
-    implementationId: implementation.id,
-  };
-}
-
-async function addStoreReference({
-  octokit,
-  owner,
-  repo,
-  kind,
-  slug,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  kind: ImportKind;
-  slug: string;
-}): Promise<ImportResult> {
-  await assertStoreItemExists(octokit, kind, slug);
-
   const { config } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
-  const plan = await activationPlanFor(octokit, kind, slug);
-  await publishActivationPlan(octokit, owner, repo, plan);
-  if (kind === "implementation") {
-    const published = await publishAgencyImplementation(
-      octokit,
-      owner,
-      repo,
-      slug,
+  const company = config.company;
+  const patch: ConfigPatch = {};
+
+  if (kind === "workflow" && workflow) {
+    const workflowDefinition = workflow as WorkflowDefinition;
+    patch.activeWorkflows = append(company?.activeWorkflows, [slug]);
+    patch.activeCapabilities = append(
+      company?.activeCapabilities,
+      workflowDefinition.capabilities,
     );
-    const nextActiveCapabilities = addSlugs(
-      config.company?.activeCapabilities,
-      plan.activeCapabilities,
-    );
-    const nextBindings = {
-      ...(config.execution?.capabilityBindings ?? {}),
-      [published.capabilityId]: published.implementationId,
-    };
-    const alreadySelected =
-      config.execution?.capabilityBindings?.[published.capabilityId] ===
-        published.implementationId &&
-      sameStringList(
-        config.company?.activeCapabilities,
-        nextActiveCapabilities,
-      );
-    if (alreadySelected) {
-      return {
-        imported: false,
-        status: "already_local",
-        path: configPathFor(kind),
-      };
-    }
-    await writeConfigPatch(
-      octokit,
-      owner,
-      repo,
-      {
-        activeCapabilities: nextActiveCapabilities,
-        capabilityBindings: nextBindings,
-      },
-      `chore(kody): select store implementation ${slug}`,
-    );
-    return {
-      imported: true,
-      status: "imported",
-      path: configPathFor(kind),
-    };
+    patch.activeAgents = append(company?.activeAgents, [
+      workflowDefinition.agent,
+    ]);
+  } else {
+    const field = fieldByKind[kind];
+    const next = append(company?.[field] as string[] | undefined, [slug]);
+    (patch as Record<ActiveField, string[] | undefined>)[field] = next;
   }
-  const nextActiveAgents =
-    plan.activeAgents.length > 0
-      ? addSlugs(config.company?.activeAgents, plan.activeAgents)
-      : undefined;
-  const nextActiveCapabilities =
-    plan.activeCapabilities.length > 0
-      ? addSlugs(config.company?.activeCapabilities, plan.activeCapabilities)
-      : undefined;
-  const nextActiveCommands =
-    plan.activeCommands.length > 0
-      ? addSlugs(config.company?.activeCommands, plan.activeCommands)
-      : undefined;
-  const nextActiveWorkflows =
-    plan.activeWorkflows.length > 0
-      ? addSlugs(config.company?.activeWorkflows, plan.activeWorkflows)
-      : undefined;
-  const nextActiveFeatures =
-    plan.activeFeatures.length > 0
-      ? addSlugs(config.company?.activeFeatures, plan.activeFeatures)
-      : undefined;
-  const nextActiveGoals =
-    plan.activeGoals.length > 0 &&
-    plan.activeGoals.some(
-      (goalSlug) => !hasGoal(config.company?.activeGoals, goalSlug),
-    )
-      ? addGoals(config.company?.activeGoals, plan.activeGoals)
-      : undefined;
 
-  const patch: ConfigPatch = {
-    activeAgents:
-      nextActiveAgents &&
-      !sameStringList(config.company?.activeAgents, nextActiveAgents)
-        ? nextActiveAgents
-        : undefined,
-    activeCapabilities:
-      nextActiveCapabilities &&
-      !sameStringList(
-        config.company?.activeCapabilities,
-        nextActiveCapabilities,
-      )
-        ? nextActiveCapabilities
-        : undefined,
-    activeCommands:
-      nextActiveCommands &&
-      !sameStringList(config.company?.activeCommands, nextActiveCommands)
-        ? nextActiveCommands
-        : undefined,
-    activeWorkflows:
-      nextActiveWorkflows &&
-      !sameStringList(config.company?.activeWorkflows, nextActiveWorkflows)
-        ? nextActiveWorkflows
-        : undefined,
-    activeGoals: nextActiveGoals,
-    activeFeatures:
-      nextActiveFeatures &&
-      !sameStringList(config.company?.activeFeatures, nextActiveFeatures)
-        ? nextActiveFeatures
-        : undefined,
-  };
-
-  if (Object.values(patch).every((value) => value === undefined)) {
-    return {
-      imported: false,
-      status: "already_local",
-      path: configPathFor(kind),
-    };
+  const changed = Object.entries(patch).some(([field, value]) => {
+    const current = company?.[field as ActiveField] as string[] | undefined;
+    return JSON.stringify(current ?? []) !== JSON.stringify(value ?? []);
+  });
+  if (!changed) {
+    return { imported: false, status: "already_local" as const };
   }
 
   await writeConfigPatch(
@@ -785,92 +224,71 @@ async function addStoreReference({
     patch,
     `chore(kody): add store ${kind} ${slug}`,
   );
-
-  return {
-    imported: true,
-    status: "imported",
-    path: configPathFor(kind),
-  };
+  if (kind === "workflow" && workflow) {
+    await createBackendClient().mutation(backendApi.workflows.save, {
+      tenantId: `${owner}/${repo}`,
+      workflowId: slug,
+      definition: workflow as WorkflowDefinition,
+      source: "store",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return { imported: true, status: "imported" as const };
 }
 
-async function removeStoreReference({
-  octokit,
-  owner,
-  repo,
-  kind,
-  slug,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  kind: ImportKind;
-  slug: string;
-}): Promise<RemoveResult> {
+async function deactivate(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  kind: ImportKind,
+  slug: string,
+) {
   const { config } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
-  const patch: ConfigPatch = {};
-  const path = configPathFor(kind);
-
-  if (kind === "implementation") {
-    const implementation = await readStoreImplementation(octokit, slug);
-    if (!implementation) {
-      return { removed: false, status: "already_missing", path };
+  if (kind === "loop") {
+    const tenantId = `${owner}/${repo}`;
+    const existing = await createBackendClient().query(
+      backendApi.repoDocs.get,
+      {
+        tenantId,
+        kind: `loop:${slug}`,
+      },
+    );
+    if (!existing) {
+      return { removed: false, status: "already_missing" as const };
     }
-    const currentBindings = config.execution?.capabilityBindings ?? {};
-    if (currentBindings[implementation.capabilityId] !== slug) {
-      return { removed: false, status: "already_missing", path };
-    }
-    const nextBindings = { ...currentBindings };
-    delete nextBindings[implementation.capabilityId];
-    patch.capabilityBindings =
-      Object.keys(nextBindings).length > 0 ? nextBindings : null;
-  } else if (kind === "agent") {
-    const current = config.company?.activeAgents ?? [];
-    const next = current.filter((value) => value !== slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    await assertRemovableReference({ octokit, config, kind, slug });
-    patch.activeAgents = next.length > 0 ? next : null;
-  } else if (kind === "capability") {
-    const current = config.company?.activeCapabilities ?? [];
-    const next = current.filter((value) => value !== slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    await assertRemovableReference({ octokit, config, kind, slug });
-    patch.activeCapabilities = next.length > 0 ? next : null;
-  } else if (kind === "command") {
-    const current = config.company?.activeCommands ?? [];
-    const next = current.filter((value) => value !== slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    patch.activeCommands = next.length > 0 ? next : null;
-  } else if (kind === "workflow") {
-    const current = config.company?.activeWorkflows ?? [];
-    const next = current.filter((value) => value !== slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    patch.activeWorkflows = next.length > 0 ? next : null;
-  } else if (kind === "feature") {
-    const current = config.company?.activeFeatures ?? [];
-    const next = current.filter((value) => value !== slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    patch.activeFeatures = next.length > 0 ? next : null;
-  } else {
-    const current = config.company?.activeGoals ?? [];
-    const next = removeGoal(current, slug);
-    if (next.length === current.length) {
-      return { removed: false, status: "already_missing", path };
-    }
-    patch.activeGoals = next.length > 0 ? next : null;
+    await createBackendClient().mutation(backendApi.repoDocs.remove, {
+      tenantId,
+      kind: `loop:${slug}`,
+    });
+    return { removed: true, status: "removed" as const };
+  }
+  const field = fieldByKind[kind];
+  const current = config.company?.[field] as string[] | undefined;
+  const next = without(current, slug);
+  if (next.length === (current ?? []).length) {
+    return { removed: false, status: "already_missing" as const };
   }
 
+  if (kind === "agent" || kind === "capability") {
+    const blockers = await activeWorkflowBlockers(
+      octokit,
+      config.company?.activeWorkflows,
+      kind,
+      slug,
+    );
+    if (blockers.length) {
+      throw Object.assign(
+        new Error(`${kind} "${slug}" is used by an active Workflow.`),
+        { status: 409, blockers },
+      );
+    }
+  }
+
+  const patch = {
+    [field]: next.length ? next : null,
+  } as ConfigPatch;
   await writeConfigPatch(
     octokit,
     owner,
@@ -878,82 +296,43 @@ async function removeStoreReference({
     patch,
     `chore(kody): remove store ${kind} ${slug}`,
   );
-
-  const tenantId = `${owner}/${repo}`;
-  if (
-    kind === "agent" ||
-    kind === "capability" ||
-    kind === "implementation"
-  ) {
-    await createBackendClient().mutation(backendApi.definitions.retire, {
-      tenantId,
-      kind,
-      slug,
-    });
-  } else if (kind === "agentGoal" || kind === "agentLoop") {
-    await createBackendClient().mutation(backendApi.definitions.retire, {
-      tenantId,
-      kind: "goal",
-      slug,
-    });
-  } else if (kind === "workflow") {
+  if (kind === "workflow") {
     await createBackendClient().mutation(backendApi.workflows.remove, {
-      tenantId,
+      tenantId: `${owner}/${repo}`,
       workflowId: slug,
     });
   }
-
-  return { removed: true, status: "removed", path };
+  return { removed: true, status: "removed" as const };
 }
 
 function errorResponse(error: unknown) {
-  const status = (error as { status?: number })?.status;
-  if (status === 401) {
-    return NextResponse.json(
-      { error: "github_token_expired" },
-      { status: 401 },
-    );
-  }
-  if (status === 404) {
-    return NextResponse.json(
-      {
-        error: "store_item_not_found",
-        message:
-          error instanceof Error ? error.message : "Store item not found.",
-      },
-      { status: 404 },
-    );
-  }
-  if (status === 409) {
-    return NextResponse.json(
-      {
-        error: "store_reference_in_use",
-        message:
-          error instanceof Error ? error.message : "Store reference is in use.",
-        blockers:
-          (error as { blockers?: StoreReferenceBlocker[] })?.blockers ?? [],
-      },
-      { status: 409 },
-    );
-  }
+  const details = error as {
+    status?: number;
+    blockers?: Array<{ kind: string; slug: string; title?: string }>;
+  };
+  const status = details.status ?? 500;
   return NextResponse.json(
     {
-      error: "store_import_failed",
+      error:
+        status === 404
+          ? "store_item_not_found"
+          : status === 409
+            ? "store_reference_in_use"
+            : "store_import_failed",
       message: error instanceof Error ? error.message : "Unknown error",
+      ...(details.blockers ? { blockers: details.blockers } : {}),
     },
-    { status: 500 },
+    { status },
   );
 }
 
-export async function POST(req: NextRequest) {
+async function handle(req: NextRequest, remove: boolean) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
-
   const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
-
   setGitHubContext(
     auth.owner,
     auth.repo,
@@ -961,112 +340,44 @@ export async function POST(req: NextRequest) {
     auth.storeRepoUrl,
     auth.storeRef,
   );
-
   try {
-    const body = await req.json().catch(() => null);
-    const parsed = importSchema.safeParse(body);
+    const parsed = requestSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json(
         { error: "validation_error", details: parsed.error.format() },
         { status: 400 },
       );
     }
-
-    const verify = await verifyActorLogin(req, undefined);
-    if ("status" in verify) return verify;
-
+    const verified = await verifyActorLogin(req, undefined);
+    if ("status" in verified) return verified;
     const { kind, slug } = parsed.data;
     if (!validSlug(kind, slug)) {
-      return NextResponse.json(
-        { error: "invalid_slug", message: `Invalid ${kind} slug: "${slug}".` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_octokit" }, { status: 401 });
     }
-
-    const result = await addStoreReference({
-      octokit,
-      owner: auth.owner,
-      repo: auth.repo,
-      kind,
-      slug,
-    });
-
+    const result = remove
+      ? await deactivate(octokit, auth.owner, auth.repo, kind, slug)
+      : await activate(octokit, auth.owner, auth.repo, kind, slug);
     return NextResponse.json({
       kind,
       slug,
+      path: kind === "loop" ? "loops" : `company.${fieldByKind[kind]}`,
       ...result,
     });
-  } catch (error: unknown) {
+  } catch (error) {
     return errorResponse(error);
   } finally {
     clearGitHubContext();
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+export function POST(req: NextRequest) {
+  return handle(req, false);
+}
 
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-
-  setGitHubContext(
-    auth.owner,
-    auth.repo,
-    auth.token,
-    auth.storeRepoUrl,
-    auth.storeRef,
-  );
-
-  try {
-    const body = await req.json().catch(() => null);
-    const parsed = importSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "validation_error", details: parsed.error.format() },
-        { status: 400 },
-      );
-    }
-
-    const verify = await verifyActorLogin(req, undefined);
-    if ("status" in verify) return verify;
-
-    const { kind, slug } = parsed.data;
-    if (!validSlug(kind, slug)) {
-      return NextResponse.json(
-        { error: "invalid_slug", message: `Invalid ${kind} slug: "${slug}".` },
-        { status: 400 },
-      );
-    }
-
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-    }
-
-    const result = await removeStoreReference({
-      octokit,
-      owner: auth.owner,
-      repo: auth.repo,
-      kind,
-      slug,
-    });
-
-    return NextResponse.json({
-      kind,
-      slug,
-      ...result,
-    });
-  } catch (error: unknown) {
-    return errorResponse(error);
-  } finally {
-    clearGitHubContext();
-  }
+export function DELETE(req: NextRequest) {
+  return handle(req, true);
 }

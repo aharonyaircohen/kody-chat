@@ -20,15 +20,12 @@ import {
 
 import { activityChatPlugin } from "@dashboard/lib/chat/plugins/activity";
 import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";
-import { agentGoalsChatPlugin } from "@dashboard/lib/chat/plugins/agent-goals";
-import { agentLoopsChatPlugin } from "@dashboard/lib/chat/plugins/agent-loops";
 import { agentsChatPlugin } from "@dashboard/lib/chat/plugins/agents";
 import { brandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/brands";
 import { capabilitiesChatPlugin } from "@dashboard/lib/chat/plugins/capabilities";
 import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
 import { commandsPageChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin } from "@dashboard/lib/chat/plugins/company";
-import { companyIntentsChatPlugin } from "@dashboard/lib/chat/plugins/company-intents";
 import { configChatPlugin } from "@dashboard/lib/chat/plugins/config";
 import { contextChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin } from "@dashboard/lib/chat/plugins/docs";
@@ -56,8 +53,6 @@ interface PagePluginCase {
 const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "activity", title: "Activity", plugin: activityChatPlugin },
   { slug: "agency-runs", title: "Agency Runs", plugin: agencyRunsChatPlugin },
-  { slug: "agent-goals", title: "Goals", plugin: agentGoalsChatPlugin },
-  { slug: "agent-loops", title: "Loops", plugin: agentLoopsChatPlugin },
   { slug: "agents", title: "Agent", plugin: agentsChatPlugin },
   { slug: "brands", title: "Brands", plugin: brandsChatPlugin },
   {
@@ -68,11 +63,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "changelog", title: "Changelog", plugin: changelogChatPlugin },
   { slug: "commands-page", title: "Commands", plugin: commandsPageChatPlugin },
   { slug: "company", title: "AI Agency", plugin: companyChatPlugin },
-  {
-    slug: "company-intents",
-    title: "Intents",
-    plugin: companyIntentsChatPlugin,
-  },
   { slug: "config", title: "Config", plugin: configChatPlugin },
   { slug: "context", title: "Context", plugin: contextChatPlugin },
   { slug: "docs", title: "Docs", plugin: docsChatPlugin },

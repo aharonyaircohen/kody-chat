@@ -10,21 +10,10 @@ export const listByRun = query({
       .collect(),
 })
 
-export const listByGoal = query({
-  args: { tenantId: v.string(), goalId: v.string(), limit: v.number() },
-  handler: async (ctx, { tenantId, goalId, limit }) =>
-    await ctx.db
-      .query("runEvents")
-      .withIndex("by_goal", (q) => q.eq("tenantId", tenantId).eq("goalId", goalId))
-      .order("desc")
-      .take(Math.max(1, Math.min(limit, 1000))),
-})
-
 export const append = mutation({
   args: {
     tenantId: v.string(),
     runId: v.string(),
-    goalId: v.optional(v.string()),
     event: v.any(),
     time: v.string(),
     idempotencyKey: v.optional(v.string()),

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Kody agency layer — agents/goals/capabilities/agency-runs/cto-trust domain stores and API route handlers. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
+  "description": "Kody agency layer — agents, capabilities, workflows, loops, runs, and trust route handlers. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
   "exports": {
     "./capabilities": "./src/capabilities/index.ts",
     "./capabilities/*": "./src/capabilities/*.ts",

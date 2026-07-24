@@ -1,9 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
-  companyIntentValidator,
   inboxEntryValidator,
-  intentDecisionValidator,
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
@@ -168,11 +166,9 @@ export default defineSchema({
     tenantId: v.string(),
     runId: v.string(),
     subjectType: v.union(
-      v.literal("goal"),
       v.literal("loop"),
       v.literal("workflow"),
       v.literal("capability"),
-      v.literal("implementation"),
     ),
     subjectId: v.string(),
     run: v.any(),
@@ -184,14 +180,12 @@ export default defineSchema({
   runEvents: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    goalId: v.optional(v.string()),
     seq: v.number(),
     event: v.any(),
     time: v.string(),
     idempotencyKey: v.optional(v.string()),
   })
     .index("by_run", ["tenantId", "runId", "seq"])
-    .index("by_goal", ["tenantId", "goalId", "time"])
     .index("by_idempotency", ["tenantId", "runId", "idempotencyKey"]),
 
   manifests: defineTable({
@@ -309,72 +303,6 @@ export default defineSchema({
     .index("by_conversation", ["tenantId", "conversationId"])
     .index("by_attachment", ["tenantId", "conversationId", "attachmentId"]),
 
-  intents: defineTable({
-    tenantId: v.string(),
-    intentId: v.string(),
-    intent: companyIntentValidator,
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "intentId"]),
-
-  intentDecisions: defineTable({
-    tenantId: v.string(),
-    intentId: v.string(),
-    seq: v.number(),
-    decision: intentDecisionValidator,
-    idempotencyKey: v.optional(v.string()),
-  })
-    .index("by_intent", ["tenantId", "intentId", "seq"])
-    .index("by_idempotency", ["tenantId", "intentId", "idempotencyKey"]),
-
-  goals: defineTable({
-    tenantId: v.string(),
-    goalId: v.string(),
-    state: v.any(), // ManagedGoalState
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "goalId"]),
-
-  agencyDefinitions: defineTable({
-    tenantId: v.string(),
-    recordId: v.string(),
-    kind: v.union(
-      v.literal("intent"),
-      v.literal("operation"),
-      v.literal("goal"),
-      v.literal("loop"),
-      v.literal("workflow"),
-      v.literal("capability"),
-      v.literal("implementation"),
-      v.literal("agent"),
-    ),
-    schemaVersion: v.number(),
-    data: v.any(),
-    createdAt: v.string(),
-  }).index("by_tenant", ["tenantId", "recordId"]),
-
-  agencyStates: defineTable({
-    tenantId: v.string(),
-    definitionId: v.string(),
-    kind: v.union(
-      v.literal("intent"),
-      v.literal("operation"),
-      v.literal("goal"),
-      v.literal("loop"),
-    ),
-    schemaVersion: v.number(),
-    data: v.any(),
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "kind", "definitionId"]),
-
-  agencyOutputs: defineTable({
-    tenantId: v.string(),
-    recordId: v.string(),
-    schemaVersion: v.number(),
-    runId: v.string(),
-    data: v.any(),
-  })
-    .index("by_tenant_record", ["tenantId", "recordId"])
-    .index("by_tenant_run", ["tenantId", "runId"]),
-
   agencyDispatches: defineTable({
     tenantId: v.string(),
     idempotencyKey: v.string(),
@@ -408,7 +336,6 @@ export default defineSchema({
     approvalId: v.string(),
     scopeKind: v.union(
       v.literal("loop"),
-      v.literal("goal"),
       v.literal("workflow"),
       v.literal("capability"),
     ),

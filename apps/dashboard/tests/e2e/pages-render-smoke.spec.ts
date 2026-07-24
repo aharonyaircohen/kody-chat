@@ -37,7 +37,6 @@ const ROUTES = [
   "/models",
   "/new",
   "/notifications",
-  "/agent-goals",
   "/commands",
   "/reports",
   "/runner",

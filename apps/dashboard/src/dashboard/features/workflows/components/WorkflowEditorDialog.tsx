@@ -33,6 +33,8 @@ interface WorkflowEditorDialogProps {
   initial?: WorkflowDefinitionRecord;
   capabilities: Array<{ slug: string; describe?: string }>;
   capabilitiesLoading: boolean;
+  agents: Array<{ slug: string; title?: string }>;
+  agentsLoading: boolean;
   saving: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (payload: CreateWorkflowDefinitionInput) => Promise<void>;
@@ -45,11 +47,14 @@ export function WorkflowEditorDialog({
   initial,
   capabilities,
   capabilitiesLoading,
+  agents,
+  agentsLoading,
   saving,
   onOpenChange,
   onSubmit,
 }: WorkflowEditorDialogProps) {
   const [name, setName] = useState("");
+  const [agent, setAgent] = useState("kody");
   const [graph, setGraph] = useState<WorkflowGraph>(EMPTY_GRAPH);
   const [capabilityToAdd, setCapabilityToAdd] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
@@ -57,6 +62,7 @@ export function WorkflowEditorDialog({
   useEffect(() => {
     if (!open) return;
     setName(initial?.workflow.name ?? "");
+    setAgent(initial?.workflow.agent ?? "kody");
     setGraph(initial ? workflowDefinitionGraph(initial.workflow) : EMPTY_GRAPH);
     setCapabilityToAdd(capabilities[0]?.slug ?? "");
     setErrors([]);
@@ -78,6 +84,7 @@ export function WorkflowEditorDialog({
     const nextName = name.trim();
     const nextErrors: string[] = [];
     if (!nextName) nextErrors.push("Give the workflow a name.");
+    if (!agent) nextErrors.push("Select an Agent.");
     if (capabilitySteps.length === 0)
       nextErrors.push("Add at least one workflow step.");
     nextErrors.push(...validateWorkflowGraph(graph));
@@ -97,6 +104,7 @@ export function WorkflowEditorDialog({
     }
     await onSubmit({
       name: nextName,
+      agent,
       capabilities: definition.capabilities,
       startAt: definition.startAt,
       steps: definition.steps,
@@ -133,6 +141,29 @@ export function WorkflowEditorDialog({
               placeholder="Release readiness"
               autoFocus
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="workflow-agent">Agent</Label>
+            <select
+              id="workflow-agent"
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              value={agent}
+              disabled={agentsLoading}
+              onChange={(event) => setAgent(event.target.value)}
+            >
+              <option value="kody">Kody</option>
+              {agents
+                .filter((candidate) => candidate.slug !== "kody")
+                .map((candidate) => (
+                  <option key={candidate.slug} value={candidate.slug}>
+                    {candidate.title || candidate.slug}
+                  </option>
+                ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              This Agent runs every step in the workflow.
+            </p>
           </div>
 
           <div className="grid min-h-0 flex-1 gap-4 overflow-auto lg:grid-cols-[260px_minmax(0,1fr)] lg:overflow-hidden">

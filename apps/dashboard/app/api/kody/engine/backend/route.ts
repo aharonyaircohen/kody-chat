@@ -26,32 +26,9 @@ const operations = {
     fn: backendApi.repoDocs.listByPrefix,
   },
   "repoDocs.save": { kind: "mutation", fn: backendApi.repoDocs.save },
-  "goals.get": { kind: "query", fn: backendApi.goals.get },
-  "goals.list": { kind: "query", fn: backendApi.goals.list },
-  "goals.save": { kind: "mutation", fn: backendApi.goals.save },
   "dailyLogs.append": { kind: "mutation", fn: backendApi.dailyLogs.append },
   "chatEvents.append": { kind: "mutation", fn: backendApi.chatEvents.append },
   "agencyRuns.save": { kind: "mutation", fn: backendApi.agencyRuns.save },
-  "agencyModel.listDefinitions": {
-    kind: "query",
-    fn: backendApi.agencyModel.listDefinitions,
-  },
-  "agencyModel.getState": {
-    kind: "query",
-    fn: backendApi.agencyModel.getState,
-  },
-  "agencyModel.putState": {
-    kind: "mutation",
-    fn: backendApi.agencyModel.putState,
-  },
-  "agencyModel.appendOutput": {
-    kind: "mutation",
-    fn: backendApi.agencyModel.appendOutput,
-  },
-  "agencyModel.listOutputs": {
-    kind: "query",
-    fn: backendApi.agencyModel.listOutputs,
-  },
   "agencyModel.reserveDispatch": {
     kind: "mutation",
     fn: backendApi.agencyModel.reserveDispatch,
@@ -75,13 +52,6 @@ const operations = {
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },
-  "intents.list": { kind: "query", fn: backendApi.intents.list },
-  "intents.get": { kind: "query", fn: backendApi.intents.get },
-  "intents.save": { kind: "mutation", fn: backendApi.intents.save },
-  "intents.appendDecision": {
-    kind: "mutation",
-    fn: backendApi.intents.appendDecision,
-  },
   "definitions.listCurrent": {
     kind: "query",
     fn: backendApi.definitions.listCurrent,

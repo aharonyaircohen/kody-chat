@@ -161,7 +161,7 @@ describe("GET /api/kody/company/backend/export", () => {
     const queriedTables = convex.query.mock.calls.map(
       (call) => (call[1] as { table: string }).table,
     );
-    expect(queriedTables).toContain("agencyDefinitions");
+    expect(queriedTables).toContain("workflows");
     expect(queriedTables).toContain("agencyRuns");
     expect(queriedTables).not.toContain("conversationEntries");
     expect(queriedTables).not.toContain("conversationTurns");
@@ -175,8 +175,8 @@ describe("GET /api/kody/company/backend/export", () => {
         if (args.table === "workflows") {
           return [{ tenantId: args.tenantId, workflowId: "bug" }];
         }
-        if (args.table === "goals") {
-          return [{ tenantId: args.tenantId, goalId: "goal-1" }];
+        if (args.table === "repoDocs") {
+          return [{ tenantId: args.tenantId, kind: "todo:one", doc: {} }];
         }
         return [];
       },
@@ -196,7 +196,7 @@ describe("GET /api/kody/company/backend/export", () => {
       (call) => (call[1] as { table: string }).table,
     );
     expect(queriedTables).toContain("workflows");
-    expect(queriedTables).toContain("goals");
+    expect(queriedTables).toContain("repoDocs");
     expect(
       convex.query.mock.calls.every(
         (call) => (call[1] as { tenantId: string }).tenantId === "acme/widgets",
@@ -208,7 +208,7 @@ describe("GET /api/kody/company/backend/export", () => {
     // …but only non-empty ones land in the dump.
     expect(body.tables).toEqual({
       workflows: [{ tenantId: "acme/widgets", workflowId: "bug" }],
-      goals: [{ tenantId: "acme/widgets", goalId: "goal-1" }],
+      repoDocs: [{ tenantId: "acme/widgets", kind: "todo:one", doc: {} }],
     });
     // Convex export never touches GitHub.
     expect(auth.verifyRepoReadAccess).toHaveBeenCalled();
@@ -219,7 +219,7 @@ describe("GET /api/kody/company/backend/export", () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
     convex.query.mockImplementation(
       async (_ref: unknown, args: Record<string, unknown>) => {
-        if (args.table === "goals") throw new Error("boom");
+        if (args.table === "repoDocs") throw new Error("boom");
         if (args.table === "workflows") {
           return [{ tenantId: args.tenantId, workflowId: "bug" }];
         }
@@ -230,7 +230,7 @@ describe("GET /api/kody/company/backend/export", () => {
     const res = await EXPORT(req("/api/kody/company/backend/export"));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.failures).toEqual(["goals"]);
+    expect(body.failures).toEqual(["repoDocs"]);
     expect(body.tables.workflows).toHaveLength(1);
   });
 
@@ -262,9 +262,10 @@ describe("POST /api/kody/company/backend/import", () => {
     tenantId: "acme/widgets",
     tables: {
       workflows: [{ tenantId: "acme/widgets", workflowId: "bug" }],
-      goals: Array.from({ length: 250 }, (_, i) => ({
+      repoDocs: Array.from({ length: 250 }, (_, i) => ({
         tenantId: "acme/widgets",
-        goalId: `goal-${i}`,
+        kind: `todo:${i}`,
+        doc: {},
       })),
     },
   };
@@ -283,19 +284,19 @@ describe("POST /api/kody/company/backend/import", () => {
     expect(body).toEqual({
       ok: true,
       cleared: true,
-      imported: { workflows: 1, goals: 250 },
+      imported: { workflows: 1, repoDocs: 250 },
     });
 
-    // clearRepo + 1 workflows chunk + 5 goals chunks (250 docs, size 50)
+    // clearRepo + 1 workflows chunk + 5 repoDocs chunks (250 docs, size 50)
     expect(convex.mutation).toHaveBeenCalledTimes(7);
     expect(convex.mutation.mock.calls[0][1]).toEqual({
       tenantId: "acme/widgets",
     });
-    const goalChunks = convex.mutation.mock.calls
+    const todoChunks = convex.mutation.mock.calls
       .slice(1)
-      .filter((call) => (call[1] as { table: string }).table === "goals")
+      .filter((call) => (call[1] as { table: string }).table === "repoDocs")
       .map((call) => (call[1] as { docs: unknown[] }).docs.length);
-    expect(goalChunks).toEqual([50, 50, 50, 50, 50]);
+    expect(todoChunks).toEqual([50, 50, 50, 50, 50]);
   });
 
   it("imports every document into the selected repo, not the dump's source repo", async () => {

@@ -1,18 +1,12 @@
 /**
- * @fileType fixture
- * @domain chat-harness
- * @pattern in-memory-fixtures
- * @ai-summary In-memory fixture backends for the port-3344 chat harness.
- *   The package is chat-only: its chat tools/routes exercise the chat
- *   platform against these typed fixtures instead of the dashboard's
- *   GitHub/gist-backed business modules (which live in apps/dashboard).
- *   Every function mirrors the call signature the chat tools use, so the
- *   tools read identically to the dashboard's — only the storage differs.
+ * In-memory fixture backends for the package chat harness.
+ *
+ * These fixtures mirror the storage calls used by package-owned chat tools
+ * without reintroducing removed Agency models.
  */
 import type { Octokit } from "@octokit/rest";
 import type { Macro } from "../../src/dashboard/lib/macros";
 import type { PreviewAction } from "../../src/dashboard/lib/picker/protocol";
-import type { ManagedGoalState } from "../../src/dashboard/lib/managed-goals";
 import type { InboxManifest } from "../../src/dashboard/lib/inbox/types";
 import type {
   NotificationsManifest,
@@ -27,20 +21,6 @@ import type {
 } from "../../src/dashboard/lib/company/types";
 import { COMPANY_BUNDLE_VERSION } from "../../src/dashboard/lib/company/types";
 
-// Report fixtures moved to src/dashboard/lib/reports-files.ts — the
-// @dashboard shim the report tools resolve against in the harness.
-
-// ─── Managed-goal fixtures ───────────────────────────────────────────────────
-
-export interface FixtureManagedGoal {
-  id: string;
-  path: string;
-  state: ManagedGoalState;
-  source: "todo";
-}
-
-// ─── Dashboard-config fixture (store lives in apps/dashboard) ───────────────
-
 export interface FixtureDashboardConfig {
   version: 1;
   defaultPreviewUrl?: string;
@@ -51,7 +31,6 @@ export interface FixtureDashboardConfig {
 
 interface FixtureState {
   macros: Macro[];
-  managedGoals: FixtureManagedGoal[];
   inbox: InboxManifest;
   notifications: NotificationsManifest;
   dashboardConfig: FixtureDashboardConfig;
@@ -61,34 +40,16 @@ interface FixtureState {
 
 function seedState(): FixtureState {
   const now = "2026-01-01T00:00:00.000Z";
-  const nowMs = Date.parse(now);
   return {
     macros: [
       {
         id: "open-settings",
         name: "Open settings",
-        createdAt: nowMs,
+        createdAt: Date.parse(now),
         steps: [
-    { op: "navigate", url: "/models" } as unknown as PreviewAction,
+          { op: "navigate", url: "/models" } as unknown as PreviewAction,
           { op: "click", selector: "#save" } as unknown as PreviewAction,
         ],
-      },
-    ],
-    managedGoals: [
-      {
-        id: "ship-demo",
-        path: "todos/ship-demo.json",
-        source: "todo",
-        state: {
-          state: "active",
-          type: "release",
-          destination: { outcome: "Demo is shipped.", evidence: ["shipped"] },
-          route: [
-            { stage: "build", evidence: "shipped", capability: "release" },
-          ],
-          facts: {},
-          blockers: [],
-        } as unknown as ManagedGoalState,
       },
     ],
     inbox: {
@@ -117,12 +78,9 @@ function seedState(): FixtureState {
 
 let state: FixtureState = seedState();
 
-/** Reset every fixture store to its seed — call from test setup. */
 export function resetChatFixtures(): void {
   state = seedState();
 }
-
-// ─── Inbox ───────────────────────────────────────────────────────────────────
 
 export async function readInbox(
   _octokit: Octokit,
@@ -131,8 +89,6 @@ export async function readInbox(
 ): Promise<{ gistId: string | null; manifest: InboxManifest }> {
   return { gistId: "fixture-gist", manifest: state.inbox };
 }
-
-// ─── Macros ──────────────────────────────────────────────────────────────────
 
 export async function readMacrosFile(
   _octokit?: Octokit,
@@ -145,8 +101,13 @@ export async function addMacroToFile(opts: {
   name: string;
   steps: PreviewAction[];
 }): Promise<Macro> {
+  const base =
+    opts.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "macro";
   const macro: Macro = {
-    id: `${opts.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "macro"}-${state.macros.length + 1}`,
+    id: `${base}-${state.macros.length + 1}`,
     name: opts.name,
     createdAt: Date.now(),
     steps: opts.steps,
@@ -159,7 +120,7 @@ export async function deleteMacroFromFile(opts: {
   octokit: Octokit;
   id: string;
 }): Promise<boolean> {
-  const next = state.macros.filter((m) => m.id !== opts.id);
+  const next = state.macros.filter((macro) => macro.id !== opts.id);
   const removed = next.length !== state.macros.length;
   state = { ...state, macros: next };
   return removed;
@@ -170,59 +131,17 @@ export async function renameMacroInFile(opts: {
   id: string;
   name: string;
 }): Promise<Macro | null> {
-  const existing = state.macros.find((m) => m.id === opts.id);
+  const existing = state.macros.find((macro) => macro.id === opts.id);
   if (!existing) return null;
   const updated: Macro = { ...existing, name: opts.name };
   state = {
     ...state,
-    macros: state.macros.map((m) => (m.id === opts.id ? updated : m)),
+    macros: state.macros.map((macro) =>
+      macro.id === opts.id ? updated : macro,
+    ),
   };
   return updated;
 }
-
-// ─── Managed goals ───────────────────────────────────────────────────────────
-
-export async function listManagedGoalFiles(
-  _octokit?: Octokit,
-  _owner?: string,
-  _repo?: string,
-): Promise<FixtureManagedGoal[]> {
-  return state.managedGoals;
-}
-
-export async function readManagedGoalFile(
-  goalId: string,
-  _octokit?: Octokit,
-  _owner?: string,
-  _repo?: string,
-): Promise<FixtureManagedGoal | null> {
-  return state.managedGoals.find((g) => g.id === goalId) ?? null;
-}
-
-export async function writeManagedGoalFile(opts: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  id: string;
-  message: string;
-  state: ManagedGoalState;
-}): Promise<void> {
-  const goal: FixtureManagedGoal = {
-    id: opts.id,
-    path: `todos/${opts.id}.json`,
-    source: "todo",
-    state: opts.state,
-  };
-  state = {
-    ...state,
-    managedGoals: [
-      ...state.managedGoals.filter((g) => g.id !== opts.id),
-      goal,
-    ],
-  };
-}
-
-// ─── Notifications ───────────────────────────────────────────────────────────
 
 export async function readNotificationsManifestFresh(): Promise<{
   manifest: NotificationsManifest;
@@ -241,8 +160,6 @@ export async function mutateNotificationsManifest<T>(
   return { result };
 }
 
-// ─── Webhooks ────────────────────────────────────────────────────────────────
-
 export async function ensureWebhook(input: {
   token: string;
   owner: string;
@@ -260,16 +177,11 @@ export async function ensureWebhook(input: {
   return { ok: true, hookId: 1, created: state.registeredWebhooks.length === 1 };
 }
 
-// ─── Remote dev agent ────────────────────────────────────────────────────────
-
-/** The harness has no remote dev users — remote tools stay unmounted. */
 export function getRemoteConfig(
   _ghUsername: string,
 ): { funnelUrl: string; key: string } | null {
   return null;
 }
-
-// ─── Company bundle ──────────────────────────────────────────────────────────
 
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
   return {
@@ -280,7 +192,6 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     contexts: [],
     commands: [],
     capabilities: [],
-    goals: state.managedGoals.map((g) => ({ id: g.id, state: g.state })),
     instructions: null,
     config: null,
   };
@@ -292,26 +203,23 @@ export async function applyCompanyBundle(
   mode: CompanyImportMode,
 ): Promise<CompanyImportResult> {
   state = { ...state, importedBundles: [...state.importedBundles, bundle] };
-  const counts = (n: number): CompanyImportCounts => ({
-    created: n,
+  const counts = (amount: number): CompanyImportCounts => ({
+    created: amount,
     updated: 0,
     skipped: 0,
     failed: 0,
   });
   return {
     mode,
-    agent: counts(bundle.agent?.length ?? 0),
-    contexts: counts(bundle.contexts?.length ?? 0),
-    commands: counts(bundle.commands?.length ?? 0),
-    capabilities: counts(bundle.capabilities?.length ?? 0),
-    goals: counts(bundle.goals?.length ?? 0),
+    agent: counts(bundle.agent.length),
+    contexts: counts(bundle.contexts.length),
+    commands: counts(bundle.commands.length),
+    capabilities: counts(bundle.capabilities.length),
     instructions: "absent",
     config: "absent",
     notes: [],
   };
 }
-
-// ─── Dashboard config ────────────────────────────────────────────────────────
 
 export async function readFixtureDashboardConfig(): Promise<FixtureDashboardConfig> {
   return state.dashboardConfig;

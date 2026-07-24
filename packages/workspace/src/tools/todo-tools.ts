@@ -2,9 +2,7 @@
  * @fileType util
  * @domain todos
  * @pattern chat-tools
- * @ai-summary Chat tools to manage repo-scoped todo lists stored as
- * `todos/<slug>.json` in Convex. A todo document is one list; each list owns note-like
- * items with independent completed state.
+ * @ai-summary Chat tools for finite Todo documents.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -26,31 +24,17 @@ interface Ctx {
   actorLogin?: string | null;
 }
 
-const todoItemSchema = z.object({
-  id: z.string().min(1).max(80).optional(),
-  title: z.string().trim().min(1).max(160),
-  body: z.string().max(20_000).default(""),
-  assignee: z.string().trim().max(120).nullable().optional(),
-  completed: z.boolean().default(false),
-  createdAt: z.string().optional(),
-  completedAt: z.string().nullable().optional(),
+const checklistItemSchema = z.object({
+  id: z.string().min(1).max(100).optional(),
+  text: z.string().trim().min(1).max(20_000),
+  done: z.boolean().default(false),
 });
 
-function itemId(): string {
-  return `item-${Date.now().toString(36)}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
-}
-
-function normalizeItems(items: z.infer<typeof todoItemSchema>[], now: string) {
+function normalizeChecklist(items: z.infer<typeof checklistItemSchema>[]) {
   return items.map((item) => ({
-    id: item.id ?? itemId(),
-    title: item.title,
-    body: item.body,
-    assignee: item.assignee?.replace(/^@+/, "") || null,
-    completed: item.completed,
-    createdAt: item.createdAt ?? now,
-    completedAt: item.completed ? (item.completedAt ?? now) : null,
+    id: item.id ?? crypto.randomUUID(),
+    text: item.text,
+    done: item.done,
   }));
 }
 
@@ -61,22 +45,23 @@ export function createTodoTools(ctx: Ctx) {
 
   return {
     list_todo_lists: tool({
-      description: `List todo lists in ${repoRef} (Convex todos/). Returns each list slug/title and item completion counts.`,
+      description: `List finite Todos in ${repoRef}.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
           const lists = await listTodoFiles();
           return {
             lists: lists.map((list) => {
-              const total = list.items.length;
-              const done = list.items.filter((item) => item.completed).length;
+              const total = list.checklist.length;
+              const done = list.checklist.filter((item) => item.done).length;
               return {
                 slug: list.slug,
                 title: list.title,
-                description: list.description,
-                totalItems: total,
-                completedItems: done,
-                openItems: total - done,
+                outcome: list.outcome,
+                status: list.status,
+                checklist: { total, done },
+                blockers: list.blockers,
+                runIds: list.runIds,
                 updatedAt: list.updatedAt,
               };
             }),
@@ -88,7 +73,7 @@ export function createTodoTools(ctx: Ctx) {
     }),
 
     read_todo_list: tool({
-      description: `Read one todo list from ${repoRef} in full, including note-like items and each item's completed state.`,
+      description: `Read one finite Todo from ${repoRef}.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),
@@ -105,9 +90,7 @@ export function createTodoTools(ctx: Ctx) {
     }),
 
     create_or_update_todo_list: tool({
-      description:
-        `Create or replace a todo list in ${repoRef}. Use this to add/edit/delete/reorder items, ` +
-        "or mark individual items complete/reopened. Pass the full desired items array.",
+      description: `Create or replace a finite Todo in ${repoRef}.`,
       inputSchema: z.object({
         slug: z
           .string()
@@ -118,8 +101,12 @@ export function createTodoTools(ctx: Ctx) {
             "Filename slug. Omit for a new list and it will be generated from title.",
           ),
         title: z.string().trim().min(1).max(160),
-        description: z.string().max(20_000).optional(),
-        items: z.array(todoItemSchema).max(200).default([]),
+        outcome: z.string().max(20_000),
+        status: z.enum(["todo", "in-progress", "blocked", "done"]),
+        evidence: z.array(z.string().min(1).max(20_000)).max(200).default([]),
+        checklist: z.array(checklistItemSchema).max(200).default([]),
+        blockers: z.array(z.string().min(1).max(20_000)).max(200).default([]),
+        runIds: z.array(z.string().min(1).max(160)).max(200).default([]),
       }),
       execute: async (input) => {
         const slug = input.slug ?? (await createTodoSlug(input.title));
@@ -131,10 +118,17 @@ export function createTodoTools(ctx: Ctx) {
           const list = await writeTodoFile({
             octokit,
             slug,
-            title: input.title,
-            description: input.description ?? existing?.description ?? "",
-            items: normalizeItems(input.items, existing?.createdAt ?? now),
-            createdAt: existing?.createdAt ?? now,
+            todo: {
+              title: input.title,
+              outcome: input.outcome,
+              status: input.status,
+              evidence: input.evidence,
+              checklist: normalizeChecklist(input.checklist),
+              blockers: input.blockers,
+              runIds: input.runIds,
+              createdAt: existing?.createdAt ?? now,
+              updatedAt: now,
+            },
             sha: existing?.sha,
             message: `${existing ? "chore" : "feat"}(todos): ${
               existing ? "update" : "add"
@@ -145,8 +139,8 @@ export function createTodoTools(ctx: Ctx) {
             action: existing ? "updated" : "created",
             slug: list.slug,
             title: list.title,
-            description: list.description,
-            itemCount: list.items.length,
+            outcome: list.outcome,
+            checklistCount: list.checklist.length,
             htmlUrl: dashboardTodoUrl(list.slug),
           };
         } catch (err) {

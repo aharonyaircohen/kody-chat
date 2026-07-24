@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern agency-runs-page
- * @ai-summary Read-only AI Agency run monitor for goals, loops, and workflows.
+ * @ai-summary Read-only AI Agency run monitor.
  */
 "use client";
 
@@ -39,7 +39,6 @@ import { cn } from "@dashboard/lib/utils";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 
 const TABS: Array<{ kind: AgencyRunKind; label: string }> = [
-  { kind: "goal", label: "Goals" },
   { kind: "loop", label: "Loops" },
   { kind: "workflow", label: "Workflows" },
   { kind: "capability", label: "Capabilities" },
@@ -116,10 +115,7 @@ function StatusIcon({ status }: { status: AgencyRunStatus }) {
 }
 
 function kindHref(run: AgencyRunSummary): string {
-  if (run.kind === "goal")
-    return `/agent-goals/${encodeURIComponent(run.targetId)}`;
-  if (run.kind === "loop")
-    return `/agent-loops/${encodeURIComponent(run.targetId)}`;
+  if (run.kind === "loop") return "/agent-loops";
   if (run.kind === "capability")
     return `/capabilities/${encodeURIComponent(run.targetId)}`;
   return `/workflows/${encodeURIComponent(run.targetId)}`;
@@ -209,13 +205,7 @@ function operatorHappened(
 }
 
 function runtimeLabel(run: AgencyRunSummary): string | null {
-  return (
-    run.implementation ??
-    run.implementation ??
-    run.capability ??
-    run.workflow ??
-    run.action
-  );
+  return run.agent ?? run.capability ?? run.workflow ?? run.action;
 }
 
 function modelLabel(run: AgencyRunSummary): string | null {
@@ -237,10 +227,10 @@ export type AgencyRunDiagnosis = {
   nextAction: string;
 };
 
-function waitingGoalTarget(value: string | null): string | null {
+function waitingTodoTarget(value: string | null): string | null {
   if (!value) return null;
   const match = value.match(
-    /\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.@-]+)/i,
+    /\b(?:stuck\s+)?waiting on todo\s+([A-Za-z0-9_.@-]+)/i,
   );
   return match?.[1] ?? null;
 }
@@ -324,19 +314,19 @@ export function agencyRunDiagnosis(
     latestReason,
     ...workflowLines,
   ].filter((value): value is string => Boolean(value));
-  const waitingGoal = firstTextMatch(diagnosticText, waitingGoalTarget);
+  const waitingTodo = firstTextMatch(diagnosticText, waitingTodoTarget);
   const chain = firstTextMatch(diagnosticText, handoffChain);
   const handoff =
     handoffTarget(run.currentStep) ??
     handoffTarget(run.summary) ??
     handoffTarget(latestReason) ??
     chain?.to ??
-    waitingGoal;
+    waitingTodo;
   const subject = runLabel(run);
   const finalOutcome = hasFinalOutcome(run, events);
   const missingEvidence = [
-    waitingGoal && !finalOutcome
-      ? `No completion event from ${waitingGoal}.`
+    waitingTodo && !finalOutcome
+      ? `No completion event from ${waitingTodo}.`
       : null,
     !finalOutcome &&
     ["running", "waiting", "stuck", "recorded"].includes(run.status)
@@ -349,8 +339,8 @@ export function agencyRunDiagnosis(
   ].filter((line): line is string => line !== null);
 
   if (run.status === "stuck") {
-    const stoppedAt = waitingGoal
-      ? `${subject} -> ${waitingGoal}`
+    const stoppedAt = waitingTodo
+      ? `${subject} -> ${waitingTodo}`
       : chain
         ? displayedChain(chain, subject)
         : handoff
@@ -360,8 +350,8 @@ export function agencyRunDiagnosis(
       status: "Stuck",
       pointLabel: "Stopped at",
       stoppedAt,
-      why: waitingGoal
-        ? `${waitingGoal} did not finish or report new progress after ${subject} handed work to it.`
+      why: waitingTodo
+        ? `${waitingTodo} did not finish or report new progress after ${subject} handed work to it.`
         : chain
           ? `${chain.to} was expected to report back after the hand-off, but no completion event is recorded.`
           : handoff
@@ -370,15 +360,15 @@ export function agencyRunDiagnosis(
               ? `The run stopped after ${latestName}; no completion event is recorded.`
               : "Kody has no progress event after the run started.",
       lastObserved: observedEvent(latestName, latestReason, run.currentStep),
-      expectedNextEvent: waitingGoal
-        ? `${waitingGoal} should report progress or completion.`
+      expectedNextEvent: waitingTodo
+        ? `${waitingTodo} should report progress or completion.`
         : handoff
           ? `${handoff} should report progress or finish.`
           : "The run should report progress or finish.",
       missingEvidence,
-      owner: waitingGoal ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
-      nextAction: waitingGoal
-        ? `Inspect ${waitingGoal}'s state or source log, then check why it did not report back to ${subject}.`
+      owner: waitingTodo ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      nextAction: waitingTodo
+        ? `Inspect ${waitingTodo}'s state or source log, then check why it did not report back to ${subject}.`
         : handoff
           ? `Open the raw timeline or source log and check why ${handoff} did not report back.`
           : "Open the raw timeline or source log and check the last recorded event.",
@@ -386,8 +376,8 @@ export function agencyRunDiagnosis(
   }
 
   if (run.status === "running" || run.status === "waiting") {
-    const activePoint = waitingGoal
-      ? `${subject} -> ${waitingGoal}`
+    const activePoint = waitingTodo
+      ? `${subject} -> ${waitingTodo}`
       : chain
         ? displayedChain(chain, subject)
         : handoff
@@ -397,19 +387,19 @@ export function agencyRunDiagnosis(
       status: humanStatus(run.status),
       pointLabel: run.status === "waiting" ? "Waiting at" : "Current point",
       stoppedAt: activePoint,
-      why: waitingGoal
-        ? `${subject} is waiting for ${waitingGoal} to report back.`
+      why: waitingTodo
+        ? `${subject} is waiting for ${waitingTodo} to report back.`
         : latestName
           ? `The latest event is ${latestName}.`
           : "Kody has not recorded a progress event yet.",
       lastObserved: observedEvent(latestName, latestReason, run.currentStep),
-      expectedNextEvent: waitingGoal
-        ? `${waitingGoal} should report progress or completion.`
+      expectedNextEvent: waitingTodo
+        ? `${waitingTodo} should report progress or completion.`
         : handoff
           ? `${handoff} should report progress or finish.`
           : "The run should report progress or finish.",
       missingEvidence,
-      owner: waitingGoal ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      owner: waitingTodo ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
       nextAction:
         run.status === "waiting"
           ? "Wait for the delegated work to report back, then refresh this page."
@@ -471,17 +461,11 @@ export function operatorRunFactLines(run: AgencyRunSummary): string[] {
     `Status: ${humanStatus(run.status)}.`,
     displayValue(run.currentStep) ? `Step: ${run.currentStep}.` : null,
     `Trigger: ${run.origin}.`,
-    runtimeLabel(run) ? `Runtime: ${runtimeLabel(run)}.` : null,
+    runtimeLabel(run) ? `Agent: ${runtimeLabel(run)}.` : null,
     modelLabel(run) ? `Model: ${modelLabel(run)}.` : null,
     run.kodyRunId ? `Kody run: ${run.kodyRunId}.` : null,
     run.githubRunId ? `GitHub run: ${run.githubRunId}.` : null,
     run.parentRunId ? `Parent run: ${run.parentRunId}.` : null,
-    run.capabilityRevision
-      ? `Capability revision: ${run.capabilityRevision}.`
-      : null,
-    run.implementationRevision
-      ? `Implementation revision: ${run.implementationRevision}.`
-      : null,
     run.startedAt ? `Started: ${formatTime(run.startedAt)}.` : null,
     run.updatedAt ? `Updated: ${formatTime(run.updatedAt)}.` : null,
     run.durationMs !== null
@@ -683,7 +667,7 @@ function operatorNext(
     return "Existing work is already tracking this.";
   }
   if (run.status === "waiting") {
-    if (run.summary?.startsWith("waiting on goal ")) return run.summary;
+    if (run.summary?.startsWith("waiting on todo ")) return run.summary;
     return "Waiting for the dispatched work to report back.";
   }
   if (run.status === "blocked")
@@ -988,7 +972,7 @@ function RunRow({
               <div className="text-white/70">{formatTime(run.updatedAt)}</div>
             </div>
             <div className="space-y-1">
-              <div className="text-white/35">Runtime</div>
+              <div className="text-white/35">Agent</div>
               <div className="truncate text-white/70">
                 {runtimeLabel(run) ?? "-"}
               </div>
@@ -1109,7 +1093,7 @@ export function AgencyRunsPage() {
   return (
     <PageShell
       title="Agency Runs"
-      subtitle="Kody runs for goals, loops, and workflows"
+      subtitle="Execution history for Loops, Workflows, and Capabilities"
       icon={Route}
       backHref={null}
       width="full"

@@ -33,7 +33,6 @@ import {
 } from "@dashboard/lib/workflow-definitions";
 import {
   deleteWorkflowDefinitionFile,
-  readCompanyStoreCapabilityWorkflowDefinitionFile,
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
@@ -56,6 +55,7 @@ const workflowStepSchema = z.object({
 
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
+  agent: z.string().trim().min(1).max(80).optional(),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
   startAt: z.string().trim().min(1).max(80).optional(),
   steps: z.array(workflowStepSchema).min(1).optional(),
@@ -165,16 +165,6 @@ export async function GET(
           return NextResponse.json({ workflow: storeWorkflow });
         }
       }
-      if (active.activeCapabilities.has(id)) {
-        const storeCapabilityWorkflow =
-          await readCompanyStoreCapabilityWorkflowDefinitionFile(
-            id,
-            context.octokit,
-          );
-        if (storeCapabilityWorkflow) {
-          return NextResponse.json({ workflow: storeCapabilityWorkflow });
-        }
-      }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -235,12 +225,7 @@ export async function PATCH(
         id,
         context.octokit,
       );
-      const storeCapabilityWorkflow =
-        await readCompanyStoreCapabilityWorkflowDefinitionFile(
-          id,
-          context.octokit,
-        );
-      if (storeWorkflow || storeCapabilityWorkflow) {
+      if (storeWorkflow) {
         return NextResponse.json(
           {
             error: "store_workflow_protected",
@@ -349,20 +334,6 @@ export async function DELETE(
         );
         patch.activeWorkflows =
           nextActiveWorkflows.length > 0 ? nextActiveWorkflows : null;
-      }
-      if (active.activeCapabilities.has(id)) {
-        const storeCapabilityWorkflow =
-          await readCompanyStoreCapabilityWorkflowDefinitionFile(
-            id,
-            context.octokit,
-          );
-        if (storeCapabilityWorkflow) {
-          const nextActiveCapabilities = [...active.activeCapabilities].filter(
-            (slug) => slug !== id,
-          );
-          patch.activeCapabilities =
-            nextActiveCapabilities.length > 0 ? nextActiveCapabilities : null;
-        }
       }
       if (Object.keys(patch).length === 0) {
         return NextResponse.json({ error: "not_found" }, { status: 404 });

@@ -78,14 +78,6 @@ import {
   agencyRunsChatPlugin,
   AGENCY_RUNS_PANEL_ID,
 } from "../chat/plugins/agency-runs";
-import {
-  agentGoalsChatPlugin,
-  AGENT_GOALS_PANEL_ID,
-} from "../chat/plugins/agent-goals";
-import {
-  agentLoopsChatPlugin,
-  AGENT_LOOPS_PANEL_ID,
-} from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
 import {
   brandsChatPlugin,
@@ -105,10 +97,6 @@ import {
   COMMANDS_PAGE_PANEL_ID,
 } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
-import {
-  companyIntentsChatPlugin,
-  COMPANY_INTENTS_PANEL_ID,
-} from "../chat/plugins/company-intents";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
 import {
   contextChatPlugin,
@@ -179,8 +167,6 @@ const ADMIN_CHAT_PLUGINS = [
   // Phase 2 step 4 page-plugins — panels only, inert with the toggle off.
   { plugin: activityChatPlugin },
   { plugin: agencyRunsChatPlugin },
-  { plugin: agentGoalsChatPlugin },
-  { plugin: agentLoopsChatPlugin },
   { plugin: agentsChatPlugin },
   { plugin: brandsChatPlugin },
   ...PACKAGE_ADMIN_PAGES.map((page) => ({ plugin: page.plugin })),
@@ -188,7 +174,6 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: changelogChatPlugin },
   { plugin: commandsPageChatPlugin },
   { plugin: companyChatPlugin },
-  { plugin: companyIntentsChatPlugin },
   { plugin: configChatPlugin },
   { plugin: contextChatPlugin },
   { plugin: docsChatPlugin },
@@ -222,8 +207,6 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/agency-runs": AGENCY_RUNS_PANEL_ID,
   "/findings": REPORTS_PANEL_ID,
   "/learning": REPORTS_PANEL_ID,
-  "/agent-goals": AGENT_GOALS_PANEL_ID,
-  "/agent-loops": AGENT_LOOPS_PANEL_ID,
   "/agents": AGENTS_PANEL_ID,
   "/brands": BRANDS_PANEL_ID,
   ...Object.fromEntries(
@@ -233,7 +216,6 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/changelog": CHANGELOG_PANEL_ID,
   "/commands": COMMANDS_PAGE_PANEL_ID,
   "/company": COMPANY_PANEL_ID,
-  "/company-intents": COMPANY_INTENTS_PANEL_ID,
   "/config": CONFIG_PANEL_ID,
   "/context": CONTEXT_PANEL_ID,
   "/docs": DOCS_PANEL_ID,

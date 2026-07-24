@@ -34,8 +34,8 @@ import {
 import type { WorkflowDefinition } from "@dashboard/lib/workflow-definitions";
 
 const DEFINITION: WorkflowDefinition = {
-  version: 1,
   name: "release",
+  agent: "kody",
   capabilities: ["plan"],
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-02T00:00:00.000Z",

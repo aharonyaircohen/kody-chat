@@ -3,18 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const capabilityFiles = vi.hoisted(() => ({
   listLocalCapabilityFiles: vi.fn(),
   readCapabilityFile: vi.fn(),
-  writeCapabilityFile: vi.fn(),
+  writeCapabilityFolderFiles: vi.fn(),
   deleteCapabilityFile: vi.fn(),
 }));
 vi.mock("@kody-ade/agency/capabilities", () => ({
   listLocalCapabilityFiles: capabilityFiles.listLocalCapabilityFiles,
   readCapabilityFile: capabilityFiles.readCapabilityFile,
-  writeCapabilityFile: capabilityFiles.writeCapabilityFile,
+  writeCapabilityFolderFiles: capabilityFiles.writeCapabilityFolderFiles,
   deleteCapabilityFile: capabilityFiles.deleteCapabilityFile,
-}));
-vi.mock("../../src/dashboard/lib/capabilities", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
-  PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
 }));
 
 import { createCapabilityTools } from "../../app/api/kody/chat/tools/capability-tools";
@@ -37,7 +34,7 @@ describe("Convex capability chat tools", () => {
     vi.clearAllMocks();
     capabilityFiles.listLocalCapabilityFiles.mockResolvedValue([]);
     capabilityFiles.readCapabilityFile.mockResolvedValue(null);
-    capabilityFiles.writeCapabilityFile.mockResolvedValue({ slug: "greet" });
+    capabilityFiles.writeCapabilityFolderFiles.mockResolvedValue(undefined);
     capabilityFiles.deleteCapabilityFile.mockResolvedValue(undefined);
   });
 
@@ -56,14 +53,11 @@ describe("Convex capability chat tools", () => {
     const result = await tools.create_or_update_capability.execute!(
       {
         slug: "greet",
-        describe: "",
         instructions: "say hello",
-        landing: "pr",
-        model: "inherit",
-        permissionMode: "acceptEdits",
+        input: { name: "request", schema: { type: "object" } },
+        output: { name: "result", schema: { type: "object" } },
         tools: [],
         skills: [],
-        shellScripts: [],
       },
       {} as never,
     );
@@ -72,13 +66,21 @@ describe("Convex capability chat tools", () => {
       action: "created",
       slug: "greet",
     });
-    expect(capabilityFiles.writeCapabilityFile).toHaveBeenCalled();
+    expect(capabilityFiles.writeCapabilityFolderFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "greet",
+        files: expect.objectContaining({
+          "instructions.md": "say hello\n",
+          "contract.json": expect.stringContaining('"input"'),
+        }),
+      }),
+    );
   });
 
   it("deletes and dispatches backend capabilities", async () => {
     capabilityFiles.readCapabilityFile.mockResolvedValue({
       slug: "greet",
-      profileJson: "{}",
+      instructions: "say hello",
     });
     const tools = createCapabilityTools(ctx as never);
     await expect(

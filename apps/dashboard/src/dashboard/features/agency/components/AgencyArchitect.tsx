@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agency-setup
  * @ai-summary Import/export an AI Agency setup — the portable operating
- *   manual of an org (agents, capabilities, context, commands, managed goals,
- *   instructions, and config). Export downloads a JSON
+ *   manual of an org (agents, capabilities, context, commands, instructions,
+ *   and config). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back
  *   with skip/overwrite collision handling.
  */
@@ -23,7 +23,6 @@ import {
   ScrollText,
   SlidersHorizontal,
   BookOpenText,
-  Target,
 } from "lucide-react";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { Button } from "@kody-ade/base/ui/button";
@@ -79,11 +78,10 @@ function AgencySetupInner() {
         bundle.contexts.length +
         bundle.commands.length +
         bundle.capabilities.length +
-        bundle.goals.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.agent.length} agents, ${bundle.capabilities.length} capabilities, ${bundle.goals.length} goals/loops, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands${
+        `Exported ${bundle.agent.length} agents, ${bundle.capabilities.length} capabilities, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -111,8 +109,7 @@ function AgencySetupInner() {
         result.agent.failed +
         result.contexts.failed +
         result.commands.failed +
-        result.capabilities.failed +
-        result.goals.failed;
+        result.capabilities.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
@@ -138,7 +135,6 @@ function AgencySetupInner() {
           A <span className="text-white/80">AI Agency</span> is your portable
           operating system — its <span className="text-white/80">agents</span>,{" "}
           <span className="text-white/80">capabilities</span>,{" "}
-          <span className="text-white/80">goals/loops</span>,{" "}
           <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
@@ -159,7 +155,7 @@ function AgencySetupInner() {
               </p>
               <p className="text-xs text-white/50 mt-1">
                 Download a JSON bundle of this agency&apos;s agents,
-                capabilities, goals/loops, context, repo-defined commands, and
+                capabilities, context, repo-defined commands, and
                 instructions.
               </p>
             </div>
@@ -244,7 +240,6 @@ function AgencySetupInner() {
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("Capabilities", lastImport.capabilities)}</p>
-                <p>{countLine("AgentGoals/AgentLoops", lastImport.goals)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 <p>Config: {lastImport.config}</p>
                 {lastImport.notes.length > 0 && (
@@ -263,7 +258,6 @@ function AgencySetupInner() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
           <Included icon={Users} label="Agents" />
           <Included icon={Boxes} label="Capabilities" />
-          <Included icon={Target} label="Goals/Loops" />
           <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
           <Included icon={ScrollText} label="Instructions" />

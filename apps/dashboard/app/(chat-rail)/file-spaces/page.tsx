@@ -2,8 +2,8 @@ import { FileSpacesManager } from "@dashboard/features/file-spaces/FileSpacesMan
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
-  title: "File spaces — Kody Operations Dashboard",
-  description: "Manage focused repository file workspaces.",
+  title: "Manage Spaces — Kody Operations Dashboard",
+  description: "Add and organize repository-backed knowledge spaces.",
   path: "/file-spaces",
 });
 

@@ -4,7 +4,7 @@
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
  *   Writes agents, Context, commands, capabilities,
- *   managed goals, and the single instructions file via their existing helpers.
+ *   and the single instructions file via their existing helpers.
  *   On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
@@ -31,10 +31,6 @@ import {
   readCapabilityFile,
   writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
-import {
-  readManagedGoalFile,
-  writeManagedGoalFile,
-} from "../managed-goals-files";
 import { getOwner, getRepo } from "../github-client";
 import {
   getEngineConfig,
@@ -52,7 +48,6 @@ import type {
   CompanyCommandEntry,
   CompanyContextEntry,
   CompanyCapabilityEntry,
-  CompanyGoalEntry,
   CompanyAgentEntry,
   ParsedCompanyBundle,
 } from "./types";
@@ -183,10 +178,11 @@ async function importCapabilities(
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      const profileJson = entry.files["profile.json"];
-      if (!profileJson) {
+      if (!entry.files["instructions.md"] || !entry.files["contract.json"]) {
         counts.failed++;
-        notes.push(`capability "${entry.slug}" failed: missing profile.json`);
+        notes.push(
+          `capability "${entry.slug}" failed: missing instructions.md or contract.json`,
+        );
         continue;
       }
       const existing = await readCapabilityFile(entry.slug);
@@ -194,8 +190,7 @@ async function importCapabilities(
         counts.skipped++;
         continue;
       }
-
-      JSON.parse(profileJson);
+      JSON.parse(entry.files["contract.json"]);
       await writeCapabilityFolderFiles({
         slug: entry.slug,
         files: entry.files,
@@ -219,46 +214,6 @@ async function importCapabilities(
  * clobbers a deliberately-set value). Returns "absent" when the bundle carried
  * no config, "skipped" when skip-mode left every field, else "applied".
  */
-async function importGoals(
-  octokit: Octokit,
-  entries: CompanyGoalEntry[],
-  mode: CompanyImportMode,
-  notes: string[],
-): Promise<CompanyImportCounts> {
-  const counts = emptyCounts();
-  const owner = getOwner();
-  const repo = getRepo();
-
-  for (const entry of entries) {
-    try {
-      const existing = await readManagedGoalFile(
-        entry.id,
-        octokit,
-        owner,
-        repo,
-      );
-      if (existing && mode === "skip") {
-        counts.skipped++;
-        continue;
-      }
-      await writeManagedGoalFile({
-        owner,
-        repo,
-        id: entry.id,
-        state: entry.state,
-      });
-      if (existing) counts.updated++;
-      else counts.created++;
-    } catch (err) {
-      counts.failed++;
-      const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`goal "${entry.id}" failed: ${msg}`);
-    }
-  }
-
-  return counts;
-}
-
 async function importConfig(
   octokit: Octokit,
   config: CompanyConfigBundle | null,
@@ -284,11 +239,6 @@ async function importConfig(
       allowedAssociations:
         Array.isArray(existing?.access?.allowedAssociations) &&
         existing.access.allowedAssociations.length > 0,
-      defaultImplementation: !!existing?.defaultImplementation,
-      defaultPrImplementation: !!existing?.defaultPrImplementation,
-      perImplementation:
-        !!existing?.agent?.perImplementation &&
-        Object.keys(existing.agent.perImplementation).length > 0,
     };
 
     const patch: ConfigPatch = {};
@@ -297,16 +247,6 @@ async function importConfig(
     if (config.allowedAssociations && !has.allowedAssociations) {
       patch.allowedAssociations = config.allowedAssociations;
     }
-    if (config.defaultImplementation && !has.defaultImplementation) {
-      patch.defaultImplementation = config.defaultImplementation;
-    }
-    if (config.defaultPrImplementation && !has.defaultPrImplementation) {
-      patch.defaultPrImplementation = config.defaultPrImplementation;
-    }
-    if (config.perImplementation && !has.perImplementation) {
-      patch.perImplementation = config.perImplementation;
-    }
-
     if (Object.keys(patch).length === 0) return "skipped";
 
     await writeConfigPatch(
@@ -349,7 +289,6 @@ export async function applyCompanyBundle(
     mode,
     notes,
   );
-  const goals = await importGoals(octokit, bundle.goals, mode, notes);
 
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
@@ -376,7 +315,6 @@ export async function applyCompanyBundle(
     contexts,
     commands,
     capabilities,
-    goals,
     instructions,
     config,
     notes,

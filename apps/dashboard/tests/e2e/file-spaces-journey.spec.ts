@@ -257,13 +257,38 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   });
 
   await page.goto(CANONICAL_URL);
+  const sidebar = page.locator("nav");
   await expect(
-    page.getByRole("heading", { name: "File spaces" }),
+    page.getByRole("heading", { name: "Manage Spaces" }),
   ).toBeVisible();
   await expect(
-    page.locator("nav").getByRole("link", { name: "File spaces", exact: true }),
+    sidebar.getByRole("button", { name: "Knowledge", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    sidebar.getByRole("link", { name: "Knowledge System", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "Docs", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "Context", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "Memory", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "Manage Spaces", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Docs /docs" })).toBeVisible();
+
+  await sidebar.getByRole("button", { name: "Agency", exact: true }).click();
+  await expect(
+    sidebar.getByRole("link", { name: "Policies", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "Constraints", exact: true }),
+  ).toBeVisible();
+  await sidebar.getByRole("button", { name: "Knowledge", exact: true }).click();
 
   await page.getByRole("button", { name: "New space" }).click();
   await page.getByPlaceholder("Notes").fill("Team Notes");

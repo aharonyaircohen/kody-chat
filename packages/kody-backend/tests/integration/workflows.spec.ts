@@ -4,6 +4,7 @@ import { setup } from "./helpers"
 
 const TENANT = "acme/app"
 const NOW = "2026-07-15T00:00:00.000Z"
+const definition = (name: string) => ({ name, agent: "kody" })
 
 describe("workflows", () => {
   it("saves and lists definitions scoped to a tenant", async () => {
@@ -11,14 +12,14 @@ describe("workflows", () => {
     await t.mutation(api.workflows.save, {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: { version: 1, name: "Deploy" },
+      definition: definition("Deploy"),
       source: "local",
       updatedAt: NOW,
     })
     await t.mutation(api.workflows.save, {
       tenantId: "other/tenant",
       workflowId: "deploy",
-      definition: { version: 1, name: "Other" },
+      definition: definition("Other"),
       source: "local",
       updatedAt: NOW,
     })
@@ -33,14 +34,14 @@ describe("workflows", () => {
     const args = {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: { version: 1, name: "Deploy" },
+      definition: definition("Deploy"),
       source: "local" as const,
       updatedAt: NOW,
     }
     await t.mutation(api.workflows.save, args)
     await t.mutation(api.workflows.save, {
       ...args,
-      definition: { version: 1, name: "Deploy v2" },
+      definition: definition("Deploy v2"),
     })
 
     const list = await t.query(api.workflows.list, { tenantId: TENANT })
@@ -54,7 +55,7 @@ describe("workflows", () => {
     await t.mutation(api.workflows.save, {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: { version: 1, name: "Deploy" },
+      definition: definition("Deploy"),
       source: "store",
       updatedAt: NOW,
     })
@@ -68,7 +69,7 @@ describe("workflows", () => {
       t.mutation(api.workflows.save, {
         tenantId: TENANT,
         workflowId: "bad",
-        definition: { version: 1 },
+        definition: {},
         source: "local",
         updatedAt: NOW,
       }),
@@ -77,7 +78,7 @@ describe("workflows", () => {
       t.mutation(api.workflows.save, {
         tenantId: TENANT,
         workflowId: "bad",
-        definition: { version: 1, name: "X", unknownField: true },
+        definition: { ...definition("X"), unknownField: true },
         source: "local",
         updatedAt: NOW,
       }),
@@ -89,7 +90,7 @@ describe("workflows", () => {
     await t.mutation(api.workflows.save, {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: { version: 1, name: "Deploy" },
+      definition: definition("Deploy"),
       source: "local",
       updatedAt: NOW,
     })

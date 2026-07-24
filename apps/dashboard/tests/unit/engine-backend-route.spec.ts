@@ -69,9 +69,7 @@ describe("POST /api/kody/engine/backend", () => {
     expect(backend.mutation).not.toHaveBeenCalled();
   });
 
-  it("allows the Engine to read repository-scoped Agency Definitions", async () => {
-    backend.query.mockResolvedValue([]);
-
+  it("does not expose the removed Agency Definition operation", async () => {
     const response = await POST(
       request({
         kind: "query",
@@ -80,9 +78,7 @@ describe("POST /api/kody/engine/backend", () => {
       }),
     );
 
-    expect(response.status).toBe(200);
-    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
-      tenantId: "trusted/repo",
-    });
+    expect(response.status).toBe(400);
+    expect(backend.query).not.toHaveBeenCalled();
   });
 });

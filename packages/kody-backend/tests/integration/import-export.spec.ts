@@ -5,6 +5,12 @@ import { deepEscapeKeys, deepUnescapeKeys } from "../../src/escape-keys"
 
 const REPO = "acme/app"
 const NOW = "2026-07-15T00:00:00.000Z"
+const workflowDefinition = (name: string) => ({ name, agent: "kody" })
+const repoDoc = (
+  kind: string,
+  doc: Record<string, unknown>,
+  tenantId = REPO,
+) => ({ tenantId, kind, doc, updatedAt: NOW })
 
 describe("importExport", () => {
   it("imports a chunk into the named table", async () => {
@@ -12,8 +18,8 @@ describe("importExport", () => {
     const result = await t.mutation(api.importExport.importChunk, {
       table: "workflows",
       docs: [
-        { tenantId: REPO, workflowId: "w1", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
-        { tenantId: REPO, workflowId: "w2", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w1", definition: workflowDefinition("W"), source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w2", definition: workflowDefinition("W"), source: "local", updatedAt: NOW },
       ],
     })
     expect(result.inserted).toBe(2)
@@ -24,8 +30,8 @@ describe("importExport", () => {
   it("re-importing the same chunk twice yields no duplicates", async () => {
     const t = setup()
     const docs = [
-      { tenantId: REPO, workflowId: "w1", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
-      { tenantId: REPO, workflowId: "w2", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
+      { tenantId: REPO, workflowId: "w1", definition: workflowDefinition("W"), source: "local", updatedAt: NOW },
+      { tenantId: REPO, workflowId: "w2", definition: workflowDefinition("W"), source: "local", updatedAt: NOW },
     ]
     await t.mutation(api.importExport.importChunk, { table: "workflows", docs })
     const second = await t.mutation(api.importExport.importChunk, { table: "workflows", docs })
@@ -36,15 +42,15 @@ describe("importExport", () => {
   it("upserts by natural key: a re-import replaces the row's payload", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ tenantId: REPO, goalId: "g1", state: { v: 1 }, updatedAt: NOW }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", { v: 1 })],
     })
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ tenantId: REPO, goalId: "g1", state: { v: 2 }, updatedAt: NOW }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", { v: 2 })],
     })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
-    expect(exported).toEqual([{ tenantId: REPO, goalId: "g1", state: { v: 2 }, updatedAt: NOW }])
+    const exported = await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })
+    expect(exported).toEqual([repoDoc("todo:g1", { v: 2 })])
   })
 
   it("upsert distinguishes multi-field natural keys (reports slug+runId)", async () => {
@@ -63,14 +69,14 @@ describe("importExport", () => {
   it("upsert scopes to the tenant: same natural key in two tenants stays two rows", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", {})],
     })
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ tenantId: "other/tenant", goalId: "g1", state: {}, updatedAt: NOW }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", {}, "other/tenant")],
     })
-    expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(2)
+    expect(await t.query(api.importExport.exportTable, { table: "repoDocs" })).toHaveLength(2)
   })
 
   it("upserts a tenant-singleton table by tenantId alone", async () => {
@@ -127,11 +133,11 @@ describe("importExport", () => {
   it("round-trips: import → export returns the same docs without system fields", async () => {
     const t = setup()
     const docs = [
-      { tenantId: REPO, goalId: "g1", state: { state: "open" }, updatedAt: NOW },
-      { tenantId: REPO, goalId: "g2", state: { state: "done" }, updatedAt: NOW },
+      repoDoc("todo:g1", { status: "open" }),
+      repoDoc("todo:g2", { status: "done" }),
     ]
-    await t.mutation(api.importExport.importChunk, { table: "goals", docs })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
+    await t.mutation(api.importExport.importChunk, { table: "repoDocs", docs })
+    const exported = await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })
     expect(exported).toEqual(docs)
     for (const doc of exported) {
       expect(doc).not.toHaveProperty("_id")
@@ -142,23 +148,23 @@ describe("importExport", () => {
   it("exportTable filters by tenantId when given", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
+      table: "repoDocs",
       docs: [
-        { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW },
-        { tenantId: "other/tenantId", goalId: "g2", state: {}, updatedAt: NOW },
+        repoDoc("todo:g1", {}),
+        repoDoc("todo:g2", {}, "other/tenantId"),
       ],
     })
-    expect(await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })).toHaveLength(1)
-    expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(2)
+    expect(await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })).toHaveLength(1)
+    expect(await t.query(api.importExport.exportTable, { table: "repoDocs" })).toHaveLength(2)
   })
 
   it("clearRepo wipes only that tenantId's rows and keeps global tables", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
+      table: "repoDocs",
       docs: [
-        { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW },
-        { tenantId: "other/tenantId", goalId: "g2", state: {}, updatedAt: NOW },
+        repoDoc("todo:g1", {}),
+        repoDoc("todo:g2", {}, "other/tenantId"),
       ],
     })
     await t.mutation(api.eventLog.append, {
@@ -171,7 +177,7 @@ describe("importExport", () => {
 
     const result = await t.mutation(api.importExport.clearRepo, { tenantId: REPO })
     expect(result.deleted).toBe(1)
-    expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(1)
+    expect(await t.query(api.importExport.exportTable, { table: "repoDocs" })).toHaveLength(1)
     expect(await t.query(api.eventLog.recent, {})).toHaveLength(1)
   })
 
@@ -179,29 +185,29 @@ describe("importExport", () => {
     const t = setup()
     // Seed duplicates directly (the old insert-only import left these behind).
     await t.run(async (ctx) => {
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g1", state: { v: "old" }, updatedAt: NOW })
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g1", state: { v: "mid" }, updatedAt: NOW })
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g1", state: { v: "new" }, updatedAt: NOW })
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g2", state: { v: "solo" }, updatedAt: NOW })
-      await ctx.db.insert("goals", { tenantId: "other/tenant", goalId: "g1", state: {}, updatedAt: NOW })
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", { v: "old" }))
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", { v: "mid" }))
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", { v: "new" }))
+      await ctx.db.insert("repoDocs", repoDoc("todo:g2", { v: "solo" }))
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", {}, "other/tenant"))
       await ctx.db.insert("reports", { tenantId: REPO, slug: "s", runId: "r1", body: "a", meta: {}, updatedAt: NOW })
       await ctx.db.insert("reports", { tenantId: REPO, slug: "s", runId: "r1", body: "b", meta: {}, updatedAt: NOW })
       await ctx.db.insert("reports", { tenantId: REPO, slug: "s", runId: "r2", body: "c", meta: {}, updatedAt: NOW })
     })
 
     const result = await t.mutation(api.importExport.dedupeTenant, { tenantId: REPO })
-    expect(result.goals).toEqual({ before: 4, after: 2, deleted: 2 })
+    expect(result.repoDocs).toEqual({ before: 4, after: 2, deleted: 2 })
     expect(result.reports).toEqual({ before: 3, after: 2, deleted: 1 })
 
-    const goals = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
-    expect(goals).toHaveLength(2)
+    const docs = await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })
+    expect(docs).toHaveLength(2)
     // Newest (highest _creationTime) row for g1 survives.
-    expect(goals.map((g: { goalId: string; state: { v: string } }) => g.state.v).sort()).toEqual([
+    expect(docs.map((entry: { doc: { v: string } }) => entry.doc.v).sort()).toEqual([
       "new",
       "solo",
     ])
     // Other tenant untouched; global tables untouched by design.
-    expect(await t.query(api.importExport.exportTable, { table: "goals", tenantId: "other/tenant" })).toHaveLength(1)
+    expect(await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: "other/tenant" })).toHaveLength(1)
     expect(result).not.toHaveProperty("eventLog")
     expect(result).not.toHaveProperty("actionStates")
   })
@@ -209,39 +215,39 @@ describe("importExport", () => {
   it("dedupeTenant with a table arg only touches that table", async () => {
     const t = setup()
     await t.run(async (ctx) => {
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW })
-      await ctx.db.insert("goals", { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW })
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", {}))
+      await ctx.db.insert("repoDocs", repoDoc("todo:g1", {}))
       await ctx.db.insert("agents", { tenantId: REPO, slug: "a", frontmatter: {}, body: "x", updatedAt: NOW })
       await ctx.db.insert("agents", { tenantId: REPO, slug: "a", frontmatter: {}, body: "y", updatedAt: NOW })
     })
-    const result = await t.mutation(api.importExport.dedupeTenant, { tenantId: REPO, table: "goals" })
-    expect(Object.keys(result)).toEqual(["goals"])
-    expect(result.goals.deleted).toBe(1)
+    const result = await t.mutation(api.importExport.dedupeTenant, { tenantId: REPO, table: "repoDocs" })
+    expect(Object.keys(result)).toEqual(["repoDocs"])
+    expect(result.repoDocs.deleted).toBe(1)
     expect(await t.query(api.importExport.exportTable, { table: "agents", tenantId: REPO })).toHaveLength(2)
   })
 
   it("dedupeTenant is a no-op on clean data", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", {})],
     })
     const result = await t.mutation(api.importExport.dedupeTenant, { tenantId: REPO })
-    expect(result.goals).toEqual({ before: 1, after: 1, deleted: 0 })
+    expect(result.repoDocs).toEqual({ before: 1, after: 1, deleted: 0 })
   })
 
   it("supports a clear → re-import cycle (migration dry-run shape)", async () => {
     const t = setup()
-    const docs = [{ tenantId: REPO, goalId: "g1", state: { v: 1 }, updatedAt: NOW }]
-    await t.mutation(api.importExport.importChunk, { table: "goals", docs })
+    const docs = [repoDoc("todo:g1", { v: 1 })]
+    await t.mutation(api.importExport.importChunk, { table: "repoDocs", docs })
     await t.mutation(api.importExport.clearRepo, { tenantId: REPO })
     await t.mutation(api.importExport.importChunk, {
-      table: "goals",
-      docs: [{ ...docs[0], state: { v: 2 } }],
+      table: "repoDocs",
+      docs: [repoDoc("todo:g1", { v: 2 })],
     })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
+    const exported = await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })
     expect(exported).toHaveLength(1)
-    expect((exported[0] as { state: { v: number } }).state.v).toBe(2)
+    expect((exported[0] as { doc: { v: number } }).doc.v).toBe(2)
   })
 })
 
@@ -275,13 +281,13 @@ describe("importExport with reserved-prefix keys (escaped boundary)", () => {
   it("escaped upserts still match by natural key on re-import", async () => {
     const t = setup()
     const doc = (v: number) =>
-      deepEscapeKeys({ tenantId: REPO, goalId: "g1", state: { $v: v }, updatedAt: NOW })
-    await t.mutation(api.importExport.importChunk, { table: "goals", docs: [doc(1)] })
-    const second = await t.mutation(api.importExport.importChunk, { table: "goals", docs: [doc(2)] })
+      deepEscapeKeys(repoDoc("todo:g1", { $v: v }))
+    await t.mutation(api.importExport.importChunk, { table: "repoDocs", docs: [doc(1)] })
+    const second = await t.mutation(api.importExport.importChunk, { table: "repoDocs", docs: [doc(2)] })
     expect(second).toEqual({ inserted: 0, updated: 1 })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
+    const exported = await t.query(api.importExport.exportTable, { table: "repoDocs", tenantId: REPO })
     expect(deepUnescapeKeys(exported)).toEqual([
-      { tenantId: REPO, goalId: "g1", state: { $v: 2 }, updatedAt: NOW },
+      repoDoc("todo:g1", { $v: 2 }),
     ])
   })
 
@@ -292,7 +298,7 @@ describe("importExport with reserved-prefix keys (escaped boundary)", () => {
     const original = {
       tenantId: REPO,
       workflowId: "w1",
-      definition: { version: 1, name: "W", steps: [{ id: "s1", capability: "c" }] },
+      definition: { ...workflowDefinition("W"), steps: [{ id: "s1", capability: "c" }] },
       source: "local",
       updatedAt: NOW,
     }

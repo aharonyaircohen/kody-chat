@@ -9,7 +9,7 @@ function tenantIdFor(owner: string, repo: string): string {
 
 export type StoredAgencyRun = {
   runId: string
-  subjectType: "goal" | "loop" | "workflow" | "capability" | "implementation"
+  subjectType: "loop" | "workflow" | "capability"
   subjectId: string
   run: unknown
   updatedAt: string
@@ -42,18 +42,5 @@ export async function listStoredRunEvents(
   return await createBackendClient().query(backendApi.runEvents.listByRun, {
     tenantId: tenantIdFor(owner, repo),
     runId,
-  }) as StoredRunEvent[]
-}
-
-export async function listStoredGoalRunEvents(
-  owner: string,
-  repo: string,
-  goalId: string,
-  limit: number,
-): Promise<StoredRunEvent[]> {
-  return await createBackendClient().query(backendApi.runEvents.listByGoal, {
-    tenantId: tenantIdFor(owner, repo),
-    goalId,
-    limit,
   }) as StoredRunEvent[]
 }

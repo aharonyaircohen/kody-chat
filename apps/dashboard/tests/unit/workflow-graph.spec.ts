@@ -11,8 +11,8 @@ import {
 describe("workflow graph", () => {
   it("turns a legacy capability queue into a visual linear graph", () => {
     const graph = workflowDefinitionGraph({
-      version: 1,
       name: "Legacy",
+      agent: "kody",
       capabilities: ["inspect", "repair", "verify"],
       createdAt: "2026-07-15T00:00:00Z",
       updatedAt: "2026-07-15T00:00:00Z",
@@ -72,8 +72,8 @@ describe("workflow graph", () => {
 
   it("turns conditional paths into a visual decision node", () => {
     const graph = workflowDefinitionGraph({
-      version: 1,
       name: "Release",
+      agent: "kody",
       capabilities: ["inspect", "repair", "verify"],
       startAt: "inspect",
       steps: [

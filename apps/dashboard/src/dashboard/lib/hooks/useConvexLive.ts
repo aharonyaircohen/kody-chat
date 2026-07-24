@@ -56,11 +56,6 @@ export function useGoalsLiveStamp(): string | undefined {
   return useTenantStamp(backendApi.goals.liveList);
 }
 
-/** Change stamp for the tenant's intents table (intents.liveList). */
-export function useCompanyIntentsLiveStamp(): string | undefined {
-  return useTenantStamp(backendApi.intents.liveList);
-}
-
 /**
  * Change stamp for one run's action state (actionStates.liveGet). Defined
  * when a live subscription is active (null-doc runs stamp as "null").

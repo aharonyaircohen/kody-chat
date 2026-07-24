@@ -17,14 +17,6 @@
     "model": "minimax/MiniMax-M3"
   },
   "company": {
-    "activeGoals": [
-      "codebase-health",
-      "ci-health",
-      "task-delivery",
-      "prs-stay-mergeable",
-      "cms-content-editing",
-      "web-release"
-    ],
     "activeAgents": ["ceo"],
     "activeCapabilities": [
       "capability-call",

@@ -216,15 +216,13 @@ describe("POST /api/kody/capabilities", () => {
         method: "POST",
         body: JSON.stringify({
           slug: "ship-feature",
-          action: "ship",
-          purpose: "Ship the feature.",
-          inputSchema: {},
-          outputSchema: {},
-          effects: ["repository changes"],
-          permissions: ["write repository"],
-          success: "The feature is shipped.",
-          failure: "The feature is not shipped.",
-          documentation: "# Ship feature",
+          instructions: "# Ship feature",
+          inputName: "request",
+          inputSchema: { type: "object" },
+          outputName: "result",
+          outputSchema: { type: "object" },
+          skills: [],
+          tools: [],
         }),
       }),
     );
@@ -237,8 +235,8 @@ describe("POST /api/kody/capabilities", () => {
       expect.objectContaining({
         slug: "ship-feature",
         files: expect.objectContaining({
-          "definition.json": expect.stringContaining('"purpose": "Ship the feature."'),
-          "capability.md": "# Ship feature\n",
+          "contract.json": expect.stringContaining('"input"'),
+          "instructions.md": "# Ship feature\n",
         }),
       }),
     );
@@ -265,7 +263,13 @@ describe("GET /api/kody/capabilities/[slug]", () => {
     });
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
-      contract: { action: "ship-feature" },
+      instructions: "# Ship feature",
+      simpleContract: {
+        input: { name: "request", schema: { type: "object" } },
+        output: { name: "result", schema: { type: "object" } },
+      },
+      skills: [],
+      capabilityTools: [],
     });
     h.getEngineConfig.mockResolvedValue({
       config: { execution: {} },
@@ -300,7 +304,7 @@ describe("GET /api/kody/capabilities/[slug]", () => {
     );
   });
 
-  it("loads Store detail with repository context and shows its resolved Implementation", async () => {
+  it("loads one simple Store capability folder with repository context", async () => {
     const response = await GET_DETAIL(
       request("https://dash.test/api/kody/capabilities/ship-feature"),
       params(),
@@ -315,19 +319,15 @@ describe("GET /api/kody/capabilities/[slug]", () => {
       "https://github.com/acme/kody-store",
       "stable",
     );
-    expect(body.capability.implementationResolution).toMatchObject({
-      status: "resolved",
-      selectedId: "ship-feature-runner",
-      candidates: [
-        {
-          id: "ship-feature-runner",
-          type: "agent",
-          agentId: "kody",
-          runtime: { adapter: "kody-engine-profile" },
-          promptTemplate: "Run the task.",
-        },
-      ],
+    expect(body.capability).toMatchObject({
+      slug: "ship-feature",
+      instructions: "# Ship feature",
+      simpleContract: {
+        input: { name: "request" },
+        output: { name: "result" },
+      },
     });
+    expect(body.capability).not.toHaveProperty("implementationResolution");
     expect(h.clearGitHubContext).toHaveBeenCalled();
   });
 });
@@ -374,36 +374,30 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     );
   });
 
-  it("updates the engine definition and Convex projection together", async () => {
+  it("replaces the capability folder", async () => {
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
-      contract: {
-        action: "ship",
-        purpose: "Ship feature",
-        inputSchema: {},
-        outputSchema: {},
-        effects: [],
-        permissions: [],
-        success: "Shipped",
-        failure: "Not shipped",
+      instructions: "# Ship feature",
+      simpleContract: {
+        input: { name: "request", schema: { type: "object" } },
+        output: { name: "result", schema: { type: "object" } },
       },
-      documentation: "# Ship feature",
+      skills: [],
+      capabilityTools: [],
     });
 
     const res = await PATCH(
       request("https://dash.test/api/kody/capabilities/ship-feature", {
         method: "PATCH",
         body: JSON.stringify({
-          action: "ship",
-          purpose: "Ship the updated feature",
-          inputSchema: {},
-          outputSchema: {},
-          effects: [],
-          permissions: [],
-          success: "Shipped",
-          failure: "Not shipped",
-          documentation: "# Ship feature",
+          instructions: "# Ship updated feature",
+          inputName: "request",
+          inputSchema: { type: "object" },
+          outputName: "result",
+          outputSchema: { type: "object" },
+          skills: [],
+          tools: [],
           actorLogin: "alice",
         }),
       }),

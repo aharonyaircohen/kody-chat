@@ -2,375 +2,192 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern store-catalog-api
- * @ai-summary Read-only neutral store catalog.
+ * @ai-summary Read-only catalog for the simple Agency assets.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { listStoreCommandFiles } from "@kody-ade/workspace/commands/files";
+import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
+import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
+import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
+import { listStoreLoops } from "@dashboard/lib/store-loops";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
+import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 import {
-  requireKodyAuth,
-  getRequestAuth,
-} from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
   clearGitHubContext,
   getOctokit,
+  setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
-import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
-import { listStoreCommandFiles } from "@kody-ade/workspace/commands/files";
-import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
-import {
-  managedGoalModel,
-  type ManagedGoalRecord,
-  type ManagedGoalState,
-} from "@dashboard/lib/managed-goals";
-import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
-import {
-  getEngineConfig,
-  type ActiveGoalConfigEntry,
-} from "@kody-ade/base/engine/config";
-import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
-import { listStoreImplementations } from "@kody-ade/agency/implementations/files";
-import { listStoredAgencyDefinitions } from "@kody-ade/agency/backend/agency-model-store";
-import { resolveCapabilityImplementations } from "@kody-ade/agency/implementation-resolution";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type CatalogKind =
-  | "agent"
-  | "agentGoal"
-  | "agentLoop"
-  | "workflow"
-  | "capability"
-  | "implementation"
-  | "command"
-  | "feature";
+  "agent" | "workflow" | "capability" | "loop" | "command" | "feature";
 
-interface CatalogReferenceBlocker {
-  kind: CatalogKind;
-  slug: string;
-  title?: string;
-}
-
-interface CatalogItem {
+type CatalogItem = {
   slug: string;
   title: string;
   description: string;
   kind: CatalogKind;
-  isWorkflow?: boolean;
-  workflowSteps?: string[];
   htmlUrl: string | null;
-  action?: string | null;
-  agent?: string | null;
-  schedule?: string | null;
-  installed?: boolean;
-  uninstallBlockedBy?: CatalogReferenceBlocker[];
-  /** Dashboard route to a setup wizard offered after install (features). */
+  installed: boolean;
   setupHref?: string | null;
-  capabilityId?: string | null;
-  compatibleCapabilityRevision?: string | null;
-  implementationType?: "agent" | "script" | null;
-  selection?: "repository" | "automatic" | "available";
-}
-
-type ActiveCatalogConfig = {
-  agents: Set<string>;
-  capabilities: Set<string>;
-  implementations: Set<string>;
-  commands: Set<string>;
-  goals: Set<string>;
-  workflows: Set<string>;
-  features: Set<string>;
+  uninstallBlockedBy: Array<{
+    kind: "workflow";
+    slug: string;
+    title?: string;
+  }>;
 };
 
-function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
-  return typeof entry === "string" ? entry : entry.template;
-}
-
-function isCatalogItemInstalled(
-  item: CatalogItem,
-  active: ActiveCatalogConfig,
-): boolean {
-  if (item.kind === "agent") return active.agents.has(item.slug);
-  if (item.kind === "capability") return active.capabilities.has(item.slug);
-  if (item.kind === "implementation")
-    return active.implementations.has(item.slug);
-  if (item.kind === "command") return active.commands.has(item.slug);
-  if (item.kind === "workflow") return active.workflows.has(item.slug);
-  if (item.kind === "feature") return active.features.has(item.slug);
-  return active.goals.has(item.slug);
-}
-
-function goalCapabilitySlugs(state: ManagedGoalState): string[] {
-  const compatibility = state as ManagedGoalState & {
-    capabilities?: unknown;
-  };
-  if (Array.isArray(compatibility.capabilities)) {
-    return compatibility.capabilities.filter(
-      (capability): capability is string => typeof capability === "string",
-    );
-  }
-  return [];
-}
-
-function catalogRemovalBlockers(
-  item: CatalogItem,
-  context: {
-    active: ActiveCatalogConfig;
-    capabilities: CatalogItem[];
-    goalTemplates: ManagedGoalRecord[];
-    storeWorkflows: Array<{
-      id: string;
-      workflow: { name?: string; capabilities: string[] };
-    }>;
-  },
-): CatalogReferenceBlocker[] {
-  if (item.kind === "agent") {
-    return context.capabilities
-      .filter(
-        (capability) =>
-          context.active.capabilities.has(capability.slug) &&
-          capability.agent === item.slug,
-      )
-      .map((capability) => ({
-        kind: "capability",
-        slug: capability.slug,
-        title: capability.title || capability.slug,
-      }));
-  }
-
-  if (item.kind !== "capability") return [];
-
-  const workflowBlockers: CatalogReferenceBlocker[] =
-    context.storeWorkflows
-      .filter(
-        (workflow) =>
-          context.active.workflows.has(workflow.id) &&
-          workflow.workflow.capabilities.includes(item.slug),
-      )
-      .map((workflow) => ({
-        kind: "workflow",
-        slug: workflow.id,
-        title: workflow.workflow.name || workflow.id,
-      }));
-
-  const goalBlockers: CatalogReferenceBlocker[] = context.goalTemplates
-    .filter(
-      (goal) =>
-        context.active.goals.has(goal.id) &&
-        goalCapabilitySlugs(goal.state).includes(item.slug),
-    )
-    .map((goal) => ({
-      kind: managedGoalModel(goal),
-      slug: goal.id,
-      title: goal.state.destination?.outcome || goal.id,
-    }));
-
-  return [...workflowBlockers, ...goalBlockers];
-}
-
 function firstText(value: string | null | undefined): string {
-  const text = (value ?? "")
-    .replace(/^#+\s+/gm, "")
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .find(Boolean);
-  return text ?? "";
+  return (
+    (value ?? "")
+      .replace(/^#+\s+/gm, "")
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .find(Boolean) ?? ""
+  );
 }
 
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
-
-  const headerAuth = getRequestAuth(req);
-  if (!headerAuth) {
+  const auth = getRequestAuth(req);
+  if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
   setGitHubContext(
-    headerAuth.owner,
-    headerAuth.repo,
+    auth.owner,
+    auth.repo,
     undefined,
-    headerAuth.storeRepoUrl,
-    headerAuth.storeRef,
+    auth.storeRepoUrl,
+    auth.storeRef,
   );
 
   try {
     const octokit = getOctokit();
-
     const [
       capabilities,
       agents,
-      storeCommands,
-      goalTemplates,
-      storeWorkflows,
-      implementations,
-      engineConfig,
-      agencyDefinitions,
+      commands,
+      workflows,
+      loops,
+      localLoops,
+      engine,
     ] = await Promise.all([
       listStoreCapabilityFiles(octokit),
       listStoreAgentFiles(octokit),
       listStoreCommandFiles(new Set(), octokit),
-      listCompanyStoreGoalTemplateFiles(octokit),
       listCompanyStoreWorkflowDefinitionFiles(octokit),
-      listStoreImplementations(octokit),
-      getEngineConfig(octokit, headerAuth.owner, headerAuth.repo, {
-        force: true,
-      }),
-      listStoredAgencyDefinitions(headerAuth.owner, headerAuth.repo),
+      listStoreLoops(octokit),
+      createBackendClient().query(api.repoDocs.listByPrefix, {
+        tenantId: `${auth.owner}/${auth.repo}`,
+        prefix: "loop:",
+      }) as Promise<Array<{ kind: string }>>,
+      getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
     ]);
-
-    const items: CatalogItem[] = [];
-    const config = engineConfig.config;
-    const activeCapabilityIds = new Set(
-      config.company?.activeCapabilities ?? [],
-    );
-    const capabilityBindings =
-      config.execution?.capabilityBindings ?? {};
-    const selectedImplementations = new Map<
-      string,
-      "repository" | "automatic"
-    >();
-    for (const capabilityId of activeCapabilityIds) {
-      const resolution = resolveCapabilityImplementations(
-        agencyDefinitions,
-        capabilityId,
-        capabilityBindings[capabilityId],
-      );
-      if (resolution.selected) {
-        selectedImplementations.set(
-          resolution.selected.data.id,
-          capabilityBindings[capabilityId] ? "repository" : "automatic",
-        );
-      }
-    }
+    const config = engine.config.company;
     const active = {
-      agents: new Set(config.company?.activeAgents ?? []),
-      capabilities: activeCapabilityIds,
-      implementations: new Set(selectedImplementations.keys()),
-      commands: new Set(config.company?.activeCommands ?? []),
-      goals: new Set((config.company?.activeGoals ?? []).map(activeGoalSlug)),
-      workflows: new Set(config.company?.activeWorkflows ?? []),
-      features: new Set(config.company?.activeFeatures ?? []),
+      agent: new Set(config?.activeAgents ?? []),
+      capability: new Set(config?.activeCapabilities ?? []),
+      command: new Set(config?.activeCommands ?? []),
+      workflow: new Set(config?.activeWorkflows ?? []),
+      feature: new Set(config?.activeFeatures ?? []),
+      loop: new Set(localLoops.map((item) => item.kind.slice("loop:".length))),
     };
 
-    for (const item of capabilities) {
-      items.push({
+    const workflowBlockers = (agent: string) =>
+      workflows
+        .filter(
+          (item) =>
+            active.workflow.has(item.id) && item.workflow.agent === agent,
+        )
+        .map((item) => ({
+          kind: "workflow" as const,
+          slug: item.id,
+          title: item.workflow.name || item.id,
+        }));
+
+    const items: CatalogItem[] = [
+      ...capabilities.map((item) => ({
         slug: item.slug,
         title: item.slug,
         description: item.describe,
-        kind: "capability",
-        isWorkflow: item.isWorkflow === true,
-        workflowSteps: item.workflowSteps ?? [],
+        kind: "capability" as const,
         htmlUrl: item.htmlUrl,
-        agent: item.agent,
-        schedule: item.every ?? null,
-      });
-    }
-
-    for (const item of implementations) {
-      items.push({
-        slug: item.id,
-        title: item.id,
-        description: `Implements ${item.capabilityId} with a ${item.type} runtime.`,
-        kind: "implementation",
-        htmlUrl: item.htmlUrl,
-        agent: item.agentId ?? null,
-        capabilityId: item.capabilityId,
-        compatibleCapabilityRevision: item.compatibleCapabilityRevision,
-        implementationType: item.type,
-        selection: selectedImplementations.get(item.id) ?? "available",
-      });
-    }
-
-    for (const item of agents) {
-      items.push({
+        installed: active.capability.has(item.slug),
+        uninstallBlockedBy: [],
+      })),
+      ...agents.map((item) => ({
         slug: item.slug,
         title: item.title,
         description: firstText(item.body),
-        kind: "agent",
+        kind: "agent" as const,
         htmlUrl: item.htmlUrl,
-      });
-    }
-
-    for (const item of storeCommands) {
-      items.push({
+        installed: active.agent.has(item.slug),
+        uninstallBlockedBy: workflowBlockers(item.slug),
+      })),
+      ...commands.map((item) => ({
         slug: item.slug,
         title: `/${item.slug}`,
         description: item.description || firstText(item.body),
-        kind: "command",
+        kind: "command" as const,
         htmlUrl: item.htmlUrl,
-      });
-    }
-
-    for (const item of goalTemplates) {
-      const model = managedGoalModel(item);
-      items.push({
-        slug: item.id,
-        title: item.state.destination.outcome || item.id,
-        description: [
-          item.state.destination.outcome,
-          ...item.state.destination.evidence,
-        ]
-          .filter(Boolean)
-          .join(" - "),
-        kind: model,
-        htmlUrl: null,
-        schedule: item.state.schedule ?? null,
-      });
-    }
-
-    for (const item of storeWorkflows) {
-      items.push({
+        installed: active.command.has(item.slug),
+        uninstallBlockedBy: [],
+      })),
+      ...workflows.map((item) => ({
         slug: item.id,
         title: item.workflow.name || item.id,
         description: item.workflow.capabilities.join(" -> "),
-        kind: "workflow",
+        kind: "workflow" as const,
         htmlUrl: item.htmlUrl ?? null,
-      });
-    }
-
-    for (const feature of BUILTIN_FEATURES) {
-      items.push({
-        slug: feature.slug,
-        title: feature.title,
-        description: feature.description,
-        kind: "feature",
+        installed: active.workflow.has(item.id),
+        uninstallBlockedBy: [],
+      })),
+      ...loops.map((item) => ({
+        slug: item.slug,
+        title: item.slug,
+        description: `${item.loop.trigger.type} → ${item.loop.target.kind}/${item.loop.target.id}`,
+        kind: "loop" as const,
+        htmlUrl: item.htmlUrl,
+        installed: active.loop.has(item.slug),
+        uninstallBlockedBy: [],
+      })),
+      ...BUILTIN_FEATURES.map((item) => ({
+        slug: item.slug,
+        title: item.title,
+        description: item.description,
+        kind: "feature" as const,
         htmlUrl: null,
-        setupHref: feature.setupHref ?? null,
-      });
-    }
-
-    const catalogItems = items
-      .map((item) => ({
-        ...item,
-        installed: isCatalogItemInstalled(item, active),
-        uninstallBlockedBy: isCatalogItemInstalled(item, active)
-          ? catalogRemovalBlockers(item, {
-              active,
-              capabilities: items.filter(
-                (candidate) => candidate.kind === "capability",
-              ),
-              goalTemplates,
-              storeWorkflows,
-            })
-          : [],
-      }))
-      .sort((a, b) =>
-        `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
-      );
+        setupHref: item.setupHref ?? null,
+        installed: active.feature.has(item.slug),
+        uninstallBlockedBy: [],
+      })),
+    ];
 
     return NextResponse.json(
       {
-        items: catalogItems,
+        items: items.sort((left, right) =>
+          `${left.kind}:${left.slug}`.localeCompare(
+            `${right.kind}:${right.slug}`,
+          ),
+        ),
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+  } catch (error) {
     return NextResponse.json(
-      { error: "store_catalog_failed", message },
+      {
+        error: "store_catalog_failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 },
     );
   } finally {

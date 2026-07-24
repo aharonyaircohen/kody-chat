@@ -14,16 +14,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CheckCircle2,
-  Cpu,
   Download,
   ExternalLink,
-  History,
   Layers,
   Loader2,
   Package,
   RefreshCw,
   Bot,
-  Target,
+  Clock3,
   Trash2,
   Users,
   Workflow,
@@ -47,15 +45,7 @@ import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 
 export type CatalogKind =
-  | "all"
-  | "agent"
-  | "agentGoal"
-  | "agentLoop"
-  | "workflow"
-  | "capability"
-  | "implementation"
-  | "command"
-  | "feature";
+  "all" | "agent" | "workflow" | "capability" | "loop" | "command" | "feature";
 
 type CatalogItemKind = Exclude<CatalogKind, "all">;
 
@@ -64,18 +54,9 @@ interface StoreCatalogItem {
   title: string;
   description: string;
   kind: CatalogItemKind;
-  isWorkflow?: boolean;
-  workflowSteps?: string[];
   htmlUrl: string | null;
-  action?: string | null;
-  agent?: string | null;
-  schedule?: string | null;
   installed?: boolean;
   setupHref?: string | null;
-  capabilityId?: string | null;
-  compatibleCapabilityRevision?: string | null;
-  implementationType?: "agent" | "script" | null;
-  selection?: "repository" | "automatic" | "available";
   uninstallBlockedBy?: Array<{
     kind: CatalogItemKind;
     slug: string;
@@ -99,22 +80,18 @@ const KIND_FILTERS: Array<{
 }> = [
   { id: "all", label: "All", icon: Package },
   { id: "agent", label: "Agents", icon: Users },
-  { id: "agentGoal", label: "Goals", icon: Target },
-  { id: "agentLoop", label: "Loops", icon: History },
   { id: "workflow", label: "Workflows", icon: Workflow },
   { id: "capability", label: "Capabilities", icon: Layers },
-  { id: "implementation", label: "Implementations", icon: Cpu },
+  { id: "loop", label: "Loops", icon: Clock3 },
   { id: "command", label: "Commands", icon: Bot },
   { id: "feature", label: "Features", icon: Package },
 ];
 
 const KIND_LABEL: Record<CatalogItemKind, string> = {
   agent: "Agent",
-  agentGoal: "Goal",
-  agentLoop: "Loop",
   workflow: "Workflow",
   capability: "Capability",
-  implementation: "Implementation",
+  loop: "Loop",
   command: "Command",
   feature: "Feature",
 };
@@ -143,8 +120,7 @@ const KIND_COLORS: Record<
     text: "text-slate-700 dark:text-slate-100",
   },
   agent: {
-    tabActive:
-      "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
+    tabActive: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-sky-700 dark:hover:text-sky-100",
     icon: "text-sky-600 dark:text-sky-300",
@@ -153,37 +129,13 @@ const KIND_COLORS: Record<
     tint: "bg-sky-500/10",
     text: "text-sky-700 dark:text-sky-100",
   },
-  agentGoal: {
-    tabActive:
-      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
-    tabIdle:
-      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
-    icon: "text-violet-600 dark:text-violet-300",
-    iconHover:
-      "group-hover:text-violet-600 dark:group-hover:text-violet-300",
-    borderHover: "hover:border-violet-500/30",
-    tint: "bg-violet-500/10",
-    text: "text-violet-700 dark:text-violet-100",
-  },
-  agentLoop: {
-    tabActive:
-      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-100",
-    tabIdle:
-      "border-border bg-background/60 text-muted-foreground hover:text-amber-700 dark:hover:text-amber-100",
-    icon: "text-amber-600 dark:text-amber-300",
-    iconHover: "group-hover:text-amber-600 dark:group-hover:text-amber-300",
-    borderHover: "hover:border-amber-500/30",
-    tint: "bg-amber-500/10",
-    text: "text-amber-700 dark:text-amber-100",
-  },
   workflow: {
     tabActive:
       "border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-100",
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-indigo-700 dark:hover:text-indigo-100",
     icon: "text-indigo-600 dark:text-indigo-300",
-    iconHover:
-      "group-hover:text-indigo-600 dark:group-hover:text-indigo-300",
+    iconHover: "group-hover:text-indigo-600 dark:group-hover:text-indigo-300",
     borderHover: "hover:border-indigo-500/30",
     tint: "bg-indigo-500/10",
     text: "text-indigo-700 dark:text-indigo-100",
@@ -194,23 +146,21 @@ const KIND_COLORS: Record<
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-100",
     icon: "text-emerald-600 dark:text-emerald-300",
-    iconHover:
-      "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
+    iconHover: "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
     borderHover: "hover:border-emerald-500/30",
     tint: "bg-emerald-500/10",
     text: "text-emerald-700 dark:text-emerald-100",
   },
-  implementation: {
+  loop: {
     tabActive:
-      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
+      "border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-100",
     tabIdle:
-      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
-    icon: "text-violet-600 dark:text-violet-300",
-    iconHover:
-      "group-hover:text-violet-600 dark:group-hover:text-violet-300",
-    borderHover: "hover:border-violet-500/30",
-    tint: "bg-violet-500/10",
-    text: "text-violet-700 dark:text-violet-100",
+      "border-border bg-background/60 text-muted-foreground hover:text-cyan-700 dark:hover:text-cyan-100",
+    icon: "text-cyan-600 dark:text-cyan-300",
+    iconHover: "group-hover:text-cyan-600 dark:group-hover:text-cyan-300",
+    borderHover: "hover:border-cyan-500/30",
+    tint: "bg-cyan-500/10",
+    text: "text-cyan-700 dark:text-cyan-100",
   },
   command: {
     tabActive:
@@ -282,24 +232,14 @@ export function storeCatalogPathWithViewState(
 }
 
 function queryText(item: StoreCatalogItem): string {
-  return [
-    item.slug,
-    item.title,
-    item.description,
-    displayKindLabel(item),
-    item.action,
-    item.agent,
-    item.capabilityId,
-    item.compatibleCapabilityRevision,
-    ...(item.workflowSteps ?? []),
-  ]
+  return [item.slug, item.title, item.description, displayKindLabel(item)]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 }
 
 function isWorkflowCatalogItem(item: StoreCatalogItem): boolean {
-  return item.kind === "workflow" || item.isWorkflow === true;
+  return item.kind === "workflow";
 }
 
 function displayKindLabel(item: StoreCatalogItem): string {
@@ -319,10 +259,6 @@ function displayKindColor(item: StoreCatalogItem) {
 
 function itemMatchesKind(item: StoreCatalogItem, kind: CatalogKind): boolean {
   if (kind === "all") return true;
-  if (kind === "workflow") return isWorkflowCatalogItem(item);
-  if (kind === "capability") {
-    return item.kind === "capability" && !isWorkflowCatalogItem(item);
-  }
   return item.kind === kind;
 }
 
@@ -430,13 +366,12 @@ async function removeCatalogStoreReference(
   };
 }
 
-async function invalidateOperationsQueries(
+async function invalidateCatalogQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["kody-agent"] }),
     queryClient.invalidateQueries({ queryKey: ["kody-capabilities"] }),
-    queryClient.invalidateQueries({ queryKey: ["kody-managed-goals"] }),
     queryClient.invalidateQueries({ queryKey: ["kody-workflow-definitions"] }),
   ]);
 }
@@ -539,7 +474,7 @@ export function StoreCatalogManager({
       addCatalogStoreReference(headers, item),
     onSuccess: async (result, item) => {
       await queryClient.invalidateQueries({ queryKey });
-      await invalidateOperationsQueries(queryClient);
+      await invalidateCatalogQueries(queryClient);
       if (item.setupHref) {
         toast.success("Installed — opening setup wizard");
         router.push(item.setupHref);
@@ -560,7 +495,7 @@ export function StoreCatalogManager({
       removeCatalogStoreReference(headers, item),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey });
-      await invalidateOperationsQueries(queryClient);
+      await invalidateCatalogQueries(queryClient);
       toast.success(
         result.removed ? "Uninstalled from Store" : "Already uninstalled",
       );
@@ -657,7 +592,9 @@ export function StoreCatalogManager({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <GroupIcon className={cn("h-4 w-4", KIND_COLORS[group.id].icon)} />
+                    <GroupIcon
+                      className={cn("h-4 w-4", KIND_COLORS[group.id].icon)}
+                    />
                     <h2
                       id={`store-group-${group.id}`}
                       className="text-sm font-semibold text-foreground"
@@ -765,7 +702,7 @@ function CatalogCard({
         {item.installed ? (
           <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-100">
             <CheckCircle2 className="h-3 w-3" />
-            {item.kind === "implementation" ? "Selected" : "Installed"}
+            Installed
           </span>
         ) : (
           <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
@@ -798,15 +735,10 @@ function CatalogDetail({
   const installed = item.installed === true;
   const blockers = item.uninstallBlockedBy ?? [];
   const uninstallBlocked = installed && blockers.length > 0;
-  const workflowSteps = item.workflowSteps ?? [];
   const statusLabel = installed
-    ? item.kind === "implementation"
-      ? item.selection === "automatic"
-        ? "Selected automatically"
-        : "Selected for repository"
-      : uninstallBlocked
-        ? "Installed, in use"
-        : "Installed"
+    ? uninstallBlocked
+      ? "Installed, in use"
+      : "Installed"
     : "Available";
   const sourceLabel = item.htmlUrl ? "Store source" : "Store catalog";
 
@@ -836,7 +768,7 @@ function CatalogDetail({
           {installed ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-100">
               <CheckCircle2 className="h-3 w-3" />
-              {item.kind === "implementation" ? "Selected" : "Installed"}
+              Installed
             </span>
           ) : null}
         </DialogDescription>
@@ -847,40 +779,10 @@ function CatalogDetail({
           <div className="space-y-5">
             {item.description ? (
               <section className="rounded-md border border-border bg-muted/20 p-4">
-                <h3 className="text-sm font-medium text-foreground">
-                  Summary
-                </h3>
+                <h3 className="text-sm font-medium text-foreground">Summary</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {item.description}
                 </p>
-              </section>
-            ) : null}
-
-            {isWorkflowCatalogItem(item) && workflowSteps.length > 0 ? (
-              <section className="rounded-md border border-border bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-medium text-foreground">
-                    Workflow steps
-                  </h3>
-                  <span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                    {workflowSteps.length}
-                  </span>
-                </div>
-                <ol className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {workflowSteps.map((step, index) => (
-                    <li
-                      key={`${step}-${index}`}
-                      className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/50 px-3 py-2 text-sm"
-                    >
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border text-[11px] text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 break-words font-mono text-xs text-foreground">
-                        {step}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
               </section>
             ) : null}
 
@@ -905,38 +807,6 @@ function CatalogDetail({
             <InfoRow label="Type" value={displayKindLabel(item)} />
             <InfoRow label="Slug" value={item.slug} mono />
             <InfoRow label="Status" value={statusLabel} />
-            {item.agent ? (
-              <InfoRow label="Agent" value={item.agent} mono />
-            ) : null}
-            {item.action ? (
-              <InfoRow label="Action" value={item.action} mono />
-            ) : null}
-            {item.capabilityId ? (
-              <InfoRow
-                label="Capability Contract"
-                value={item.capabilityId}
-                mono
-              />
-            ) : null}
-            {item.implementationType ? (
-              <InfoRow
-                label="Runtime type"
-                value={item.implementationType}
-              />
-            ) : null}
-            {item.compatibleCapabilityRevision ? (
-              <InfoRow
-                label="Compatible revision"
-                value={item.compatibleCapabilityRevision}
-                mono
-              />
-            ) : null}
-            {item.schedule ? (
-              <InfoRow label="Schedule" value={item.schedule} />
-            ) : null}
-            {workflowSteps.length > 0 ? (
-              <InfoRow label="Step count" value={String(workflowSteps.length)} />
-            ) : null}
             <InfoRow label="Source">
               {item.htmlUrl ? (
                 <a
@@ -968,12 +838,7 @@ function CatalogDetail({
         <Button
           size="sm"
           onClick={installed ? onUninstall : onInstall}
-          disabled={
-            busy ||
-            uninstallBlocked ||
-            (item.kind === "implementation" &&
-              item.selection === "automatic")
-          }
+          disabled={busy || uninstallBlocked}
           data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
           variant={installed ? "outline" : "default"}
           className="gap-1"
@@ -987,21 +852,11 @@ function CatalogDetail({
           )}
           {busy
             ? installed
-              ? item.kind === "implementation"
-                ? "Updating selection..."
-                : "Uninstalling..."
-              : item.kind === "implementation"
-                ? "Selecting..."
-                : "Installing..."
+              ? "Uninstalling..."
+              : "Installing..."
             : installed
-              ? item.kind === "implementation"
-                ? item.selection === "automatic"
-                  ? "Selected automatically"
-                  : "Use automatic selection"
-                : "Uninstall"
-              : item.kind === "implementation"
-                ? "Select"
-                : "Install"}
+              ? "Uninstall"
+              : "Install"}
         </Button>
       </div>
     </DialogContent>

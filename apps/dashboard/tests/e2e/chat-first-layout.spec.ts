@@ -207,7 +207,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
     const routes: Array<[route: string, slug: string]> = [
       ["/activity", "activity"],
       ["/agency-runs", "agency-runs"],
-      ["/agent-goals", "agent-goals"],
       ["/agent-loops", "agent-loops"],
       ["/agents", "agents"],
       ["/brands", "brands"],
@@ -215,7 +214,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/changelog", "changelog"],
       ["/commands", "commands-page"],
       ["/company", "company"],
-      ["/company-intents", "company-intents"],
       ["/config", "config"],
       ["/context", "context"],
       ["/docs", "docs"],

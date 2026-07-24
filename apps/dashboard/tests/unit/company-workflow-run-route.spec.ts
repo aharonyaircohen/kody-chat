@@ -128,22 +128,19 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
       config: {
         defaultImplementation: "run",
         company: {
-          activeCapabilities: ["bug"],
-          activeWorkflows: [],
+          activeCapabilities: [],
+          activeWorkflows: ["bug"],
         },
       },
       sha: "config-sha",
     });
     workflowFiles.readWorkflowDefinitionFile.mockResolvedValue(null);
     workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue(
-      null,
-    );
-    workflowFiles.readCompanyStoreCapabilityWorkflowDefinitionFile.mockResolvedValue(
       runnableBugWorkflow,
     );
   });
 
-  it("runs an active Store workflow-capability on the shared scheduled runner", async () => {
+  it("runs an active Store Workflow on the shared scheduled runner", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 

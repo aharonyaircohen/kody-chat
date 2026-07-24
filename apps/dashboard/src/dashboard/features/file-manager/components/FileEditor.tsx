@@ -368,7 +368,9 @@ export function FileEditor({
           <Button
             variant="default"
             size="clear"
-            onClick={() => setShowCommitDialog(true)}
+            onClick={() =>
+              transport ? void handleSave("") : setShowCommitDialog(true)
+            }
             disabled={!isDirty || saving}
             title="Save changes"
             aria-label="Save changes"

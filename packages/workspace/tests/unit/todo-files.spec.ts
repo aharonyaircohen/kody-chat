@@ -1,18 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  githubClient: {
-    getOctokit: vi.fn(() => ({})),
+  github: {
     getOwner: vi.fn(() => "acme"),
     getRepo: vi.fn(() => "widgets"),
   },
-  backend: {
-    query: vi.fn(),
-    mutation: vi.fn(),
-  },
+  backend: { query: vi.fn(), mutation: vi.fn() },
 }));
 
-vi.mock("@kody-ade/workspace/github", () => mocks.githubClient);
+vi.mock("@kody-ade/workspace/github", () => mocks.github);
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => mocks.backend,
 }));
@@ -30,127 +26,66 @@ import {
 const createdAt = "2026-06-28T00:00:00.000Z";
 const updatedAt = "2026-06-28T01:00:00.000Z";
 
+const finiteTodo: TodoFileContent = {
+  title: "Checkout work",
+  outcome: "Checkout is verified.",
+  status: "in-progress",
+  evidence: ["Preview opened"],
+  checklist: [{ id: "verify-cart", text: "Verify cart", done: false }],
+  blockers: [],
+  runIds: ["run-checkout"],
+  createdAt,
+  updatedAt,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.githubClient.getOctokit.mockReturnValue({});
-  mocks.githubClient.getOwner.mockReturnValue("acme");
-  mocks.githubClient.getRepo.mockReturnValue("widgets");
   mocks.backend.query.mockResolvedValue(null);
   mocks.backend.mutation.mockResolvedValue("todo-id");
 });
 
-describe("todo file content", () => {
-  it("round-trips one todo list as JSON", () => {
-    const description = "## Scope\n\nTrack checkout work.\n\n- verify cart";
-    const content: TodoFileContent = {
-      title: "Checkout work",
-      description,
-      createdAt,
-      frontmatter: {
-        title: "Checkout work",
-        createdAt,
-        state: "active",
-        managed: true,
-      },
-      items: [
-        {
-          id: "item-1",
-          title: "Verify cart",
-          body: "Use the **preview**.",
-          assignee: "aguy",
-          completed: false,
-          createdAt,
-          completedAt: null,
-          meta: { evidence: "cartVerified", stage: "verify" },
-        },
-      ],
-    };
-
-    const serialized = serializeTodoFileContent(content);
+describe("finite Todo documents", () => {
+  it("round-trips the finite JSON shape without a version field", () => {
+    const serialized = serializeTodoFileContent(finiteTodo);
     const parsed = parseTodoFileContent(serialized, "checkout-work", updatedAt);
     const stored = JSON.parse(serialized) as Record<string, unknown>;
 
-    expect(stored).toMatchObject({
-      version: 1,
-      title: "Checkout work",
-      description,
-      managed: true,
-      state: "active",
-    });
-    expect(parsed).toMatchObject({
-      ...content,
-      frontmatter: {
-        ...content.frontmatter,
-        version: 1,
-      },
-    });
+    expect(stored).toEqual(finiteTodo);
+    expect(stored).not.toHaveProperty("version");
+    expect(parsed).toEqual(finiteTodo);
   });
 
-  it("keeps a described empty list empty instead of creating a legacy item", () => {
-    const serialized = serializeTodoFileContent({
-      title: "Launch notes",
-      description: "**Scope only**",
-      createdAt,
-      items: [],
-    });
-
-    const parsed = parseTodoFileContent(serialized, "launch-notes", updatedAt);
-
-    expect(parsed.description).toBe("**Scope only**");
-    expect(parsed.items).toEqual([]);
-  });
-
-  it("does not convert old markdown body files into todo items", () => {
+  it("uses an empty finite shape for non-JSON legacy content", () => {
     const parsed = parseTodoFileContent(
-      [
-        "---",
-        'title: "Legacy list"',
-        `createdAt: "${createdAt}"`,
-        "---",
-        "",
-        "Old markdown body.",
-      ].join("\n"),
+      "---\ntitle: Legacy\n---\nOld markdown body.",
       "legacy-list",
       updatedAt,
     );
 
-    expect(parsed.description).toBe("");
-    expect(parsed.items).toEqual([]);
-    expect(parsed.title).toBe("legacy-list");
+    expect(parsed).toMatchObject({
+      title: "legacy-list",
+      outcome: "",
+      status: "todo",
+      evidence: [],
+      checklist: [],
+      blockers: [],
+      runIds: [],
+    });
   });
 
-  it("returns the written todo when a new file cannot be re-read immediately", async () => {
+  it("returns the Todo written to Convex", async () => {
     const todo = await writeTodoFile({
-      octokit: {} as Parameters<typeof writeTodoFile>[0]["octokit"],
+      octokit: {} as never,
       slug: "checkout-work",
-      title: "Checkout work",
-      description: "Track checkout work.",
-      items: [
-        {
-          id: "item-1",
-          title: "Verify cart",
-          body: "",
-          assignee: null,
-          completed: false,
-          createdAt,
-          completedAt: null,
-        },
-      ],
-      createdAt,
+      todo: finiteTodo,
     });
 
     expect(todo).toMatchObject({
       slug: "checkout-work",
       path: "todos/checkout-work.json",
       title: "Checkout work",
-      description: "Track checkout work.",
-      items: [
-        {
-          id: "item-1",
-          title: "Verify cart",
-          completed: false,
-        },
-      ],
+      outcome: "Checkout is verified.",
+      checklist: [{ id: "verify-cart", done: false }],
     });
     expect(Date.parse(todo.updatedAt)).not.toBeNaN();
     expect(mocks.backend.mutation).toHaveBeenCalledTimes(1);

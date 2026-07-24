@@ -4,7 +4,7 @@
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
  *   manual of an org: its agent identities, context, commands
- *   (slash-command SOPs), capabilities, managed goals,
+ *   (slash-command SOPs), capabilities,
  *   and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, generated activity, inbox, notifications) — those
@@ -18,7 +18,6 @@
  */
 
 import { z } from "zod";
-import { isManagedGoalState, type ManagedGoalState } from "../managed-goals";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
@@ -57,16 +56,10 @@ export interface CompanyCapabilityEntry {
   files: Record<string, string>;
 }
 
-/** A managed company goal under `todos/<id>.json` in the configured Kody backend. */
-export interface CompanyGoalEntry {
-  id: string;
-  state: ManagedGoalState;
-}
-
 /**
  * The portable engine-config slice of a Company. Only repo-agnostic policy is
- * carried — quality commands, comment aliases, the `@kody` access gate,
- * capability defaults and model routing. The default branch
+ * carried — quality commands, comment aliases, and the `@kody` access gate.
+ * The default branch
  * (`git.defaultBranch`) is deliberately excluded: it's repo-specific.
  */
 export interface CompanyConfigBundle {
@@ -78,9 +71,6 @@ export interface CompanyConfigBundle {
   };
   aliases?: Record<string, string>;
   allowedAssociations?: string[];
-  defaultImplementation?: string;
-  defaultPrImplementation?: string;
-  perImplementation?: Record<string, string>;
 }
 
 /** The full portable bundle. */
@@ -95,7 +85,6 @@ export interface CompanyBundle {
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
   capabilities: CompanyCapabilityEntry[];
-  goals: CompanyGoalEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
   /** Portable engine config (omitted by older bundles → `null`). */
@@ -129,7 +118,6 @@ export interface CompanyImportResult {
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
   capabilities: CompanyImportCounts;
-  goals: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   config: CompanyConfigOutcome;
   /** Human-readable per-item notes (e.g. failures), newest last. */
@@ -167,11 +155,6 @@ const capabilityEntrySchema = z.object({
   files: z.record(z.string(), z.string()),
 });
 
-const goalEntrySchema = z.object({
-  id: slugSchema,
-  state: z.custom<ManagedGoalState>(isManagedGoalState, "invalid goal state"),
-});
-
 /** Portable engine config. Every field optional + bounded; an unknown or
  * malformed shape is rejected so a junk bundle can't poison kody.config.json. */
 const configBundleSchema = z.object({
@@ -185,11 +168,6 @@ const configBundleSchema = z.object({
     .optional(),
   aliases: z.record(z.string().max(64), z.string().max(64)).optional(),
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
-  defaultImplementation: z.string().max(64).optional(),
-  defaultPrImplementation: z.string().max(64).optional(),
-  perImplementation: z
-    .record(z.string().max(64), z.string().max(128))
-    .optional(),
 });
 
 /**
@@ -212,7 +190,6 @@ export const companyBundleSchema = z
      */
     prompts: z.array(commandEntrySchema).optional(),
     capabilities: z.array(capabilityEntrySchema).default([]),
-    goals: z.array(goalEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
     config: configBundleSchema.nullish(),
   })

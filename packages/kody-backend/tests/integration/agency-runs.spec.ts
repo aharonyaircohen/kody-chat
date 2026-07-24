@@ -10,8 +10,8 @@ describe("agencyRuns", () => {
     await t.mutation(api.agencyRuns.save, {
       tenantId: TENANT,
       runId: "run-1",
-      subjectType: "goal",
-      subjectId: "goal-1",
+      subjectType: "capability",
+      subjectId: "review",
       run: { status: "running" },
       updatedAt: "2026-07-17T10:00:00.000Z",
     })
@@ -26,8 +26,8 @@ describe("agencyRuns", () => {
     await t.mutation(api.agencyRuns.save, {
       tenantId: TENANT,
       runId: "run-1",
-      subjectType: "goal",
-      subjectId: "goal-1",
+      subjectType: "capability",
+      subjectId: "review",
       run: { status: "completed" },
       updatedAt: "2026-07-17T12:00:00.000Z",
     })
@@ -40,13 +40,12 @@ describe("agencyRuns", () => {
 })
 
 describe("runEvents", () => {
-  it("appends ordered events and supports run and goal reads", async () => {
+  it("appends ordered events and reads them by run", async () => {
     const t = setup()
     for (const type of ["run.started", "run.completed"]) {
       await t.mutation(api.runEvents.append, {
         tenantId: TENANT,
         runId: "run-1",
-        goalId: "goal-1",
         event: { type },
         time: `2026-07-17T10:00:0${type === "run.started" ? "0" : "1"}.000Z`,
       })
@@ -58,11 +57,5 @@ describe("runEvents", () => {
     })
     expect(byRun.map((row) => row.seq)).toEqual([0, 1])
 
-    const byGoal = await t.query(api.runEvents.listByGoal, {
-      tenantId: TENANT,
-      goalId: "goal-1",
-      limit: 10,
-    })
-    expect(byGoal.map((row) => row.event.type)).toEqual(["run.completed", "run.started"])
   })
 })

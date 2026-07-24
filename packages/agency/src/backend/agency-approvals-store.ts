@@ -3,7 +3,6 @@ import { createBackendClient } from "@kody-ade/backend/client";
 
 export type AgencyApprovalScopeKind =
   | "loop"
-  | "goal"
   | "workflow"
   | "capability";
 

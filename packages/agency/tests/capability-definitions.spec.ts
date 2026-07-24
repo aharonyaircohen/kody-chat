@@ -16,100 +16,96 @@ vi.mock("@kody-ade/base/github/core", () => ({
 }));
 
 import {
+  assertSimpleCapabilityFolder,
   deleteCapabilityFile,
   listLocalCapabilityFiles,
   readCapabilityFile,
-  writeCapabilityFile,
+  writeCapabilityFolderFiles,
 } from "../src/capabilities/files";
 
-const PROFILE = JSON.stringify({
-  action: "ci-health",
-  describe: "Checks CI",
-  capabilityKind: "verify",
-});
+const FILES = {
+  "instructions.md": "Check CI and return the findings.\n",
+  "contract.json": JSON.stringify({
+    input: { name: "request", schema: { type: "object" } },
+    output: { name: "result", schema: { type: "object" } },
+  }),
+  "skills/ci/SKILL.md": "Use CI evidence.",
+  "tools/check.sh": "#!/bin/sh\nexit 0\n",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("backend capability definitions", () => {
-  it("lists and reads current capability bundles", async () => {
+describe("simple capability folders", () => {
+  it("lists and reads the four-part folder", async () => {
     backend.query
       .mockResolvedValueOnce([
         {
-          slug: "ci-health",
-          version: "sha256:v1",
-          bundle: {
-            schemaVersion: 1,
-            files: { "profile.json": PROFILE, "capability.md": "Check CI" },
-          },
+          kind: "capability:ci-health",
+          doc: { files: FILES },
           updatedAt: "2026-07-18T00:00:00.000Z",
         },
       ])
       .mockResolvedValueOnce({
-        slug: "ci-health",
-        version: "sha256:v1",
-        bundle: {
-          schemaVersion: 1,
-          files: { "profile.json": PROFILE, "capability.md": "Check CI" },
-        },
+        kind: "capability:ci-health",
+        doc: { files: FILES },
         updatedAt: "2026-07-18T00:00:00.000Z",
       });
 
     expect(await listLocalCapabilityFiles()).toMatchObject([
-      { slug: "ci-health", describe: "Checks CI", source: "local" },
+      { slug: "ci-health", source: "local", readOnly: false },
     ]);
     expect(await readCapabilityFile("ci-health")).toMatchObject({
       slug: "ci-health",
-      prompt: "Check CI",
-      capabilityKind: "verify",
+      instructions: "Check CI and return the findings.\n",
+      simpleContract: {
+        input: { name: "request" },
+        output: { name: "result" },
+      },
+      skills: [{ name: "ci/SKILL.md" }],
+      capabilityTools: [{ name: "check.sh" }],
     });
-    expect(getFunctionName(backend.query.mock.calls[0]![0])).toBe(
-      "definitions:listCurrent",
-    );
-    expect(getFunctionName(backend.query.mock.calls[1]![0])).toBe(
-      "definitions:getCurrent",
-    );
   });
 
-  it("publishes a normalized immutable bundle and retires it", async () => {
+  it("publishes only instructions, contract, skills, and tools", async () => {
     backend.mutation.mockResolvedValue(null);
-
-    await writeCapabilityFile({
-      fields: {
-        slug: "ci-health",
-        describe: "Checks CI",
-        prompt: "Check CI",
-        model: "",
-        permissionMode: "default",
-        tools: [],
-        skills: [],
-        shellScripts: [],
-        mcpServers: [],
-        landing: "comment",
-      },
-      skills: [],
-      shellScripts: [],
-    });
+    await writeCapabilityFolderFiles({ slug: "ci-health", files: FILES });
     await deleteCapabilityFile("ci-health");
 
     const publish = backend.mutation.mock.calls[0]!;
-    expect(getFunctionName(publish[0])).toBe("definitions:publish");
+    expect(getFunctionName(publish[0])).toBe("repoDocs:save");
     expect(publish[1]).toMatchObject({
       tenantId: "acme/widgets",
-      kind: "capability",
-      slug: "ci-health",
-      version: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-      bundle: {
-        schemaVersion: 1,
-        files: {
-          "profile.json": expect.any(String),
-          "capability.md": expect.stringContaining("Check CI"),
-        },
-      },
+      kind: "capability:ci-health",
+      doc: { files: FILES },
     });
     expect(getFunctionName(backend.mutation.mock.calls[1]![0])).toBe(
-      "definitions:retire",
+      "repoDocs:remove",
     );
+  });
+
+  it("rejects profiles, extra contract fields, and missing required files", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "profile.json": "{}",
+      }),
+    ).toThrow(/only allows/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          input: { name: "request", schema: {} },
+          output: { name: "result", schema: {} },
+          agent: "developer",
+        }),
+      }),
+    ).toThrow(/exactly input and output/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        "contract.json": FILES["contract.json"],
+      }),
+    ).toThrow(/instructions.md/i);
   });
 });

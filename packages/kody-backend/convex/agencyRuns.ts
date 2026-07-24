@@ -25,11 +25,9 @@ export const save = mutation({
     tenantId: v.string(),
     runId: v.string(),
     subjectType: v.union(
-      v.literal("goal"),
       v.literal("loop"),
       v.literal("workflow"),
       v.literal("capability"),
-      v.literal("implementation"),
     ),
     subjectId: v.string(),
     run: v.any(),

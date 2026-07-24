@@ -2,7 +2,7 @@ import { v, type Infer } from "convex/values";
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import { workflowDefinitionValidator } from "./validators";
 
-type DefinitionKind = "agent" | "capability" | "goal";
+type DefinitionKind = "agent" | "capability";
 type ProposalFile = { path: string; content: string };
 
 function proposalKind(proposalId: string): string {
@@ -42,12 +42,18 @@ function definitionTarget(
   if (match)
     return { kind: "agent", slug: match[1]!, relativePath: "agent.md" };
   match = /^capabilities\/([a-z0-9][a-z0-9_-]{0,127})\/(.+)$/.exec(path);
-  if (match)
-    return { kind: "capability", slug: match[1]!, relativePath: match[2]! };
-  match = /^goals\/(?:templates\/)?([a-z0-9][a-z0-9_-]{0,127})\/(.+)$/.exec(
-    path,
-  );
-  if (match) return { kind: "goal", slug: match[1]!, relativePath: match[2]! };
+  if (match) {
+    const relativePath = match[2]!;
+    if (
+      relativePath !== "instructions.md" &&
+      relativePath !== "contract.json" &&
+      !relativePath.startsWith("skills/") &&
+      !relativePath.startsWith("tools/")
+    ) {
+      throw new Error(`unsupported Capability path: ${path}`);
+    }
+    return { kind: "capability", slug: match[1]!, relativePath };
+  }
   return null;
 }
 
