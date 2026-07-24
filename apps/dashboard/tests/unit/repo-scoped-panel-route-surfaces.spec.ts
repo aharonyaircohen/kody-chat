@@ -37,6 +37,14 @@ const directRepoOwnedLinkHref =
   /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
 
 describe("repo-scoped panel route surfaces", () => {
+  it("keeps file-backed guidance pages on their route-owned workspaces", () => {
+    const shell = read(
+      "src/dashboard/lib/components/ChatRailShell.tsx",
+    );
+    expect(shell).not.toContain('"/context": CONTEXT_PANEL_ID');
+    expect(shell).not.toContain('"/memory": MEMORY_PANEL_ID');
+  });
+
   it("has reusable client primitives for scoped links and imperative navigation", () => {
     const hookPath = join(
       process.cwd(),

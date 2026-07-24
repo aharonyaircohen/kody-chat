@@ -98,10 +98,7 @@ import {
 } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
-import {
-  contextChatPlugin,
-  CONTEXT_PANEL_ID,
-} from "@kody-ade/kody-chat-dashboard/plugins/context";
+import { contextChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
@@ -110,10 +107,7 @@ import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
 } from "@kody-ade/kody-chat-dashboard/plugins/instructions";
-import {
-  memoryChatPlugin,
-  MEMORY_PANEL_ID,
-} from "@kody-ade/kody-chat-dashboard/plugins/memory";
+import { memoryChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/memory";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
@@ -217,12 +211,10 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/commands": COMMANDS_PAGE_PANEL_ID,
   "/company": COMPANY_PANEL_ID,
   "/config": CONFIG_PANEL_ID,
-  "/context": CONTEXT_PANEL_ID,
   "/docs": DOCS_PANEL_ID,
   "/files": FILES_PANEL_ID,
   "/inbox": INBOX_PANEL_ID,
   "/instructions": INSTRUCTIONS_PANEL_ID,
-  "/memory": MEMORY_PANEL_ID,
   "/messages": MESSAGES_PANEL_ID,
   "/models": MODELS_PANEL_ID,
   "/notifications": NOTIFICATIONS_PANEL_ID,
