@@ -2,51 +2,74 @@
 
 These rules apply to new and redesigned Kody dashboard pages.
 
-## Choose the page type first
+## Use one of the three approved page types
 
-Do not force every feature into the same layout. Choose the page shape from
-the user's main task:
+Every new or redesigned page must start from one of these structures. Choose
+the type from the user's main task, not from the backend data shape.
 
-| Page type            | Use when                                         | Reference     |
-| -------------------- | ------------------------------------------------ | ------------- |
-| List page            | Users browse many independent resources          | Guided Flows  |
-| Full management page | Users operate on one selected resource           | Agents        |
-| Configuration page   | Users edit one structured configuration document | Engine Config |
+| Page type        | Use when                                      | Reference route   | Shared implementation                 |
+| ---------------- | --------------------------------------------- | ----------------- | ------------------------------------- |
+| Master-detail    | Users browse resources and operate on one     | `/agents`         | `MasterDetailShell`                   |
+| Standard content | Users manage one focused list, form, or setup | `/secrets`        | `PageShell` and `PageHeader`          |
+| File workspace   | Users browse or manage files and folders      | `/files`, `/docs` | `RepositoryFileSpace` and `FilesPage` |
 
-### List page
+### 1. Agents-style master-detail page
 
-The page helps users find, compare, and choose resources.
+Use this for resource management when users repeatedly switch between items.
 
-- Use a clear page header with one primary create action.
-- Show only the summary needed to choose an item.
-- Keep status, metadata, and actions in consistent positions.
-- Use cards or rows consistently within the list.
-- Keep editing in a dialog or separate detail surface when the editor is complex.
-- Make empty, loading, error, and filtered-empty states explicit.
-- Keep destructive actions separate from view and edit actions.
+- Keep a searchable resource list on the left and the selected detail on the
+  right.
+- Use `MasterDetailShell`; do not copy the Agents page's local layout markup.
+- Preserve the selected resource in the URL.
+- On narrow screens, show either the list or detail with a clear way back.
+- Keep create and refresh actions in the shared header.
+- Use the shared `EmptyState` for loading, empty, filtered-empty, and
+  no-selection states.
+- Keep routine editing separate from run, dispatch, archive, and delete actions.
 
-### Full management page
+### 2. Secrets-style standard content page
 
-The page helps users inspect and operate on one selected resource.
+Use this for a focused list, configuration form, setup page, or small manager
+that does not need persistent resource navigation.
 
-- Use a master-detail layout when users switch between resources frequently.
-- Keep resource navigation visible while the selected resource is open.
-- Put the main editor or detail view in the largest area.
-- Keep status and operational actions easy to find.
-- Separate routine editing from run, dispatch, archive, and delete actions.
-- Preserve the selected resource in the URL when the page supports direct access.
+- Use `PageShell` for the shared header, page width, padding, and scrolling.
+- Put one primary action in the header and keep secondary actions subordinate.
+- Organize the body as a single readable content flow using shared cards, forms,
+  lists, tables, and dialogs.
+- Group configuration fields by user concept, not implementation order.
+- Show loading, empty, error, validation, saving, saved, and failed-save states
+  where they apply.
+- Keep destructive actions separate from ordinary view and edit actions.
+- Do not introduce a sidebar or master-detail split for a short independent list.
 
-### Configuration page
+### 3. Files-style file workspace
 
-The page helps users edit one structured configuration document.
+Use this whenever the user's task centers on files, folders, documents, or a
+file-backed content collection.
 
-- Group fields by configuration domain, not by implementation order.
-- Keep the form dense enough for scanning but give sections clear spacing.
-- Make saved, unsaved, saving, and failed-save states visible.
-- Put validation beside the field that needs attention.
-- Keep save and reset actions predictable and consistently placed.
-- Collapse advanced or rarely changed settings by default.
-- Show relationships between dependent settings instead of scattering them.
+- Reuse `RepositoryFileSpace` for a scoped file area and `FilesPage` for the
+  underlying workspace.
+- Keep the tree on the left and the selected file, folder, editor, or preview in
+  the main area.
+- Configure the shared workspace with a root path, pinned entries, protected
+  paths, filters, and transport rather than rebuilding file behavior.
+- Preserve file and folder selection in the route when direct access is useful.
+- Reuse existing create, upload, rename, move, duplicate, download, and delete
+  operations.
+- Do not create a separate file tree, editor, storage path, or file API.
+
+## Implementation contract
+
+Before editing a new or redesigned page, state:
+
+1. The selected page type.
+2. The existing reference route.
+3. The shared layout and UI components that will be reused.
+4. Any intentional difference and the user requirement that needs it.
+
+Do not invent another top-level page structure unless all three approved types
+have been checked and cannot satisfy a verified requirement. State the exact
+gap and obtain explicit user approval before implementing a bespoke structure.
 
 ## Keep the information model simple
 
