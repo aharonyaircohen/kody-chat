@@ -5,7 +5,7 @@
  * @ai-summary Selected capability route backed by backend capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CapabilitiesManager } from "@dashboard/features/admin/components/CapabilitiesManager";
+import { CapabilitiesWorkspace } from "@dashboard/features/admin/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,10 @@ export default async function CapabilityPage({
   const { slug } = await params;
   return (
     <AuthGuard>
-      <CapabilitiesManager selectedSlug={slug} basePath="/capabilities" />
+      <CapabilitiesWorkspace
+        basePath="/capabilities"
+        initialPath={`${slug}/instructions.md`}
+      />
     </AuthGuard>
   );
 }

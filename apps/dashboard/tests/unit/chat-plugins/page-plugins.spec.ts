@@ -22,7 +22,6 @@ import { activityChatPlugin } from "@dashboard/lib/chat/plugins/activity";
 import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";
 import { agentsChatPlugin } from "@dashboard/lib/chat/plugins/agents";
 import { brandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/brands";
-import { capabilitiesChatPlugin } from "@dashboard/lib/chat/plugins/capabilities";
 import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
 import { commandsPageChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin } from "@dashboard/lib/chat/plugins/company";
@@ -53,11 +52,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "agency-runs", title: "Agency Runs", plugin: agencyRunsChatPlugin },
   { slug: "agents", title: "Agent", plugin: agentsChatPlugin },
   { slug: "brands", title: "Brands", plugin: brandsChatPlugin },
-  {
-    slug: "capabilities",
-    title: "Capabilities",
-    plugin: capabilitiesChatPlugin,
-  },
   { slug: "changelog", title: "Changelog", plugin: changelogChatPlugin },
   { slug: "commands-page", title: "Commands", plugin: commandsPageChatPlugin },
   { slug: "company", title: "AI Agency", plugin: companyChatPlugin },

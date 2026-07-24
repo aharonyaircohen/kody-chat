@@ -15,7 +15,6 @@ import {
 } from "@dashboard/lib/api";
 import { useRunCapability } from "@dashboard/lib/hooks/useCapabilities";
 import { useAuth } from "@dashboard/lib/auth-context";
-import { selectionPath } from "@dashboard/lib/selection-routing";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import {
   FilesPage,
@@ -47,23 +46,6 @@ export const capabilityQueryKeys = {
       slug,
     ] as const,
 };
-
-interface CapabilitiesManagerProps {
-  selectedSlug?: string;
-  basePath?: string;
-}
-
-export function CapabilitiesManager({
-  selectedSlug,
-  basePath = "/capabilities",
-}: CapabilitiesManagerProps) {
-  return (
-    <CapabilitiesWorkspace
-      basePath={basePath}
-      initialPath={selectedSlug ? `${selectedSlug}/instructions.md` : undefined}
-    />
-  );
-}
 
 function capabilityFiles(detail: CapabilityDetail): Map<string, string> {
   const root = detail.slug;
@@ -176,20 +158,6 @@ function isCapabilityAssetPath(path: string, slug: string): boolean {
     (relative.startsWith("skills/") || relative.startsWith("tools/")) &&
     !relative.endsWith("/") &&
     relative.split("/").every(Boolean)
-  );
-}
-
-export function CapabilityWorkspace({
-  slug,
-  basePath = "/capabilities",
-  initialPath = `${slug}/instructions.md`,
-}: {
-  slug: string;
-  basePath?: string;
-  initialPath?: string;
-}) {
-  return (
-    <CapabilitiesWorkspace basePath={basePath} initialPath={initialPath} />
   );
 }
 
@@ -398,15 +366,10 @@ export function CapabilitiesWorkspace({
 }
 
 export function CapabilityEditorPage({
-  slug,
   basePath = "/capabilities",
 }: {
-  slug: string | null;
   basePath?: string;
 }) {
-  if (slug) {
-    return <CapabilityWorkspace slug={slug} basePath={basePath} />;
-  }
   return <NewCapabilityFolder basePath={basePath} />;
 }
 
@@ -429,7 +392,9 @@ function NewCapabilityFolder({ basePath }: { basePath: string }) {
     onSuccess: (capability) => {
       void queryClient.invalidateQueries({ queryKey: capabilityQueryKeys.all });
       toast.success("Capability folder created");
-      router.push(selectionPath(basePath, capability.slug));
+      router.push(
+        `${basePath}/files/${encodeURIComponent(capability.slug)}/instructions.md`,
+      );
     },
     onError: (error: Error) =>
       toast.error("Could not create capability", {

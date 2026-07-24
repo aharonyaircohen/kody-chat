@@ -17,16 +17,34 @@ import { describe, expect, it } from "vitest";
 // Plain .mjs on purpose — shared with eslint.config.mjs, which runs under
 // node without a TS loader (allowJs lets tsc type it from the source).
 import { CHAT_PLUGIN_DIRS } from "../../../src/dashboard/lib/chat/plugins/plugin-dirs.mjs";
+import { CHAT_PLUGIN_DIRS as PACKAGE_CHAT_PLUGIN_DIRS } from "../../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/plugins/plugin-dirs.mjs";
 
 const PLUGINS_DIR = resolve(process.cwd(), "src/dashboard/lib/chat/plugins");
+const PACKAGE_PLUGINS_DIR = resolve(
+  process.cwd(),
+  "../../packages/kody-chat-dashboard/src/dashboard/lib/chat/plugins",
+);
+
+function pluginDirectoriesWithFiles(root: string) {
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .filter((entry) =>
+      readdirSync(resolve(root, entry.name), { withFileTypes: true }).some(
+        (child) => child.isFile(),
+      ),
+    )
+    .map((entry) => entry.name)
+    .sort();
+}
 
 describe("chat plugin lint-zone coverage", () => {
   it("CHAT_PLUGIN_DIRS matches the directories on disk", () => {
-    const onDisk = readdirSync(PLUGINS_DIR, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-    expect([...CHAT_PLUGIN_DIRS].sort()).toEqual(onDisk);
+    expect([...CHAT_PLUGIN_DIRS].sort()).toEqual(
+      pluginDirectoriesWithFiles(PLUGINS_DIR),
+    );
+    expect([...PACKAGE_CHAT_PLUGIN_DIRS].sort()).toEqual(
+      pluginDirectoriesWithFiles(PACKAGE_PLUGINS_DIR),
+    );
   });
 
   it("eslint.config.mjs derives its zones from the shared constant", () => {

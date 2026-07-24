@@ -85,10 +85,6 @@ import {
 } from "@kody-ade/kody-chat-dashboard/plugins/brands";
 import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat-dashboard/admin-pages";
 import {
-  capabilitiesChatPlugin,
-  CAPABILITIES_PANEL_ID,
-} from "../chat/plugins/capabilities";
-import {
   changelogChatPlugin,
   CHANGELOG_PANEL_ID,
 } from "../chat/plugins/changelog";
@@ -162,7 +158,6 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: agentsChatPlugin },
   { plugin: brandsChatPlugin },
   ...PACKAGE_ADMIN_PAGES.map((page) => ({ plugin: page.plugin })),
-  { plugin: capabilitiesChatPlugin },
   { plugin: changelogChatPlugin },
   { plugin: commandsPageChatPlugin },
   { plugin: companyChatPlugin },
@@ -202,7 +197,6 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   ...Object.fromEntries(
     PACKAGE_ADMIN_PAGES.map((page) => [page.href, page.panelId]),
   ),
-  "/capabilities": CAPABILITIES_PANEL_ID,
   "/changelog": CHANGELOG_PANEL_ID,
   "/commands": COMMANDS_PAGE_PANEL_ID,
   "/company": COMPANY_PANEL_ID,

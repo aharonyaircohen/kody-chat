@@ -1,5 +1,5 @@
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CapabilityEditorPage } from "@dashboard/features/admin/components/CapabilitiesManager";
+import { CapabilitiesWorkspace } from "@dashboard/features/admin/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,10 @@ export default async function EditCapabilityPage({
   const { slug } = await params;
   return (
     <AuthGuard>
-      <CapabilityEditorPage slug={slug} basePath="/capabilities" />
+      <CapabilitiesWorkspace
+        basePath="/capabilities"
+        initialPath={`${slug}/instructions.md`}
+      />
     </AuthGuard>
   );
 }

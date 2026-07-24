@@ -21,7 +21,7 @@ export const metadata = buildKodyMetadata({
 export default function NewCapabilityPage() {
   return (
     <AuthGuard>
-      <CapabilityEditorPage slug={null} basePath="/capabilities" />
+      <CapabilityEditorPage basePath="/capabilities" />
     </AuthGuard>
   );
 }
