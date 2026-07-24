@@ -8,15 +8,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import {
+  buildCompanyStoreHtmlUrl,
+  buildCompanyStoreBlobUrl,
+} from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { listStoreCommandFiles } from "@kody-ade/workspace/commands/files";
-import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
-import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
-import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
-import { listStoreLoops } from "@dashboard/lib/store-loops";
+import { readCompanyStoreWorkflowDefinitionFile } from "@dashboard/lib/workflow-definition-files";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
+import { listStoreCatalogSlugs } from "@dashboard/lib/store-catalog-index";
 import {
   clearGitHubContext,
   getOctokit,
@@ -44,14 +45,12 @@ type CatalogItem = {
   }>;
 };
 
-function firstText(value: string | null | undefined): string {
-  return (
-    (value ?? "")
-      .replace(/^#+\s+/gm, "")
-      .split(/\n{2,}/)
-      .map((part) => part.trim())
-      .find(Boolean) ?? ""
-  );
+function titleFromSlug(slug: string): string {
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 export async function GET(req: NextRequest) {
@@ -72,20 +71,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const octokit = getOctokit();
-    const [
-      capabilities,
-      agents,
-      commands,
-      workflows,
-      loops,
-      localLoops,
-      engine,
-    ] = await Promise.all([
-      listStoreCapabilityFiles(octokit),
-      listStoreAgentFiles(octokit),
-      listStoreCommandFiles(new Set(), octokit),
-      listCompanyStoreWorkflowDefinitionFiles(octokit),
-      listStoreLoops(octokit),
+    const [localLoops, engine] = await Promise.all([
       createBackendClient().query(api.repoDocs.listByPrefix, {
         tenantId: `${auth.owner}/${auth.repo}`,
         prefix: "loop:",
@@ -101,12 +87,28 @@ export async function GET(req: NextRequest) {
       feature: new Set(config?.activeFeatures ?? []),
       loop: new Set(localLoops.map((item) => item.kind.slice("loop:".length))),
     };
+    const {
+      capabilities,
+      agents,
+      commands,
+      workflows: workflowSlugs,
+      loops,
+    } = await listStoreCatalogSlugs(octokit);
+    const activeWorkflows = (
+      await Promise.all(
+        workflowSlugs
+          .filter((slug) => active.workflow.has(slug))
+          .map((slug) =>
+            readCompanyStoreWorkflowDefinitionFile(slug, octokit),
+          ),
+      )
+    ).filter((workflow) => workflow !== null);
 
     const workflowBlockers = (agent: string) =>
-      workflows
+      activeWorkflows
         .filter(
           (item) =>
-            active.workflow.has(item.id) && item.workflow.agent === agent,
+            item.workflow.agent === agent,
         )
         .map((item) => ({
           kind: "workflow" as const,
@@ -115,49 +117,49 @@ export async function GET(req: NextRequest) {
         }));
 
     const items: CatalogItem[] = [
-      ...capabilities.map((item) => ({
-        slug: item.slug,
-        title: item.slug,
-        description: item.describe,
+      ...capabilities.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Capability folder: ${slug}`,
         kind: "capability" as const,
-        htmlUrl: item.htmlUrl,
-        installed: active.capability.has(item.slug),
+        htmlUrl: buildCompanyStoreHtmlUrl("capabilities", slug),
+        installed: active.capability.has(slug),
         uninstallBlockedBy: [],
       })),
-      ...agents.map((item) => ({
-        slug: item.slug,
-        title: item.title,
-        description: firstText(item.body),
+      ...agents.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Agent: ${slug}`,
         kind: "agent" as const,
-        htmlUrl: item.htmlUrl,
-        installed: active.agent.has(item.slug),
-        uninstallBlockedBy: workflowBlockers(item.slug),
+        htmlUrl: buildCompanyStoreBlobUrl(`agents/${slug}.md`),
+        installed: active.agent.has(slug),
+        uninstallBlockedBy: workflowBlockers(slug),
       })),
-      ...commands.map((item) => ({
-        slug: item.slug,
-        title: `/${item.slug}`,
-        description: item.description || firstText(item.body),
+      ...commands.map((slug) => ({
+        slug,
+        title: `/${slug}`,
+        description: `Command: /${slug}`,
         kind: "command" as const,
-        htmlUrl: item.htmlUrl,
-        installed: active.command.has(item.slug),
+        htmlUrl: buildCompanyStoreBlobUrl(`commands/${slug}.md`),
+        installed: active.command.has(slug),
         uninstallBlockedBy: [],
       })),
-      ...workflows.map((item) => ({
-        slug: item.id,
-        title: item.workflow.name || item.id,
-        description: item.workflow.capabilities.join(" -> "),
+      ...workflowSlugs.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Workflow: ${slug}`,
         kind: "workflow" as const,
-        htmlUrl: item.htmlUrl ?? null,
-        installed: active.workflow.has(item.id),
+        htmlUrl: buildCompanyStoreHtmlUrl("workflows", slug),
+        installed: active.workflow.has(slug),
         uninstallBlockedBy: [],
       })),
-      ...loops.map((item) => ({
-        slug: item.slug,
-        title: item.slug,
-        description: `${item.loop.trigger.type} → ${item.loop.target.kind}/${item.loop.target.id}`,
+      ...loops.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Loop: ${slug}`,
         kind: "loop" as const,
-        htmlUrl: item.htmlUrl,
-        installed: active.loop.has(item.slug),
+        htmlUrl: buildCompanyStoreHtmlUrl("loops", slug),
+        installed: active.loop.has(slug),
         uninstallBlockedBy: [],
       })),
       ...BUILTIN_FEATURES.map((item) => ({

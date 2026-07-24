@@ -11,11 +11,23 @@ describe("simple Store catalog", () => {
     expect(source).not.toContain('"implementation"');
     expect(source).not.toContain('"goal"');
     expect(source).not.toContain("managedGoal");
-    expect(source).toContain("listStoreLoops");
+    expect(source).toContain("listStoreCatalogSlugs");
   });
 
   it("derives Agent and Capability uninstall blockers from active Workflows", () => {
     expect(source).toContain("workflowBlockers");
     expect(source).toContain("item.workflow.agent === agent");
+  });
+
+  it("lists lightweight Store entries without opening every asset", () => {
+    expect(source).toContain("listStoreCatalogSlugs");
+    expect(source).not.toContain("listStoreCapabilityFiles");
+    expect(source).not.toContain("listStoreAgentFiles");
+    expect(source).not.toContain("listStoreCommandFiles");
+    expect(source).not.toContain("listCompanyStoreWorkflowDefinitionFiles");
+    expect(source).not.toContain("listStoreLoops");
+    expect(source).toContain(
+      ".filter((slug) => active.workflow.has(slug))",
+    );
   });
 });
