@@ -41,8 +41,8 @@ const PAGES_DIR = join(
 const DASH_OWNED_OVERRIDES: Record<string, string> = {
   context: "app/(chat-rail)/context/page.tsx",
   "context-detail": "app/(chat-rail)/context/[...path]/page.tsx",
-  memory: "app/(chat-rail)/memory/page.tsx",
-  "memory-detail": "app/(chat-rail)/memory/[id]/page.tsx",
+  memory: "app/(chat-rail)/memory/[[...path]]/page.tsx",
+  "memory-detail": "app/(chat-rail)/memory/[[...path]]/page.tsx",
 };
 
 describe("shared pages route coverage", () => {
