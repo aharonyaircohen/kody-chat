@@ -16,13 +16,10 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   // Phase 2 step 4 — page-plugins migrated via the tasks-pilot recipe.
   "activity",
   "agency-runs",
-  "agent-goals",
-  "agent-loops",
   "agents",
   "capabilities",
   "changelog",
   "company",
-  "company-intents",
   "config",
   "docs",
   "files",
