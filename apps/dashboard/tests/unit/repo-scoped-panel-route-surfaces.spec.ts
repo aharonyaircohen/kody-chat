@@ -63,6 +63,12 @@ describe("repo-scoped panel route surfaces", () => {
       expect(existsSync(join(process.cwd(), path)), path).toBe(false);
     }
 
+    const packageApi = read(
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/api.ts",
+    );
+    expect(packageApi).not.toContain("export const contextApi");
+    expect(packageApi).not.toContain("export const memoryApi");
+
   });
 
   it("has reusable client primitives for scoped links and imperative navigation", () => {
