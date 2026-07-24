@@ -27,12 +27,10 @@ import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
 import { commandsPageChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin } from "@dashboard/lib/chat/plugins/company";
 import { configChatPlugin } from "@dashboard/lib/chat/plugins/config";
-import { contextChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin } from "@dashboard/lib/chat/plugins/docs";
 import { filesChatPlugin } from "@dashboard/lib/chat/plugins/files";
 import { inboxChatPlugin } from "@dashboard/lib/chat/plugins/inbox";
 import { instructionsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/instructions";
-import { memoryChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/memory";
 import { messagesChatPlugin } from "@dashboard/lib/chat/plugins/messages";
 import { modelsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/models";
 import { notificationsChatPlugin } from "@dashboard/lib/chat/plugins/notifications";
@@ -64,7 +62,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "commands-page", title: "Commands", plugin: commandsPageChatPlugin },
   { slug: "company", title: "AI Agency", plugin: companyChatPlugin },
   { slug: "config", title: "Config", plugin: configChatPlugin },
-  { slug: "context", title: "Context", plugin: contextChatPlugin },
   { slug: "docs", title: "Docs", plugin: docsChatPlugin },
   { slug: "files", title: "Files", plugin: filesChatPlugin },
   { slug: "inbox", title: "Inbox", plugin: inboxChatPlugin },
@@ -73,7 +70,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
     title: "Instructions",
     plugin: instructionsChatPlugin,
   },
-  { slug: "memory", title: "Memory", plugin: memoryChatPlugin },
   { slug: "messages", title: "Messages", plugin: messagesChatPlugin },
   { slug: "models", title: "Chat Models", plugin: modelsChatPlugin },
   {

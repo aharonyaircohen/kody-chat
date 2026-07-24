@@ -8,8 +8,6 @@ const PACKAGE_COMPONENTS = new Set([
   "SecretsManager.tsx",
   "CommandsManager.tsx",
   "ModelsManager.tsx",
-  "MemoryManager.tsx",
-  "ContextControl.tsx",
   "BrandsManager.tsx",
   "InstructionsManager.tsx",
 ]);
@@ -41,8 +39,30 @@ describe("repo-scoped panel route surfaces", () => {
     const shell = read(
       "src/dashboard/lib/components/ChatRailShell.tsx",
     );
+    expect(shell).not.toContain("contextChatPlugin");
+    expect(shell).not.toContain("memoryChatPlugin");
     expect(shell).not.toContain('"/context": CONTEXT_PANEL_ID');
     expect(shell).not.toContain('"/memory": MEMORY_PANEL_ID');
+
+    for (const path of [
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/ContextControl.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/MemoryManager.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/context/index.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/context/panel.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/memory/index.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/memory/panel.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/context.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/context-detail.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/memory.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/memory-detail.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useContextEntries.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useMemory.ts",
+      "src/dashboard/lib/hooks/useContextEntries.ts",
+      "src/dashboard/lib/hooks/useMemory.ts",
+    ]) {
+      expect(existsSync(join(process.cwd(), path)), path).toBe(false);
+    }
+
   });
 
   it("has reusable client primitives for scoped links and imperative navigation", () => {
@@ -90,9 +110,7 @@ describe("repo-scoped panel route surfaces", () => {
 
   it("uses scoped imperative navigation for selection reset routes", () => {
     for (const file of [
-      "MemoryManager.tsx",
       "AgentsControl.tsx",
-      "ContextControl.tsx",
       // DocsView is now a thin wrapper around the file-manager FilesPage,
       // which owns the repo-scoped navigation.
       "src/dashboard/features/file-manager/components/FilesPage.tsx",

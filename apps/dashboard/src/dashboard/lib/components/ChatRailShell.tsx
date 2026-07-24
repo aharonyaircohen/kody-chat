@@ -98,7 +98,6 @@ import {
 } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
-import { contextChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
@@ -107,7 +106,6 @@ import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
 } from "@kody-ade/kody-chat-dashboard/plugins/instructions";
-import { memoryChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/memory";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
@@ -169,12 +167,10 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: commandsPageChatPlugin },
   { plugin: companyChatPlugin },
   { plugin: configChatPlugin },
-  { plugin: contextChatPlugin },
   { plugin: docsChatPlugin },
   { plugin: filesChatPlugin },
   { plugin: inboxChatPlugin },
   { plugin: instructionsChatPlugin },
-  { plugin: memoryChatPlugin },
   { plugin: messagesChatPlugin },
   { plugin: modelsChatPlugin },
   { plugin: notificationsChatPlugin },
