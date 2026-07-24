@@ -25,6 +25,12 @@ describe("agency page layouts", () => {
     );
 
     expect(overview).toContain("PageShell");
+    expect(overview).toContain("<ul");
+    expect(overview).toContain('aria-label="Edit agency intent"');
+    expect(overview).toContain("<Dialog");
+    expect(overview).toContain("query.refetch()");
+    expect(overview).toContain("queryClient.setQueryData(queryKey, response)");
     expect(overview).not.toContain('<main className="mx-auto');
+    expect(overview).not.toContain('className="min-h-64');
   });
 });

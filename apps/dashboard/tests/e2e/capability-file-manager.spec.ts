@@ -31,7 +31,9 @@ async function seedAuth(page: Page) {
   );
 }
 
-test("Capability contents use the shared Files workspace", async ({ page }) => {
+test("Capabilities open as folders in the shared Files workspace", async ({
+  page,
+}) => {
   const failures: string[] = [];
   let savedInstructions: string | null = null;
   page.on("pageerror", (error) => failures.push(`page: ${error.message}`));
@@ -103,16 +105,20 @@ test("Capability contents use the shared Files workspace", async ({ page }) => {
     json(route, { flows: [] }),
   );
 
-  await page.goto(`/repo/${OWNER}/${REPO}/capabilities/${SLUG}`, {
+  await page.goto(`/repo/${OWNER}/${REPO}/capabilities`, {
     waitUntil: "networkidle",
   });
 
   await page.waitForTimeout(250);
   expect(failures).toEqual([]);
-  await expect(page.getByRole("heading", { name: `${SLUG}/` })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Capabilities" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "New file" })).toHaveCount(0);
   const tree = page.getByRole("tree");
   await expect(tree.getByText(SLUG, { exact: true })).toBeVisible();
   await tree.getByText(SLUG, { exact: true }).click();
+  await expect(page.getByRole("button", { name: "New file" })).toHaveCount(0);
   await expect(
     tree.getByText("instructions.md", { exact: true }),
   ).toBeVisible();
@@ -121,6 +127,7 @@ test("Capability contents use the shared Files workspace", async ({ page }) => {
   await expect(tree.getByText("tools", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run as Kody" })).toBeVisible();
 
+  await tree.getByText("instructions.md", { exact: true }).click();
   const editor = page.getByRole("textbox", { name: "Editor content" });
   await editor.click({ force: true });
   await editor.press("ControlOrMeta+A");

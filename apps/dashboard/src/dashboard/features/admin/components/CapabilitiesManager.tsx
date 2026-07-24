@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Folder, FolderOpen, Loader2, Play, Plus } from "lucide-react";
+import { Folder, Loader2, Play, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@kody-ade/base/ui/button";
@@ -13,13 +13,10 @@ import {
   type CapabilityDetail,
   type CapabilityWriteInput,
 } from "@dashboard/lib/api";
-import {
-  useCapabilities,
-  useRunCapability,
-} from "@dashboard/lib/hooks/useCapabilities";
+import { useRunCapability } from "@dashboard/lib/hooks/useCapabilities";
+import { useAuth } from "@dashboard/lib/auth-context";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
-import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import {
   FilesPage,
   type FileEntry,
@@ -60,100 +57,11 @@ export function CapabilitiesManager({
   selectedSlug,
   basePath = "/capabilities",
 }: CapabilitiesManagerProps) {
-  if (selectedSlug) {
-    return (
-      <CapabilityWorkspace
-        slug={selectedSlug}
-        basePath={basePath}
-        initialPath={`${selectedSlug}/instructions.md`}
-      />
-    );
-  }
-
-  return <CapabilityList basePath={basePath} />;
-}
-
-function CapabilityList({ basePath }: { basePath: string }) {
-  const router = useRouter();
-  const list = useCapabilities();
-  const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return (list.data ?? []).filter(
-      (item) =>
-        !query ||
-        item.slug.toLowerCase().includes(query) ||
-        item.describe?.toLowerCase().includes(query),
-    );
-  }, [list.data, search]);
-
   return (
-    <MasterDetailShell
-      title="Capabilities"
-      icon={FolderOpen}
-      iconClassName="text-amber-400"
-      subtitle={`${list.data?.length ?? 0} capability folders`}
-      error={
-        list.error ? `Failed to load capabilities: ${list.error.message}` : null
-      }
-      search={search}
-      onSearch={setSearch}
-      searchPlaceholder="Search capability folders..."
-      searchAriaLabel="Search capability folders"
-      accent="amber"
-      hasSelection={false}
-      actions={
-        <Button
-          size="sm"
-          className="w-9 px-0"
-          aria-label="New capability"
-          onClick={() => router.push(`${basePath}/new`)}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      }
-      detail={
-        <EmptyState
-          icon={<Folder />}
-          title="Open a capability folder"
-          hint="Every folder contains instructions.md, contract.json, skills/, and tools/."
-        />
-      }
-    >
-      {list.isLoading ? (
-        <EmptyState icon={<Folder />} title="Loading capabilities..." />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<Folder />}
-          title="No capabilities"
-          hint="Create one small executable folder."
-        />
-      ) : (
-        <ul className="divide-y divide-border">
-          {filtered.map((capability) => (
-            <li key={capability.slug}>
-              <button
-                type="button"
-                className="w-full px-4 py-3 text-left hover:bg-accent/50"
-                onClick={() =>
-                  router.push(selectionPath(basePath, capability.slug))
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <Folder className="h-4 w-4 text-amber-400" />
-                  <span className="font-mono text-sm">{capability.slug}/</span>
-                </div>
-                {capability.describe ? (
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {capability.describe}
-                  </p>
-                ) : null}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </MasterDetailShell>
+    <CapabilitiesWorkspace
+      basePath={basePath}
+      initialPath={selectedSlug ? `${selectedSlug}/instructions.md` : undefined}
+    />
   );
 }
 
@@ -271,6 +179,11 @@ function isCapabilityAssetPath(path: string, slug: string): boolean {
   );
 }
 
+function isCapabilityAssetDirectory(path: string): boolean {
+  const [, folder] = path.replace(/^\/+|\/+$/g, "").split("/");
+  return folder === "skills" || folder === "tools";
+}
+
 export function CapabilityWorkspace({
   slug,
   basePath = "/capabilities",
@@ -280,44 +193,104 @@ export function CapabilityWorkspace({
   basePath?: string;
   initialPath?: string;
 }) {
+  return (
+    <CapabilitiesWorkspace basePath={basePath} initialPath={initialPath} />
+  );
+}
+
+export function CapabilitiesWorkspace({
+  basePath = "/capabilities",
+  initialPath = "",
+}: {
+  basePath?: string;
+  initialPath?: string;
+}) {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const run = useRunCapability();
-  const detailQuery = useQuery({
-    queryKey: capabilityQueryKeys.detail(slug),
-    queryFn: () => kodyApi.capabilities.get(slug),
+  const { auth } = useAuth();
+  const listQuery = useQuery({
+    queryKey: capabilityQueryKeys.list({
+      owner: auth?.owner,
+      repo: auth?.repo,
+    }),
+    queryFn: () => kodyApi.capabilities.list(),
   });
-  const detailRef = useRef<CapabilityDetail | null>(null);
-  if (detailQuery.data) detailRef.current = detailQuery.data;
+  const run = useRunCapability();
+  const detailsRef = useRef<Map<string, CapabilityDetail>>(new Map());
+  const summariesRef = useRef(listQuery.data ?? []);
+  summariesRef.current = listQuery.data ?? [];
 
   const transport = useMemo<FilesTransport | undefined>(() => {
-    const initial = detailQuery.data;
-    if (!initial) return undefined;
+    const summaries = listQuery.data;
+    if (!summaries) return undefined;
 
-    const saveFiles = async (files: Map<string, string>) => {
-      const current = detailRef.current;
-      if (!current) throw new Error("Capability is not loaded");
+    const loadDetail = async (capabilitySlug: string) => {
+      const known = summariesRef.current.some(
+        (item) => item.slug === capabilitySlug,
+      );
+      if (!known) {
+        throw new Error(`Capability "${capabilitySlug}" was not found`);
+      }
+      const cached = detailsRef.current.get(capabilitySlug);
+      if (cached) return cached;
+      const detail = await kodyApi.capabilities.get(capabilitySlug);
+      detailsRef.current.set(capabilitySlug, detail);
+      queryClient.setQueryData(
+        capabilityQueryKeys.detail(capabilitySlug),
+        detail,
+      );
+      return detail;
+    };
+
+    const saveFiles = async (
+      current: CapabilityDetail,
+      files: Map<string, string>,
+    ) => {
       const updated = await kodyApi.capabilities.update(
-        slug,
+        current.slug,
         capabilityWriteInput(current, files),
       );
-      detailRef.current = updated;
-      queryClient.setQueryData(capabilityQueryKeys.detail(slug), updated);
+      detailsRef.current.set(current.slug, updated);
+      queryClient.setQueryData(
+        capabilityQueryKeys.detail(current.slug),
+        updated,
+      );
       void queryClient.invalidateQueries({ queryKey: capabilityQueryKeys.all });
     };
 
     return {
-      cacheKey: `capability:${slug}:${JSON.stringify(initial)}`,
-      listDir: async (path) =>
-        listCapabilityDirectory(detailRef.current ?? initial, path),
-      readFile: async (path) => {
+      cacheKey: `capabilities:${JSON.stringify(
+        summaries.map((item) => [item.slug, item.readOnly]),
+      )}`,
+      listDir: async (path) => {
         const normalized = path.replace(/^\/+|\/+$/g, "");
-        const content = capabilityFiles(detailRef.current ?? initial).get(
+        if (!normalized) {
+          return summariesRef.current
+            .map<FileEntry>((item) => ({
+              name: item.slug,
+              path: item.slug,
+              type: "dir",
+              size: 0,
+              sha: `capability:${item.slug}`,
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name));
+        }
+        const capabilitySlug = normalized.split("/")[0] ?? "";
+        return listCapabilityDirectory(
+          await loadDetail(capabilitySlug),
           normalized,
         );
+      },
+      readFile: async (path) => {
+        const normalized = path.replace(/^\/+|\/+$/g, "");
+        const capabilitySlug = normalized.split("/")[0] ?? "";
+        if (!capabilitySlug) return null;
+        const detail = await loadDetail(capabilitySlug);
+        const content = capabilityFiles(detail).get(normalized);
         if (content === undefined) return null;
         return {
           path: normalized,
-          sha: `capability:${slug}:${normalized}`,
+          sha: `capability:${detail.slug}:${normalized}`,
           size: content.length,
           content,
           base64Content: "",
@@ -325,85 +298,107 @@ export function CapabilityWorkspace({
           encoding: "utf-8",
         };
       },
-      ...(initial.readOnly
-        ? {}
-        : {
-            writeFile: async (path: string, content: string) => {
-              const normalized = path.replace(/^\/+|\/+$/g, "");
-              if (
-                normalized !== `${slug}/instructions.md` &&
-                normalized !== `${slug}/contract.json` &&
-                !isCapabilityAssetPath(normalized, slug)
-              ) {
-                throw new Error(
-                  "Capability files must be instructions.md, contract.json, or files under skills/ and tools/",
-                );
-              }
-              const current = detailRef.current ?? initial;
-              const files = capabilityFiles(current);
-              files.set(normalized, content);
-              await saveFiles(files);
-            },
-            deleteFile: async (path: string) => {
-              const normalized = path.replace(/^\/+|\/+$/g, "");
-              if (!isCapabilityAssetPath(normalized, slug)) {
-                throw new Error(
-                  "Only files inside skills/ and tools/ can be deleted",
-                );
-              }
-              const current = detailRef.current ?? initial;
-              const files = capabilityFiles(current);
-              files.delete(normalized);
-              await saveFiles(files);
-            },
-          }),
+      writeFile: async (path: string, content: string) => {
+        const normalized = path.replace(/^\/+|\/+$/g, "");
+        const capabilitySlug = normalized.split("/")[0] ?? "";
+        const current = await loadDetail(capabilitySlug);
+        if (current.readOnly) throw new Error("This capability is read-only");
+        if (
+          normalized !== `${capabilitySlug}/instructions.md` &&
+          normalized !== `${capabilitySlug}/contract.json` &&
+          !isCapabilityAssetPath(normalized, capabilitySlug)
+        ) {
+          throw new Error(
+            "Capability files must be instructions.md, contract.json, or files under skills/ and tools/",
+          );
+        }
+        const files = capabilityFiles(current);
+        files.set(normalized, content);
+        await saveFiles(current, files);
+      },
+      deleteFile: async (path: string) => {
+        const normalized = path.replace(/^\/+|\/+$/g, "");
+        const capabilitySlug = normalized.split("/")[0] ?? "";
+        const current = await loadDetail(capabilitySlug);
+        if (current.readOnly) throw new Error("This capability is read-only");
+        if (!isCapabilityAssetPath(normalized, capabilitySlug)) {
+          throw new Error(
+            "Only files inside skills/ and tools/ can be deleted",
+          );
+        }
+        const files = capabilityFiles(current);
+        files.delete(normalized);
+        await saveFiles(current, files);
+      },
     };
-  }, [detailQuery.data, queryClient, slug]);
+  }, [listQuery.data, queryClient]);
 
-  if (detailQuery.error) {
+  if (listQuery.error) {
     return (
       <EmptyState
         icon={<Folder />}
-        title="Could not open capability"
-        hint={detailQuery.error.message}
+        title="Could not open capabilities"
+        hint={listQuery.error.message}
       />
     );
   }
-  if (detailQuery.isLoading || !transport) {
+  if (listQuery.isLoading || !transport) {
     return (
-      <EmptyState icon={<Folder />} title="Loading capability folder..." />
+      <EmptyState icon={<Folder />} title="Loading capability folders..." />
     );
   }
 
+  const protectedPaths = (listQuery.data ?? []).flatMap((item) => [
+    item.slug,
+    `${item.slug}/instructions.md`,
+    `${item.slug}/contract.json`,
+    `${item.slug}/skills`,
+    `${item.slug}/tools`,
+  ]);
+
   return (
     <FilesPage
-      title={`${slug}/`}
-      routeBase={`${basePath}/${slug}/files`}
+      title="Capabilities"
+      routeBase={`${basePath}/files`}
       initialPath={initialPath}
       transport={transport}
-      protectedPaths={[
-        slug,
-        `${slug}/instructions.md`,
-        `${slug}/contract.json`,
-        `${slug}/skills`,
-        `${slug}/tools`,
-      ]}
+      protectedPaths={protectedPaths}
       showSearch={false}
       showUpload={false}
-      headerActions={() => (
-        <Button
-          size="sm"
-          onClick={() => run.mutate({ slug })}
-          disabled={run.isPending}
-        >
-          {run.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          Run as Kody
-        </Button>
-      )}
+      canCreateFile={isCapabilityAssetDirectory}
+      headerActions={({ selectedPath }) => {
+        const selectedSlug = selectedPath?.split("/")[0] ?? "";
+        const canRun = (listQuery.data ?? []).some(
+          (item) => item.slug === selectedSlug,
+        );
+        return (
+          <>
+            {canRun ? (
+              <Button
+                size="sm"
+                onClick={() => run.mutate({ slug: selectedSlug })}
+                disabled={run.isPending}
+              >
+                {run.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                Run as Kody
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="New capability"
+              onClick={() => router.push(`${basePath}/new`)}
+            >
+              <Plus className="h-4 w-4" />
+              New
+            </Button>
+          </>
+        );
+      }}
     />
   );
 }

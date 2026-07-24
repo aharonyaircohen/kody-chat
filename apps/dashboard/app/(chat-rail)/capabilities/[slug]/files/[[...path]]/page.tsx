@@ -21,7 +21,9 @@ export default async function CapabilityFilesPage({
       <CapabilityWorkspace
         slug={slug}
         basePath="/capabilities"
-        initialPath={path.join("/") || `${slug}/instructions.md`}
+        initialPath={
+          path.length ? `${slug}/${path.join("/")}` : `${slug}/instructions.md`
+        }
       />
     </AuthGuard>
   );

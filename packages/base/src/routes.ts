@@ -25,6 +25,7 @@ export type RepoRouteAuthSync =
 
 const REPO_OWNED_LEGACY_PREFIXES = [
   "/activity",
+  "/agency",
   "/agent-goals",
   "/agent-loops",
   "/agents",

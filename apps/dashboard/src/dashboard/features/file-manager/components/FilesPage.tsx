@@ -133,6 +133,7 @@ interface FilesPageProps {
   newFileNameOnly?: boolean;
   showSearch?: boolean;
   showUpload?: boolean;
+  canCreateFile?: (directoryPath: string) => boolean;
   defaultMarkdownViewMode?: FileEditorViewMode;
   /**
    * Custom read-only storage backing this workspace. Default (unset)
@@ -160,6 +161,7 @@ export function FilesPage({
   newFileNameOnly = false,
   showSearch = true,
   showUpload = true,
+  canCreateFile,
   defaultMarkdownViewMode = "edit",
   transport,
   headerActions,
@@ -217,6 +219,11 @@ export function FilesPage({
     : Boolean(octokit && auth);
   const fullFs = !transport;
   const canDelete = transport ? Boolean(transport.deleteFile) : writeable;
+  const canCreateFileIn = useCallback(
+    (directoryPath: string) =>
+      writeable && (canCreateFile?.(directoryPath) ?? true),
+    [canCreateFile, writeable],
+  );
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
@@ -1099,16 +1106,18 @@ export function FilesPage({
                 Choose an item from the tree, create something new, or drag
                 files between folders to reorganize them.
               </p>
-              {writeable ? (
+              {canCreateFileIn(selectedPath) || (writeable && fullFs) ? (
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => handleNewFile(selectedPath)}
-                    className="gap-2"
-                  >
-                    <FilePlus className="h-4 w-4" />
-                    New file
-                  </Button>
+                  {canCreateFileIn(selectedPath) ? (
+                    <Button
+                      type="button"
+                      onClick={() => handleNewFile(selectedPath)}
+                      className="gap-2"
+                    >
+                      <FilePlus className="h-4 w-4" />
+                      New file
+                    </Button>
+                  ) : null}
                   {fullFs ? (
                     <Button
                       type="button"
@@ -1150,16 +1159,18 @@ export function FilesPage({
             Browse the repository tree, open a file, or create something new.
             Drag items between folders to reorganize them.
           </p>
-          {writeable ? (
+          {canCreateFileIn(currentFolder) || (writeable && fullFs) ? (
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                type="button"
-                onClick={() => handleNewFile(currentFolder)}
-                className="gap-2"
-              >
-                <FilePlus className="h-4 w-4" />
-                New file
-              </Button>
+              {canCreateFileIn(currentFolder) ? (
+                <Button
+                  type="button"
+                  onClick={() => handleNewFile(currentFolder)}
+                  className="gap-2"
+                >
+                  <FilePlus className="h-4 w-4" />
+                  New file
+                </Button>
+              ) : null}
               {fullFs ? (
                 <Button
                   type="button"
@@ -1187,7 +1198,7 @@ export function FilesPage({
         selectedPath,
         isFile: Boolean(selectedFile),
       })}
-      {writeable || hasSecondaryHeaderActions ? (
+      {canCreateFileIn(currentFolder) || hasSecondaryHeaderActions ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -1200,12 +1211,16 @@ export function FilesPage({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            {writeable ? (
+            {canCreateFileIn(currentFolder) || (writeable && fullFs) ? (
               <>
-                <DropdownMenuItem onClick={() => handleNewFile(currentFolder)}>
-                  <FilePlus className="h-4 w-4" />
-                  New file
-                </DropdownMenuItem>
+                {canCreateFileIn(currentFolder) ? (
+                  <DropdownMenuItem
+                    onClick={() => handleNewFile(currentFolder)}
+                  >
+                    <FilePlus className="h-4 w-4" />
+                    New file
+                  </DropdownMenuItem>
+                ) : null}
                 {fullFs ? (
                   <DropdownMenuItem
                     onClick={() => handleNewFolder(currentFolder)}
@@ -1348,7 +1363,9 @@ export function FilesPage({
                 onOpenOnGitHub={
                   canOpenExternally ? handleOpenOnGitHub : undefined
                 }
-                onNewFile={writeable ? handleNewFile : undefined}
+                onNewFile={
+                  writeable && !canCreateFile ? handleNewFile : undefined
+                }
                 onNewFolder={writeable && fullFs ? handleNewFolder : undefined}
                 onCopyPath={handleCopyPath}
                 onMove={writeable && fullFs ? handleMoveToFolder : undefined}
