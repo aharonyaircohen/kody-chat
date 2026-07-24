@@ -12,13 +12,15 @@ import {
 } from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@kody-ade/base/activity/audit";
-import type { ImplementationDefinition } from "@kody-ade/agency-domain";
+import {
+  createCapabilityDefinition,
+  type ImplementationDefinition,
+} from "@kody-ade/agency-domain";
 import {
   deleteCapabilityFile,
   isValidSlug,
-  PERMISSION_MODES,
   readResolvedCapabilityFile,
-  writeCapabilityFile,
+  writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
 import {
   clearGitHubContext,
@@ -28,32 +30,16 @@ import {
 import { listStoredAgencyDefinitions } from "../backend/agency-model-store";
 import { resolveCapabilityImplementations } from "../implementation-resolution";
 
-const skillSchema = z.object({
-  name: z.string().min(1).max(64),
-  body: z.string().default(""),
-});
-const shellSchema = z.object({
-  name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/),
-  content: z.string().default(""),
-});
-const mcpServerSchema = z.object({
-  name: z.string().regex(/^[a-zA-Z0-9_-]+$/),
-  command: z.string().min(1),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-});
 const updateSchema = z.object({
-  describe: z.string().optional(),
-  instructions: z.string().min(1).optional(),
-  prompt: z.string().min(1).optional(),
-  model: z.string().optional(),
-  permissionMode: z.enum(PERMISSION_MODES).optional(),
-  tools: z.array(z.string()).optional(),
-  skills: z.array(skillSchema).optional(),
-  shellScripts: z.array(shellSchema).optional(),
-  mcpServers: z.array(mcpServerSchema).optional(),
-  landing: z.enum(["pr", "comment"]).optional(),
-  profileJsonOverride: z.string().optional(),
+  action: z.string().min(1),
+  purpose: z.string().min(1),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()),
+  effects: z.array(z.string()).default([]),
+  permissions: z.array(z.string()).default([]),
+  success: z.string().min(1),
+  failure: z.string().min(1),
+  documentation: z.string().default(""),
   actorLogin: z.string().optional(),
 });
 
@@ -223,38 +209,28 @@ export async function PATCH(
     const existing = await getCapability(tenantId, slug);
     if (!existing)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    const capability = {
-      ...existing,
-      ...input,
-      prompt: input.instructions ?? input.prompt ?? existing.prompt,
-      updatedAt: new Date().toISOString(),
-      source: "local",
-      readOnly: false,
-    };
-    await writeCapabilityFile({
-      fields: {
-        slug,
-        describe: capability.describe ?? "",
-        prompt: capability.prompt ?? "",
-        model: capability.model ?? "inherit",
-        permissionMode: capability.permissionMode ?? "acceptEdits",
-        tools: capability.tools ?? [],
-        skills: (capability.skills ?? []).map(
-          (skill: { name: string }) => skill.name,
-        ),
-        shellScripts: (capability.shellScripts ?? []).map(
-          (script: { name: string }) => script.name,
-        ),
-        mcpServers: capability.mcpServers ?? [],
-        landing: capability.landing ?? "pr",
+    const definition = createCapabilityDefinition({
+      id: slug,
+      action: input.action,
+      purpose: input.purpose,
+      inputSchema: input.inputSchema,
+      outputSchema: input.outputSchema,
+      effects: input.effects,
+      permissions: input.permissions,
+      success: input.success,
+      failure: input.failure,
+    });
+    await writeCapabilityFolderFiles({
+      slug,
+      files: {
+        "definition.json": `${JSON.stringify(definition, null, 2)}\n`,
+        "capability.md": input.documentation.trim()
+          ? `${input.documentation.trim()}\n`
+          : "",
       },
-      skills: capability.skills ?? [],
-      shellScripts: capability.shellScripts ?? [],
-      ...(capability.profileJsonOverride
-        ? { profileJsonOverride: capability.profileJsonOverride }
-        : {}),
       isUpdate: true,
     });
+    const capability = await getCapability(tenantId, slug);
     recordAudit(req, {
       action: "capability.update",
       resource: slug,

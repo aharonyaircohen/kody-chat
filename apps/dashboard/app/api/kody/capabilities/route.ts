@@ -15,13 +15,14 @@ import {
 import {
   listCapabilityFiles,
   readCapabilityFile,
-  writeCapabilityFile,
+  writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
+import { createCapabilityDefinition } from "@kody-ade/agency-domain";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
+import { isValidSlug } from "@dashboard/lib/capabilities";
 import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
@@ -91,76 +92,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const skillSchema = z.object({
-  name: z.string().min(1).max(64),
-  body: z.string().default(""),
+const jsonObjectSchema = z.record(z.string(), z.unknown());
+const createCapabilitySchema = z.object({
+  slug: z.string().min(1).max(64),
+  action: z.string().min(1),
+  purpose: z.string().min(1),
+  inputSchema: jsonObjectSchema,
+  outputSchema: jsonObjectSchema,
+  effects: z.array(z.string()).default([]),
+  permissions: z.array(z.string()).default([]),
+  success: z.string().min(1),
+  failure: z.string().min(1),
+  documentation: z.string().default(""),
+  actorLogin: z.string().optional(),
 });
-const shellSchema = z.object({
-  name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/, "must be a *.sh filename"),
-  content: z.string().default(""),
-});
-const mcpServerSchema = z.object({
-  name: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
-  command: z.string().min(1, "command is required"),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-});
-
-const createCapabilitySchema = z
-  .object({
-    slug: z.string().min(1).max(64).optional(),
-    describe: z.string().default(""),
-    instructions: z.string().min(1, "instructions are required").optional(),
-    prompt: z.string().min(1).optional(),
-    model: z.string().default("inherit"),
-    permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
-    tools: z.array(z.string()).default([]),
-    skills: z.array(skillSchema).default([]),
-    shellScripts: z.array(shellSchema).default([]),
-    mcpServers: z.array(mcpServerSchema).default([]),
-    landing: z.enum(["pr", "comment"]).default("pr"),
-    profileJsonOverride: z.string().optional(),
-    actorLogin: z.string().optional(),
-  })
-  .refine((input) => input.instructions || input.prompt, {
-    message: "instructions are required",
-    path: ["instructions"],
-  });
-
-/** Slugify the first plain words of the instructions into a valid slug. */
-function slugifyInstructions(instructions: string): string {
-  return instructions
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .split("-")
-    .slice(0, 5)
-    .join("-")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
-}
-
-/**
- * Derive a valid, unused capability slug from the instructions. Appends a
- * numeric suffix when the base is taken. Returns null if nothing slug-able.
- */
-async function deriveFreeSlug(
-  instructions: string,
-  _owner: string,
-  _repo: string,
-): Promise<string | null> {
-  const base = slugifyInstructions(instructions);
-  if (!base || !isValidSlug(base)) return null;
-  if (!(await readCapabilityFile(base))) return base;
-  for (let i = 2; i <= 99; i++) {
-    const candidate = `${base}-${i}`.slice(0, 64);
-    if (!(await readCapabilityFile(candidate))) return candidate;
-  }
-  return null;
-}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -178,55 +123,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = createCapabilitySchema.parse(await req.json());
-    const instructions = input.instructions ?? input.prompt ?? "";
-
-    // Slug is optional: when omitted, derive it from the instructions so a
-    // caller can create a capability from instructions alone. A supplied slug
-    // is still validated and must be free.
-    let slug: string;
-    if (input.slug) {
-      if (!isValidSlug(input.slug)) {
-        return NextResponse.json(
-          {
-            error: "invalid_slug",
-            message:
-              "Capability name must be lowercase letters, digits, dashes, or underscores.",
-          },
-          { status: 400 },
-        );
-      }
-      if (await readCapabilityFile(input.slug)) {
-        return NextResponse.json(
-          {
-            error: "slug_taken",
-            message: `Capability "${input.slug}" already exists.`,
-          },
-          { status: 409 },
-        );
-      }
-      slug = input.slug;
-    } else {
-      if (!headerAuth)
-        return NextResponse.json(
-          { error: "repository_context_required" },
-          { status: 400 },
-        );
-      const derived = await deriveFreeSlug(
-        instructions,
-        headerAuth.owner,
-        headerAuth.repo,
+    const slug = input.slug;
+    if (!isValidSlug(slug)) {
+      return NextResponse.json(
+        { error: "invalid_slug", message: "Use lowercase letters, numbers, and dashes." },
+        { status: 400 },
       );
-      if (!derived) {
-        return NextResponse.json(
-          {
-            error: "invalid_slug",
-            message:
-              "Could not derive a name from the instructions — provide a slug or start the instructions with a few plain words.",
-          },
-          { status: 400 },
-        );
-      }
-      slug = derived;
+    }
+    if (await readCapabilityFile(slug)) {
+      return NextResponse.json(
+        { error: "slug_taken", message: `Capability "${slug}" already exists.` },
+        { status: 409 },
+      );
     }
 
     const actorResult = await verifyActorLogin(req, input.actorLogin);
@@ -237,25 +145,27 @@ export async function POST(req: NextRequest) {
         { error: "repository_context_required" },
         { status: 400 },
       );
-    const capability = await writeCapabilityFile({
-      fields: {
-        slug,
-        describe: input.describe,
-        prompt: instructions,
-        model: input.model,
-        permissionMode: input.permissionMode,
-        tools: input.tools,
-        skills: input.skills.map((skill) => skill.name),
-        shellScripts: input.shellScripts.map((script) => script.name),
-        mcpServers: input.mcpServers,
-        landing: input.landing,
-      },
-      skills: input.skills,
-      shellScripts: input.shellScripts,
-      ...(input.profileJsonOverride
-        ? { profileJsonOverride: input.profileJsonOverride }
-        : {}),
+    const definition = createCapabilityDefinition({
+      id: slug,
+      action: input.action,
+      purpose: input.purpose,
+      inputSchema: input.inputSchema,
+      outputSchema: input.outputSchema,
+      effects: input.effects,
+      permissions: input.permissions,
+      success: input.success,
+      failure: input.failure,
     });
+    await writeCapabilityFolderFiles({
+      slug,
+      files: {
+        "definition.json": `${JSON.stringify(definition, null, 2)}\n`,
+        "capability.md": input.documentation.trim()
+          ? `${input.documentation.trim()}\n`
+          : "",
+      },
+    });
+    const capability = await readCapabilityFile(slug);
     recordAudit(req, {
       action: "capability.create",
       resource: slug,

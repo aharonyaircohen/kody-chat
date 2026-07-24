@@ -77,10 +77,6 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["capabilities", "tools", "capability"],
     when: "Use when the user asks to manage reusable Kody capabilities.",
   },
-  "/capability-contracts": {
-    aliases: ["capability contracts", "input contracts", "output contracts"],
-    when: "Use when the user asks to inspect canonical Capability contracts.",
-  },
   "/implementations": {
     aliases: ["implementations", "execution models", "runtime adapters"],
     when: "Use when the user asks how a Capability is technically executed.",

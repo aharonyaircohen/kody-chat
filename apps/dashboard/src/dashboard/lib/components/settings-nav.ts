@@ -373,17 +373,10 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
-        href: "/capability-contracts",
-        label: "Capability Contracts",
-        icon: ScrollText,
-        description: "Canonical inputs, outputs, effects, and permissions.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
         href: "/implementations",
         label: "Implementations",
         icon: Cpu,
-        description: "Technical execution models for Capability Contracts.",
+        description: "Technical execution models for Capabilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
@@ -660,7 +653,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/workflows"),
       navItemForHref("/guided-flows"),
       navItemForHref("/capabilities"),
-      navItemForHref("/capability-contracts"),
       navItemForHref("/implementations"),
       navItemForHref("/store-catalog"),
       navItemForHref("/company"),

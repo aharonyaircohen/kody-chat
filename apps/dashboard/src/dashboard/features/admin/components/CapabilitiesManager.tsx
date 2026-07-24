@@ -30,6 +30,7 @@ import {
   Sparkles,
   Terminal,
   Trash2,
+  Upload,
   User,
   Wrench,
   X,
@@ -86,11 +87,11 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Gives the agent a 'verify' tool it can call to re-check its work. It does NOT run verify automatically — the agent decides when to call it. PR-landing already runs verify as its own step.",
 };
 
-interface CapabilitySkill {
+export interface CapabilitySkill {
   name: string;
   body: string;
 }
-interface CapabilityShellScript {
+export interface CapabilityShellScript {
   name: string;
   content: string;
 }
@@ -107,7 +108,7 @@ interface CapabilitySummary {
   /** Declared boundary from profile.capabilityKind — observe/verify run freely. */
   capabilityKind?: "observe" | "act" | "verify" | null;
 }
-interface CapabilityDetail extends CapabilitySummary {
+export interface CapabilityDetail extends CapabilitySummary {
   contract?: {
     action: string;
     purpose: string;
@@ -249,7 +250,7 @@ async function readApi(
   return capability;
 }
 
-interface SavePayload {
+export interface SavePayload {
   slug: string;
   describe: string;
   /** Engine instructions body exposed in the UI as capability instructions. */
@@ -301,6 +302,41 @@ async function deleteApi(
   };
   if (!res.ok)
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
+}
+
+type ContractPayload = {
+  slug: string;
+  action: string;
+  purpose: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  effects: string[];
+  permissions: string[];
+  success: string;
+  failure: string;
+  documentation: string;
+};
+
+async function saveContractApi(
+  headers: Record<string, string>,
+  payload: ContractPayload,
+  isUpdate: boolean,
+): Promise<void> {
+  const { slug, ...body } = payload;
+  const response = await fetch(
+    isUpdate
+      ? `/api/kody/capabilities/${encodeURIComponent(slug)}`
+      : "/api/kody/capabilities",
+    {
+      method: isUpdate ? "PATCH" : "POST",
+      headers,
+      body: JSON.stringify(isUpdate ? body : payload),
+    },
+  );
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result.message || result.error || `HTTP ${response.status}`);
+  }
 }
 
 async function bindImplementationApi(
@@ -359,8 +395,60 @@ export function CapabilityEditorPage({
 }) {
   return (
     <AuthGuard>
-      <CapabilityEditorPageInner slug={slug} basePath={basePath} />
+      <CapabilityContractEditorPageInner slug={slug} basePath={basePath} />
     </AuthGuard>
+  );
+}
+
+function CapabilityContractEditorPageInner({
+  slug,
+  basePath,
+}: {
+  slug: string | null;
+  basePath: string;
+}) {
+  const { auth } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const headers = {
+    "Content-Type": "application/json",
+    ...buildAuthHeaders(auth),
+  };
+  const detail = useQuery({
+    queryKey: capabilityQueryKeys.detail(slug),
+    queryFn: () => readApi(headers, slug!, "/api/kody/capabilities"),
+    enabled: Boolean(auth && slug),
+  });
+  const save = useMutation({
+    mutationFn: (payload: ContractPayload) =>
+      saveContractApi(headers, payload, Boolean(slug)),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: capabilityQueryKeys.all });
+      toast.success("Capability saved");
+      router.push(basePath);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  return (
+    <PageShell
+      title={slug ? `Edit capability ${slug}` : "New capability"}
+      icon={Boxes}
+      iconClassName="text-amber-400"
+      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      backHref={basePath}
+    >
+      {slug && detail.isLoading ? (
+        <EmptyState icon={<Loader2 className="animate-spin" />} title="Loading capability…" />
+      ) : (
+        <CapabilityContractEditor
+          slug={slug}
+          initial={detail.data ?? null}
+          saving={save.isPending}
+          onCancel={() => router.push(basePath)}
+          onSave={(payload) => save.mutate(payload)}
+        />
+      )}
+    </PageShell>
   );
 }
 
@@ -426,6 +514,150 @@ function CapabilityEditorPageInner({
         }}
       />
     </PageShell>
+  );
+}
+
+function CapabilityContractEditor({
+  slug,
+  initial,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  slug: string | null;
+  initial: CapabilityDetail | null;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (payload: ContractPayload) => void;
+}) {
+  const contract = initial?.contract;
+  const [id, setId] = useState(slug ?? "");
+  const [action, setAction] = useState(contract?.action ?? "");
+  const [purpose, setPurpose] = useState(contract?.purpose ?? "");
+  const [inputSchema, setInputSchema] = useState(
+    JSON.stringify(contract?.inputSchema ?? { type: "object", properties: {} }, null, 2),
+  );
+  const [outputSchema, setOutputSchema] = useState(
+    JSON.stringify(contract?.outputSchema ?? { type: "object", properties: {} }, null, 2),
+  );
+  const [effects, setEffects] = useState((contract?.effects ?? []).join(", "));
+  const [permissions, setPermissions] = useState(
+    (contract?.permissions ?? []).join(", "),
+  );
+  const [success, setSuccess] = useState(contract?.success ?? "");
+  const [failure, setFailure] = useState(contract?.failure ?? "");
+  const [documentation, setDocumentation] = useState(initial?.documentation ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      if (!isValidSlug(id)) throw new Error("Use a lowercase Capability ID.");
+      const parsedInput = JSON.parse(inputSchema);
+      const parsedOutput = JSON.parse(outputSchema);
+      if (
+        !parsedInput ||
+        typeof parsedInput !== "object" ||
+        Array.isArray(parsedInput) ||
+        !parsedOutput ||
+        typeof parsedOutput !== "object" ||
+        Array.isArray(parsedOutput)
+      ) {
+        throw new Error("Input and output schemas must be JSON objects.");
+      }
+      if (![action, purpose, success, failure].every((value) => value.trim())) {
+        throw new Error("Action, purpose, success, and failure are required.");
+      }
+      setError(null);
+      onSave({
+        slug: id,
+        action: action.trim(),
+        purpose: purpose.trim(),
+        inputSchema: parsedInput,
+        outputSchema: parsedOutput,
+        effects: effects.split(",").map((value) => value.trim()).filter(Boolean),
+        permissions: permissions
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        success: success.trim(),
+        failure: failure.trim(),
+        documentation,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Invalid capability");
+    }
+  };
+
+  return (
+    <form className="mx-auto max-w-4xl space-y-5" onSubmit={submit}>
+      <Card>
+        <CardContent className="grid gap-5 pt-6 md:grid-cols-2">
+          <ContractField label="Capability ID">
+            <Input value={id} disabled={Boolean(slug)} onChange={(e) => setId(e.target.value)} />
+          </ContractField>
+          <ContractField label="Action">
+            <Input value={action} onChange={(e) => setAction(e.target.value)} />
+          </ContractField>
+          <div className="md:col-span-2">
+            <ContractField label="Purpose">
+              <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+            </ContractField>
+          </div>
+          <ContractField label="Effects" hint="Comma-separated">
+            <Input value={effects} onChange={(e) => setEffects(e.target.value)} />
+          </ContractField>
+          <ContractField label="Permissions" hint="Comma-separated">
+            <Input value={permissions} onChange={(e) => setPermissions(e.target.value)} />
+          </ContractField>
+          <ContractField label="Success meaning">
+            <Textarea value={success} onChange={(e) => setSuccess(e.target.value)} />
+          </ContractField>
+          <ContractField label="Failure meaning">
+            <Textarea value={failure} onChange={(e) => setFailure(e.target.value)} />
+          </ContractField>
+          <ContractField label="Input contract">
+            <Textarea className="min-h-52 font-mono text-xs" value={inputSchema} onChange={(e) => setInputSchema(e.target.value)} />
+          </ContractField>
+          <ContractField label="Output contract">
+            <Textarea className="min-h-52 font-mono text-xs" value={outputSchema} onChange={(e) => setOutputSchema(e.target.value)} />
+          </ContractField>
+          <div className="md:col-span-2">
+            <ContractField label="Documentation">
+              <Textarea className="min-h-40" value={documentation} onChange={(e) => setDocumentation(e.target.value)} />
+            </ContractField>
+          </div>
+          {error ? <p role="alert" className="text-sm text-destructive md:col-span-2">{error}</p> : null}
+        </CardContent>
+      </Card>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" disabled={saving}>
+          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {slug ? "Update capability" : "Create capability"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ContractField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="block space-y-2">
+        <span>{label}</span>
+        {children}
+      </Label>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
   );
 }
 
@@ -567,6 +799,20 @@ function CapabilitiesManagerInner({
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
+  const saveContract = useMutation({
+    mutationFn: (payload: ContractPayload) =>
+      saveContractApi(headers, payload, true),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: capabilityQueryKeys.all });
+      await queryClient.invalidateQueries({ queryKey: listQueryKey });
+      await queryClient.invalidateQueries({
+        queryKey: capabilityQueryKeys.detail(selected?.slug ?? null, queryScope),
+      });
+      setEditingSlug(null);
+      toast.success("Capability saved");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const bindImplementation = useMutation({
     mutationFn: ({
       capabilityId,
@@ -621,14 +867,9 @@ function CapabilitiesManagerInner({
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
               />
             </Button>
-            <Button
-              asChild
-              size="sm"
-              className="w-9 px-0"
-              title="New capability"
-            >
+            <Button asChild size="sm" className="w-9 px-0">
               <Link href={`${basePath}/new`} aria-label="New capability">
-                <Plus className="w-4 h-4" />
+                <Plus className="h-4 w-4" />
               </Link>
             </Button>
           </>
@@ -636,17 +877,12 @@ function CapabilitiesManagerInner({
         detail={
           selected ? (
             editingSlug === selected.slug ? (
-              <CapabilityInlineEditor
+              <CapabilityContractEditor
                 slug={selected.slug}
-                headers={headers}
-                apiBase={apiBase}
-                queryScope={queryScope}
-                existingSlugs={existingSlugs}
-                saving={save.isPending}
-                onClose={() => setEditingSlug(null)}
-                onSave={async (payload) => {
-                  await save.mutateAsync(payload);
-                }}
+                initial={selectedFull.data ?? null}
+                saving={saveContract.isPending}
+                onCancel={() => setEditingSlug(null)}
+                onSave={(payload) => saveContract.mutate(payload)}
               />
             ) : (
               <CapabilityDetail
@@ -692,14 +928,6 @@ function CapabilitiesManagerInner({
             icon={<Sparkles />}
             title="No capabilities yet"
             hint="A capability is stored as capabilities/<slug>/profile.json plus capability.md."
-            action={
-              <Button asChild size="sm" className="gap-1">
-                <Link href={`${basePath}/new`}>
-                  <Plus className="w-4 h-4" />
-                  New capability
-                </Link>
-              </Button>
-            }
           />
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -891,14 +1119,9 @@ function CapabilityDetail({
                 onClick={onEdit}
                 disabled={e.readOnly}
                 className="w-9 px-0"
-                title={
-                  e.readOnly
-                    ? "Store-linked capabilities are read-only"
-                    : "Edit capability"
-                }
                 aria-label="Edit capability"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="outline"
@@ -1048,39 +1271,18 @@ function CapabilityContentBody({
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
-      {/* Instructions — glue that tells the runner which skills/scripts to use. */}
-      <ContentSection
-        icon={FileCode}
-        title="Instructions"
-        subtitle="prompt.md — glue for skills, scripts, and output"
-        count={detail.prompt ? 1 : 0}
-      >
-        {detail.prompt ? (
-          <pre className="text-xs font-mono leading-relaxed bg-black/40 border border-white/[0.08] rounded p-3 max-h-96 overflow-auto whitespace-pre-wrap break-words text-white/85">
-            {detail.prompt}
-          </pre>
-        ) : (
-          <EmptyHint text="No instructions written yet." />
-        )}
-      </ContentSection>
-
-      <details className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-white/90">
-          Advanced
-        </summary>
-        <div className="pt-4 space-y-6">
-          <ContentSection icon={Cpu} title="Model" subtitle="claudeCode.model">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-mono text-white/85 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1">
-                {detail.model || "inherit"}
-              </span>
-              <span className="text-white/45">·</span>
-              <span className="text-white/55">
-                {userTools.length} tool{userTools.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          </ContentSection>
+    <div className="max-w-4xl mx-auto p-4 md:p-8">
+      <EmptyState
+        icon={<Cpu />}
+        title="Legacy mixed Capability"
+        hint="Its executable settings belong to an Implementation and are intentionally no longer edited here."
+        action={
+          <Button asChild size="sm">
+            <Link href="/implementations">Manage Implementations</Link>
+          </Button>
+        }
+      />
+      <div className="hidden">
 
           <ContentSection
             icon={Wrench}
@@ -1208,8 +1410,7 @@ function CapabilityContentBody({
               <EmptyHint text="No MCP tool servers." />
             )}
           </ContentSection>
-        </div>
-      </details>
+      </div>
     </div>
   );
 }
@@ -1482,7 +1683,7 @@ function CapabilityInlineEditor({
   );
 }
 
-function CapabilityEditorForm({
+export function CapabilityEditorForm({
   isNew,
   initial,
   existingSlugs,
@@ -1492,6 +1693,7 @@ function CapabilityEditorForm({
   onClose,
   onSave,
   showHeader = true,
+  resourceName = "capability",
 }: {
   isNew: boolean;
   initial: CapabilityDetail | null;
@@ -1502,6 +1704,7 @@ function CapabilityEditorForm({
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
   showHeader?: boolean;
+  resourceName?: "capability" | "implementation";
 }) {
   const [name, setName] = useState(initial?.slug ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
@@ -1737,12 +1940,16 @@ function CapabilityEditorForm({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-white/90">
-              {isNew ? "New capability" : `Edit capability ${initial?.slug}`}
+              {isNew
+                ? `New ${resourceName}`
+                : `Edit ${resourceName} ${initial?.slug}`}
             </h2>
             <p className="text-xs text-white/50">
               {isReadOnly
-                ? "Store-linked capability. Visible here, edited in kody-store."
-                : "Stored at capabilities/<slug>/."}
+                ? `Store-linked ${resourceName}.`
+                : resourceName === "implementation"
+                  ? "Stored as a complete executable package in the shared Store."
+                  : "Stored at capabilities/<slug>/."}
             </p>
           </div>
           <Button
@@ -1869,6 +2076,33 @@ function CapabilityEditorForm({
               <Plus className="h-3.5 w-3.5" />
               Add script
             </Button>
+            <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
+              <Upload className="h-3.5 w-3.5" />
+              Upload scripts
+              <Input
+                type="file"
+                accept=".sh,text/x-shellscript"
+                multiple
+                className="sr-only"
+                aria-label="Upload scripts"
+                onChange={async (event) => {
+                  const uploaded = await Promise.all(
+                    Array.from(event.target.files ?? []).map(async (file) => ({
+                      name: file.name,
+                      content: await file.text(),
+                    })),
+                  );
+                  setShellScripts((current) => [
+                    ...current.filter(
+                      (script) =>
+                        !uploaded.some((file) => file.name === script.name),
+                    ),
+                    ...uploaded,
+                  ]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
             <Button
               type="button"
               size="sm"

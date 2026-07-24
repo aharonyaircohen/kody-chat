@@ -1,6 +1,6 @@
 /**
- * @fileoverview Browser coverage for Capability Contract and Implementation
- * product surfaces backed by the separated Agency model.
+ * @fileoverview Browser coverage for Implementation product surfaces backed
+ * by the separated Agency model.
  * @testFramework playwright
  * @domain agency-model
  */
@@ -69,8 +69,11 @@ async function installHarness(page: Page) {
       ],
     }),
   );
-  await page.route("**/api/kody/implementations?*", (route) =>
-    json(route, {
+  await page.route("**/api/kody/implementations?*", (route) => {
+    if (route.request().method() === "POST") {
+      return json(route, { implementation: { id: "new-implementation" } }, 201);
+    }
+    return json(route, {
       implementations: [
         {
           id: "release-watch-agent",
@@ -84,10 +87,16 @@ async function installHarness(page: Page) {
           selection: "automatic",
         },
       ],
-    }),
-  );
-  await page.route("**/api/kody/implementations/release-watch-agent", (route) =>
-    json(route, {
+    });
+  });
+  await page.route("**/api/kody/implementations/release-watch-agent", (route) => {
+    if (route.request().method() === "PATCH") {
+      return json(route, { implementation: { id: "release-watch-agent" } });
+    }
+    if (route.request().method() === "DELETE") {
+      return json(route, { success: true });
+    }
+    return json(route, {
       implementation: {
         id: "release-watch-agent",
         capabilityId: "release-watch",
@@ -136,8 +145,8 @@ async function installHarness(page: Page) {
         },
         recentRuns: [],
       },
-    }),
-  );
+    });
+  });
   await page.route("**/api/kody/store-catalog", (route) =>
     json(route, {
       items: [
@@ -161,25 +170,6 @@ async function installHarness(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await installHarness(page);
-});
-
-test("shows a standalone Capability Contract", async ({ page }) => {
-  await page.goto(
-    "/repo/acme/widgets/capability-contracts/release-watch",
-    { waitUntil: "domcontentloaded" },
-  );
-
-  await expect(
-    page.getByRole("heading", { name: "Capability Contracts" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "release-watch" }),
-  ).toBeVisible();
-  await expect(page.getByText("Input contract")).toBeVisible();
-  await expect(page.getByText("Output contract")).toBeVisible();
-  await expect(
-    page.getByRole("main").getByText("Watch release health."),
-  ).toBeVisible();
 });
 
 test("shows a standalone Implementation with Store runtime data", async ({
@@ -222,4 +212,39 @@ test("shows Implementations as a Store model", async ({ page }) => {
       "store-catalog-row-implementation-release-watch-agent",
     ),
   ).toBeVisible();
+});
+
+test("manages Implementations with the same master-detail pattern", async ({
+  page,
+}) => {
+  await page.goto("/repo/acme/widgets/implementations/release-watch-agent", {
+    waitUntil: "domcontentloaded",
+  });
+
+  await expect(page.getByLabel("New implementation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Edit implementation release-watch-agent",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add skill" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add MCP" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add script" })).toBeVisible();
+  await expect(page.getByLabel("Upload scripts")).toBeAttached();
+  await expect(page.getByRole("button", { name: "Edit tools" })).toBeVisible();
+  await expect(page.getByLabel("Type")).toHaveCount(0);
+  await page.getByLabel("Compatible revision").fill("revision-2");
+
+  const update = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" &&
+      request.url().endsWith("/api/kody/implementations/release-watch-agent"),
+  );
+  await page.getByRole("button", { name: "Update" }).click();
+  await update;
+  await expect(page.getByText("Implementation saved")).toBeVisible();
 });

@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { listStoreImplementations } from "../implementations/files";
+import {
+  listStoreImplementations,
+  writeStoreImplementation,
+} from "../implementations/files";
 import { listStoredAgencyDefinitions } from "../backend/agency-model-store";
 import { resolveCapabilityImplementations } from "../implementation-resolution";
 import {
@@ -91,6 +94,44 @@ export async function GET(req: NextRequest) {
             : "Failed to list implementations",
       },
       { status: 500 },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const authError = await requireKodyAuth(req);
+  if (authError instanceof NextResponse) return authError;
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "repository_context_required" },
+      { status: 400 },
+    );
+  }
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
+  try {
+    const payload = await req.json();
+    const implementation = await writeStoreImplementation(
+      getOctokit(),
+      payload,
+    );
+    return NextResponse.json({ implementation }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "implementation_create_failed",
+        message:
+          error instanceof Error ? error.message : "Failed to create implementation",
+      },
+      { status: 400 },
     );
   } finally {
     clearGitHubContext();

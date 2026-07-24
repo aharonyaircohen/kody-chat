@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   readCapabilityFile: vi.fn(),
   readResolvedCapabilityFile: vi.fn(),
   writeCapabilityFile: vi.fn(),
+  writeCapabilityFolderFiles: vi.fn(),
   deleteCapabilityFile: vi.fn(),
   resolveInstalledCapabilitySlugs: vi.fn(),
   getEngineConfig: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock("@kody-ade/agency/capabilities", () => ({
   readCapabilityFile: h.readCapabilityFile,
   readResolvedCapabilityFile: h.readResolvedCapabilityFile,
   writeCapabilityFile: h.writeCapabilityFile,
+  writeCapabilityFolderFiles: h.writeCapabilityFolderFiles,
   deleteCapabilityFile: h.deleteCapabilityFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
@@ -200,11 +202,12 @@ describe("POST /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
-    h.readCapabilityFile.mockResolvedValue(null);
-    h.writeCapabilityFile.mockResolvedValue({
-      slug: "ship-feature",
-      describe: "Ship feature",
-    });
+    h.readCapabilityFile
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        slug: "ship-feature",
+        describe: "Ship feature",
+      });
   });
 
   it("creates capability files through the capability storage helper", async () => {
@@ -213,11 +216,15 @@ describe("POST /api/kody/capabilities", () => {
         method: "POST",
         body: JSON.stringify({
           slug: "ship-feature",
-          instructions: "Ship the feature.",
-          tools: ["Read"],
-          skills: [],
-          shellScripts: [],
-          mcpServers: [],
+          action: "ship",
+          purpose: "Ship the feature.",
+          inputSchema: {},
+          outputSchema: {},
+          effects: ["repository changes"],
+          permissions: ["write repository"],
+          success: "The feature is shipped.",
+          failure: "The feature is not shipped.",
+          documentation: "# Ship feature",
         }),
       }),
     );
@@ -226,11 +233,12 @@ describe("POST /api/kody/capabilities", () => {
     const json = await res.json();
     expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
     expect(json).not.toHaveProperty("implementation");
-    expect(h.writeCapabilityFile).toHaveBeenCalledWith(
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith(
       expect.objectContaining({
-        fields: expect.objectContaining({
-          slug: "ship-feature",
-          prompt: "Ship the feature.",
+        slug: "ship-feature",
+        files: expect.objectContaining({
+          "definition.json": expect.stringContaining('"purpose": "Ship the feature."'),
+          "capability.md": "# Ship feature\n",
         }),
       }),
     );
@@ -370,34 +378,32 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
-      prompt: "Old instructions",
-      model: "inherit",
-      permissionMode: "acceptEdits",
-      tools: [],
-      skills: [],
-      shellScripts: [],
-      mcpServers: [],
-      landing: "pr",
-    });
-    h.writeCapabilityFile.mockResolvedValue({
-      slug: "ship-feature",
-      describe: "Ship feature",
-      prompt: "New instructions",
-      model: "inherit",
-      permissionMode: "acceptEdits",
-      tools: [],
-      skills: [],
-      shellScripts: [],
-      mcpServers: [],
-      landing: "pr",
-      updatedAt: "2026-07-18T00:00:00.000Z",
+      contract: {
+        action: "ship",
+        purpose: "Ship feature",
+        inputSchema: {},
+        outputSchema: {},
+        effects: [],
+        permissions: [],
+        success: "Shipped",
+        failure: "Not shipped",
+      },
+      documentation: "# Ship feature",
     });
 
     const res = await PATCH(
       request("https://dash.test/api/kody/capabilities/ship-feature", {
         method: "PATCH",
         body: JSON.stringify({
-          instructions: "New instructions",
+          action: "ship",
+          purpose: "Ship the updated feature",
+          inputSchema: {},
+          outputSchema: {},
+          effects: [],
+          permissions: [],
+          success: "Shipped",
+          failure: "Not shipped",
+          documentation: "# Ship feature",
           actorLogin: "alice",
         }),
       }),
@@ -405,6 +411,6 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(h.writeCapabilityFile).toHaveBeenCalled();
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalled();
   });
 });

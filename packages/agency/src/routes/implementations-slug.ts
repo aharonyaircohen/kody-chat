@@ -10,7 +10,11 @@ import {
   readCompanyStoreText,
 } from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { readStoreImplementation } from "../implementations/files";
+import {
+  deleteStoreImplementation,
+  readStoreImplementation,
+  writeStoreImplementation,
+} from "../implementations/files";
 import { listStoredAgencyDefinitions } from "../backend/agency-model-store";
 import { listStoredAgencyRuns } from "../backend/agency-runs-store";
 import { resolveCapabilityImplementations } from "../implementation-resolution";
@@ -148,6 +152,103 @@ export async function GET(
             : "Failed to load implementation",
       },
       { status: 500 },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const authError = await requireKodyAuth(req);
+  if (authError instanceof NextResponse) return authError;
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "repository_context_required" },
+      { status: 400 },
+    );
+  }
+  const { slug } = await params;
+  setGitHubContext(auth.owner, auth.repo, auth.token, auth.storeRepoUrl, auth.storeRef);
+  try {
+    const existing = await readStoreImplementation(getOctokit(), slug);
+    if (!existing) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    const payload = await req.json();
+    if (payload?.definition?.id !== slug) {
+      return NextResponse.json(
+        { error: "id_change_not_allowed", message: "Implementation id cannot be changed." },
+        { status: 400 },
+      );
+    }
+    const implementation = await writeStoreImplementation(getOctokit(), payload);
+    return NextResponse.json({ implementation });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "implementation_update_failed",
+        message: error instanceof Error ? error.message : "Failed to update implementation",
+      },
+      { status: 400 },
+    );
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const authError = await requireKodyAuth(req);
+  if (authError instanceof NextResponse) return authError;
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "repository_context_required" },
+      { status: 400 },
+    );
+  }
+  const { slug } = await params;
+  setGitHubContext(auth.owner, auth.repo, auth.token, auth.storeRepoUrl, auth.storeRef);
+  try {
+    const existing = await readStoreImplementation(getOctokit(), slug);
+    if (existing) {
+      const [engine, definitions] = await Promise.all([
+        getEngineConfig(getOctokit(), auth.owner, auth.repo, { force: true }),
+        listStoredAgencyDefinitions(auth.owner, auth.repo),
+      ]);
+      const binding =
+        engine.config.execution?.capabilityBindings?.[existing.capabilityId];
+      const resolution = resolveCapabilityImplementations(
+        definitions,
+        existing.capabilityId,
+        binding,
+      );
+      if (resolution.selected?.data.id === slug) {
+        return NextResponse.json(
+          {
+            error: "implementation_in_use",
+            message:
+              "Remove this Implementation from the repository Capability before deleting it.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+    const deleted = await deleteStoreImplementation(getOctokit(), slug);
+    return NextResponse.json({ success: true, alreadyMissing: !deleted });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "implementation_delete_failed",
+        message: error instanceof Error ? error.message : "Failed to delete implementation",
+      },
+      { status: 400 },
     );
   } finally {
     clearGitHubContext();

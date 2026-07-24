@@ -6,12 +6,107 @@ import {
 import {
   buildCompanyStoreHtmlUrl,
   companyStoreAssetPath,
+  getCompanyStoreTarget,
   listCompanyStoreAssetSlugs,
   listCompanyStoreDirectorySafe,
   readCompanyStoreText,
 } from "@kody-ade/base/company-store/assets";
+import {
+  readGitHubFileForWrite,
+  writeGitHubFileWithRetry,
+} from "@kody-ade/base/github-contents-write";
 
 const IMPLEMENTATION_ID = /^[a-z][a-z0-9-]{0,127}$/;
+
+export type StoreImplementationWrite = {
+  definition: unknown;
+  runtime?: Record<string, unknown> | null;
+  promptTemplate?: string | null;
+  files?: Record<string, string>;
+};
+
+export async function writeStoreImplementation(
+  octokit: Octokit,
+  value: StoreImplementationWrite,
+): Promise<StoreImplementationDetail> {
+  const definition = createImplementationDefinition(value.definition);
+  const target = getCompanyStoreTarget();
+  const root = await companyStoreAssetPath(
+    octokit,
+    "implementations",
+    definition.id,
+  );
+  const managedFiles = [
+    ["definition.json", `${JSON.stringify(definition, null, 2)}\n`],
+    ...(value.runtime
+      ? ([["runtime.json", `${JSON.stringify(value.runtime, null, 2)}\n`]] as const)
+      : []),
+    ...(definition.type === "agent" && value.promptTemplate?.trim()
+      ? ([["prompt.md", `${value.promptTemplate.trim()}\n`]] as const)
+      : []),
+    ...Object.entries(value.files ?? {}).filter(
+      ([name]) =>
+        name !== "definition.json" &&
+        name !== "runtime.json" &&
+        name !== "prompt.md",
+    ),
+  ] as const;
+
+  for (const [name, content] of managedFiles) {
+    const path = `${root}/${name}`;
+    const current = await readGitHubFileForWrite(
+      octokit,
+      target.owner,
+      target.repo,
+      path,
+      target.ref,
+    );
+    await writeGitHubFileWithRetry(octokit, {
+      owner: target.owner,
+      repo: target.repo,
+      path,
+      branch: target.ref,
+      sha: current?.sha,
+      message: `${current ? "Update" : "Create"} implementation ${definition.id}`,
+      content: Buffer.from(content).toString("base64"),
+    });
+  }
+
+  const saved = await readStoreImplementation(octokit, definition.id);
+  if (!saved) throw new Error("Implementation could not be read after saving");
+  return saved;
+}
+
+export async function deleteStoreImplementation(
+  octokit: Octokit,
+  id: string,
+): Promise<boolean> {
+  if (!IMPLEMENTATION_ID.test(id)) throw new Error("Invalid implementation id");
+  const target = getCompanyStoreTarget();
+  const root = await companyStoreAssetPath(octokit, "implementations", id);
+  const files = await listImplementationFiles(octokit, root);
+  if (files.length === 0) return false;
+  for (const relativePath of files.reverse()) {
+    const path = `${root}/${relativePath}`;
+    const current = await readGitHubFileForWrite(
+      octokit,
+      target.owner,
+      target.repo,
+      path,
+      target.ref,
+    );
+    if (!current?.sha) continue;
+    await octokit.repos.deleteFile({
+      owner: target.owner,
+      repo: target.repo,
+      path,
+      branch: target.ref,
+      sha: current.sha,
+      message: `Delete implementation ${id}`,
+    });
+  }
+  return true;
+}
 
 export type StoreImplementationSummary = {
   id: string;
@@ -27,6 +122,7 @@ export type StoreImplementationDetail = StoreImplementationSummary & {
   runtime: Record<string, unknown> | null;
   promptTemplate: string | null;
   files: string[];
+  bundle: Record<string, string>;
   assets: {
     skills: string[];
     tools: string[];
@@ -257,12 +353,13 @@ export async function readStoreImplementation(
   const base = await readStoreImplementationSummary(octokit, id);
   if (!base) return null;
   const root = await companyStoreAssetPath(octokit, "implementations", id);
-  const [definitionRaw, runtimeRaw, promptRaw, files] = await Promise.all([
+  const [definitionRaw, runtimeRaw, promptRaw, bundle] = await Promise.all([
     readCompanyStoreText(octokit, `${root}/definition.json`),
     readCompanyStoreText(octokit, `${root}/runtime.json`),
     readCompanyStoreText(octokit, `${root}/prompt.md`),
-    listImplementationFiles(octokit, root),
+    readStoreTreeFiles(octokit, root),
   ]);
+  const files = Object.keys(bundle).sort();
   const parsed = parseObject(definitionRaw);
   if (!parsed) return null;
   try {
@@ -274,6 +371,7 @@ export async function readStoreImplementation(
       runtime,
       promptTemplate: promptRaw?.trim() || null,
       files,
+      bundle,
       assets: runtimeAssets(runtime, files),
     };
   } catch {

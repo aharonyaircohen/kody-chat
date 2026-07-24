@@ -42,6 +42,17 @@ interface CapabilityDetail {
   agent: string | null;
   source?: "local" | "store";
   readOnly?: boolean;
+  contract?: {
+    action: string;
+    purpose: string;
+    inputSchema: Record<string, unknown>;
+    outputSchema: Record<string, unknown>;
+    effects: string[];
+    permissions: string[];
+    success: string;
+    failure: string;
+  };
+  documentation?: string;
   prompt: string;
   model: string;
   permissionMode: string;
@@ -267,6 +278,17 @@ function capabilitySeed(
     htmlUrl: `https://example.test/${slug}`,
     agent: null,
     source: "local",
+    contract: {
+      action: "ship-feature",
+      purpose: "Ship a feature safely.",
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: { type: "object", properties: {} },
+      effects: ["code"],
+      permissions: ["write"],
+      success: "The feature is shipped.",
+      failure: "The feature could not be shipped.",
+    },
+    documentation: "Feature delivery contract.",
     prompt: "Implement the feature safely.",
     model: "inherit",
     permissionMode: "acceptEdits",
@@ -327,21 +349,21 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
     if (parts.length === 0 && method === "POST") {
       const body = capture(requests, route, "/api/kody/capabilities") as {
         slug?: string;
-        describe?: string;
-        instructions?: string;
-        model?: string;
-        permissionMode?: string;
-        tools?: string[];
-        landing?: "pr" | "comment";
+        action?: string;
+        purpose?: string;
+        success?: string;
+        failure?: string;
       };
       const created = capabilitySeed({
         slug: body.slug ?? "new-action",
-        describe: body.describe ?? "",
-        prompt: body.instructions ?? "",
-        model: body.model ?? "inherit",
-        permissionMode: body.permissionMode ?? "acceptEdits",
-        tools: body.tools ?? [],
-        landing: body.landing ?? "pr",
+        describe: body.purpose ?? "",
+        contract: {
+          ...capabilitySeed().contract!,
+          action: body.action ?? "",
+          purpose: body.purpose ?? "",
+          success: body.success ?? "",
+          failure: body.failure ?? "",
+        },
       });
       actions.set(created.slug, created);
       await fulfillJson(route, { success: true });
@@ -361,22 +383,16 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
         requests,
         route,
         `/api/kody/capabilities/${slug}`,
-      ) as {
-        describe?: string;
-        instructions?: string;
-        model?: string;
-        permissionMode?: string;
-        tools?: string[];
-        landing?: "pr" | "comment";
-      };
+      ) as { purpose?: string; success?: string; failure?: string };
       actions.set(slug, {
         ...action,
-        describe: body.describe ?? action.describe,
-        prompt: body.instructions ?? action.prompt,
-        model: body.model ?? action.model,
-        permissionMode: body.permissionMode ?? action.permissionMode,
-        tools: body.tools ?? action.tools,
-        landing: body.landing ?? action.landing,
+        describe: body.purpose ?? action.describe,
+        contract: {
+          ...action.contract!,
+          purpose: body.purpose ?? action.contract!.purpose,
+          success: body.success ?? action.contract!.success,
+          failure: body.failure ?? action.contract!.failure,
+        },
         updatedAt: NOW,
       });
       await fulfillJson(route, { success: true });
@@ -620,52 +636,38 @@ test.describe("Operations actions", () => {
     await expect(
       page.getByRole("heading", { name: "New capability", level: 1 }),
     ).toBeVisible();
-    await page.getByLabel("Name").fill("Ship hotfix");
-    await page
-      .getByRole("textbox", { name: "Instructions" })
-      .fill("# Instructions\nFix safely.");
-    await expect(page.getByText("Advanced")).toHaveCount(0);
-    await expect(page.getByText("Tool allowlist")).toHaveCount(0);
-    await expect(page.getByText("Generated profile.json")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Add skill" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add MCP" })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Add script" }),
-    ).toBeVisible();
-    await page.getByRole("combobox", { name: "Model" }).click();
-    await page.getByRole("option", { name: "MiniMax M2.7 Highspeed" }).click();
-    await page.getByRole("button", { name: "Edit tools" }).click();
-    await expect(page.getByText("Tool allowlist")).toBeVisible();
-    await page.getByRole("button", { name: "Show generated JSON" }).click();
-    await expect(page.getByText("Generated profile.json")).toHaveCount(0);
-    await expect(
-      page.locator("pre").filter({ hasText: "MiniMax" }),
-    ).toBeVisible();
+    await page.getByLabel("Capability ID").fill("ship-hotfix");
+    await page.getByLabel("Action").fill("ship-hotfix");
+    await page.getByLabel("Purpose").fill("Ship a hotfix safely.");
+    await page.getByLabel("Success meaning").fill("The hotfix is shipped.");
+    await page.getByLabel("Failure meaning").fill("The hotfix is not shipped.");
+    await expect(page.getByRole("button", { name: "Add skill" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit tools" })).toHaveCount(0);
     await Promise.all([
       page.waitForResponse(
         (response) =>
           response.url().endsWith("/api/kody/capabilities") &&
           response.request().method() === "POST",
       ),
-      page.getByRole("button", { name: "Create", exact: true }).click(),
+      page.getByRole("button", { name: "Create capability" }).click(),
     ]);
-    expect((requests[0].body as { model?: string }).model).toBe(
-      "minimax/MiniMax-M2.7-highspeed",
+    expect((requests[0].body as { purpose?: string }).purpose).toBe(
+      "Ship a hotfix safely.",
     );
     await expect(page.getByText("ship-hotfix").first()).toBeVisible();
 
     await page.getByText("ship-feature").first().click();
     await page.getByRole("button", { name: "Edit capability" }).click();
     await page
-      .getByRole("textbox", { name: "Instructions" })
-      .fill("# Instructions\nShip a safer feature.");
+      .getByRole("textbox", { name: "Purpose" })
+      .fill("Ship a safer feature.");
     await Promise.all([
       page.waitForResponse(
         (response) =>
           response.url().includes("/api/kody/capabilities/ship-feature") &&
           response.request().method() === "PATCH",
       ),
-      page.getByRole("button", { name: "Update" }).click(),
+      page.getByRole("button", { name: "Update capability" }).click(),
     ]);
     await expect(
       page.getByRole("article").getByText("Ship a safer feature"),

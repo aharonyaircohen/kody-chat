@@ -153,7 +153,6 @@ describe("settings navigation", () => {
       "/workflows",
       "/guided-flows",
       "/capabilities",
-      "/capability-contracts",
       "/implementations",
       "/store-catalog",
       "/company",
@@ -187,5 +186,10 @@ describe("settings navigation", () => {
     );
     expect(exposedHrefs()).not.toContain("/settings");
     expect(navLabelForPath("/settings")).toBeNull();
+  });
+
+  it("does not expose a standalone capability contracts page", () => {
+    expect(exposedHrefs()).not.toContain("/capability-contracts");
+    expect(navLabelForPath("/capability-contracts")).toBeNull();
   });
 });
