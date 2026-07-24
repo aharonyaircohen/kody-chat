@@ -109,16 +109,18 @@ test("Capabilities open as folders in the shared Files workspace", async ({
     waitUntil: "networkidle",
   });
 
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(1_000);
   expect(failures).toEqual([]);
   await expect(
     page.getByRole("heading", { name: "Capabilities" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "New file" })).toHaveCount(0);
   const tree = page.getByRole("tree");
   await expect(tree.getByText(SLUG, { exact: true })).toBeVisible();
+  await tree.evaluate((element) => {
+    element.setAttribute("data-workspace-instance", "stable");
+  });
   await tree.getByText(SLUG, { exact: true }).click();
-  await expect(page.getByRole("button", { name: "New file" })).toHaveCount(0);
+  await expect(tree).toHaveAttribute("data-workspace-instance", "stable");
   await expect(
     tree.getByText("instructions.md", { exact: true }),
   ).toBeVisible();

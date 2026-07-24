@@ -4,9 +4,7 @@
  * @pattern capabilities-page
  * @ai-summary Capability list backed by backend capabilities storage.
  */
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CapabilitiesManager } from "@dashboard/features/admin/components/CapabilitiesManager";
-import { buildKodyMetadata } from "../../metadata";
+import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;
@@ -19,9 +17,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function CapabilitiesPage() {
-  return (
-    <AuthGuard>
-      <CapabilitiesManager basePath="/capabilities" />
-    </AuthGuard>
-  );
+  return null;
 }

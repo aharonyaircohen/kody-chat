@@ -29,6 +29,7 @@ async function installFileManagerHarness(
   const files = new Map<string, MockFile>([
     ["README.md", { content: "# Workspace\n", sha: "readme-sha" }],
     ["notes.md", { content: "Committed notes\n", sha: "notes-sha" }],
+    ["docs/guide.md", { content: "# Guide\n", sha: "guide-sha" }],
   ]);
   const blobs = new Map<string, string>();
   const unhandledGitHubRequests: string[] = [];
@@ -100,6 +101,19 @@ async function installFileManagerHarness(
   );
   await page.route("**/api/kody/guided-flows", (route) =>
     json(route, { flows: [] }),
+  );
+  await page.route("**/api/kody/file-spaces**", (route) =>
+    json(route, {
+      spaces: [
+        {
+          id: "docs",
+          title: "Docs",
+          slug: "docs",
+          rootPath: "docs",
+          builtIn: true,
+        },
+      ],
+    }),
   );
   await page.route("**/api/kody/secrets**", (route) =>
     json(
@@ -294,6 +308,38 @@ test.describe("repository file manager", () => {
       testInfo.project.name !== "chromium",
       "One desktop journey covers the file workspace contract.",
     );
+  });
+
+  test("loads Files, Docs, and a file space through the shared workspace", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page);
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Files" })).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: "README.md 12 B" }),
+    ).toBeVisible();
+
+    await page.goto(`/repo/${OWNER}/${REPO}/docs`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page.getByRole("heading", { name: "Docs" })).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: "guide.md 8 B" }),
+    ).toBeVisible();
+
+    await page.goto(`/repo/${OWNER}/${REPO}/file-spaces/docs`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page.getByRole("heading", { name: "Docs" })).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: "guide.md 8 B" }),
+    ).toBeVisible();
+
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
   });
 
   test("creates, renames, and deletes repository items", async ({ page }) => {

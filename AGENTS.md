@@ -27,9 +27,15 @@
 - Create a parallel system only when the existing system cannot satisfy a
   verified requirement, and state that gap explicitly.
 - Treat user requests to browse, create, edit, move, upload, or delete files as
-  requests for the existing dashboard file manager. Extend the shared file
-  manager and its file operations instead of creating a separate file tree,
-  editor, storage path, or file API.
+  requests for the existing dashboard file manager.
+- Do not edit the shared file manager, its components, or its file operations
+  for feature-specific behavior. Adapt features only through the file
+  manager's existing public configuration and transport contracts from
+  feature-owned code.
+- If the existing file manager contract cannot satisfy a verified requirement,
+  stop and obtain explicit user approval before changing the shared file
+  manager. Any approved shared change must include regression coverage for the
+  existing Files, Docs, and file-workspace pages.
 
 ## UI Implementation
 

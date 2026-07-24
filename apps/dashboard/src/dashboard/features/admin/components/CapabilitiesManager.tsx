@@ -179,11 +179,6 @@ function isCapabilityAssetPath(path: string, slug: string): boolean {
   );
 }
 
-function isCapabilityAssetDirectory(path: string): boolean {
-  const [, folder] = path.replace(/^\/+|\/+$/g, "").split("/");
-  return folder === "skills" || folder === "tools";
-}
-
 export function CapabilityWorkspace({
   slug,
   basePath = "/capabilities",
@@ -365,7 +360,6 @@ export function CapabilitiesWorkspace({
       protectedPaths={protectedPaths}
       showSearch={false}
       showUpload={false}
-      canCreateFile={isCapabilityAssetDirectory}
       headerActions={({ selectedPath }) => {
         const selectedSlug = selectedPath?.split("/")[0] ?? "";
         const canRun = (listQuery.data ?? []).some(
