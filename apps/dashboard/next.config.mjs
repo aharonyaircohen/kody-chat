@@ -30,20 +30,24 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    return [
-      {
-        source: "/repo/:owner/:repo/memory",
-        destination: "/memory-files",
-      },
-      {
-        source: "/repo/:owner/:repo/memory/:path+",
-        destination: "/memory-files/:path+",
-      },
-      {
-        source: "/repo/:owner/:repo/:path+",
-        destination: "/:path+",
-      },
-    ];
+    return {
+      beforeFiles: [
+        {
+          source: "/repo/:owner/:repo/memory",
+          destination: "/memory-files",
+        },
+        {
+          source: "/repo/:owner/:repo/memory/:path+",
+          destination: "/memory-files/:path+",
+        },
+      ],
+      fallback: [
+        {
+          source: "/repo/:owner/:repo/:path+",
+          destination: "/:path+",
+        },
+      ],
+    };
   },
   experimental: {
     // Turbopack's persistent dev cache has grown pathologically large locally.
