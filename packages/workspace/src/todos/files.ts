@@ -1,44 +1,47 @@
 /**
  * @fileType util
  * @domain todos
- * @pattern todo-files
- * @ai-summary Finite Todo documents stored in Convex.
+ * @pattern todo-list-files
+ * @ai-summary Read/write Kody todo-list JSON files under `todos/<slug>.json`
+ * in the tenant's Convex backend. Each document is one list.
  */
 import type { Octokit } from "@octokit/rest";
-
+import { getOwner, getRepo } from "../github";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import { slugifyTitle } from "@kody-ade/base/slug";
-import { getOwner, getRepo } from "../github";
 
+const TODOS_DIR = "todos";
 const TODO_KIND_PREFIX = "todo:";
+const TODO_JSON_VERSION = 1;
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-const TEXT_LIMIT = 20_000;
+const TITLE_MAX_LENGTH = 160;
+const BODY_MAX_LENGTH = 20_000;
 
-export type TodoStatus = "todo" | "in-progress" | "blocked" | "done";
-
-export interface TodoChecklistItem {
+export interface TodoItemFile {
   id: string;
-  text: string;
-  done: boolean;
+  title: string;
+  body: string;
+  assignee: string | null;
+  completed: boolean;
+  createdAt: string;
+  completedAt: string | null;
+  meta?: Record<string, unknown>;
 }
 
 export interface TodoFileContent {
   title: string;
-  outcome: string;
-  status: TodoStatus;
-  evidence: string[];
-  checklist: TodoChecklistItem[];
-  blockers: string[];
-  runIds: string[];
+  description: string;
+  items: TodoItemFile[];
   createdAt: string;
-  updatedAt: string;
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface TodoFile extends TodoFileContent {
   slug: string;
   path: string;
   sha: string;
+  updatedAt: string;
   htmlUrl: string;
 }
 
@@ -46,197 +49,307 @@ export function isValidTodoSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
 }
 
-function todoPath(slug: string) {
-  return `todos/${slug}.json`;
+function slugFromName(name: string): string | null {
+  if (!name.endsWith(".json")) return null;
+  const slug = name.slice(0, -".json".length);
+  return isValidTodoSlug(slug) ? slug : null;
 }
 
-function record(value: unknown): Record<string, unknown> | null {
+function todoJsonPath(slug: string): string {
+  return `${TODOS_DIR}/${slug}.json`;
+}
+
+function normalizeMarkdown(value: string): string {
+  return value.slice(0, BODY_MAX_LENGTH).trim();
+}
+
+function generatedItemId(): string {
+  return `item-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function normalizeItems(items: unknown, fallbackDate: string): TodoItemFile[] {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item): TodoItemFile | null => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const title = typeof record.title === "string" ? record.title.trim() : "";
+      if (!title) return null;
+      const completed = record.completed === true;
+      return {
+        id:
+          typeof record.id === "string" && record.id.trim()
+            ? record.id.trim().slice(0, 80)
+            : generatedItemId(),
+        title: title.slice(0, TITLE_MAX_LENGTH),
+        body:
+          typeof record.body === "string"
+            ? record.body.slice(0, BODY_MAX_LENGTH)
+            : "",
+        assignee:
+          typeof record.assignee === "string" && record.assignee.trim()
+            ? record.assignee.trim().replace(/^@+/, "").slice(0, 120)
+            : null,
+        completed,
+        createdAt:
+          typeof record.createdAt === "string" && record.createdAt.trim()
+            ? record.createdAt.trim()
+            : fallbackDate,
+        completedAt:
+          completed &&
+          typeof record.completedAt === "string" &&
+          record.completedAt.trim()
+            ? record.completedAt.trim()
+            : null,
+        ...(record.meta &&
+        typeof record.meta === "object" &&
+        !Array.isArray(record.meta)
+          ? { meta: record.meta as Record<string, unknown> }
+          : {}),
+      };
+    })
+    .filter((item): item is TodoItemFile => item !== null);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
 
-function text(value: unknown, fallback = ""): string {
-  return typeof value === "string"
-    ? value.trim().slice(0, TEXT_LIMIT)
-    : fallback;
-}
-
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => text(entry))
-    .filter(Boolean)
-    .slice(0, 200);
-}
-
-function checklist(value: unknown): TodoChecklistItem[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry): TodoChecklistItem | null => {
-      const item = record(entry);
-      if (!item) return null;
-      const itemText = text(item.text);
-      if (!itemText) return null;
-      return {
-        id: text(item.id) || `item-${crypto.randomUUID()}`,
-        text: itemText,
-        done: item.done === true,
-      };
-    })
-    .filter((entry): entry is TodoChecklistItem => entry !== null)
-    .slice(0, 200);
-}
-
-function status(value: unknown, items: TodoChecklistItem[]): TodoStatus {
-  if (
-    value === "todo" ||
-    value === "in-progress" ||
-    value === "blocked" ||
-    value === "done"
-  ) {
-    return value;
-  }
-  return items.length > 0 && items.every((item) => item.done) ? "done" : "todo";
-}
-
 export function parseTodoFileContent(
   raw: string,
   slug: string,
-  storedUpdatedAt: string,
+  updatedAt: string,
 ): TodoFileContent {
+  return (
+    parseTodoJsonFileContent(raw, slug, updatedAt) ?? {
+      title: slug,
+      description: "",
+      items: [],
+      createdAt: updatedAt,
+      frontmatter: { title: slug, createdAt: updatedAt },
+    }
+  );
+}
+
+function parseTodoJsonFileContent(
+  raw: string,
+  slug: string,
+  updatedAt: string,
+): TodoFileContent | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    parsed = null;
+    return null;
   }
-  const value = record(parsed) ?? {};
-  const createdAt = text(value.createdAt, storedUpdatedAt);
-  const updatedAt = text(value.updatedAt, storedUpdatedAt);
-  const items = checklist(value.checklist);
+  const record = asRecord(parsed);
+  if (!record) return null;
+
+  const title =
+    typeof record.title === "string" && record.title.trim()
+      ? record.title.trim().slice(0, TITLE_MAX_LENGTH)
+      : slug;
+  const createdAt =
+    typeof record.createdAt === "string" && record.createdAt.trim()
+      ? record.createdAt.trim()
+      : updatedAt;
+  const frontmatter: Record<string, unknown> = {
+    ...(asRecord(record.frontmatter) ?? {}),
+  };
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "description" || key === "items" || key === "frontmatter") {
+      continue;
+    }
+    frontmatter[key] = value;
+  }
+  frontmatter.title = title;
+  frontmatter.createdAt = createdAt;
+
   return {
-    title: text(value.title, slug),
-    outcome: text(value.outcome),
-    status: status(value.status, items),
-    evidence: strings(value.evidence),
-    checklist: items,
-    blockers: strings(value.blockers),
-    runIds: strings(value.runIds),
+    title,
+    description:
+      typeof record.description === "string"
+        ? normalizeMarkdown(record.description)
+        : "",
+    items: normalizeItems(record.items, createdAt),
     createdAt,
-    updatedAt,
+    frontmatter,
   };
 }
 
 export function serializeTodoFileContent(content: TodoFileContent): string {
+  const description = normalizeMarkdown(content.description);
+  const frontmatter = {
+    ...(content.frontmatter ?? {}),
+    title: content.title.trim().slice(0, TITLE_MAX_LENGTH),
+    createdAt: content.createdAt,
+  };
   return `${JSON.stringify(
     {
-      title: text(content.title),
-      outcome: text(content.outcome),
-      status: status(content.status, content.checklist),
-      evidence: strings(content.evidence),
-      checklist: checklist(content.checklist),
-      blockers: strings(content.blockers),
-      runIds: strings(content.runIds),
-      createdAt: content.createdAt,
-      updatedAt: content.updatedAt,
+      version: TODO_JSON_VERSION,
+      ...frontmatter,
+      title: frontmatter.title,
+      description,
+      createdAt: frontmatter.createdAt,
+      items: normalizeItems(content.items, content.createdAt),
     },
     null,
     2,
   )}\n`;
 }
 
-function tenantId() {
-  return `${getOwner()}/${getRepo()}`;
-}
-
-function file(slug: string, content: TodoFileContent): TodoFile {
-  return {
-    ...content,
-    slug,
-    path: todoPath(slug),
-    sha: "",
-    htmlUrl: "",
-  };
-}
-
 export async function listTodoFiles(): Promise<TodoFile[]> {
-  const rows = (await createBackendClient().query(api.repoDocs.listByPrefix, {
-    tenantId: tenantId(),
-    prefix: TODO_KIND_PREFIX,
-  })) as Array<{ kind: string; doc: unknown; updatedAt: string }>;
-  return rows
-    .map((row) => {
-      const slug = row.kind.slice(TODO_KIND_PREFIX.length);
-      return file(
+  const records = (await createBackendClient().query(
+    api.repoDocs.listByPrefix,
+    { tenantId: `${getOwner()}/${getRepo()}`, prefix: TODO_KIND_PREFIX },
+  )) as Array<{ kind: string; doc: TodoFileContent; updatedAt: string }>;
+  return records
+    .map((record) => {
+      const slug = record.kind.slice(TODO_KIND_PREFIX.length);
+      const parsed = parseTodoFileContent(
+        JSON.stringify(record.doc),
         slug,
-        parseTodoFileContent(JSON.stringify(row.doc), slug, row.updatedAt),
+        record.updatedAt,
       );
+      return {
+        ...parsed,
+        slug,
+        path: todoJsonPath(slug),
+        sha: "",
+        updatedAt: record.updatedAt,
+        htmlUrl: "",
+      };
     })
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    .filter((file): file is TodoFile => file !== null)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function readTodoFile(
   slug: string,
-  _octokit?: Octokit,
-  _branch?: string | null,
+  octokitOverride?: Octokit,
+  _branchOverride?: string | null,
 ): Promise<TodoFile | null> {
   if (!isValidTodoSlug(slug)) return null;
-  const row = (await createBackendClient().query(api.repoDocs.get, {
-    tenantId: tenantId(),
-    kind: `${TODO_KIND_PREFIX}${slug}`,
-  })) as { doc: unknown; updatedAt: string } | null;
-  return row
-    ? file(
-        slug,
-        parseTodoFileContent(JSON.stringify(row.doc), slug, row.updatedAt),
-      )
-    : null;
+  try {
+    const filePath = todoJsonPath(slug);
+    const record = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      kind: `${TODO_KIND_PREFIX}${slug}`,
+    })) as { doc: TodoFileContent; updatedAt: string } | null;
+    if (!record) return null;
+    const updatedAt = record.updatedAt;
+    const parsed = parseTodoFileContent(
+      JSON.stringify(record.doc),
+      slug,
+      updatedAt,
+    );
+
+    return {
+      slug,
+      path: filePath,
+      title: parsed.title,
+      description: parsed.description,
+      items: parsed.items,
+      createdAt: parsed.createdAt,
+      frontmatter: parsed.frontmatter,
+      sha: "",
+      updatedAt,
+      htmlUrl: "",
+    };
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) return null;
+    throw error;
+  }
 }
 
 export async function createTodoSlug(title: string): Promise<string> {
   const base = slugifyTitle(title, {
     maxLength: 48,
-    fallback: "todo",
+    fallback: "todo-list",
     stripDiacritics: true,
   });
+  const suffix = Date.now().toString(36);
+
   for (let index = 0; index < 20; index += 1) {
-    const candidate = index === 0 ? base : `${base}-${index}`;
+    const candidate =
+      index === 0
+        ? base
+        : `${base.slice(0, Math.max(1, 55 - String(index).length))}-${index}`;
     if (!(await readTodoFile(candidate))) return candidate;
   }
-  return `${base}-${Date.now().toString(36)}`.slice(0, 64);
+
+  return `${base.slice(0, 50)}-${suffix}`.slice(0, 64);
 }
 
-export async function writeTodoFile(opts: {
+interface WriteTodoOptions {
   octokit: Octokit;
   slug: string;
-  todo: TodoFileContent;
+  title: string;
+  description: string;
+  items: TodoItemFile[];
+  createdAt: string;
+  frontmatter?: Record<string, unknown>;
   sha?: string;
   message?: string;
-}): Promise<TodoFile> {
+}
+
+export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
   if (!isValidTodoSlug(opts.slug)) {
-    throw new Error(`Invalid Todo slug: "${opts.slug}".`);
+    throw new Error(`Invalid todo list slug: "${opts.slug}".`);
   }
-  const now = new Date().toISOString();
-  const todo = { ...opts.todo, updatedAt: now };
-  await createBackendClient().mutation(api.repoDocs.save, {
-    tenantId: tenantId(),
-    kind: `${TODO_KIND_PREFIX}${opts.slug}`,
-    doc: JSON.parse(serializeTodoFileContent(todo)),
-    updatedAt: now,
+
+  const filePath = todoJsonPath(opts.slug);
+  const content = serializeTodoFileContent({
+    title: opts.title,
+    description: opts.description,
+    items: opts.items,
+    createdAt: opts.createdAt,
+    frontmatter: opts.frontmatter,
   });
-  return file(opts.slug, todo);
+  const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;
+  const message =
+    opts.message ??
+    `${opts.sha ? "chore" : "feat"}(todos): ${
+      opts.sha ? "update" : "add"
+    } ${opts.slug}`;
+
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${TODO_KIND_PREFIX}${opts.slug}`,
+    doc: JSON.parse(normalizedContent),
+    updatedAt: new Date().toISOString(),
+  });
+
+  const updatedAt = new Date().toISOString();
+  const parsed = parseTodoFileContent(normalizedContent, opts.slug, updatedAt);
+  return {
+    slug: opts.slug,
+    path: filePath,
+    title: parsed.title,
+    description: parsed.description,
+    items: parsed.items,
+    createdAt: parsed.createdAt,
+    frontmatter: parsed.frontmatter,
+    sha: "",
+    updatedAt,
+    htmlUrl: "",
+  };
 }
 
 export async function deleteTodoFile(
-  _octokit: Octokit,
+  octokit: Octokit,
   slug: string,
 ): Promise<void> {
   if (!isValidTodoSlug(slug)) {
-    throw new Error(`Invalid Todo slug: "${slug}".`);
+    throw new Error(`Invalid todo list slug: "${slug}".`);
   }
   await createBackendClient().mutation(api.repoDocs.remove, {
-    tenantId: tenantId(),
+    tenantId: `${getOwner()}/${getRepo()}`,
     kind: `${TODO_KIND_PREFIX}${slug}`,
   });
 }
