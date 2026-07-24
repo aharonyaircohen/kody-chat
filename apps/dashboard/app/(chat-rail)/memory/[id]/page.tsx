@@ -1,10 +1,10 @@
 /**
  * @fileType page
- * @pattern package-page-reexport
- * @ai-summary This URL serves the canonical shared page from
- *   @kody-ade/kody-chat-dashboard — this file only registers the route (and keeps
- *   the dashboard's own metadata / caching directives).
+ * @domain memory
+ * @pattern memory-files-page
+ * @ai-summary Deep links into the Memory file workspace.
  */
+import { MemoryFilesView } from "@dashboard/lib/components/MemoryFilesView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -14,4 +14,13 @@ export const metadata = buildKodyMetadata({
 });
 export const dynamic = "force-dynamic";
 
-export { default } from "@kody-ade/kody-chat-dashboard/pages/memory-detail";
+export default async function MemoryPathRoute({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return (
+    <MemoryFilesView initialPath={id.endsWith(".md") ? id : `${id}.md`} />
+  );
+}

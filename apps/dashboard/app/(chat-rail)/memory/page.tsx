@@ -1,10 +1,11 @@
 /**
  * @fileType page
- * @pattern package-page-reexport
- * @ai-summary This URL serves the canonical shared page from
- *   @kody-ade/kody-chat-dashboard — this file only registers the route (and keeps
- *   the dashboard's own metadata / caching directives).
+ * @domain memory
+ * @pattern memory-files-page
+ * @ai-summary Memory page — the shared file-manager workspace over memory
+ *   markdown entries.
  */
+import { MemoryFilesView } from "@dashboard/lib/components/MemoryFilesView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -12,8 +13,8 @@ export const metadata = buildKodyMetadata({
   description: "Manage persistent Kody memory.",
   path: "/memory",
 });
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
+export const dynamic = "force-dynamic";
 
-export { default } from "@kody-ade/kody-chat-dashboard/pages/memory";
+export default function MemoryPage() {
+  return <MemoryFilesView />;
+}

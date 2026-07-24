@@ -157,7 +157,7 @@ test.describe("Master live user journeys", () => {
       {
         url: `${BASE_URL}/repo/${owner}/${repo}/memory`,
         title: "Memory",
-        loadedButton: "New memory",
+        loadedButton: "New file",
       },
       {
         url: `${BASE_URL}/repo/${owner}/${repo}/guided-flows`,

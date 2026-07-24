@@ -19,8 +19,6 @@ const ROUTE_FOR: Record<string, string> = {
   brands: "app/(chat-rail)/brands/page.tsx",
   "brand-detail": "app/(chat-rail)/brands/[slug]/page.tsx",
   commands: "app/(chat-rail)/commands/page.tsx",
-  memory: "app/(chat-rail)/memory/page.tsx",
-  "memory-detail": "app/(chat-rail)/memory/[id]/page.tsx",
   instructions: "app/(chat-rail)/instructions/page.tsx",
   "view-renderers": "app/(chat-rail)/views/renderers/page.tsx",
   "view-renderer-detail": "app/(chat-rail)/views/renderers/[slug]/page.tsx",
@@ -43,6 +41,8 @@ const PAGES_DIR = join(
 const DASH_OWNED_OVERRIDES: Record<string, string> = {
   context: "app/(chat-rail)/context/page.tsx",
   "context-detail": "app/(chat-rail)/context/[...path]/page.tsx",
+  memory: "app/(chat-rail)/memory/page.tsx",
+  "memory-detail": "app/(chat-rail)/memory/[id]/page.tsx",
 };
 
 describe("shared pages route coverage", () => {
