@@ -2,7 +2,8 @@
  * @fileType page
  * @domain memory
  * @pattern memory-files-page
- * @ai-summary Memory file workspace, including its root and file deep links.
+ * @ai-summary Internal adapter for the repository-scoped Memory file
+ *   workspace, including its root and file deep links.
  */
 import { MemoryFilesView } from "@dashboard/lib/components/MemoryFilesView";
 import { buildKodyMetadata } from "../../../metadata";

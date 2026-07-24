@@ -11,4 +11,11 @@ describe("repo route rewrites", () => {
     expect(source).toContain('source: "/repo/:owner/:repo/:path+"');
     expect(source).toContain('destination: "/:path+"');
   });
+
+  it("routes the Memory workspace through its dedicated adapter", () => {
+    expect(source).toContain('source: "/repo/:owner/:repo/memory"');
+    expect(source).toContain('destination: "/memory-files"');
+    expect(source).toContain('source: "/repo/:owner/:repo/memory/:path+"');
+    expect(source).toContain('destination: "/memory-files/:path+"');
+  });
 });

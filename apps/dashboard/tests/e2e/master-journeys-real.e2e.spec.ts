@@ -155,11 +155,6 @@ test.describe("Master live user journeys", () => {
         loadingText: "Loading commands…",
       },
       {
-        url: `${BASE_URL}/repo/${owner}/${repo}/memory`,
-        title: "Memory",
-        loadedButton: "New file",
-      },
-      {
         url: `${BASE_URL}/repo/${owner}/${repo}/guided-flows`,
         title: "Guided Flow Management",
         loadedButton: "Add Guided Flow",
@@ -205,6 +200,25 @@ test.describe("Master live user journeys", () => {
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(loadedSignal).toBeVisible({ timeout: 30_000 });
     }
+  });
+
+  test("loads Memory as the shared file workspace", async ({ page }) => {
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await installAuth(page, owner, repo);
+
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/memory`, {
+      waitUntil: "domcontentloaded",
+    });
+    expect(new URL(page.url()).origin).toBe(new URL(BASE_URL).origin);
+    await expect(
+      page.getByRole("heading", { name: "Memory", exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByText("Repository workspace", { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByRole("button", { name: "New memory" }),
+    ).toHaveCount(0);
   });
 
   test("saves and restores a real dashboard chat conversation", async ({
