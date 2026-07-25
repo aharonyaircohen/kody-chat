@@ -20,7 +20,7 @@ export const DEFAULT_SKILL_MEMORY: SkillEntry = {
 Kinds are \`preference\`, \`fact\`, \`decision\`, \`goal\`, and \`reference\`. Scope is \`user\` for personal memory or \`repository\` for shared project memory.
 
 **Triggers:**
-- Explicit memory command ("remember X", "store this", "save this for later") → save once; the route may already have persisted it, so obey the turn instruction and do not duplicate it.
+- Explicit memory command ("remember X", "store this", "save this for later") in any language → call \`remember\` exactly once.
 - Correction → use \`update_memory\` on the existing entry and explain the reason.
 - User style or stable preference → personal \`preference\`.
 - Stable non-derivable information → \`fact\`.
