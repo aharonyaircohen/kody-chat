@@ -77,13 +77,12 @@ Every core model requires:
 | ----- | -------------- | ---------------------------------------- | -------------------------------------------------------------- | -------------------------- |
 | 1     | Intent         | [`intent.md`](intent.md)                 | [`intent-implementation.md`](intent-implementation.md)         | Draft / Partially verified |
 | 2     | Operation      | [`operation.md`](operation.md)           | [`operation-implementation.md`](operation-implementation.md)   | Draft / Partially verified |
-| 3     | Goal           | [`goal.md`](goal.md)                     | [`goal-implementation.md`](goal-implementation.md)             | Draft / Partially verified |
-| 4     | Loop           | [`loop.md`](loop.md)                     | [`loop-implementation.md`](loop-implementation.md)             | Draft / Partially verified |
-| 5     | Workflow       | [`workflow.md`](workflow.md)             | [`workflow-implementation.md`](workflow-implementation.md)     | Draft / Partially verified |
-| 6     | Capability     | [`capability.md`](capability.md)         | [`capability-implementation.md`](capability-implementation.md) | Draft / Partially verified |
-| 7     | Implementation | [`implementation.md`](implementation.md) | [`implementation-guide.md`](implementation-guide.md)           | Draft / Partially verified |
-| 8     | Agent          | [`agent.md`](agent.md)                   | [`agent-implementation.md`](agent-implementation.md)           | Draft / Partially verified |
-| 9     | Run            | [`run.md`](run.md)                       | [`run-implementation.md`](run-implementation.md)               | Draft / Partially verified |
+| 3     | Loop           | [`loop.md`](loop.md)                     | [`loop-implementation.md`](loop-implementation.md)             | Draft / Partially verified |
+| 4     | Workflow       | [`workflow.md`](workflow.md)             | [`workflow-implementation.md`](workflow-implementation.md)     | Draft / Partially verified |
+| 5     | Capability     | [`capability.md`](capability.md)         | [`capability-implementation.md`](capability-implementation.md) | Draft / Partially verified |
+| 6     | Implementation | [`implementation.md`](implementation.md) | [`implementation-guide.md`](implementation-guide.md)           | Draft / Partially verified |
+| 7     | Agent          | [`agent.md`](agent.md)                   | [`agent-implementation.md`](agent-implementation.md)           | Draft / Partially verified |
+| 8     | Run            | [`run.md`](run.md)                       | [`run-implementation.md`](run-implementation.md)               | Draft / Partially verified |
 
 ### Shared value contracts
 
@@ -139,11 +138,10 @@ agency entities.
 ### Recommended sequence
 
 1. Finish Intent's remaining model decisions.
-2. Document Operation because it establishes the ownership boundary for Goal
-   and Loop.
+2. Document Operation because it establishes the ownership boundary for Loop.
 3. Document Policy, Intent Controls, Scope, and relationship resolution needed
    by Intent and Operation.
-4. Document Goal and Loop together with Objective and Trigger.
+4. Document Loop together with Objective and Trigger.
 5. Document Workflow, Capability, Implementation, and Agent.
 6. Document Run, outputs, dispatch, tracing, and approval.
 7. Lock storage authority, versioning, Lifecycle, migration, and human/AI
@@ -214,8 +212,8 @@ inspection has not been followed by real persistence/runtime/browser proof.
 
 The highest-priority system gaps found across the set are:
 
-1. Goal and Loop manual execution can dispatch GitHub Actions before the
-   documented Run-first boundary is proven.
+1. Loop execution is not implemented; no manual or scheduled dispatch path is
+   currently verified.
 2. Definition revisions currently have competing head-selection approaches.
 3. Legacy combined product shapes remain beside clean agency Definitions and
    State.
