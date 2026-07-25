@@ -29,12 +29,15 @@ describe("Knowledge System page contract", () => {
     expect(page).toContain("parseKnowledgeGraph");
     expect(page).toContain("<KnowledgeGraph");
     expect(page).toContain("Last updated");
-    expect(page).toContain("Refresh graph");
-    expect(page).toContain(
+    expect(page).not.toContain("Refresh graph");
+    expect(page).not.toContain(
       "/api/kody/agency-loops/knowledge-system-refresh/run",
     );
     expect(page).not.toContain(
       "/api/kody/capabilities/knowledge-system-refresh/run",
+    );
+    expect(page).toContain(
+      "A graph will appear here after it is published for this repository.",
     );
 
     const canvas = readFileSync(
