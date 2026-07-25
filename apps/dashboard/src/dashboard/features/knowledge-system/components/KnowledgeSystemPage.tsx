@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@kody-ade/base/ui/button";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import {
   parseKnowledgeGraph,
@@ -25,7 +23,6 @@ export function KnowledgeSystemPage() {
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [graph, setGraph] = useState<KnowledgeGraphData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -73,41 +70,6 @@ export function KnowledgeSystemPage() {
     if (!authLoading) void load();
   }, [authLoading, load]);
 
-  const refresh = async () => {
-    if (!auth || refreshing) return;
-    setRefreshing(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        "/api/kody/agency-loops/knowledge-system-refresh/run",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...buildAuthHeaders(auth),
-          },
-          body: JSON.stringify({ force: true }),
-        },
-      );
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(
-            "The knowledge-system-refresh Loop is not installed for this repository.",
-          );
-        }
-        throw new Error("Could not start the graph refresh.");
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not start the graph refresh.",
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   return (
     <main className="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -121,17 +83,6 @@ export function KnowledgeSystemPage() {
               : "No graph published yet"}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={refresh}
-          disabled={!auth || refreshing}
-        >
-          <RefreshCw
-            className={`mr-2 size-4 ${refreshing ? "animate-spin" : ""}`}
-          />
-          Refresh graph
-        </Button>
       </header>
 
       {error ? (
@@ -153,8 +104,7 @@ export function KnowledgeSystemPage() {
           </div>
         ) : !bundle || !graph ? (
           <div className="grid h-full min-h-[520px] place-items-center px-6 text-center text-sm text-muted-foreground">
-            Run the knowledge-system-refresh Loop to build this
-            repository&apos;s first graph.
+            A graph will appear here after it is published for this repository.
           </div>
         ) : (
           <KnowledgeGraph graph={graph} />

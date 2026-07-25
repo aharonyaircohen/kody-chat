@@ -114,4 +114,7 @@ test("shows the meaningful interactive knowledge graph", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("4 visible entities")).toBeVisible();
   await expect(page.getByText("Communities")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Refresh graph" }),
+  ).toHaveCount(0);
 });
