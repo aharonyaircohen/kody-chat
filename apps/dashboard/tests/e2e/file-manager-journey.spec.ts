@@ -342,6 +342,47 @@ test.describe("repository file manager", () => {
     expect(runtimeFailures).toEqual([]);
   });
 
+  test("saves an edited file immediately with an automatic commit message", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { files, unhandledGitHubRequests } =
+      await installFileManagerHarness(page);
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
+
+    const editor = page.getByRole("textbox", { name: "Editor content" });
+    await editor.click({ force: true });
+    await editor.press("ControlOrMeta+A");
+    await editor.press("Backspace");
+    await page.keyboard.insertText("Updated notes\n");
+
+    const saveRequestPromise = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        decodeURIComponent(new URL(request.url()).pathname).endsWith(
+          `/repos/${OWNER}/${REPO}/contents/notes.md`,
+        ),
+    );
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    await expect(
+      page.getByRole("dialog", { name: "Save changes" }),
+    ).toHaveCount(0);
+    const saveRequest = await saveRequestPromise;
+    expect(saveRequest.postDataJSON()).toMatchObject({
+      message: "chore: update notes.md",
+    });
+    await expect
+      .poll(() => files.get("notes.md")?.content)
+      .toContain("Updated notes");
+    await expect(page.getByText("Unsaved", { exact: true })).toHaveCount(0);
+
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
   test("creates, renames, and deletes repository items", async ({ page }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const { files, unhandledGitHubRequests } =

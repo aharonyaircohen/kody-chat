@@ -33,7 +33,6 @@ import {
   autoDirProps,
   rtlAwareMarkdownClassName,
 } from "@dashboard/lib/text-direction";
-import { CommitMessageDialog } from "./CommitMessageDialog";
 import { useTheme } from "@dashboard/providers/Theme";
 import { createLatestRequestGuard } from "../lib/latest-request";
 import {
@@ -86,7 +85,6 @@ export function FileEditor({
   const [viewMode, setViewMode] = useState<FileEditorViewMode>(
     defaultMarkdownViewMode,
   );
-  const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [loadedSha, setLoadedSha] = useState(sha);
@@ -193,58 +191,64 @@ export function FileEditor({
   }, [content, draftReady, draftStorageKey, loadedSha, originalContent]);
 
   // Keyboard shortcut: Ctrl+S / Cmd+S to save
+  const handleEditorChange = useCallback((value: string | undefined) => {
+    setContent(value ?? "");
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (transport ? !transport.writeFile : !octokit) return;
+    setSaving(true);
+    try {
+      let nextSha = loadedSha;
+      if (transport) {
+        await transport.writeFile!(path, content);
+      } else {
+        const result = await writeFile(
+          octokit!,
+          owner,
+          repo,
+          path,
+          content,
+          `chore: update ${path}`,
+          loadedSha,
+        );
+        nextSha = result.sha;
+      }
+      localStorage.removeItem(draftStorageKey);
+      setLoadedSha(nextSha);
+      setOriginalContent(content);
+      setIsDirty(false);
+      toast.success("File saved");
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save file");
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    transport,
+    octokit,
+    owner,
+    repo,
+    path,
+    content,
+    loadedSha,
+    onSaved,
+    draftStorageKey,
+  ]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         if (isDirty && !saving) {
-          setShowCommitDialog(true);
+          void handleSave();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDirty, saving]);
-
-  const handleEditorChange = useCallback((value: string | undefined) => {
-    setContent(value ?? "");
-  }, []);
-
-  const handleSave = useCallback(
-    async (message: string) => {
-      if (transport ? !transport.writeFile : !octokit) return;
-      setSaving(true);
-      try {
-        let nextSha = loadedSha;
-        if (transport) {
-          await transport.writeFile!(path, content);
-        } else {
-          const result = await writeFile(
-            octokit!,
-            owner,
-            repo,
-            path,
-            content,
-            message,
-            loadedSha,
-          );
-          nextSha = result.sha;
-        }
-        localStorage.removeItem(draftStorageKey);
-        setLoadedSha(nextSha);
-        setOriginalContent(content);
-        setIsDirty(false);
-        toast.success("File saved");
-        setShowCommitDialog(false);
-        onSaved();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to save file");
-      } finally {
-        setSaving(false);
-      }
-    },
-    [transport, octokit, owner, repo, path, content, loadedSha, onSaved, draftStorageKey],
-  );
+  }, [handleSave, isDirty, saving]);
 
   const handleDiscard = useCallback(() => {
     const confirmed = window.confirm(
@@ -368,9 +372,7 @@ export function FileEditor({
           <Button
             variant="default"
             size="clear"
-            onClick={() =>
-              transport ? void handleSave("") : setShowCommitDialog(true)
-            }
+            onClick={() => void handleSave()}
             disabled={!isDirty || saving}
             title="Save changes"
             aria-label="Save changes"
@@ -461,14 +463,6 @@ export function FileEditor({
           </div>
         )}
       </div>
-
-      {showCommitDialog && (
-        <CommitMessageDialog
-          onConfirm={handleSave}
-          onCancel={() => setShowCommitDialog(false)}
-          saving={saving}
-        />
-      )}
     </div>
   );
 }
