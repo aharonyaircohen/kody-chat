@@ -11,60 +11,19 @@
 
 import type { Octokit } from "@octokit/rest";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
+import {
+  base64ToBytes,
+  bytesToBase64,
+  isBinaryBytes,
+  stringToBase64,
+} from "./file-content";
 
-// ─── Binary encoding helpers (byte-safe, UTF-8) ──────────────────────────────
-
-/** Decode a base64 string to a UTF-8 string without latin1 corruption. */
-export function base64ToString(base64: string): string {
-  const bytes = base64ToBytes(base64);
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-}
-
-export function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64.replace(/\s/g, ""));
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
-}
-
-export function isBinaryBytes(bytes: Uint8Array): boolean {
-  if (bytes.includes(0)) return true;
-
-  try {
-    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-/** Encode a string to base64 using UTF-8, without btoa's latin1 restriction. */
-export function stringToBase64(str: string): string {
-  const bytes = new TextEncoder().encode(str);
-  return uint8ToBase64(bytes);
-}
-
-/** Byte-safe base64 encoder — handles all uint8 values 0–255. */
-function uint8ToBase64(bytes: Uint8Array): string {
-  const alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let result = "";
-  for (let i = 0; i < bytes.length; i += 3) {
-    const b0 = bytes[i]!;
-    const b1 = bytes[i + 1] ?? 0;
-    const b2 = bytes[i + 2] ?? 0;
-    result +=
-      alphabet[(b0 >> 2) & 0x3f] +
-      alphabet[((b0 << 4) | (b1 >> 4)) & 0x3f] +
-      alphabet[((b1 << 2) | (b2 >> 6)) & 0x3f] +
-      alphabet[b2 & 0x3f];
-  }
-  const pad = bytes.length % 3;
-  if (pad === 1) {
-    result = result.slice(0, -2) + "==";
-  } else if (pad === 2) {
-    result = result.slice(0, -1) + "=";
-  }
-  return result;
-}
+export {
+  base64ToBytes,
+  base64ToString,
+  isBinaryBytes,
+  stringToBase64,
+} from "./file-content";
 
 /** Compute line number (1-indexed) in a fragment given a byte offset to the match. */
 export function lineIndexFromFragment(
@@ -85,6 +44,63 @@ export function getHttpStatus(error: unknown): number | undefined {
   };
 
   return value.status ?? value.response?.status ?? value.response?.statusCode;
+}
+
+function getGitHubErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+
+  const responseData = (
+    error as { response?: { data?: { message?: unknown } } }
+  ).response?.data;
+
+  return typeof responseData?.message === "string"
+    ? responseData.message
+    : undefined;
+}
+
+function isEmptyRepositoryRootResponse(error: unknown, path: string): boolean {
+  return (
+    path === "" &&
+    getHttpStatus(error) === 404 &&
+    getGitHubErrorMessage(error) === "This repository is empty."
+  );
+}
+
+async function loadFilePayload(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  file: { content?: string | null; encoding?: string | null; sha?: string },
+): Promise<{ base64Content: string; encoding: "base64" | "utf-8" }> {
+  if (file.encoding === "base64") {
+    return {
+      base64Content: (file.content ?? "").replace(/\s/g, ""),
+      encoding: "base64",
+    };
+  }
+
+  if (file.encoding === "none" && file.sha) {
+    const blob = await octokit.rest.git.getBlob({
+      owner,
+      repo,
+      file_sha: file.sha,
+    });
+    if (blob.data.encoding === "base64") {
+      return {
+        base64Content: blob.data.content.replace(/\s/g, ""),
+        encoding: "base64",
+      };
+    }
+    return {
+      base64Content: stringToBase64(blob.data.content),
+      encoding: "utf-8",
+    };
+  }
+
+  return {
+    base64Content: stringToBase64(file.content ?? ""),
+    encoding: "utf-8",
+  };
 }
 
 export interface FileEntry {
@@ -143,25 +159,30 @@ export async function listDir(
   repo: string,
   path: string,
 ): Promise<FileEntry[]> {
-  const res = await octokit.rest.repos.getContent({ owner, repo, path });
-  const data = res.data;
+  try {
+    const res = await octokit.rest.repos.getContent({ owner, repo, path });
+    const data = res.data;
 
-  if (Array.isArray(data)) {
-    return data.map((item) => ({
-      name: item.name,
-      path: item.path,
-      type: item.type as "file" | "dir" | "symlink",
-      size: item.size ?? 0,
-      sha: item.sha ?? "",
-      target:
-        item.type === "symlink"
-          ? (item as { target?: string }).target
-          : undefined,
-    }));
+    if (Array.isArray(data)) {
+      return data.map((item) => ({
+        name: item.name,
+        path: item.path,
+        type: item.type as "file" | "dir" | "symlink",
+        size: item.size ?? 0,
+        sha: item.sha ?? "",
+        target:
+          item.type === "symlink"
+            ? (item as { target?: string }).target
+            : undefined,
+      }));
+    }
+
+    // Single item returned means path is a file — caller should use readFile instead
+    return [];
+  } catch (error) {
+    if (isEmptyRepositoryRootResponse(error, path)) return [];
+    throw error;
   }
-
-  // Single item returned means path is a file — caller should use readFile instead
-  return [];
 }
 
 // ─── readFile ────────────────────────────────────────────────────────────────
@@ -191,11 +212,12 @@ export async function readFile(
       return null;
     }
 
-    const encoding = data.encoding === "base64" ? "base64" : "utf-8";
-    const base64Content =
-      encoding === "base64"
-        ? (data.content ?? "").replace(/\s/g, "")
-        : stringToBase64(data.content ?? "");
+    const { base64Content, encoding } = await loadFilePayload(
+      octokit,
+      owner,
+      repo,
+      data,
+    );
     const bytes = base64ToBytes(base64Content);
     const isBinary = isBinaryBytes(bytes);
     const content = isBinary
@@ -366,7 +388,7 @@ export async function uploadFile(
 ): Promise<{ sha: string; commitSha: string }> {
   const arrayBuffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
-  const base64 = uint8ToBase64(bytes);
+  const base64 = bytesToBase64(bytes);
 
   const res = await writeGitHubFileWithRetry(octokit, {
     owner,

@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildBreadcrumbs,
   buildFileHref,
+  confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
   githubFileUrl,
@@ -108,6 +109,17 @@ describe("currentFolderPath", () => {
 
   it("uses root when nothing is selected", () => {
     expect(currentFolderPath(null, null)).toBe("");
+  });
+});
+
+describe("confineRepoPathToRoot", () => {
+  it("keeps nested destinations in a repository-root workspace", () => {
+    expect(confineRepoPathToRoot("docs/guides", "")).toBe("docs/guides");
+  });
+
+  it("keeps scoped destinations inside their workspace", () => {
+    expect(confineRepoPathToRoot("docs/guides", "docs")).toBe("docs/guides");
+    expect(confineRepoPathToRoot("src", "docs")).toBe("docs");
   });
 });
 

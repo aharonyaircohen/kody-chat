@@ -15,6 +15,12 @@ import { Input } from "@kody-ade/base/ui/input";
 import { cn } from "@dashboard/lib/utils";
 import { uploadFile } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
+import {
+  DEFAULT_FILE_UPLOAD_POLICY,
+  type FileUploadPolicy,
+  uploadInputAccept,
+} from "../lib/file-upload-policy";
+import { uploadRepositoryFiles } from "../lib/upload-repository-files";
 
 interface UploadZoneProps {
   octokit: Octokit | null;
@@ -26,6 +32,8 @@ interface UploadZoneProps {
     sha: string;
   }) => void;
   destinationDir?: string;
+  workspaceRoot?: string;
+  uploadPolicy?: FileUploadPolicy;
 }
 
 interface UploadingFile {
@@ -40,6 +48,8 @@ export function UploadZone({
   repo,
   onUploadComplete,
   destinationDir = "",
+  workspaceRoot = "",
+  uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
 }: UploadZoneProps) {
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -66,57 +76,44 @@ export function UploadZone({
 
       setUploading((prev) => [...prev, ...newUploading]);
 
-      for (const uploadingFile of newUploading) {
-        const { file } = uploadingFile;
-
-        // Construct destination path
-        const baseName = file.webkitRelativePath || file.name;
-        const destPath = destination
-          ? `${destination.replace(/\/$/, "")}/${baseName}`
-          : baseName;
-
-        try {
-          const result = await uploadFile(
-            octokit,
-            owner,
-            repo,
-            destPath,
-            file,
-            `chore: upload ${destPath}`,
-          );
-
+      await uploadRepositoryFiles({
+        files: newUploading.map(({ file }) => file),
+        destinationDir: destination,
+        workspaceRoot,
+        policy: uploadPolicy,
+        upload: (path, file, message) =>
+          uploadFile(octokit, owner, repo, path, file, message),
+        onUploaded: ({ file, path, sha }) => {
           toast.success(`Uploaded ${file.name}`);
-
-          // Mark as done
           setUploading((prev) =>
             prev.map((u) => (u.file === file ? { ...u, progress: 100 } : u)),
           );
-
-          // Remove from list after a short delay
           setTimeout(() => {
             setUploading((prev) => prev.filter((u) => u.file !== file));
           }, 1500);
-
           onUploadComplete?.({
-            path: destPath,
+            path,
             size: file.size,
-            sha: result.sha,
+            sha,
           });
-        } catch (err) {
-          const errorMessage =
-            err instanceof Error ? err.message : "Upload failed";
-
-          toast.error(`Failed to upload ${baseName}: ${errorMessage}`);
-
+        },
+        onRejected: ({ file, path, error }) => {
+          toast.error(`Failed to upload ${path}: ${error}`);
           setUploading((prev) =>
-            prev.map((u) =>
-              u.file === file ? { ...u, error: errorMessage } : u,
-            ),
+            prev.map((u) => (u.file === file ? { ...u, error } : u)),
           );
-        }
-      }
+        },
+      });
     },
-    [octokit, owner, repo, destination, onUploadComplete],
+    [
+      octokit,
+      owner,
+      repo,
+      destination,
+      onUploadComplete,
+      uploadPolicy,
+      workspaceRoot,
+    ],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -193,14 +190,14 @@ export function UploadZone({
         )}
       </div>
 
-      {/* Destination input */}
       {showDestinationInput && (
         <div className="border-b border-border px-4 py-2">
           <Input
             type="text"
             value={destination}
-            onChange={(e) => setDestination(e.target.value)}
+            onChange={(event) => setDestination(event.target.value)}
             placeholder="Destination directory (optional)"
+            aria-label="Upload destination"
             className={cn(
               "h-auto w-full rounded border border-input bg-background px-3 py-1.5 text-sm",
               "text-foreground placeholder:text-muted-foreground",
@@ -262,6 +259,8 @@ export function UploadZone({
           ref={fileInputRef}
           type="file"
           multiple
+          accept={uploadInputAccept(uploadPolicy)}
+          aria-label="Choose files to upload"
           className="hidden"
           onChange={handleFileInputChange}
         />
@@ -270,6 +269,8 @@ export function UploadZone({
           ref={folderInputRef}
           type="file"
           multiple
+          accept={uploadInputAccept(uploadPolicy)}
+          aria-label="Choose folder to upload"
           className="hidden"
           onChange={handleFileInputChange}
         />

@@ -53,6 +53,7 @@ import {
 } from "../lib/repo-file-operations";
 import {
   buildBreadcrumbs,
+  confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
   githubFileUrl,
@@ -74,6 +75,12 @@ import type { FileEditorViewMode } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
 import { FileSearch } from "./FileSearch";
 import { UploadZone } from "./UploadZone";
+import {
+  DEFAULT_FILE_UPLOAD_POLICY,
+  type FileUploadPolicy,
+} from "../lib/file-upload-policy";
+import { uploadRepositoryFiles } from "../lib/upload-repository-files";
+import { fileSupportsTextEditing } from "../lib/file-preview";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
@@ -133,6 +140,7 @@ interface FilesPageProps {
   newFileNameOnly?: boolean;
   showSearch?: boolean;
   showUpload?: boolean;
+  uploadPolicy?: FileUploadPolicy;
   defaultMarkdownViewMode?: FileEditorViewMode;
   /**
    * Custom read-only storage backing this workspace. Default (unset)
@@ -160,6 +168,7 @@ export function FilesPage({
   newFileNameOnly = false,
   showSearch = true,
   showUpload = true,
+  uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
   defaultMarkdownViewMode = "edit",
   transport,
   headerActions,
@@ -274,10 +283,7 @@ export function FilesPage({
       selectedPath,
       selectedPathType === "symlink" ? "file" : selectedPathType,
     );
-    return selectedFolder === workspaceRoot ||
-      selectedFolder.startsWith(`${workspaceRoot}/`)
-      ? selectedFolder
-      : workspaceRoot;
+    return confineRepoPathToRoot(selectedFolder, workspaceRoot);
   }, [selectedPath, selectedPathType, workspaceRoot]);
 
   const updateFileHref = useCallback(
@@ -353,7 +359,11 @@ export function FilesPage({
             size: file.size,
             isBinary: file.isBinary,
           });
-          setViewMode(writeable && !file.isBinary ? "editor" : "viewer");
+          setViewMode(
+            writeable && fileSupportsTextEditing(file.path, file.isBinary)
+              ? "editor"
+              : "viewer",
+          );
           return;
         }
 
@@ -405,12 +415,6 @@ export function FilesPage({
     openedInitialPathRef.current = initialOpenKey;
     void openRepoPath(initialRepoPath, { updateRoute: false });
   }, [auth, initialRepoPath, octokit, openRepoPath, transport]);
-
-  useEffect(() => {
-    if (writeable && selectedFile && viewMode === "viewer") {
-      setViewMode("editor");
-    }
-  }, [selectedFile, viewMode, writeable]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -511,43 +515,44 @@ export function FilesPage({
       const uploadList = Array.from(files).filter((file) => file.name);
       if (uploadList.length === 0) return;
 
-      let uploaded = 0;
-      for (const file of uploadList) {
-        const destPath = joinRepoPath(currentFolder, file.name);
-        try {
-          const result = await uploadFile(
-            octokit,
-            auth.owner,
-            auth.repo,
-            destPath,
-            file,
-            `chore: upload ${destPath}`,
-          );
+      const result = await uploadRepositoryFiles({
+        files: uploadList,
+        destinationDir: currentFolder,
+        workspaceRoot,
+        policy: uploadPolicy,
+        upload: (path, file, message) =>
+          uploadFile(octokit, auth.owner, auth.repo, path, file, message),
+        onUploaded: ({ file, path, sha }) => {
           upsertTreeEntry(
-            treeEntryForPath(destPath, "file", {
-              sha: result.sha,
+            treeEntryForPath(path, "file", {
+              sha,
               size: file.size,
             }),
           );
-          uploaded += 1;
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? `Failed to upload ${file.name}: ${err.message}`
-              : `Failed to upload ${file.name}`,
-          );
-        }
-      }
+        },
+        onRejected: ({ file, error }) =>
+          toast.error(`Failed to upload ${file.name}: ${error}`),
+      });
 
-      if (uploaded > 0) {
+      if (result.uploaded.length > 0) {
         const folderLabel = currentFolder ? `/${currentFolder}` : "/";
         toast.success(
-          `Uploaded ${uploaded} ${uploaded === 1 ? "file" : "files"} to ${folderLabel}`,
+          `Uploaded ${result.uploaded.length} ${
+            result.uploaded.length === 1 ? "file" : "files"
+          } to ${folderLabel}`,
         );
         handleRefresh();
       }
     },
-    [octokit, auth, currentFolder, handleRefresh, upsertTreeEntry],
+    [
+      octokit,
+      auth,
+      currentFolder,
+      handleRefresh,
+      uploadPolicy,
+      upsertTreeEntry,
+      workspaceRoot,
+    ],
   );
 
   const isFileDrag = (e: DragEvent) =>
@@ -561,7 +566,7 @@ export function FilesPage({
       dragDepthRef.current += 1;
       setIsDraggingFiles(true);
     },
-    [showUpload, writeable],
+    [fullFs, showUpload, writeable],
   );
 
   const handleDragOver = useCallback(
@@ -572,7 +577,7 @@ export function FilesPage({
       e.dataTransfer.dropEffect = "copy";
       setIsDraggingFiles(true);
     },
-    [showUpload, writeable],
+    [fullFs, showUpload, writeable],
   );
 
   const handleDragLeave = useCallback(
@@ -583,7 +588,7 @@ export function FilesPage({
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
       if (dragDepthRef.current === 0) setIsDraggingFiles(false);
     },
-    [showUpload, writeable],
+    [fullFs, showUpload, writeable],
   );
 
   const handleDrop = useCallback(
@@ -595,7 +600,7 @@ export function FilesPage({
       setIsDraggingFiles(false);
       void handleUploadFiles(e.dataTransfer.files);
     },
-    [handleUploadFiles, showUpload, writeable],
+    [fullFs, handleUploadFiles, showUpload, writeable],
   );
 
   const handleNewFile = useCallback((dirPath: string) => {
@@ -650,7 +655,11 @@ export function FilesPage({
         setNewItemPath("");
         setSelectedPath(path);
         setSelectedFile({ path, sha, size: 0, isBinary: false });
-        setViewMode(writeable ? "editor" : "viewer");
+        setViewMode(
+          writeable && fileSupportsTextEditing(path, false)
+            ? "editor"
+            : "viewer",
+        );
         updateFileHref(path);
         handleRefresh();
       } catch (err) {
@@ -834,7 +843,12 @@ export function FilesPage({
           size: movedFile.size,
           isBinary: movedFile.isBinary,
         });
-        setViewMode(writeable && !movedFile.isBinary ? "editor" : "viewer");
+        setViewMode(
+          writeable &&
+            fileSupportsTextEditing(movedFile.path, movedFile.isBinary)
+            ? "editor"
+            : "viewer",
+        );
       }
       updateFileHref(target);
       handleRefresh();
@@ -1010,7 +1024,20 @@ export function FilesPage({
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
           onResultClick={handleSearchResultClick}
-          onClose={() => setViewMode(selectedFile ? "viewer" : "search")}
+          onClose={() =>
+            setViewMode(
+              selectedFile &&
+                writeable &&
+                fileSupportsTextEditing(
+                  selectedFile.path,
+                  selectedFile.isBinary,
+                )
+                ? "editor"
+                : selectedFile
+                  ? "viewer"
+                  : "search",
+            )
+          }
         />
       );
     }
@@ -1031,6 +1058,8 @@ export function FilesPage({
             handleRefresh();
           }}
           destinationDir={currentFolder}
+          workspaceRoot={workspaceRoot}
+          uploadPolicy={uploadPolicy}
         />
       );
     }
@@ -1042,7 +1071,17 @@ export function FilesPage({
           octokit={octokit}
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
-          onClose={() => setViewMode("viewer")}
+          onClose={() =>
+            setViewMode(
+              writeable &&
+                fileSupportsTextEditing(
+                  selectedFile.path,
+                  selectedFile.isBinary,
+                )
+                ? "editor"
+                : "viewer",
+            )
+          }
         />
       );
     }

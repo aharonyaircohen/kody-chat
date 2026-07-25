@@ -34,6 +34,19 @@ export function currentFolderPath(
   return "";
 }
 
+export function confineRepoPathToRoot(path: string, rootPath: string): string {
+  const normalizedPath = normalizeRepoPath(path);
+  const normalizedRoot = normalizeRepoPath(rootPath);
+  if (!normalizedRoot) return normalizedPath;
+  if (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(`${normalizedRoot}/`)
+  ) {
+    return normalizedPath;
+  }
+  return normalizedRoot;
+}
+
 export function visibleAncestorDirectories(
   path: string,
   pathType: RepoPathType,

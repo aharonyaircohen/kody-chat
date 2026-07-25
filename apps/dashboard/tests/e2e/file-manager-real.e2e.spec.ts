@@ -37,6 +37,8 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
   const marker = `kody-file-manager-e2e-${Date.now()}`;
   const folderPath = marker;
   const fileName = `${marker}.md`;
+  const uploadedFileName = `${marker}-uploaded.md`;
+  const uploadedFilePath = `${folderPath}/${uploadedFileName}`;
   const nestedFilePath = `${folderPath}/${fileName}`;
   const rootFilePath = `${marker}.md`;
 
@@ -70,18 +72,27 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
   );
 
   async function deleteIfPresent(path: string): Promise<void> {
-    try {
-      const response = await octokit.rest.repos.getContent({ owner, repo, path });
-      if (Array.isArray(response.data)) return;
-      await octokit.rest.repos.deleteFile({
-        owner,
-        repo,
-        path,
-        sha: response.data.sha,
-        message: `test: clean up ${path}`,
-      });
-    } catch (error) {
-      if ((error as { status?: number }).status !== 404) throw error;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await octokit.rest.repos.getContent({
+          owner,
+          repo,
+          path,
+        });
+        if (Array.isArray(response.data)) return;
+        await octokit.rest.repos.deleteFile({
+          owner,
+          repo,
+          path,
+          sha: response.data.sha,
+          message: `test: clean up ${path}`,
+        });
+        return;
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (status === 404) return;
+        if (status !== 409 || attempt === 2) throw error;
+      }
     }
   }
 
@@ -102,6 +113,41 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
     await folderDialog.getByRole("button", { name: "Create" }).click();
     await expect(page).toHaveURL(new RegExp(`/files/${folderPath}$`));
 
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Upload", exact: true }).click();
+    await page.getByRole("button", { name: "Set destination" }).click();
+    await expect(page.getByLabel("Upload destination")).toHaveValue(folderPath);
+    await page
+      .locator('input[type="file"][aria-label="Choose files to upload"]')
+      .setInputFiles({
+        name: uploadedFileName,
+        mimeType: "text/markdown",
+        buffer: Buffer.from("# Uploaded by the file manager\n"),
+      });
+    await expect(page.locator("[data-sonner-toast]")).toContainText(
+      `Uploaded ${uploadedFileName}`,
+      { timeout: 10_000 },
+    );
+    await expect
+      .poll(async () => {
+        try {
+          const response = await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: uploadedFilePath,
+          });
+          return Array.isArray(response.data) ? null : response.data.path;
+        } catch (error) {
+          if ((error as { status?: number }).status === 404) return null;
+          throw error;
+        }
+      })
+      .toBe(uploadedFilePath);
+    await deleteIfPresent(uploadedFilePath);
+
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/files/${folderPath}`, {
+      waitUntil: "domcontentloaded",
+    });
     await page
       .getByRole("button", { name: "New file", exact: true })
       .last()
@@ -160,7 +206,11 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
     await expect
       .poll(async () => {
         try {
-          await octokit.rest.repos.getContent({ owner, repo, path: rootFilePath });
+          await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: rootFilePath,
+          });
           return true;
         } catch (error) {
           return (error as { status?: number }).status !== 404;
@@ -187,7 +237,11 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
     await expect
       .poll(async () => {
         try {
-          await octokit.rest.repos.getContent({ owner, repo, path: folderPath });
+          await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: folderPath,
+          });
           return true;
         } catch (error) {
           return (error as { status?: number }).status !== 404;
@@ -196,6 +250,7 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
       .toBe(false);
   } finally {
     await deleteIfPresent(rootFilePath);
+    await deleteIfPresent(uploadedFilePath);
     await deleteIfPresent(nestedFilePath);
     await deleteIfPresent(`${folderPath}/.gitkeep`);
   }

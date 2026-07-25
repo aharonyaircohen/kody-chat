@@ -34,6 +34,9 @@ import {
 } from "@dashboard/lib/text-direction";
 import { useTheme } from "@dashboard/providers/Theme";
 import { createLatestRequestGuard } from "../lib/latest-request";
+import { filePreview } from "../lib/file-preview";
+import { useFilePreviewUrl } from "../lib/use-file-preview-url";
+import { NativeFilePreview } from "./NativeFilePreview";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -80,6 +83,7 @@ export function FileViewer({
   const [error, setError] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [isBinary, setIsBinary] = useState(false);
+  const [base64Content, setBase64Content] = useState("");
   const [fileSize, setFileSize] = useState(0);
   const requestGuard = useMemo(() => createLatestRequestGuard(), []);
   const transport = useFilesTransport();
@@ -89,6 +93,10 @@ export function FileViewer({
     const requestId = requestGuard.next();
     setLoading(true);
     setError(null);
+    setContent(null);
+    setBase64Content("");
+    setIsBinary(false);
+    setFileSize(0);
     try {
       const file = transport
         ? await transport.readFile(path)
@@ -99,6 +107,7 @@ export function FileViewer({
         return;
       }
       setIsBinary(file.isBinary);
+      setBase64Content(file.base64Content);
       setFileSize(file.size);
       setContent(file.content);
     } catch (err) {
@@ -126,6 +135,8 @@ export function FileViewer({
     ? path.slice(0, path.lastIndexOf("/"))
     : "Repository root";
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
+  const preview = filePreview(path);
+  const previewUrl = useFilePreviewUrl(preview, base64Content);
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -233,6 +244,12 @@ export function FileViewer({
             <FileQuestion className="mb-2 h-8 w-8" />
             <span>{error}</span>
           </div>
+        ) : preview.kind !== "unsupported" && previewUrl ? (
+          <NativeFilePreview
+            fileName={fileName}
+            preview={preview}
+            sourceUrl={previewUrl}
+          />
         ) : isBinary ? (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <FileQuestion className="mb-2 h-8 w-8" />

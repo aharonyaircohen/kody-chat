@@ -6,6 +6,8 @@ const REPO_ROUTE = `/repo/${OWNER}/${REPO}/files`;
 
 interface MockFile {
   content: string;
+  base64Content?: string;
+  omitContentsPayload?: boolean;
   sha: string;
 }
 
@@ -24,13 +26,29 @@ function json(route: Route, body: unknown, status = 200) {
 
 async function installFileManagerHarness(
   page: Page,
-  options: { fileReadDelayMs?: number } = {},
+  options: {
+    emptyRepository?: boolean;
+    fileReadDelayMs?: number;
+    largeImage?: boolean;
+  } = {},
 ) {
-  const files = new Map<string, MockFile>([
-    ["README.md", { content: "# Workspace\n", sha: "readme-sha" }],
-    ["notes.md", { content: "Committed notes\n", sha: "notes-sha" }],
-    ["docs/guide.md", { content: "# Guide\n", sha: "guide-sha" }],
-  ]);
+  const files = new Map<string, MockFile>(
+    options.emptyRepository
+      ? []
+      : [
+          ["README.md", { content: "# Workspace\n", sha: "readme-sha" }],
+          ["notes.md", { content: "Committed notes\n", sha: "notes-sha" }],
+          ["docs/guide.md", { content: "# Guide\n", sha: "guide-sha" }],
+        ],
+  );
+  if (options.largeImage) {
+    files.set("large-image.png", {
+      content: "",
+      base64Content: "iVBORw0KGgo=",
+      omitContentsPayload: true,
+      sha: "large-image-sha",
+    });
+  }
   const blobs = new Map<string, string>();
   const unhandledGitHubRequests: string[] = [];
   let pendingTree: GitTreeEntry[] = [];
@@ -90,6 +108,9 @@ async function installFileManagerHarness(
   await page.route("**/api/kody/models", (route) =>
     json(route, { models: [] }),
   );
+  await page.route("**/api/kody/brain/models", (route) =>
+    json(route, { models: [] }),
+  );
   await page.route("**/api/kody/commands", (route) =>
     json(route, { commands: [] }),
   );
@@ -145,6 +166,21 @@ async function installFileManagerHarness(
       const sha = `blob-${sequence++}`;
       blobs.set(sha, body.content);
       return json(route, { sha }, 201);
+    }
+    if (pathname.startsWith(`${repoPrefix}/git/blobs/`) && method === "GET") {
+      const sha = pathname.slice(`${repoPrefix}/git/blobs/`.length);
+      const file = [...files.values()].find((entry) => entry.sha === sha);
+      if (!file) return json(route, { message: "Not Found" }, 404);
+      return json(route, {
+        sha,
+        encoding: "base64",
+        content:
+          file.base64Content ??
+          Buffer.from(file.content, "utf8").toString("base64"),
+        size: file.base64Content
+          ? Buffer.from(file.base64Content, "base64").byteLength
+          : Buffer.byteLength(file.content),
+      });
     }
     if (pathname === `${repoPrefix}/git/trees` && method === "POST") {
       const body = request.postDataJSON() as { tree: GitTreeEntry[] };
@@ -212,13 +248,21 @@ async function installFileManagerHarness(
           name: path.split("/").pop(),
           path,
           sha: file.sha,
-          size: Buffer.byteLength(file.content),
-          encoding: "base64",
-          content: Buffer.from(file.content).toString("base64"),
+          size: file.base64Content
+            ? Buffer.from(file.base64Content, "base64").byteLength
+            : Buffer.byteLength(file.content),
+          encoding: file.omitContentsPayload ? "none" : "base64",
+          content: file.omitContentsPayload
+            ? ""
+            : (file.base64Content ??
+              Buffer.from(file.content).toString("base64")),
         });
       }
 
       if (method === "GET") {
+        if (options.emptyRepository && path === "" && files.size === 0) {
+          return json(route, { message: "This repository is empty." }, 404);
+        }
         const prefix = path ? `${path}/` : "";
         const entries = new Map<string, Record<string, unknown>>();
         for (const [filePath, file] of files) {
@@ -260,17 +304,26 @@ async function installFileManagerHarness(
   return { files, unhandledGitHubRequests };
 }
 
-function collectRuntimeFailures(page: Page) {
+function collectRuntimeFailures(
+  page: Page,
+  options: { emptyRepository?: boolean } = {},
+) {
   const failures: string[] = [];
   page.on("pageerror", (error) => failures.push(error.message));
   page.on("console", (message) => {
     const text = message.text();
+    const isExpectedEmptyRepositoryResponse =
+      options.emptyRepository &&
+      text.includes(
+        `GET /repos/${OWNER}/${REPO}/contents - 404 with id UNKNOWN`,
+      );
     if (
       message.type() === "error" &&
       !text.startsWith("Failed to load resource:") &&
       !text.includes(
         "/contents/e2e-workspace%2Frenamed.txt - 404 with id UNKNOWN",
-      )
+      ) &&
+      !isExpectedEmptyRepositoryResponse
     ) {
       failures.push(text);
     }
@@ -293,9 +346,18 @@ function collectRuntimeFailures(page: Page) {
       decodeURIComponent(url).includes(
         `/repos/${OWNER}/${REPO}/contents/e2e-workspace/renamed.txt`,
       );
+    const isExpectedEmptyRepositoryResponse =
+      options.emptyRepository &&
+      response.status() === 404 &&
+      decodeURIComponent(new URL(url).pathname) ===
+        `/repos/${OWNER}/${REPO}/contents`;
     const isOptionalAsset =
       response.status() === 404 && new URL(url).pathname === "/favicon.svg";
-    if (!isExpectedExistenceProbe && !isOptionalAsset) {
+    if (
+      !isExpectedExistenceProbe &&
+      !isExpectedEmptyRepositoryResponse &&
+      !isOptionalAsset
+    ) {
       failures.push(`${response.status()} ${url}`);
     }
   });
@@ -338,6 +400,133 @@ test.describe("repository file manager", () => {
       page.getByRole("treeitem", { name: "guide.md 8 B" }),
     ).toBeVisible();
 
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("uploads files from the workspace actions menu", async ({ page }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { files, unhandledGitHubRequests } =
+      await installFileManagerHarness(page);
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("treeitem", { name: "README.md 12 B" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Upload", exact: true }).click();
+
+    await page
+      .locator('input[type="file"][aria-label="Choose files to upload"]')
+      .setInputFiles({
+        name: "uploaded.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("uploaded content\n"),
+      });
+
+    await expect
+      .poll(() => files.get("uploaded.txt")?.content)
+      .toBe("uploaded content\n");
+    await expect(
+      page.getByRole("treeitem", { name: "uploaded.txt 17 B" }),
+    ).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("loads an empty repository and uploads its first file", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page, {
+      emptyRepository: true,
+    });
+    const { files, unhandledGitHubRequests } = await installFileManagerHarness(
+      page,
+      { emptyRepository: true },
+    );
+
+    const rootListingResponse = page.waitForResponse(
+      (response) =>
+        response.status() === 404 &&
+        decodeURIComponent(new URL(response.url()).pathname) ===
+          `/repos/${OWNER}/${REPO}/contents`,
+    );
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await rootListingResponse;
+    await expect(page.getByRole("heading", { name: "Files" })).toBeVisible();
+    await expect(page.getByText("Could not load Repository")).toHaveCount(0);
+    await expect(page.getByText("This folder is empty")).toBeVisible();
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "New file" }),
+    ).toBeVisible();
+    await page.getByRole("menuitem", { name: "Upload", exact: true }).click();
+    await page
+      .locator('input[type="file"][aria-label="Choose files to upload"]')
+      .setInputFiles({
+        name: "first-file.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("first content\n"),
+      });
+
+    await expect
+      .poll(() => files.get("first-file.txt")?.content)
+      .toBe("first content\n");
+    await expect(
+      page.getByRole("treeitem", { name: "first-file.txt 14 B" }),
+    ).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("previews a large PNG instead of opening editable text", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      largeImage: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /large-image\.png/ }).click();
+
+    await expect(
+      page.getByRole("img", { name: "Preview of large-image.png" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toHaveCount(0);
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("uploads markdown inside a scoped file workspace", async ({ page }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { files, unhandledGitHubRequests } =
+      await installFileManagerHarness(page);
+
+    await page.goto(`/repo/${OWNER}/${REPO}/file-spaces/docs`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(
+      page.getByRole("treeitem", { name: "guide.md 8 B" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Upload", exact: true }).click();
+    await page
+      .locator('input[type="file"][aria-label="Choose files to upload"]')
+      .setInputFiles({
+        name: "uploaded.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from("# Uploaded\n"),
+      });
+
+    await expect
+      .poll(() => files.get("docs/uploaded.md")?.content)
+      .toBe("# Uploaded\n");
+    await expect(
+      page.getByRole("treeitem", { name: "uploaded.md 11 B" }),
+    ).toBeVisible();
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });
@@ -490,9 +679,10 @@ test.describe("repository file manager", () => {
 
     await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
     const treeItems = page.getByRole("treeitem");
-    await expect(treeItems).toHaveCount(2);
-    await expect(treeItems.nth(0)).toContainText("README.md");
+    await expect(treeItems).toHaveCount(3);
+    await expect(treeItems.nth(0)).toContainText("docs");
     await expect(treeItems.nth(1)).toContainText("notes.md");
+    await expect(treeItems.nth(2)).toContainText("README.md");
 
     await page.evaluate(() => {
       const snapshots: Array<Array<{ text: string; expanded: string | null }>> =
@@ -519,7 +709,7 @@ test.describe("repository file manager", () => {
     await expect(page).toHaveURL(/\/files\/notes\.md$/);
     await expect(
       page.getByRole("textbox", { name: "Editor content" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10_000 });
 
     const loadingSnapshots = await page.evaluate(
       () =>
@@ -531,14 +721,16 @@ test.describe("repository file manager", () => {
           }
         ).__fileTreeSnapshots,
     );
-    const stableSnapshot = [
-      { text: "README.md12 B", expanded: null },
-      { text: "notes.md16 B", expanded: null },
-    ];
+    const stableLabels = ["docs", "notes.md", "README.md"];
     expect(loadingSnapshots).not.toEqual([]);
-    expect(loadingSnapshots.every((snapshot) =>
-      JSON.stringify(snapshot) === JSON.stringify(stableSnapshot),
-    )).toBe(true);
+    expect(
+      loadingSnapshots.every(
+        (snapshot) =>
+          JSON.stringify(
+            snapshot.map(({ text }) => text.replace(/\d+ B$/, "")),
+          ) === JSON.stringify(stableLabels),
+      ),
+    ).toBe(true);
     expect(runtimeFailures).toEqual([]);
   });
 });

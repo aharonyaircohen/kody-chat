@@ -1,6 +1,7 @@
 "use client";
 
 import { FilesPage, type FileEntry } from "@dashboard/features/file-manager";
+import { MARKDOWN_FILE_UPLOAD_POLICY } from "@dashboard/features/file-manager/lib/file-upload-policy";
 
 export function isMarkdownFileSpaceEntry(entry: FileEntry): boolean {
   return entry.type === "dir" || entry.path.toLowerCase().endsWith(".md");
@@ -34,7 +35,7 @@ export function RepositoryFileSpace({
       newFilePlaceholder="Document title"
       newFileNameOnly
       showSearch={false}
-      showUpload={false}
+      uploadPolicy={MARKDOWN_FILE_UPLOAD_POLICY}
       defaultMarkdownViewMode="preview"
     />
   );
