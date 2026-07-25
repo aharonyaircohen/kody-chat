@@ -1,7 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+  companyIntentValidator,
   inboxEntryValidator,
+  intentDecisionValidator,
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
@@ -15,12 +17,62 @@ import {
   conversationRuntimeValidator,
   conversationScopeValidator,
 } from "./conversationValidators";
+import {
+  memoryActorValidator,
+  memoryEvidenceValidator,
+  memoryKindValidator,
+  memoryStatusValidator,
+} from "./memoryValidators";
+import { agencyRunSubjectTypeValidator } from "./agencyValidators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
 // tenantId) — the same scope the GitHub backend serves today. Per-user rows add
 // `login`. Flexible payloads stay v.any() so brand-defined shapes keep working;
 // invariant fields are typed.
 export default defineSchema({
+  memories: defineTable({
+    memoryId: v.string(),
+    scopeKind: v.union(v.literal("user"), v.literal("repository")),
+    scopeId: v.string(),
+    kind: memoryKindValidator,
+    title: v.string(),
+    summary: v.string(),
+    body: v.string(),
+    searchText: v.string(),
+    currentRevisionId: v.string(),
+    status: memoryStatusValidator,
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    expiresAt: v.optional(v.string()),
+  })
+    .index("by_memory", ["memoryId"])
+    .index("by_scope_status", [
+      "scopeKind",
+      "scopeId",
+      "status",
+      "updatedAt",
+    ])
+    .searchIndex("search_memory", {
+      searchField: "searchText",
+      filterFields: ["scopeKind", "scopeId", "status", "kind"],
+    }),
+
+  memoryRevisions: defineTable({
+    revisionId: v.string(),
+    memoryId: v.string(),
+    previousRevisionId: v.union(v.string(), v.null()),
+    kind: memoryKindValidator,
+    title: v.string(),
+    summary: v.string(),
+    body: v.string(),
+    evidence: v.array(memoryEvidenceValidator),
+    reason: v.string(),
+    actor: memoryActorValidator,
+    createdAt: v.string(),
+  })
+    .index("by_revision", ["revisionId"])
+    .index("by_memory", ["memoryId", "createdAt"]),
+
   workflows: defineTable({
     tenantId: v.string(),
     workflowId: v.string(),
@@ -165,11 +217,7 @@ export default defineSchema({
   agencyRuns: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    subjectType: v.union(
-      v.literal("loop"),
-      v.literal("workflow"),
-      v.literal("capability"),
-    ),
+    subjectType: agencyRunSubjectTypeValidator,
     subjectId: v.string(),
     run: v.any(),
     updatedAt: v.string(),
@@ -180,6 +228,7 @@ export default defineSchema({
   runEvents: defineTable({
     tenantId: v.string(),
     runId: v.string(),
+    goalId: v.optional(v.string()),
     seq: v.number(),
     event: v.any(),
     time: v.string(),
@@ -302,6 +351,30 @@ export default defineSchema({
   })
     .index("by_conversation", ["tenantId", "conversationId"])
     .index("by_attachment", ["tenantId", "conversationId", "attachmentId"]),
+
+  intents: defineTable({
+    tenantId: v.string(),
+    intentId: v.string(),
+    intent: companyIntentValidator,
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "intentId"]),
+
+  intentDecisions: defineTable({
+    tenantId: v.string(),
+    intentId: v.string(),
+    seq: v.number(),
+    decision: intentDecisionValidator,
+    idempotencyKey: v.optional(v.string()),
+  })
+    .index("by_intent", ["tenantId", "intentId", "seq"])
+    .index("by_idempotency", ["tenantId", "intentId", "idempotencyKey"]),
+
+  goals: defineTable({
+    tenantId: v.string(),
+    goalId: v.string(),
+    state: v.any(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "goalId"]),
 
   agencyDispatches: defineTable({
     tenantId: v.string(),

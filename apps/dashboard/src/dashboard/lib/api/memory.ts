@@ -1,93 +1,87 @@
+import type {
+  Memory,
+  MemoryKind,
+  MemoryRevision,
+} from "@kody-ade/memory";
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
-// ============ Memory API ============
+export type { Memory, MemoryKind, MemoryRevision };
 
-export type MemoryType = "user" | "feedback" | "project" | "reference";
+export interface MemoryDetail {
+  readonly memory: Readonly<Memory>;
+  readonly revisions: readonly Readonly<MemoryRevision>[];
+}
 
-export interface MemoryFile {
-  /** Filename without `.md` — stable identity. */
-  id: string;
-  meta: {
-    name: string;
-    description: string;
-    type: MemoryType;
-    created: string;
-  };
-  /** Markdown body after frontmatter. */
-  body: string;
-  /** Git blob sha. */
-  sha: string;
-  /** Last commit timestamp affecting this file (ISO8601). */
-  updatedAt: string;
-  /** Convenience link to the file on github.com. */
-  htmlUrl: string;
+export interface CreateMemoryInput {
+  readonly scope: "user" | "repository";
+  readonly kind: MemoryKind;
+  readonly title: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly reason?: string;
+  readonly expiresAt?: string;
+}
+
+export interface UpdateMemoryInput {
+  readonly kind?: MemoryKind;
+  readonly title?: string;
+  readonly summary?: string;
+  readonly body?: string;
+  readonly reason?: string;
 }
 
 export const memoryApi = {
-  list: async (): Promise<MemoryFile[]> => {
-    const res = await fetch(`${API_BASE}/memory`, {
+  async list(): Promise<readonly Readonly<Memory>[]> {
+    const response = await fetch(`${API_BASE}/memory`, {
       headers: buildHeaders(),
       cache: "no-store",
     });
-    const data = await handleResponse<{ memories: MemoryFile[] }>(res);
-    return data.memories ?? [];
+    return (
+      await handleResponse<{ memories: readonly Readonly<Memory>[] }>(response)
+    ).memories;
   },
 
-  get: async (id: string): Promise<MemoryFile> => {
-    const res = await fetch(`${API_BASE}/memory/${encodeURIComponent(id)}`, {
-      headers: buildHeaders(),
-    });
-    const data = await handleResponse<{ memory: MemoryFile }>(res);
-    return data.memory;
+  async get(id: string): Promise<MemoryDetail> {
+    const response = await fetch(
+      `${API_BASE}/memory/${encodeURIComponent(id)}`,
+      { headers: buildHeaders(), cache: "no-store" },
+    );
+    return await handleResponse<MemoryDetail>(response);
   },
 
-  create: async (data: {
-    id: string;
-    name: string;
-    description: string;
-    type: MemoryType;
-    body: string;
-    actorLogin?: string;
-  }): Promise<MemoryFile> => {
-    const res = await fetch(`${API_BASE}/memory`, {
+  async create(input: CreateMemoryInput): Promise<Readonly<Memory>> {
+    const response = await fetch(`${API_BASE}/memory`, {
       method: "POST",
       headers: buildHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(input),
     });
-    const payload = await handleResponse<{ memory: MemoryFile }>(res);
-    return payload.memory;
+    return (
+      await handleResponse<{ memory: Readonly<Memory> }>(response)
+    ).memory;
   },
 
-  update: async (
+  async update(
     id: string,
-    data: {
-      name?: string;
-      description?: string;
-      type?: MemoryType;
-      body?: string;
-      actorLogin?: string;
-    },
-  ): Promise<MemoryFile> => {
-    const res = await fetch(`${API_BASE}/memory/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ memory: MemoryFile }>(res);
-    return payload.memory;
-  },
-
-  remove: async (id: string, actorLogin?: string): Promise<void> => {
-    const params = new URLSearchParams();
-    if (actorLogin) params.set("actorLogin", actorLogin);
-    const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(
-      `${API_BASE}/memory/${encodeURIComponent(id)}${suffix}`,
+    input: UpdateMemoryInput,
+  ): Promise<Readonly<Memory>> {
+    const response = await fetch(
+      `${API_BASE}/memory/${encodeURIComponent(id)}`,
       {
-        method: "DELETE",
+        method: "PATCH",
         headers: buildHeaders(),
+        body: JSON.stringify(input),
       },
     );
-    await handleResponse<{ success: boolean }>(res);
+    return (
+      await handleResponse<{ memory: Readonly<Memory> }>(response)
+    ).memory;
+  },
+
+  async remove(id: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE}/memory/${encodeURIComponent(id)}`,
+      { method: "DELETE", headers: buildHeaders() },
+    );
+    await handleResponse<{ deleted: true }>(response);
   },
 };

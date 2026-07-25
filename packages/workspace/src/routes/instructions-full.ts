@@ -5,7 +5,7 @@
  * @ai-summary Returns the full assembled system prompt that the
  *   in-process Kody agent would receive on a NEUTRAL chat turn —
  *   base agent prompt + connected-repo block + research-first
- *   rules + memory index + user instructions overlay. Per-turn
+ *   rules + user instructions overlay. Retrieved memory and other per-turn
  *   blocks (current task, capability, vibe, voice overlay) are excluded
  *   because they only exist in the context of a live chat session.
  *
@@ -16,7 +16,6 @@ import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import { setGitHubContext, clearGitHubContext } from "../github";
 import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
 import { buildSystemPrompt } from "@kody-ade/base/kody-system-prompt";
-import { loadMemoryIndexForPrompt } from "../memory/files";
 import { loadInstructionsForPrompt } from "../instructions/files";
 
 export const dynamic = "force-dynamic";
@@ -38,16 +37,14 @@ export async function GET(req: NextRequest) {
 
   setGitHubContext(repo.owner, repo.repo, repo.token);
   try {
-    const [memoryIndex, userInstructions] = await Promise.all([
-      loadMemoryIndexForPrompt().catch(() => null),
-      loadInstructionsForPrompt().catch(() => null),
-    ]);
+    const userInstructions = await loadInstructionsForPrompt().catch(
+      () => null,
+    );
     const prompt = buildSystemPrompt(
       AGENT_KODY_SYSTEM_PROMPT,
       { owner: repo.owner, repo: repo.repo },
       undefined,
       {
-        memoryIndex,
         userInstructions,
       },
     );

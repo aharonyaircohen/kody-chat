@@ -1,14 +1,12 @@
-import { createHash } from "node:crypto";
-
-import type { MemoryType } from "@kody-ade/workspace/memory/files";
-import { slugifyTitle } from "@kody-ade/base/slug";
+import type { MemoryKind } from "@kody-ade/memory";
 
 export interface ExplicitMemoryDraft {
-  id: string;
-  name: string;
-  description: string;
-  type: MemoryType;
-  body: string;
+  readonly scope: "user" | "repository";
+  readonly kind: MemoryKind;
+  readonly title: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly reason: string;
 }
 
 const EXPLICIT_MEMORY_RE =
@@ -18,10 +16,6 @@ function compact(input: string): string {
   return input.replace(/\s+/g, " ").trim();
 }
 
-function hashSuffix(input: string): string {
-  return createHash("sha256").update(input).digest("hex").slice(0, 8);
-}
-
 function titleFromMemory(content: string): string {
   const words = compact(content)
     .replace(/[^\p{L}\p{N}\s_-]/gu, "")
@@ -29,25 +23,31 @@ function titleFromMemory(content: string): string {
     .filter(Boolean)
     .slice(0, 8);
   const title = words.join(" ");
-  return title.length >= 3 ? title.slice(0, 80) : "Explicit chat memory";
+  return title.length >= 3 ? title.slice(0, 120) : "Explicit chat memory";
 }
 
-function classifyMemory(content: string): MemoryType {
+function classify(content: string): {
+  scope: ExplicitMemoryDraft["scope"];
+  kind: MemoryKind;
+} {
   const text = content.toLowerCase();
-  if (/\b(i am|i'm|my role|my preference|i prefer|call me)\b/.test(text)) {
-    return "user";
+  if (/\b(i prefer|my preference|call me|reply|respond)\b/.test(text)) {
+    return { scope: "user", kind: "preference" };
   }
-  if (/\b(linear|grafana|slack|jira|notion|url|https?:\/\/)\b/.test(text)) {
-    return "reference";
+  if (/\b(url|https?:\/\/|runbook|linear|jira|notion)\b/.test(text)) {
+    return { scope: "repository", kind: "reference" };
+  }
+  if (/\b(goal|deadline|target|ship by)\b/.test(text)) {
+    return { scope: "repository", kind: "goal" };
   }
   if (
-    /\b(repo|project|dashboard|kody|workflow|capability|capabilities|implementation|team|deadline)\b/.test(
+    /\b(repo|project|architecture|should|must|decision|workflow|capability)\b/.test(
       text,
     )
   ) {
-    return "project";
+    return { scope: "repository", kind: "decision" };
   }
-  return "feedback";
+  return { scope: "user", kind: "fact" };
 }
 
 export function buildExplicitMemoryDraft(
@@ -55,28 +55,14 @@ export function buildExplicitMemoryDraft(
 ): ExplicitMemoryDraft | null {
   const match = EXPLICIT_MEMORY_RE.exec(messageText);
   if (!match) return null;
-
   const content = compact(match[1]);
   if (content.length < 5) return null;
-
-  const name = titleFromMemory(content);
-  const type = classifyMemory(content);
-  const baseId = slugifyTitle(name, {
-    maxLength: 55,
-    fallback: "explicit-chat-memory",
-  });
-  const id = `${baseId}-${hashSuffix(content)}`.slice(0, 64);
-  const description = compact(content).slice(0, 200);
-  const body =
-    `${content}\n\n` +
-    "**Why:** User explicitly asked Kody to remember this.\n" +
-    "**How apply:** Apply this guidance in future Kody Dashboard work unless current repo evidence supersedes it.";
-
+  const classification = classify(content);
   return {
-    id,
-    name,
-    description,
-    type,
-    body,
+    ...classification,
+    title: titleFromMemory(content),
+    summary: content.slice(0, 500),
+    body: content,
+    reason: "The user explicitly asked Kody to remember this.",
   };
 }

@@ -23,7 +23,7 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
     await client.mutation(anyApi.workflows.save, {
       tenantId,
       workflowId: "smoke",
-      definition: { version: 1, name: "Smoke" },
+      definition: { name: "Smoke", agent: "kody" },
       source: "local",
       updatedAt: new Date().toISOString(),
     });

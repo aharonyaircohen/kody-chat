@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
   resolveChatModel: vi.fn(),
   resolveBackgroundToken: vi.fn(),
   resolveClientBrand: vi.fn(),
-  loadMemoryIndexForPrompt: vi.fn(),
+  loadRelevantMemoryForPrompt: vi.fn(),
   loadInstructionsForPrompt: vi.fn(),
   loadContextForPrompt: vi.fn(),
   loadViewRendererContextForPrompt: vi.fn(),
@@ -50,11 +50,9 @@ vi.mock("../../src/dashboard/lib/chat-defaults", async (importOriginal) => {
     })),
   };
 });
-vi.mock("@kody-ade/workspace/memory/files", () => ({
-  invalidateMemoryIndexPromptCache: vi.fn(),
-  loadMemoryIndexForPrompt: h.loadMemoryIndexForPrompt,
-  readMemoryFile: vi.fn(),
-  writeMemoryFile: vi.fn(),
+vi.mock("@kody-ade/workspace/memory", () => ({
+  loadRelevantMemoryForPrompt: h.loadRelevantMemoryForPrompt,
+  createMemoryRuntime: vi.fn(),
 }));
 vi.mock("@kody-ade/workspace/instructions/files", () => ({
   loadInstructionsForPrompt: h.loadInstructionsForPrompt,
@@ -95,7 +93,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.loadMemoryIndexForPrompt.mockResolvedValue(null);
+  h.loadRelevantMemoryForPrompt.mockResolvedValue(null);
   h.loadInstructionsForPrompt.mockResolvedValue(null);
   h.loadContextForPrompt.mockResolvedValue(null);
   h.loadViewRendererContextForPrompt.mockResolvedValue({

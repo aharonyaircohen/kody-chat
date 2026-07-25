@@ -1,5 +1,17 @@
 export const LIVE_UI_JOURNEYS = Object.freeze([
   {
+    id: "memory-real-lifecycle",
+    file: "tests/e2e/memory-real.e2e.spec.ts",
+    title:
+      "creates, revises, reloads, and deletes typed memory through real Convex persistence",
+  },
+  {
+    id: "memory-real-model-journeys",
+    file: "tests/e2e/memory-llm-real.e2e.spec.ts",
+    title:
+      "uses a real model for all memory kinds, scopes, retrieval, listing, correction history, and forgetting",
+  },
+  {
     id: "file-manager-real-mutations",
     file: "tests/e2e/file-manager-real.e2e.spec.ts",
     title: "creates, moves, deletes, and cleans up real repository files",

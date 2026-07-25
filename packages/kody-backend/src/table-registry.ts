@@ -117,11 +117,30 @@ export const TABLES: readonly TableDef[] = [
   { table: "macros", naturalKey: ["macroId"], upsertIndex: "by_tenant" },
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
   {
+    table: "memories",
+    naturalKey: ["memoryId"],
+    upsertIndex: "by_memory",
+    global: true,
+  },
+  {
+    table: "memoryRevisions",
+    naturalKey: ["revisionId"],
+    upsertIndex: "by_revision",
+    global: true,
+  },
+  {
     table: "knowledgeGraphs",
     naturalKey: [],
     upsertIndex: "by_tenant",
     tenantSingleton: true,
   },
+  { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
+  {
+    table: "intentDecisions",
+    naturalKey: ["intentId", "seq"],
+    upsertIndex: "by_intent",
+  },
+  { table: "goals", naturalKey: ["goalId"], upsertIndex: "by_tenant" },
   {
     table: "notificationPrefs",
     naturalKey: ["login"],

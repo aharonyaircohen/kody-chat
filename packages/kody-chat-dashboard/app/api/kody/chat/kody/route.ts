@@ -142,11 +142,9 @@ import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { createMacroTools } from "../tools/macros-tools";
 import {
-  invalidateMemoryIndexPromptCache,
-  loadMemoryIndexForPrompt,
-  readMemoryFile,
-  writeMemoryFile,
-} from "@kody-ade/workspace/memory/files";
+  createMemoryRuntime,
+  loadRelevantMemoryForPrompt,
+} from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
@@ -781,10 +779,12 @@ async function handleKodyDirectPost(
   // Client-surface turns carry no PAT, so there is no GitHub identity to
   // verify — actor-gated tools (remote_*) simply stay off (null login).
   let verifiedActorLogin: string | null = null;
+  let verifiedActorGithubId: number | null = null;
   if (!clientSurface) {
     const actorResult = await verifyActorLogin(repoScopedReq, body.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
     verifiedActorLogin = actorResult.identity.login;
+    verifiedActorGithubId = actorResult.identity.githubId;
   }
   // Only vision-capable models get real image parts. For text-only models
   // (looked up from LiteLLM's supports_vision data) inline the image as text
@@ -851,7 +851,7 @@ async function handleKodyDirectPost(
     body.agentSlug.trim()
       ? body.agentSlug.trim()
       : "kody";
-  let memoryIndex: string | null = null;
+  let memoryContext: string | null = null;
   let userInstructions: string | null = null;
   let context: string | null = null;
   let constraints: string | null = null;
@@ -888,7 +888,13 @@ async function handleKodyDirectPost(
       repo.storeRef,
     );
     try {
-      memoryIndex = await loadMemoryIndexForPrompt();
+      memoryContext = await loadRelevantMemoryForPrompt(
+        {
+          actorId: `github:${verifiedActorGithubId}`,
+          tenantId: `${repo.owner}/${repo.repo}`,
+        },
+        latestUserText ?? "",
+      );
     } catch (err) {
       // Memory is best-effort; never block the chat. Log and continue.
       traceWarn(
@@ -972,29 +978,69 @@ async function handleKodyDirectPost(
   }
 
   const explicitMemoryDraft = buildExplicitMemoryDraft(latestUserText ?? "");
-  if (repo && explicitMemoryDraft) {
+  if (repo && explicitMemoryDraft && verifiedActorGithubId !== null) {
     try {
-      const octokit = createUserOctokit(repo.token);
-      const existing = await readMemoryFile(explicitMemoryDraft.id);
-      const file = await writeMemoryFile({
-        octokit,
-        id: explicitMemoryDraft.id,
-        sha: existing?.sha,
-        meta: {
-          name: explicitMemoryDraft.name,
-          description: explicitMemoryDraft.description,
-          type: explicitMemoryDraft.type,
-          created: existing?.meta.created ?? new Date().toISOString(),
-        },
-        body: explicitMemoryDraft.body,
-        message: `chore(memory): ${existing ? "update" : "add"} ${
-          explicitMemoryDraft.id
-        }${verifiedActorLogin ? ` (via chat by @${verifiedActorLogin})` : ""}`,
+      const tenantId = `${repo.owner}/${repo.repo}`;
+      const runtime = createMemoryRuntime({
+        actorId: `github:${verifiedActorGithubId}`,
+        tenantId,
       });
-      invalidateMemoryIndexPromptCache();
+      const scope =
+        explicitMemoryDraft.scope === "user"
+          ? { kind: "user" as const, userId: runtime.principal.userId }
+          : { kind: "repository" as const, tenantId };
+      const evidence = [
+        {
+          source: "message" as const,
+          id:
+            typeof body.turnId === "string" && body.turnId.trim()
+              ? body.turnId.trim()
+              : traceId,
+          ...(typeof body.conversationId === "string" &&
+          body.conversationId.trim()
+            ? { conversationId: body.conversationId.trim() }
+            : {}),
+        },
+      ];
+      const matches = await runtime.application.search({
+        principal: runtime.principal,
+        scopes: [scope],
+        query: explicitMemoryDraft.summary,
+        limit: 5,
+      });
+      const existing = matches.find(
+        (memory) =>
+          memory.content.title === explicitMemoryDraft.title ||
+          memory.content.summary === explicitMemoryDraft.summary,
+      );
+      const memory = existing
+        ? await runtime.application.correct({
+            principal: runtime.principal,
+            memoryId: existing.id,
+            kind: explicitMemoryDraft.kind,
+            content: {
+              title: explicitMemoryDraft.title,
+              summary: explicitMemoryDraft.summary,
+              body: explicitMemoryDraft.body,
+            },
+            evidence,
+            reason: explicitMemoryDraft.reason,
+          })
+        : await runtime.application.remember({
+            principal: runtime.principal,
+            scope,
+            kind: explicitMemoryDraft.kind,
+            content: {
+              title: explicitMemoryDraft.title,
+              summary: explicitMemoryDraft.summary,
+              body: explicitMemoryDraft.body,
+            },
+            evidence,
+            reason: explicitMemoryDraft.reason,
+          });
       turnSystemInstructions.push(
-        `Explicit memory request already persisted to Convex memory/${file.id}.md ` +
-          `as ${file.meta.type}. Do not call remember/update_memory again. ` +
+        `Explicit memory request already persisted as ${memory.id} ` +
+          `(${memory.kind}). Do not call remember/update_memory again. ` +
           "Briefly confirm it was saved.",
       );
     } catch (err) {
@@ -1121,6 +1167,9 @@ async function handleKodyDirectPost(
   let uiToolSet = createUiTools({ requireInteractiveAction });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
+    if (verifiedActorGithubId === null) {
+      throw new Error("Verified actor is required for repository chat tools");
+    }
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
     const octokit = createUserOctokit(repo.token);
@@ -1152,10 +1201,15 @@ async function handleKodyDirectPost(
         actorLogin: verifiedActorLogin,
       }),
       ...createMemoryTools({
-        octokit,
+        actorId: `github:${verifiedActorGithubId}`,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        ...(typeof body.conversationId === "string"
+          ? { conversationId: body.conversationId }
+          : {}),
+        ...(typeof body.turnId === "string"
+          ? { messageId: body.turnId }
+          : {}),
       }),
       ...createReleaseTools({
         octokit,
@@ -1527,7 +1581,7 @@ async function handleKodyDirectPost(
         typeof body.previewContext === "string"
           ? body.previewContext
           : undefined,
-      memoryIndex,
+      memoryContext,
       vibeMode,
       flyConfigured,
       userInstructions: null,
