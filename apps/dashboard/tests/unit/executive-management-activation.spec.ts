@@ -13,38 +13,30 @@ describe("kody-chat executive management activation", () => {
     expect(config.github).toEqual({
       owner: "aharonyaircohen",
       repo: "kody-chat",
-      operators: ["aguyaharonyair"],
+      operators: ["aguyaharonyair", "aharonyaircohen"],
     });
-    expect(config.state).toMatchObject({
-      repo: "https://github.com/aharonyaircohen/kody-state",
-      path: "kody-chat",
-    });
+    expect(config).not.toHaveProperty("state");
   });
 
-  it("activates the three Store managers on a 15-minute pilot cadence", () => {
+  it("activates the Kody captain on a 15-minute CI repair loop", () => {
     const config = JSON.parse(
       readFileSync(resolve(repoRoot, "kody.config.json"), "utf8"),
     );
 
     expect(config.company.activeAgents).toEqual(
-      expect.arrayContaining(["ceo", "cto", "coo"]),
+      expect.arrayContaining(["kody"]),
     );
     expect(config.company.activeCapabilities).toEqual(
       expect.arrayContaining([
-        "company-portfolio-management",
-        "agency-portfolio-management",
-        "agency-operations-management",
-        "ai-agency-health-matrix",
-        "ceo-performance-review",
+        "ci-health-check",
+        "run",
+        "review",
+        "fix",
+        "merge",
       ]),
     );
-    expect(config.company.activeGoals).toEqual(
-      expect.arrayContaining([
-        { template: "company-growth-loop", every: "15m" },
-        { template: "agency-evolution-loop", every: "15m" },
-        { template: "agency-operations-loop", every: "15m" },
-        { template: "ai-agency-health", every: "15m" },
-      ]),
+    expect(config.company.activeWorkflows).toEqual(
+      expect.arrayContaining(["ci-repair"]),
     );
   });
 
