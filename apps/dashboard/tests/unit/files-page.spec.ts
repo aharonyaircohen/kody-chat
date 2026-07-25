@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildBreadcrumbs,
   buildFileHref,
+  buildWorkspaceFileHref,
   confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
@@ -13,10 +14,13 @@ import {
   joinRepoPath,
   normalizeRepoPath,
   parentRepoPath,
+  repoPathOpenCandidates,
   replacePathPrefix,
   shouldShowWorkspaceLocation,
   visibleAncestorDirectories,
 } from "@dashboard/features/file-manager/lib/file-paths";
+import { resolveRepoPathFromListings } from "@dashboard/features/file-manager/lib/repo-path-resolution";
+import type { FileEntry } from "@dashboard/features/file-manager/lib/repo-files";
 
 describe("buildBreadcrumbs", () => {
   it("returns empty array for empty path", () => {
@@ -224,6 +228,69 @@ describe("buildFileHref", () => {
     expect(buildFileHref("docs/What now?.md")).toBe(
       "/files/docs/What%20now%3F.md",
     );
+  });
+});
+
+describe("buildWorkspaceFileHref", () => {
+  it("encodes file segments exactly once", () => {
+    expect(buildWorkspaceFileHref("/files", "lesson page.html")).toBe(
+      "/files/lesson%20page.html",
+    );
+    expect(buildWorkspaceFileHref("/files", "What now?.html")).toBe(
+      "/files/What%20now%3F.html",
+    );
+  });
+});
+
+describe("repoPathOpenCandidates", () => {
+  it("falls back from a legacy double-encoded route to the real file path", () => {
+    expect(repoPathOpenCandidates("lesson%2520page.html")).toEqual([
+      "lesson%2520page.html",
+      "lesson%20page.html",
+      "lesson page.html",
+    ]);
+  });
+
+  it("keeps ordinary paths as a single candidate", () => {
+    expect(repoPathOpenCandidates("docs/guide.html")).toEqual([
+      "docs/guide.html",
+    ]);
+  });
+});
+
+describe("resolveRepoPathFromListings", () => {
+  const entry = (path: string): FileEntry => ({
+    name: path,
+    path,
+    type: "file",
+    size: 1,
+    sha: path,
+  });
+
+  it("resolves a legacy encoded route without probing encoded GitHub paths", async () => {
+    const requestedDirectories: string[] = [];
+    const resolved = await resolveRepoPathFromListings(
+      "lesson%2520page.html",
+      async (path) => {
+        requestedDirectories.push(path);
+        return [entry("lesson page.html")];
+      },
+    );
+
+    expect(resolved?.path).toBe("lesson page.html");
+    expect(requestedDirectories).toEqual([""]);
+  });
+
+  it("preserves a literal percent-encoded filename when it exists", async () => {
+    const resolved = await resolveRepoPathFromListings(
+      "lesson%2520page.html",
+      async () => [
+        entry("lesson%2520page.html"),
+        entry("lesson page.html"),
+      ],
+    );
+
+    expect(resolved?.path).toBe("lesson%2520page.html");
   });
 });
 

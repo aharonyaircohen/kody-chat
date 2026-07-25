@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { agencyRunSubjectTypeValidator } from "./agencyValidators";
 import { createRun } from "@kody-ade/agency-domain";
 
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
@@ -304,11 +305,7 @@ export const createRunRecord = mutation({
   args: {
     serviceKey: v.optional(v.string()),
     tenantId: v.string(),
-    subjectType: v.union(
-      v.literal("loop"),
-      v.literal("workflow"),
-      v.literal("capability"),
-    ),
+    subjectType: agencyRunSubjectTypeValidator,
     subjectId: v.string(),
     run: v.any(),
     now: v.string(),

@@ -35,6 +35,10 @@ import {
 import { useTheme } from "@dashboard/providers/Theme";
 import { createLatestRequestGuard } from "../lib/latest-request";
 import { filePreview } from "../lib/file-preview";
+import {
+  advancedFilePreview,
+  canPreviewAdvancedFile,
+} from "../lib/advanced-file-preview";
 import { useFilePreviewUrl } from "../lib/use-file-preview-url";
 import { NativeFilePreview } from "./NativeFilePreview";
 
@@ -49,6 +53,19 @@ const MonacoEditor = dynamic(
     ),
   },
 ) as React.ComponentType<EditorProps>;
+
+const AdvancedFilePreview = dynamic(
+  () =>
+    import("./AdvancedFilePreview").then((mod) => mod.AdvancedFilePreview),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 interface FileViewerProps {
   path: string;
@@ -136,6 +153,7 @@ export function FileViewer({
     : "Repository root";
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const preview = filePreview(path);
+  const advancedPreview = advancedFilePreview(path);
   const previewUrl = useFilePreviewUrl(preview, base64Content);
 
   return (
@@ -249,6 +267,15 @@ export function FileViewer({
             fileName={fileName}
             preview={preview}
             sourceUrl={previewUrl}
+          />
+        ) : advancedPreview &&
+          isBinary &&
+          base64Content &&
+          canPreviewAdvancedFile(fileSize) ? (
+          <AdvancedFilePreview
+            base64Content={base64Content}
+            fileName={fileName}
+            renderer={advancedPreview.renderer}
           />
         ) : isBinary ? (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">

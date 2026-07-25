@@ -393,11 +393,11 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("Acme builds widgets.");
   });
 
-  it("appends the Remembered context block when memoryIndex is set", async () => {
+  it("appends the Remembered context block when memoryContext is set", async () => {
     const bundle = await loadChatDefaults();
     const prompt = composeChatPrompt(bundle, {
       repo: { owner: "acme", repo: "widget" },
-      memoryIndex: "- foo: bar",
+      memoryContext: "- foo: bar",
     });
     expect(prompt).toContain("## Remembered context");
     expect(prompt).toContain("- foo: bar");

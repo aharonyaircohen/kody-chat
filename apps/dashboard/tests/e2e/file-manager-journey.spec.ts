@@ -3,7 +3,12 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const OWNER = "file-manager-e2e";
 const REPO = "workspace";
 const REPO_ROUTE = `/repo/${OWNER}/${REPO}/files`;
-
+const MINIMAL_DOCX_BASE64 =
+  "UEsDBAoAAAAIAINs+VzMVIwQ4AAAAJwBAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH2Qy07DMBBFf8XyFsUTukAIJekCyhJYlA+w7Eli4Zc8bil/z6QtXaDC0r6PM7rd+hC82GMhl2Ivb1UrBUaTrItTL9+3z829XA/d9isjCbZG6uVca34AIDNj0KRSxsjKmErQlZ9lgqzNh54QVm17BybFirE2demQQ/eEo975KjYH/j5hC3qS4vFkXFi91Dl7Z3RlHfbR/qI0Z4Li5NFDs8t0wwYJVwmL8jfgnHvlHYqzKN50qS86sAs+U7Fgk9kFTqr/a67cmcbRGbzkl7ZckkEiHjh4dVGCdvHnfjjOPXwDUEsDBAoAAAAAAINs+VwAAAAAAAAAAAAAAAAGAAAAX3JlbHMvUEsDBAoAAAAIAINs+Vw2V97cogAAABgBAAALAAAAX3JlbHMvLnJlbHONzzsOwjAMBuCrRN6pCwNCqGkXhNQVlQNEiZtGNA8l4XV7MjBQxMBo+/dnuekedmY3isl4x2Fd1cDISa+M0xzOw3G1g65tTjSLXBJpMiGxsuIShynnsEdMciIrUuUDuTIZfbQilzJqDEJehCbc1PUW46cBS5P1ikPs1RrY8Az0j+3H0Ug6eHm15PKPE1+JIouoKXO4+6hQvdtVYQHbBhcvti9QSwMECgAAAAAAg2z5XAAAAAAAAAAAAAAAAAUAAAB3b3JkL1BLAwQKAAAACACDbPlcxAoXTawAAADoAAAAEQAAAHdvcmQvZG9jdW1lbnQueG1sRY4xbsMwDEWvImiv5WYIAsN2tqzpkB5AkWhbqEUKpBo3t4/kDF0ewf+JB/bnv7iqB7AEwkF/Nq1WgI58wHnQ37fLx0kryRa9XQlh0E8QfR77rfPkfiNgVkWA0m2DXnJOnTHiFohWGkqApZuIo81l5dlsxD4xORAp/riaQ9seTbQBdVXeyT/rTBVckcfrNAUHKjE8AmyqGH6kN7Wp5J37vYDLX2z24C0y/0+OL1BLAQIUAAoAAAAIAINs+VzMVIwQ4AAAAJwBAAATAAAAAAAAAAAAAAAAAAAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQACgAAAAAAg2z5XAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAQAAAAEQEAAF9yZWxzL1BLAQIUAAoAAAAIAINs+Vw2V97cogAAABgBAAALAAAAAAAAAAAAAAAAADUBAABfcmVscy8ucmVsc1BLAQIUAAoAAAAAAINs+VwAAAAAAAAAAAAAAAAFAAAAAAAAAAAAEAAAAAACAAB3b3JkL1BLAQIUAAoAAAAIAINs+VzEChdNrAAAAOgAAAARAAAAAAAAAAAAAAAAACMCAAB3b3JkL2RvY3VtZW50LnhtbFBLBQYAAAAABQAFACABAAD+AgAAAAA=";
+const MINIMAL_XLSX_BASE64 =
+  "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";
+const MINIMAL_ZIP_BASE64 =
+  "UEsDBAoAAAAIAPh1+VwX0GU1FAAAABIAAAAJAAAAaGVsbG8udHh0i/IMUCgoSi3LTC1XKM8vyi7mAgBQSwECFAAKAAAACAD4dflcF9BlNRQAAAASAAAACQAAAAAAAAAAAAAAAAAAAAAAaGVsbG8udHh0UEsFBgAAAAABAAEANwAAADsAAAAAAA==";
 interface MockFile {
   content: string;
   base64Content?: string;
@@ -31,6 +36,9 @@ async function installFileManagerHarness(
     fileReadDelayMs?: number;
     htmlPreview?: boolean;
     largeImage?: boolean;
+    officePreview?: boolean;
+    spreadsheetPreview?: boolean;
+    zipPreview?: boolean;
   } = {},
 ) {
   const files = new Map<string, MockFile>(
@@ -53,8 +61,34 @@ async function installFileManagerHarness(
   if (options.htmlPreview) {
     files.set("preview.html", {
       content:
-        '<!doctype html><html><body><h1>HTML preview works</h1><img src="https://preview.invalid/tracker.png"><script>parent.postMessage("html-preview-script-executed", "*")</script></body></html>',
+        '<!doctype html><html><head><script src="https://preview.invalid/tailwind.js"></script><script src="https://preview.invalid/lucide.js"></script><style>.tab-content{display:none}.tab-content.active{display:block}</style></head><body><main><h1 class="text-blue-600">HTML preview works</h1><i data-lucide="file"></i><button onclick="document.querySelectorAll(\'.tab-content\').forEach((item)=>item.classList.remove(\'active\'));document.getElementById(\'details\').classList.add(\'active\')">Details</button><section id="summary" class="tab-content active">Summary content</section><section id="details" class="tab-content">Interactive details</section><script>let parentAccess = "allowed";try{void parent.document.title}catch{parentAccess = "blocked"}parent.postMessage({type:"html-preview-parent-access",value:parentAccess},"*")</script></main></body></html>',
       sha: "html-preview-sha",
+    });
+    files.set("lesson page.html", {
+      content:
+        '<!doctype html><html lang="he" dir="rtl"><body><main><h1>Encoded lesson preview works</h1></main><script>document.body.dataset.scriptExecuted = "true"</script></body></html>',
+      sha: "encoded-html-preview-sha",
+    });
+  }
+  if (options.officePreview) {
+    files.set("report.docx", {
+      content: "",
+      base64Content: MINIMAL_DOCX_BASE64,
+      sha: "report-docx-sha",
+    });
+  }
+  if (options.spreadsheetPreview) {
+    files.set("report.xlsx", {
+      content: "",
+      base64Content: MINIMAL_XLSX_BASE64,
+      sha: "report-xlsx-sha",
+    });
+  }
+  if (options.zipPreview) {
+    files.set("bundle.zip", {
+      content: "",
+      base64Content: MINIMAL_ZIP_BASE64,
+      sha: "bundle-zip-sha",
     });
   }
   const blobs = new Map<string, string>();
@@ -419,6 +453,37 @@ test.describe("repository file manager", () => {
     expect(runtimeFailures).toEqual([]);
   });
 
+  test("refreshes the root and every expanded directory", async ({ page }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { files, rootDirectoryReads, unhandledGitHubRequests } =
+      await installFileManagerHarness(page);
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: "docs" }).click();
+    await expect(
+      page.getByRole("treeitem", { name: "guide.md 8 B" }),
+    ).toBeVisible();
+
+    await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
+    files.delete("docs/guide.md");
+    files.set("docs/external.md", {
+      content: "External change\n",
+      sha: "external-change-sha",
+    });
+
+    await page.getByRole("button", { name: "Refresh files" }).click();
+
+    await expect(
+      page.getByRole("treeitem", { name: "external.md 16 B" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: /guide\.md/ }),
+    ).toHaveCount(0);
+    expect(rootDirectoryReads()).toBe(2);
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
   test("uploads files from the workspace actions menu", async ({ page }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const { files, unhandledGitHubRequests } =
@@ -515,34 +580,41 @@ test.describe("repository file manager", () => {
     expect(runtimeFailures).toEqual([]);
   });
 
-  test("previews HTML without allowing scripts or external requests", async ({
+  test("runs HTML as an isolated browser document", async ({
     page,
   }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const externalPreviewRequests: string[] = [];
-    const externalPreviewResponses: string[] = [];
-    page.on("request", (request) => {
-      if (new URL(request.url()).hostname === "preview.invalid") {
-        externalPreviewRequests.push(request.url());
-      }
+    await page.route("https://preview.invalid/tailwind.js", (route) => {
+      externalPreviewRequests.push(route.request().url());
+      return route.fulfill({
+        contentType: "application/javascript",
+        body: 'document.head.insertAdjacentHTML("beforeend","<style>.text-blue-600{color:rgb(37,99,235)}</style>")',
+      });
     });
-    page.on("response", (response) => {
-      if (new URL(response.url()).hostname === "preview.invalid") {
-        externalPreviewResponses.push(response.url());
-      }
+    await page.route("https://preview.invalid/lucide.js", (route) => {
+      externalPreviewRequests.push(route.request().url());
+      return route.fulfill({
+        contentType: "application/javascript",
+        body: 'document.addEventListener("DOMContentLoaded",()=>{document.querySelectorAll("[data-lucide]").forEach((icon)=>icon.outerHTML="<svg aria-label=\\"Rendered icon\\"></svg>")})',
+      });
     });
     await page.addInitScript(() => {
-      Object.assign(window, { __htmlPreviewScriptExecuted: false });
+      Object.assign(window, { __htmlPreviewParentAccess: "unknown" });
       window.addEventListener("message", (event) => {
-        if (event.data === "html-preview-script-executed") {
-          Object.assign(window, { __htmlPreviewScriptExecuted: true });
+        if (event.data?.type === "html-preview-parent-access") {
+          Object.assign(window, {
+            __htmlPreviewParentAccess: event.data.value,
+          });
         }
       });
     });
     await installFileManagerHarness(page, { htmlPreview: true });
 
     await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
-    await page.getByRole("treeitem", { name: "preview.html 187 B" }).click();
+    await page
+      .getByRole("treeitem", { name: /preview\.html/ })
+      .click();
     await expect(
       page.getByRole("textbox", { name: "Editor content" }),
     ).toBeVisible();
@@ -556,24 +628,128 @@ test.describe("repository file manager", () => {
     ).toBeVisible();
     await expect
       .poll(() =>
+        preview.getByRole("heading").evaluate(
+          (heading) => getComputedStyle(heading).color,
+        ),
+      )
+      .toBe("rgb(37, 99, 235)");
+    await expect(
+      preview.getByRole("img", { name: "Rendered icon" }),
+    ).toBeVisible();
+    await preview.getByRole("button", { name: "Details" }).click();
+    await expect(preview.getByText("Interactive details")).toBeVisible();
+    await expect
+      .poll(() =>
         page.evaluate(
           () =>
             (
               window as typeof window & {
-                __htmlPreviewScriptExecuted: boolean;
+                __htmlPreviewParentAccess: string;
               }
-            ).__htmlPreviewScriptExecuted,
+            ).__htmlPreviewParentAccess,
         ),
       )
-      .toBe(false);
-    expect(externalPreviewRequests).toEqual([]);
-    expect(externalPreviewResponses).toEqual([]);
+      .toBe("blocked");
+    expect(externalPreviewRequests.sort()).toEqual(
+      [
+        "https://preview.invalid/lucide.js",
+        "https://preview.invalid/tailwind.js",
+      ].sort(),
+    );
     expect(runtimeFailures).toEqual([]);
 
     await page.getByRole("button", { name: "Edit mode" }).click();
     await expect(
       page.getByRole("textbox", { name: "Editor content" }),
     ).toBeVisible();
+  });
+
+  test("opens an HTML file with spaces from its canonical and legacy URLs", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      htmlPreview: true,
+    });
+
+    await page.goto(`${REPO_ROUTE}/lesson%2520page.html`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(`${REPO_ROUTE}/lesson%20page.html`);
+    await page.getByRole("button", { name: "Preview mode" }).click();
+
+    const preview = page.frameLocator(
+      'iframe[title="Preview of lesson page.html"]',
+    );
+    await expect(
+      preview.getByRole("heading", {
+        name: "Encoded lesson preview works",
+      }),
+    ).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("previews an Office document through the isolated renderer", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      officePreview: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /report\.docx/ }).click();
+
+    await expect(
+      page.locator('[aria-label="Preview of report.docx"]'),
+    ).toBeVisible();
+    await expect(page.getByText("Office preview works")).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("previews a spreadsheet through the isolated renderer", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      spreadsheetPreview: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /report\.xlsx/ }).click();
+
+    const preview = page.locator('[aria-label="Preview of report.xlsx"]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveAttribute("data-preview-status", "ready");
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("previews a ZIP archive without enabling other archive formats", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      zipPreview: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /bundle\.zip/ }).click();
+
+    const preview = page.locator('[aria-label="Preview of bundle.zip"]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveAttribute("data-preview-status", "ready");
+    await expect(
+      preview.getByRole("button", { name: /hello\.txt/ }),
+    ).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
   });
 
   test("uploads markdown inside a scoped file workspace", async ({ page }) => {

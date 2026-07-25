@@ -242,7 +242,7 @@ describe("POST /api/kody/chat/kody", () => {
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/injected context block/i);
-    expect(prompt).toMatch(/do not re-ask for facts it already states/i);
+    expect(prompt).toMatch(/do not re-ask for facts the block already states/i);
     expect(prompt).toContain("## Current task");
     expect(prompt).toContain("## Current capability");
     expect(prompt).toContain("## Current report");
@@ -270,7 +270,9 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/only when there is a genuine next step/i);
+    expect(prompt).toMatch(
+      /for non-trivial replies, include a recommended next step/i,
+    );
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
       "Great question",
@@ -353,10 +355,9 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toContain("github_get_pull_request");
   });
 
-  it("base kody prompt memory section: full tool list, write freely during bootstrap", async () => {
-    // Regression: memory section used to only mention `recall`, and the
-    // bootstrap rule ("wait until 5+ memories exist") prevented growth.
-    // Section now lists all 5 memory tools and inverts the bootstrap.
+  it("base kody prompt memory section lists every tool and explicit-write rules", async () => {
+    // The memory section lists every memory tool and requires explicit
+    // requests to produce one write without duplicating an existing entry.
     // The memory section lives in the `memory` skill of the chat-defaults
     // bundle (extracted out of the agentIdentity).
     const { loadChatDefaults } =
@@ -368,7 +369,8 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toMatch(/recall_search/);
     expect(prompt).toMatch(/list_memories/);
     expect(prompt).toMatch(/update_memory/);
-    expect(prompt).toMatch(/Write freely during the first few turns/i);
+    expect(prompt).toMatch(/in any language → call `remember` exactly once/i);
+    expect(prompt).toMatch(/Search before writing/i);
     expect(prompt).not.toMatch(
       /until 5\+ memories exist, write only on explicit ask/i,
     );

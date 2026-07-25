@@ -70,13 +70,9 @@ vi.mock("@kody-ade/base/auth", async (importOriginal) => {
 });
 
 // Best-effort prompt loaders hit GitHub; stub them to their empty shapes.
-vi.mock("@kody-ade/workspace/memory/files", () => ({
-  loadMemoryIndexForPrompt: vi.fn(async () => null),
-  invalidateMemoryIndexPromptCache: vi.fn(),
-  readMemoryFile: vi.fn(async () => null),
-  writeMemoryFile: vi.fn(async () => {
-    throw new Error("not expected in this test");
-  }),
+vi.mock("@kody-ade/workspace/memory", () => ({
+  loadRelevantMemoryForPrompt: vi.fn(async () => null),
+  createMemoryRuntime: vi.fn(),
 }));
 vi.mock("@kody-ade/workspace/instructions/files", () => ({
   loadInstructionsForPrompt: vi.fn(async () => null),

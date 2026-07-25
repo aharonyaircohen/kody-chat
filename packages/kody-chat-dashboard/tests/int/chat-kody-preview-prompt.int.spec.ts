@@ -58,11 +58,9 @@ vi.mock("../../src/dashboard/lib/github-client", async (importOriginal) => {
   };
 });
 
-vi.mock("@kody-ade/workspace/memory/files", () => ({
-  invalidateMemoryIndexPromptCache: vi.fn(),
-  loadMemoryIndexForPrompt: vi.fn(async () => null),
-  readMemoryFile: vi.fn(async () => null),
-  writeMemoryFile: vi.fn(),
+vi.mock("@kody-ade/workspace/memory", () => ({
+  loadRelevantMemoryForPrompt: vi.fn(async () => null),
+  createMemoryRuntime: vi.fn(),
 }));
 
 vi.mock("@kody-ade/workspace/instructions/files", () => ({

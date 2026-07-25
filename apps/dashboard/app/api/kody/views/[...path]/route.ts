@@ -10,6 +10,7 @@ import { getRequestAuth } from "@kody-ade/base/auth";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
+import { REPO_VIEW_CSP } from "@dashboard/lib/html-preview-security";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 
 export const runtime = "nodejs";
@@ -17,17 +18,6 @@ export const runtime = "nodejs";
 const VIEW_ROOT = "views";
 const VIEW_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const TOKEN_SEGMENT = "_t";
-
-const HTML_CSP = [
-  "sandbox allow-scripts allow-forms allow-popups allow-downloads",
-  "default-src 'self' data: blob: http: https:",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:",
-  "style-src 'self' 'unsafe-inline' http: https:",
-  "img-src 'self' data: blob: http: https:",
-  "font-src 'self' data: http: https:",
-  "connect-src 'self' data: blob: http: https:",
-  "worker-src blob: http: https:",
-].join("; ");
 
 function normalizeResourcePath(input: string): string | null {
   const clean = input.replaceAll("\\", "/").replace(/^\/+/, "");
@@ -118,7 +108,7 @@ function baseHeaders(path: string): Headers {
     "Accept-Ranges": "bytes",
   });
   if (type.startsWith("text/html")) {
-    headers.set("Content-Security-Policy", HTML_CSP);
+    headers.set("Content-Security-Policy", REPO_VIEW_CSP);
   }
   return headers;
 }

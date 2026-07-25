@@ -1,394 +1,205 @@
-/**
- * @fileType tool
- * @domain kody
- * @pattern ai-sdk-tool
- * @ai-summary Memory tools for the kody-direct chat agent. Persist
- *   facts, feedback, project context, and references as Convex documents.
- *   The prompt index is derived from current documents on read.
- *
- *   The agent decides when to call `remember` based on the rules in
- *   `AGENT_KODY.systemPrompt`. Tools exposed:
- *     - remember        — write a new memory
- *     - recall          — fetch the full body of a memory by id
- *     - update_memory   — replace an existing memory's body/description
- *     - forget          — delete a memory
- *     - list_memories   — enumerate all memories (id + meta only)
- */
-
-import { tool } from "ai";
-import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
+import { dashboardMemoryUrl } from "@kody-ade/base/thread-link";
 import { logger } from "@kody-ade/base/logger";
 import {
-  deleteMemoryFile,
-  invalidateMemoryIndexPromptCache,
-  isValidMemoryId,
-  listMemoryFiles,
-  readMemoryFile,
-  slugifyMemoryName,
-  writeMemoryFile,
-  type MemoryType,
-} from "../memory/files";
-import { searchMemoryFiles } from "../memory/search";
-import { dashboardMemoryUrl } from "@kody-ade/base/thread-link";
+  MemoryNotFoundError,
+  type EvidenceRef,
+  type MemoryKind,
+} from "@kody-ade/memory";
+import { tool } from "ai";
+import { z } from "zod";
+import { createMemoryRuntime } from "../memory/runtime";
 
-interface Ctx {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  /** Login of the chat user. Used in commit messages for traceability. */
-  actorLogin: string | null;
+interface MemoryToolContext {
+  readonly actorId: string;
+  readonly owner: string;
+  readonly repo: string;
+  readonly conversationId?: string;
+  readonly messageId?: string;
 }
 
-const MEMORY_TYPE_VALUES = [
-  "user",
-  "feedback",
-  "project",
+const memoryKind = z.enum([
+  "preference",
+  "fact",
+  "decision",
+  "goal",
   "reference",
-] as const;
+]);
+const memoryScope = z.enum(["user", "repository"]);
+const contentFields = {
+  title: z.string().trim().min(3).max(120),
+  summary: z.string().trim().min(10).max(500),
+  body: z.string().trim().min(10).max(20_000),
+};
 
-const memoryTypeSchema = z
-  .enum(MEMORY_TYPE_VALUES)
-  .describe(
-    "Memory category. " +
-      "`user` = facts about the user (role, expertise, preferences). " +
-      "`feedback` = guidance on how to approach work in this repo (corrections + confirmations). " +
-      "`project` = ongoing initiatives, decisions, deadlines, motivations not derivable from code. " +
-      "`reference` = pointers to external systems (Linear projects, Slack channels, dashboards, runbooks).",
-  );
+function evidence(context: MemoryToolContext): Readonly<EvidenceRef> {
+  if (context.messageId) {
+    return {
+      source: "message",
+      id: context.messageId,
+      ...(context.conversationId
+        ? { conversationId: context.conversationId }
+        : {}),
+    };
+  }
+  return {
+    source: "conversation",
+    id: context.conversationId ?? `chat-${crypto.randomUUID()}`,
+  };
+}
 
-export function createMemoryTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
-  const repoRef = `${owner}/${repo}`;
-  const commitSuffix = actorLogin ? ` (via chat by @${actorLogin})` : "";
+export function createMemoryTools(context: MemoryToolContext) {
+  const tenantId = `${context.owner}/${context.repo}`;
+  let currentRuntime: ReturnType<typeof createMemoryRuntime> | null = null;
+  const runtime = () => {
+    currentRuntime ??= createMemoryRuntime({
+      actorId: context.actorId,
+      tenantId,
+    });
+    return currentRuntime;
+  };
+  const source = evidence(context);
 
   return {
     remember: tool({
       description:
-        `Persist a memory for ${repoRef} in Convex. Memories are ` +
-        "loaded into every future chat turn (via the INDEX) so the agent does not " +
-        "re-learn the same facts.\n\n" +
-        "WRITE on signal, not on schedule. Triggers:\n" +
-        '- User corrects an approach ("don\'t do X", "stop doing Y") → type `feedback`.\n' +
-        '- User confirms a non-obvious choice worked ("yes that bundled PR was right") → type `feedback`.\n' +
-        "- User states a fact about the repo/team/deadline that is NOT derivable from code (a freeze date, a compliance constraint, an ownership boundary) → type `project`.\n" +
-        '- User points to an external system ("bugs are tracked in Linear INGEST") → type `reference`.\n' +
-        "- User reveals their role / expertise / how they want to be addressed → type `user`.\n\n" +
-        "DO NOT save: code patterns, file paths, architecture, anything in CLAUDE.md, " +
-        "ephemeral task state, or agentLoop successes. If the next reader could derive it " +
-        "from `git log` or by reading the code, do not save it.\n\n" +
-        "Before calling: check the injected `## Remembered context` block. If a similar " +
-        "memory already exists, call `update_memory` instead of creating a duplicate. " +
-        'Body should include "Why:" and "How to apply:" lines for `feedback` and ' +
-        "`project` types so future-you can judge edge cases.",
+        "Save a durable, non-obvious user or repository memory. Do not save facts that can be read from code. Prefer correcting a matching memory over creating a duplicate.",
       inputSchema: z.object({
-        name: z
-          .string()
-          .min(3)
-          .max(80)
-          .describe(
-            "Short title (~40 chars). Used as the H1 hint in INDEX.md and the file frontmatter.",
-          ),
-        description: z
-          .string()
-          .min(10)
-          .max(200)
-          .describe(
-            "One-line hook (≤150 chars) shown in the INDEX. Should be specific enough that " +
-              "future-you can decide whether the memory is relevant without opening the file.",
-          ),
-        type: memoryTypeSchema,
-        body: z
-          .string()
-          .min(10)
-          .describe(
-            "Memory content. For `feedback`/`project`: lead with the rule/fact, then a " +
-              "**Why:** line and a **How to apply:** line so future calls can judge edge cases. " +
-              "For `user`/`reference`: a short paragraph is fine.",
-          ),
-        id: z
-          .string()
-          .optional()
-          .describe(
-            "Optional explicit id (lowercase letters, digits, dashes, underscores; max 64). " +
-              "If omitted, derived from `name`.",
-          ),
+        scope: memoryScope,
+        kind: memoryKind,
+        ...contentFields,
+        reason: z.string().trim().min(10).max(500),
       }),
       execute: async (input) => {
-        const id = (input.id ?? slugifyMemoryName(input.name)).toLowerCase();
-        if (!id || !isValidMemoryId(id)) {
-          return {
-            error: "invalid_id",
-            message: `Memory id "${id}" is not valid. Use lowercase letters, digits, dashes, underscores (max 64).`,
-          };
-        }
         try {
-          const existing = await readMemoryFile(id);
-          if (existing) {
-            return {
-              error: "id_taken",
-              message:
-                `A memory with id "${id}" already exists (${existing.meta.name}). ` +
-                "Call `update_memory` to revise it, or pick a different id.",
-              existingHtmlUrl: dashboardMemoryUrl(existing.id),
-            };
-          }
-          const file = await writeMemoryFile({
-            octokit,
-            id,
-            meta: {
-              name: input.name,
-              description: input.description,
-              type: input.type as MemoryType,
-              created: new Date().toISOString(),
+          const memory = await runtime().application.remember({
+            principal: runtime().principal,
+            scope:
+              input.scope === "user"
+                ? { kind: "user", userId: runtime().principal.userId }
+                : { kind: "repository", tenantId },
+            kind: input.kind,
+            content: {
+              title: input.title,
+              summary: input.summary,
+              body: input.body,
             },
-            body: input.body,
-            message: `chore(memory): add ${id}${commitSuffix}`,
+            evidence: [source],
+            reason: input.reason,
           });
-          invalidateMemoryIndexPromptCache();
-          logger.info(
-            { owner, repo, id, type: input.type, actorLogin },
-            "remember: wrote memory file",
-          );
           return {
-            id: file.id,
-            name: file.meta.name,
-            type: file.meta.type,
-            htmlUrl: dashboardMemoryUrl(file.id),
+            memory,
+            url: dashboardMemoryUrl(memory.id),
           };
-        } catch (err) {
-          logger.warn({ err, owner, repo, id }, "remember failed");
-          return {
-            error: "write_failed",
-            message:
-              err instanceof Error
-                ? err.message
-                : "Failed to write memory file",
-          };
+        } catch (error) {
+          logger.warn({ error, tenantId }, "remember failed");
+          return { error: "memory_write_failed" };
         }
       },
     }),
 
     recall: tool({
-      description:
-        `Fetch the full body of a memory in ${repoRef} by id. Use when the injected ` +
-        "`## Remembered context` index hints that a memory is relevant to the current " +
-        "turn and you need its full content (not just the one-line description). " +
-        "Returns `null` if the memory does not exist.",
-      inputSchema: z.object({
-        id: z
-          .string()
-          .min(1)
-          .describe(
-            "Memory id (the filename without `.md`). See the index for valid ids.",
-          ),
-      }),
-      execute: async (input) => {
-        const id = input.id.toLowerCase();
-        if (!isValidMemoryId(id)) {
+      description: "Read one memory by id.",
+      inputSchema: z.object({ id: z.string().min(1).max(128) }),
+      execute: async ({ id }) => {
+        try {
           return {
-            error: "invalid_id",
-            message: `Memory id "${id}" is not valid.`,
+            found: true,
+            memory: await runtime().application.get({
+              principal: runtime().principal,
+              memoryId: id,
+            }),
           };
+        } catch (error) {
+          if (error instanceof MemoryNotFoundError) {
+            return { found: false, id };
+          }
+          throw error;
         }
-        const file = await readMemoryFile(id);
-        if (!file) return { found: false, id };
-        return {
-          found: true,
-          id: file.id,
-          name: file.meta.name,
-          description: file.meta.description,
-          type: file.meta.type,
-          created: file.meta.created,
-          updatedAt: file.updatedAt,
-          body: file.body,
-          htmlUrl: dashboardMemoryUrl(file.id),
-        };
       },
     }),
 
     update_memory: tool({
       description:
-        `Replace an existing memory in ${repoRef}. Use when (a) a stored fact is now ` +
-        "wrong and needs correcting, or (b) the user has refined existing guidance. " +
-        "Does NOT change the id — pass the original id and the new fields you want to " +
-        "overwrite. Fields not passed are left as-is. Rebuilds INDEX.md after the write.",
+        "Correct or refine an existing memory while preserving its revision history.",
       inputSchema: z.object({
-        id: z.string().min(1).describe("Memory id to update."),
-        name: z.string().min(3).max(80).optional(),
-        description: z.string().min(10).max(200).optional(),
-        type: memoryTypeSchema.optional(),
-        body: z
-          .string()
-          .min(10)
-          .optional()
-          .describe(
-            "New memory body. Replaces the existing body in full when provided.",
-          ),
+        id: z.string().min(1).max(128),
+        kind: memoryKind.optional(),
+        title: contentFields.title.optional(),
+        summary: contentFields.summary.optional(),
+        body: contentFields.body.optional(),
+        reason: z.string().trim().min(10).max(500),
       }),
       execute: async (input) => {
-        const id = input.id.toLowerCase();
-        if (!isValidMemoryId(id)) {
-          return {
-            error: "invalid_id",
-            message: `Memory id "${id}" is not valid.`,
-          };
-        }
-        const existing = await readMemoryFile(id);
-        if (!existing) {
-          return {
-            error: "not_found",
-            message: `Memory "${id}" does not exist.`,
-          };
-        }
-        try {
-          const file = await writeMemoryFile({
-            octokit,
-            id,
-            sha: existing.sha,
-            meta: {
-              name: input.name ?? existing.meta.name,
-              description: input.description ?? existing.meta.description,
-              type:
-                (input.type as MemoryType | undefined) ?? existing.meta.type,
-              created: existing.meta.created,
-            },
-            body: input.body ?? existing.body,
-            message: `chore(memory): update ${id}${commitSuffix}`,
-          });
-          invalidateMemoryIndexPromptCache();
-          logger.info(
-            { owner, repo, id, type: file.meta.type, actorLogin },
-            "update_memory: wrote memory file",
-          );
-          return {
-            id: file.id,
-            name: file.meta.name,
-            type: file.meta.type,
-            htmlUrl: dashboardMemoryUrl(file.id),
-          };
-        } catch (err) {
-          logger.warn({ err, owner, repo, id }, "update_memory failed");
-          return {
-            error: "write_failed",
-            message:
-              err instanceof Error
-                ? err.message
-                : "Failed to update memory file",
-          };
-        }
+        const current = await runtime().application.get({
+          principal: runtime().principal,
+          memoryId: input.id,
+        });
+        const memory = await runtime().application.correct({
+          principal: runtime().principal,
+          memoryId: current.id,
+          kind: (input.kind ?? current.kind) as MemoryKind,
+          content: {
+            title: input.title ?? current.content.title,
+            summary: input.summary ?? current.content.summary,
+            body: input.body ?? current.content.body,
+          },
+          evidence: [source],
+          reason: input.reason,
+        });
+        return { memory, url: dashboardMemoryUrl(memory.id) };
       },
     }),
 
     forget: tool({
       description:
-        `Delete a memory from ${repoRef}. Use when the user explicitly says to forget ` +
-        "something, or when a memory is clearly stale/wrong and not just due for an update. " +
-        "Idempotent: returns `not_found` rather than erroring on missing ids.",
-      inputSchema: z.object({
-        id: z.string().min(1).describe("Memory id to delete."),
-      }),
-      execute: async (input) => {
-        const id = input.id.toLowerCase();
-        if (!isValidMemoryId(id)) {
-          return {
-            error: "invalid_id",
-            message: `Memory id "${id}" is not valid.`,
-          };
-        }
-        const existing = await readMemoryFile(id);
-        if (!existing) return { found: false, id };
+        "Delete a memory only when the user explicitly asks to forget it.",
+      inputSchema: z.object({ id: z.string().min(1).max(128) }),
+      execute: async ({ id }) => {
         try {
-          await deleteMemoryFile(octokit, id);
-          invalidateMemoryIndexPromptCache();
-          logger.info(
-            { owner, repo, id, actorLogin },
-            "forget: deleted memory file",
-          );
+          await runtime().application.forget({
+            principal: runtime().principal,
+            memoryId: id,
+          });
           return { found: true, id, deleted: true };
-        } catch (err) {
-          logger.warn({ err, owner, repo, id }, "forget failed");
-          return {
-            error: "delete_failed",
-            message:
-              err instanceof Error
-                ? err.message
-                : "Failed to delete memory file",
-          };
+        } catch (error) {
+          if (error instanceof MemoryNotFoundError) {
+            return { found: false, id };
+          }
+          throw error;
         }
       },
     }),
 
     list_memories: tool({
       description:
-        `List every memory currently stored in ${repoRef} with id, name, description, ` +
-        "and type — but NOT the body. Prefer the injected `## Remembered context` index " +
-        'over calling this tool; only call when the user explicitly asks "what do you ' +
-        'remember?" or when you suspect the index in the system prompt is truncated.',
-      inputSchema: z.object({
-        type: memoryTypeSchema
-          .optional()
-          .describe("Optional filter — return only memories of this type."),
-      }),
-      execute: async (input) => {
-        const all = await listMemoryFiles();
-        const filtered = input.type
-          ? all.filter((f) => f.meta.type === (input.type as MemoryType))
-          : all;
-        return {
-          count: filtered.length,
-          memories: filtered.map((f) => ({
-            id: f.id,
-            name: f.meta.name,
-            description: f.meta.description,
-            type: f.meta.type,
-            created: f.meta.created,
-            updatedAt: f.updatedAt,
-          })),
-        };
+        "List current personal and repository memories when the user asks what Kody remembers.",
+      inputSchema: z.object({ kind: memoryKind.optional() }),
+      execute: async ({ kind }) => {
+        const memories = await runtime().application.list({
+          principal: runtime().principal,
+          scopes: runtime().scopes,
+        });
+        const filtered = kind
+          ? memories.filter((memory) => memory.kind === kind)
+          : memories;
+        return { count: filtered.length, memories: filtered };
       },
     }),
 
     recall_search: tool({
       description:
-        `Search every memory in ${repoRef} by free-text ` +
-        "query. Returns up to 20 matches with path, " +
-        "snippet, and the memory id (filename without `.md`). Use this when:\n" +
-        "- The injected `## Remembered context` index is truncated.\n" +
-        "- The keyword you care about lives in a memory body, not its one-line hook.\n" +
-        '- The user asks "do you remember anything about X" and X does not appear ' +
-        "in the visible index.\n\n" +
-        "After finding a match you may call `recall(id)` to read the full body.",
+        "Search relevant personal and repository memory by text before answering a memory-dependent question.",
       inputSchema: z.object({
-        query: z
-          .string()
-          .min(1)
-          .describe(
-            'Free-text query. Examples: "deploy workflow", "merge freeze", ' +
-              '"prefers terse responses".',
-          ),
+        query: z.string().trim().min(1).max(500),
       }),
       execute: async ({ query }) => {
-        try {
-          const matches = searchMemoryFiles(await listMemoryFiles(), query).map(
-            (match) => ({
-              ...match,
-              url: dashboardMemoryUrl(match.id),
-              lineInFragment: null,
-            }),
-          );
-          return {
-            total: matches.length,
-            matches,
-          };
-        } catch (err) {
-          logger.warn({ err, owner, repo, query }, "recall_search failed");
-          return {
-            error: "search_failed",
-            message:
-              err instanceof Error ? err.message : "Failed to search memories",
-          };
-        }
+        const memories = await runtime().application.search({
+          principal: runtime().principal,
+          scopes: runtime().scopes,
+          query,
+          limit: 20,
+        });
+        return { count: memories.length, memories };
       },
     }),
   };

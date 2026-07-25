@@ -197,7 +197,7 @@ export function composeChatPrompt(
     /** Company context block from Convex `context/*.md`. */
     context?: string | null;
     /** Memory index from Convex `memory/INDEX.md`. */
-    memoryIndex?: string | null;
+    memoryContext?: string | null;
   },
 ): string {
   const parts: string[] = [composeBasePrompt(bundle)];
@@ -228,9 +228,9 @@ export function composeChatPrompt(
     parts.push(
       `## Todos\n\nFinite Agency outcomes are Todos. Use \`list_todo_lists\`, \`read_todo_list\`, and \`create_or_update_todo_list\` to inspect or change them. A Todo may track evidence, blockers, and related Runs; it does not own scheduling, routing, or Agent selection.`,
     );
-    if (sections.memoryIndex && sections.memoryIndex.trim().length > 0) {
+    if (sections.memoryContext && sections.memoryContext.trim().length > 0) {
       parts.push(
-        `## Remembered context\n\nThe block below is the live index of Convex \`memory/*.md\` for this repo.\nEach bullet is one stored memory: title, file id, one-line hook, and type.\nTreat it as the agent's persistent notes — facts/feedback/project context the\nuser has chosen to keep across sessions.\n\nRules:\n- Read this index before writing a new memory. If a similar entry already\n  exists, call \`update_memory\` instead of \`remember\` — duplicates are\n  noise.\n- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a\n  feedback memory says "no console.log in this repo," don't add console.log\n  even if the current turn doesn't mention it).\n- Use \`recall(id)\` when the one-line hook isn't enough and you need the\n  full body before acting. When the index is truncated (or the hook you\n  need isn't there), use \`recall_search(query)\` to search every memory\n  file's body via Convex memory search.\n- Memory can be stale. If a remembered fact contradicts what you observe\n  in the code or the conversation, trust the current observation and update\n  or forget the memory rather than acting on it.\n\n${sections.memoryIndex.trim()}`,
+        `## Remembered context\n\nThe memories below were retrieved for this turn from personal and repository memory.\nUse them when relevant. Avoid duplicates: correct an existing memory instead of creating another.\nMemory can be stale; current code and explicit user corrections take priority.\nUse \`recall(id)\` for one item or \`recall_search(query)\` for another search.\n\n${sections.memoryContext.trim()}`,
       );
     }
   }

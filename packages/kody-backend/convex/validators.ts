@@ -75,6 +75,101 @@ export const macroValidator = v.object({
   steps: v.optional(v.array(v.any())),
 });
 
+export const releaseCadenceValidator = v.union(
+  v.literal("manual"),
+  v.literal("15m"),
+  v.literal("1d"),
+  v.literal("1w"),
+);
+
+const intentControlsValidator = v.object({
+  release: v.optional(
+    v.object({
+      cadence: v.optional(releaseCadenceValidator),
+      qaDepth: v.optional(
+        v.union(v.literal("light"), v.literal("standard"), v.literal("strict")),
+      ),
+      blockerLevel: v.optional(
+        v.union(v.literal("low"), v.literal("standard"), v.literal("strict")),
+      ),
+      approval: v.optional(
+        v.union(
+          v.literal("none"),
+          v.literal("before-production"),
+          v.literal("before-risky-actions"),
+        ),
+      ),
+    }),
+  ),
+  automation: v.object({
+    authority: v.literal("full-auto"),
+    maxConcurrentGoals: v.number(),
+    maxDailyActions: v.number(),
+    requiresHumanFor: v.array(v.string()),
+  }),
+});
+
+const companyIntentBase = {
+  version: v.literal(1),
+  id: v.string(),
+  status: v.union(
+    v.literal("active"),
+    v.literal("paused"),
+    v.literal("archived"),
+  ),
+  for: v.string(),
+  description: v.optional(v.string()),
+  priority: v.number(),
+  posture: v.union(
+    v.literal("confidence"),
+    v.literal("speed"),
+    v.literal("stability-recovery"),
+    v.literal("maintenance"),
+    v.literal("balanced"),
+  ),
+  scope: v.object({ repos: v.array(v.string()), areas: v.array(v.string()) }),
+  manager: v.optional(
+    v.object({
+      agent: v.string(),
+      capability: v.string(),
+      loop: v.string(),
+      reviewEvery: v.string(),
+    }),
+  ),
+  principles: v.array(v.string()),
+  metrics: v.array(v.string()),
+  portfolio: v.object({
+    goals: v.array(v.string()),
+    loops: v.array(v.string()),
+    capabilities: v.array(v.string()),
+  }),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+};
+
+export const companyIntentValidator = v.union(
+  v.object({
+    ...companyIntentBase,
+    policyRefs: v.array(v.string()),
+    controls: intentControlsValidator,
+  }),
+  v.object({
+    ...companyIntentBase,
+    policy: intentControlsValidator,
+  }),
+);
+
+export const intentDecisionValidator = v.object({
+  at: v.string(),
+  agent: v.string(),
+  intentId: v.optional(v.string()),
+  action: v.string(),
+  reason: v.string(),
+  before: v.optional(v.any()),
+  after: v.optional(v.any()),
+  resources: v.optional(v.array(v.string())),
+});
+
 export const inboxEntryValidator = v.object({
   id: v.string(),
   source: v.union(

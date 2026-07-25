@@ -165,26 +165,24 @@ agentIdentity after a gap-analysis conversation.`,
     id: "memory",
     name: "Persistent Memory System",
     summary:
-      'Per-repo memory at backend memory/. Index injected into every chat turn under "Remembered context".',
-    details: `Each connected repo has a persistent memory system at backend \`memory/\`.
+      'Typed personal and repository memory with relevant retrieval and revision history.',
+    details: `Kody stores typed memory in Convex.
 
-- Memories are markdown files at \`memory/<id>.md\` (one per entry).
-- Types: \`feedback\`, \`project\`, \`reference\`, \`user\`.
-- An \`INDEX.md\` is injected into every chat turn under "## Remembered context"
-  so the assistant can apply relevant entries automatically.
+- Scopes: personal user memory and shared repository memory.
+- Kinds: \`preference\`, \`fact\`, \`decision\`, \`goal\`, \`reference\`.
+- Relevant entries are retrieved for each chat turn under "## Remembered context".
+- Corrections create immutable revisions with evidence and reasons.
 
 Chat tools:
 - \`remember\` — write a new entry
 - \`update_memory\` — revise one
 - \`forget\` — delete one
 - \`recall(id)\` — fetch the full body when the one-line hook isn't enough
-- \`recall_search(query)\` — full-text search every memory body via GitHub
-  code search (when the keyword lives in a body)
+- \`recall_search(query)\` — search personal and repository memory
 - \`list_memories\` — enumerate all of them
 
-Bootstrap rule: until the repo has 5 memory entries, the assistant only writes
-when the user explicitly asks ("remember that…", "save this") or has just
-clearly corrected/confirmed something.`,
+Kody must avoid duplicates, preserve corrections as revisions, and delete only
+when the user explicitly asks to forget an entry.`,
   },
   {
     id: "task-dashboard",

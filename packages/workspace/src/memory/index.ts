@@ -1,2 +1,2 @@
-/** Curated surface of the memory feature area. */
-export * from "./files";
+export * from "./retrieval";
+export * from "./runtime";

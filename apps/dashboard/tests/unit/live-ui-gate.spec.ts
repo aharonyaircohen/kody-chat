@@ -321,6 +321,8 @@ describe("live UI diagnostic redaction", () => {
 describe("live UI gate manifest", () => {
   it("wires every implemented live journey into the gate", () => {
     expect(LIVE_UI_SPECS).toEqual([
+      "tests/e2e/memory-real.e2e.spec.ts",
+      "tests/e2e/memory-llm-real.e2e.spec.ts",
       "tests/e2e/file-manager-real.e2e.spec.ts",
       "tests/e2e/agent-guidance-real.e2e.spec.ts",
       "tests/e2e/direct-chat-real.e2e.spec.ts",
@@ -331,10 +333,10 @@ describe("live UI gate manifest", () => {
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(19);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(19);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(21);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(21);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      19,
+      21,
     );
   });
 

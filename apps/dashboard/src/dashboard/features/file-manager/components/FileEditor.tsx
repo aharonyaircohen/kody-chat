@@ -63,7 +63,6 @@ interface FileEditorProps {
   octokit: Octokit | null;
   owner: string;
   repo: string;
-  onSaved: () => void;
   onShowFilePanel?: () => void;
   defaultMarkdownViewMode?: FileEditorViewMode;
 }
@@ -74,7 +73,6 @@ export function FileEditor({
   octokit,
   owner,
   repo,
-  onSaved,
   onShowFilePanel,
   defaultMarkdownViewMode = "edit",
 }: FileEditorProps) {
@@ -227,7 +225,6 @@ export function FileEditor({
       setOriginalContent(content);
       setIsDirty(false);
       toast.success("File saved");
-      onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save file");
     } finally {
@@ -241,7 +238,6 @@ export function FileEditor({
     path,
     content,
     loadedSha,
-    onSaved,
     draftStorageKey,
   ]);
 

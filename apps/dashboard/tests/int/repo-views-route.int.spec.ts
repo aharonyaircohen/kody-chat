@@ -32,6 +32,7 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 
 import { GET } from "../../app/api/kody/views/[...path]/route";
+import { REPO_VIEW_CSP } from "@dashboard/lib/html-preview-security";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
 const ORIGINAL_MASTER_KEY = process.env.KODY_MASTER_KEY;
@@ -113,6 +114,7 @@ describe("repo-backed view serving", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Security-Policy")).toBe(REPO_VIEW_CSP);
     expect(backend.query).toHaveBeenCalledOnce();
   });
 

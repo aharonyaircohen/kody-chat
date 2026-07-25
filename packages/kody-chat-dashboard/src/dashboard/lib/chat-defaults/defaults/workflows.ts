@@ -44,10 +44,10 @@ Override: in vibe, Kody chat does not dispatch runners, open branches, open draf
 export const DEFAULT_WORKFLOW_KODY_MEM: ChatWorkflowEntry = {
   slug: "kody-mem",
   title: "kody-mem",
-  body: `Persistent memory management. Use when the user gives feedback, corrects a choice, shares a project fact, or agentIdentity memory triggers fire.
+  body: `Persistent memory management. Use when the user asks Kody to remember, correct, recall, list, or forget durable context.
 
 Skills:
-- memory — apply the Convex memory index, use recall / recall_search / list_memories when needed. Triggers: explicit memory command ("remember X", "store this", "save this later") -> remember; correction -> feedback; project fact -> project; user profile -> user; update_memory when a similar entry already exists.`,
+- memory — use relevant Convex retrieval plus recall / recall_search / list_memories. Triggers include an explicit memory command, correction, recall, inventory, or forget request. Kinds: preference, fact, decision, goal, reference. Use update_memory for corrections and never create duplicates.`,
 };
 
 export const DEFAULT_WORKFLOWS = [

@@ -1,5 +1,6 @@
 import { v } from "convex/values"
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
+import { agencyRunSubjectTypeValidator } from "./agencyValidators"
 
 export const list = query({
   args: { tenantId: v.string(), limit: v.number() },
@@ -24,11 +25,7 @@ export const save = mutation({
   args: {
     tenantId: v.string(),
     runId: v.string(),
-    subjectType: v.union(
-      v.literal("loop"),
-      v.literal("workflow"),
-      v.literal("capability"),
-    ),
+    subjectType: agencyRunSubjectTypeValidator,
     subjectId: v.string(),
     run: v.any(),
     updatedAt: v.string(),
