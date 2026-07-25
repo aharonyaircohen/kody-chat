@@ -332,9 +332,8 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("base kody prompt memory section: full tool list, write freely during bootstrap", async () => {
-    // Regression: memory section used to only mention `recall`, and the
-    // bootstrap rule ("wait until 5+ memories exist") prevented growth.
-    // Section now lists all 5 memory tools and inverts the bootstrap.
+    // The memory section lists every memory tool and requires explicit
+    // requests to produce one write without duplicating an existing entry.
     // The memory section lives in the `memory` skill of the chat-defaults
     // bundle (extracted out of the agentIdentity).
     const { loadChatDefaults } =
@@ -346,7 +345,8 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toMatch(/recall_search/);
     expect(prompt).toMatch(/list_memories/);
     expect(prompt).toMatch(/update_memory/);
-    expect(prompt).toMatch(/Write freely during the first few turns/i);
+    expect(prompt).toMatch(/in any language → call `remember` exactly once/i);
+    expect(prompt).toMatch(/Search before writing/i);
     expect(prompt).not.toMatch(
       /until 5\+ memories exist, write only on explicit ask/i,
     );

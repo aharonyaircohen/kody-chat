@@ -35,9 +35,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { repoBasePath } from "@kody-ade/base/routes";
 import { cn } from "@dashboard/lib/utils";
 import { useAuth } from "@dashboard/lib/auth-context";
+import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
 import {
   listDir,
   readFile,
@@ -175,6 +175,7 @@ export function FilesPage({
   headerActions,
 }: FilesPageProps) {
   const { auth } = useAuth();
+  const scopedHref = useRepoScopedHref();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
     [auth?.token],
@@ -291,9 +292,7 @@ export function FilesPage({
           ? normalizedPath.slice(workspaceRoot.length + 1)
           : normalizedPath;
       const workspaceHref = buildWorkspaceFileHref(routeBase, relativePath);
-      const href = auth
-        ? `${repoBasePath(auth)}${workspaceHref}`
-        : workspaceHref;
+      const href = scopedHref(workspaceHref);
       if (typeof window !== "undefined" && window.location.pathname === href) {
         return;
       }
@@ -306,7 +305,7 @@ export function FilesPage({
         : window.History.prototype.pushState;
       updateHistory.call(window.history, null, "", href);
     },
-    [auth, routeBase, workspaceRoot],
+    [routeBase, scopedHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -470,13 +469,6 @@ export function FilesPage({
   const handleViewDiff = useCallback(() => {
     setViewMode("diff");
   }, []);
-
-  const handleSaved = useCallback(() => {
-    // Refresh the file content
-    if (selectedFile) {
-      openRepoPath(selectedFile.path, { updateRoute: false });
-    }
-  }, [selectedFile, openRepoPath]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -1122,7 +1114,6 @@ export function FilesPage({
           octokit={octokit}
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
-          onSaved={handleSaved}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }

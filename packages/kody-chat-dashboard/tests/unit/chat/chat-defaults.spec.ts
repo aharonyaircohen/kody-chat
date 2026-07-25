@@ -65,7 +65,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "next-step question only when there is a genuine next step",
+      "End non-trivial replies with a recommended next step",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -80,13 +80,11 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("agentIdentity does not force a question at the end of every reply (regression: over-asking)", () => {
-    // The reply contract must keep the end-of-reply question conditional.
-    // The old mandatory wording made Kody append a question to every reply.
-    expect(DEFAULT_IDENTITY_MD).not.toContain(
-      "End non-trivial replies with one direct next-step question",
+  it("agentIdentity does not force a question on tiny factual replies", () => {
+    expect(DEFAULT_IDENTITY_MD).toContain(
+      "For tiny factual answers, stop after the answer unless a follow-up would clearly help",
     );
-    expect(DEFAULT_IDENTITY_MD).toContain("otherwise just end");
+    expect(DEFAULT_IDENTITY_MD).not.toContain("Every reply ends");
   });
 
   it("agentIdentity does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
@@ -347,7 +345,7 @@ describe("composeChatPrompt", () => {
       repo: { owner: "acme", repo: "widget" },
     });
     // AgentIdentity header.
-    expect(prompt).toContain("Kody — a friendly chat assistant");
+    expect(prompt).toContain("Kody — in-process dashboard chat agent");
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
