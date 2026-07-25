@@ -7,7 +7,10 @@ const shellSource = readFileSync(
   "utf8",
 );
 const authSource = readFileSync(
-  join(process.cwd(), "src/dashboard/lib/auth-context.tsx"),
+  join(
+    process.cwd(),
+    "../../packages/kody-chat-dashboard/src/dashboard/lib/auth-context.tsx",
+  ),
   "utf8",
 );
 

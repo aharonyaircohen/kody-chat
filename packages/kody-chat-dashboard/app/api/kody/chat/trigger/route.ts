@@ -35,7 +35,10 @@ import {
 } from "../../../../../src/dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "../../../../../src/dashboard/lib/chat/core/page-context";
 import { recordDispatchFailure } from "../../../../../src/dashboard/lib/health/dispatch-failures";
-import { recordSessionStart, recordTurn } from "../../../../../src/dashboard/lib/interactive-session";
+import {
+  recordSessionStart,
+  recordTurn,
+} from "../../../../../src/dashboard/lib/standalone-interactive-session";
 
 export const runtime = "nodejs";
 

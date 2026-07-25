@@ -10,7 +10,7 @@ import {
   FINAL_ANSWER_TOOL,
 } from "../../../src/dashboard/lib/chat-output-tools";
 import { DASHBOARD_NAVIGATE_DIRECTIVE } from "../../../src/dashboard/lib/chat-ui-actions";
-import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 describe("ui tools", () => {
   const decisionRenderer: ViewRendererDefinition = {

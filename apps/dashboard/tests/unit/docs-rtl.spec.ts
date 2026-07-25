@@ -10,7 +10,10 @@ const FILE_EDITOR_SOURCE = readFileSync(
   "utf8",
 );
 const MARKDOWN_VIEWER_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/MarkdownViewer.tsx"),
+  resolve(
+    process.cwd(),
+    "../../packages/kody-chat-dashboard/src/dashboard/lib/components/MarkdownViewer.tsx",
+  ),
   "utf8",
 );
 

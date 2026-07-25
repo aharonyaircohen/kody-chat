@@ -7,8 +7,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { kodyApi } from "../api";
-import type { RemoteStatus } from "../api";
+import { kodyApi } from "../integration-api";
+import type { RemoteStatus } from "../integration-api";
 
 /**
  * Poll the remote dev agent status every 30 seconds.

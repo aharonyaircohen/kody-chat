@@ -46,13 +46,11 @@ import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
 import { ReportsBadge } from "./ReportsBadge";
 import {
-  DASHBOARD_NAV_ITEM,
-  SIDEBAR_NAV_SECTIONS,
   activeCollapsibleNavSectionTitle,
   isNavItemActive,
   type SettingsNavItem,
   type SettingsNavSection,
-} from "./settings-nav";
+} from "../feature-catalog";
 
 /** Pull just the `text-…` color token out of an item's `tint` (which is a
  *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */
@@ -72,12 +70,11 @@ export interface SidebarProps {
   /** Called after a navigation action, allowing a mobile sheet to close. */
   onNavigate?: () => void;
   /**
-   * Nav sections. When provided, the host owns the list. Without it the
-   * dashboard's complete navigation renders.
+   * Nav sections owned by the embedding host.
    */
-  sections?: readonly SettingsNavSection[];
-  /** Pinned item above the section list. Defaults to the Dashboard item. */
-  pinnedItem?: SettingsNavItem | null;
+  sections: readonly SettingsNavSection[];
+  /** Host-owned pinned item above the section list, or null for none. */
+  pinnedItem: SettingsNavItem | null;
   /** Product label next to the logo. */
   brandLabel?: string;
   /**
@@ -100,7 +97,7 @@ export interface SidebarProps {
   onReportIssue?: () => void;
 }
 
-export function Sidebar(props: SidebarProps = {}) {
+export function Sidebar(props: SidebarProps) {
   return (
     <Suspense fallback={null}>
       <SidebarContent {...props} />
@@ -112,7 +109,7 @@ function SidebarContent({
   presentation = "desktop",
   onNavigate,
   sections: hostSections,
-  pinnedItem = DASHBOARD_NAV_ITEM,
+  pinnedItem,
   brandLabel = "Kody",
   headerExtra,
   brandRowExtra,
@@ -137,7 +134,7 @@ function SidebarContent({
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
-  const baseSections = hostSections ?? SIDEBAR_NAV_SECTIONS;
+  const baseSections = hostSections;
   const availableFavoriteItems = useMemo(() => {
     const items = new Map<string, SettingsNavItem>();
     for (const section of baseSections) {

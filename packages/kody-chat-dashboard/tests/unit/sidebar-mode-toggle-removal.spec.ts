@@ -9,9 +9,8 @@ const sidebarSource = readFileSync(
 
 describe("sidebar mode toggle removal", () => {
   it("uses one navigation model without a Vibe or Engineer mode", () => {
-    expect(sidebarSource).toContain(
-      "const baseSections = hostSections ?? SIDEBAR_NAV_SECTIONS;",
-    );
+    expect(sidebarSource).toContain("const baseSections = hostSections;");
+    expect(sidebarSource).not.toContain("SIDEBAR_NAV_SECTIONS");
     expect(sidebarSource).not.toContain("SidebarMode");
     expect(sidebarSource).not.toContain("sidebarMode");
     expect(sidebarSource).not.toContain("MODE_KEY");

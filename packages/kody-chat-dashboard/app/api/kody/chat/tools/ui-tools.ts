@@ -25,7 +25,7 @@ import {
   dashboardNavigationCatalogForPrompt,
   resolveDashboardNavigationTarget,
 } from "../../../../../src/dashboard/lib/dashboard-navigation";
-import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import {
   buildChatViewCatalog,

@@ -1,7 +1,7 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern notification-prefs-file-store
+ * @pattern standalone-notification-prefs-store
  * @ai-summary Read/write per-user notification preferences as a JSON file on the
  *   configured Kody backend (`notifications/preferences/<login>.json`). One
  *   file per user → no cross-user write contention. Reads use ETag/If-None-Match

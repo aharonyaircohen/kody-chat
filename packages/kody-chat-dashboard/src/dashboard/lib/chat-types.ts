@@ -213,7 +213,7 @@ export type ChatContext =
        * it can answer questions about that specific capability/agents.
        */
       kind: "capability";
-      capability: ScopedAgentContext | import("./api").Agent;
+      capability: ScopedAgentContext | import("./integration-api").Agent;
     }
   | {
       /**
@@ -224,7 +224,7 @@ export type ChatContext =
        * planning mode" block for the full workflow.
        */
       kind: "goal-planner";
-      goal: import("./api").Goal;
+      goal: import("./integration-api").Goal;
       /** Stable id for this planner chat session (for keyed message stores). */
       sessionId: string;
       /**

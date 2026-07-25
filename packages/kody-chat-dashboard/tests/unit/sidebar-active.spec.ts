@@ -8,7 +8,7 @@ import {
   isNavItemActive,
   navLabelForPath,
   type SettingsNavItem,
-} from "../../src/dashboard/lib/components/settings-nav";
+} from "../../src/dashboard/lib/feature-catalog";
 
 const itemByHref = (href: string): SettingsNavItem => {
   const item = [

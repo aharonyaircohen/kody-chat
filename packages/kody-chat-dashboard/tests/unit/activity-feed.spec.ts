@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildFeedSnapshot } from "../../src/dashboard/lib/activity/feed";
-import type { EventLogEntry } from "../../src/dashboard/lib/kody-store/event-log";
+import type { EventLogEntry } from "../../src/dashboard/lib/kody-store/standalone-event-log";
 
 const NOW = Date.parse("2026-05-17T12:00:00Z");
 

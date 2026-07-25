@@ -30,7 +30,7 @@ describe("widgets management page", () => {
     );
 
     const nav = readFileSync(
-      "src/dashboard/lib/components/settings-nav.ts",
+    "src/dashboard/lib/feature-catalog.ts",
       "utf8",
     );
     expect(nav).toContain('href: "/views/widgets"');

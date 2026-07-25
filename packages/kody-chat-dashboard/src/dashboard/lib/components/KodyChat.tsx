@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { navLabelForPath } from "./settings-nav";
+import { navLabelForPath } from "../feature-catalog";
 import { useLiveRunner } from "./kody-chat-live-runner";
 import {
   createChatPluginRegistry,
@@ -63,7 +63,7 @@ import {
 } from "./ChatIssueReportDialog";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useAgents } from "../hooks/useAgents";
-import { kodyApi } from "../api";
+import { kodyApi } from "../integration-api";
 import { useChatDataSources } from "./kody-chat-data";
 import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";

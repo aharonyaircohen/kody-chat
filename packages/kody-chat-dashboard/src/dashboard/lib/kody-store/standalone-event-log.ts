@@ -1,4 +1,4 @@
-/** Convex-backed append-only Kody event log. */
+/** Standalone package runtime's Convex-backed append-only Kody event log. */
 import type { Octokit } from "@octokit/rest"
 import { api } from "@kody-ade/backend/api"
 import { createBackendClient } from "@kody-ade/backend/client"

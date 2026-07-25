@@ -37,6 +37,7 @@ import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat-dashboard/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
+import { DASHBOARD_NAV_ITEM } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -613,6 +614,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               <ChatShell
                 title="Kody"
                 sections={navSections}
+                pinnedItem={DASHBOARD_NAV_ITEM}
                 sidebarBrandExtra={<SidebarNotifications />}
                 chat={chatPane}
                 onReportIssue={openIssueReport}

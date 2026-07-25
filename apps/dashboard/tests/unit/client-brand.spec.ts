@@ -14,10 +14,13 @@ vi.mock("@kody-ade/workspace/brands", () => ({
   readBrandFile: h.readBrandFile,
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client",
+  () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
-}));
+  }),
+);
 
 import {
   getBuiltinClientBrand,

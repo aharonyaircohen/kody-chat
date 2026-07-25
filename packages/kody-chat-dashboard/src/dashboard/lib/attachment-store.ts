@@ -1,4 +1,4 @@
-import { getStoredAuth } from "./api";
+import { getStoredAuth } from "./integration-api";
 import { authHeaders } from "./kody-chat-live-session";
 
 export interface AttachmentRef {

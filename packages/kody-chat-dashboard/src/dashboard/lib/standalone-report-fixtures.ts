@@ -1,7 +1,7 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern reports-files
+ * @pattern standalone-report-fixtures
  * @ai-summary Harness shim for the Dashboard reports-files contract. The dashboard
  *   host aliases @dashboard to its own src, where the real Convex-backed
  *   implementation lives; the standalone port-3344 harness resolves here

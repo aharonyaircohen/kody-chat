@@ -14,7 +14,7 @@ import {
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from "../api";
+} from "../integration-api";
 import { useAuth } from "../auth-context";
 
 export interface ReportQueryScope {

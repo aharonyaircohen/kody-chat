@@ -1,4 +1,6 @@
 /**
+ * Private integration API client. The host application's modular API barrel is
+ * intentionally separate and lives under apps/dashboard.
  * @fileType utility
  * @domain kody
  * @pattern api-client

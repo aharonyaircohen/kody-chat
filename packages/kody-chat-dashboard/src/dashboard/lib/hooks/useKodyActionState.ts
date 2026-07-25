@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { buildHeaders } from "../api";
+import { buildHeaders } from "../integration-api";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
 
@@ -24,13 +24,15 @@ export interface ActionState {
 
 const POLL_INTERVAL = 20000; // 20s — waiting transitions happen at pipeline boundaries (minutes), not seconds
 
-interface UseKodyActionStateOptions {
+export interface UseKodyActionStateOptions {
   /** Poll interval in ms. Set to 0 to disable polling. */
   pollInterval?: number;
   /** Called when the action is waiting for input. */
   onWaiting?: (state: ActionState) => void;
   /** Called when the action resumes (status changes from waiting). */
   onResumed?: (state: ActionState) => void;
+  /** Host-owned live change signal. When present, polling is disabled. */
+  liveStamp?: string;
 }
 
 /**
@@ -41,7 +43,12 @@ export function useKodyActionState(
   runId: string | null | undefined,
   options: UseKodyActionStateOptions = {},
 ) {
-  const { pollInterval = POLL_INTERVAL, onWaiting, onResumed } = options;
+  const {
+    pollInterval = POLL_INTERVAL,
+    onWaiting,
+    onResumed,
+    liveStamp,
+  } = options;
 
   const [state, setState] = useState<ActionState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -65,8 +72,11 @@ export function useKodyActionState(
       }
       if (!res.ok) return;
 
-      const data = (await res.json()) as { state: ActionState };
-      if (!data.state) return;
+      const data = (await res.json()) as { state: ActionState | null };
+      if (!data.state) {
+        notFoundRef.current = true;
+        return;
+      }
 
       const newState = data.state;
       setState(newState);
@@ -88,10 +98,15 @@ export function useKodyActionState(
     }
   }, [runId, onWaiting, onResumed]);
 
+  const live = liveStamp !== undefined;
+  useEffect(() => {
+    if (live && runId) void fetchState();
+  }, [fetchState, live, liveStamp, runId]);
+
   useEffect(() => {
     notFoundRef.current = false; // Reset not-found flag when runId changes (new task selected)
 
-    if (!runId || pollInterval === 0) return;
+    if (!runId || pollInterval === 0 || live) return;
 
     let interval: ReturnType<typeof setInterval> | null = null;
 
@@ -119,7 +134,7 @@ export function useKodyActionState(
       document.removeEventListener("visibilitychange", handleVisibility);
       stop();
     };
-  }, [runId, pollInterval, fetchState]);
+  }, [runId, pollInterval, fetchState, live]);
 
   /** Manually refresh the state (e.g., after sending an instruction). */
   const refresh = useCallback(() => fetchState(), [fetchState]);

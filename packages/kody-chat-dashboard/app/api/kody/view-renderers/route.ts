@@ -22,7 +22,7 @@ import {
   serializeViewRendererDefinition,
   writeViewRendererDefinitionFile,
   type ViewRendererDefinition,
-} from "../../../../src/dashboard/lib/view-renderers/renderers";
+} from "../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

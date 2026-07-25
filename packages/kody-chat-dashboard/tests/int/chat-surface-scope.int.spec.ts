@@ -62,7 +62,7 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
-vi.mock("../../src/dashboard/lib/view-renderers/renderers", () => ({
+vi.mock("../../src/dashboard/lib/view-renderers/standalone-renderer-store", () => ({
   loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
 }));
 vi.mock("../../src/dashboard/lib/agent-files", () => ({

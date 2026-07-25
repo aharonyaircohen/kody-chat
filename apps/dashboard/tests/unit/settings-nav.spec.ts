@@ -171,6 +171,8 @@ describe("settings navigation", () => {
       "/knowledge-system",
       "/docs",
       "/context",
+      "/policies",
+      "/constraints",
       "/memory",
       "/file-spaces",
     ]);

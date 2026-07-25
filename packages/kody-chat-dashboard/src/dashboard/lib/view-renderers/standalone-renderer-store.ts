@@ -1,7 +1,7 @@
 /**
  * @fileType util
  * @domain view-renderers
- * @pattern backend-config
+ * @pattern standalone-renderer-store
  * @ai-summary User-managed renderer definitions stored under
  *   `views/renderers/<slug>.json` in the Kody backend. Template
  *   resolution lives in template.ts; the model-facing spec contract in

@@ -8,14 +8,15 @@ const SOURCE = readFileSync(
 );
 
 describe("Sidebar navigation items", () => {
-  it("sources nav sections from the shared settings-nav list", () => {
-    expect(SOURCE).toContain('from "./settings-nav"');
-    expect(SOURCE).toContain("hostSections ?? SIDEBAR_NAV_SECTIONS");
+  it("requires the embedding host to supply navigation sections", () => {
+    expect(SOURCE).toContain("sections: readonly SettingsNavSection[]");
+    expect(SOURCE).not.toContain("SIDEBAR_NAV_SECTIONS");
+    expect(SOURCE).toContain("const baseSections = hostSections;");
   });
 
-  it("pins the Dashboard item by default while letting hosts override it", () => {
-    expect(SOURCE).toContain("pinnedItem = DASHBOARD_NAV_ITEM");
-    expect(SOURCE).toContain("pinnedItem?: SettingsNavItem | null");
+  it("requires the host to supply the pinned item", () => {
+    expect(SOURCE).not.toContain("DASHBOARD_NAV_ITEM");
+    expect(SOURCE).toContain("pinnedItem: SettingsNavItem | null");
   });
 
   it("scopes nav hrefs to the connected repo when authenticated", () => {

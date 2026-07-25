@@ -29,7 +29,8 @@ describe("org navigation surfaces", () => {
     expect(SETTINGS_NAV_SOURCE).toMatch(/href: "\/org"/);
     expect(SETTINGS_NAV_SOURCE).toMatch(/label: "Org"/);
     expect(SETTINGS_NAV_SOURCE).toMatch(/navItemForHref\("\/org"\)/);
-    expect(SIDEBAR_SOURCE).toMatch(/SIDEBAR_NAV_SECTIONS/);
+    expect(SIDEBAR_SOURCE).toMatch(/const baseSections = hostSections/);
+    expect(SIDEBAR_SOURCE).not.toMatch(/SIDEBAR_NAV_SECTIONS/);
     expect(SIDEBAR_SOURCE).not.toMatch(/orgNavItems/);
     expect(SIDEBAR_SOURCE).not.toMatch(/title: "Organizations"/);
     expect(SIDEBAR_SOURCE).not.toMatch(

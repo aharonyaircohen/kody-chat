@@ -63,6 +63,8 @@ import { PreviewActions } from "@dashboard/features/previews/components/PreviewA
 import { CIStatusBadge } from "@dashboard/lib/components/CIStatusBadge";
 import { KodyHeader } from "@dashboard/lib/components/KodyHeader";
 import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
+import { DASHBOARD_NAV_ITEM } from "@dashboard/lib/components/settings-nav";
+import { useSidebarNavSections } from "@dashboard/lib/components/use-sidebar-nav-sections";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import { TaskDetail } from "@dashboard/features/tasks/components/TaskDetail";
 import { VibeRunButton } from "@dashboard/features/vibe/components/VibeRunButton";
@@ -100,6 +102,7 @@ function previewSelectionKey(owner: string, repo: string): string {
 
 export function VibePage() {
   const queryClient = useQueryClient();
+  const navSections = useSidebarNavSections();
   const { githubUser } = useGitHubIdentity();
   const {
     setScope,
@@ -864,6 +867,8 @@ export function VibePage() {
       <MobileMenu
         open={showMobileMenu}
         onOpenChange={setShowMobileMenu}
+        sections={navSections}
+        pinnedItem={DASHBOARD_NAV_ITEM}
         workspacePrimary={
           <Button
             type="button"

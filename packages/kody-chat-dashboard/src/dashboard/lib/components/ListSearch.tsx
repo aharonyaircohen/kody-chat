@@ -33,6 +33,7 @@ export function ListSearch({
   accent?: keyof typeof ACCENT_RING;
 }) {
   return (
+    // eslint-disable-next-line react/forbid-elements -- per-page accent focus-ring search input; kit Input's fixed height and focus ring would visibly change it
     <input
       type="search"
       value={value}

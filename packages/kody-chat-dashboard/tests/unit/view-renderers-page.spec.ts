@@ -30,7 +30,7 @@ describe("view renderers management page", () => {
     ).toBe(true);
 
     const nav = readFileSync(
-      "src/dashboard/lib/components/settings-nav.ts",
+    "src/dashboard/lib/feature-catalog.ts",
       "utf8",
     );
     expect(nav).toContain('href: "/views/renderers"');

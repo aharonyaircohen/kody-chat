@@ -29,6 +29,7 @@ export {
   DEFAULT_SKILL_CREATE_ISSUE,
   DEFAULT_SKILL_CREATE_CAPABILITY,
   DEFAULT_SKILL_CREATE_AGENT,
+  DEFAULT_SKILL_CREATE_WORKFLOW,
 } from "./skills-operator";
 export { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 export { DEFAULT_SKILL_MEMORY } from "./skills-mem";

@@ -75,11 +75,11 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
 }));
 
 vi.mock(
-  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers")
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store")
       >();
     return {
       ...actual,

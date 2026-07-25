@@ -1,4 +1,5 @@
-import { ALL_NAV_ITEMS, type SettingsNavItem } from "./components/settings-nav";
+import { ALL_NAV_ITEMS, type SettingsNavItem } from "./feature-catalog";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
 
 export const DASHBOARD_TASK_ROUTE_ID = "task" as const;
 
@@ -60,6 +61,14 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["context", "curated context", "project notes"],
     when: "Use when the user asks to manage curated context files.",
   },
+  "/constraints": {
+    aliases: ["constraints", "hard limits", "guardrails"],
+    when: "Use when the user asks to manage non-negotiable agent limits.",
+  },
+  "/policies": {
+    aliases: ["policies", "decision rules", "operating rules"],
+    when: "Use when the user asks to manage agent decision rules.",
+  },
   "/memory": {
     aliases: ["memory", "remembered facts", "feedback"],
     when: "Use when the user asks to inspect or manage Kody memory.",
@@ -80,10 +89,12 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["brands", "client brands", "client chat"],
     when: "Use when the user asks to manage client chat brands.",
   },
-  "/languages": {
-    aliases: ["languages", "translations", "locales"],
-    when: "Use when the user asks to manage client chat languages or translations.",
-  },
+  ...Object.fromEntries(
+    PACKAGE_ADMIN_PAGE_META.map((page) => [
+      page.href,
+      { aliases: [...page.aliases], when: page.when },
+    ]),
+  ),
   "/agent-loops": {
     aliases: ["loops", "recurring work", "cadence"],
     when: "Use when the user asks to inspect or manage operational loops.",

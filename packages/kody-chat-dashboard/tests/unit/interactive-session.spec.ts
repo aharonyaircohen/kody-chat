@@ -12,7 +12,7 @@ import {
   buildMetaLine,
   readSessionTranscript,
   writeSessionMeta,
-} from "../../src/dashboard/lib/interactive-session";
+} from "../../src/dashboard/lib/standalone-interactive-session";
 
 const META = buildMetaLine({ idleExitMs: 120_000, hardCapMs: 300_000 });
 const TURN = {

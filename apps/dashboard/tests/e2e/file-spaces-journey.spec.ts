@@ -277,18 +277,16 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
     sidebar.getByRole("link", { name: "Memory", exact: true }),
   ).toBeVisible();
   await expect(
-    sidebar.getByRole("link", { name: "Manage Spaces", exact: true }),
+    sidebar.getByRole("link", { name: "Settings", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Docs /docs" })).toBeVisible();
 
-  await sidebar.getByRole("button", { name: "Agency", exact: true }).click();
   await expect(
     sidebar.getByRole("link", { name: "Policies", exact: true }),
   ).toBeVisible();
   await expect(
     sidebar.getByRole("link", { name: "Constraints", exact: true }),
   ).toBeVisible();
-  await sidebar.getByRole("button", { name: "Knowledge", exact: true }).click();
 
   await page.getByRole("button", { name: "New space" }).click();
   await page.getByPlaceholder("Notes").fill("Team Notes");

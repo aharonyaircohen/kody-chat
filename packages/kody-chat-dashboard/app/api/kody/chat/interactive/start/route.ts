@@ -30,7 +30,7 @@ import { logger } from "@kody-ade/base/logger";
 import {
   buildMetaLine,
   writeSessionMeta,
-} from "../../../../../../src/dashboard/lib/interactive-session";
+} from "../../../../../../src/dashboard/lib/standalone-interactive-session";
 import {
   applyVibePrimerToContent,
   type VibeTaskContext,

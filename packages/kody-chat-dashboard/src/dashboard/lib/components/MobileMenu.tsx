@@ -16,14 +16,15 @@ import {
   SheetTitle,
 } from "@kody-ade/base/ui/sheet";
 
-import type { SettingsNavSection } from "./settings-nav";
+import type { SettingsNavItem, SettingsNavSection } from "../feature-catalog";
 import { RepoSwitcher } from "./RepoSwitcher";
 import { Sidebar } from "./Sidebar";
 
 interface MobileMenuProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  sections?: readonly SettingsNavSection[];
+  sections: readonly SettingsNavSection[];
+  pinnedItem: SettingsNavItem | null;
   headerExtra?: ReactNode;
   workspacePrimary?: ReactNode;
   extras?: ReactNode;
@@ -34,6 +35,7 @@ export function MobileMenu({
   open,
   onOpenChange,
   sections,
+  pinnedItem,
   headerExtra = <RepoSwitcher variant="rail" />,
   workspacePrimary,
   extras,
@@ -52,8 +54,10 @@ export function MobileMenu({
           <SheetDescription>Application navigation and actions.</SheetDescription>
         </SheetHeader>
 
-        <Sidebar presentation="mobile"
-          {...(sections !== undefined ? { sections } : {})}
+        <Sidebar
+          presentation="mobile"
+          sections={sections}
+          pinnedItem={pinnedItem}
           onNavigate={close}
           headerExtra={headerExtra}
           navigationExtra={workspacePrimary}

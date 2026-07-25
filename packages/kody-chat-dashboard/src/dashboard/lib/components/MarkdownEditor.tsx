@@ -349,14 +349,16 @@ export function MarkdownEditor({
           {showEmojiPicker ? (
             <div className="absolute z-20 top-full left-0 mt-1 w-56 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover p-2 grid grid-cols-6 gap-1">
               {EMOJI_LIST.slice(0, 60).map((emoji, index) => (
-                <button
+                <Button
                   key={index}
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => insertEmoji(emoji)}
                   className="p-1 hover:bg-accent rounded text-lg"
                 >
                   {emoji}
-                </button>
+                </Button>
               ))}
             </div>
           ) : null}

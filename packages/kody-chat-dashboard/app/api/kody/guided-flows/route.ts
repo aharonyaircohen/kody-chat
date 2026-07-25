@@ -34,7 +34,7 @@ import {
 } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import { resolveDashboardNavigationTarget } from "../../../../src/dashboard/lib/dashboard-navigation";
 import { getBuiltinViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/builtin";
-import { readViewRendererDefinitionFile } from "../../../../src/dashboard/lib/view-renderers/renderers";
+import { readViewRendererDefinitionFile } from "../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import type { ViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/definition";
 
 export const dynamic = "force-dynamic";

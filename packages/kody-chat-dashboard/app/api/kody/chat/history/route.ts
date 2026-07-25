@@ -14,7 +14,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { readSessionTranscript } from "../../../../../src/dashboard/lib/interactive-session";
+import { readSessionTranscript } from "../../../../../src/dashboard/lib/standalone-interactive-session";
 
 export const runtime = "nodejs";
 

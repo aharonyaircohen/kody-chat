@@ -12,7 +12,9 @@ const sidebarSource = readFileSync(resolve(components, "Sidebar.tsx"), "utf8");
 describe("mobile menu sidebar reuse", () => {
   it("renders the shared sidebar inside the mobile sheet", () => {
     expect(mobileMenuSource).toContain('import { Sidebar } from "./Sidebar"');
-    expect(mobileMenuSource).toContain('<Sidebar presentation="mobile"');
+    expect(mobileMenuSource).toMatch(
+      /<Sidebar\s+presentation="mobile"/,
+    );
     expect(mobileMenuSource).toContain("onNavigate={close}");
     expect(mobileMenuSource).toContain("headerExtra={headerExtra}");
     expect(mobileMenuSource).toContain("navigationExtra={workspacePrimary}");

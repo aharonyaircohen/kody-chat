@@ -18,7 +18,7 @@ import {
   parseGuidedFlowDefinitionRows,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
-import { readViewRendererDefinitionFile } from "../../../../../src/dashboard/lib/view-renderers/renderers";
+import { readViewRendererDefinitionFile } from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/definition";
 import type { GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";

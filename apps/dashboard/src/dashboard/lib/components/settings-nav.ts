@@ -272,6 +272,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-teal-300 bg-teal-500/10",
       },
       {
+        href: "/policies",
+        label: "Policies",
+        icon: Scale,
+        description: "Decision rules that guide Kody's behavior.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/constraints",
+        label: "Constraints",
+        icon: ShieldAlert,
+        description: "Hard limits and guardrails for Kody.",
+        tint: "text-rose-300 bg-rose-500/10",
+      },
+      {
         href: "/memory",
         label: "Memory",
         icon: Brain,
@@ -281,7 +295,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
       },
       {
         href: "/file-spaces",
-        label: "Manage Spaces",
+        label: "Settings",
         icon: Settings2,
         exact: true,
         description: "Add and organize repository-backed knowledge spaces.",

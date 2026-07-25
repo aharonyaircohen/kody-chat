@@ -20,7 +20,11 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { Label } from "@kody-ade/base/ui/label";
 import { Textarea } from "@kody-ade/base/ui/textarea";
-import { kodyApi, redirectToLogin, SessionExpiredError } from "../api";
+import {
+  kodyApi,
+  redirectToLogin,
+  SessionExpiredError,
+} from "../integration-api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 
 export interface ChatIssueReportState {

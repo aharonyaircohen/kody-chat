@@ -12,7 +12,7 @@ import { simulateReadableStream, streamText } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { RENDER_VIEW_DIRECTIVE } from "../../src/dashboard/lib/chat-ui-actions";
 import { createUiTools } from "../../app/api/kody/chat/tools/ui-tools";
-import type { ViewRendererDefinition } from "../../src/dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 const usage = {
   inputTokens: {

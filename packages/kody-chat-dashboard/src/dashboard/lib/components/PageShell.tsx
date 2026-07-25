@@ -49,7 +49,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "shrink-0 flex items-center justify-between gap-3 border-b border-white/[0.06] bg-black/30 px-5 py-4 md:px-7 md:py-5",
+        "shrink-0 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-4 text-foreground md:px-7 md:py-5",
         className,
       )}
     >
@@ -73,7 +73,7 @@ export function PageHeader({
             </h1>
           )}
           {subtitle && (
-            <span className="truncate text-body-xs text-white/45">
+            <span className="truncate text-body-xs text-muted-foreground">
               {subtitle}
             </span>
           )}
@@ -108,7 +108,7 @@ export function PageShell({
 }: PageShellProps) {
   const widthCls = WIDTH_CLASS[width];
   return (
-    <div className="h-full min-h-0 flex flex-col bg-black/95 text-white/90">
+    <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       <PageHeader {...header} />
       <main
         className={cn(

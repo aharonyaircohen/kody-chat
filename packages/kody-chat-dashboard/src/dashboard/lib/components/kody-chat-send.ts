@@ -39,7 +39,7 @@ import {
   repoBrainConversationKey,
   repoBrainScopeKey,
 } from "@kody-ade/brain/repo-scope";
-import { getStoredAuth } from "../api";
+import { getStoredAuth } from "../integration-api";
 import type { KodyTask } from "@kody-ade/base/types";
 import {
   authHeaders,

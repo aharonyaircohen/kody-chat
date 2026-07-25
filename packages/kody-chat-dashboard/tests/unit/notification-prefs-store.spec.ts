@@ -14,7 +14,7 @@ import {
   _resetPrefsCache,
   readNotificationPrefs,
   writeNotificationPrefs,
-} from "../../src/dashboard/lib/notifications/prefs-store"
+} from "../../src/dashboard/lib/notifications/standalone-prefs-store"
 
 describe("Convex notification preferences", () => {
   beforeEach(() => {

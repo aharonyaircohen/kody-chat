@@ -3,7 +3,7 @@
  * @domain view-renderers
  */
 import { describe, expect, it } from "vitest";
-import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import {
   shouldAllowPreRenderToolCallsForTurn,
   shouldRequireViewOutputForAssistantText,

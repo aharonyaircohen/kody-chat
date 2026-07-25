@@ -4,7 +4,7 @@
  * @pattern renderer-intent-routing
  * @ai-summary Decides when a chat turn should end with a user-managed renderer.
  */
-import type { ViewRendererDefinition } from "./renderers";
+import type { ViewRendererDefinition } from "./standalone-renderer-store";
 
 const RENDERER_INTENT_STOP_WORDS = new Set([
   "a",

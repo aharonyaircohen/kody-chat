@@ -15,12 +15,54 @@ const integrationSource = join(
   repositoryRoot,
   "packages/kody-chat-dashboard/src/dashboard",
 );
+const ownershipManifest = JSON.parse(
+  readFileSync(
+    resolve(repositoryRoot, "apps/dashboard/private-integration-ownership.json"),
+    "utf8",
+  ),
+) as {
+  entries: Array<{
+    path: string;
+    owner: "agency" | "app" | "base" | "integration" | "split";
+  }>;
+};
 
 function files(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const path = join(root, entry.name);
     return entry.isDirectory() ? files(path) : [path];
   });
+}
+
+function exists(root: string, path: string): boolean {
+  try {
+    readFileSync(join(root, path), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isForwardingModule(source: string): boolean {
+  const withoutComments = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+    .trim();
+
+  if (!withoutComments) return false;
+
+  const statements = withoutComments
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+  return statements.every(
+    (statement) =>
+      (statement.startsWith("import ") &&
+        (statement.includes(" from ") || /^import\s+["']/.test(statement))) ||
+      (statement.startsWith("export ") &&
+        (statement.includes(" from ") || statement.startsWith("export *"))),
+  );
 }
 
 describe("private integration app ownership", () => {
@@ -71,9 +113,17 @@ describe("private integration app ownership", () => {
       )
       .filter((path) => {
         try {
+          const dashboardImplementation = readFileSync(
+            join(dashboardSource, path),
+            "utf8",
+          );
+          const integrationImplementation = readFileSync(
+            join(integrationSource, path),
+            "utf8",
+          );
           return (
-            readFileSync(join(dashboardSource, path), "utf8") ===
-            readFileSync(join(integrationSource, path), "utf8")
+            dashboardImplementation === integrationImplementation &&
+            !isForwardingModule(dashboardImplementation)
           );
         } catch {
           return false;
@@ -81,5 +131,57 @@ describe("private integration app ownership", () => {
       });
 
     expect(duplicated).toEqual([]);
+  });
+
+  it("enforces one executable owner for every classified overlap", () => {
+    const violations = ownershipManifest.entries.flatMap((entry) => {
+      const appExists = exists(dashboardSource, entry.path);
+      const integrationExists = exists(integrationSource, entry.path);
+      const appSource = appExists
+        ? readFileSync(join(dashboardSource, entry.path), "utf8")
+        : "";
+
+      if (entry.owner === "integration") {
+        if (!integrationExists) {
+          return [`${entry.path}: missing integration implementation`];
+        }
+        if (appExists && !isForwardingModule(appSource)) {
+          return [`${entry.path}: app contains executable package-owned code`];
+        }
+        return [];
+      }
+
+      if (entry.owner === "app") {
+        return integrationExists
+          ? [`${entry.path}: integration package contains app-owned code`]
+          : [];
+      }
+
+      if (entry.owner === "agency" || entry.owner === "base") {
+        const integrationModuleSource = integrationExists
+          ? readFileSync(join(integrationSource, entry.path), "utf8")
+          : "";
+        if (appExists && !isForwardingModule(appSource)) {
+          return [`${entry.path}: app contains executable ${entry.owner}-owned code`];
+        }
+        if (integrationExists && !isForwardingModule(integrationModuleSource)) {
+          return [
+            `${entry.path}: integration contains executable ${entry.owner}-owned code`,
+          ];
+        }
+        return [];
+      }
+
+      if (!appExists || !integrationExists) {
+        return [`${entry.path}: split contract is missing one side`];
+      }
+      const appLines = appSource.split("\n").length;
+      return appSource.includes("@kody-ade/kody-chat-dashboard") &&
+        appLines <= 80
+        ? []
+        : [`${entry.path}: split app side is not a thin host adapter`];
+    });
+
+    expect(violations).toEqual([]);
   });
 });

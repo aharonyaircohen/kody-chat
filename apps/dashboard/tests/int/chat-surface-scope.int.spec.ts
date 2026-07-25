@@ -74,7 +74,7 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
 vi.mock(
-  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store",
   () => ({
     loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
   }),

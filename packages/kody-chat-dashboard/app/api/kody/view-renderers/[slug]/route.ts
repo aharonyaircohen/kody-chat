@@ -21,7 +21,7 @@ import {
   serializeViewRendererDefinition,
   writeViewRendererDefinitionFile,
   type ViewRendererDefinition,
-} from "../../../../../src/dashboard/lib/view-renderers/renderers";
+} from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 const saveSchema = z.object({
   definition: z.string().min(2).max(20_000),

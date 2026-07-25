@@ -73,10 +73,12 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
 
-vi.mock("../../src/dashboard/lib/view-renderers/renderers", async (importOriginal) => {
+vi.mock(
+  "../../src/dashboard/lib/view-renderers/standalone-renderer-store",
+  async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import("../../src/dashboard/lib/view-renderers/renderers")
+      typeof import("../../src/dashboard/lib/view-renderers/standalone-renderer-store")
     >();
   return {
     ...actual,

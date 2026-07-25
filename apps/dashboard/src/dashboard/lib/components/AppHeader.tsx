@@ -17,9 +17,12 @@ import { useState } from "react";
 
 import { KodyHeader } from "./KodyHeader";
 import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
+import { DASHBOARD_NAV_ITEM } from "./settings-nav";
+import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 
 export function AppHeader() {
   const [navOpen, setNavOpen] = useState(false);
+  const navSections = useSidebarNavSections();
 
   return (
     <>
@@ -29,7 +32,12 @@ export function AppHeader() {
         isFetching={false}
         showRefresh={false}
       />
-      <MobileMenu open={navOpen} onOpenChange={setNavOpen} />
+      <MobileMenu
+        open={navOpen}
+        onOpenChange={setNavOpen}
+        sections={navSections}
+        pinnedItem={DASHBOARD_NAV_ITEM}
+      />
     </>
   );
 }

@@ -64,7 +64,7 @@ describe("repo-scoped panel route surfaces", () => {
     }
 
     const packageApi = read(
-      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/api.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/integration-api.ts",
     );
     expect(packageApi).not.toContain("export const contextApi");
     expect(packageApi).not.toContain("export const memoryApi");

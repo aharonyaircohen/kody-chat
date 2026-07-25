@@ -11,7 +11,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { kodyApi, type EngineEditableConfig } from "../api";
+import { kodyApi, type EngineEditableConfig } from "../integration-api";
 import { useAuth } from "../auth-context";
 
 export interface UseEngineConfig {

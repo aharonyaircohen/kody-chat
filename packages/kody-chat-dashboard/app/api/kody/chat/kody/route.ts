@@ -150,7 +150,7 @@ import {
 import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
-} from "../../../../../src/dashboard/lib/view-renderers/renderers";
+} from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { loadGuidanceForPrompt } from "@kody-ade/workspace/guidance/files";

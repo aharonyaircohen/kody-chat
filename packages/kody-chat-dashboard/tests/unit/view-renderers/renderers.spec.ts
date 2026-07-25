@@ -9,7 +9,7 @@ import {
   parseViewRendererDefinition,
   serializeViewRendererDefinition,
   type ViewRendererDefinition,
-} from "../../../src/dashboard/lib/view-renderers/renderers";
+} from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import { parseViewRendererDefinitionInput } from "../../../src/dashboard/lib/view-renderers/definition";
 
 describe("view renderer definitions", () => {

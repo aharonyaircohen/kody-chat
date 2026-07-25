@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../../packages/kody-chat-dashboard/src/dashboard/lib/api", () => ({
+vi.mock("../../../../packages/kody-chat-dashboard/src/dashboard/lib/integration-api", () => ({
   getStoredAuth: () => ({ userLogin: "alice" }),
 }));
 vi.mock(

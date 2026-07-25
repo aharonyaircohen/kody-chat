@@ -1,7 +1,7 @@
 /**
  * @fileType util
  * @domain kody
- * @pattern interactive-session
+ * @pattern standalone-interactive-session
  *
  * Server-side helpers for the long-lived "interactive runner" chat mode.
  * Interactive runners and the browser share the canonical Convex

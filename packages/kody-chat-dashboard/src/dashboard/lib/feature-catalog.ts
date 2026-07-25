@@ -1,11 +1,9 @@
 /**
  * @fileType data
  * @domain kody
- * @pattern settings-nav
- * @ai-summary Single source of truth for the settings sidebar
- *   (SettingsDrawer + MobileMenu). Defines sections + items so both
- *   sidebars render the same grouping. Add new pages here once; both
- *   sidebars pick them up automatically.
+ * @pattern feature-catalog
+ * @ai-summary Kody feature metadata used by chat tools and route resolution.
+ *   The Dashboard host owns visible sidebar grouping and ordering.
  */
 import {
   Activity,

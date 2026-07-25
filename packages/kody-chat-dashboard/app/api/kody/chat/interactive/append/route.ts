@@ -23,7 +23,7 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { appendUserTurn } from "../../../../../../src/dashboard/lib/interactive-session";
+import { appendUserTurn } from "../../../../../../src/dashboard/lib/standalone-interactive-session";
 import {
   applyVibePrimerToContent,
   type VibeTaskContext,

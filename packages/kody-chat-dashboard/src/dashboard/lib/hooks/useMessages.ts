@@ -19,7 +19,7 @@ import {
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
-} from "../api";
+} from "../integration-api";
 
 export const messageQueryKeys = {
   channels: ["kody-messages", "channels"] as const,

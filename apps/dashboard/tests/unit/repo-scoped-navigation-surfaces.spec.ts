@@ -32,7 +32,7 @@ describe("repo-scoped navigation surfaces", () => {
       "utf8",
     );
     expect(mobileMenu).toContain('import { Sidebar } from "./Sidebar"');
-    expect(mobileMenu).toContain('<Sidebar presentation="mobile"');
+    expect(mobileMenu).toMatch(/<Sidebar\s+presentation="mobile"/);
   });
 
   it("scopes command palette navigation through the route model", () => {

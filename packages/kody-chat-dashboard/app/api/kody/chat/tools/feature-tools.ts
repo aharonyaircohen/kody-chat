@@ -18,7 +18,7 @@ import {
   PRIMARY_NAV_TITLE,
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
-} from "../../../../../src/dashboard/lib/components/settings-nav";
+} from "../../../../../src/dashboard/lib/feature-catalog";
 
 export interface FeatureEntry {
   id: string;

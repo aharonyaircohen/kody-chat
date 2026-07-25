@@ -13,7 +13,7 @@ import {
   getStoredAuth,
   getStoredBrainConfig,
   getStoredBrainSuspension,
-} from "./api";
+} from "./integration-api";
 import type { ChatContext } from "./chat-types";
 import type { LiveScopeKey } from "./chat/core/kody-chat-reducer";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";

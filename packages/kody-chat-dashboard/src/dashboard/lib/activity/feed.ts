@@ -9,7 +9,7 @@
  *   times and an ordered, fully-expandable event list (raw payload kept,
  *   not discarded). No I/O — pure so it's unit-testable and reusable.
  */
-import type { EventLogEntry } from "../kody-store/event-log";
+import type { EventLogEntry } from "../kody-store/standalone-event-log";
 
 /** Coarse bucket for a single event, derived from channel + event name. */
 export type FeedSource = "engine" | "chat" | "pipeline" | "other";

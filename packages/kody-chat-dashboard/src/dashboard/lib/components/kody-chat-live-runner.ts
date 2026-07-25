@@ -50,7 +50,7 @@ import {
   decideLivePersistence,
   shouldRehydrateScope,
 } from "../chat/core/rehydration";
-import { getStoredFlyPerf } from "../api";
+import { getStoredFlyPerf } from "../integration-api";
 import { getChatLiveTransport } from "../chat/platform/live-transport";
 import type { AgentId } from "../agents";
 import type { ChatContext } from "../chat-types";

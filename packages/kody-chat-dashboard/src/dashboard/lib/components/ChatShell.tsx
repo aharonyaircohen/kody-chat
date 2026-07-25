@@ -23,7 +23,7 @@ import { RepoSwitcher } from "./RepoSwitcher";
 import type {
   SettingsNavItem,
   SettingsNavSection,
-} from "./settings-nav";
+} from "../feature-catalog";
 import { cn } from "../utils";
 
 const RAIL_MIN = 360;
@@ -35,15 +35,13 @@ export interface ChatShellProps {
   /** Product label shown next to the sidebar logo. */
   title?: string;
   /**
-   * Sidebar nav sections. Omit for the dashboard's own mode-based nav
-   * (Sidebar propless behavior); pass a list to own the nav.
+   * Sidebar nav sections owned by the embedding host.
    */
-  sections?: readonly SettingsNavSection[];
+  sections: readonly SettingsNavSection[];
   /**
-   * Pinned item above the sections. Omit for the Sidebar default
-   * (Dashboard); pass null to pin nothing.
+   * Host-owned pinned item above the sections, or null for none.
    */
-  pinnedItem?: SettingsNavItem | null;
+  pinnedItem: SettingsNavItem | null;
   /**
    * Slot below the sidebar brand header. Defaults to the repo switcher —
    * every host gets repo management in the sidepanel; pass null to remove.
@@ -134,13 +132,6 @@ export function ChatShell({
     window.addEventListener("pointerup", onUp);
   }, []);
 
-  // Mobile menu gets the pinned chat-home entry as a regular row.
-  const mobileSections: readonly SettingsNavSection[] | undefined = sections
-    ? pinnedItem
-      ? [{ title, items: [pinnedItem] }, ...sections]
-      : sections
-    : undefined;
-
   const chatPane = chat ?? (
     <KodyChat
       presentation="standalone"
@@ -186,7 +177,8 @@ export function ChatShell({
           <MobileMenu
             open={mobileNavOpen}
             onOpenChange={setMobileNavOpen}
-            sections={mobileSections}
+            sections={sections}
+            pinnedItem={pinnedItem}
             headerExtra={sidebarHeaderExtra}
           />
         </>
@@ -196,8 +188,8 @@ export function ChatShell({
         {/* Nav sidebar — far left. Chat sits to its right, so the order
             reads nav | chat | page. */}
         <Sidebar
-          {...(sections !== undefined ? { sections } : {})}
-          {...(pinnedItem !== undefined ? { pinnedItem } : {})}
+          sections={sections}
+          pinnedItem={pinnedItem}
           brandLabel={title}
           headerExtra={sidebarHeaderExtra}
           brandRowExtra={sidebarBrandExtra}

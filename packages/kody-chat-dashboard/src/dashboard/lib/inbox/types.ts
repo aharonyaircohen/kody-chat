@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain kody
  * @pattern inbox-types
- * @ai-summary Shared types and constants for the per-user, per-repo inbox.
+ * @ai-summary Canonical shared types and constants for the per-user, per-repo inbox.
  *
  *   Storage: one **private gist per repo**, owned by the logged-in user.
  *   Discoverability: gists are looked up by their `description` field, which
@@ -21,22 +21,28 @@
  *   Cap: the manifest stores the last `INBOX_MAX_ENTRIES` entries. Older
  *   ones drop off — this is an inbox, not an archive.
  */
-import type { ServerNotificationType } from "../notifications/prefs-store";
+import type { ServerNotificationType } from "../notifications/standalone-prefs-store";
 
 export const INBOX_GIST_DESCRIPTION_PREFIX = "kody-inbox:";
 export const INBOX_GIST_FILE = "inbox.json";
 export const INBOX_MAX_ENTRIES = 200;
 export const INBOX_MANIFEST_VERSION = 1 as const;
 
-/** Why this entry was added to the inbox. Drives icon + tone in the UI. */
-export type InboxSource =
-  | "mention"
-  | "comment"
-  | "review_requested"
-  | "assigned"
-  | "team_mention"
-  | "subscribed"
-  | "other";
+/** Why this entry was added to the inbox. Drives icon + tone in the UI.
+ *  Canonical list — API validators derive from this so it can't drift. */
+export const INBOX_SOURCES = [
+  "mention",
+  "comment",
+  "review_requested",
+  "assigned",
+  "team_mention",
+  "subscribed",
+  /** An agent asks the operator to approve running a capability. */
+  "request",
+  "other",
+] as const;
+
+export type InboxSource = (typeof INBOX_SOURCES)[number];
 
 export interface InboxEntry {
   /** Stable opaque ID — recommended shape: `${threadType}:${threadId}:${commentId|updated_at}`. */
@@ -75,6 +81,12 @@ export interface InboxEntry {
    * + backpressure per agent. Absent on legacy entries (default to "cto").
    */
   ctoAgent?: string;
+  /**
+   * `owner/repo` where Approve acts when it is NOT the connected repo —
+   * e.g. a backend proposal PR that Approve squash-merges. Absent for
+   * connected-repo threads.
+   */
+  ctoRepo?: string;
   /**
    * Slug of the capability that emitted the recommendation, parsed from the raw
    * body's `kody-capability` line at write time. The trust key — scopes autonomy

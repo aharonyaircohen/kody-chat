@@ -104,6 +104,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
+import { DASHBOARD_NAV_ITEM } from "./settings-nav";
+import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 import {
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,
@@ -180,6 +182,7 @@ export function KodyDashboard({
   initialIssueNumber,
   initialModal,
 }: KodyDashboardProps) {
+  const navSections = useSidebarNavSections();
   const initialIssueRef = useRef(initialIssueNumber);
   // Track if initial modal has been handled to prevent re-opening on tasks change
   const initialModalHandledRef = useRef(false);
@@ -1503,7 +1506,12 @@ export function KodyDashboard({
         showRefresh={false}
       />
       <div className="flex-1 flex items-center justify-center">{content}</div>
-      <MobileMenu open={showMobileMenu} onOpenChange={setShowMobileMenu} />
+      <MobileMenu
+        open={showMobileMenu}
+        onOpenChange={setShowMobileMenu}
+        sections={navSections}
+        pinnedItem={DASHBOARD_NAV_ITEM}
+      />
     </div>
   );
 
@@ -2014,6 +2022,8 @@ export function KodyDashboard({
         <MobileMenu
           open={showMobileMenu}
           onOpenChange={setShowMobileMenu}
+          sections={navSections}
+          pinnedItem={DASHBOARD_NAV_ITEM}
           extras={
             <>
               <div className="px-4 pt-4">
