@@ -202,7 +202,7 @@ test.describe("Master live user journeys", () => {
     }
   });
 
-  test("loads Memory as the shared file workspace", async ({ page }) => {
+  test("loads Memory as a master-detail page", async ({ page }) => {
     const { owner, repo } = parseRepo(TEST_REPO);
     await installAuth(page, owner, repo);
 
@@ -214,13 +214,9 @@ test.describe("Master live user journeys", () => {
       page.getByRole("heading", { name: "Memory", exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
-      page
-        .getByRole("main")
-        .getByText("Repository workspace", { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
-    await expect(
       page.getByRole("button", { name: "New memory" }),
-    ).toHaveCount(0);
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByPlaceholder("Search memory...")).toBeVisible();
   });
 
   test("saves and restores a real dashboard chat conversation", async ({

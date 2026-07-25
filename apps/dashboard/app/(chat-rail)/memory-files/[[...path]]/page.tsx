@@ -5,7 +5,7 @@
  * @ai-summary Internal adapter for the repository-scoped Memory file
  *   workspace, including its root and file deep links.
  */
-import { MemoryPage } from "@dashboard/lib/components/MemoryPage";
+import { MemoryFilesPage } from "@dashboard/features/memory/components/MemoryFilesPage";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -22,7 +22,5 @@ export default async function MemoryPathRoute({
 }) {
   const { path = [] } = await params;
   const joined = path.join("/");
-  return (
-    <MemoryPage initialPath={joined} />
-  );
+  return <MemoryFilesPage initialPath={joined} />;
 }

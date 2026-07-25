@@ -1,4 +1,10 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test";
 import type {
   Memory,
   MemoryRevision,
@@ -35,7 +41,16 @@ async function seedAuth(page: Page) {
   );
 }
 
-test("creates, revises, reviews, and deletes typed memory", async ({ page }) => {
+async function showWorkspaceContent(page: Page, content: Locator) {
+  if (!(await content.isVisible())) {
+    await page.getByRole("button", { name: "Hide file panel" }).click();
+  }
+  await expect(content).toBeVisible();
+}
+
+test("creates, revises, reviews, and deletes typed memory", async ({
+  page,
+}) => {
   const failures: string[] = [];
   const now = "2026-07-25T10:00:00.000Z";
   const memories: Memory[] = [
@@ -176,7 +191,10 @@ test("creates, revises, reviews, and deletes typed memory", async ({ page }) => 
       });
       return json(route, { memory: updated });
     }
-    return json(route, { memory: memories[index], revisions: revisions.get(id) });
+    return json(route, {
+      memory: memories[index],
+      revisions: revisions.get(id),
+    });
   });
   for (const path of [
     "models",
@@ -192,20 +210,32 @@ test("creates, revises, reviews, and deletes typed memory", async ({ page }) => 
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "Memory" })).toBeVisible();
-  await page.getByRole("button", { name: /Runtime owner/ }).click();
-  await expect(page.getByText("History (1)")).toBeVisible();
+  await page.getByRole("treeitem", { name: /Repository/ }).click();
+  await page.getByRole("treeitem", { name: /Decision/ }).click();
+  await page.getByRole("treeitem", { name: /Runtime owner\.md/ }).click();
+  const memoryHeading = page.getByRole("heading", { name: /^Runtime owner/ });
+  await showWorkspaceContent(page, memoryHeading);
+  await expect(page.getByText("Revision history")).toBeVisible();
+  await expect(page.getByText("Approved decision.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Search memory" }).click();
+  const searchDialog = page.getByRole("dialog", { name: "Search memory" });
+  await searchDialog
+    .getByRole("textbox", { name: "Search memory" })
+    .fill("runtime state");
+  await searchDialog
+    .getByRole("button", { name: "Open Runtime owner" })
+    .click();
+  await showWorkspaceContent(page, memoryHeading);
+
+  await page.getByRole("button", { name: "Edit memory" }).click();
   await page.getByLabel("Summary").fill("Convex alone owns runtime state.");
   await page.getByLabel("Reason").fill("Clarified the decision.");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(
-    page
-      .getByRole("heading", { name: "Runtime owner" })
-      .locator("..")
-      .getByText("Convex alone owns runtime state."),
-  ).toBeVisible();
-  await expect(page.getByText("History (2)")).toBeVisible();
+  const revisedSummary = page.locator("blockquote p").last();
+  await showWorkspaceContent(page, revisedSummary);
+  await expect(revisedSummary).toHaveText("Convex alone owns runtime state.");
+  await expect(page.getByText("Clarified the decision.").last()).toBeVisible();
 
   await page.getByRole("button", { name: "New memory" }).click();
   await page.getByLabel("Title").fill("Reply style");
@@ -213,9 +243,10 @@ test("creates, revises, reviews, and deletes typed memory", async ({ page }) => 
   await page.getByLabel("Details").fill("Use simple words.");
   await page.getByLabel("Reason").fill("Explicit user preference.");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("heading", { name: "Reply style" })).toBeVisible();
+  const createdHeading = page.getByRole("heading", { name: "Reply style" });
+  await showWorkspaceContent(page, createdHeading);
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete memory" }).click();
   await expect(page).toHaveURL(/\/memory$/);
   await expect(page.getByText("Reply style")).toHaveCount(0);
   expect(failures).toEqual([]);

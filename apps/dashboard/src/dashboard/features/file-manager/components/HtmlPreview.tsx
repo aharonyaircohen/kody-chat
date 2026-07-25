@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import DOMPurify from "dompurify";
 import { cn } from "@dashboard/lib/utils";
+import { FILE_HTML_PREVIEW_SANDBOX } from "@dashboard/lib/html-preview-security";
 import { htmlPreviewDocument } from "../lib/html-preview";
 
 interface HtmlPreviewProps {
@@ -14,22 +14,8 @@ export function HtmlPreview({
   content,
   fileName,
 }: HtmlPreviewProps) {
-  const sanitizedContent = useMemo(
-    () =>
-      DOMPurify.sanitize(content, {
-        ALLOWED_URI_REGEXP: /^(?:(?:blob|data):|#)/i,
-        FORBID_TAGS: [
-          "base",
-          "embed",
-          "form",
-          "iframe",
-          "link",
-          "meta",
-          "object",
-          "script",
-        ],
-        WHOLE_DOCUMENT: true,
-      }),
+  const previewDocument = useMemo(
+    () => htmlPreviewDocument(content),
     [content],
   );
 
@@ -37,8 +23,8 @@ export function HtmlPreview({
     <iframe
       className={cn("bg-white", className)}
       referrerPolicy="no-referrer"
-      sandbox=""
-      srcDoc={htmlPreviewDocument(sanitizedContent)}
+      sandbox={FILE_HTML_PREVIEW_SANDBOX}
+      srcDoc={previewDocument}
       title={`Preview of ${fileName}`}
     />
   );

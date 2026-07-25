@@ -447,11 +447,19 @@ export function FileTree({
         : listDir(octokit!, owner, repo, path),
     [transport, octokit, owner, repo],
   );
+  const loadVisibleDir = useCallback(
+    async (path: string) => {
+      const entries = await loadDir(path);
+      return entries.filter((entry) => !entryFilter || entryFilter(entry));
+    },
+    [entryFilter, loadDir],
+  );
   const protectedPathSet = useMemo(
     () => new Set(protectedPaths.map(normalizeTreePath)),
     [protectedPaths],
   );
   const [openPaths, setOpenPaths] = useState<Set<string>>(new Set());
+  const openPathsRef = useRef(openPaths);
   const [childrenMap, setChildrenMap] = useState<Record<string, FileEntry[]>>(
     {},
   );
@@ -499,10 +507,69 @@ export function FileTree({
   }, [childrenMap]);
 
   useEffect(() => {
+    openPathsRef.current = openPaths;
+  }, [openPaths]);
+
+  useEffect(() => {
+    const emptyPaths = new Set<string>();
+    setOpenPaths(emptyPaths);
+    openPathsRef.current = emptyPaths;
+    setChildrenMap({});
+    childrenMapRef.current = {};
+    setLoadingPaths(new Set());
+    setTreeError(null);
+  }, [normalizedRootPath, owner, repo]);
+
+  useEffect(() => {
+    if (refreshKey === 0) return;
+
+    const expandedPaths = [...openPathsRef.current];
     setChildrenMap({});
     childrenMapRef.current = {};
     setTreeError(null);
-  }, [owner, repo, refreshKey]);
+
+    if (!canLoad || expandedPaths.length === 0) {
+      setLoadingPaths(new Set());
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingPaths(new Set(expandedPaths));
+
+    const refreshExpandedDirectories = async () => {
+      const results = await Promise.all(
+        expandedPaths.map(async (path) => {
+          try {
+            const entries = await loadVisibleDir(path);
+            return { entries, path };
+          } catch {
+            return { entries: null, path };
+          }
+        }),
+      );
+      if (cancelled) return;
+
+      const refreshedChildren: Record<string, FileEntry[]> = {};
+      let failedPath: string | null = null;
+      for (const result of results) {
+        if (result.entries) {
+          refreshedChildren[result.path] = result.entries;
+        } else {
+          failedPath ??= result.path;
+        }
+      }
+
+      setChildrenMap(refreshedChildren);
+      childrenMapRef.current = refreshedChildren;
+      setLoadingPaths(new Set());
+      setTreeError(failedPath ? `Could not load ${failedPath}` : null);
+    };
+
+    void refreshExpandedDirectories();
+    return () => {
+      cancelled = true;
+    };
+  }, [canLoad, loadVisibleDir, refreshKey]);
 
   useEffect(() => {
     if (!canLoad || !selectedPath) return;
@@ -524,9 +591,7 @@ export function FileTree({
 
         setLoadingPaths((prev) => new Set(prev).add(path));
         try {
-          const entries = (await loadDir(path)).filter(
-            (entry) => !entryFilter || entryFilter(entry),
-          );
+          const entries = await loadVisibleDir(path);
           if (cancelled) return;
           setChildrenMap((prev) => {
             if (prev[path]) return prev;
@@ -552,12 +617,10 @@ export function FileTree({
       cancelled = true;
     };
   }, [
-    entryFilter,
     canLoad,
-    loadDir,
+    loadVisibleDir,
     owner,
     repo,
-    refreshKey,
     selectedPath,
     selectedPathType,
   ]);
@@ -577,9 +640,7 @@ export function FileTree({
           setLoadingPaths((prev) => new Set(prev).add(path));
           setTreeError(null);
           try {
-            const entries = (await loadDir(path)).filter(
-              (entry) => !entryFilter || entryFilter(entry),
-            );
+            const entries = await loadVisibleDir(path);
             setChildrenMap((prev) => ({ ...prev, [path]: entries }));
           } catch {
             setTreeError(`Could not load ${path}`);
@@ -595,7 +656,7 @@ export function FileTree({
         setOpenPaths((prev) => new Set(prev).add(path));
       }
     },
-    [openPaths, childrenMap, loadDir, entryFilter],
+    [openPaths, childrenMap, loadVisibleDir],
   );
 
   const handleSelect = useCallback(

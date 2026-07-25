@@ -28,6 +28,14 @@
   verified requirement, and state that gap explicitly.
 - Treat user requests to browse, create, edit, move, upload, or delete files as
   requests for the existing dashboard file manager.
+- Read
+  [`apps/dashboard/src/dashboard/features/file-manager/README.md`](apps/dashboard/src/dashboard/features/file-manager/README.md)
+  before changing the shared file manager.
+- The file manager must remain agnostic to every application, package,
+  repository, and domain in this monorepo. It may depend only on its public
+  configuration, active transport, generic file-format behavior, and shared UI
+  infrastructure; feature-specific assumptions belong in caller-owned
+  adapters.
 - Do not edit the shared file manager, its components, or its file operations
   for feature-specific behavior. Adapt features only through the file
   manager's existing public configuration and transport contracts from

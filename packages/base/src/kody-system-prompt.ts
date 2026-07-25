@@ -76,7 +76,7 @@ When the instructions name the operator's role or audience, write for that perso
 ${body}`;
 }
 
-function truncateMemoryIndex(raw: string): string {
+function truncateMemoryContext(raw: string): string {
   const lines = raw.split(/\r?\n/);
   if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw;
   const head = lines.slice(0, MEMORY_INDEX_MAX_LINES).join("\n");
@@ -108,14 +108,8 @@ export function buildSystemPrompt(
      * "this page" may refer to the preview reference the user is looking at.
      */
     previewContext?: string;
-    /**
-     * Raw body of backend `memory/INDEX.md` (or `null` when the file doesn't
-     * exist). Injected under a `## Remembered context` heading so the agent
-     * can decide whether a new memory would be a duplicate / update of an
-     * existing one. The full body of any entry is fetched on demand via
-     * the `recall` tool — only the index ships in every prompt.
-     */
-    memoryIndex?: string | null;
+    /** Relevant personal and repository memories retrieved for this turn. */
+    memoryContext?: string | null;
     /**
   /**
    * Vibe mode. When true, chat is scoped to the Vibe workspace. It may
@@ -276,31 +270,25 @@ Kody has two separate planning surfaces. Keep the words distinct.
 
 For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, and one capability is enough for a first goal.`,
     );
-    if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
+    if (opts?.memoryContext && opts.memoryContext.trim().length > 0) {
       sections.push(
         `## Remembered context
 
-The block below is the live index of backend \`memory/*.md\` for this repo.
-Each bullet is one stored memory: title, file id, one-line hook, and type.
-Treat it as the agent's persistent notes — facts/feedback/project context the
-user has chosen to keep across sessions.
+The block below contains personal and repository memories retrieved for this
+turn. Use only entries relevant to the current request.
 
 Rules:
-- Read this index before writing a new memory. If a similar entry already
+- Read these results before writing a new memory. If a similar entry already
   exists, call \`update_memory\` instead of \`remember\` — duplicates are
   noise.
-- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a
-  feedback memory says "no console.log in this repo," don't add console.log
-  even if the current turn doesn't mention it).
-- Use \`recall(id)\` when the one-line hook isn't enough and you need the
-  full body before acting. When the index is truncated (or the hook you
-  need isn't there), use \`recall_search(query)\` to search every memory
-  file's body via GitHub code search.
+- Apply relevant preferences and decisions automatically.
+- Use \`recall(id)\` for one item or \`recall_search(query)\` for another
+  search.
 - Memory can be stale. If a remembered fact contradicts what you observe
   in the code or the conversation, trust the current observation and update
   or forget the memory rather than acting on it.
 
-${truncateMemoryIndex(opts.memoryIndex.trim())}`,
+${truncateMemoryContext(opts.memoryContext.trim())}`,
       );
     }
   }

@@ -65,6 +65,7 @@ import {
   NoTokenError,
   SessionExpiredError,
 } from "@dashboard/lib/api";
+import { REPO_VIEW_SANDBOX } from "@dashboard/lib/html-preview-security";
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
@@ -525,7 +526,7 @@ export function PreviewWorkspace({
           isRepoViewPdf
             ? null
             : repoViewId
-              ? "allow-scripts allow-forms allow-popups allow-downloads"
+              ? REPO_VIEW_SANDBOX
               : undefined
         }
         onComposerInjection={setComposerInjection}

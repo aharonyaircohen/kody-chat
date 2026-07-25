@@ -146,6 +146,44 @@ export function buildFileHref(path: string | null | undefined): string {
   return `/files/${normalized.split("/").map(encodeURIComponent).join("/")}`;
 }
 
+export function buildWorkspaceFileHref(
+  routeBase: string,
+  path: string | null | undefined,
+): string {
+  const normalizedBase = `/${normalizeRepoPath(routeBase)}`;
+  const normalizedPath = normalizeRepoPath(path ?? "");
+  if (!normalizedPath) return normalizedBase;
+  const encodedPath = normalizedPath
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  return `${normalizedBase}/${encodedPath}`;
+}
+
+export function repoPathOpenCandidates(path: string): string[] {
+  const normalizedPath = normalizeRepoPath(path);
+  const candidates = [normalizedPath];
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const currentPath = candidates[candidates.length - 1]!;
+    if (!currentPath.includes("%")) break;
+    try {
+      const decodedPath = normalizeRepoPath(
+        currentPath
+          .split("/")
+          .map((segment) => decodeURIComponent(segment))
+          .join("/"),
+      );
+      if (!decodedPath || decodedPath === currentPath) break;
+      candidates.push(decodedPath);
+    } catch {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
 export function filePathFromHref(pathname: string): string {
   if (pathname === "/files") return "";
   if (!pathname.startsWith("/files/")) return "";

@@ -57,9 +57,7 @@ test("creates, revises, reloads, and deletes a real typed memory", async ({
     await page
       .getByLabel("Details")
       .fill("This record proves real Convex persistence.");
-    await page
-      .getByLabel("Reason")
-      .fill("Created by the live memory journey.");
+    await page.getByLabel("Reason").fill("Created by the live memory journey.");
     const createResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
@@ -69,32 +67,31 @@ test("creates, revises, reloads, and deletes a real typed memory", async ({
     const created = await createResponse;
     expect(created.status()).toBe(201);
     memoryId = ((await created.json()) as { memory: { id: string } }).memory.id;
-    await expect(page.getByRole("heading", { name: marker })).toBeVisible();
+    await expect(
+      page.getByRole("heading").filter({ hasText: marker }),
+    ).toBeVisible();
 
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.getByRole("button", { name: "Edit memory" }).click();
     await page
       .getByLabel("Summary")
       .fill("A revised real memory lifecycle test.");
-    await page
-      .getByLabel("Reason")
-      .fill("Revised by the live memory journey.");
+    await page.getByLabel("Reason").fill("Revised by the live memory journey.");
     await page.getByRole("button", { name: "Save" }).click();
     await expect(
-      page
-        .getByRole("heading", { name: marker })
-        .locator("..")
-        .getByText("A revised real memory lifecycle test."),
+      page.getByText("A revised real memory lifecycle test."),
     ).toBeVisible();
-    await expect(page.getByText("History (2)")).toBeVisible();
+    await expect(
+      page.getByText("Revised by the live memory journey."),
+    ).toBeVisible();
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: marker })).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByText("History (2)")).toBeVisible();
+    await expect(
+      page.getByRole("heading").filter({ hasText: marker }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Revision history")).toBeVisible();
 
     page.once("dialog", (dialog) => void dialog.accept());
-    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await page.getByRole("button", { name: "Delete memory" }).click();
     await expect(page).toHaveURL(/\/memory$/, { timeout: 30_000 });
     memoryId = "";
   } finally {

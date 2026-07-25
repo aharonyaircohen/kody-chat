@@ -131,6 +131,7 @@ export async function getUserOctokit(
 export type VerifiedRepoAccess = {
   auth: RequestAuth;
   actorLogin: string;
+  actorGithubId: number;
   permission: string;
   octokit: Octokit;
 };
@@ -178,6 +179,7 @@ async function verifyRepoAccess(
     return {
       auth,
       actorLogin: actor.login,
+      actorGithubId: actor.id,
       permission: access.permission,
       octokit,
     };

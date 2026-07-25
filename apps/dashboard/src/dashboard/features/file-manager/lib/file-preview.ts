@@ -1,3 +1,5 @@
+import { advancedFilePreview } from "./advanced-file-preview";
+
 export type FilePreviewKind =
   "image" | "pdf" | "video" | "audio" | "unsupported";
 
@@ -49,5 +51,9 @@ export function fileSupportsTextEditing(
   path: string,
   isBinary: boolean,
 ): boolean {
-  return !isBinary && filePreview(path).kind === "unsupported";
+  return (
+    !isBinary &&
+    filePreview(path).kind === "unsupported" &&
+    advancedFilePreview(path) === null
+  );
 }

@@ -35,6 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { repoBasePath } from "@kody-ade/base/routes";
 import { cn } from "@dashboard/lib/utils";
 import { useAuth } from "@dashboard/lib/auth-context";
 import {
@@ -52,6 +53,7 @@ import {
 } from "../lib/repo-file-operations";
 import {
   buildBreadcrumbs,
+  buildWorkspaceFileHref,
   confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
@@ -66,7 +68,7 @@ import {
   type FileWorkspaceViewMode,
   type RepoPathType,
 } from "../lib/file-paths";
-import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
+import { resolveRepoPathFromListings } from "../lib/repo-path-resolution";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
 import { FileEditor } from "./FileEditor";
@@ -173,7 +175,6 @@ export function FilesPage({
   headerActions,
 }: FilesPageProps) {
   const { auth } = useAuth();
-  const scopedHref = useRepoScopedHref();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
     [auth?.token],
@@ -185,9 +186,7 @@ export function FilesPage({
   );
   const workspaceRoot = useMemo(() => normalizeRepoPath(rootPath), [rootPath]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
-  const [selectedPath, setSelectedPath] = useState<string | null>(
-    initialRepoPath || null,
-  );
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [openingPathType, setOpeningPathType] = useState<RepoPathType | null>(
     null,
   );
@@ -291,13 +290,10 @@ export function FilesPage({
         workspaceRoot && normalizedPath.startsWith(`${workspaceRoot}/`)
           ? normalizedPath.slice(workspaceRoot.length + 1)
           : normalizedPath;
-      const workspaceHref = relativePath
-        ? `${routeBase}/${relativePath
-            .split("/")
-            .map(encodeURIComponent)
-            .join("/")}`
-        : routeBase;
-      const href = scopedHref(workspaceHref);
+      const workspaceHref = buildWorkspaceFileHref(routeBase, relativePath);
+      const href = auth
+        ? `${repoBasePath(auth)}${workspaceHref}`
+        : workspaceHref;
       if (typeof window !== "undefined" && window.location.pathname === href) {
         return;
       }
@@ -310,7 +306,7 @@ export function FilesPage({
         : window.History.prototype.pushState;
       updateHistory.call(window.history, null, "", href);
     },
-    [routeBase, scopedHref, workspaceRoot],
+    [auth, routeBase, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -336,7 +332,16 @@ export function FilesPage({
       }
 
       setOpeningPathType(options.typeHint ?? null);
-      setSelectedPath(normalizedPath);
+      if (options.typeHint) {
+        setSelectedPath(normalizedPath);
+      } else {
+        // A deep link is not known to be a file or directory until it has
+        // resolved against the repository. Keep unresolved URL text out of
+        // the tree and viewers so they cannot issue speculative GitHub reads.
+        setSelectedPath(null);
+        setSelectedFile(null);
+        setViewMode("viewer");
+      }
       if (options.typeHint === "dir") {
         setSelectedFile(null);
         setViewMode("viewer");
@@ -348,9 +353,22 @@ export function FilesPage({
       if (!transport && (!octokit || !auth)) return;
 
       try {
+        let resolvedPath = normalizedPath;
+        if (normalizedPath.includes("%")) {
+          const resolvedEntry = await resolveRepoPathFromListings(
+            normalizedPath,
+            (directoryPath) =>
+              transport
+                ? transport.listDir(directoryPath)
+                : listDir(octokit!, auth!.owner, auth!.repo, directoryPath),
+          );
+          if (!resolvedEntry) throw new Error("File not found");
+          resolvedPath = resolvedEntry.path;
+        }
+
         const file = transport
-          ? await transport.readFile(normalizedPath)
-          : await readFile(octokit!, auth!.owner, auth!.repo, normalizedPath);
+          ? await transport.readFile(resolvedPath)
+          : await readFile(octokit!, auth!.owner, auth!.repo, resolvedPath);
         if (requestId !== openRequestRef.current) return;
 
         if (file) {
@@ -367,18 +385,25 @@ export function FilesPage({
               ? "editor"
               : "viewer",
           );
+          if (file.path !== normalizedPath) {
+            updateFileHref(file.path, { replace: true });
+          }
           return;
         }
 
         if (transport) {
-          await transport.listDir(normalizedPath);
+          await transport.listDir(resolvedPath);
         } else {
-          await listDir(octokit!, auth!.owner, auth!.repo, normalizedPath);
+          await listDir(octokit!, auth!.owner, auth!.repo, resolvedPath);
         }
         if (requestId !== openRequestRef.current) return;
         setOpeningPathType(null);
+        setSelectedPath(resolvedPath);
         setSelectedFile(null);
         setViewMode("viewer");
+        if (resolvedPath !== normalizedPath) {
+          updateFileHref(resolvedPath, { replace: true });
+        }
       } catch (err) {
         if (
           getHttpStatus(err) === 404 &&
