@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
+import {
+  getRequestAuth,
+  getUserOctokit,
+  requireKodyAuth,
+} from "@kody-ade/base/auth";
 import { createLoopDefinition } from "@kody-ade/agency-domain";
-
-const PREFIX = "loop:";
+import {
+  deleteRepositoryLoop,
+  saveRepositoryLoop,
+} from "@dashboard/lib/repository-loops";
 
 function context(req: NextRequest, id: string) {
   const auth = getRequestAuth(req);
   if (!auth || !/^[a-z][a-z0-9-]{0,127}$/.test(id)) return null;
-  return { tenantId: `${auth.owner}/${auth.repo}`, kind: `${PREFIX}${id}` };
+  return auth;
 }
 
 export async function PATCH(
@@ -25,12 +29,18 @@ export async function PATCH(
   }
   try {
     const loop = createLoopDefinition({ ...(await req.json()), id });
-    const updatedAt = new Date().toISOString();
-    await createBackendClient().mutation(api.repoDocs.save, {
-      ...resolved,
-      doc: loop,
-      updatedAt,
-    });
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    }
+    const updatedAt = "";
+    await saveRepositoryLoop(
+      octokit,
+      resolved.owner,
+      resolved.repo,
+      loop,
+      `chore(kody): update loop ${id}`,
+    );
     return NextResponse.json({ loop: { ...loop, updatedAt } });
   } catch (error) {
     return NextResponse.json(
@@ -54,6 +64,16 @@ export async function DELETE(
   if (!resolved) {
     return NextResponse.json({ error: "invalid_loop" }, { status: 400 });
   }
-  await createBackendClient().mutation(api.repoDocs.remove, resolved);
+  const octokit = await getUserOctokit(req);
+  if (!octokit) {
+    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+  }
+  await deleteRepositoryLoop(
+    octokit,
+    resolved.owner,
+    resolved.repo,
+    id,
+    `chore(kody): remove loop ${id}`,
+  );
   return NextResponse.json({ success: true });
 }

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
+import {
+  getRequestAuth,
+  getUserOctokit,
+  requireKodyAuth,
+} from "@kody-ade/base/auth";
 import { createLoopDefinition } from "@kody-ade/agency-domain";
+import {
+  listRepositoryLoops,
+  readRepositoryLoop,
+  saveRepositoryLoop,
+} from "@dashboard/lib/repository-loops";
 
-const PREFIX = "loop:";
 const trigger = z.discriminatedUnion("type", [
   z.object({ type: z.literal("manual") }),
   z.object({
@@ -36,45 +42,31 @@ const payload = z.object({
   enabled: z.boolean().default(true),
 });
 
-function tenant(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  return auth ? `${auth.owner}/${auth.repo}` : null;
-}
-
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const tenantId = tenant(req);
-  if (!tenantId) {
+  const auth = getRequestAuth(req);
+  const octokit = await getUserOctokit(req);
+  if (!auth || !octokit) {
     return NextResponse.json(
       { error: "repository_context_required" },
       { status: 400 },
     );
   }
-  const records = (await createBackendClient().query(
-    api.repoDocs.listByPrefix,
-    { tenantId, prefix: PREFIX },
-  )) as Array<{ kind: string; doc: unknown; updatedAt: string }>;
-  const loops = records.flatMap((record) => {
-    try {
-      return [
-        {
-          ...createLoopDefinition(record.doc),
-          updatedAt: record.updatedAt,
-        },
-      ];
-    } catch {
-      return [];
-    }
-  });
+  const loops = (await listRepositoryLoops(
+    octokit,
+    auth.owner,
+    auth.repo,
+  )).map((loop) => ({ ...loop, updatedAt: "" }));
   return NextResponse.json({ loops });
 }
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const tenantId = tenant(req);
-  if (!tenantId) {
+  const auth = getRequestAuth(req);
+  const octokit = await getUserOctokit(req);
+  if (!auth || !octokit) {
     return NextResponse.json(
       { error: "repository_context_required" },
       { status: 400 },
@@ -82,20 +74,23 @@ export async function POST(req: NextRequest) {
   }
   try {
     const loop = createLoopDefinition(payload.parse(await req.json()));
-    const existing = await createBackendClient().query(api.repoDocs.get, {
-      tenantId,
-      kind: `${PREFIX}${loop.id}`,
-    });
+    const existing = await readRepositoryLoop(
+      octokit,
+      auth.owner,
+      auth.repo,
+      loop.id,
+    );
     if (existing) {
       return NextResponse.json({ error: "loop_exists" }, { status: 409 });
     }
-    const updatedAt = new Date().toISOString();
-    await createBackendClient().mutation(api.repoDocs.save, {
-      tenantId,
-      kind: `${PREFIX}${loop.id}`,
-      doc: loop,
-      updatedAt,
-    });
+    const updatedAt = "";
+    await saveRepositoryLoop(
+      octokit,
+      auth.owner,
+      auth.repo,
+      loop,
+      `chore(kody): add loop ${loop.id}`,
+    );
     return NextResponse.json({ loop: { ...loop, updatedAt } });
   } catch (error) {
     return NextResponse.json(

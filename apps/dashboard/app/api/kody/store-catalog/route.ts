@@ -14,8 +14,6 @@ import {
 } from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { readCompanyStoreWorkflowDefinitionFile } from "@dashboard/lib/workflow-definition-files";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 import { listStoreCatalogSlugs } from "@dashboard/lib/store-catalog-index";
 import {
@@ -23,6 +21,7 @@ import {
   getOctokit,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
+import { listRepositoryLoops } from "@dashboard/lib/repository-loops";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -72,10 +71,7 @@ export async function GET(req: NextRequest) {
   try {
     const octokit = getOctokit();
     const [localLoops, engine] = await Promise.all([
-      createBackendClient().query(api.repoDocs.listByPrefix, {
-        tenantId: `${auth.owner}/${auth.repo}`,
-        prefix: "loop:",
-      }) as Promise<Array<{ kind: string }>>,
+      listRepositoryLoops(octokit, auth.owner, auth.repo),
       getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
     ]);
     const config = engine.config.company;
@@ -85,7 +81,7 @@ export async function GET(req: NextRequest) {
       command: new Set(config?.activeCommands ?? []),
       workflow: new Set(config?.activeWorkflows ?? []),
       feature: new Set(config?.activeFeatures ?? []),
-      loop: new Set(localLoops.map((item) => item.kind.slice("loop:".length))),
+      loop: new Set(localLoops.map((item) => item.id)),
     };
     const {
       capabilities,

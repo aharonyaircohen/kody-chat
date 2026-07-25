@@ -36,6 +36,11 @@ import {
 } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
+import {
+  deleteRepositoryLoop,
+  readRepositoryLoop,
+  saveRepositoryLoop,
+} from "@dashboard/lib/repository-loops";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -170,21 +175,15 @@ async function activate(
   const workflow = await assertExists(octokit, kind, slug);
   if (kind === "loop") {
     const storeLoop = workflow as StoreLoop;
-    const tenantId = `${owner}/${repo}`;
-    const existing = await createBackendClient().query(
-      backendApi.repoDocs.get,
-      {
-        tenantId,
-        kind: `loop:${slug}`,
-      },
-    );
+    const existing = await readRepositoryLoop(octokit, owner, repo, slug);
     if (existing) return { imported: false, status: "already_local" as const };
-    await createBackendClient().mutation(backendApi.repoDocs.save, {
-      tenantId,
-      kind: `loop:${slug}`,
-      doc: storeLoop.loop,
-      updatedAt: new Date().toISOString(),
-    });
+    await saveRepositoryLoop(
+      octokit,
+      owner,
+      repo,
+      storeLoop.loop,
+      `chore(kody): add store loop ${slug}`,
+    );
     return { imported: true, status: "imported" as const };
   }
   const { config } = await getEngineConfig(octokit, owner, repo, {
@@ -247,21 +246,17 @@ async function deactivate(
     force: true,
   });
   if (kind === "loop") {
-    const tenantId = `${owner}/${repo}`;
-    const existing = await createBackendClient().query(
-      backendApi.repoDocs.get,
-      {
-        tenantId,
-        kind: `loop:${slug}`,
-      },
-    );
+    const existing = await readRepositoryLoop(octokit, owner, repo, slug);
     if (!existing) {
       return { removed: false, status: "already_missing" as const };
     }
-    await createBackendClient().mutation(backendApi.repoDocs.remove, {
-      tenantId,
-      kind: `loop:${slug}`,
-    });
+    await deleteRepositoryLoop(
+      octokit,
+      owner,
+      repo,
+      slug,
+      `chore(kody): remove store loop ${slug}`,
+    );
     return { removed: true, status: "removed" as const };
   }
   const field = fieldByKind[kind];
