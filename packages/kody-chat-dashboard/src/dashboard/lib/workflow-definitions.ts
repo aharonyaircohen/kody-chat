@@ -20,10 +20,6 @@ export interface WorkflowDefinition {
   updatedAt: string;
 }
 
-export interface WorkflowInputMapping {
-  from: string;
-}
-
 export interface WorkflowTransitionDefinition {
   to: string;
   when?: Record<string, unknown>;
@@ -34,7 +30,8 @@ export interface WorkflowTransitionDefinition {
 export interface WorkflowStepDefinition {
   id: string;
   capability: string;
-  inputs?: Record<string, WorkflowInputMapping>;
+  /** One JSON-compatible value passed to this capability. */
+  input?: unknown;
   next?: WorkflowTransitionDefinition[];
 }
 
@@ -128,32 +125,16 @@ function normalizeWorkflowSteps(value: unknown): WorkflowStepDefinition[] {
       !CAPABILITY_ID_PATTERN.test(capability)
     )
       continue;
-    const inputs = normalizeWorkflowInputs(raw.inputs);
+    const hasInput = Object.prototype.hasOwnProperty.call(raw, "input");
     const next = normalizeWorkflowTransitions(raw.next);
     steps.push({
       id,
       capability,
-      ...(inputs ? { inputs } : {}),
+      ...(hasInput ? { input: raw.input } : {}),
       ...(next.length > 0 ? { next } : {}),
     });
   }
   return steps;
-}
-
-function normalizeWorkflowInputs(
-  value: unknown,
-): Record<string, WorkflowInputMapping> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return undefined;
-  const inputs: Record<string, WorkflowInputMapping> = {};
-  for (const [name, item] of Object.entries(value)) {
-    if (!CAPABILITY_ID_PATTERN.test(name)) continue;
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const from = (item as { from?: unknown }).from;
-    if (typeof from === "string" && from.trim())
-      inputs[name] = { from: from.trim() };
-  }
-  return Object.keys(inputs).length > 0 ? inputs : undefined;
 }
 
 function normalizeWorkflowTransitions(
@@ -316,15 +297,16 @@ export function validateWorkflowDefinition(
         `steps[${index}].capability`,
         `Capability ${step.capability} is not available in this agency.`,
       );
-    for (const [name, mapping] of Object.entries(step.inputs ?? {})) {
-      if (!WORKFLOW_DATA_PATH.test(mapping.from))
-        addIssue(
-          issues,
-          "invalid_data_path",
-          `steps[${index}].inputs.${name}.from`,
-          "Input must come from workflow result data.",
-        );
-    }
+    if (
+      Object.prototype.hasOwnProperty.call(step, "input") &&
+      !isJsonValue(step.input)
+    )
+      addIssue(
+        issues,
+        "invalid_input",
+        `steps[${index}].input`,
+        "Capability input must be one JSON value.",
+      );
   });
 
   const startAt = workflow.startAt ?? ids[0];
@@ -465,6 +447,14 @@ export function validateWorkflowDefinition(
       );
   }
   return issues;
+}
+
+function isJsonValue(value: unknown): boolean {
+  if (value === null || ["string", "number", "boolean"].includes(typeof value))
+    return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (!value || typeof value !== "object") return false;
+  return Object.values(value as Record<string, unknown>).every(isJsonValue);
 }
 
 function addIssue(

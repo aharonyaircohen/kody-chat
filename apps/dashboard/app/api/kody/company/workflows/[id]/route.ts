@@ -39,7 +39,6 @@ import {
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
 
-const workflowInputMappingSchema = z.object({ from: z.string().trim().min(1) });
 const workflowTransitionSchema = z.object({
   to: z.string().trim().min(1).max(80),
   when: z.record(z.string(), z.unknown()).optional(),
@@ -49,7 +48,7 @@ const workflowTransitionSchema = z.object({
 const workflowStepSchema = z.object({
   id: z.string().trim().min(1).max(80),
   capability: z.string().trim().min(1).max(80),
-  inputs: z.record(z.string(), workflowInputMappingSchema).optional(),
+  input: z.unknown().optional(),
   next: z.array(workflowTransitionSchema).optional(),
 });
 

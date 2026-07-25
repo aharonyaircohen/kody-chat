@@ -23,25 +23,13 @@ const assetSchema = z.object({
   content: z.string(),
 });
 
-const boundarySchema = z.object({
-  name: z.string().min(1).max(80),
-  schema: z.record(z.string(), z.unknown()),
-});
-
 function files(input: {
   instructions: string;
-  input: z.infer<typeof boundarySchema>;
-  output: z.infer<typeof boundarySchema>;
   skills: Array<z.infer<typeof assetSchema>>;
   tools: Array<z.infer<typeof assetSchema>>;
 }): Record<string, string> {
   return {
     "instructions.md": `${input.instructions.trim()}\n`,
-    "contract.json": `${JSON.stringify(
-      { input: input.input, output: input.output },
-      null,
-      2,
-    )}\n`,
     ...Object.fromEntries(
       input.skills.map((asset) => [`skills/${asset.path}`, asset.content]),
     ),
@@ -57,11 +45,11 @@ export function createCapabilityTools(ctx: Ctx) {
 
   return {
     read_capability_creation_guide: tool({
-      description: "Read the Capability folder contract.",
+      description: "Read the Capability folder guide.",
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          "A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. contract.json has exactly one named input and one named output.",
+          "A Capability is one folder containing instructions.md, skills/, and tools/. It receives one JSON-compatible input and returns one JSON-compatible output. Explain their meaning in instructions.md.",
       }),
     }),
 
@@ -88,8 +76,6 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         instructions: z.string().min(1),
-        input: boundarySchema,
-        output: boundarySchema,
         skills: z.array(assetSchema).default([]),
         tools: z.array(assetSchema).default([]),
       }),

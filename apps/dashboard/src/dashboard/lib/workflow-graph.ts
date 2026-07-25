@@ -1,6 +1,5 @@
 import type {
   WorkflowDefinition,
-  WorkflowInputMapping,
   WorkflowStepDefinition,
 } from "./workflow-definitions";
 import { friendlyDecisionQuestion } from "./workflow-condition";
@@ -10,7 +9,7 @@ export interface WorkflowGraphNode {
   kind?: "capability" | "decision";
   capability?: string;
   question?: string;
-  inputs?: Record<string, WorkflowInputMapping>;
+  input?: unknown;
 }
 
 export interface WorkflowGraphEdge {
@@ -207,7 +206,9 @@ export function workflowDefinitionGraph(
     const baseNodes = workflow.steps.map((step) => ({
       id: step.id,
       capability: step.capability,
-      ...(step.inputs ? { inputs: step.inputs } : {}),
+      ...(Object.prototype.hasOwnProperty.call(step, "input")
+        ? { input: step.input }
+        : {}),
     }));
     const usedIds = new Set(baseNodes.map((node) => node.id));
     const nodes: WorkflowGraphNode[] = [...baseNodes];
@@ -300,7 +301,9 @@ export function graphWorkflowDefinition(
     return {
       id: node.id,
       capability: node.capability ?? node.id,
-      ...(node.inputs ? { inputs: node.inputs } : {}),
+      ...(Object.prototype.hasOwnProperty.call(node, "input")
+        ? { input: node.input }
+        : {}),
       ...(outgoing.length > 0
         ? {
             next: outgoing.map((edge) => ({

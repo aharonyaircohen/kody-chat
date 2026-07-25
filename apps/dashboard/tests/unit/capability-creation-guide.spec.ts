@@ -15,14 +15,14 @@ describe("capability creation guide wiring", () => {
       "A Capability is one small executable method.",
     );
     expect(CAPABILITY_GUIDE).toContain("instructions.md");
-    expect(CAPABILITY_GUIDE).toContain("contract.json");
+    expect(CAPABILITY_GUIDE).not.toContain("contract.json");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
     expect(CAPABILITY_GUIDE).not.toContain("Implementation");
   });
 
   it("exposes a guide tool before capability creation", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("read_capability_creation_guide");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("contract.json");
+    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("contract.json");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
       "read_capability_creation_guide",
     );

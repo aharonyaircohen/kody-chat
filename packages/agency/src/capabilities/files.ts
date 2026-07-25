@@ -1,6 +1,6 @@
 /**
  * A Capability is one small folder:
- * instructions.md, contract.json, skills/, and tools/.
+ * instructions.md, skills/, and tools/.
  *
  * Local folders are stored as one Convex document. Store folders are read
  * directly from the configured Company Store.
@@ -20,14 +20,8 @@ import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
 const INSTRUCTIONS_FILE = "instructions.md";
-const CONTRACT_FILE = "contract.json";
 const KIND_PREFIX = "capability:";
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
-export interface CapabilityContract {
-  input: { name: string; schema: Record<string, unknown> };
-  output: { name: string; schema: Record<string, unknown> };
-}
 
 export interface CapabilitySkill {
   name: string;
@@ -50,7 +44,6 @@ export interface CapabilitySummary {
 
 export interface CapabilityDetail extends CapabilitySummary {
   instructions: string;
-  simpleContract: CapabilityContract;
   skills: CapabilitySkill[];
   capabilityTools: CapabilityTool[];
 }
@@ -97,43 +90,6 @@ function parseStoredFiles(value: unknown): Record<string, string> | null {
   return files;
 }
 
-function parseContract(raw: string): CapabilityContract {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("contract.json must contain valid JSON");
-  }
-  const contract = asRecord(parsed);
-  if (!contract) throw new Error("contract.json must contain a JSON object");
-  if (
-    Object.keys(contract).length !== 2 ||
-    !("input" in contract) ||
-    !("output" in contract)
-  ) {
-    throw new Error("contract.json must contain exactly input and output");
-  }
-  const boundary = (name: "input" | "output") => {
-    const value = asRecord(contract[name]);
-    if (
-      !value ||
-      Object.keys(value).length !== 2 ||
-      typeof value.name !== "string" ||
-      !value.name.trim() ||
-      !asRecord(value.schema)
-    ) {
-      throw new Error(
-        `contract.json ${name} must contain exactly name and schema`,
-      );
-    }
-    return {
-      name: value.name.trim(),
-      schema: value.schema as Record<string, unknown>,
-    };
-  };
-  return { input: boundary("input"), output: boundary("output") };
-}
-
 function description(instructions: string, slug: string): string {
   const line = instructions
     .split(/\r?\n/)
@@ -159,7 +115,6 @@ function detailFromFiles(
     describe: description(instructions, slug),
     ...options,
     instructions,
-    simpleContract: parseContract(files[CONTRACT_FILE]!),
     skills: Object.entries(files)
       .flatMap(([path, body]) =>
         path.startsWith("skills/") && path !== "skills/.gitkeep"
@@ -240,15 +195,17 @@ export async function listStoreCapabilityFiles(
     "capabilities",
     isValidSlug,
   );
-  const details = await Promise.all(
-    slugs
-      .filter((slug) => !localSlugs.has(slug))
-      .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
-      .map((slug) => readStoreCapabilityFile(slug, octokit)),
-  );
-  return details
-    .filter((item): item is CapabilityDetail => item !== null)
-    .map(summary)
+  return slugs
+    .filter((slug) => !localSlugs.has(slug))
+    .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
+    .map((slug) => ({
+      slug,
+      describe: `Run ${slug.replaceAll("-", " ")}`,
+      updatedAt: null,
+      htmlUrl: buildCompanyStoreHtmlUrl("capabilities", slug),
+      source: "store" as const,
+      readOnly: true,
+    }))
     .sort((left, right) => left.slug.localeCompare(right.slug));
 }
 
@@ -364,22 +321,17 @@ export function assertSimpleCapabilityFolder(
     assertSafePath(path);
     if (
       path !== INSTRUCTIONS_FILE &&
-      path !== CONTRACT_FILE &&
       !path.startsWith("skills/") &&
       !path.startsWith("tools/")
     ) {
       throw new Error(
-        `Capability folder only allows instructions.md, contract.json, skills/, and tools/; found ${path}`,
+        `Capability folder only allows instructions.md, skills/, and tools/; found ${path}`,
       );
     }
   }
   if (typeof files[INSTRUCTIONS_FILE] !== "string") {
     throw new Error("Capability folder requires instructions.md");
   }
-  if (typeof files[CONTRACT_FILE] !== "string") {
-    throw new Error("Capability folder requires contract.json");
-  }
-  parseContract(files[CONTRACT_FILE]);
 }
 
 export async function writeCapabilityFolderFiles(

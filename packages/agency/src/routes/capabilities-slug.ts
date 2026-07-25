@@ -7,7 +7,6 @@ import {
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { recordAudit } from "@kody-ade/base/activity/audit";
-import { createCapabilityContract } from "@kody-ade/agency-domain";
 import {
   deleteCapabilityFile,
   isValidSlug,
@@ -23,10 +22,6 @@ const fileSchema = z.object({
 
 const updateSchema = z.object({
   instructions: z.string().trim().min(1),
-  inputName: z.string().trim().min(1).max(80).default("request"),
-  inputSchema: z.record(z.string(), z.unknown()),
-  outputName: z.string().trim().min(1).max(80).default("result"),
-  outputSchema: z.record(z.string(), z.unknown()),
   skills: z.array(fileSchema).default([]),
   tools: z.array(fileSchema).default([]),
   actorLogin: z.string().optional(),
@@ -50,13 +45,8 @@ function beginContext(context: NonNullable<ReturnType<typeof requestContext>>) {
 }
 
 function capabilityFiles(input: z.infer<typeof updateSchema>) {
-  const contract = createCapabilityContract({
-    input: { name: input.inputName, schema: input.inputSchema },
-    output: { name: input.outputName, schema: input.outputSchema },
-  });
   const files: Record<string, string> = {
     "instructions.md": `${input.instructions.trim()}\n`,
-    "contract.json": `${JSON.stringify(contract, null, 2)}\n`,
   };
   for (const skill of input.skills) {
     files[`skills/${skill.path}`] = skill.content;

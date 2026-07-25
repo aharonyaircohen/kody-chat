@@ -82,10 +82,6 @@ describe("kody dispatch tools use capabilities", () => {
     capabilities.readCapabilityFile.mockResolvedValue({
       slug: "feature",
       instructions: "Ship the feature",
-      simpleContract: {
-        input: { name: "request", schema: {} },
-        output: { name: "result", schema: {} },
-      },
       skills: [],
       capabilityTools: [],
     });

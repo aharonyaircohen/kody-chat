@@ -12,11 +12,6 @@ export interface CapabilitySummary {
   readOnly?: boolean;
 }
 
-export interface CapabilityContract {
-  input: { name: string; schema: Record<string, unknown> };
-  output: { name: string; schema: Record<string, unknown> };
-}
-
 export interface CapabilityAsset {
   name: string;
   content?: string;
@@ -25,7 +20,6 @@ export interface CapabilityAsset {
 
 export interface CapabilityDetail extends CapabilitySummary {
   instructions: string;
-  simpleContract: CapabilityContract;
   skills: CapabilityAsset[];
   capabilityTools: CapabilityAsset[];
 }
@@ -33,10 +27,6 @@ export interface CapabilityDetail extends CapabilitySummary {
 export interface CapabilityWriteInput {
   slug?: string;
   instructions: string;
-  inputName: string;
-  inputSchema: Record<string, unknown>;
-  outputName: string;
-  outputSchema: Record<string, unknown>;
   skills: Array<{ path: string; content: string }>;
   tools: Array<{ path: string; content: string }>;
 }

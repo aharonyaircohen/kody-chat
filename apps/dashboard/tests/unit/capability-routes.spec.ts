@@ -217,10 +217,6 @@ describe("POST /api/kody/capabilities", () => {
         body: JSON.stringify({
           slug: "ship-feature",
           instructions: "# Ship feature",
-          inputName: "request",
-          inputSchema: { type: "object" },
-          outputName: "result",
-          outputSchema: { type: "object" },
           skills: [],
           tools: [],
         }),
@@ -234,10 +230,9 @@ describe("POST /api/kody/capabilities", () => {
     expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith(
       expect.objectContaining({
         slug: "ship-feature",
-        files: expect.objectContaining({
-          "contract.json": expect.stringContaining('"input"'),
+        files: {
           "instructions.md": "# Ship feature\n",
-        }),
+        },
       }),
     );
     expect(h.recordAudit).toHaveBeenCalledWith(
@@ -264,10 +259,6 @@ describe("GET /api/kody/capabilities/[slug]", () => {
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       instructions: "# Ship feature",
-      simpleContract: {
-        input: { name: "request", schema: { type: "object" } },
-        output: { name: "result", schema: { type: "object" } },
-      },
       skills: [],
       capabilityTools: [],
     });
@@ -322,11 +313,8 @@ describe("GET /api/kody/capabilities/[slug]", () => {
     expect(body.capability).toMatchObject({
       slug: "ship-feature",
       instructions: "# Ship feature",
-      simpleContract: {
-        input: { name: "request" },
-        output: { name: "result" },
-      },
     });
+    expect(body.capability).not.toHaveProperty("simpleContract");
     expect(body.capability).not.toHaveProperty("implementationResolution");
     expect(h.clearGitHubContext).toHaveBeenCalled();
   });
@@ -379,10 +367,6 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
       slug: "ship-feature",
       describe: "Ship feature",
       instructions: "# Ship feature",
-      simpleContract: {
-        input: { name: "request", schema: { type: "object" } },
-        output: { name: "result", schema: { type: "object" } },
-      },
       skills: [],
       capabilityTools: [],
     });
@@ -392,10 +376,6 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
         method: "PATCH",
         body: JSON.stringify({
           instructions: "# Ship updated feature",
-          inputName: "request",
-          inputSchema: { type: "object" },
-          outputName: "result",
-          outputSchema: { type: "object" },
           skills: [],
           tools: [],
           actorLogin: "alice",

@@ -17,7 +17,6 @@ import {
   readCapabilityFile,
   writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
-import { createCapabilityContract } from "@kody-ade/agency-domain";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -81,14 +80,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const jsonObjectSchema = z.record(z.string(), z.unknown());
 const createCapabilitySchema = z.object({
   slug: z.string().min(1).max(64),
   instructions: z.string().min(1),
-  inputName: z.string().min(1).max(80).default("request"),
-  inputSchema: jsonObjectSchema,
-  outputName: z.string().min(1).max(80).default("result"),
-  outputSchema: jsonObjectSchema,
   skills: z
     .array(z.object({ path: z.string().min(1), content: z.string() }))
     .default([]),
@@ -142,13 +136,8 @@ export async function POST(req: NextRequest) {
         { error: "repository_context_required" },
         { status: 400 },
       );
-    const contract = createCapabilityContract({
-      input: { name: input.inputName, schema: input.inputSchema },
-      output: { name: input.outputName, schema: input.outputSchema },
-    });
     const files: Record<string, string> = {
       "instructions.md": `${input.instructions.trim()}\n`,
-      "contract.json": `${JSON.stringify(contract, null, 2)}\n`,
     };
     for (const skill of input.skills) {
       files[`skills/${skill.path}`] = skill.content;

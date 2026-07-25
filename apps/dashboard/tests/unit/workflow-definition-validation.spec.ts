@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type WorkflowDefinition,
   type WorkflowStepDefinition,
+  normalizeWorkflowDefinition,
   validateWorkflowDefinition,
 } from "../../src/dashboard/lib/workflow-definitions";
 
@@ -22,6 +23,23 @@ function workflow(
 }
 
 describe("validateWorkflowDefinition", () => {
+  it("keeps one capability input value", () => {
+    expect(
+      normalizeWorkflowDefinition({
+        name: "Release",
+        agent: "kody",
+        capabilities: ["inspect"],
+        steps: [
+          {
+            id: "inspect",
+            capability: "inspect",
+            input: { prefer: "ours" },
+          },
+        ],
+      })?.steps?.[0]?.input,
+    ).toEqual({ prefer: "ours" });
+  });
+
   it("accepts a complete branch and bounded loop", () => {
     expect(
       validateWorkflowDefinition(

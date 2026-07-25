@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  createCapabilityContract,
   createLoopDefinition,
   createRun,
   createTodo,
@@ -8,35 +7,6 @@ import {
 } from "../src/index";
 
 describe("simple AI Agency domain", () => {
-  it("accepts exactly one Capability input and output", () => {
-    expect(
-      createCapabilityContract({
-        input: { name: "request", schema: { type: "object" } },
-        output: { name: "result", schema: { type: "object" } },
-      }),
-    ).toEqual({
-      input: { name: "request", schema: { type: "object" } },
-      output: { name: "result", schema: { type: "object" } },
-    });
-
-    for (const forbidden of [
-      { agent: "developer" },
-      { model: "provider/model" },
-      { schedule: "hourly" },
-      { workflow: ["inspect", "repair"] },
-      { implementation: "legacy-profile" },
-      { version: 2 },
-    ]) {
-      expect(() =>
-        createCapabilityContract({
-          input: { name: "request", schema: {} },
-          output: { name: "result", schema: {} },
-          ...forbidden,
-        }),
-      ).toThrow(/unknown field/i);
-    }
-  });
-
   it("puts one Agent on the Workflow, not its steps", () => {
     expect(
       createWorkflowDefinition({

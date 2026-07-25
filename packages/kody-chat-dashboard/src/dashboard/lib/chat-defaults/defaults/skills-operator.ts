@@ -22,11 +22,11 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
   slug: "create-capability",
   title: "create-capability",
-  body: `A Capability is exactly one folder with \`instructions.md\`, \`contract.json\`, \`skills/\`, and \`tools/\`. First call \`read_capability_creation_guide\`. Never first turn.
+  body: `A Capability is exactly one folder with \`instructions.md\`, \`skills/\`, and \`tools/\`. It receives one JSON-compatible input and returns one JSON-compatible output. Explain both in \`instructions.md\`. First call \`read_capability_creation_guide\`. Never first turn.
 
 Sufficiency: folder name, clear instructions, one input, one output, needed tools, and optional skills. A direct Capability uses Kody; a Workflow chooses one Agent for all its steps. Show the four-folder contents, then call \`create_or_update_capability\` only after the user approves.
 
-Do not put an Agent, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in \`contract.json\`.`,
+Do not put an Agent, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in a Capability folder.`,
 };
 
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {

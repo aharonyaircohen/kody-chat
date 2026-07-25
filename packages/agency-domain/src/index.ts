@@ -6,20 +6,6 @@ export interface DefinitionRef {
   id: string;
 }
 
-export interface JsonSchema {
-  readonly [key: string]: unknown;
-}
-
-export interface ContractValue {
-  name: string;
-  schema: JsonSchema;
-}
-
-export interface CapabilityContract {
-  input: ContractValue;
-  output: ContractValue;
-}
-
 export interface AgentDefinition {
   id: string;
   name: string;
@@ -164,24 +150,6 @@ function reference(
   return Object.freeze({
     kind: input.kind as ReferenceKind,
     id: identifier(input.id, `${label}.id`),
-  });
-}
-
-function contractValue(value: unknown, label: string): ContractValue {
-  const input = record(value, label);
-  exact(input, ["name", "schema"], label);
-  return Object.freeze({
-    name: identifier(input.name, `${label} name`),
-    schema: jsonObject(input.schema, `${label} schema`),
-  });
-}
-
-export function createCapabilityContract(value: unknown): CapabilityContract {
-  const input = record(value, "Capability contract");
-  exact(input, ["input", "output"], "Capability contract");
-  return Object.freeze({
-    input: contractValue(input.input, "Capability input"),
-    output: contractValue(input.output, "Capability output"),
   });
 }
 

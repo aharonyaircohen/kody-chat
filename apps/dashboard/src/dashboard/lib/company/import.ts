@@ -178,10 +178,10 @@ async function importCapabilities(
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      if (!entry.files["instructions.md"] || !entry.files["contract.json"]) {
+      if (!entry.files["instructions.md"]) {
         counts.failed++;
         notes.push(
-          `capability "${entry.slug}" failed: missing instructions.md or contract.json`,
+          `capability "${entry.slug}" failed: missing instructions.md`,
         );
         continue;
       }
@@ -190,7 +190,6 @@ async function importCapabilities(
         counts.skipped++;
         continue;
       }
-      JSON.parse(entry.files["contract.json"]);
       await writeCapabilityFolderFiles({
         slug: entry.slug,
         files: entry.files,

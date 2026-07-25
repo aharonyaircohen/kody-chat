@@ -66,10 +66,6 @@ test("Capabilities open as folders in the shared Files workspace", async ({
           slug: SLUG,
           describe: "Inspect a change.",
           instructions: body.instructions,
-          simpleContract: {
-            input: { name: "request", schema: { type: "object" } },
-            output: { name: "result", schema: { type: "object" } },
-          },
           skills: [{ name: "review.md", content: "Review carefully." }],
           capabilityTools: [{ name: "check.sh", content: "echo checked" }],
         },
@@ -80,10 +76,6 @@ test("Capabilities open as folders in the shared Files workspace", async ({
         slug: SLUG,
         describe: "Inspect a change.",
         instructions: "# Inspect\n\nInspect the supplied request.",
-        simpleContract: {
-          input: { name: "request", schema: { type: "object" } },
-          output: { name: "result", schema: { type: "object" } },
-        },
         skills: [{ name: "review.md", content: "Review carefully." }],
         capabilityTools: [{ name: "check.sh", content: "echo checked" }],
       },
@@ -106,7 +98,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
   );
 
   await page.goto(`/repo/${OWNER}/${REPO}/capabilities`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   });
 
   await page.waitForTimeout(1_000);
@@ -124,7 +116,9 @@ test("Capabilities open as folders in the shared Files workspace", async ({
   await expect(
     tree.getByText("instructions.md", { exact: true }),
   ).toBeVisible();
-  await expect(tree.getByText("contract.json", { exact: true })).toBeVisible();
+  await expect(
+    tree.getByText("contract.json", { exact: true }),
+  ).toHaveCount(0);
   await expect(tree.getByText("skills", { exact: true })).toBeVisible();
   await expect(tree.getByText("tools", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run as Kody" })).toBeVisible();

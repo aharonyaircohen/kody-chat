@@ -10,7 +10,6 @@ export {
   assertSimpleCapabilityFolder,
   writeCapabilityFolderFiles,
   isValidSlug,
-  type CapabilityContract,
   type CapabilityDetail,
   type CapabilityTool,
   type CapabilitySkill,

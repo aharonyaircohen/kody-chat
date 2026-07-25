@@ -22,6 +22,7 @@ import {
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import type {
   WorkflowGraph,
   WorkflowGraphEdge,
@@ -155,16 +156,6 @@ function formatConditionValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === null) return "null";
   return String(value);
-}
-
-function mappingPathLabel(path: string): string {
-  return path.startsWith("facts.") ? path.slice("facts.".length) : path;
-}
-
-function mappingPathValue(field: string): string {
-  const value = field.trim();
-  if (!value) return "facts.result";
-  return value.includes(".") ? value : `facts.${value}`;
 }
 
 async function layoutNodes(
@@ -504,44 +495,21 @@ export function WorkflowGraphCanvas({
     updateEdge({ ...selectedEdge, when: { ...current, [path]: true } });
   };
 
-  const updateMappingPath = (inputName: string, nextPath: string) => {
+  const updateCapabilityInput = (value: string) => {
     if (!selectedNode) return;
-    const source = mappingPathValue(nextPath);
-    const inputs = Object.fromEntries(
-      Object.entries(selectedNode.inputs ?? {}).map(([key, mapping]) => [
-        key,
-        key === inputName ? { from: source } : mapping,
-      ]),
-    );
-    updateNode({ ...selectedNode, inputs });
-  };
-
-  const removeMapping = (inputName: string) => {
-    if (!selectedNode) return;
-    const inputs = Object.fromEntries(
-      Object.entries(selectedNode.inputs ?? {}).filter(
-        ([key]) => key !== inputName,
-      ),
-    );
-    updateNode({
-      ...selectedNode,
-      inputs: Object.keys(inputs).length > 0 ? inputs : undefined,
-    });
-  };
-
-  const addMapping = () => {
-    if (!selectedNode) return;
-    const current = selectedNode.inputs ?? {};
-    let name = "input";
-    let suffix = 2;
-    while (Object.prototype.hasOwnProperty.call(current, name)) {
-      name = `input${suffix}`;
-      suffix += 1;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      const { input: _input, ...nextNode } = selectedNode;
+      updateNode(nextNode);
+      setFormError(null);
+      return;
     }
-    updateNode({
-      ...selectedNode,
-      inputs: { ...current, [name]: { from: "facts.result" } },
-    });
+    try {
+      updateNode({ ...selectedNode, input: JSON.parse(trimmed) });
+      setFormError(null);
+    } catch {
+      setFormError("Capability input must be valid JSON.");
+    }
   };
 
   const edgeIsLoop = selectedEdge ? isBackwardEdge(graph, selectedEdge) : false;
@@ -738,64 +706,29 @@ export function WorkflowGraphCanvas({
                 {!selectedNodeIsDecision ? (
                   <div className="space-y-2">
                     <div>
-                      <Label>Capability inputs</Label>
+                      <Label htmlFor="workflow-capability-input">
+                        Capability input
+                      </Label>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Pass a result from an earlier step into this capability.
+                        One JSON value. If empty, the previous step&apos;s
+                        output is passed automatically.
                       </p>
                     </div>
-                    {Object.entries(selectedNode.inputs ?? {}).map(
-                      ([name, mapping]) => (
-                        <div
-                          key={name}
-                          className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto] sm:items-end"
-                        >
-                          <div className="space-y-1">
-                            <Label htmlFor={`workflow-input-name-${name}`}>
-                              Input
-                            </Label>
-                            <Input
-                              id={`workflow-input-name-${name}`}
-                              value={name}
-                              readOnly
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor={`workflow-input-source-${name}`}>
-                              Earlier result
-                            </Label>
-                            <Input
-                              id={`workflow-input-source-${name}`}
-                              defaultValue={mappingPathLabel(mapping.from)}
-                              readOnly={!editable}
-                              placeholder="feedback"
-                              onBlur={(event) =>
-                                updateMappingPath(name, event.target.value)
-                              }
-                            />
-                          </div>
-                          {editable ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeMapping(name)}
-                            >
-                              Remove
-                            </Button>
-                          ) : null}
-                        </div>
-                      ),
-                    )}
-                    {editable ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addMapping}
-                      >
-                        Add input
-                      </Button>
-                    ) : null}
+                    <Textarea
+                      key={`${selectedNode.id}:${JSON.stringify(selectedNode.input)}`}
+                      id="workflow-capability-input"
+                      defaultValue={
+                        selectedNode.input === undefined
+                          ? ""
+                          : JSON.stringify(selectedNode.input, null, 2)
+                      }
+                      readOnly={!editable}
+                      placeholder='{"request":"what to do"}'
+                      className="min-h-24 font-mono text-xs"
+                      onBlur={(event) =>
+                        updateCapabilityInput(event.target.value)
+                      }
+                    />
                   </div>
                 ) : null}
               </div>

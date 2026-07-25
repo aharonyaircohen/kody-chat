@@ -51,7 +51,6 @@ function capabilityFiles(detail: CapabilityDetail): Map<string, string> {
   const root = detail.slug;
   return new Map([
     [`${root}/instructions.md`, detail.instructions],
-    [`${root}/contract.json`, JSON.stringify(detail.simpleContract, null, 2)],
     ...detail.skills.map(
       (skill) =>
         [
@@ -116,20 +115,6 @@ function capabilityWriteInput(
   files: Map<string, string>,
 ): CapabilityWriteInput {
   const root = `${detail.slug}/`;
-  const rawContract = files.get(`${root}contract.json`);
-  if (!rawContract) throw new Error("contract.json is required");
-  const contract = JSON.parse(
-    rawContract,
-  ) as CapabilityDetail["simpleContract"];
-  if (
-    !contract.input?.name ||
-    !contract.input.schema ||
-    !contract.output?.name ||
-    !contract.output.schema
-  ) {
-    throw new Error("contract.json must contain one input and one output");
-  }
-
   const assets = (folder: "skills" | "tools") =>
     [...files.entries()]
       .filter(([path]) => path.startsWith(`${root}${folder}/`))
@@ -141,10 +126,6 @@ function capabilityWriteInput(
   return {
     slug: detail.slug,
     instructions: files.get(`${root}instructions.md`) ?? "",
-    inputName: contract.input.name,
-    inputSchema: contract.input.schema,
-    outputName: contract.output.name,
-    outputSchema: contract.output.schema,
     skills: assets("skills"),
     tools: assets("tools"),
   };
@@ -268,11 +249,10 @@ export function CapabilitiesWorkspace({
         if (current.readOnly) throw new Error("This capability is read-only");
         if (
           normalized !== `${capabilitySlug}/instructions.md` &&
-          normalized !== `${capabilitySlug}/contract.json` &&
           !isCapabilityAssetPath(normalized, capabilitySlug)
         ) {
           throw new Error(
-            "Capability files must be instructions.md, contract.json, or files under skills/ and tools/",
+            "Capability files must be instructions.md or files under skills/ and tools/",
           );
         }
         const files = capabilityFiles(current);
@@ -314,7 +294,6 @@ export function CapabilitiesWorkspace({
   const protectedPaths = (listQuery.data ?? []).flatMap((item) => [
     item.slug,
     `${item.slug}/instructions.md`,
-    `${item.slug}/contract.json`,
     `${item.slug}/skills`,
     `${item.slug}/tools`,
   ]);
@@ -381,11 +360,8 @@ function NewCapabilityFolder({ basePath }: { basePath: string }) {
     mutationFn: (slug: string) =>
       kodyApi.capabilities.create({
         slug,
-        instructions: "# Instructions\n",
-        inputName: "request",
-        inputSchema: { type: "object" },
-        outputName: "result",
-        outputSchema: { type: "object" },
+        instructions:
+          "# Instructions\n\nExplain what this capability does and how it uses its one input value.\n",
         skills: [],
         tools: [],
       }),

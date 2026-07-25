@@ -5,6 +5,11 @@ const backend = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
 }));
+const storeAssets = vi.hoisted(() => ({
+  listSlugs: vi.fn(),
+  listDirectory: vi.fn(),
+  readText: vi.fn(),
+}));
 
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => backend,
@@ -14,21 +19,27 @@ vi.mock("@kody-ade/base/github/core", () => ({
   getOwner: () => "acme",
   getRepo: () => "widgets",
 }));
+vi.mock("@kody-ade/base/company-store/assets", () => ({
+  buildCompanyStoreHtmlUrl: (_type: string, slug: string) =>
+    `https://store.example/capabilities/${slug}`,
+  companyStoreAssetPath: vi.fn(),
+  listCompanyStoreAssetSlugs: storeAssets.listSlugs,
+  listCompanyStoreDirectorySafe: storeAssets.listDirectory,
+  mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [...local, ...store],
+  readCompanyStoreText: storeAssets.readText,
+}));
 
 import {
   assertSimpleCapabilityFolder,
   deleteCapabilityFile,
   listLocalCapabilityFiles,
+  listStoreCapabilityFiles,
   readCapabilityFile,
   writeCapabilityFolderFiles,
 } from "../src/capabilities/files";
 
 const FILES = {
   "instructions.md": "Check CI and return the findings.\n",
-  "contract.json": JSON.stringify({
-    input: { name: "request", schema: { type: "object" } },
-    output: { name: "result", schema: { type: "object" } },
-  }),
   "skills/ci/SKILL.md": "Use CI evidence.",
   "tools/check.sh": "#!/bin/sh\nexit 0\n",
 };
@@ -38,7 +49,7 @@ beforeEach(() => {
 });
 
 describe("simple capability folders", () => {
-  it("lists and reads the four-part folder", async () => {
+  it("lists and reads the folder", async () => {
     backend.query
       .mockResolvedValueOnce([
         {
@@ -59,16 +70,12 @@ describe("simple capability folders", () => {
     expect(await readCapabilityFile("ci-health")).toMatchObject({
       slug: "ci-health",
       instructions: "Check CI and return the findings.\n",
-      simpleContract: {
-        input: { name: "request" },
-        output: { name: "result" },
-      },
       skills: [{ name: "ci/SKILL.md" }],
       capabilityTools: [{ name: "check.sh" }],
     });
   });
 
-  it("publishes only instructions, contract, skills, and tools", async () => {
+  it("publishes only instructions, skills, and tools", async () => {
     backend.mutation.mockResolvedValue(null);
     await writeCapabilityFolderFiles({ slug: "ci-health", files: FILES });
     await deleteCapabilityFile("ci-health");
@@ -85,7 +92,29 @@ describe("simple capability folders", () => {
     );
   });
 
-  it("rejects profiles, extra contract fields, and missing required files", () => {
+  it("lists Store folders without reading every folder", async () => {
+    storeAssets.listSlugs.mockResolvedValue(["ci-health", "release"]);
+
+    expect(
+      await listStoreCapabilityFiles(
+        {} as never,
+        new Set(["ci-health"]),
+      ),
+    ).toEqual([
+      {
+        slug: "release",
+        describe: "Run release",
+        updatedAt: null,
+        htmlUrl: "https://store.example/capabilities/release",
+        source: "store",
+        readOnly: true,
+      },
+    ]);
+    expect(storeAssets.listDirectory).not.toHaveBeenCalled();
+    expect(storeAssets.readText).not.toHaveBeenCalled();
+  });
+
+  it("rejects profiles, contracts, and missing instructions", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
@@ -95,17 +124,9 @@ describe("simple capability folders", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
-        "contract.json": JSON.stringify({
-          input: { name: "request", schema: {} },
-          output: { name: "result", schema: {} },
-          agent: "developer",
-        }),
+        "contract.json": "{}",
       }),
-    ).toThrow(/exactly input and output/i);
-    expect(() =>
-      assertSimpleCapabilityFolder({
-        "contract.json": FILES["contract.json"],
-      }),
-    ).toThrow(/instructions.md/i);
+    ).toThrow(/only allows/i);
+    expect(() => assertSimpleCapabilityFolder({})).toThrow(/instructions.md/i);
   });
 });
