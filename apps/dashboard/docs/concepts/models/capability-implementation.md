@@ -1,67 +1,28 @@
-# Capability implementation guide
+# Capability implementation
 
-Status: **Partially verified**
+Status: **Current Dashboard and generic Engine loader**
 
-## Current sources
+## Dashboard
 
-| Concern                 | Source                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------- |
-| Contract and validator  | `packages/agency-domain/src/index.ts`                                                 |
-| Capability files        | `packages/agency/src/capabilities/files.ts`                                           |
-| Capability state        | `packages/kody-backend/convex/capabilityState.ts`                                     |
-| API/UI                  | capability routes, hooks, and components under `packages/agency` and `apps/dashboard` |
-| Implementation resolver | `packages/agency/src/implementation-resolution.ts`                                    |
+- Page: `/capabilities`
+- Local storage: Convex `repoDocs`, `capability:<slug>`
+- Store capabilities: read-only GitHub assets
+- Owner: `packages/agency/src/capabilities/files.ts`
 
-Current documentation and product paths do not consistently separate
-Capability from Implementation. Treat any combined shape as migration debt
-until its ownership is classified.
+The file contract permits only `instructions.md`, `skills/**`, and `tools/**`.
+The shared File Manager edits the folder through Capability-owned configuration;
+the File Manager remains domain-agnostic.
 
-Current capability file/catalog records include prompt, model, tools, scripts,
-MCP servers, and landing behavior. Those are Implementation or product fields,
-not the clean Capability contract.
+## Engine
 
-## Target runtime
+`loadSimpleCapability` reads the folder, builds one prompt from instructions,
+input, skills, and tool paths, and passes the result to the generic runner.
 
-Validate input against the pinned Capability revision, resolve an eligible
-Implementation compatible with that revision, check effective permissions and
-Policy, execute, validate output, and record Run outputs.
+Engine `profile.json` files select technical provider/model/scripts and runtime
+behavior. They are not user-managed Implementation definitions.
 
-## Required storage split
+## Verification
 
-| Data                                     | Authority                          |
-| ---------------------------------------- | ---------------------------------- |
-| Public action contract                   | Capability Definition              |
-| Agent/script/provider/tool configuration | Implementation/environment binding |
-| Availability and health                  | runtime State/projection           |
-| Calls, outputs, usage                    | Run History                        |
-
-## Migration order
-
-Classify combined fields, create clean Capability revisions, create linked
-Implementation definitions/bindings, update Workflow callers, validate
-input/output at dispatch, then remove combined readers and implicit defaults.
-
-## Agent rules
-
-- Keep provider, Agent, script, secret, endpoint, and deployment data out of
-  Capability.
-- Do not silently widen schemas or permissions.
-- Never select an Implementation without compatibility and Policy checks.
-- State and availability projections do not change contract meaning.
-- Never use display text as the action ID.
-- Record contract validation failures without leaking sensitive input.
-
-## Verification and migration
-
-Inventory combined records; backfill separate definitions; validate schemas,
-effects, and permissions; exercise direct and Workflow invocation; prove
-resolver behavior and output validation; remove compatibility readers,
-writers, and inference.
-
-## Gaps
-
-Current persisted records, schema dialect, availability calculation, and one
-real execution remain unverified.
-
-Recommended next change: separate one real capability end to end and use it as
-the migration pattern before bulk conversion.
+Create the folder in `/capabilities`, reload it, run it directly with a real
+LLM, verify one JSON output, and confirm the Engine used the requested
+Capability without capability-specific branching in the generic executor.

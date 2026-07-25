@@ -331,7 +331,7 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toContain("github_get_pull_request");
   });
 
-  it("base kody prompt memory section: full tool list, write freely during bootstrap", async () => {
+  it("base kody prompt memory section lists every tool and explicit-write rules", async () => {
     // The memory section lists every memory tool and requires explicit
     // requests to produce one write without duplicating an existing entry.
     // The memory section lives in the `memory` skill of the chat-defaults
@@ -345,8 +345,10 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toMatch(/recall_search/);
     expect(prompt).toMatch(/list_memories/);
     expect(prompt).toMatch(/update_memory/);
-    expect(prompt).toMatch(/in any language → call `remember` exactly once/i);
-    expect(prompt).toMatch(/Search before writing/i);
+    expect(prompt).toMatch(
+      /in any language → call `remember` directly and exactly once/i,
+    );
+    expect(prompt).toMatch(/`remember` tool checks for duplicates itself/i);
     expect(prompt).not.toMatch(
       /until 5\+ memories exist, write only on explicit ask/i,
     );

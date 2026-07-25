@@ -1,31 +1,12 @@
 # Constraint
 
-Status: **Draft** · Kind: **Value**
+Status: **Current Markdown guidance**
 
-A Constraint is a named rule that denies actions or requires approval.
+A Constraint is a plain Markdown hard limit shown in `/constraints`. It is
+stored in Convex `repoDocs` as `constraint:<slug>` and may be scoped to Agents.
 
-```ts
-interface Constraint {
-  id: string;
-  rule: string;
-  actions: string[];
-  effect: "deny" | "require-approval";
-}
-```
+Constraints explain what Kody must not do and the safe fallback. Security and
+data-loss boundaries still require deterministic enforcement in code.
 
-Constraints are embedded values in the current domain contract. They never
-grant authority. Deny wins over allow; approval cannot bypass a deny. Rules
-must use a defined, machine-evaluable language before automated enforcement is
-trusted. Free text may explain a rule but must not be the only enforcement.
-
-Agent and Intent currently carry Constraints; Runs store resolved Constraints
-with effective Policy. Duplicate IDs in one owner are invalid.
-
-Open decisions: whether reusable Constraints remain separate from Policy,
-canonical rule language, action vocabulary, precedence, and exception model.
-
-Agent rules: free text explains but does not enforce; approval cannot override
-deny; unknown rules block automated execution.
-
-Recommended decision: move reusable governance into Policy and retain embedded
-Constraints only for owner-specific tightening.
+There is no current embedded Agent `constraints` field in the mounted Agent
+contract.

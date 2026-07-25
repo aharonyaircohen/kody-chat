@@ -1,32 +1,10 @@
-# Intent Controls
+# Intent controls
 
-Status: **Draft** · Kind: **Value**
+Status: **Retired proposal**
 
-Intent Controls are Intent-specific hard limits applied after reusable Policies.
-They may only preserve or tighten effective governance; they can never widen
-allow lists, budgets, concurrency, Scope, or approval authority.
+Current Intent is plain Markdown with no controls field. Reusable decision rules
+belong in Policy guidance and hard limits belong in Constraint guidance or
+deterministic enforcement.
 
-When multiple Intents contribute:
-
-- allow lists use intersection;
-- deny lists use union;
-- budgets and concurrency use the minimum;
-- human-required actions use union;
-- assurance and approval use the strongest requirement;
-- conflicts fail closed and require resolution or escalation.
-
-Intent priority can choose attention among already permitted work, but never
-overrides Policy or Controls. Cadence belongs to a Loop Trigger.
-
-The current `IntentDefinition` embeds `policy`, `constraints`, and
-`deliveryPolicy`. Migration must classify each field as reusable Policy,
-Intent Control, Trigger, or product projection before changing persistence.
-
-Open decisions: exact target schema, whether Controls are revisioned separately,
-and which delivery fields survive after cadence removal.
-
-Agent rules: Controls only tighten; unknown comparisons fail closed; cadence
-must migrate to Loop Trigger rather than survive as a second schedule.
-
-Recommended decision: keep Controls embedded in an Intent revision unless
-reuse becomes a proven requirement.
+Do not reintroduce structured Intent Controls without a new, proven
+responsibility that existing guidance and dispatch checks cannot own.

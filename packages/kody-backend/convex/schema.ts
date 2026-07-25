@@ -92,6 +92,54 @@ export default defineSchema({
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
 
+  workflowCheckpoints: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    checkpointNs: v.string(),
+    checkpointId: v.string(),
+    parentCheckpointId: v.optional(v.string()),
+    checkpointType: v.string(),
+    checkpoint: v.string(),
+    metadataType: v.string(),
+    metadata: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_checkpoint", [
+      "tenantId",
+      "threadId",
+      "checkpointNs",
+      "checkpointId",
+    ])
+    .index("by_tenant_thread", ["tenantId", "threadId"]),
+
+  workflowCheckpointWrites: defineTable({
+    tenantId: v.string(),
+    threadId: v.string(),
+    checkpointNs: v.string(),
+    checkpointId: v.string(),
+    taskId: v.string(),
+    idx: v.number(),
+    channel: v.string(),
+    valueType: v.string(),
+    value: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_write", [
+      "tenantId",
+      "threadId",
+      "checkpointNs",
+      "checkpointId",
+      "taskId",
+      "idx",
+    ])
+    .index("by_checkpoint", [
+      "tenantId",
+      "threadId",
+      "checkpointNs",
+      "checkpointId",
+    ])
+    .index("by_tenant_thread", ["tenantId", "threadId"]),
+
   guidedFlowInstances: defineTable({
     tenantId: v.string(),
     actorId: v.string(),

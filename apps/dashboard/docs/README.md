@@ -15,14 +15,13 @@ Index of all dashboard documentation. Start here.
 How the moving parts fit together.
 
 - ✅ [AI Agency model](concepts/company-model.md) — ownership rules for
-  Intent, Goal, Loop, Agent, Capability, Context, Instructions, State, and
+  Intent, Todo, Loop, Workflow, Capability, Agent, Run, Context, Instructions, and
   the planned AI Agency Map / Doctor / run lanes.
 - ✅ [Chat backends](concepts/chat.md) — the three chat paths (`kody`
   in-process, `brain`, engine via GitHub Actions) and how the selected
   agent's `backend` field picks one.
-- ✅ [Agents & Capabilities](concepts/staff-capabilities.md) — identity-only personas
-  (`backend definitions (agents)`) vs. capability contracts (`backend definitions (capabilities)`); how a capability names
-  `agent:` and the engine injects the agent ahead of the capability body.
+- ✅ [Agents & Capabilities](concepts/staff-capabilities.md) — reusable Agent
+  identities and simple Capability folders. Workflows select Agents.
 
 ## Features
 
@@ -36,8 +35,8 @@ One doc per dashboard-managed store / capability.
 - ✅ [Reports](reports.md) — markdown reports from capabilities, including
   structured findings and optional suggested actions (`dispatch`,
   `create-task`, `dismiss`).
-- ✅ [Run Mode](run-mode.md) — `Auto` vs `Manual` for loops, goals,
-  workflows, and capabilities.
+- ⚠️ [Run Mode](run-mode.md) — historical runtime controls; verify the mounted
+  surface before relying on this document.
 - ✅ [Activity & audit](activity.md) — the Log / Auto / Runs / Feed timeline;
   merges `recordAudit`, engine `backend-managed resources/activity` events, and GitHub artifacts.
 - ✅ [Messages & mentions](messages-and-mentions.md) — `#`-channel team chat
@@ -50,10 +49,10 @@ One doc per dashboard-managed store / capability.
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
-- ✅ [Workflows](workflows.md) — simple capability queues, local definitions,
-  Store links, and `company.activeWorkflows`.
-- ✅ [Capability implementation storage](implementations.md) — compatibility notes
-  for legacy implementation folders and config field names.
+- ✅ [Workflows](workflows.md) — Agent-owned Capability graphs with branching
+  and bounded cycles.
+- 🗄️ [Historical implementation storage](implementations.md) — old separate
+  implementation folders; not a current public Agency model.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
   why the model lives on `/models` via `agent.model`.
@@ -64,9 +63,8 @@ One doc per dashboard-managed store / capability.
   with a `agent:` audience relation. **Supersedes** the old Agency Profile.
 - 🗄️ [Agency profile](profile.md) — _historical._ The Profile feature was
   removed; see [Context](context.md) for the current model.
-- ✅ [AI Agency export/import](company.md) — portable bundle of agent,
-  capabilities, Context, commands, implementations, managed goals,
-  instructions, and a config slice.
+- ✅ [AI Agency export/import](company.md) — portable Agents, Capabilities,
+  Context, commands, Instructions, and a config slice.
 
 ### Runtime & infra
 
@@ -98,12 +96,18 @@ One doc per dashboard-managed store / capability.
 
 ---
 
-## Known doc-vs-code flags (follow-ups)
+## Known doc-vs-code flags
 
 Surfaced while writing the docs. Most are stale source comments / doc text,
 not behavior bugs — but two are real seams worth a look.
 
 ### Real seams
+
+- **Dashboard and Engine Agency contracts differ under the same package
+  version.** The Dashboard source is simplified while the Engine-installed
+  `@kody-ade/agency-domain@0.5.1` still contains Operation, Goal, and the older
+  Loop contract. Dashboard-created simple Loops are not consumed by that
+  scheduler. See [AI Agency model](concepts/company-model.md).
 
 - **Activity "Feed" tab reads the wrong source.** `activity/feed-source.ts`
   reads `backend run events*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the

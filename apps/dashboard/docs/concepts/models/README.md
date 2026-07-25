@@ -1,226 +1,102 @@
-# Kody model index
+# Kody Agency model index
 
-This directory is the required entry point before changing an AI Agency model.
+Status: **Verified current-state map, not a promise that every surface is integrated**
 
-The documents explain both:
+This directory describes what Kody stores and runs today. Proposed designs are
+labelled as future work and must not be presented as current behavior.
 
-- what each model means and should become;
-- what the current product actually stores and runs.
+## Current operator model
 
-Do not implement a model from its name or diagram alone.
+| Model      | Purpose                                              | Dashboard authority                                         | Engine status                                          |
+| ---------- | ---------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| Intent     | Plain-language direction                             | Convex `repoDocs`, `intent:<slug>`                          | Loaded as guidance; not a structured Agency definition |
+| Todo       | Finite operator work list                            | Convex `repoDocs`, `todo:<slug>`                            | Not the Engine's legacy Goal model                     |
+| Loop       | Repeated trigger targeting a Workflow or Capability  | GitHub `.kody-engine/definitions/loops/<id>/loop.json`      | **Not yet consumed by the published scheduler**        |
+| Workflow   | Agent-owned graph of Capability calls                | Convex workflow store                                       | Runnable through the Dashboard dispatch path           |
+| Capability | Reusable instructions with optional skills and tools | Convex `repoDocs` folder map; Store assets may be read-only | Loaded by the generic Capability runner                |
+| Agent      | Reusable Markdown identity                           | Convex definition bundle; Store assets may be read-only     | Selected by Workflow                                   |
+| Run        | Execution record                                     | Convex runtime tables                                       | Written by dispatch/runtime paths                      |
 
-## Required reading order
+Operation, Goal, and a separate public Implementation model are not part of the
+current Dashboard model.
 
-Before changing a model:
+## P0 contract split
 
-1. Read this index.
-2. Read the model contract.
-3. For implementation work, use its implementation guide Reading map.
-4. Read relevant sections of directly related models.
-5. Inspect the current sources named by the implementation guide.
-6. Resolve or block on relevant Open questions.
-7. Follow the implementation guide Agent rules.
+The monorepo source for `@kody-ade/agency-domain` has been simplified, but it
+still reports version `0.5.1`. The published `0.5.1` package used by
+`kody-engine` contains the older structured Intent, Operation, Goal, Loop,
+Capability, Workflow, and Agent contracts.
 
-Read both complete documents for cross-model architecture, storage migration,
-Lifecycle, authority, or responsibility changes.
+Consequences:
 
-The high-level
-[`company-model.md`](../company-model.md) explains the shared language and
-relationships. A detailed model document owns the exact contract for its model.
+- the Dashboard and Engine currently compile against different contracts with
+  the same package version;
+- scheduled Engine Loops run, but they read the older Convex Agency definition
+  and state records;
+- the simple Loop files created by the Dashboard are not read by that scheduler;
+- Operation and Goal are retired from the Dashboard but remain in the published
+  Engine dependency;
+- no documentation may call the simplified model fully integrated until this
+  package and persistence boundary is reconciled and live-tested.
+
+This is an integration gap, not a reason to restore Operation or Goal to the
+Dashboard.
 
 ## Source precedence
 
-Different sources answer different questions. Do not use one source as authority
-for a question it does not own.
+When sources disagree, use the source that owns the question:
 
-| Question                                | Authority                                                                                          |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| What does the model mean?               | Reviewed or Canonical model document                                                               |
-| What is the approved target contract?   | Canonical model document and accepted Decisions                                                    |
-| What does the product currently accept? | Current validators and type contracts                                                              |
-| What is currently persisted?            | Current persistence schema plus a checked stored record                                            |
-| What happens at runtime?                | Current service, route, job, or Engine path plus a real execution                                  |
-| What does the user see?                 | Current mounted Dashboard route plus browser verification                                          |
-| Is a migration complete?                | No compatibility reader, writer, fallback, inference, or dual-write remains; required proof passes |
+| Question                    | Authority                                                       |
+| --------------------------- | --------------------------------------------------------------- |
+| What the Dashboard accepts  | Mounted route plus its validator/type                           |
+| What the Dashboard persists | Current writer plus a checked stored record                     |
+| What the Engine accepts     | The exact installed package and Engine loader                   |
+| What executes               | Current Engine dispatch path plus a real model-backed run       |
+| What the user sees          | Mounted Dashboard route plus browser verification               |
+| What should exist           | A reviewed model decision, clearly separated from current state |
 
-When sources disagree:
+Never infer runtime support from a save form, type union, or old implementation
+guide.
 
-1. Do not silently choose one.
-2. Record the disagreement in the model's **Gaps**.
-3. For an explanation of current behavior, report the verified current behavior.
-4. For implementation, follow the approved target only when the migration scope
-   and acceptance proof are explicit.
-5. If the disagreement changes ownership or public behavior, stop for a domain
-   decision.
+## Current documents
 
-## Model documents
+Read these before changing an active model:
 
-Create the semantic contract from [`TEMPLATE.md`](TEMPLATE.md) and current
-implementation guide from
-[`IMPLEMENTATION_TEMPLATE.md`](IMPLEMENTATION_TEMPLATE.md).
+| Model      | Contract                         | Current implementation                                         |
+| ---------- | -------------------------------- | -------------------------------------------------------------- |
+| Intent     | [`intent.md`](intent.md)         | [`intent-implementation.md`](intent-implementation.md)         |
+| Todo       | [`todo.md`](todo.md)             | [`todo-implementation.md`](todo-implementation.md)             |
+| Loop       | [`loop.md`](loop.md)             | [`loop-implementation.md`](loop-implementation.md)             |
+| Workflow   | [`workflow.md`](workflow.md)     | [`workflow-implementation.md`](workflow-implementation.md)     |
+| Capability | [`capability.md`](capability.md) | [`capability-implementation.md`](capability-implementation.md) |
+| Agent      | [`agent.md`](agent.md)           | [`agent-implementation.md`](agent-implementation.md)           |
+| Run        | [`run.md`](run.md)               | [`run-implementation.md`](run-implementation.md)               |
 
-## Documentation roadmap
+Cross-model truth:
 
-This is the complete documentation scope. Finish the core agency model and its
-cross-model rules before expanding derived product surfaces.
+- [`relationships.md`](relationships.md)
+- [`data-families.md`](data-families.md)
+- [`storage-authority.md`](storage-authority.md)
+- [`dispatch-approval.md`](dispatch-approval.md)
+- [`migration.md`](migration.md)
 
-### Core models
+## Design notes
 
-Every core model requires:
+The remaining documents describe reusable values or possible future work. Each
+must say whether it is implemented. A design note cannot add a public model or
+authorize code by itself.
 
-- `<model>.md` for meaning, ownership, contract, invariants, Lifecycle,
-  relationships, human/AI authority, examples, and approved decisions.
-- `<model>-implementation.md` for current storage, readers, writers, runtime,
-  APIs, gaps, migration, Agent rules, verification, and sources.
+Examples include Objective, Scope, revision envelopes, typed Run outputs,
+generalized policy resolution, and richer tracing.
 
-| Order | Model          | Contract                                 | Implementation                                                 | Status                     |
-| ----- | -------------- | ---------------------------------------- | -------------------------------------------------------------- | -------------------------- |
-| 1     | Intent         | [`intent.md`](intent.md)                 | [`intent-implementation.md`](intent-implementation.md)         | Draft / Partially verified |
-| 2     | Operation      | [`operation.md`](operation.md)           | [`operation-implementation.md`](operation-implementation.md)   | Draft / Partially verified |
-| 3     | Loop           | [`loop.md`](loop.md)                     | [`loop-implementation.md`](loop-implementation.md)             | Draft / Partially verified |
-| 4     | Workflow       | [`workflow.md`](workflow.md)             | [`workflow-implementation.md`](workflow-implementation.md)     | Draft / Partially verified |
-| 5     | Capability     | [`capability.md`](capability.md)         | [`capability-implementation.md`](capability-implementation.md) | Draft / Partially verified |
-| 6     | Implementation | [`implementation.md`](implementation.md) | [`implementation-guide.md`](implementation-guide.md)           | Draft / Partially verified |
-| 7     | Agent          | [`agent.md`](agent.md)                   | [`agent-implementation.md`](agent-implementation.md)           | Draft / Partially verified |
-| 8     | Run            | [`run.md`](run.md)                       | [`run-implementation.md`](run-implementation.md)               | Draft / Partially verified |
+## Completion rule
 
-### Shared value contracts
+A model is integrated only when all of these agree:
 
-Use one semantic Markdown document for each Value unless its runtime behavior
-requires a separate implementation guide.
+1. Dashboard contract and storage.
+2. Published Engine dependency and loader.
+3. Dispatch and runtime state.
+4. Dashboard user journey.
+5. A real LLM-backed live test where the feature uses an LLM.
 
-Values must not be promoted to independent entities unless identity, ownership,
-and Lifecycle are explicitly approved.
-
-| Order | Contract                                                     | Purpose                                                   | Status                     |
-| ----- | ------------------------------------------------------------ | --------------------------------------------------------- | -------------------------- |
-| 10    | [Objective](objective.md)                                    | Desired state, required Evidence, and Scope               | Draft                      |
-| 11    | [Trigger](trigger.md)                                        | Activation type and configuration                         | Draft                      |
-| 12    | [Policy](policy.md)                                          | Reusable governance package                               | Draft                      |
-| 13    | [Intent Controls](intent-controls.md)                        | Intent-specific hard limits that only tighten Policy      | Draft; merge rule approved |
-| 14    | [Constraint](constraint.md)                                  | Reusable deny or approval rule where still needed         | Draft                      |
-| 15    | [Scope](scope.md)                                            | Included and excluded dimensions                          | Draft                      |
-| 16    | [Definition Reference and Revision](definition-reference.md) | Domain identity, immutable envelope revision, and pinning | Draft                      |
-| 17    | [Fact, Evidence, and Artifact](run-outputs.md)               | Typed Run outputs and provenance                          | Draft                      |
-
-### Cross-model rules
-
-These documents define behavior no single model may own.
-
-| Order | Document                                                   | Required decision                                                          | Status                        |
-| ----- | ---------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------- |
-| 18    | Model index and reading rules                              | Source precedence and loading behavior                                     | This document                 |
-| 19    | [Relationship and ownership map](relationships.md)         | Every ownership/dependency edge and cardinality                            | Draft                         |
-| 20    | [Definition, State, and History](data-families.md)         | Data-family boundaries and allowed references                              | Draft                         |
-| 21    | [Policy and Controls resolution](policy-resolution.md)     | Policy composition, tightening, multi-Intent merge, conflict handling      | Draft; merge rule approved    |
-| 22    | [Lifecycle and deletion](lifecycle-deletion.md)            | Shared statuses, model-specific transitions, restore, reference protection | Draft                         |
-| 23    | [Definition versioning](definition-versioning.md)          | Immutable revisions, current-head selection, concurrency                   | Draft                         |
-| 24    | [Dispatch and approval](dispatch-approval.md)              | Policy resolution, approvals, idempotency, capacity, execution boundary    | Draft                         |
-| 25    | [Run tracing and provenance](run-tracing.md)               | Correlation, pinned Definitions, events, outputs                           | Draft                         |
-| 26    | [Storage authority and tenant Scope](storage-authority.md) | Convex, repository, Store, portability, projections                        | Draft; runtime rule canonical |
-| 27    | [Migration and compatibility removal](migration.md)        | Legacy inventory, phases, removal proof                                    | Draft                         |
-| 28    | [Human and AI authority](human-ai-authority.md)            | Proposal, approval, mutation, escalation, forbidden autonomy               | Draft                         |
-
-### Derived and product surfaces
-
-Document these after the core model and required cross-model rules are stable.
-They are projections, reasoning inputs, or operator surfaces, not automatic new
-agency entities.
-
-| Order | Surface                                                      | Required boundary                               | Status                            |
-| ----- | ------------------------------------------------------------ | ----------------------------------------------- | --------------------------------- |
-| 29    | [Knowledge Graph](knowledge-graph.md)                        | Derived projection; never source of truth       | Draft; implementation in progress |
-| 30    | [Context](context.md)                                        | Background Facts used for reasoning             | Draft                             |
-| 31    | [Instructions](instructions.md)                              | Chat and response behavior                      | Draft                             |
-| 32    | [Reports](reports.md)                                        | Produced summaries and retained outputs         | Draft                             |
-| 33    | [Dashboard projections and health](dashboard-projections.md) | Derived display/edit shapes and health formulas | Draft                             |
-
-### Recommended sequence
-
-1. Finish Intent's remaining model decisions.
-2. Document Operation because it establishes the ownership boundary for Loop.
-3. Document Policy, Intent Controls, Scope, and relationship resolution needed
-   by Intent and Operation.
-4. Document Loop together with Objective and Trigger.
-5. Document Workflow, Capability, Implementation, and Agent.
-6. Document Run, outputs, dispatch, tracing, and approval.
-7. Lock storage authority, versioning, Lifecycle, migration, and human/AI
-   authority.
-8. Document derived product surfaces.
-
-## Cross-model rules
-
-These rules apply to every model:
-
-1. Definition, Runtime state, and History are different data families.
-2. Every mutable field has exactly one runtime authority.
-3. Every relationship states whether it is ownership or dependency.
-4. Shared definitions are referenced, not copied into owners.
-5. A Run records the exact definitions used when reproducibility matters.
-6. Derived graphs, caches, manifests, and UI projections are never source of
-   truth.
-7. Runtime state is Convex-owned and must not fall back to GitHub.
-8. A compatibility path is migration debt, not a second valid model.
-9. A new model requires a responsibility that no existing model can own.
-10. Unknown model decisions remain visible and block dependent implementation.
-
-## Documentation status
-
-Model contract:
-
-- **Draft**: meaning or decisions remain open.
-- **Reviewed**: owners reviewed the proposed meaning and boundaries.
-- **Canonical**: responsibility, contract, invariants, Lifecycle, relationships,
-  and authority are approved.
-
-Implementation guide:
-
-- **Unverified**: current behavior is not sufficiently checked.
-- **Partially verified**: named paths are checked; required proof remains.
-- **Verified current**: current readers, writers, storage, runtime, and relevant
-  user path are checked.
-
-An agent may investigate Draft or unverified documents. It must not treat a
-Draft target as authorization to migrate product behavior.
-
-## Completion standard
-
-A model contract is ready to guide implementation when:
-
-- its document has no unresolved blocking questions;
-- Definition, State, History, and value contracts are separated;
-- every field and relationship has an owner;
-- the required owners mark the document Canonical.
-
-An implementation guide is Verified current only when:
-
-- current readers, writers, storage, and one real runtime path are verified;
-- current behavior and target behavior are clearly distinguished;
-- migration steps name compatibility removal;
-- validators and architecture tests enforce important implemented boundaries;
-- user-facing behavior has browser proof when applicable.
-
-Documentation guides implementation. Schemas, validators, architecture tests,
-and real-path verification enforce it.
-
-## Full review result
-
-All documents in this roadmap have now received a consistency review. The
-contracts remain **Draft** where business decisions are still open, and the
-implementation guides remain **Partially verified** where static source
-inspection has not been followed by real persistence/runtime/browser proof.
-
-The highest-priority system gaps found across the set are:
-
-1. Loop execution is not implemented; no manual or scheduled dispatch path is
-   currently verified.
-2. Definition revisions currently have competing head-selection approaches.
-3. Legacy combined product shapes remain beside clean agency Definitions and
-   State.
-4. Policy, approval, Scope, capacity, and idempotency are not yet proven through
-   one shared dispatch service.
-5. Dashboard health and extra status labels need centralized formulas and
-   mappings.
-
-Do not add more model types to solve these gaps. Fix the shared execution,
-versioning, and migration boundaries first.
+Static tests alone cannot prove a cross-repository Agency feature works.

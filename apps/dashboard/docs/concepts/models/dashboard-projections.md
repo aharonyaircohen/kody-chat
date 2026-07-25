@@ -1,35 +1,18 @@
-# Dashboard projections and health
+# Dashboard projections
 
-Status: **Draft**
+Status: **Current architecture rule**
 
-Dashboard shapes are read/edit projections over authoritative models. They may
-join Definitions, State, and recent History for operators, but must not become
-a competing domain model or persistence authority.
+Dashboard lists, counts, labels, health, and graph views are projections over
+their owning stores. They are not new models and are never persistence
+authority.
 
-Every projection documents:
+Every projection must name:
 
-- authoritative source fields and join keys;
-- computed fields and formula/version;
-- freshness and loading/error/unknown behavior;
-- permitted edits and command/API used;
-- tenant and authorization checks;
-- compatibility fields scheduled for removal.
+- its real source;
+- how unknown and stale data appear;
+- which mounted command performs edits;
+- how errors roll back optimistic UI.
 
-Health is derived, not manually invented per component. A formula names its
-signals, windows, thresholds, missing-data behavior, and precedence. `unknown`
-is distinct from healthy. Operation health derives from owned Goal/Loop
-signals; Loop health derives from eligibility and Run outcomes; execution
-health derives from Run/Implementation evidence.
-
-UI status labels such as blocked, stuck, waiting, or recorded must map to
-documented domain State or projection rules. Browser verification must use the
-actually mounted route and real API/persistence.
-
-Open decisions: canonical health formulas, refresh/SLA, edit command model,
-optimistic UI behavior, and compatibility projection removal.
-
-Agent rules: never persist a projection as a Definition; unknown is not healthy;
-optimistic UI must roll back on failed authoritative writes.
-
-Recommended decision: centralize versioned health formulas and expose their
-inputs/reasons to operators.
+There is no current Operation or Goal health projection. Loop health can only
+be called live after Dashboard Loop definitions are connected to the Engine
+Runs that the page reads.

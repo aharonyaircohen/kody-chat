@@ -1,37 +1,10 @@
-# Fact, Evidence, and Artifact
+# Typed Run outputs
 
-Status: **Draft** · Kind: **History value**
+Status: **Future extension**
 
-Run outputs are typed, attributable records.
+Current simplified Run stores one untyped `output`. Facts, Evidence, and
+Artifacts with schemas, provenance, hashes, acceptance, and retention are
+useful future value contracts, but are not current stored models.
 
-```ts
-interface RunOutput {
-  kind: "fact" | "evidence" | "artifact";
-  key: string;
-  value: unknown;
-  runId: string;
-  producer: DefinitionRef;
-  parentRef?: PinnedDefinitionRef & { kind: "goal" | "loop" };
-  contract: string;
-  createdAt: string;
-}
-```
-
-A Fact is a claimed observation. Evidence is a Fact or verification result
-accepted against a named proof contract. An Artifact is a produced durable
-object or reference. The same value must not be promoted from Fact to Evidence
-without evaluation.
-
-Outputs are append-only, tenant-scoped, linked to a Run, and retain producer
-and contract provenance. Large or sensitive payloads may be stored externally,
-but the immutable record keeps a content hash and governed reference.
-
-Open decisions: contract registry, schemas, content addressing, redaction,
-retention, freshness, supersession, and Evidence acceptance authority.
-
-Agent rules: do not turn a Fact into Evidence by renaming it; never overwrite
-an output; never store secrets or large payloads directly when a governed
-reference is required.
-
-Recommended decision: use versioned output contracts and content hashes, with
-explicit Evidence acceptance records.
+Do not claim an LLM statement is Evidence merely because it was saved. Evidence
+needs a named verification rule and attributable result.
