@@ -95,7 +95,6 @@
     "./routes/kody/brain-resume": "./app/api/kody/brain/resume/route.ts",
     "./routes/kody/brain-suspend": "./app/api/kody/brain/suspend/route.ts",
     "./routes/kody/brain-suspension": "./app/api/kody/brain/suspension/route.ts",
-    "./chat-kody/explicit-memory": "./app/api/kody/chat/kody/explicit-memory.ts",
     "./chat-kody/vibe-tool-policy": "./app/api/kody/chat/kody/vibe-tool-policy.ts",
     "./chat-kody/view-request": "./app/api/kody/chat/kody/view-request.ts",
     "./chat-tools/cms": "./app/api/kody/chat/tools/cms-tools.ts",

@@ -8,6 +8,7 @@ import {
 import { tool } from "ai";
 import { z } from "zod";
 import { createMemoryRuntime } from "../memory/runtime";
+import { findDuplicateMemory } from "./memory-duplicates";
 
 interface MemoryToolContext {
   readonly actorId: string;
@@ -62,7 +63,7 @@ export function createMemoryTools(context: MemoryToolContext) {
   return {
     remember: tool({
       description:
-        "Save a durable, non-obvious user or repository memory. Do not save facts that can be read from code. Prefer correcting a matching memory over creating a duplicate.",
+        "Save one durable, non-obvious memory after checking for duplicates. Personal scope is only for information about the user across repositories. Repository scope is for user-provided project context. Do not proactively save repository facts readable from files, but honor an explicit request in repository scope.",
       inputSchema: z.object({
         scope: memoryScope,
         kind: memoryKind,
@@ -71,18 +72,34 @@ export function createMemoryTools(context: MemoryToolContext) {
       }),
       execute: async (input) => {
         try {
+          const scope =
+            input.scope === "user"
+              ? { kind: "user" as const, userId: runtime().principal.userId }
+              : { kind: "repository" as const, tenantId };
+          const content = {
+            title: input.title,
+            summary: input.summary,
+            body: input.body,
+          };
+          const candidates = await runtime().application.search({
+            principal: runtime().principal,
+            scopes: [scope],
+            query: input.summary,
+            limit: 10,
+          });
+          const duplicate = findDuplicateMemory(candidates, content);
+          if (duplicate) {
+            return {
+              memory: duplicate,
+              url: dashboardMemoryUrl(duplicate.id),
+              duplicate: true,
+            };
+          }
           const memory = await runtime().application.remember({
             principal: runtime().principal,
-            scope:
-              input.scope === "user"
-                ? { kind: "user", userId: runtime().principal.userId }
-                : { kind: "repository", tenantId },
+            scope,
             kind: input.kind,
-            content: {
-              title: input.title,
-              summary: input.summary,
-              body: input.body,
-            },
+            content,
             evidence: [source],
             reason: input.reason,
           });

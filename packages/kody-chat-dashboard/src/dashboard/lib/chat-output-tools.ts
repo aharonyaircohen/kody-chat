@@ -98,3 +98,20 @@ export function selectChatOutputActiveTools<T extends string>({
   }
   return [...toolNames];
 }
+
+export function shouldRetryToollessTurn({
+  producedOutputTool,
+  visibleAnswer,
+  enforceToolOutput,
+  retryCount,
+  maxRetries,
+}: {
+  producedOutputTool: boolean;
+  visibleAnswer: string;
+  enforceToolOutput: boolean;
+  retryCount: number;
+  maxRetries: number;
+}): boolean {
+  if (producedOutputTool || retryCount >= maxRetries) return false;
+  return enforceToolOutput || visibleAnswer.length === 0;
+}

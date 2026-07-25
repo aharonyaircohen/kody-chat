@@ -521,8 +521,6 @@ export function FileTree({
   }, [normalizedRootPath, owner, repo]);
 
   useEffect(() => {
-    if (refreshKey === 0) return;
-
     const expandedPaths = [...openPathsRef.current];
     setChildrenMap({});
     childrenMapRef.current = {};
@@ -616,14 +614,7 @@ export function FileTree({
     return () => {
       cancelled = true;
     };
-  }, [
-    canLoad,
-    loadVisibleDir,
-    owner,
-    repo,
-    selectedPath,
-    selectedPathType,
-  ]);
+  }, [canLoad, loadVisibleDir, owner, repo, selectedPath, selectedPathType]);
 
   const handleToggle = useCallback(
     async (path: string) => {

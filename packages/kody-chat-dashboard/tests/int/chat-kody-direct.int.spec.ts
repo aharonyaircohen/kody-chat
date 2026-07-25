@@ -369,8 +369,10 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toMatch(/recall_search/);
     expect(prompt).toMatch(/list_memories/);
     expect(prompt).toMatch(/update_memory/);
-    expect(prompt).toMatch(/in any language → call `remember` exactly once/i);
-    expect(prompt).toMatch(/Search before writing/i);
+    expect(prompt).toMatch(
+      /in any language → call `remember` directly and exactly once/i,
+    );
+    expect(prompt).toMatch(/`remember` tool checks for duplicates itself/i);
     expect(prompt).not.toMatch(
       /until 5\+ memories exist, write only on explicit ask/i,
     );
