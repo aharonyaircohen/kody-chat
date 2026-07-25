@@ -1,123 +1,100 @@
 # Loop implementation guide
 
-Status: **Partially verified**
+Status: **Definition management implemented; execution not implemented**
 
-## Target runtime
+## Current model
 
-The scheduler/event adapter evaluates Trigger eligibility. The dispatcher
-atomically applies overlap and missed policies, resolves effective Policy and
-pinned target revisions, then creates a Run. A reconciliation service updates
-Loop State from terminal outcomes.
+A Loop is a small repository-scoped definition:
 
-## Current sources
+```ts
+{
+  id: string;
+  trigger:
+    | { type: "manual" }
+    | { type: "schedule"; every: string; at?: { time: string; timezone: string } }
+    | { type: "event" | "webhook"; event: string }
+    | { type: "condition"; expression: string };
+  target: { kind: "workflow" | "capability"; id: string };
+  input: Record<string, unknown>;
+  enabled: boolean;
+}
+```
 
-| Concern                  | Source                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------ |
-| Contract, Trigger, State | `packages/agency-domain/src/index.ts`                                                |
-| Current Goal/Loop hook   | `apps/dashboard/src/dashboard/lib/hooks/useManagedGoals.ts`                          |
-| Product projection       | `apps/dashboard/src/dashboard/lib/agency-product-projections.ts`                     |
-| Compatibility model      | `packages/agency/src/managed-goals.ts`                                               |
-| Clean model store        | `packages/agency/src/backend/agency-model-store.ts`                                  |
-| Manual Loop dispatch     | `apps/dashboard/app/api/kody/agency-loops/[id]/run/route.ts`                         |
-| Runs                     | `packages/agency/src/agency-runs.ts`, `packages/kody-backend/convex/workflowRuns.ts` |
+The Loop does not own Workflow steps, Capability behavior, Goal state, policy,
+run history, health, retry, concurrency, or scheduling state.
 
-The current Loop page uses clean Loop Definitions and State, projected into a
-managed-goal compatibility view. Create/update writes an optional Workflow,
-Loop Definition, and Loop State together.
+## Current ownership
 
-New Loops currently default to `overlap: skip`, `missed: coalesce`, three
-attempts, 30-second backoff, and 900-second timeout. Those defaults are product
-choices, not yet approved universal domain defaults.
+| Concern               | Owner                                                                   |
+| --------------------- | ----------------------------------------------------------------------- |
+| Validation            | `createLoopDefinition()` in `@kody-ade/agency-domain`                   |
+| UI                    | `apps/dashboard/src/dashboard/features/agency/components/LoopsPage.tsx` |
+| List and create API   | `apps/dashboard/app/api/kody/loops/route.ts`                            |
+| Update and delete API | `apps/dashboard/app/api/kody/loops/[id]/route.ts`                       |
+| Storage               | Convex `repoDocs`, scoped by `<owner>/<repo>`                           |
+| Storage key           | `loop:<id>`                                                             |
+| Target catalogs       | Existing Workflow and Capability APIs                                   |
 
-## Current projection
+GitHub is not a Loop runtime-state store.
 
-The UI projection maps:
+## Current behavior
 
-- Objective to `destination`;
-- Trigger schedule to `schedule` and `preferredRunTime`;
-- target to `loopTarget` and optional `workflowRef`;
-- State to health, failures, last-fired, next-eligible, and old lifecycle
-  labels;
-- Workflow steps to route/capability lists.
+- `GET /api/kody/loops` lists valid `loop:` documents for the active
+  repository.
+- `POST /api/kody/loops` validates and creates one Loop. Duplicate IDs return
+  `409`.
+- `PATCH /api/kody/loops/:id` validates and replaces the saved definition
+  while preserving the route ID.
+- `DELETE /api/kody/loops/:id` removes the saved definition.
+- The UI can create, search, inspect, edit, enable, disable, and delete Loops.
+- A target is one existing Workflow or Capability.
 
-The large managed-goal `scheduleState`, stage, facts, instances, and decisions
-are compatibility/projection fields. They are not the Loop Definition.
+`enabled` currently records operator intent only. This code does not prove that
+any scheduler, event listener, condition evaluator, or manual dispatcher runs
+the target.
 
-## Required boundaries
+## Explicitly absent
 
-Trigger adapters detect activation; they do not own Loop definitions. The
-dispatcher owns idempotent Run creation. Convex owns mutable eligibility,
-lease, failure, and health state. Repository files must never be runtime-state
-fallbacks.
+The current implementation has no:
 
-The current manual Loop route verifies the clean Definition and active State,
-then dispatches GitHub Actions `kody.yml` with `action:
-"dispatch-due-loops"`. It returns `202`, but it does not create the documented
-Run, activation key, effective Policy snapshot, or capacity reservation first.
-The route therefore starts a broad due-loop dispatcher rather than directly
-executing the pinned target itself.
+- managed-goal compatibility projection;
+- separate Loop State or History model;
+- manual run endpoint;
+- scheduler or event adapter;
+- activation, lease, idempotency, retry, timeout, or overlap policy;
+- health reconciliation;
+- GitHub Actions dispatch.
 
-## Storage ownership
+Do not document any of these as current behavior until the owning runtime
+exists and is verified.
 
-| Data                                     | Authority                                   |
-| ---------------------------------------- | ------------------------------------------- |
-| Loop Definition                          | Convex agency definitions                   |
-| Lifecycle, health, failures, eligibility | Convex agency State                         |
-| Activation/idempotency/lease             | Convex runtime State; target schema missing |
-| Runs, events, outputs                    | Convex History                              |
-| Managed Loop view                        | derived Dashboard projection                |
-| GitHub Actions                           | execution adapter only                      |
+## Execution boundary
 
-## Migration
+If Loop execution is added, keep it behind one explicit dispatcher:
 
-1. Inventory old managed-goal scheduling readers and writers.
-2. Separate Definition, runtime State, History, and projection fields.
-3. Add an authoritative activation record or idempotency boundary.
-4. Resolve/pin Policy and definitions and create Run before adapter dispatch.
-5. Reconcile terminal Runs into one shared health calculation.
-6. Switch schedule workers and manual run to the same dispatcher.
-7. Remove legacy schedule State, fallback, and inference.
+1. Receive an eligible trigger.
+2. Load the enabled Loop for the active repository.
+3. Invoke its saved Workflow or Capability with the saved input.
+4. Record execution through the existing run system.
 
-## Agent rules
-
-- Separate embedded Loop definitions, State, and historical executions.
-- Use stable activation/idempotency keys for a firing.
-- Do not implement cadence on Intent or Workflow.
-- Do not compute health differently in each UI consumer.
-- Treat managed-goal scheduling fields as compatibility projections.
-- Do not dispatch all due Loops when the user requested one Loop unless the
-  service contract explicitly filters and proves it.
-- Create the Run and reserve capacity before external execution.
-- Keep Trigger observation separate from authorization and dispatch.
-- Preserve active Runs when pausing unless cancellation is separately approved.
-- Reject concurrent Definition edits rather than overwrite them.
-- Remove every legacy runtime reader/writer before completion.
+Do not add Goal, Operation, Policy, or another Loop model to achieve this.
+Workflow remains responsible for steps, conditions, and internal looping.
 
 ## Verification
 
-Exercise:
+Current browser coverage proves the Loop management UI against mocked API
+contracts, including target selection and editing. Typecheck and route
+inspection prove the current code shape.
 
-- manual, schedule, event, webhook, and condition triggers;
-- duplicate delivery and activation idempotency;
-- skip/queue overlap and skip/replay/coalesce missed behavior;
-- retry, backoff, timeout, restart, and exhausted failure;
-- pause with an active Run;
-- Policy, approval, Scope, capacity, and pinned definitions;
-- State reconciliation and shared health formula;
-- real Convex persistence and mounted Dashboard behavior.
+The following remain unverified because their runtime does not exist here:
 
-Mocked browser tests are useful UI evidence but do not prove scheduler,
-idempotency, GitHub dispatch, or persisted State.
-
-## Gaps
-
-Static inspection confirms the clean page/store and the GitHub manual dispatch.
-Scheduler ownership, activation records, leases, idempotency, Policy
-resolution, health reconciliation, and current live execution remain
-unverified.
+- scheduled execution;
+- event, webhook, and condition activation;
+- manual execution;
+- retries, concurrency, idempotency, and persisted run outcomes.
 
 ## Recommended next change
 
-Keep the clean Loop contract. Build one Run-first dispatcher used by manual and
-scheduled activation. Do not add more scheduling behavior to the compatibility
-managed-goal record.
+Keep Loop definition management as-is. Add execution only when there is a
+verified trigger requirement, and use one small dispatcher shared by every
+trigger type.
