@@ -19,18 +19,14 @@ describe("agency page layouts", () => {
     expect(loops).not.toContain('<main className="mx-auto');
   });
 
-  it("keeps Overview in the shared standard-content layout", () => {
-    const overview = source(
-      "src/dashboard/features/agency/components/AgencyOverview.tsx",
+  it("keeps Intents in the shared file-workspace layout", () => {
+    const intents = source(
+      "src/dashboard/features/agency/components/IntentFilesView.tsx",
     );
 
-    expect(overview).toContain("PageShell");
-    expect(overview).toContain("<ul");
-    expect(overview).toContain('aria-label="Edit agency intent"');
-    expect(overview).toContain("<Dialog");
-    expect(overview).toContain("query.refetch()");
-    expect(overview).toContain("queryClient.setQueryData(queryKey, response)");
-    expect(overview).not.toContain('<main className="mx-auto');
-    expect(overview).not.toContain('className="min-h-64');
+    expect(intents).toContain("AgentGuidanceFilesView");
+    expect(intents).toContain("INTENTS_DEFINITION");
+    expect(intents).not.toContain("PageShell");
+    expect(intents).not.toContain("AgencyOverview");
   });
 });

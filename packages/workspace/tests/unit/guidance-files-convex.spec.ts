@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 
 describe("agent guidance store", () => {
-  it.each(["constraint", "policy"] as const)(
+  it.each(["intent", "constraint", "policy"] as const)(
     "stores %s entries in an isolated namespace",
     async (kind) => {
       convex.mutation.mockResolvedValue("id-1");
@@ -75,6 +75,40 @@ describe("agent guidance store", () => {
     expect(prompt).not.toContain("Run visual QA");
     const [, args] = convex.query.mock.calls[0]!;
     expect(args).toMatchObject({ prefix: "constraint:" });
+  });
+
+  it("loads every wildcard intent by default", async () => {
+    convex.query
+      .mockResolvedValueOnce([
+        {
+          kind: "intent:simple-product",
+          doc: { body: "---\nagent: [*]\n---\n\nKeep the product simple." },
+          updatedAt: "t",
+        },
+        {
+          kind: "intent:safe-release",
+          doc: { body: "---\nagent: [*]\n---\n\nRelease safely." },
+          updatedAt: "t",
+        },
+      ])
+      .mockResolvedValueOnce(null);
+
+    const prompt = await loadGuidanceForPrompt("intent", "any-agent");
+
+    expect(prompt).toContain("### simple-product");
+    expect(prompt).toContain("### safe-release");
+  });
+
+  it("keeps the old singleton visible as agency.md", async () => {
+    convex.query.mockResolvedValueOnce([]).mockResolvedValueOnce({
+      kind: "agency:intent",
+      doc: { intent: "Keep releases safe." },
+      updatedAt: "t",
+    });
+
+    await expect(listGuidanceFiles("intent")).resolves.toMatchObject([
+      { slug: "agency", body: "Keep releases safe.", agent: ["*"] },
+    ]);
   });
 
   it("lists and deletes policy entries without touching other guidance", async () => {

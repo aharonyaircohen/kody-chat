@@ -87,7 +87,7 @@ describe("sidebar active route matching", () => {
 
   it("resolves labels for side panel detail routes", () => {
     expect(navLabelForPath("/123/preview/docs")).toBe("Tasks");
-    expect(navLabelForPath("/agency")).toBe("Overview");
+    expect(navLabelForPath("/agency")).toBe("Intents");
     expect(navLabelForPath("/store-catalog/capability/build-preview")).toBe(
       "Store Catalog",
     );

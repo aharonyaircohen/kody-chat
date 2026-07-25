@@ -78,8 +78,8 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     when: "Use when the user asks to manage reusable Kody capabilities.",
   },
   "/agency": {
-    aliases: ["agency", "agency intent", "agency overview"],
-    when: "Use when the user asks to inspect or edit the Agency intent.",
+    aliases: ["agency", "intents", "agency intents"],
+    when: "Use when the user asks to manage Agency intents.",
   },
   "/agents": {
     aliases: ["agents", "staff", "personas"],

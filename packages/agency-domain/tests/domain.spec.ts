@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  createAgencyDefinition,
   createCapabilityContract,
   createLoopDefinition,
   createRun,
@@ -9,18 +8,6 @@ import {
 } from "../src/index";
 
 describe("simple AI Agency domain", () => {
-  it("keeps Agency intent as plain text", () => {
-    expect(
-      createAgencyDefinition({ intent: "Make delivery reliable." }),
-    ).toEqual({ intent: "Make delivery reliable." });
-    expect(() =>
-      createAgencyDefinition({
-        intent: "Make delivery reliable.",
-        priority: 1,
-      }),
-    ).toThrow(/unknown field "priority"/i);
-  });
-
   it("accepts exactly one Capability input and output", () => {
     expect(
       createCapabilityContract({

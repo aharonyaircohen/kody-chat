@@ -126,6 +126,7 @@ describe("settings navigation", () => {
       "/company",
     ]);
     expect(navLabelForPath("/agency-runs")).toBe("Runs");
+    expect(navLabelForPath("/agency")).toBe("Intents");
   });
 
   it("orders the desktop rail around work and collapsible ownership groups", () => {

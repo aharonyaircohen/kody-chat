@@ -39,7 +39,9 @@ const updateSchema = z
   });
 
 function label(kind: GuidanceKind): string {
-  return kind === "constraint" ? "Constraint" : "Policy";
+  if (kind === "constraint") return "Constraint";
+  if (kind === "intent") return "Intent";
+  return "Policy";
 }
 
 function setRequestContext(req: NextRequest): void {

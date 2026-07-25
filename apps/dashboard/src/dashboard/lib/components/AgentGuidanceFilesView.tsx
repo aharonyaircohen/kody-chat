@@ -35,6 +35,7 @@ interface GuidanceDefinition {
   singular: string;
   purpose: string;
   examples: readonly string[];
+  agentScoped?: boolean;
 }
 
 function slugFromPath(path: string): string {
@@ -69,15 +70,17 @@ export function AgentGuidanceFilesView({
     staleTime: 30_000,
   });
   const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data]);
+  const agentScoped = definition.agentScoped !== false;
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey }),
     [queryClient, queryKey],
   );
 
   const transport = useMemo<FilesTransport>(() => {
-    const visible = agentFilter
-      ? entries.filter((entry) => entry.agent.includes(agentFilter))
-      : entries;
+    const visible =
+      agentScoped && agentFilter
+        ? entries.filter((entry) => entry.agent.includes(agentFilter))
+        : entries;
     return {
       cacheKey: `${definition.kind}:${agentFilter ?? "all"}:${visible.length}:${visible[0]?.updatedAt ?? ""}`,
       async listDir(path: string): Promise<FileEntry[]> {
@@ -107,7 +110,12 @@ export function AgentGuidanceFilesView({
         const body = content.trim() ? content : `# ${slug}\n`;
         const existing = entries.find((entry) => entry.slug === slug);
         if (existing) await api.update(slug, { body });
-        else await api.create({ slug, body, agent: ["kody"] });
+        else
+          await api.create({
+            slug,
+            body,
+            agent: agentScoped ? ["kody"] : ["*"],
+          });
         await invalidate();
       },
       async deleteFile(path: string) {
@@ -115,7 +123,7 @@ export function AgentGuidanceFilesView({
         await invalidate();
       },
     };
-  }, [agentFilter, api, definition.kind, entries, invalidate]);
+  }, [agentFilter, agentScoped, api, definition.kind, entries, invalidate]);
 
   async function updateAudience(entry: GuidanceEntry, agentSlug: string) {
     const next = entry.agent.includes(agentSlug)
@@ -173,7 +181,7 @@ export function AgentGuidanceFilesView({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        {entry ? (
+        {agentScoped && entry ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -199,31 +207,33 @@ export function AgentGuidanceFilesView({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant={agentFilter ? "secondary" : "ghost"}
-              size="sm"
-              title="Filter by agent"
-            >
-              {agentFilter ?? "All agents"}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => setAgentFilter(null)}>
-              All agents
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {agents.map((agent) => (
-              <DropdownMenuItem
-                key={agent.slug}
-                onClick={() => setAgentFilter(agent.slug)}
+        {agentScoped ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={agentFilter ? "secondary" : "ghost"}
+                size="sm"
+                title="Filter by agent"
               >
-                {agent.slug}
+                {agentFilter ?? "All agents"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => setAgentFilter(null)}>
+                All agents
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              {agents.map((agent) => (
+                <DropdownMenuItem
+                  key={agent.slug}
+                  onClick={() => setAgentFilter(agent.slug)}
+                >
+                  {agent.slug}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </>
     );
   };

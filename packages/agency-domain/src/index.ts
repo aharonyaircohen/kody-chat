@@ -6,10 +6,6 @@ export interface DefinitionRef {
   id: string;
 }
 
-export interface AgencyDefinition {
-  intent: string;
-}
-
 export interface JsonSchema {
   readonly [key: string]: unknown;
 }
@@ -169,12 +165,6 @@ function reference(
     kind: input.kind as ReferenceKind,
     id: identifier(input.id, `${label}.id`),
   });
-}
-
-export function createAgencyDefinition(value: unknown): AgencyDefinition {
-  const input = record(value, "Agency");
-  exact(input, ["intent"], "Agency");
-  return Object.freeze({ intent: text(input.intent, "Agency intent") });
 }
 
 function contractValue(value: unknown, label: string): ContractValue {

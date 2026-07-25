@@ -1,4 +1,4 @@
-/** Shared Convex store for agent-scoped constraints and policies. */
+/** Shared Convex store for Markdown intents, constraints, and policies. */
 import { getOwner, getRepo } from "../github";
 import {
   backendApi,
@@ -11,7 +11,7 @@ import {
   splitContextFrontmatter,
 } from "../context/frontmatter";
 
-export type GuidanceKind = "constraint" | "policy";
+export type GuidanceKind = "intent" | "constraint" | "policy";
 
 export interface GuidanceFile {
   slug: string;
@@ -24,7 +24,7 @@ export interface GuidanceFile {
 
 interface GuidanceRecord {
   kind: string;
-  doc: { body?: unknown };
+  doc: { body?: unknown; intent?: unknown };
   updatedAt: string;
 }
 
@@ -36,6 +36,7 @@ interface WriteGuidanceOptions {
 
 const cache = new Map<string, { prompt: string; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
+const LEGACY_INTENT_KIND = "agency:intent";
 
 export function isValidGuidanceSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
@@ -66,6 +67,20 @@ function recordToFile(
   };
 }
 
+function legacyIntentFile(record: GuidanceRecord): GuidanceFile | null {
+  if (typeof record.doc.intent !== "string" || !record.doc.intent.trim()) {
+    return null;
+  }
+  return {
+    slug: "agency",
+    body: record.doc.intent,
+    agent: [ALL_AGENT],
+    sha: "",
+    updatedAt: record.updatedAt,
+    htmlUrl: "",
+  };
+}
+
 export async function listGuidanceFiles(
   guidanceKind: GuidanceKind,
 ): Promise<GuidanceFile[]> {
@@ -76,10 +91,22 @@ export async function listGuidanceFiles(
       prefix: prefix(guidanceKind),
     },
   )) as GuidanceRecord[];
-  return records
+  const files = records
     .map((record) => recordToFile(guidanceKind, record))
     .filter((file): file is GuidanceFile => file !== null)
     .sort((a, b) => a.slug.localeCompare(b.slug));
+  if (
+    guidanceKind === "intent" &&
+    !files.some((file) => file.slug === "agency")
+  ) {
+    const legacy = (await getConvexClient().query(backendApi.repoDocs.get, {
+      tenantId: tenantIdFor(getOwner(), getRepo()),
+      kind: LEGACY_INTENT_KIND,
+    })) as GuidanceRecord | null;
+    const file = legacy ? legacyIntentFile(legacy) : null;
+    if (file) files.push(file);
+  }
+  return files;
 }
 
 export async function readGuidanceFile(
@@ -91,7 +118,13 @@ export async function readGuidanceFile(
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: `${prefix(guidanceKind)}${slug}`,
   })) as GuidanceRecord | null;
-  return record ? recordToFile(guidanceKind, record) : null;
+  if (record) return recordToFile(guidanceKind, record);
+  if (guidanceKind !== "intent" || slug !== "agency") return null;
+  const legacy = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: LEGACY_INTENT_KIND,
+  })) as GuidanceRecord | null;
+  return legacy ? legacyIntentFile(legacy) : null;
 }
 
 export async function writeGuidanceFile(
@@ -113,6 +146,12 @@ export async function writeGuidanceFile(
     doc: { body: normalizedContent },
     updatedAt,
   });
+  if (guidanceKind === "intent" && options.slug === "agency") {
+    await getConvexClient().mutation(backendApi.repoDocs.remove, {
+      tenantId: tenantIdFor(getOwner(), getRepo()),
+      kind: LEGACY_INTENT_KIND,
+    });
+  }
   invalidateGuidancePromptCache();
   const file = recordToFile(guidanceKind, {
     kind: `${prefix(guidanceKind)}${options.slug}`,
@@ -134,6 +173,12 @@ export async function deleteGuidanceFile(
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: `${prefix(guidanceKind)}${slug}`,
   });
+  if (guidanceKind === "intent" && slug === "agency") {
+    await getConvexClient().mutation(backendApi.repoDocs.remove, {
+      tenantId: tenantIdFor(getOwner(), getRepo()),
+      kind: LEGACY_INTENT_KIND,
+    });
+  }
   invalidateGuidancePromptCache();
 }
 

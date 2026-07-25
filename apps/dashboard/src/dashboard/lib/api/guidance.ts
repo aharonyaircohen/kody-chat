@@ -1,6 +1,6 @@
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
-export type GuidanceKind = "context" | "constraints" | "policies";
+export type GuidanceKind = "context" | "constraints" | "intents" | "policies";
 
 export interface GuidanceEntry {
   slug: string;

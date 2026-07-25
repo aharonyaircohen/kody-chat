@@ -14,7 +14,6 @@ import {
   Building2,
   Wand2,
   CheckCircle2,
-  Compass,
   Cpu,
   Database,
   FileText,
@@ -286,9 +285,9 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     items: [
       {
         href: "/agency",
-        label: "Overview",
-        icon: Compass,
-        description: "The Agency's plain-text intent.",
+        label: "Intents",
+        icon: FileText,
+        description: "Manage the Agency's plain-text intents.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       TODOS_NAV_ITEM,

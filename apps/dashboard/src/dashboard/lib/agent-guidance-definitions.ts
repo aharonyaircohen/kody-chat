@@ -14,6 +14,21 @@ export const CONTEXT_DEFINITION: GuidanceDefinition = {
   ],
 };
 
+export const INTENTS_DEFINITION: GuidanceDefinition = {
+  kind: "intents",
+  title: "Intents",
+  routeBase: "/agency",
+  singular: "Intent",
+  purpose:
+    "Write the outcomes and directions this Agency should pursue. Every intent applies by default.",
+  examples: [
+    "Keep each intent focused on one direction or desired outcome.",
+    "Use the filename as its short identity.",
+    "Do not add priority, status, ownership, or workflow fields.",
+  ],
+  agentScoped: false,
+};
+
 export const CONSTRAINTS_DEFINITION: GuidanceDefinition = {
   kind: "constraints",
   title: "Constraints",

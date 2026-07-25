@@ -1,17 +1,12 @@
-import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { AgencyOverview } from "@dashboard/features/agency/components/AgencyOverview";
+import { IntentFilesView } from "@dashboard/features/agency/components/IntentFilesView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
-  title: "Agency overview — Kody Operations Dashboard",
-  description: "The Agency's plain-text intent.",
+  title: "Intents — Kody Operations Dashboard",
+  description: "Manage the Agency's plain-text intents.",
   path: "/agency",
 });
 
 export default function AgencyPage() {
-  return (
-    <AuthGuard>
-      <AgencyOverview />
-    </AuthGuard>
-  );
+  return <IntentFilesView />;
 }

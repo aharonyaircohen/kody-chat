@@ -34,6 +34,7 @@ vi.mock("../../src/guidance/files", () => ({
 }));
 
 import { POST as createConstraint } from "../../src/routes/constraints";
+import { POST as createIntent } from "../../src/routes/intents";
 import { DELETE as deletePolicy } from "../../src/routes/policy-slug";
 
 function request(path: string, method: string, body?: unknown) {
@@ -81,6 +82,23 @@ describe("agent guidance routes", () => {
       slug: "no-force-push",
       body: "Never force push shared branches.",
       agent: ["kody"],
+    });
+  });
+
+  it("creates an intent that applies to every agent", async () => {
+    const response = await createIntent(
+      request("intents", "POST", {
+        name: "Simple Product",
+        body: "Keep the product simple.",
+        agent: ["*"],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(h.writeGuidanceFile).toHaveBeenCalledWith("intent", {
+      slug: "simple-product",
+      body: "Keep the product simple.",
+      agent: ["*"],
     });
   });
 
