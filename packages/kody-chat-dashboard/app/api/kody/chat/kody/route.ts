@@ -110,10 +110,12 @@ import {
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
+  shouldRetryToollessTurn,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
+import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
 import { buildViewComponentRules } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
@@ -141,10 +143,7 @@ import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { createMacroTools } from "../tools/macros-tools";
-import {
-  createMemoryRuntime,
-  loadRelevantMemoryForPrompt,
-} from "@kody-ade/workspace/memory";
+import { loadRelevantMemoryForPrompt } from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
@@ -152,7 +151,6 @@ import {
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { loadGuidanceForPrompt } from "@kody-ade/workspace/guidance/files";
-import { buildExplicitMemoryDraft } from "./explicit-memory";
 import { ensureKodyRuntimeInitialized } from "./runtime-init";
 import {
   isValidSlug as isValidAgentSlug,
@@ -755,6 +753,7 @@ async function handleKodyDirectPost(
     ? allMessages
     : trimToRecent(allMessages);
   const latestUserText = getLatestUserText(messages);
+  const explicitMemoryCommand = hasExplicitMemoryCommand(latestUserText);
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
@@ -977,81 +976,6 @@ async function handleKodyDirectPost(
     );
   }
 
-  const explicitMemoryDraft = buildExplicitMemoryDraft(latestUserText ?? "");
-  if (repo && explicitMemoryDraft && verifiedActorGithubId !== null) {
-    try {
-      const tenantId = `${repo.owner}/${repo.repo}`;
-      const runtime = createMemoryRuntime({
-        actorId: `github:${verifiedActorGithubId}`,
-        tenantId,
-      });
-      const scope =
-        explicitMemoryDraft.scope === "user"
-          ? { kind: "user" as const, userId: runtime.principal.userId }
-          : { kind: "repository" as const, tenantId };
-      const evidence = [
-        {
-          source: "message" as const,
-          id:
-            typeof body.turnId === "string" && body.turnId.trim()
-              ? body.turnId.trim()
-              : traceId,
-          ...(typeof body.conversationId === "string" &&
-          body.conversationId.trim()
-            ? { conversationId: body.conversationId.trim() }
-            : {}),
-        },
-      ];
-      const matches = await runtime.application.search({
-        principal: runtime.principal,
-        scopes: [scope],
-        query: explicitMemoryDraft.summary,
-        limit: 5,
-      });
-      const existing = matches.find(
-        (memory) =>
-          memory.content.title === explicitMemoryDraft.title ||
-          memory.content.summary === explicitMemoryDraft.summary,
-      );
-      const memory = existing
-        ? await runtime.application.correct({
-            principal: runtime.principal,
-            memoryId: existing.id,
-            kind: explicitMemoryDraft.kind,
-            content: {
-              title: explicitMemoryDraft.title,
-              summary: explicitMemoryDraft.summary,
-              body: explicitMemoryDraft.body,
-            },
-            evidence,
-            reason: explicitMemoryDraft.reason,
-          })
-        : await runtime.application.remember({
-            principal: runtime.principal,
-            scope,
-            kind: explicitMemoryDraft.kind,
-            content: {
-              title: explicitMemoryDraft.title,
-              summary: explicitMemoryDraft.summary,
-              body: explicitMemoryDraft.body,
-            },
-            evidence,
-            reason: explicitMemoryDraft.reason,
-          });
-      turnSystemInstructions.push(
-        `Explicit memory request already persisted as ${memory.id} ` +
-          `(${memory.kind}). Do not call remember/update_memory again. ` +
-          "Briefly confirm it was saved.",
-      );
-    } catch (err) {
-      turnSystemInstructions.push(
-        "Explicit memory request could not be persisted before response. " +
-          `Tell the user it failed and include this error: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-      );
-    }
-  }
   const vibeMode = body.vibeMode === true;
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
@@ -1207,9 +1131,7 @@ async function handleKodyDirectPost(
         ...(typeof body.conversationId === "string"
           ? { conversationId: body.conversationId }
           : {}),
-        ...(typeof body.turnId === "string"
-          ? { messageId: body.turnId }
-          : {}),
+        ...(typeof body.turnId === "string" ? { messageId: body.turnId } : {}),
       }),
       ...createReleaseTools({
         octokit,
@@ -1649,11 +1571,7 @@ async function handleKodyDirectPost(
 This turn includes an image from the user. For questions about what is visible in the image, answer from the attached image itself. Do not substitute current page context, task context, memory, or prior turns when they conflict with the image. If the image is unreadable or unavailable, say that instead of guessing.`
     : systemPrompt;
   const buildTurnSystemPrompt = (additionalInstructions: string[] = []) =>
-    [
-      groundedSystemPrompt,
-      ...turnSystemInstructions,
-      ...additionalInstructions,
-    ]
+    [groundedSystemPrompt, ...turnSystemInstructions, ...additionalInstructions]
       .filter((section) => section.trim().length > 0)
       .join("\n\n");
 
@@ -1753,6 +1671,22 @@ This turn includes an image from the user. For questions about what is visible i
         ...(!forceShowViewTool
           ? {
               prepareStep: ({ steps }) => {
+                if (
+                  explicitMemoryCommand &&
+                  steps.length === 0 &&
+                  allActiveTools.includes("remember")
+                ) {
+                  return {
+                    activeTools: ["remember"],
+                    toolChoice:
+                      providerCapabilities.supportsNamedToolChoice !== false
+                        ? {
+                            type: "tool" as const,
+                            toolName: "remember" as const,
+                          }
+                        : ("required" as const),
+                  };
+                }
                 const finalAnswerNeedsView = steps.some((step) =>
                   step.toolResults.some(
                     (result) =>
@@ -2009,16 +1943,31 @@ This turn includes an image from the user. For questions about what is visible i
             const visibleAnswer = parseReasoning(
               steps.map((step) => step.text ?? "").join(""),
             ).answer.trim();
-            if (producedOutputTool || visibleAnswer) return;
-            if (retryCount === MAX_SILENT_TURN_RETRIES) return;
+            if (
+              !shouldRetryToollessTurn({
+                producedOutputTool,
+                visibleAnswer,
+                enforceToolOutput:
+                  providerCapabilities.supportsRequiredToolChoice !== false,
+                retryCount,
+                maxRetries: MAX_SILENT_TURN_RETRIES,
+              })
+            ) {
+              return;
+            }
             traceWarn(
-              { traceId, retry: retryCount + 1, requireViewOutput },
-              "kody-direct: turn ended silent (retrying)",
+              {
+                traceId,
+                retry: retryCount + 1,
+                requireViewOutput,
+                hadVisibleToollessText: visibleAnswer.length > 0,
+              },
+              "kody-direct: turn ended without a required output tool (retrying)",
             );
             attempt = runModelTurn(modelMessages, [
               requireViewOutput
                 ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
-                : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
+                : "Your previous attempt did not make a required API tool call. Plain text cannot read or change data. Re-evaluate the user's request, call the required operation tool first when an operation was requested, then finish with `final_answer`. For a conversational reply, call `final_answer` directly.",
             ]);
             writer.merge(
               attempt.toUIMessageStream({

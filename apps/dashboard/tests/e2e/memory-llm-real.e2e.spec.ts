@@ -67,7 +67,10 @@ async function selectRealModel(page: Page) {
       candidate.enabled !== false &&
       configuredSecrets.has(candidate.apiKeySecret),
   );
-  expect(model, "an enabled real model must have a configured secret").toBeTruthy();
+  expect(
+    model,
+    "an enabled real model must have a configured secret",
+  ).toBeTruthy();
 
   const chat = page.locator('[aria-label="Kody chat"]');
   const picker = chat.getByRole("button", { name: "Model" }).first();
@@ -87,6 +90,9 @@ async function sendRealModelMessage(page: Page, message: string) {
   const chat = page.locator('[aria-label="Kody chat"]');
   const input = chat.locator("textarea").first();
   const send = chat.getByRole("button", { name: "Send message" });
+  const stop = chat.getByRole("button", {
+    name: /^Stop (run|generating)$/,
+  });
   await expect(input).toBeEnabled({ timeout: 30_000 });
   await input.fill(message);
   const responsePromise = page.waitForResponse(
@@ -98,10 +104,9 @@ async function sendRealModelMessage(page: Page, message: string) {
   await send.click();
   const response = await responsePromise;
   expect(response.status(), "the real model route must succeed").toBe(200);
+  await expect(stop).toBeVisible({ timeout: 30_000 });
+  await expect(stop).toHaveCount(0, { timeout: 240_000 });
   await expect(input).toBeEnabled({ timeout: 240_000 });
-  await expect(
-    chat.getByRole("button", { name: "Stop generating" }),
-  ).toHaveCount(0, { timeout: 240_000 });
 }
 
 test("real model uses every memory layer across chat journeys", async ({
@@ -157,6 +162,14 @@ test("real model uses every memory layer across chat journeys", async ({
       ),
     );
     expect(memory).toBeTruthy();
+    expect(
+      memories.filter((candidate) =>
+        `${candidate.content.title} ${candidate.content.summary} ${candidate.content.body}`.includes(
+          fragment,
+        ),
+      ),
+      `one user request must create exactly one memory for ${fragment}`,
+    ).toHaveLength(1);
     createdIds.push(memory!.id);
     return memory!;
   }
@@ -175,46 +188,61 @@ test("real model uses every memory layer across chat journeys", async ({
 
     const cases = [
       {
-        marker: `pref-marker-${run}`,
-        message: `Remember: I prefer the code phrase ${phrase}; marker pref-marker-${run}.`,
+        marker: `prefmarker${run}`,
+        message: `Remember: I prefer the code phrase ${phrase}; marker prefmarker${run}.`,
         kind: "preference",
         scope: "user",
       },
       {
-        marker: `fact-marker-${run}`,
-        message: `Remember: my stable office fact is fact-marker-${run}.`,
+        marker: `factmarker${run}`,
+        message: `Remember: my stable office fact is factmarker${run}.`,
         kind: "fact",
         scope: "user",
       },
       {
-        marker: `decision-marker-${run}`,
-        message: `Remember: for this repo, the approved decision is decision-marker-${run}; we must use typed memory.`,
+        marker: `hebrewmarker${run}`,
+        message: `תזכור שהצבע האהוב עליי הוא כחול. marker hebrewmarker${run}.`,
+        kind: "preference",
+        scope: "user",
+      },
+      {
+        marker: `decisionmarker${run}`,
+        message: `Remember: for this repo, the approved decision is decisionmarker${run}; we must use typed memory.`,
         kind: "decision",
         scope: "repository",
       },
       {
-        marker: `goal-marker-${run}`,
-        message: `Remember: the repo goal is goal-marker-${run}, ship memory proof by 2030-01-02.`,
+        marker: `goalmarker${run}`,
+        message: `Remember: the repo goal is goalmarker${run}, ship memory proof by 2030-01-02.`,
         kind: "goal",
         scope: "repository",
       },
       {
-        marker: `link-marker-${run}`,
-        message: `Remember: the repo runbook reference is https://example.test/link-marker-${run}.`,
+        marker: `linkmarker${run}`,
+        message: `Remember: the repo runbook reference is https://example.test/linkmarker${run}.`,
         kind: "reference",
         scope: "repository",
       },
     ] as const;
 
-    let preferenceId = "";
-    for (const item of cases) {
+    let codePhraseMemoryId = "";
+    let codePhraseMemoryTitle = "";
+    for (const [index, item] of cases.entries()) {
+      if (index > 0) {
+        await newConversation.click();
+        await selectRealModel(page);
+      }
       await sendRealModelMessage(page, item.message);
       const memory = await findCreated(item.marker);
       expect(memory.kind).toBe(item.kind);
       expect(memory.scope.kind).toBe(item.scope);
-      if (item.kind === "preference") preferenceId = memory.id;
+      if (item.marker === cases[0].marker) {
+        codePhraseMemoryId = memory.id;
+        codePhraseMemoryTitle = memory.content.title;
+      }
     }
-    expect(preferenceId).toBeTruthy();
+    expect(codePhraseMemoryId).toBeTruthy();
+    expect(codePhraseMemoryTitle).toBeTruthy();
 
     await newConversation.click();
     await selectRealModel(page);
@@ -226,24 +254,26 @@ test("real model uses every memory layer across chat journeys", async ({
       timeout: 240_000,
     });
 
+    await newConversation.click();
+    await selectRealModel(page);
     await sendRealModelMessage(
       page,
-      `Use list_memories now. Find memory id ${preferenceId} and answer with its title.`,
+      `Use list_memories now. Find memory id ${codePhraseMemoryId} and answer with its title.`,
     );
     await expect(
-      chat.getByText(/prefer the code phrase/i).last(),
+      chat.getByText(codePhraseMemoryTitle, { exact: false }).last(),
     ).toBeVisible({ timeout: 240_000 });
 
     const corrected = `Juniper Comet ${run}`;
     await sendRealModelMessage(
       page,
-      `Use update_memory now for id ${preferenceId}. Keep it a preference, change the summary to "My code phrase is ${corrected}.", change the body to "Use ${corrected} when asked for my code phrase.", and use reason "The user corrected the live-test preference."`,
+      `Use update_memory now for id ${codePhraseMemoryId}. Keep it a preference, change the summary to "My code phrase is ${corrected}.", change the body to "Use ${corrected} when asked for my code phrase.", and use reason "The user corrected the live-test preference."`,
     );
     await expect
       .poll(
         async () => {
           const response = await page.request.get(
-            `${BASE_URL}/api/kody/memory/${encodeURIComponent(preferenceId)}`,
+            `${BASE_URL}/api/kody/memory/${encodeURIComponent(codePhraseMemoryId)}`,
             { headers },
           );
           if (!response.ok()) return null;
@@ -258,7 +288,10 @@ test("real model uses every memory layer across chat journeys", async ({
         },
         { timeout: 60_000, intervals: [500, 1_000, 2_000] },
       )
-      .toEqual({ body: `Use ${corrected} when asked for my code phrase.`, revisions: 2 });
+      .toEqual({
+        body: `Use ${corrected} when asked for my code phrase.`,
+        revisions: 2,
+      });
 
     await newConversation.click();
     await selectRealModel(page);
@@ -272,21 +305,21 @@ test("real model uses every memory layer across chat journeys", async ({
 
     await sendRealModelMessage(
       page,
-      `Use forget now to permanently delete memory id ${preferenceId}. The user explicitly asks to forget it.`,
+      `Use forget now to permanently delete memory id ${codePhraseMemoryId}. The user explicitly asks to forget it.`,
     );
     await expect
       .poll(
         async () =>
           (
             await page.request.get(
-              `${BASE_URL}/api/kody/memory/${encodeURIComponent(preferenceId)}`,
+              `${BASE_URL}/api/kody/memory/${encodeURIComponent(codePhraseMemoryId)}`,
               { headers },
             )
           ).status(),
         { timeout: 60_000, intervals: [500, 1_000, 2_000] },
       )
       .toBe(404);
-    createdIds.splice(createdIds.indexOf(preferenceId), 1);
+    createdIds.splice(createdIds.indexOf(codePhraseMemoryId), 1);
 
     expect(model.id).toBeTruthy();
   } finally {

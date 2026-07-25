@@ -70,6 +70,9 @@ export function MemoryFilesPage({
     queryFn: memoryApi.list,
     enabled: Boolean(auth),
     staleTime: 30_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
   const memories = useMemo(
     () => memoriesQuery.data ?? [],
