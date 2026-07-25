@@ -1,0 +1,1716 @@
+{
+  "nodes": [
+    {
+      "id": "github:issue:10",
+      "label": "Default branch CI is failing",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/10",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:11",
+      "label": "[capability-scheduler] prevent missed scheduled wake windows",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/11",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:12",
+      "label": "[observe-repo-ci] keep finding projection aligned with reports",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/12",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:13",
+      "label": "Kody control",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/13",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:14",
+      "label": "Kody control",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/14",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:15",
+      "label": "Kody control",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/15",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:2",
+      "label": "Make repo CI observation exclude its own in-progress run",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/2",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:4",
+      "label": "Kody Audit Log (do not edit)",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/4",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:5",
+      "label": "Default branch CI red: Kody Source Health failing on main",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/5",
+      "source": "github"
+    },
+    {
+      "id": "github:issue:7",
+      "label": "Restore kody-chat main CI to green",
+      "type": "issue",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/issues/7",
+      "source": "github"
+    },
+    {
+      "id": "github:pr:3",
+      "label": "fix: exclude self-run from default-branch CI observation",
+      "type": "pull_request",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/pull/3",
+      "source": "github"
+    },
+    {
+      "id": "github:pr:6",
+      "label": "#5: Default branch CI red: Kody Source Health failing on main",
+      "type": "pull_request",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/pull/6",
+      "source": "github"
+    },
+    {
+      "id": "github:pr:9",
+      "label": "#7: Restore kody-chat main CI to green",
+      "type": "pull_request",
+      "domain": "work",
+      "description": "OPEN",
+      "resource": "https://github.com/aharonyaircohen/kody-chat/pull/9",
+      "source": "github"
+    },
+    {
+      "id": "kody:agency:capability:agency-operations-management",
+      "label": "agency-operations-management",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Operate one active Operation within its persisted Goal and Loop scope.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:agency-portfolio-management",
+      "label": "agency-portfolio-management",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Scale the agency through bounded Operations derived from active Intents.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:ai-agency-health-matrix",
+      "label": "ai-agency-health-matrix",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Create a repo-local AI Agency health matrix report.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:build-knowledge-graph",
+      "label": "build-knowledge-graph",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Build a repository-scoped knowledge graph artifact from configured sources.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:company-portfolio-management",
+      "label": "company-portfolio-management",
+      "type": "capability",
+      "domain": "execution",
+      "description": "CEO reviews active company intents and company evidence and sets growth priorities.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:create-knowledge-report",
+      "label": "create-knowledge-report",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Create a readable report from a knowledge graph artifact.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:fix",
+      "label": "fix",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Apply review feedback to an existing PR branch.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:observe-agency-flow",
+      "label": "observe-agency-flow",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Read agency pipeline evidence (stale review PRs, unanswered requests, idle findings) and write one Observation plus the current agency-flow Finding.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:observe-repo-ci",
+      "label": "observe-repo-ci",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Read default-branch CI evidence and write one Observation plus the current CI Finding.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:operate-findings",
+      "label": "operate-findings",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Process open Findings through decide, deliver, verify, and learn phases.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:plan",
+      "label": "plan",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Research an issue and produce a concrete implementation plan as a comment. Read-only — no branches, no commits.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:publish-knowledge-system",
+      "label": "publish-knowledge-system",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Publish existing Knowledge System artifacts.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:repo-source-health",
+      "label": "repo-source-health",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Run the repository's configured source checks and publish one commit status for the Observer.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:reproduce",
+      "label": "reproduce",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Write a failing test that reproduces a bug. Do NOT fix the bug — leave the test failing and capture the failure signature so subsequent fix verification can confirm the same failure mode.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:research",
+      "label": "research",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Research an issue: understand the ask, map relevant repo context, and surface clarifying questions + gaps. Read-only — no branches, no commits, no prescribed next steps.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:review",
+      "label": "review",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Read-only structured review of an open PR. Posts one comment, never commits.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:capability:run",
+      "label": "run",
+      "type": "capability",
+      "domain": "execution",
+      "description": "Implement one GitHub issue end-to-end.",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:goal:test",
+      "label": "test",
+      "type": "goal",
+      "domain": "business",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:agency-operations-management",
+      "label": "agency-operations-management",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:agency-portfolio-management",
+      "label": "agency-portfolio-management",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:ai-agency-health-matrix",
+      "label": "ai-agency-health-matrix",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:build-knowledge-graph",
+      "label": "build-knowledge-graph",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:company-portfolio-management",
+      "label": "company-portfolio-management",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:create-knowledge-report",
+      "label": "create-knowledge-report",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:fix",
+      "label": "fix",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:observe-agency-flow",
+      "label": "observe-agency-flow",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:observe-repo-ci",
+      "label": "observe-repo-ci",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:operate-findings",
+      "label": "operate-findings",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:plan",
+      "label": "plan",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:publish-knowledge-system",
+      "label": "publish-knowledge-system",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:repo-source-health",
+      "label": "repo-source-health",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:reproduce",
+      "label": "reproduce",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:research",
+      "label": "research",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:review",
+      "label": "review",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:implementation:run",
+      "label": "run",
+      "type": "implementation",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:intent:keep-default-branch-ci-green-and-recover-fast-when-it-breaks",
+      "label": "Keep default-branch CI green and recover fast when it breaks.",
+      "type": "intent",
+      "domain": "business",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:intent:operational-efficiency",
+      "label": "Reduce operator effort while keeping Kody Chat agency observable and controlled.",
+      "type": "intent",
+      "domain": "business",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:intent:product-evolution",
+      "label": "Grow Kody Chat into a clear, modular product that compounds operator leverage.",
+      "type": "intent",
+      "domain": "business",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:intent:product-reliability",
+      "label": "Keep Kody Chat reliable across chat, Brain, terminal, and agency surfaces.",
+      "type": "intent",
+      "domain": "business",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:agency-observer",
+      "label": "The agency has current evidence and distinct problems are recorded as Findings.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:agency-operating-loop",
+      "label": "Open Findings are processed through a visible phase and verified changes create Learning records.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:agency-operations-loop",
+      "label": "Approved agency work runs reliably, unhealthy work is contained, and operational evidence stays current.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:agency-operations-loop-b1981987",
+      "label": "Approved agency work runs reliably, unhealthy work is contained, and operational evidence stays current.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "archived",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:ai-agency-health",
+      "label": "The current repo's AI Agency is checked regularly and broken wiring is visible before work runs.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:ai-agency-health-b1981987",
+      "label": "The current repo's AI Agency is checked regularly and broken wiring is visible before work runs.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "archived",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:company-growth-loop",
+      "label": "The company portfolio stays focused on the highest-value intent-backed growth priorities.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:company-growth-loop-b1981987",
+      "label": "The company portfolio stays focused on the highest-value intent-backed growth priorities.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "archived",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:loop:knowledge-system-refresh",
+      "label": "Kody has a current repository-scoped graph of code, business state, issues, and pull requests.",
+      "type": "loop",
+      "domain": "execution",
+      "description": "active",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:operation:agency-observability",
+      "label": "Agency Observability",
+      "type": "operation",
+      "domain": "execution",
+      "description": "draft",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:operation:agency-operations",
+      "label": "Agency Operations",
+      "type": "operation",
+      "domain": "execution",
+      "description": "draft",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:operation:company-evolution",
+      "label": "Company Evolution",
+      "type": "operation",
+      "domain": "execution",
+      "description": "draft",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:agency-observer",
+      "label": "agency-observer",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:agency-operating-loop",
+      "label": "agency-operating-loop",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:bug",
+      "label": "bug",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:chore",
+      "label": "chore",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:feature",
+      "label": "feature",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:refresh-knowledge-system",
+      "label": "refresh-knowledge-system",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:spec",
+      "label": "spec",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agency:workflow:test-workflow",
+      "label": "test-workflow",
+      "type": "workflow",
+      "domain": "execution",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agencyRecords:finding-repo-ci-main",
+      "label": "Default branch CI is failing",
+      "type": "finding",
+      "domain": "knowledge",
+      "description": "resolved",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agencyRecords:learning-finding-repo-ci-main-20260713232041359",
+      "label": "Default branch CI returned to green; check-runs API shows 11 consecutive successful runs on head SHA 090f3ebd after the transient failure at 18:54:45Z; delivery run 29276873318 succeeded; subsequent scheduled runs 29280020535, 29284740910, 29289038797 all succeeded; stale commit-status entry from 18:54:45 was superseded by later successful runs on the same commit",
+      "type": "learning",
+      "domain": "knowledge",
+      "description": "learning",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agencyRecords:obs-ci-main-20260716t094216865z",
+      "label": "Default branch CI is failing",
+      "type": "observation",
+      "domain": "knowledge",
+      "description": "unhealthy",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agent:ceo",
+      "label": "CEO",
+      "type": "agent",
+      "domain": "agency",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agent:coo",
+      "label": "COO",
+      "type": "agent",
+      "domain": "agency",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agent:cto",
+      "label": "CTO",
+      "type": "agent",
+      "domain": "agency",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:agent:kody",
+      "label": "kody",
+      "type": "agent",
+      "domain": "agency",
+      "source": "kody"
+    },
+    {
+      "id": "kody:repoDocs:context:test",
+      "label": "test",
+      "type": "context",
+      "domain": "knowledge",
+      "description": "context:test",
+      "source": "kody"
+    },
+    {
+      "id": "kody:repoDocs:todo:test",
+      "label": "test",
+      "type": "todo",
+      "domain": "work",
+      "description": "todo:test",
+      "source": "kody"
+    },
+    {
+      "id": "kody:report:ai-agency-health-matrix",
+      "label": "ai-agency-health-matrix",
+      "type": "report",
+      "domain": "knowledge",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:report:finding-repo-ci-main",
+      "label": "Default branch CI is failing",
+      "type": "report",
+      "domain": "knowledge",
+      "description": "finding",
+      "source": "kody"
+    },
+    {
+      "id": "kody:report:meeting-notes",
+      "label": "Meeting — Board meeting — Q3 kickoff",
+      "type": "report",
+      "domain": "knowledge",
+      "description": "",
+      "source": "kody"
+    },
+    {
+      "id": "kody:run:run-1b958882-5fe3-4f54-9bd3-6b222c2a99f8",
+      "label": "run-1b958882-5fe3-4f54-9bd3-6b222c2a99f8",
+      "type": "run",
+      "domain": "work",
+      "description": "running",
+      "resource": null,
+      "source": "kody"
+    },
+    {
+      "id": "kody:run:workflow:agency-observer:gh-29643412573-1-3",
+      "label": "Agency Observer",
+      "type": "run",
+      "domain": "work",
+      "description": "success",
+      "resource": null,
+      "source": "kody"
+    },
+    {
+      "id": "kody:run:workflow:agency-operating-loop:gh-29643412573-1-2",
+      "label": "Agency Operating Loop",
+      "type": "run",
+      "domain": "work",
+      "description": "success",
+      "resource": null,
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:2:context",
+      "label": "context · 2",
+      "type": "context",
+      "domain": "work",
+      "description": "context",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:5:context",
+      "label": "context · 5",
+      "type": "context",
+      "domain": "work",
+      "description": "context",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:issues/2:state",
+      "label": "state · issues/2",
+      "type": "state",
+      "domain": "work",
+      "description": "state",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:issues/5:state",
+      "label": "state · issues/5",
+      "type": "state",
+      "domain": "work",
+      "description": "state",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:prs/3:state",
+      "label": "state · prs/3",
+      "type": "state",
+      "domain": "work",
+      "description": "state",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:prs/6:state",
+      "label": "state · prs/6",
+      "type": "state",
+      "domain": "work",
+      "description": "state",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:prs/9:context",
+      "label": "context · prs/9",
+      "type": "context",
+      "domain": "work",
+      "description": "context",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:prs/9:handoff-notes",
+      "label": "handoff-notes · prs/9",
+      "type": "handoff-notes",
+      "domain": "work",
+      "description": "handoff-notes",
+      "source": "kody"
+    },
+    {
+      "id": "kody:task:prs/9:state",
+      "label": "state · prs/9",
+      "type": "state",
+      "domain": "work",
+      "description": "state",
+      "source": "kody"
+    },
+    {
+      "id": "project:area:apps/dashboard",
+      "label": "apps/dashboard",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:kody.config.json",
+      "label": "kody.config.json",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:package.json",
+      "label": "package.json",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/agency",
+      "label": "packages/agency",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/agency-domain",
+      "label": "packages/agency-domain",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/base",
+      "label": "packages/base",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/brain",
+      "label": "packages/brain",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/chat-model-catalog",
+      "label": "packages/chat-model-catalog",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/cms",
+      "label": "packages/cms",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/fly",
+      "label": "packages/fly",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/kody-backend",
+      "label": "packages/kody-backend",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/kody-chat",
+      "label": "packages/kody-chat",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/kody-chat-dashboard",
+      "label": "packages/kody-chat-dashboard",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/terminal",
+      "label": "packages/terminal",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:packages/workspace",
+      "label": "packages/workspace",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "project:area:projects",
+      "label": "projects",
+      "type": "code_area",
+      "domain": "technical",
+      "description": "Repository area",
+      "source": "graphify"
+    },
+    {
+      "id": "repo:aharonyaircohen/kody-chat",
+      "label": "aharonyaircohen/kody-chat",
+      "type": "repository",
+      "domain": "project",
+      "source": "github"
+    }
+  ],
+  "edges": [
+    {
+      "source": "github:issue:2",
+      "target": "github:pr:3",
+      "relation": "resolved-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:2",
+      "target": "kody:task:2:context",
+      "relation": "has-context",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:2",
+      "target": "kody:task:issues/2:state",
+      "relation": "has-state",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:5",
+      "target": "github:pr:6",
+      "relation": "resolved-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:5",
+      "target": "kody:task:5:context",
+      "relation": "has-context",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:5",
+      "target": "kody:task:issues/5:state",
+      "relation": "has-state",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:issue:7",
+      "target": "github:pr:9",
+      "relation": "resolved-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:pr:3",
+      "target": "kody:task:prs/3:state",
+      "relation": "has-state",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:pr:6",
+      "target": "kody:task:prs/6:state",
+      "relation": "has-state",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:pr:9",
+      "target": "kody:task:prs/9:context",
+      "relation": "has-context",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:pr:9",
+      "target": "kody:task:prs/9:handoff-notes",
+      "relation": "has-handoff-notes",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "github:pr:9",
+      "target": "kody:task:prs/9:state",
+      "relation": "has-state",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:agency-operations-management",
+      "target": "kody:agency:implementation:agency-operations-management",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:agency-portfolio-management",
+      "target": "kody:agency:implementation:agency-portfolio-management",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:ai-agency-health-matrix",
+      "target": "kody:agency:implementation:ai-agency-health-matrix",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:ai-agency-health-matrix",
+      "target": "kody:report:ai-agency-health-matrix",
+      "relation": "produces",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:build-knowledge-graph",
+      "target": "kody:agency:implementation:build-knowledge-graph",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:company-portfolio-management",
+      "target": "kody:agency:implementation:company-portfolio-management",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:create-knowledge-report",
+      "target": "kody:agency:implementation:create-knowledge-report",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:fix",
+      "target": "kody:agency:implementation:fix",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:observe-agency-flow",
+      "target": "kody:agency:implementation:observe-agency-flow",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:observe-repo-ci",
+      "target": "kody:agency:implementation:observe-repo-ci",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:observe-repo-ci",
+      "target": "kody:agencyRecords:obs-ci-main-20260716t094216865z",
+      "relation": "produces",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:operate-findings",
+      "target": "kody:agency:implementation:operate-findings",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:plan",
+      "target": "kody:agency:implementation:plan",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:publish-knowledge-system",
+      "target": "kody:agency:implementation:publish-knowledge-system",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:repo-source-health",
+      "target": "kody:agency:implementation:repo-source-health",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:reproduce",
+      "target": "kody:agency:implementation:reproduce",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:research",
+      "target": "kody:agency:implementation:research",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:review",
+      "target": "kody:agency:implementation:review",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:capability:run",
+      "target": "kody:agency:implementation:run",
+      "relation": "implemented-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:goal:test",
+      "target": "kody:agency:workflow:test-workflow",
+      "relation": "executes",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:agency-operations-management",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:agency-portfolio-management",
+      "target": "kody:agent:coo",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:company-portfolio-management",
+      "target": "kody:agent:ceo",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:fix",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:operate-findings",
+      "target": "kody:agent:coo",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:plan",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:reproduce",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:research",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:review",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:implementation:run",
+      "target": "kody:agent:kody",
+      "relation": "run-by",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:intent:operational-efficiency",
+      "target": "kody:agency:operation:agency-observability",
+      "relation": "delegates",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:intent:operational-efficiency",
+      "target": "kody:agency:operation:agency-operations",
+      "relation": "delegates",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:intent:product-evolution",
+      "target": "kody:agency:operation:company-evolution",
+      "relation": "delegates",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:intent:product-reliability",
+      "target": "kody:agency:operation:agency-observability",
+      "relation": "delegates",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:agency-observer",
+      "target": "kody:agency:workflow:agency-observer",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:agency-operating-loop",
+      "target": "kody:agency:workflow:agency-operating-loop",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:agency-operations-loop",
+      "target": "kody:agency:capability:agency-operations-management",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:agency-operations-loop-b1981987",
+      "target": "kody:agency:capability:agency-operations-management",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:ai-agency-health",
+      "target": "kody:agency:capability:ai-agency-health-matrix",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:ai-agency-health-b1981987",
+      "target": "kody:agency:capability:ai-agency-health-matrix",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:company-growth-loop",
+      "target": "kody:agency:capability:company-portfolio-management",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:company-growth-loop-b1981987",
+      "target": "kody:agency:capability:company-portfolio-management",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:loop:knowledge-system-refresh",
+      "target": "kody:agency:workflow:refresh-knowledge-system",
+      "relation": "triggers",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-observability",
+      "target": "kody:agency:loop:agency-observer",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-observability",
+      "target": "kody:agency:loop:ai-agency-health",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-observability",
+      "target": "kody:agency:loop:ai-agency-health-b1981987",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-observability",
+      "target": "kody:agency:loop:knowledge-system-refresh",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-operations",
+      "target": "kody:agency:goal:test",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-operations",
+      "target": "kody:agency:loop:agency-operating-loop",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-operations",
+      "target": "kody:agency:loop:agency-operations-loop",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:agency-operations",
+      "target": "kody:agency:loop:agency-operations-loop-b1981987",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:company-evolution",
+      "target": "kody:agency:loop:company-growth-loop",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:operation:company-evolution",
+      "target": "kody:agency:loop:company-growth-loop-b1981987",
+      "relation": "owns",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-observer",
+      "target": "kody:agency:capability:observe-agency-flow",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-observer",
+      "target": "kody:agency:capability:observe-repo-ci",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-observer",
+      "target": "kody:agency:capability:repo-source-health",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-observer",
+      "target": "kody:run:workflow:agency-observer:gh-29643412573-1-3",
+      "relation": "has-run",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-operating-loop",
+      "target": "kody:agency:capability:operate-findings",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:agency-operating-loop",
+      "target": "kody:run:workflow:agency-operating-loop:gh-29643412573-1-2",
+      "relation": "has-run",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:bug",
+      "target": "kody:agency:capability:fix",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:bug",
+      "target": "kody:agency:capability:plan",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:bug",
+      "target": "kody:agency:capability:reproduce",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:bug",
+      "target": "kody:agency:capability:review",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:bug",
+      "target": "kody:agency:capability:run",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:chore",
+      "target": "kody:agency:capability:fix",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:chore",
+      "target": "kody:agency:capability:review",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:chore",
+      "target": "kody:agency:capability:run",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:feature",
+      "target": "kody:agency:capability:fix",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:feature",
+      "target": "kody:agency:capability:plan",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:feature",
+      "target": "kody:agency:capability:research",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:feature",
+      "target": "kody:agency:capability:review",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:feature",
+      "target": "kody:agency:capability:run",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:refresh-knowledge-system",
+      "target": "kody:agency:capability:build-knowledge-graph",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:refresh-knowledge-system",
+      "target": "kody:agency:capability:create-knowledge-report",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:refresh-knowledge-system",
+      "target": "kody:agency:capability:publish-knowledge-system",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:refresh-knowledge-system",
+      "target": "kody:run:run-1b958882-5fe3-4f54-9bd3-6b222c2a99f8",
+      "relation": "has-run",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:spec",
+      "target": "kody:agency:capability:plan",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:spec",
+      "target": "kody:agency:capability:research",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:test-workflow",
+      "target": "kody:agency:capability:agency-operations-management",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agency:workflow:test-workflow",
+      "target": "kody:agency:capability:agency-portfolio-management",
+      "relation": "uses",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "kody:agencyRecords:finding-repo-ci-main",
+      "target": "kody:agencyRecords:learning-finding-repo-ci-main-20260713232041359",
+      "relation": "produces-learning",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:10",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:11",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:12",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:13",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:14",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:15",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:2",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:4",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:5",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "github:issue:7",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agency:intent:keep-default-branch-ci-green-and-recover-fast-when-it-breaks",
+      "relation": "pursues",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agency:intent:operational-efficiency",
+      "relation": "pursues",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agency:intent:product-evolution",
+      "relation": "pursues",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agency:intent:product-reliability",
+      "relation": "pursues",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agent:ceo",
+      "relation": "has-agent",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agent:coo",
+      "relation": "has-agent",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agent:cto",
+      "relation": "has-agent",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:agent:kody",
+      "relation": "has-agent",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:repoDocs:context:test",
+      "relation": "has-context",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:repoDocs:todo:test",
+      "relation": "tracks",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:report:ai-agency-health-matrix",
+      "relation": "has-report",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:report:finding-repo-ci-main",
+      "relation": "has-report",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "kody:report:meeting-notes",
+      "relation": "has-report",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:apps/dashboard",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:kody.config.json",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:package.json",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/agency",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/agency-domain",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/base",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/brain",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/chat-model-catalog",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/cms",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/fly",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/kody-backend",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/kody-chat",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/kody-chat-dashboard",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/terminal",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:packages/workspace",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "source": "repo:aharonyaircohen/kody-chat",
+      "target": "project:area:projects",
+      "relation": "has-area",
+      "confidence": "EXTRACTED"
+    }
+  ]
+}

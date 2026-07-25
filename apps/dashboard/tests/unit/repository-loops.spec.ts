@@ -69,7 +69,7 @@ describe("repository loops", () => {
     ).resolves.toMatchObject({ loop, created: true });
     expect(createOrUpdateFileContents).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: ".kody-engine/runtime/loops/ci-repair/loop.json",
+        path: ".kody-engine/definitions/loops/ci-repair/loop.json",
         message: "add loop",
       }),
     );
@@ -90,7 +90,7 @@ describe("repository loops", () => {
     expect(deleteFile).toHaveBeenCalledWith({
       owner: "o",
       repo: "r",
-      path: ".kody-engine/runtime/loops/ci-repair/loop.json",
+      path: ".kody-engine/definitions/loops/ci-repair/loop.json",
       message: "remove loop",
       sha: "file-sha",
     });

@@ -9,7 +9,7 @@ import {
   writeGitHubFileWithRetry,
 } from "@kody-ade/base/github-contents-write";
 
-const ROOT = ".kody-engine/runtime/loops";
+const ROOT = ".kody-engine/definitions/loops";
 const ID = /^[a-z][a-z0-9-]{0,127}$/;
 
 function loopPath(id: string): string {

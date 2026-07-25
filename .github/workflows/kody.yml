@@ -71,7 +71,7 @@ jobs:
         with:
           repository: ${{ vars.KODY_STORE_REPOSITORY || 'aharonyaircohen/kody-company-store' }}
           ref: ${{ vars.KODY_STORE_REF || 'main' }}
-          path: .kody-engine/definitions
+          path: .kody-engine/store
           token: ${{ secrets.KODY_TOKEN || github.token }}
 
       - env:
@@ -80,11 +80,11 @@ jobs:
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
-          KODY_DEFINITIONS_ROOT: ${{ github.workspace }}/.kody-engine/definitions
+          KODY_DEFINITIONS_ROOT: ${{ github.workspace }}/.kody-engine/store
           KODY_DEFINITIONS_ROOT_CWD: ${{ github.workspace }}
         working-directory: ${{ github.workspace }}
         run: |
-          test -f .kody-engine/definitions/kody-store.json
-          test -f .kody-engine/runtime/loops/ci-repair/loop.json
+          test -f .kody-engine/store/kody-store.json
+          test -f .kody-engine/definitions/loops/ci-repair/loop.json
           npx -y -p @kody-ade/kody-engine@latest kody-engine version
           npx -y -p @kody-ade/kody-engine@latest kody-engine ci --cwd "$GITHUB_WORKSPACE"
