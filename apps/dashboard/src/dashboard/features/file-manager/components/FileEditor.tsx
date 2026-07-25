@@ -40,6 +40,8 @@ import {
   parseFileDraft,
   serializeFileDraft,
 } from "../lib/file-drafts";
+import { isHtmlFile } from "../lib/html-preview";
+import { HtmlPreview } from "./HtmlPreview";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -92,6 +94,8 @@ export function FileEditor({
   const transport = useFilesTransport();
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
+  const isHtml = isHtmlFile(path);
+  const supportsPreview = isMarkdown || isHtml;
   const draftStorageKey = useMemo(
     () => fileDraftStorageKey(owner, repo, path),
     [owner, repo, path],
@@ -152,6 +156,10 @@ export function FileEditor({
       if (requestGuard.isCurrent(requestId)) requestGuard.invalidate();
     };
   }, [transport, octokit, owner, repo, path, draftStorageKey, requestGuard]);
+
+  useEffect(() => {
+    setViewMode(supportsPreview ? defaultMarkdownViewMode : "edit");
+  }, [defaultMarkdownViewMode, path, supportsPreview]);
 
   // Track dirty state
   useEffect(() => {
@@ -303,7 +311,7 @@ export function FileEditor({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isMarkdown && (
+          {supportsPreview && (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <Button
                 variant="ghost"
@@ -431,37 +439,51 @@ export function FileEditor({
           </div>
         ) : null}
 
-        {viewMode === "preview" && (
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-card">
-            <div className="mx-auto max-w-4xl px-10 py-12 lg:px-16">
-              <MarkdownPreview
-                {...autoDirProps}
-                content={content}
-                className={cn(
-                  "break-words text-start md:prose-lg",
-                  rtlAwareMarkdownClassName,
-                )}
-              />
+        {viewMode === "preview" &&
+          (isHtml ? (
+            <HtmlPreview
+              className="min-h-0 flex-1 rounded-xl border border-border"
+              content={content}
+              fileName={fileName}
+            />
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-card">
+              <div className="mx-auto max-w-4xl px-10 py-12 lg:px-16">
+                <MarkdownPreview
+                  {...autoDirProps}
+                  content={content}
+                  className={cn(
+                    "break-words text-start md:prose-lg",
+                    rtlAwareMarkdownClassName,
+                  )}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          ))}
 
         {viewMode === "split" && <div className="w-2" />}
 
-        {viewMode === "split" && (
-          <div className="min-h-0 w-1/2 overflow-y-auto rounded-r-xl border border-border bg-card">
-            <div className="mx-auto max-w-3xl px-8 py-10">
-              <MarkdownPreview
-                {...autoDirProps}
-                content={content}
-                className={cn(
-                  "break-words text-start md:prose-base",
-                  rtlAwareMarkdownClassName,
-                )}
-              />
+        {viewMode === "split" &&
+          (isHtml ? (
+            <HtmlPreview
+              className="min-h-0 w-1/2 rounded-r-xl border border-border"
+              content={content}
+              fileName={fileName}
+            />
+          ) : (
+            <div className="min-h-0 w-1/2 overflow-y-auto rounded-r-xl border border-border bg-card">
+              <div className="mx-auto max-w-3xl px-8 py-10">
+                <MarkdownPreview
+                  {...autoDirProps}
+                  content={content}
+                  className={cn(
+                    "break-words text-start md:prose-base",
+                    rtlAwareMarkdownClassName,
+                  )}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          ))}
       </div>
     </div>
   );

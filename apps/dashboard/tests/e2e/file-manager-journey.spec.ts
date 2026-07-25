@@ -29,6 +29,7 @@ async function installFileManagerHarness(
   options: {
     emptyRepository?: boolean;
     fileReadDelayMs?: number;
+    htmlPreview?: boolean;
     largeImage?: boolean;
   } = {},
 ) {
@@ -49,13 +50,22 @@ async function installFileManagerHarness(
       sha: "large-image-sha",
     });
   }
+  if (options.htmlPreview) {
+    files.set("preview.html", {
+      content:
+        '<!doctype html><html><body><h1>HTML preview works</h1><img src="https://preview.invalid/tracker.png"><script>parent.postMessage("html-preview-script-executed", "*")</script></body></html>',
+      sha: "html-preview-sha",
+    });
+  }
   const blobs = new Map<string, string>();
   const unhandledGitHubRequests: string[] = [];
   let pendingTree: GitTreeEntry[] = [];
+  let rootDirectoryReads = 0;
   let sequence = 1;
 
   await page.addInitScript(
     ({ owner, repo }) => {
+      if (window !== window.top) return;
       const nativeFetch = window.fetch.bind(window);
       window.fetch = (...args) => nativeFetch(...args);
       localStorage.setItem(
@@ -260,6 +270,7 @@ async function installFileManagerHarness(
       }
 
       if (method === "GET") {
+        if (path === "") rootDirectoryReads += 1;
         if (options.emptyRepository && path === "" && files.size === 0) {
           return json(route, { message: "This repository is empty." }, 404);
         }
@@ -301,7 +312,11 @@ async function installFileManagerHarness(
     return json(route, { message: "Not Found" }, 404);
   });
 
-  return { files, unhandledGitHubRequests };
+  return {
+    files,
+    rootDirectoryReads: () => rootDirectoryReads,
+    unhandledGitHubRequests,
+  };
 }
 
 function collectRuntimeFailures(
@@ -498,6 +513,67 @@ test.describe("repository file manager", () => {
     ).toHaveCount(0);
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
+  });
+
+  test("previews HTML without allowing scripts or external requests", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const externalPreviewRequests: string[] = [];
+    const externalPreviewResponses: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).hostname === "preview.invalid") {
+        externalPreviewRequests.push(request.url());
+      }
+    });
+    page.on("response", (response) => {
+      if (new URL(response.url()).hostname === "preview.invalid") {
+        externalPreviewResponses.push(response.url());
+      }
+    });
+    await page.addInitScript(() => {
+      Object.assign(window, { __htmlPreviewScriptExecuted: false });
+      window.addEventListener("message", (event) => {
+        if (event.data === "html-preview-script-executed") {
+          Object.assign(window, { __htmlPreviewScriptExecuted: true });
+        }
+      });
+    });
+    await installFileManagerHarness(page, { htmlPreview: true });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: "preview.html 187 B" }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Preview mode" }).click();
+
+    const preview = page.frameLocator(
+      'iframe[title="Preview of preview.html"]',
+    );
+    await expect(
+      preview.getByRole("heading", { name: "HTML preview works" }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (
+              window as typeof window & {
+                __htmlPreviewScriptExecuted: boolean;
+              }
+            ).__htmlPreviewScriptExecuted,
+        ),
+      )
+      .toBe(false);
+    expect(externalPreviewRequests).toEqual([]);
+    expect(externalPreviewResponses).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+
+    await page.getByRole("button", { name: "Edit mode" }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
   });
 
   test("uploads markdown inside a scoped file workspace", async ({ page }) => {
@@ -731,6 +807,42 @@ test.describe("repository file manager", () => {
           ) === JSON.stringify(stableLabels),
       ),
     ).toBe(true);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps repository navigation mounted while selecting folders and files", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { rootDirectoryReads } = await installFileManagerHarness(page);
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("treeitem")).toHaveCount(3);
+    expect(rootDirectoryReads()).toBe(1);
+
+    await page.getByRole("treeitem", { name: "docs" }).click();
+    await expect(page).toHaveURL(/\/files\/docs$/);
+    await expect(page.getByRole("heading", { name: "docs" })).toBeVisible();
+    expect(rootDirectoryReads()).toBe(1);
+
+    await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
+    await expect(page).toHaveURL(/\/files\/notes\.md$/);
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
+    expect(rootDirectoryReads()).toBe(1);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/files\/docs$/);
+    await expect(page.getByRole("heading", { name: "docs" })).toBeVisible();
+    expect(rootDirectoryReads()).toBe(1);
+
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`${REPO_ROUTE}/?$`));
+    await expect(
+      page.getByText("Choose what you want to work on"),
+    ).toBeVisible();
+    expect(rootDirectoryReads()).toBe(1);
     expect(runtimeFailures).toEqual([]);
   });
 });

@@ -19,7 +19,6 @@ import {
 } from "react";
 import { FilesTransportProvider, type FilesTransport } from "../lib/transport";
 import { Octokit } from "@octokit/rest";
-import { useRouter } from "next/navigation";
 import {
   Copy,
   Download,
@@ -174,7 +173,6 @@ export function FilesPage({
   headerActions,
 }: FilesPageProps) {
   const { auth } = useAuth();
-  const router = useRouter();
   const scopedHref = useRepoScopedHref();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
@@ -304,10 +302,15 @@ export function FilesPage({
         return;
       }
 
-      if (options.replace) router.replace(href);
-      else router.push(href);
+      // FilesPage already owns path selection and popstate restoration. Call
+      // the native History API so changing the canonical URL does not remount
+      // the Next.js route and briefly discard the active workspace.
+      const updateHistory = options.replace
+        ? window.History.prototype.replaceState
+        : window.History.prototype.pushState;
+      updateHistory.call(window.history, null, "", href);
     },
-    [routeBase, router, scopedHref, workspaceRoot],
+    [routeBase, scopedHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
