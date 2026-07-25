@@ -295,7 +295,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
       },
       {
         href: "/file-spaces",
-        label: "Settings",
+        label: "Manage Spaces",
         icon: Settings2,
         exact: true,
         description: "Add and organize repository-backed knowledge spaces.",
