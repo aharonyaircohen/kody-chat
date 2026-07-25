@@ -1,35 +1,12 @@
-# Definition Reference and Revision
+# Definition references
 
-Status: **Draft** · Kind: **Shared contract**
+Status: **Future shared contract**
 
-Domain identity is `{ kind, id }`. Revision belongs to the immutable persistence
-envelope, not the semantic definition.
+The simplified domain package uses `{ kind, id }` references for Loop targets,
+Workflow Capability steps, and Run targets. Mounted Workflow code currently
+uses string slugs instead. Immutable pinned revisions are not one shared
+current contract.
 
-```ts
-interface DefinitionRef {
-  kind: ReferenceKind;
-  id: string;
-}
-interface PinnedDefinitionRef extends DefinitionRef {
-  revision: string;
-}
-```
-
-Definitions may use unpinned references to express a dependency on the current
-compatible head. Runs must use pinned references for every
-reproducibility-relevant definition. A revision is immutable; editing creates a
-new revision and atomically advances a current head after validation.
-
-Historical Runs remain valid if a head changes or a definition retires.
-Deletion is blocked by live dependencies and never erases referenced History.
-Cross-tenant references are invalid unless an explicit portable/shared contract
-allows them.
-
-Open decisions: revision identifier format, optimistic concurrency token,
-compatibility ranges, head selection, and retention.
-
-Agent rules: definitions may use current-head references only before dispatch;
-Runs always pin. Never select “latest” from timestamps when a head exists.
-
-Recommended decision: use content-derived immutable revision IDs and one
-explicit head record with compare-and-set updates.
+A future shared reference may add a revision, but only after Agent, Capability,
+Workflow, Loop, and Run use the same published package. Do not add revision
+fields to one surface while other loaders ignore them.

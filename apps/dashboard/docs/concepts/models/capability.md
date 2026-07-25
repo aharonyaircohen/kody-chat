@@ -1,8 +1,8 @@
 # Capability
 
-## Meaning
+Status: **Current Dashboard contract**
 
-A Capability is one reusable action stored as one folder:
+A Capability is one reusable method with one input and one output.
 
 ```text
 capabilities/<slug>/
@@ -11,16 +11,12 @@ capabilities/<slug>/
 └── tools/
 ```
 
-It receives one JSON-compatible input and returns one JSON-compatible output.
-`instructions.md` explains what those values mean and how to do the work.
+- `instructions.md` is required and explains the work.
+- `skills/` contains optional reusable instruction files.
+- `tools/` contains optional executable or tool configuration files.
 
-## Boundaries
+A Capability does not select an Agent, model, schedule, permission mode, Loop,
+or Workflow. Direct runs use Kody. A Workflow selects another Agent when needed.
 
-- Capability owns instructions, skills, and tools.
-- Workflow owns order, conditions, approvals, and Agent selection.
-- Engine owns execution status, evidence, artifacts, logs, and errors.
-- Capability does not own a schema, schedule, Workflow, Agent, model, or
-  permission policy.
-
-The Engine does not validate capability-specific fields. The capability
-interprets its input according to its instructions.
+The public Capability is the folder. Engine implementation profiles are
+technical runtime assets, not another public Agency model.

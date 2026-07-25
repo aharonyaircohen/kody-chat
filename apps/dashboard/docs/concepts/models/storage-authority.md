@@ -1,30 +1,21 @@
-# Storage authority and tenant Scope
+# Storage authority
 
-Status: **Draft; runtime rule canonical**
+Status: **Current verified map**
 
-Convex is the sole authority for Dashboard runtime State and History. Runtime
-State must never read from, write to, bootstrap from, dual-write to, or fall
-back to GitHub.
+| Data                                    | Authority                                           |
+| --------------------------------------- | --------------------------------------------------- |
+| Intent, Context, Policy, Constraint     | Convex `repoDocs`                                   |
+| Todo lists                              | Convex `repoDocs`                                   |
+| Local Capabilities                      | Convex `repoDocs` folder maps                       |
+| Local Agents                            | Versioned Convex definition bundles                 |
+| Local Workflows                         | Convex workflow store                               |
+| Dashboard simple Loops                  | GitHub `.kody-engine/definitions/loops`             |
+| Runs, events, approvals, dispatch state | Convex                                              |
+| Store assets                            | GitHub-backed Kody Store, read-only to the consumer |
+| UI projections and knowledge graph      | Derived                                             |
 
-| Data                                           | Authority                                                |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| Active State, Runs, events, approvals, outputs | Convex                                                   |
-| Current definition heads/revisions             | selected agency definition store; consolidation required |
-| Repository content and Engine definitions      | GitHub/repository                                        |
-| Store assets and distributable packages        | Kody Store                                               |
-| UI projections and caches                      | derived, rebuildable                                     |
-| Optional GitHub CMS content                    | only explicit selected CMS adapter                       |
+GitHub is allowed for repository content and Engine definitions. It is not
+allowed as a fallback, bootstrap, or dual-write target for runtime state.
 
-Every authoritative record carries tenant identity. Server authorization derives
-tenant/user Scope; client-supplied tenant identifiers are never trusted alone.
-Portable exports omit runtime State, credentials, secrets, and tenant-local
-bindings unless explicitly included by a governed format.
-
-Current repository/file compatibility paths must be inventoried per model.
-Migration is incomplete while any runtime fallback or dual-write remains.
-
-Reviewed result: current clean agency Definitions, State, and History are
-Convex-backed. Some file-named adapters now wrap Convex; names and unused
-Octokit arguments must not be mistaken for GitHub storage.
-
-Agent rule: verify the actual adapter before claiming authority from a filename.
+The Engine scheduler currently reads older Convex Agency Loop definitions, not
+the Dashboard simple Loop files. That is an unresolved authority split.

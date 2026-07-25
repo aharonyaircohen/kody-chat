@@ -27,6 +27,22 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_run",
   },
   {
+    table: "workflowCheckpoints",
+    naturalKey: ["threadId", "checkpointNs", "checkpointId"],
+    upsertIndex: "by_checkpoint",
+  },
+  {
+    table: "workflowCheckpointWrites",
+    naturalKey: [
+      "threadId",
+      "checkpointNs",
+      "checkpointId",
+      "taskId",
+      "idx",
+    ],
+    upsertIndex: "by_write",
+  },
+  {
     table: "guidedFlowInstances",
     naturalKey: ["actorId", "instanceId"],
     upsertIndex: "by_instance",

@@ -1,30 +1,22 @@
 # Migration and compatibility removal
 
-Status: **Draft**
+Status: **Required P0 work**
 
-Compatibility is temporary migration debt, not a second supported model.
+The desired public model is Intent, Todo, Loop, Workflow, Capability, Agent, and
+Run. Operation, Goal, and a public Implementation model remain only in the
+published Engine contract and must not be restored to the Dashboard.
 
-For each legacy shape:
+Required migration:
 
-1. inventory every reader, writer, validator, route, job, UI projection,
-   fallback, bootstrap, and dual-write;
-2. classify fields into Definition, State, History, projection, or obsolete;
-3. define stable identity and reversible backfill;
-4. add target validation and observability;
-5. backfill and reconcile counts/content;
-6. switch writers, then readers;
-7. reject new legacy writes;
-8. remove inference, fallback, bootstrap, and dual-write;
-9. run static, persistence, runtime, and browser proof;
-10. record rollback and final removal evidence.
+1. Publish the simplified Agency contract under a new version.
+2. Choose one persisted Loop definition format and authority.
+3. Migrate or delete existing old Intent, Operation, Goal, and Loop records.
+4. Update Engine loaders and dispatch to the selected contract.
+5. Remove old readers, writers, types, and routes.
+6. Remove the `agency:intent` compatibility reader.
+7. Consolidate duplicate Agent, Workflow, and Todo contracts.
+8. Run Dashboard persistence, Engine, real LLM, Run-history, and browser
+   journeys.
 
-Do not call migration complete because a new table or API exists. Completion
-requires zero live compatibility paths and verified authoritative data.
-Irreversible deletion waits until backups, reconciliation, and rollback windows
-are approved.
-
-Each model implementation guide owns its compatibility inventory. This document
-owns the common completion rule and evidence format.
-
-Reviewed priority: remove direct dispatch and competing read/write paths before
-cosmetic field cleanup.
+Do not add dual-read, dual-write, fallback, or automatic legacy inference.
+Migration is complete only when old paths are absent.
