@@ -46,11 +46,7 @@ const SCOPE_LABEL: Record<Scope, string> = {
 // Keep these in sync with CreateTaskDialog's CATEGORY_META label + the
 // header it picks per category in formatBody().
 export type Category =
-  | "feature"
-  | "enhancement"
-  | "refactor"
-  | "docs"
-  | "chore";
+  "feature" | "enhancement" | "refactor" | "docs" | "chore";
 
 export const CATEGORY_VALUES: readonly Category[] = [
   "feature",
@@ -89,7 +85,9 @@ export interface TaskInput {
   assignees?: string[];
 }
 
-function normalizeContextBlock(value: string | null | undefined): string | null {
+function normalizeContextBlock(
+  value: string | null | undefined,
+): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
@@ -262,6 +260,38 @@ async function executeCreate(
         : undefined;
 
   try {
+    const recentOpenIssues = await octokit.rest.issues.listForRepo({
+      owner,
+      repo,
+      state: "open",
+      sort: "created",
+      direction: "desc",
+      per_page: 100,
+    });
+    const duplicate = recentOpenIssues.data.find(
+      (issue) =>
+        !issue.pull_request &&
+        issue.title === input.title &&
+        (issue.body ?? "") === body,
+    );
+    if (duplicate) {
+      logger.info(
+        { owner, repo, number: duplicate.number, category, priority },
+        "create_task: reused identical open issue",
+      );
+      return {
+        number: duplicate.number,
+        title: duplicate.title,
+        url: dashboardTaskUrl(duplicate.number, { owner, repo }),
+        labels,
+        assignees: duplicate.assignees
+          ?.map((assignee) => assignee?.login)
+          .filter(Boolean) as string[],
+        priority,
+        category,
+        note: `${CATEGORY_LABEL[category]} task already existed as an identical open issue. Kody pipeline NOT auto-triggered — comment \`@kody\` on the issue to run it.`,
+      };
+    }
     const { data, metadataWarnings } = await createIssueWithBestEffortMetadata(
       octokit,
       {

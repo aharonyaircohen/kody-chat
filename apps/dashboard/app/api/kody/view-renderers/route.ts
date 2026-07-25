@@ -1,15 +1,14 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern convex-crud-api
  * @ai-summary Lists and creates user-managed renderer definitions stored under
- *   `views/renderers/*.json` in the Kody state repo.
+ *   `views/renderers/*.json` in the Kody backend.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   getRequestAuth,
-  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
@@ -47,7 +46,11 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
+function toRow(
+  definition: ViewRendererDefinition,
+  htmlUrl = "",
+  source: "repo" | "builtin" = "repo",
+) {
   return {
     slug: definition.slug,
     name: definition.name,
@@ -58,7 +61,7 @@ function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
     defaults: definition.defaults ?? {},
     type: definition.type,
     ui: definition.ui,
-    source: "repo" as const,
+    source,
     htmlUrl,
     definition: serializeViewRendererDefinition(definition),
   };
@@ -71,20 +74,12 @@ export async function GET(req: NextRequest) {
   if ("response" in required) return required.response;
 
   try {
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json(
-        { error: "no_user_token" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      );
-    }
     const files = await listViewRendererDefinitionFiles({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
     });
     const rows = files
-      .map((file) => toRow(file.definition, file.htmlUrl))
+      .map((file) => toRow(file.definition, file.htmlUrl, file.source))
       .sort((a, b) => a.slug.localeCompare(b.slug));
     return NextResponse.json(
       { renderers: rows },
@@ -117,12 +112,7 @@ export async function POST(req: NextRequest) {
     }
     const actorResult = await verifyActorLogin(req, payload.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug: definition.slug,
@@ -137,11 +127,9 @@ export async function POST(req: NextRequest) {
       );
     }
     const written = await writeViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       definition,
-      message: `feat(renderers): add ${definition.slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.create",

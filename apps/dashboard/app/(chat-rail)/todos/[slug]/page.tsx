@@ -6,7 +6,7 @@
  * `/todos/<slug>` while reusing the shared todos manager.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { TodoControl } from "@dashboard/lib/components/TodoControl";
+import { TodoControl } from "@dashboard/features/tasks/components/TodoControl";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

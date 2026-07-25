@@ -8,12 +8,7 @@
  */
 
 export type ServerProviderFeature =
-  | "preview"
-  | "preview-base"
-  | "builder"
-  | "runner"
-  | "brain"
-  | "other";
+  "preview" | "preview-base" | "builder" | "runner" | "brain" | "other";
 
 export interface ServerProviderMachineServiceConfig {
   autostop?: boolean | "suspend";
@@ -32,6 +27,7 @@ export interface ServerProviderMachineConfig {
 
 export interface ServerProviderMachineInfo {
   id: string;
+  privateAddress?: string;
   state: string;
   region: string;
   createdAt?: string;
@@ -45,6 +41,7 @@ export interface ServerProviderMachineRow {
   orgSlug?: string;
   app: string;
   machineId: string;
+  privateAddress?: string;
   name?: string;
   state: string;
   region: string;

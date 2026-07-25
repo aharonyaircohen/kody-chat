@@ -4,18 +4,18 @@ import { API_BASE, buildHeaders, handleResponse } from "./client";
 export interface TodoEntry {
   /** Filename without `.json` stable identity. */
   slug: string;
-  /** State-repo path, usually `todos/<slug>.json` during migration. */
+  /** Backend-relative path, usually `todos/<slug>.json`. */
   path?: string;
   title: string;
   /** Markdown description for the list itself. */
   description: string;
   items: TodoItem[];
   createdAt: string;
-  /** Git blob sha. */
+  /** Backend document revision. */
   sha: string;
-  /** Last commit timestamp affecting file (ISO8601). */
+  /** Last update timestamp for this todo (ISO8601). */
   updatedAt: string;
-  /** Convenience link to file on github.com. */
+  /** Optional source link when the connected repository owns the content. */
   htmlUrl: string;
   /** List-level metadata from frontmatter. */
   frontmatter?: Record<string, unknown>;

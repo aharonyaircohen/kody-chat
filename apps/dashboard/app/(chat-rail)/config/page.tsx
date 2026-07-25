@@ -8,7 +8,7 @@
  *   which is only bundle import/export.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { RepoConfigManager } from "@dashboard/lib/components/RepoConfigManager";
+import { RepoConfigManager } from "@dashboard/features/admin/components/RepoConfigManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

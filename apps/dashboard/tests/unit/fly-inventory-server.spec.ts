@@ -153,43 +153,20 @@ describe("appendSavedBrainMachineToInventory", () => {
     expect(inventory.machines).toEqual([]);
   });
 
-  it("uses an env token only to recover the saved Brain row", async () => {
+  it("does not use an environment token to recover a hidden Brain row", async () => {
     vi.stubEnv("FLY_API_TOKEN", "env-fly-token");
-    brainResolver.resolveBrainService
-      .mockResolvedValueOnce({
-        app: "custom-brain",
+    brainResolver.resolveBrainService.mockResolvedValueOnce({
+      app: "custom-brain",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      stored: {
+        version: 1,
+        appName: "custom-brain",
         orgSlug: "personal",
-        defaultRegion: "fra",
-        stored: {
-          version: 1,
-          appName: "custom-brain",
-          orgSlug: "personal",
-          createdAt: "2026-06-29T00:00:00.000Z",
-        },
-        state: "off",
-      } as never)
-      .mockResolvedValueOnce({
-        app: "custom-brain",
-        orgSlug: "personal",
-        defaultRegion: "fra",
-        stored: {
-          version: 1,
-          appName: "custom-brain",
-          orgSlug: "personal",
-          createdAt: "2026-06-29T00:00:00.000Z",
-        },
-        state: "suspended",
-        machineId: "brain-1",
-        machine: {
-          feature: "brain",
-          app: "custom-brain",
-          machineId: "brain-1",
-          state: "suspended",
-          region: "fra",
-          label: "custom-brain",
-          sizeLabel: "shared 2x",
-        },
-      } as never);
+        createdAt: "2026-06-29T00:00:00.000Z",
+      },
+      state: "off",
+    } as never);
     const inventory: FlyInventory = {
       running: 1,
       total: 1,
@@ -208,71 +185,51 @@ describe("appendSavedBrainMachineToInventory", () => {
 
     await expect(
       appendSavedBrainMachineToInventory({} as never, inventory),
-    ).resolves.toBe(true);
+    ).resolves.toBe(false);
 
     expect(brainResolver.resolveBrainService).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ flyToken: "fly-token" }),
     );
-    expect(brainResolver.resolveBrainService).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ flyToken: "env-fly-token" }),
-    );
+    expect(brainResolver.resolveBrainService).toHaveBeenCalledTimes(1);
     expect(inventory.machines).toEqual([
       expect.objectContaining({ app: "kody-runner", feature: "runner" }),
-      expect.objectContaining({
-        app: "custom-brain",
-        feature: "brain",
-        machineId: "brain-1",
-      }),
     ]);
   });
 
-  it("returns the token that resolved the saved Brain machine", async () => {
+  it("returns only the repo token used to resolve the saved Brain machine", async () => {
     vi.stubEnv("FLY_API_TOKEN", "env-fly-token");
-    brainResolver.resolveBrainService
-      .mockResolvedValueOnce({
-        app: "custom-brain",
+    brainResolver.resolveBrainService.mockResolvedValueOnce({
+      app: "custom-brain",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      stored: {
+        version: 1,
+        appName: "custom-brain",
         orgSlug: "personal",
-        defaultRegion: "fra",
-        stored: {
-          version: 1,
-          appName: "custom-brain",
-          orgSlug: "personal",
-          createdAt: "2026-06-29T00:00:00.000Z",
-        },
-        state: "off",
-      } as never)
-      .mockResolvedValueOnce({
+        createdAt: "2026-06-29T00:00:00.000Z",
+      },
+      state: "suspended",
+      machineId: "brain-1",
+      machine: {
+        feature: "brain",
         app: "custom-brain",
-        orgSlug: "personal",
-        defaultRegion: "fra",
-        stored: {
-          version: 1,
-          appName: "custom-brain",
-          orgSlug: "personal",
-          createdAt: "2026-06-29T00:00:00.000Z",
-        },
-        state: "suspended",
         machineId: "brain-1",
-        machine: {
-          feature: "brain",
-          app: "custom-brain",
-          machineId: "brain-1",
-          state: "suspended",
-          region: "fra",
-          label: "custom-brain",
-          sizeLabel: "shared 2x",
-        },
-      } as never);
+        state: "suspended",
+        region: "fra",
+        label: "custom-brain",
+        sizeLabel: "shared 2x",
+      },
+    } as never);
 
     await expect(resolveSavedBrainServiceForRequest({} as never)).resolves
       .toMatchObject({
-        flyToken: "env-fly-token",
+        flyToken: "fly-token",
         brain: {
           app: "custom-brain",
           machineId: "brain-1",
         },
       });
+    expect(brainResolver.resolveBrainService).toHaveBeenCalledTimes(1);
   });
 });

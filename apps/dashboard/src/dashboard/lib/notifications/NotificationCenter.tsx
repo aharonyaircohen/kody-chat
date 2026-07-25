@@ -8,6 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Bell, Check, CheckCheck, Trash2, Settings, X } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import type { UseNotificationStoreReturn } from "./useNotificationStore";
 import { NOTIFICATION_META } from "./types";
@@ -96,8 +97,10 @@ export function NotificationCenter({
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell button with unread badge */}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={(e) => {
           if (anchor === "rail" && !open) {
             const rect = e.currentTarget.getBoundingClientRect();
@@ -112,7 +115,7 @@ export function NotificationCenter({
         className={cn(
           "relative p-1.5 rounded-md transition-colors",
           open
-            ? "bg-muted text-foreground"
+            ? "bg-muted text-foreground hover:bg-muted hover:text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-muted",
         )}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
@@ -123,7 +126,7 @@ export function NotificationCenter({
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
-      </button>
+      </Button>
 
       {/* Dropdown */}
       {open && (
@@ -143,38 +146,44 @@ export function NotificationCenter({
             <span className="text-sm font-semibold">Notifications</span>
             <div className="flex items-center gap-1">
               {unreadCount > 0 && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={markAllAsRead}
-                  className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                  className="p-1 text-muted-foreground hover:text-foreground hover:bg-transparent rounded transition-colors"
                   title="Mark all as read"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               )}
               {notifications.length > 0 && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={clearAll}
-                  className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors"
+                  className="p-1 text-muted-foreground hover:text-destructive hover:bg-transparent rounded transition-colors"
                   title="Clear all"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => setShowPrefs(!showPrefs)}
                 className={cn(
-                  "p-1 rounded transition-colors",
+                  "p-1 rounded transition-colors hover:bg-transparent",
                   showPrefs
-                    ? "text-primary bg-primary/10"
+                    ? "text-primary bg-primary/10 hover:bg-primary/10 hover:text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 title="Notification settings"
               >
                 <Settings className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -192,15 +201,17 @@ export function NotificationCenter({
               {/* Browser permission banner */}
               {isSupported && browserPermission !== "granted" && (
                 <div className="px-3 py-2 bg-amber-500/10 border-b text-xs">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="clear"
                     onClick={onRequestPermission}
-                    className="text-amber-600 dark:text-amber-400 hover:underline"
+                    className="whitespace-normal text-left justify-start font-normal text-xs rounded-none text-amber-600 dark:text-amber-400 hover:underline hover:bg-transparent hover:text-amber-600 dark:hover:text-amber-400"
                   >
                     {browserPermission === "denied"
                       ? "⚠️ Browser notifications blocked — check browser settings"
                       : "🔔 Enable browser notifications for background alerts"}
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -256,29 +267,33 @@ export function NotificationCenter({
                         {/* Actions */}
                         <div className="flex items-center gap-0.5 shrink-0">
                           {!notif.read && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="clear"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 markAsRead(notif.id);
                               }}
-                              className="p-0.5 text-muted-foreground hover:text-primary rounded"
+                              className="p-0.5 text-muted-foreground hover:text-primary hover:bg-transparent rounded"
                               title="Mark as read"
                             >
                               <Check className="w-3 h-3" />
-                            </button>
+                            </Button>
                           )}
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="clear"
                             onClick={(e) => {
                               e.stopPropagation();
                               removeNotification(notif.id);
                             }}
-                            className="p-0.5 text-muted-foreground hover:text-destructive rounded"
+                            className="p-0.5 text-muted-foreground hover:text-destructive hover:bg-transparent rounded"
                             title="Remove"
                           >
                             <X className="w-3 h-3" />
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     );

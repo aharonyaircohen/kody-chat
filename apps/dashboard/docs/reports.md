@@ -2,7 +2,7 @@
 
 Reports are the dashboard review surface for capability output. A capability can
 either act directly, or write a markdown report under
-`reports/<slug>/runs/<timestamp>.md` in the configured Kody state repo when the
+`reports/<slug>/runs/<timestamp>.md` in the configured Kody backend when the
 next step needs operator judgement.
 
 The Reports page treats `reports/<slug>/` as one report family. It shows the
@@ -20,6 +20,11 @@ Every report is a markdown file with frontmatter:
 ```yaml
 ---
 generatedAt: "2026-06-08T12:00:00Z"
+reportType: finding
+reportTypeVersion: 1
+producer:
+  model: agency-observer
+  capability: qa-sweep
 capabilitySlug: qa-sweep
 reviewStatus: action-needed
 reviewArea: ci
@@ -48,7 +53,17 @@ The report body explains the finding and supporting evidence.
 Required keys:
 
 - `generatedAt`: ISO date-time for when the report was produced.
-- `findings`: at least one finding with `id`, `severity`, and `title`.
+
+Typed reports additionally use:
+
+- `reportType`: an extensible lowercase slug such as `finding`, `learning`, or
+  a custom future type. Unknown types use the generic report renderer.
+- `reportTypeVersion`: a positive schema version for that type.
+- `producer.model`: the Goal, Loop, or Workflow that owns the report.
+- `producer.capability`: the Capability whose result supplied the evidence.
+
+Legacy reports without `reportType` remain `general` reports. Legacy and
+`finding` reports may continue to expose structured `findings` entries.
 
 Optional routing keys:
 
@@ -66,11 +81,11 @@ to use it.
 
 Supported action types:
 
-| Type          | Required fields                               | What the dashboard does                                                                                    |
-| ------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Type          | Required fields                                   | What the dashboard does                                                                                    |
+| ------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `dispatch`    | `id`, `type`, `label`, `implementation`, `target` | Runs an instant job for the named capability/action against the issue/PR number. The field name is legacy. |
-| `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report.                                |
-| `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                                               |
+| `create-task` | `id`, `type`, `label`, `title`                    | Opens the existing task dialog prefilled from the action and source report.                                |
+| `dismiss`     | `id`, `type`, `label`                             | Hides that suggested action locally for the current browser.                                               |
 
 Dispatch actions must name a real capability/action and a concrete issue/PR
 number. The dashboard does not infer commands from prose.
@@ -94,20 +109,21 @@ its implementation owns what operations it can perform.
 
 This keeps the loop simple:
 
-1. Capability runs.
-2. The capability either acts or writes a timestamped report run.
-3. Operator reads the report.
-4. Operator uses a suggested action, creates a task/goal, dispatches a job, or
+1. A Loop or Goal runs its Workflow.
+2. A Capability returns its result and evidence.
+3. The Workflow asks the engine to publish a timestamped typed report run.
+4. Operator reads the report or selects a type filter.
+5. Operator uses a suggested action, creates a task/goal, dispatches a job, or
    does nothing.
 
 ## Validation
 
-The shared schema lives at `.kody/reports/_schema.yaml`.
+The shared schema lives at `backend reports_schema.yaml`.
 
 Local validation is handled by:
 
 ```bash
-pnpm exec node scripts/validate-reports.mjs .kody/reports
+pnpm exec node scripts/validate-reports.mjs backend-managed resources/reports
 ```
 
 The parser and validator are covered by:
@@ -118,10 +134,10 @@ pnpm exec vitest run tests/unit/reports-files.spec.ts tests/unit/report-schema-v
 
 ## Related Files
 
-| File                                                                            | Purpose                                                             |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx)              | Reports page, markdown rendering, suggested-action buttons.         |
-| [reports-files.ts](../src/dashboard/lib/reports-files.ts)                       | Reads report families and runs from the configured Kody state repo. |
-| [report-suggested-actions.ts](../src/dashboard/lib/report-suggested-actions.ts) | Parses `suggestedActions` frontmatter.                              |
-| [report-schema-validator.mjs](../scripts/report-schema-validator.mjs)           | Validates report frontmatter in tests/scripts.                      |
-| [\_schema.yaml](../.kody/reports/_schema.yaml)                                  | Human-readable report schema.                                       |
+| File                                                                            | Purpose                                                          |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [ReportsView.tsx](../src/dashboard/lib/components/ReportsView.tsx)              | Reports page, markdown rendering, suggested-action buttons.      |
+| [reports-files.ts](../src/dashboard/lib/reports-files.ts)                       | Reads report families and runs from the configured Kody backend. |
+| [report-suggested-actions.ts](../src/dashboard/lib/report-suggested-actions.ts) | Parses `suggestedActions` frontmatter.                           |
+| [report-schema-validator.mjs](../scripts/report-schema-validator.mjs)           | Validates report frontmatter in tests/scripts.                   |
+| [\_schema.yaml](../backend reports_schema.yaml)                                 | Human-readable report schema.                                    |

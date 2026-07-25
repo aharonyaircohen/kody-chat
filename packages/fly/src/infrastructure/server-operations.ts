@@ -45,6 +45,7 @@ export interface ProviderContext extends ServerContextBase {
   engineModel: string | undefined;
   engineModelConfig: EngineRuntimeModelConfig | undefined;
   perfTier: ProviderPerfTier | undefined;
+  providerTokenSource: "repo-vault" | null;
   providerToken?: string;
   providerOrgSlug?: string;
   providerDefaultRegion?: string;
@@ -220,6 +221,11 @@ export interface InfrastructureServerOperations {
     cfg: ProviderRuntimeConfig,
   ): Promise<ProviderMachineInfo[]>;
   startMachine(
+    appName: string,
+    machineId: string,
+    cfg: ProviderRuntimeConfig,
+  ): Promise<void>;
+  stopMachine(
     appName: string,
     machineId: string,
     cfg: ProviderRuntimeConfig,

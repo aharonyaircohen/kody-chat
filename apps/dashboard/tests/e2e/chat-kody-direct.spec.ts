@@ -56,25 +56,41 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  const selected = page.getByRole("button", { name: /Kody Test/i }).first();
-  try {
-    await selected.waitFor({ state: "visible", timeout: 10_000 });
-    return;
-  } catch {}
-
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.locator('button[aria-haspopup="listbox"]').first();
+  const trigger = chat.getByLabel("Model").first();
+  await trigger.waitFor({ state: "visible", timeout: 10_000 });
+  if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
+
   await trigger.click();
-  const listbox = page
-    .getByRole("listbox")
-    .filter({ has: page.getByRole("option", { name: /Kody Test/i }) });
-  await listbox.waitFor({ state: "visible", timeout: 5_000 });
-  await listbox.getByRole("option", { name: /Kody Test/i }).click();
-  await selected.waitFor({ state: "visible", timeout: 5_000 });
+  const menu = chat.locator('[role="listbox"]:visible').first();
+  const option = menu
+    .locator('button[role="option"]')
+    .filter({ hasText: "Kody Test" });
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.click();
+  await expect(trigger).toHaveAttribute("title", /Kody Test/i, {
+    timeout: 5_000,
+  });
+  // Close the menu so it doesn't cover the composer.
 }
 
 test.describe("Kody direct agent", () => {
   test.beforeEach(async ({ page }) => {
+    await page.route("**/api/kody/chat/conversations**", (route) => {
+      const request = route.request();
+      const isCollection = new URL(request.url()).pathname.endsWith(
+        "/conversations",
+      );
+      return route.fulfill({
+        status: request.method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          request.method() === "GET" && isCollection
+            ? { conversations: [] }
+            : { ok: true },
+        ),
+      });
+    });
     // The in-process "Kody" agent only appears in the picker when at least
     // one enabled model is configured (one dropdown row per model, named by
     // its label). Mock the model list so the option exists — labelled
@@ -96,6 +112,20 @@ test.describe("Kody direct agent", () => {
   test("selecting Kody and sending a message streams reply into the assistant bubble", async ({
     page,
   }) => {
+    const conversationCommands: Array<Record<string, unknown>> = [];
+    await page.route(
+      "**/api/kody/chat/conversations/*/commands",
+      async (route) => {
+        conversationCommands.push(
+          route.request().postDataJSON() as Record<string, unknown>,
+        );
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      },
+    );
     // Mock the direct-chat endpoint with the AI-SDK UI-message-stream SSE
     // shape the client actually parses (`data: {type:"text-delta",...}`) so
     // we verify the stream-reading path without hitting the model.
@@ -104,7 +134,10 @@ test.describe("Kody direct agent", () => {
         status: 200,
         headers: { "content-type": "text/event-stream" },
         body:
-          'data: {"type":"text-delta","delta":"Hello from Kody direct!"}\n\n' +
+          'data: {"type":"text-delta","delta":"Hello "}\n\n' +
+          'data: {"type":"text-delta","delta":"from Kody "}\n\n' +
+          'data: {"type":"text-delta","delta":"direct!"}\n\n' +
+          'data: {"type":"finish"}\n\n' +
           "data: [DONE]\n\n",
       }),
     );
@@ -131,5 +164,26 @@ test.describe("Kody direct agent", () => {
     await expect(page.getByText("Hello from Kody direct!").first()).toBeVisible(
       { timeout: 15_000 },
     );
+    await expect
+      .poll(
+        () =>
+          conversationCommands.filter(
+            (command) =>
+              command.kind === "append-message" && command.role === "assistant",
+          ),
+        { timeout: 10_000 },
+      )
+      .toEqual([
+        expect.objectContaining({
+          content: "Hello from Kody direct!",
+          status: "committed",
+        }),
+      ]);
+    expect(
+      conversationCommands.some(
+        (command) =>
+          command.role === "assistant" && command.status === "pending",
+      ),
+    ).toBe(false);
   });
 });

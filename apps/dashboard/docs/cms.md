@@ -11,7 +11,7 @@ that same contract.
 
 Kody owns:
 
-- CMS configuration in the repo's configured Kody state repo.
+- CMS configuration in the repo's configured Kody backend.
 - Generic list, detail, create, edit, delete UI.
 - Generic filters, search, sorting, relation inputs, and schema-derived forms.
 - Permission policy for who can read, write, and refresh schema.
@@ -34,7 +34,7 @@ Kody should not silently mutate production database tables or collections.
 
 ## Files
 
-CMS state lives under the connected repo's state repo:
+CMS state lives under the connected repo's backend:
 
 ```text
 cms/config.json
@@ -44,11 +44,11 @@ cms/permissions.json
 `cms/config.json` is the main schema contract. `cms/permissions.json` is merged
 into the schema policy when present.
 
-The consumer repo does not need a `.kody/` folder for CMS. Dashboard reads and
-writes through the configured state repo, for example:
+The consumer repo does not need a `backend-managed resources/` folder for CMS. Dashboard reads and
+writes through the configured backend, for example:
 
-- `aharonyaircohen/kody-state` for Kody Dashboard.
-- `A-Guy-educ/kody-state` for A-Guy projects.
+- `aharonyaircohen/Kody backend` for Kody Dashboard.
+- `A-Guy-educ/Kody backend` for A-Guy projects.
 
 ## Setup
 
@@ -424,4 +424,4 @@ permissions.
 `rate_limited`
 
 : GitHub state reads or writes hit rate limits. CMS data may come from MongoDB,
-but the schema and permissions still live in the state repo.
+but the schema and permissions still live in the backend.

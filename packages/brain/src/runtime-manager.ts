@@ -59,6 +59,25 @@ export async function readBrainRuntimeView(
   };
 }
 
+/**
+ * Clear the deployed Fly runtime after Brain is turned off while preserving
+ * the desired image selection for a future apply.
+ */
+export async function clearBrainRuntimeDeployment(
+  login: string,
+  token: string,
+): Promise<void> {
+  const current = await readBrainRuntimeState(login, token);
+  if (!current?.running && !current?.operation) return;
+  await writeBrainRuntimeState(login, token, {
+    version: 1,
+    ...(current.desiredImageRef
+      ? { desiredImageRef: current.desiredImageRef }
+      : {}),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function viewFromRuntime(runtime: BrainRuntimeStateFile): BrainRuntimeView {
   const running = runtime.running;
   return {

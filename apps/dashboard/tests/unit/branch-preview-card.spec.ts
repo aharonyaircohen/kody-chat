@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BRANCH_PREVIEW_CARD_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/BranchPreviewCard.tsx",
+  "../../src/dashboard/features/previews/components/BranchPreviewCard.tsx",
 );
 const SOURCE = readFileSync(BRANCH_PREVIEW_CARD_PATH, "utf8");
 

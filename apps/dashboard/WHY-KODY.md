@@ -68,11 +68,11 @@ Each flow is a transition table — postflight hooks dispatch the next executabl
 
 ### Capabilities, watches, managers
 
-A **capability** is a stateful, bounded goal expressed as a markdown file under `.kody/capabilities/`. A **watch** is a stateless repeating loop. A **manager** is a capability whose goal is overseeing other capabilities.
+A **capability** is a stateful, bounded goal expressed as a markdown file under `backend definitions (capabilities)`. A **watch** is a stateless repeating loop. A **manager** is a capability whose goal is overseeing other capabilities.
 
-`capability-scheduler` runs on cron (default every 5 minutes), finds every capability file under `.kody/capabilities/`, and calls `capability-tick` once per capability. The tick agent reads the capability body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
+`capability-scheduler` runs on cron (default every 5 minutes), finds every capability file under `backend definitions (capabilities)`, and calls `capability-tick` once per capability. The tick agent reads the capability body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
 
-This is how Kody runs **autonomously without supervision**. You file a goal as a capability under `.kody/capabilities/`, and the scheduler keeps making progress every five minutes until the goal is done. Manager capabilities let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
+This is how Kody runs **autonomously without supervision**. You file a goal as a capability under `backend definitions (capabilities)`, and the scheduler keeps making progress every five minutes until the goal is done. Manager capabilities let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
 
 ### Built-in deterministic commands
 
@@ -92,19 +92,19 @@ This is how Kody runs **autonomously without supervision**. You file a goal as a
 
 The engine handles the agent work. The dashboard turns it into a managed platform.
 
-| Capability                           | Why it matters                                                                                                                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                         |
-| **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                     |
-| **Capability scheduler UI**          | Markdown-defined capabilities in `.kody/capabilities/`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                                          |
-| **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                     |
-| **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                            |
-| **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                      |
-| **Multiple chat backends**           | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI.                                                                      |
-| **Per-repo encrypted secrets vault** | AES-256-GCM blob at `.kody/secrets.enc`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
-| **Real-time status**                 | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth.                                                                            |
-| **Changelog & report aggregation**   | Readable, dated output from every autonomous run, indexed and searchable.                                                                                                                                           |
-| **Notifications**                    | Desktop + in-app for completed tasks, blocked gates, report deliveries.                                                                                                                                             |
+| Capability                           | Why it matters                                                                                                                                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task board**                       | Kanban view (inbox → spec → building → review → done) across all engine activity. Drag to change status, click to drill in.                                                                                            |
+| **Parallel run monitoring**          | Watch 10 agents work on 10 tasks at once, live, in one view. CLI can't do this.                                                                                                                                        |
+| **Capability scheduler UI**          | Markdown-defined capabilities in `backend definitions (capabilities)`, ticked off in the dashboard as they complete. Visual cron without leaving the app.                                                              |
+| **Live preview management**          | Per-task Fly.io preview environments, with per-repo Fly tokens managed in Settings (never deployment env vars).                                                                                                        |
+| **PR viewer**                        | File diffs, CI status, gate approvals — all inline, no GitHub roundtrip.                                                                                                                                               |
+| **Provider-agnostic chat**           | Configure any LLM (Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, custom endpoints) per model entry. Two protocols, your keys.                                                                         |
+| **Multiple chat backends**           | Direct provider chat for quick questions, external Brain server for advanced reasoning, engine via Actions for full-power agent tasks. One UI.                                                                         |
+| **Per-repo encrypted secrets vault** | AES-256-GCM blob at `backend vault record`. One master key powers vault + session JWT + HMAC, cryptographically separated by purpose prefixes. Per-user creds (Fly tokens, API keys) live here, not in deployment env. |
+| **Real-time status**                 | Push-based GitHub webhooks, IP-verified against GitHub's CIDR list (no shared secret). Polling is the backstop, not the source of truth.                                                                               |
+| **Changelog & report aggregation**   | Readable, dated output from every autonomous run, indexed and searchable.                                                                                                                                              |
+| **Notifications**                    | Desktop + in-app for completed tasks, blocked gates, report deliveries.                                                                                                                                                |
 
 The dashboard never bypasses GitHub — every state change is a real issue/PR/workflow event. If the dashboard goes down, the engine keeps running. If the engine goes down, the dashboard still shows you the last known state.
 

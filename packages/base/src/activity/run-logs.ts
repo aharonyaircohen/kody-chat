@@ -8,12 +8,7 @@
 import { inflateRawSync } from "node:zlib";
 
 export type KodyRunTimelineCategory =
-  | "stage"
-  | "preflight"
-  | "postflight"
-  | "agent"
-  | "container"
-  | "failure";
+  "stage" | "preflight" | "postflight" | "agent" | "container" | "failure";
 
 export interface KodyRunLogEvent {
   ts?: string;
@@ -68,7 +63,7 @@ export interface ParsedKodyRunLog {
 }
 
 export interface KodyRunLogsRun {
-  runId: number;
+  runId: number | string;
   runAttempt: number;
   runNumber: number | null;
   title: string;
@@ -146,7 +141,7 @@ function categoryFor(event: KodyRunLogEvent): KodyRunTimelineCategory | null {
   if (text.includes("postflight")) return "postflight";
   if (text.includes("agent")) return "agent";
   if (text.includes("container")) return "container";
-  return null;
+  return "stage";
 }
 
 function labelFor(event: KodyRunLogEvent): string {
@@ -245,7 +240,10 @@ export function buildRunTimeline(
         ts: event.ts ?? null,
         runId: event.runId ?? null,
         capability:
-          event.capability ?? event.implementation ?? event.implementation ?? null,
+          event.capability ??
+          event.implementation ??
+          event.implementation ??
+          null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),
@@ -388,7 +386,7 @@ export function parseKodyRunLogZip(
 ): ParsedKodyRunLog | null {
   const jsonl = extractZipEntryText(
     zip,
-    `.kody/agent-runs/${runId}/events.jsonl`,
+    `.kody-engine/runtime/agent-runs/${runId}/events.jsonl`,
   );
   if (jsonl == null) return null;
   const events = parseKodyRunEventsJsonl(jsonl);

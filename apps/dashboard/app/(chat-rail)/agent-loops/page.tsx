@@ -1,19 +1,17 @@
-/**
- * @fileType page
- * @domain kody
- * @pattern agentLoops
- * @ai-summary AgentLoop page for ongoing schedule/health operating models.
- */
-
-import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { LoopsPage } from "@dashboard/features/agency/components/LoopsPage";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
-  title: "Loops - Kody Operations Dashboard",
-  description: "Ongoing Kody loops driven by schedule and health state.",
+  title: "Loops — Kody Operations Dashboard",
+  description: "Simple recurring workflow and capability triggers.",
   path: "/agent-loops",
 });
 
-export default function AgentLoopsPage() {
-  return <ManagedModelsView model="agentLoop" />;
+export default function LoopsRoute() {
+  return (
+    <AuthGuard>
+      <LoopsPage />
+    </AuthGuard>
+  );
 }

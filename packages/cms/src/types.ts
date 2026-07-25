@@ -167,11 +167,21 @@ export interface CmsFormViewConfig {
   fields: CmsViewFieldConfig[];
 }
 
+/**
+ * Writing-first "document mode": entries open as a full-page editor
+ * (title + one long-text body) instead of the generic field form.
+ */
+export interface CmsDocumentViewConfig {
+  /** Name of the long-text field that holds the document body. */
+  field: string;
+}
+
 export interface CmsCollectionViewsConfig {
   table?: CmsListViewConfig;
   list?: CmsListViewConfig;
   detail?: CmsDetailViewConfig;
   form?: CmsFormViewConfig;
+  document?: CmsDocumentViewConfig;
 }
 
 export interface CmsCollectionOperations {

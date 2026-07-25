@@ -18,9 +18,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import {
   streamBrainChat,
+  type BrainAgentIdentity,
   type BrainAttachment,
   type BrainCapabilityContext,
   type BrainTaskContext,
@@ -28,9 +29,10 @@ import {
 import {
   withPageContext,
   withDashboardContext,
-} from "@kody-ade/kody-chat/core/page-context";
+} from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
+import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -63,6 +65,9 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    conversationId?: string;
+    modelId?: string;
+    runtime?: string;
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
@@ -85,6 +90,7 @@ export async function POST(req: NextRequest) {
      * translate it to the upstream provider's wire shape.
      */
     reasoningEffort?: string;
+    agentSlug?: string;
   };
   try {
     body = await req.json();
@@ -119,11 +125,23 @@ export async function POST(req: NextRequest) {
   // audience. Cached 60s in-process; `null` when the repo has none.
   const dashboardContext =
     !isResume && body.includeContext ? await loadContextForPrompt() : null;
+  let agentIdentity: BrainAgentIdentity | undefined;
+  if (!isResume && body.agentSlug) {
+    const agent = await readResolvedAgentFile(body.agentSlug).catch(() => null);
+    if (agent?.body.trim()) {
+      agentIdentity = {
+        slug: agent.slug,
+        title: agent.title,
+        body: agent.body,
+      };
+    }
+  }
 
   return streamBrainChat({
     brainUrl,
     brainKey,
     chatId,
+    ...(body.conversationId ? { conversationId: body.conversationId } : {}),
     // Brain has no ambient-context slot; prefix the page + standing dashboard
     // Context onto the user message (skip on resume, which has no new message).
     message: isResume
@@ -138,9 +156,12 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     dashboardUrl,
+    ...(agentIdentity ? { agentIdentity } : {}),
     storeRepoUrl: headerAuth?.storeRepoUrl,
     storeRef: headerAuth?.storeRef,
     voiceMode: body.voiceMode === true,
+    ...(body.modelId ? { modelId: body.modelId } : {}),
+    ...(body.runtime ? { runtime: body.runtime } : {}),
     ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }

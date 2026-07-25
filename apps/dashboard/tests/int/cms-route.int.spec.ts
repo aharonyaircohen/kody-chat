@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import {
-  CmsConfigError,
-  invalidateCmsConfigCache,
-} from "@kody-ade/cms/config";
+import { CmsConfigError, invalidateCmsConfigCache } from "@kody-ade/cms/config";
 import type { CmsConfigState } from "@kody-ade/cms/types";
 
 const auth = vi.hoisted(() => ({
@@ -40,12 +37,10 @@ const github = vi.hoisted(() => ({
 }));
 
 const service = vi.hoisted(() => ({
-  listCmsCollections: vi.fn(
-    async (): Promise<CmsConfigState> => ({
-      configured: false,
-      collections: [],
-    }),
-  ),
+  listCmsCollections: vi.fn(async (): Promise<CmsConfigState> => ({
+    configured: false,
+    collections: [],
+  })),
   listCmsDocuments: vi.fn(async () => ({
     docs: [],
     total: 0,
@@ -80,6 +75,14 @@ const stateRepo = vi.hoisted(() => ({
   writeStateFiles: vi.fn(async (_input: unknown): Promise<void> => undefined),
   deleteStateFile: vi.fn(async (_input: unknown): Promise<void> => undefined),
 }));
+vi.mock("@kody-ade/cms/repo-docs", () => ({
+  readCmsFile: async (owner: string, repo: string, filePath: string) =>
+    stateRepo.readStateText({}, owner, repo, filePath),
+  readRepoDocFile: (...args: unknown[]) => stateRepo.readStateText(...args),
+  writeRepoDocFile: (input: unknown) => stateRepo.writeStateText(input),
+  writeRepoDocFiles: (input: unknown) => stateRepo.writeStateFiles(input),
+  deleteRepoDocFile: (input: unknown) => stateRepo.deleteStateFile(input),
+}));
 
 const mongoSchema = vi.hoisted(() => ({
   generateMongoCmsSchemaFiles: vi.fn(async () => ({
@@ -105,7 +108,6 @@ const vault = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@kody-ade/cms/service", () => service);
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@kody-ade/cms/schema/mongodb", () => mongoSchema);
 vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
@@ -235,7 +237,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("creates a neutral CMS config in the state repo", async () => {
+  it("creates a neutral CMS config in the backend", async () => {
     const res = await indexPOST(
       postRequest({ name: "Example CMS", adapter: "github" }),
     );
@@ -288,7 +290,7 @@ describe("CMS API routes", () => {
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
   });
 
-  it("switches the configured CMS adapter in state repo", async () => {
+  it("switches the configured CMS adapter in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -402,7 +404,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("updates CMS adapter settings in state repo", async () => {
+  it("updates CMS adapter settings in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -471,7 +473,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("updates CMS permissions in state repo", async () => {
+  it("updates CMS permissions in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -1189,7 +1191,7 @@ describe("CMS API routes", () => {
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
   });
 
-  it("generates CMS schema into the state repo", async () => {
+  it("generates CMS schema into the backend", async () => {
     stateRepo.readStateText.mockResolvedValueOnce({
       path: "cms/config.json",
       content: JSON.stringify({

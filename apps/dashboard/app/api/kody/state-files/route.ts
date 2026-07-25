@@ -2,26 +2,30 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern state-file-view-api
- * @ai-summary GET /api/kody/state-files reads one runtime state file for
- *   Dashboard-owned evidence viewers.
+ * @ai-summary GET /api/kody/state-files resolves legacy evidence paths from
+ *   the Convex runtime tables; GitHub state-file reads are retired.
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@kody-ade/base/auth";
-import { normalizeStatePath, readStateText } from "@kody-ade/base/state-repo";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "@dashboard/lib/github-client";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 function parseRequestedPath(req: NextRequest): string | null {
   const raw = req.nextUrl.searchParams.get("path")?.trim();
   if (!raw) return null;
-  return normalizeStatePath(raw, "state file path");
+  const normalized = raw.replace(/^\/+|\/+$/g, "");
+  if (
+    !normalized ||
+    normalized.includes("\\") ||
+    normalized.includes("\0") ||
+    normalized
+      .split("/")
+      .some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error("Invalid backend document path");
+  }
+  return normalized;
 }
 
 export async function GET(req: NextRequest) {
@@ -50,40 +54,55 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "missing_path" }, { status: 400 });
   }
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-  }
-
-  setGitHubContext(
-    headerAuth.owner,
-    headerAuth.repo,
-    headerAuth.token,
-    headerAuth.storeRepoUrl,
-    headerAuth.storeRef,
-  );
-
   try {
-    const file = await readStateText(
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-      path,
+    const tenantId = `${headerAuth.owner}/${headerAuth.repo}`;
+    const workflowMatch = path.match(
+      /^logs\/goals\/([^/]+)\/runs\/([^/]+?)(?:\.jsonl)?$/,
     );
-    if (!file) {
+    if (workflowMatch) {
+      const workflowId = workflowMatch[1]!;
+      const runId = workflowMatch[2]!;
+      const state = await createBackendClient().query(api.workflowRuns.get, {
+        tenantId,
+        workflowId,
+        runId,
+      });
+      if (!state)
+        return NextResponse.json(
+          { error: "state_file_not_found", path },
+          { status: 404 },
+        );
+      return NextResponse.json({
+        requestedPath: path,
+        path,
+        content: JSON.stringify(state.state, null, 2),
+        sha: null,
+        htmlUrl: null,
+        size: JSON.stringify(state.state).length,
+      });
+    }
+    const doc = await createBackendClient().query(api.repoDocs.get, {
+      tenantId,
+      kind: path,
+    });
+    if (!doc) {
       return NextResponse.json(
-        { error: "state_file_not_found", path },
+        { error: "legacy_state_path", path },
         { status: 404 },
       );
     }
+    const content =
+      typeof (doc as { doc?: unknown }).doc === "string"
+        ? (doc as { doc: string }).doc
+        : JSON.stringify((doc as { doc: unknown }).doc, null, 2);
     return NextResponse.json(
       {
         requestedPath: path,
-        path: file.path,
-        content: file.content,
-        sha: file.sha,
-        htmlUrl: file.htmlUrl ?? null,
-        size: file.size ?? file.content.length,
+        path,
+        content,
+        sha: null,
+        htmlUrl: null,
+        size: content.length,
       },
       {
         headers: {
@@ -100,7 +119,5 @@ export async function GET(req: NextRequest) {
       },
       { status: 500 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

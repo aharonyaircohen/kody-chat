@@ -1,6 +1,6 @@
 /**
  * @fileoverview Store-linked agents are editable: PATCH materializes a repo
- * copy at .kody/agents/<slug>.md (create, sha "") that overrides the Store
+ * copy at legacy/agents/<slug>.md (create, sha "") that overrides the Store
  * version — this is how the built-in Kody chat identity becomes editable.
  * @testFramework vitest
  * @domain agents
@@ -22,9 +22,14 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(),
-  getRequestAuth: vi.fn(),
+  getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
   verifyActorLogin: h.verifyActorLogin,
   getUserOctokit: h.getUserOctokit,
+}));
+vi.mock("@kody-ade/agency/backend/agents-projection", () => ({
+  saveProjectedAgent: vi.fn(),
+  getProjectedAgent: vi.fn(),
+  removeProjectedAgent: vi.fn(),
 }));
 
 vi.mock("@kody-ade/agency/github", () => ({
@@ -35,6 +40,12 @@ vi.mock("@kody-ade/agency/github", () => ({
 vi.mock("@kody-ade/agency/agent-files", () => ({
   readAgentFile: h.readAgentFile,
   readResolvedAgentFile: h.readResolvedAgentFile,
+  // The route now lists all resolved agents and picks by slug; derive the
+  // list from the same per-slug mock so existing test setups keep working.
+  listResolvedAgentFiles: async () => {
+    const agent = await h.readResolvedAgentFile("kody");
+    return agent ? [agent] : [];
+  },
   writeAgentFile: h.writeAgentFile,
   deleteAgentFile: h.deleteAgentFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),

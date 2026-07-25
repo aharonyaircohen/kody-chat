@@ -10,8 +10,8 @@
  */
 "use client";
 
-import { WorkflowsManager } from "../../../components/WorkflowsManager";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import { WorkflowsManager } from "@dashboard/features/workflows/components/WorkflowsManager";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const WORKFLOWS_PANEL_TESTID = "chat-panel-workflows";
 

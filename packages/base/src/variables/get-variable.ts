@@ -3,14 +3,13 @@
  * @domain variables
  * @pattern variable-resolver
  * @ai-summary High-level helper for runtime code that needs a non-secret
- *   config value. Reads state-repo `variables.json` first; falls
+ *   config value. Reads the tenant's Convex variables document first; falls
  *   through to process.env so existing env-based deploys keep working
  *   while we migrate config off env vars.
  */
 
 import type { NextRequest } from "next/server";
 import { getRequestAuth } from "../auth";
-import { createUserOctokit } from "../github/core";
 import { logger } from "@kody-ade/base/logger";
 import { readVariables } from "./store";
 
@@ -27,8 +26,7 @@ export async function getVariable(
   const auth = getRequestAuth(options.req);
   if (auth) {
     try {
-      const octokit = createUserOctokit(auth.token);
-      const { doc } = await readVariables(octokit, auth.owner, auth.repo);
+      const { doc } = await readVariables(auth.owner, auth.repo);
       const entry = doc.variables[name];
       if (entry?.value) return entry.value;
     } catch (err) {

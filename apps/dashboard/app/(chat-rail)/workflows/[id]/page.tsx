@@ -6,7 +6,7 @@
  *   `/workflows/<id>`.
  */
 
-import { WorkflowsManager } from "@dashboard/lib/components/WorkflowsManager";
+import { WorkflowsManager } from "@dashboard/features/workflows/components/WorkflowsManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

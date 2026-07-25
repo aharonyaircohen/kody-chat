@@ -32,20 +32,24 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat-dashboard/components/KodyChat";
 import { AppHeader } from "./AppHeader";
-import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
+import { ChatShell } from "@kody-ade/kody-chat-dashboard/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
-import { ENGINEER_MODE_SECTIONS } from "./settings-nav";
+import { useSidebarNavSections } from "./use-sidebar-nav-sections";
+import { DASHBOARD_NAV_ITEM } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
+import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat-dashboard/auth-context";
+import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat-dashboard/theme";
+import { useTheme } from "../../providers/Theme";
 import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
-import { trace } from "@kody-ade/kody-chat/platform";
+import { trace } from "@kody-ade/kody-chat-dashboard/platform";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import {
@@ -59,10 +63,10 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // barrel statically reaches ChatTerminalSurface/TerminalControls, which
 // must only ever load through KodyChat's React.lazy chunks — a static path
 // here would drag them into the shared sync chunks /client also loads.
-import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
-import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
-import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
-import { goalsChatPlugin } from "@kody-ade/kody-chat/plugins/goals";
+import { terminalChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/terminal/plugin";
+import { commandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands";
+import { vibeChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/vibe";
+import { goalsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 // Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
 // tasks-pilot recipe (panels-only manifests; routes unchanged, so the
@@ -75,29 +79,12 @@ import {
   agencyRunsChatPlugin,
   AGENCY_RUNS_PANEL_ID,
 } from "../chat/plugins/agency-runs";
-import {
-  findingsChatPlugin,
-  FINDINGS_PANEL_ID,
-} from "../chat/plugins/findings";
-import {
-  learningChatPlugin,
-  LEARNING_PANEL_ID,
-} from "../chat/plugins/learning";
-import {
-  agentGoalsChatPlugin,
-  AGENT_GOALS_PANEL_ID,
-} from "../chat/plugins/agent-goals";
-import {
-  agentLoopsChatPlugin,
-  AGENT_LOOPS_PANEL_ID,
-} from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
-import { brandsChatPlugin, BRANDS_PANEL_ID } from "@kody-ade/kody-chat/plugins/brands";
-import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
 import {
-  capabilitiesChatPlugin,
-  CAPABILITIES_PANEL_ID,
-} from "../chat/plugins/capabilities";
+  brandsChatPlugin,
+  BRANDS_PANEL_ID,
+} from "@kody-ade/kody-chat-dashboard/plugins/brands";
+import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat-dashboard/admin-pages";
 import {
   changelogChatPlugin,
   CHANGELOG_PANEL_ID,
@@ -105,38 +92,35 @@ import {
 import {
   commandsPageChatPlugin,
   COMMANDS_PAGE_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/commands-page";
+} from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
-import {
-  companyIntentsChatPlugin,
-  COMPANY_INTENTS_PANEL_ID,
-} from "../chat/plugins/company-intents";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
-import { contextChatPlugin, CONTEXT_PANEL_ID } from "@kody-ade/kody-chat/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
+import { liveEventsChatPlugin } from "../chat/plugins/live-events";
 import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/instructions";
-import { memoryChatPlugin, MEMORY_PANEL_ID } from "@kody-ade/kody-chat/plugins/memory";
+} from "@kody-ade/kody-chat-dashboard/plugins/instructions";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
 } from "../chat/plugins/messages";
-import { modelsChatPlugin, MODELS_PANEL_ID } from "@kody-ade/kody-chat/plugins/models";
+import {
+  modelsChatPlugin,
+  MODELS_PANEL_ID,
+} from "@kody-ade/kody-chat-dashboard/plugins/models";
 import {
   notificationsChatPlugin,
   NOTIFICATIONS_PANEL_ID,
 } from "../chat/plugins/notifications";
 import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
 import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
-import { secretsChatPlugin, SECRETS_PANEL_ID } from "@kody-ade/kody-chat/plugins/secrets";
 import {
-  settingsChatPlugin,
-  SETTINGS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/settings";
+  secretsChatPlugin,
+  SECRETS_PANEL_ID,
+} from "@kody-ade/kody-chat-dashboard/plugins/secrets";
 import {
   storeCatalogChatPlugin,
   STORE_CATALOG_PANEL_ID,
@@ -158,6 +142,9 @@ import {
 // commands, vibe, goals (goals last — both mounts always pass
 // `onDirectToGoal`, so the pre-move conditional was always true here).
 const ADMIN_CHAT_PLUGINS = [
+  // Live transport (Convex chatEvents subscription) — inert without
+  // NEXT_PUBLIC_CONVEX_URL; the live runner then keeps interval polling.
+  { plugin: liveEventsChatPlugin },
   { plugin: terminalChatPlugin },
   { plugin: commandsChatPlugin },
   { plugin: vibeChatPlugin },
@@ -169,32 +156,23 @@ const ADMIN_CHAT_PLUGINS = [
   // Phase 2 step 4 page-plugins — panels only, inert with the toggle off.
   { plugin: activityChatPlugin },
   { plugin: agencyRunsChatPlugin },
-  { plugin: findingsChatPlugin },
-  { plugin: learningChatPlugin },
-  { plugin: agentGoalsChatPlugin },
-  { plugin: agentLoopsChatPlugin },
   { plugin: agentsChatPlugin },
   { plugin: brandsChatPlugin },
   ...PACKAGE_ADMIN_PAGES.map((page) => ({ plugin: page.plugin })),
-  { plugin: capabilitiesChatPlugin },
   { plugin: changelogChatPlugin },
   { plugin: commandsPageChatPlugin },
   { plugin: companyChatPlugin },
-  { plugin: companyIntentsChatPlugin },
   { plugin: configChatPlugin },
-  { plugin: contextChatPlugin },
   { plugin: docsChatPlugin },
   { plugin: filesChatPlugin },
   { plugin: inboxChatPlugin },
   { plugin: instructionsChatPlugin },
-  { plugin: memoryChatPlugin },
   { plugin: messagesChatPlugin },
   { plugin: modelsChatPlugin },
   { plugin: notificationsChatPlugin },
   { plugin: previewChatPlugin },
   { plugin: reportsChatPlugin },
   { plugin: secretsChatPlugin },
-  { plugin: settingsChatPlugin },
   { plugin: storeCatalogChatPlugin },
   { plugin: todosChatPlugin },
   { plugin: variablesChatPlugin },
@@ -213,34 +191,27 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   // Phase 2 step 4 — every migrated admin page routes to its plugin panel.
   "/activity": ACTIVITY_PANEL_ID,
   "/agency-runs": AGENCY_RUNS_PANEL_ID,
-  "/findings": FINDINGS_PANEL_ID,
-  "/learning": LEARNING_PANEL_ID,
-  "/agent-goals": AGENT_GOALS_PANEL_ID,
-  "/agent-loops": AGENT_LOOPS_PANEL_ID,
+  "/findings": REPORTS_PANEL_ID,
+  "/learning": REPORTS_PANEL_ID,
   "/agents": AGENTS_PANEL_ID,
   "/brands": BRANDS_PANEL_ID,
   ...Object.fromEntries(
     PACKAGE_ADMIN_PAGES.map((page) => [page.href, page.panelId]),
   ),
-  "/capabilities": CAPABILITIES_PANEL_ID,
   "/changelog": CHANGELOG_PANEL_ID,
   "/commands": COMMANDS_PAGE_PANEL_ID,
   "/company": COMPANY_PANEL_ID,
-  "/company-intents": COMPANY_INTENTS_PANEL_ID,
   "/config": CONFIG_PANEL_ID,
-  "/context": CONTEXT_PANEL_ID,
   "/docs": DOCS_PANEL_ID,
   "/files": FILES_PANEL_ID,
   "/inbox": INBOX_PANEL_ID,
   "/instructions": INSTRUCTIONS_PANEL_ID,
-  "/memory": MEMORY_PANEL_ID,
   "/messages": MESSAGES_PANEL_ID,
   "/models": MODELS_PANEL_ID,
   "/notifications": NOTIFICATIONS_PANEL_ID,
   "/preview": PREVIEW_PANEL_ID,
   "/reports": REPORTS_PANEL_ID,
   "/secrets": SECRETS_PANEL_ID,
-  "/settings": SETTINGS_PANEL_ID,
   "/store-catalog": STORE_CATALOG_PANEL_ID,
   "/todos": TODOS_PANEL_ID,
   "/variables": VARIABLES_PANEL_ID,
@@ -344,8 +315,11 @@ function isPublicRoute(pathname: string | null): boolean {
 export function ChatRailShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const publicRoute = isPublicRoute(pathname);
-  const { auth, loading } = useAuth();
+  const hostAuth = useAuth();
+  const { auth, loading } = hostAuth;
+  const hostTheme = useTheme();
   const { githubUser } = useGitHubIdentity();
+  const navSections = useSidebarNavSections();
   const [scope, setScope] = useState<ChatContext | null>(null);
   // Mobile "chat open" — persisted per-device (same as the desktop expand
   // state) so opening chat survives a reload / navigation, not just the
@@ -626,65 +600,72 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   return (
     <ChatRailContext.Provider value={api}>
-      <NotificationsProvider>
-        <SettingsDrawerProvider>
-          <CommandPalette />
-          {/* The shared shell owns the layout (nav | chat | page) — this
+      <KodyAuthBridgeProvider value={hostAuth}>
+        <KodyThemeBridgeProvider value={hostTheme}>
+          <NotificationsProvider>
+            <SettingsDrawerProvider>
+              <CommandPalette />
+              {/* The shared shell owns the layout (nav | chat | page) — this
               wrapper only supplies the dashboard-specific chat pane, header,
               and page content. Shell chrome (repo switcher in the sidepanel,
-              rail resize) is inherited from @kody-ade/kody-chat. */}
-          {/* Explicit sections: the Engineer list is the superset (Vibe and
+              rail resize) is inherited from @kody-ade/kody-chat-dashboard. */}
+              {/* Explicit sections: the Engineer list is the superset (Vibe and
               Preview included), so the old Vibe/Engineer toggle is gone. */}
-          <ChatShell
-            title="Kody"
-            sections={ENGINEER_MODE_SECTIONS}
-            sidebarBrandExtra={<SidebarNotifications />}
-            chat={chatPane}
-            onReportIssue={openIssueReport}
-            isChatHome={isChatRoute}
-            showMobileHeader={false}
-            contentTestId={flipActive ? "chat-first-panel" : undefined}
-          >
-            {!pageOwnsHeader && <AppHeader />}
-            <div className="flex-1 min-h-0 flex flex-col">{pageContent}</div>
-          </ChatShell>
+              <ChatShell
+                title="Kody"
+                sections={navSections}
+                pinnedItem={DASHBOARD_NAV_ITEM}
+                sidebarBrandExtra={<SidebarNotifications />}
+                chat={chatPane}
+                onReportIssue={openIssueReport}
+                isChatHome={isChatRoute}
+                showMobileHeader={false}
+                contentTestId={flipActive ? "chat-first-panel" : undefined}
+              >
+                {!pageOwnsHeader && <AppHeader />}
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {pageContent}
+                </div>
+              </ChatShell>
 
-          {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
+              {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
           so the header stays visible and its hamburger (nav + filters) is
           still reachable while chatting. The rail is desktop-only; on mobile
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
-          {mobileOpen &&
-            auth &&
-            !isChatRoute &&
-            !currentRepoPath.startsWith("/messages") && (
-              <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
-                {auth ? (
-                  <KodyChat
-                    context={scope}
-                    actorLogin={githubUser?.login}
-                    onClose={() => setMobileOpenPersist(false)}
-                    lockedAgentId={lockedAgentId}
-                    vibeMode={isVibeRoute}
-                    onIssueCreated={dispatchIssueCreated}
-                    knownGoals={goals}
-                    onDirectToGoal={directToGoal}
-                    composerInjection={composerInjection}
-                    attachmentInjection={attachmentInjection}
-                    previewContext={previewContext}
-                    plugins={ADMIN_CHAT_PLUGINS}
-                  />
-                ) : (
-                  <div className="flex-1 flex items-center justify-center p-6">
-                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                      Connect a repository to start chatting with Kody.
-                    </p>
+              {mobileOpen &&
+                auth &&
+                !isChatRoute &&
+                !currentRepoPath.startsWith("/messages") && (
+                  <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
+                    {auth ? (
+                      <KodyChat
+                        context={scope}
+                        actorLogin={githubUser?.login}
+                        onClose={() => setMobileOpenPersist(false)}
+                        lockedAgentId={lockedAgentId}
+                        vibeMode={isVibeRoute}
+                        onIssueCreated={dispatchIssueCreated}
+                        knownGoals={goals}
+                        onDirectToGoal={directToGoal}
+                        composerInjection={composerInjection}
+                        attachmentInjection={attachmentInjection}
+                        previewContext={previewContext}
+                        plugins={ADMIN_CHAT_PLUGINS}
+                      />
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center p-6">
+                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                          Connect a repository to start chatting with Kody.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-        </SettingsDrawerProvider>
-      </NotificationsProvider>
+            </SettingsDrawerProvider>
+          </NotificationsProvider>
+        </KodyThemeBridgeProvider>
+      </KodyAuthBridgeProvider>
     </ChatRailContext.Provider>
   );
 }

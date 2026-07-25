@@ -4,8 +4,8 @@
  * @pattern config
  * @ai-summary Resolves the per-repo Fly token / org / region used for every
  *   Fly API call in the preview system. Trap: this is the per-repo billing
- *   gate — never accept a token from a global source (Vercel env,
- *   `process.env.FLY_API_TOKEN` only) as the sole path. A repo with no
+ *   gate — never accept a token from a global source such as a Vercel env
+ *   `process.env.FLY_API_TOKEN`. A repo with no
  *   vault token gets `null` back, which is the universal "this repo is not
  *   opted into previews" signal; webhook handlers depend on that signal
  *   to no-op.
@@ -65,11 +65,7 @@ export async function resolvePreviewConfigForOctokit(
 ): Promise<ServerProviderConfig | null> {
   const secrets = await readVaultMap(input.octokit, input.owner, input.repo);
 
-  const token =
-    secrets.FLY_API_TOKEN ??
-    process.env.FLY_API_TOKEN ??
-    process.env.FLY_IO_TOKEN ??
-    "";
+  const token = secrets.FLY_API_TOKEN?.trim() ?? "";
   if (!token) return null;
 
   const orgSlug =

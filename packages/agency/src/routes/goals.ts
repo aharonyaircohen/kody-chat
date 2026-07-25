@@ -2,11 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern goals-api
- * @ai-summary Goals API — GET lists goals from the manifest issue; POST creates
- *   a goal (creating the manifest issue on first use). Goals are JSON entries
- *   inside a single GitHub issue labelled `kody:goals-manifest`. Writes go
- *   through `mutateGoalsManifest` so concurrent goal mutations can't silently
- *   overwrite each other (per-instance mutex + verify-after-write retry).
+ * @ai-summary Goals API — goal metadata is stored in Convex. GitHub is used
+ *   only for optional discussion threads and execution labels.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -18,62 +15,26 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import {
-  fetchIssues,
   ensureLabel,
   setGitHubContext,
   clearGitHubContext,
   fetchRepoDiscussionMeta,
   createGoalDiscussion,
   enableRepoDiscussions,
+  getOwner,
+  getRepo,
 } from "../github";
 import {
-  EMPTY_MANIFEST,
-  GOALS_MANIFEST_LABEL,
   goalLabel,
-  parseManifestBody,
   slugifyGoalName,
   uniqueGoalId,
   goalDiscussionSeedBody,
   type Goal,
-  type GoalsManifest,
 } from "../goals";
-import { mutateGoalsManifest } from "../goals-server";
 import { recordAudit } from "@kody-ade/base/activity/audit";
+import { listGoals, saveGoal, type StoredGoal } from "../backend/goals-state";
 
 const GOAL_LABEL_COLOR = "38bdf8"; // Tailwind sky-400
-
-type ManifestIssueRef = { number: number; body: string };
-
-async function findManifestIssue(): Promise<ManifestIssueRef | null> {
-  // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
-  // returns 304 (free) via the cached ETag when nothing changed; on writes,
-  // the route invalidates this instance's cache directly.
-  // NOTE: `fetchIssues` already returns the full body for list items, so we
-  // intentionally do NOT make a follow-up `fetchIssue` call here — that
-  // doubled GitHub REST cost on every poll and was a rate-limit hot spot.
-  const issues = await fetchIssues({
-    state: "open",
-    labels: GOALS_MANIFEST_LABEL,
-    perPage: 5,
-    ttl: 15_000,
-  });
-  if (!issues.length) return null;
-  // If multiple exist, prefer the earliest created (stable anchor).
-  const sorted = [...issues].sort((a, b) => a.number - b.number);
-  const first = sorted[0];
-  return { number: first.number, body: first.body ?? "" };
-}
-
-async function readManifest(): Promise<{
-  manifest: GoalsManifest;
-  issue: ManifestIssueRef | null;
-}> {
-  const issue = await findManifestIssue();
-  const manifest = issue
-    ? parseManifestBody(issue.body)
-    : { ...EMPTY_MANIFEST, goals: [] };
-  return { manifest, issue };
-}
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -103,7 +64,9 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const { manifest, issue } = await readManifest();
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
+    const goals = await listGoals(owner, repo);
     // Best-effort capability lookup. Cached 10min, so this doesn't add a
     // GraphQL hit per poll. Failures (rate limit, no perms) just mean the UI
     // assumes Discussions are off and shows the disabled badge.
@@ -120,8 +83,8 @@ export async function GET(req: NextRequest) {
     // dueDate, etc.). Per-goal task PRs are discovered on the tasks route.
     return NextResponse.json(
       {
-        goals: manifest.goals,
-        manifest: { issueNumber: issue?.number ?? null },
+        goals,
+        manifest: { issueNumber: null },
         capabilities: { discussionsEnabled },
       },
       { headers: { "Cache-Control": "no-store" } },
@@ -151,6 +114,8 @@ export async function POST(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
     const payload = await req.json();
     const parsed = createGoalSchema.parse(payload);
 
@@ -195,34 +160,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const outcome = await mutateGoalsManifest<Goal>(
-      (current) => {
-        const id = uniqueGoalId(slugifyGoalName(parsed.name), current.goals);
-        const now = new Date().toISOString();
-        const newGoal: Goal = {
-          id,
-          name: parsed.name.trim(),
-          description: parsed.description?.trim() || undefined,
-          dueDate: parsed.dueDate?.trim() || undefined,
-          assignee: parsed.assignee?.trim() || undefined,
-          createdAt: now,
-          updatedAt: now,
-          discussionId: discussionRef?.id,
-          discussionNumber: discussionRef?.number,
-        };
-        return {
-          next: { version: 1, goals: [...current.goals, newGoal] },
-          result: newGoal,
-        };
-      },
-      { userOctokit: userOctokit ?? undefined },
-    );
-
-    if ("kind" in outcome) {
-      // Mutator never returns noop in the create path.
-      return NextResponse.json({ error: "create_failed" }, { status: 500 });
-    }
-    const newGoal = outcome.result;
+    const existingGoals = await listGoals(owner, repo);
+    const id = uniqueGoalId(slugifyGoalName(parsed.name), existingGoals as Goal[]);
+    const now = new Date().toISOString();
+    const newGoal: StoredGoal = {
+      id,
+      name: parsed.name.trim(),
+      description: parsed.description?.trim() || undefined,
+      dueDate: parsed.dueDate?.trim() || undefined,
+      assignee: parsed.assignee?.trim() || undefined,
+      createdAt: now,
+      updatedAt: now,
+      discussionId: discussionRef?.id,
+      discussionNumber: discussionRef?.number,
+    };
+    await saveGoal(owner, repo, newGoal);
 
     // Pre-create the `goal:<id>` repo label so attach operations later don't
     // 422. GitHub's addLabels endpoint requires the label to exist already.

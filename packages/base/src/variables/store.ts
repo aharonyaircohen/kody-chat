@@ -1,17 +1,19 @@
 /**
  * @fileType utility
  * @domain variables
- * @pattern state-repo
- * @ai-summary Read/write repo plaintext variables in the configured external
- * state repo. Sensitive values still belong in the encrypted vault.
+ * @pattern convex-backend
+ * @ai-summary Read/write repo plaintext variables in the Convex backend
+ * (repoDocs, kind "variables", doc = the VariablesDocument — the same JSON
+ * `variables.json` used to hold, so the export/import mapping round-trips
+ * unchanged). Sensitive values still belong in the encrypted vault. Returned
+ * `sha` is always null/"" (Convex docs have no git blob, and repoDocs.save
+ * upserts so there is no CAS conflict to retry).
  */
 
-import type { Octokit } from "@octokit/rest";
-
-import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "../state-repo";
+import { backendApi, getConvexClient, tenantIdFor } from "../backend/convex";
 
 export const VARIABLES_PATH = "variables.json";
+const VARIABLES_KIND = "variables";
 
 export interface VariableMeta {
   updatedAt: string;
@@ -49,26 +51,25 @@ function emptyDoc(): VariablesDocument {
 }
 
 async function fetchRaw(
-  octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: VariablesDocument; sha: string | null }> {
-  const file = await readStateText(octokit, owner, repo, VARIABLES_PATH, {
-    headers: { "If-None-Match": "" },
-  });
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: VARIABLES_KIND,
+  })) as { doc?: unknown } | null;
 
-  if (!file) return { doc: emptyDoc(), sha: null };
+  if (!record) return { doc: emptyDoc(), sha: null };
 
-  const parsed = JSON.parse(file.content) as VariablesDocument;
-  if (parsed.version !== 1 || typeof parsed.variables !== "object") {
+  const parsed = record.doc as VariablesDocument;
+  if (parsed?.version !== 1 || typeof parsed.variables !== "object") {
     throw new Error("Variables document has unexpected shape");
   }
 
-  return { doc: parsed, sha: file.sha };
+  return { doc: parsed, sha: null };
 }
 
 export async function readVariables(
-  octokit: Octokit,
   owner: string,
   repo: string,
   options: { force?: boolean } = {},
@@ -84,7 +85,7 @@ export async function readVariables(
   const inflight = INFLIGHT.get(key);
   if (inflight) return inflight;
 
-  const promise = fetchRaw(octokit, owner, repo)
+  const promise = fetchRaw(owner, repo)
     .then((result) => {
       CACHE.set(key, {
         doc: result.doc,
@@ -102,38 +103,24 @@ export async function readVariables(
 }
 
 export async function writeVariables(
-  octokit: Octokit,
   owner: string,
   repo: string,
   doc: VariablesDocument,
-  currentSha: string | null,
-  commitMessage = "chore(variables): update dashboard variables",
 ): Promise<{ sha: string }> {
-  const { sha: newSha } = await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: VARIABLES_PATH,
-    content: JSON.stringify(doc, null, 2),
-    message: commitMessage,
-    sha: currentSha ?? undefined,
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: VARIABLES_KIND,
+    doc,
+    updatedAt: new Date().toISOString(),
   });
 
   CACHE.set(cacheKey(owner, repo), {
     doc,
-    sha: newSha,
+    sha: null,
     expiresAt: Date.now() + TTL_MS,
   });
 
-  if (!newSha) {
-    logger.warn(
-      { owner, repo },
-      "variables: GitHub returned no sha after write",
-    );
-    return { sha: "" };
-  }
-
-  return { sha: newSha };
+  return { sha: "" };
 }
 
 export function invalidateVariablesCache(owner: string, repo: string): void {
@@ -141,25 +128,23 @@ export function invalidateVariablesCache(owner: string, repo: string): void {
 }
 
 /**
- * Read-modify-write helper with 409 (SHA conflict) retry. `mutate` is pure
- * and runs again on the latest document when there is a retry, so concurrent
- * writes to different keys do not clobber each other.
+ * Read-modify-write helper. `mutate` is pure and runs on the latest document.
+ * Kept the retry loop shape from the backend era for transient errors,
+ * though Convex upserts no longer produce 409 SHA conflicts.
  */
 export async function updateVariables(
-  octokit: Octokit,
   owner: string,
   repo: string,
   mutate: (doc: VariablesDocument) => VariablesDocument,
-  commitMessage: string,
   maxAttempts = 3,
 ): Promise<{ doc: VariablesDocument }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const { doc, sha } = await readVariables(octokit, owner, repo, {
+    const { doc } = await readVariables(owner, repo, {
       force: true,
     });
     const next = mutate(doc);
     try {
-      await writeVariables(octokit, owner, repo, next, sha, commitMessage);
+      await writeVariables(owner, repo, next);
       invalidateVariablesCache(owner, repo);
       return { doc: next };
     } catch (err) {

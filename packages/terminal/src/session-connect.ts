@@ -11,13 +11,19 @@ import "server-only";
 import type { NextRequest } from "next/server";
 
 import { logger } from "@kody-ade/base/logger";
-import { startServerProviderMachine } from "@kody-ade/fly/infrastructure/server-machines";
+import {
+  serverProviderHostname,
+  startServerProviderMachine,
+} from "@kody-ade/fly/infrastructure/server-machines";
 import {
   serverProviderConfigFromContext,
   type ServerProviderContext,
 } from "@kody-ade/fly/infrastructure/server-context";
 
-import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@kody-ade/fly/infrastructure/server-terminal";
+import {
+  ensureServerProviderTerminalBridge,
+  type ServerProviderTerminalBridgeInfo,
+} from "@kody-ade/fly/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -32,6 +38,7 @@ import {
   isTerminalFeatureAllowed,
   isTerminalMachineLive,
   isTerminalMachineStartable,
+  isTerminalMachineTransitioning,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalBridgeSessionIdForTarget,
@@ -80,9 +87,21 @@ const TARGET_MESSAGE: Record<string, string> = {
 
 const WAKE_POLL_ATTEMPTS = 60;
 const WAKE_POLL_INTERVAL_MS = 1000;
+const EDGE_WAKE_TIMEOUT_MS = 15_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function wakeServerProviderMachineThroughEdge(app: string): Promise<void> {
+  try {
+    await globalThis.fetch(`https://${serverProviderHostname(app)}/healthz`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(EDGE_WAKE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    logger.warn({ err, app }, "terminal: edge wake did not answer");
+  }
 }
 
 function isFlyBridgeAuthError(err: unknown): boolean {
@@ -213,23 +232,36 @@ export async function startTerminalSession(input: {
     throw targetError("machine_not_terminal_capable");
   }
   if (!isTerminalMachineLive(requested.state)) {
-    if (!isTerminalMachineStartable(requested.state)) {
+    const startable = isTerminalMachineStartable(requested.state);
+    if (!startable && !isTerminalMachineTransitioning(requested.state)) {
       throw targetError("machine_not_running");
     }
-    logger.info(
-      { app: requested.app, machineId: requested.machineId },
-      "terminal: waking machine",
-    );
-    const requestedCfg = terminalFlyConfigForMachine(
-      cfg,
-      requested,
-      savedBrain,
-    );
-    await startServerProviderMachineForTarget(
-      requested.app,
-      requested.machineId,
-      requestedCfg,
-    );
+    if (startable) {
+      logger.info(
+        { app: requested.app, machineId: requested.machineId },
+        "terminal: waking machine",
+      );
+      const requestedCfg = terminalFlyConfigForMachine(
+        cfg,
+        requested,
+        savedBrain,
+      );
+      await startServerProviderMachineForTarget(
+        requested.app,
+        requested.machineId,
+        requestedCfg,
+      );
+    } else {
+      logger.info(
+        {
+          app: requested.app,
+          machineId: requested.machineId,
+          state: requested.state,
+        },
+        "terminal: waiting for machine transition",
+      );
+    }
+    await wakeServerProviderMachineThroughEdge(requested.app);
     const selectedInput = {
       app: requested.app,
       machineId: requested.machineId,
@@ -285,6 +317,7 @@ export async function startTerminalSession(input: {
     app: selected.machine.app,
     orgSlug: selectedCfg.orgSlug,
     machineId: selected.machine.machineId,
+    privateAddress: selected.machine.privateAddress,
     chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),

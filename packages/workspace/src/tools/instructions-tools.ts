@@ -3,7 +3,7 @@
  * @domain instructions
  * @pattern chat-tools
  * @ai-summary Chat tools to manage the single repo instructions file
- *   (`instructions.md` in the state repo) — read, set, delete. The instructions body is
+ *   (`instructions.md` in Convex) — read, set, delete. The instructions body is
  *   appended to the chat system prompt, so it's how the user gives Kody
  *   standing guidance for this repo.
  */
@@ -25,17 +25,16 @@ interface Ctx {
 }
 
 export function createInstructionsTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   return {
     read_instructions: tool({
-      description: `Read the standing instructions for ${repoRef} (state repo instructions.md), the markdown appended to Kody's system prompt for this repo. Returns null body if none set.`,
+      description: `Read the standing instructions for ${repoRef} (Convex instructions.md), the markdown appended to Kody's system prompt for this repo. Returns null body if none set.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const file = await readInstructionsFile(octokit);
+          const file = await readInstructionsFile();
           return {
             body: file?.body ?? null,
             htmlUrl: file ? dashboardInstructionsUrl() : null,
@@ -47,17 +46,12 @@ export function createInstructionsTools(ctx: Ctx) {
     }),
 
     set_instructions: tool({
-      description: `Replace the standing instructions for ${repoRef} (commits instructions.md in the state repo). This OVERWRITES the whole file — read it first and include any content you want to keep. Body is plain markdown.`,
+      description: `Replace the standing instructions for ${repoRef} in Convex. This OVERWRITES the whole document — read it first and include any content you want to keep. Body is plain markdown.`,
       inputSchema: z.object({ body: z.string().min(1) }),
       execute: async ({ body }) => {
         try {
-          const existing = await readInstructionsFile(octokit);
-          await writeInstructionsFile({
-            octokit,
-            body,
-            sha: existing?.sha,
-            message: `chore(instructions): update${by}`,
-          });
+          const existing = await readInstructionsFile();
+          await writeInstructionsFile({ body });
           return {
             ok: true,
             action: existing ? "updated" : "created",
@@ -70,13 +64,13 @@ export function createInstructionsTools(ctx: Ctx) {
     }),
 
     delete_instructions: tool({
-      description: `Delete the standing instructions file for ${repoRef} (removes instructions.md from the state repo).`,
+      description: `Delete the standing instructions file for ${repoRef} (removes instructions.md from the Convex).`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const existing = await readInstructionsFile(octokit);
+          const existing = await readInstructionsFile();
           if (!existing) return { error: "no instructions file to delete" };
-          await deleteInstructionsFile(octokit);
+          await deleteInstructionsFile();
           return { ok: true, action: "deleted" };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

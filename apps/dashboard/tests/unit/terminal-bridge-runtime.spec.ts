@@ -58,7 +58,7 @@ async function waitForHttpOk(url: string): Promise<void> {
 }
 
 async function startBridge(
-  options: { coldBootFailures?: number } = {},
+  options: { coldBootFailures?: number; suppressReadyProof?: boolean } = {},
 ): Promise<{ port: number; dir: string }> {
   const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "kody-terminal-bridge-"));
@@ -141,6 +141,7 @@ child.on("exit", (code, signal) => {
 const fs = require("node:fs");
 const path = require("node:path");
 const stateDir = ${JSON.stringify(dir)};
+const suppressReadyProof = ${JSON.stringify(Boolean(options.suppressReadyProof))};
 const args = process.argv.slice(2);
 function sessionFile(name) {
   return path.join(stateDir, "tmux-" + name + ".json");
@@ -153,7 +154,7 @@ function readState(name) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(name), "utf8"));
   } catch {
-    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false };
+    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false, paneDead: false, paneCommand: "" };
   }
 }
 function writeState(name, state) {
@@ -166,6 +167,12 @@ if (args[0] === "kill-session") {
   fs.rmSync(sessionFile(sessionName()), { force: true });
   process.exit(0);
 }
+if (args[0] === "list-panes") {
+  const name = sessionName();
+  if (!fs.existsSync(sessionFile(name))) process.exit(1);
+  process.stdout.write(readState(name).paneDead ? "1\\n" : "0\\n");
+  process.exit(0);
+}
 if (args[0] === "new-session") {
   const name = args[args.indexOf("-s") + 1];
   writeState(name, {
@@ -175,6 +182,8 @@ if (args[0] === "new-session") {
     mouseOn: false,
     historyLimit: "",
     exitsOnAttach: args.slice(args.indexOf("-s") + 2).join(" ").includes("--command"),
+    paneDead: false,
+    paneCommand: args.slice(args.indexOf("-s") + 2).join(" "),
   });
   process.exit(0);
 }
@@ -205,6 +214,9 @@ if (args[0] === "attach-session") {
   const state = readState(name);
   state.attachCount += 1;
   writeState(name, state);
+  if (suppressReadyProof) {
+    process.stdout.write("SSH_STARTING\\r\\n");
+  }
   if (state.exitsOnAttach) {
     process.stdout.write("[exited]\\r\\n");
     process.exit(0);
@@ -229,7 +241,7 @@ if (args[0] === "attach-session") {
       process.stdout.write("MOUSE_INPUT_FORWARDED\\r\\n");
     }
     const readyMarker = text.match(/__KR_[a-f0-9]+__/);
-    if (readyMarker && !ready) {
+    if (readyMarker && !ready && !suppressReadyProof) {
       ready = true;
       process.stdout.write("/dev/pts/9\\r\\n" + readyMarker[0] + "\\r\\n$ ");
     }
@@ -293,11 +305,15 @@ interface RuntimeSocket {
   send(data: string): void;
   messages: Record<string, unknown>[];
   events: string[];
-  waitFor(predicate: (message: Record<string, unknown>) => boolean): Promise<Record<string, unknown>>;
+  waitFor(
+    predicate: (message: Record<string, unknown>) => boolean,
+    timeoutMs?: number,
+  ): Promise<Record<string, unknown>>;
 }
 
 function clientFrame(opcode: number, payload: Buffer): Buffer {
-  const headerLength = payload.length < 126 ? 2 : payload.length <= 0xffff ? 4 : 10;
+  const headerLength =
+    payload.length < 126 ? 2 : payload.length <= 0xffff ? 4 : 10;
   const header = Buffer.alloc(headerLength + 4);
   header[0] = 0x80 | opcode;
   if (payload.length < 126) {
@@ -319,7 +335,10 @@ function clientFrame(opcode: number, payload: Buffer): Buffer {
   return Buffer.concat([header, masked]);
 }
 
-function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSocket {
+function watchSocket(
+  socket: net.Socket,
+  initial = Buffer.alloc(0),
+): RuntimeSocket {
   const messages: Record<string, unknown>[] = [];
   const events: string[] = [];
   let frameBuffer = initial;
@@ -343,7 +362,9 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
       if (frameBuffer.length < offset + maskLength + length) return;
       const mask = masked ? frameBuffer.subarray(offset, offset + 4) : null;
       offset += maskLength;
-      const payload = Buffer.from(frameBuffer.subarray(offset, offset + length));
+      const payload = Buffer.from(
+        frameBuffer.subarray(offset, offset + length),
+      );
       frameBuffer = frameBuffer.subarray(offset + length);
       if (mask) {
         for (let index = 0; index < payload.length; index += 1) {
@@ -361,7 +382,9 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
       try {
         messages.push(JSON.parse(raw) as Record<string, unknown>);
       } catch (err) {
-        events.push(`parse-error:${err instanceof Error ? err.message : String(err)}`);
+        events.push(
+          `parse-error:${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   }
@@ -397,8 +420,11 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
     send(data: string) {
       socket.write(clientFrame(1, Buffer.from(data)));
     },
-    async waitFor(predicate: (message: Record<string, unknown>) => boolean) {
-      const deadline = Date.now() + 6_000;
+    async waitFor(
+      predicate: (message: Record<string, unknown>) => boolean,
+      timeoutMs = 6_000,
+    ) {
+      const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
         const match = messages.find(predicate);
         if (match) return match;
@@ -521,6 +547,26 @@ describe("terminal bridge runtime restore", () => {
   }
 
   it(
+    "keeps the websocket active while startup output arrives before readiness",
+    async () => {
+      const { port } = await startBridge({ suppressReadyProof: true });
+      const socket = await openSocket(port, terminalToken());
+
+      await socket.waitFor(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes("Still opening real terminal..."),
+        15_000,
+      );
+
+      expect(socket.events).not.toContain("close");
+      socket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     "recovers an HTML cold-boot failure on the original browser socket",
     async () => {
       const { port } = await startBridge({ coldBootFailures: 1 });
@@ -558,7 +604,11 @@ describe("terminal bridge runtime restore", () => {
       await firstProbe.waitFor((message) => message.type === "ready");
       const firstMarker = `KODY_RUNTIME_FIRST_${Date.now()}`;
       firstSocket.send(
-        JSON.stringify({ type: "input", id: 1, data: `printf "${firstMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          data: `printf "${firstMarker}\\n"\r`,
+        }),
       );
       await firstProbe.waitFor(
         (message) =>
@@ -585,7 +635,11 @@ describe("terminal bridge runtime restore", () => {
       expectTmuxMouseDisabled(secondProbe);
       const secondMarker = `KODY_RUNTIME_SECOND_${Date.now()}`;
       secondSocket.send(
-        JSON.stringify({ type: "input", id: 2, data: `printf "${secondMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 2,
+          data: `printf "${secondMarker}\\n"\r`,
+        }),
       );
       await secondProbe.waitFor(
         (message) =>
@@ -609,7 +663,11 @@ describe("terminal bridge runtime restore", () => {
       await firstProbe.waitFor((message) => message.type === "ready");
       const firstMarker = `KODY_TUI_FIRST_${Date.now()}`;
       firstSocket.send(
-        JSON.stringify({ type: "input", id: 1, data: `printf "${firstMarker}\\n"\r` }),
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          data: `printf "${firstMarker}\\n"\r`,
+        }),
       );
       await firstProbe.waitFor(
         (message) =>

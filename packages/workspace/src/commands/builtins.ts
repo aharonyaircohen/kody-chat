@@ -4,8 +4,8 @@
  * @pattern commands-builtins
  * @ai-summary Fallback commands bundled with the dashboard for cold-start
  *   and unavailable-Store cases. Shared command catalog lives in Store.
- *   State-repo commands and Store `.kody/commands/<slug>.md` files shadow these by slug.
- *   Drop `commands/.disable-builtins` in the state repo to hide every fallback
+ *   Backend commands and Store `commands/<slug>.md` files shadow these by slug.
+ *   Drop `commands/.disable-builtins` in the backend to hide every fallback
  *   built-in without overriding individually.
  *
  *   Matching Store files for `/research`, `/plan`, and `/issue` enforce
@@ -136,6 +136,29 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
   },
   {
+    slug: "meeting-summary",
+    description: "Summarize meeting notes into a saved report",
+    argumentHint: "[note title, or paste raw notes]",
+    body:
+      "Summarize meeting notes. Input: $ARGUMENTS.\n\n" +
+      "Finding the notes:\n" +
+      "- If the input is raw meeting notes, summarize the input directly.\n" +
+      "- Otherwise, use `cms_list_documents` on the `meeting-notes` " +
+      "collection: if the input names a note, summarize the matching " +
+      "entry (via `cms_get_document`); if the input is empty, summarize " +
+      "the most recent entry. If the collection is missing or empty, say " +
+      "so and stop.\n\n" +
+      "Produce a concise summary with these sections (omit empty ones):\n" +
+      "- **Summary** — 2–4 sentences on what the meeting covered.\n" +
+      "- **Decisions** — bullet list of decisions made.\n" +
+      "- **Action items** — bullet list as `owner — task (due date if given)`.\n" +
+      "- **Open questions** — unresolved points needing follow-up.\n\n" +
+      "Then call `publish_report` with slug `meeting-notes`, a title of the " +
+      'form "Meeting — <topic> (<date>)", and the summary as the markdown ' +
+      "body. Show the summary in chat and confirm it was saved to Reports. " +
+      "Do not create issues, goals, or tasks unless I ask.",
+  },
+  {
     slug: "analyze",
     description: "Analyze the current issue/PR/run on this page",
     body:
@@ -148,7 +171,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     argumentHint: "<what should it do>",
     body:
       "Draft a Kody capability that does the following: $ARGUMENTS.\n\n" +
-      "Output a folder proposal for state-repo `capabilities/<slug>/` with `profile.json` metadata " +
+      "Output a folder proposal for backend `capabilities/<slug>/` with `profile.json` metadata " +
       "(action, implementation when needed, every, agent, readsFrom/writesTo) and a " +
       "`capability.md` body with a clear H1, `## Job`, `## Implementation` when relevant, " +
       "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +

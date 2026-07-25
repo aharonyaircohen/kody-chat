@@ -1,17 +1,12 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern convex-crud-api
  * @ai-summary Reads, updates, and deletes one view renderer definition.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   deleteViewRendererDefinitionFile,
@@ -41,7 +36,11 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
+function toRow(
+  definition: ViewRendererDefinition,
+  htmlUrl = "",
+  source: "repo" | "builtin" = "repo",
+) {
   return {
     slug: definition.slug,
     name: definition.name,
@@ -52,7 +51,7 @@ function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
     defaults: definition.defaults ?? {},
     type: definition.type,
     ui: definition.ui,
-    source: "repo" as const,
+    source,
     htmlUrl,
     definition: serializeViewRendererDefinition(definition),
   };
@@ -72,19 +71,14 @@ export async function GET(
     if (!isValidViewRendererSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
     });
     if (existing) {
       return NextResponse.json({
-        renderer: toRow(existing.definition, existing.htmlUrl),
+        renderer: toRow(existing.definition, existing.htmlUrl, existing.source),
       });
     }
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -125,12 +119,7 @@ export async function PATCH(
     }
     const actorResult = await verifyActorLogin(req, payload.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
@@ -139,12 +128,9 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     const written = await writeViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       definition,
-      sha: existing.sha,
-      message: `chore(renderers): update ${slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.update",
@@ -191,12 +177,7 @@ export async function DELETE(
     const actorLogin = searchParams.get("actorLogin") ?? undefined;
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
@@ -205,12 +186,9 @@ export async function DELETE(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     await deleteViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
-      sha: existing.sha,
-      message: `chore(renderers): delete ${slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.delete",

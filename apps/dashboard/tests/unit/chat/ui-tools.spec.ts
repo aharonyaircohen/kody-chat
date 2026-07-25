@@ -52,17 +52,17 @@ describe("ui tools", () => {
     },
   };
 
-  it("keeps renderer shape handling out of the generic chat tool", () => {
+  it("describes the spec catalog in the show_view tool description", () => {
     const tools = createUiTools({
-      viewRendererRules:
-        "- Purpose `choice`: Use when choosing one.\n  Data keys:\n  - items (selection): Choices.",
+      viewRendererDefinitions: [decisionRenderer],
     }) as Record<string, unknown>;
     const showView = tools.show_view as { description?: string };
 
     expect(showView).toBeTruthy();
-    expect(String(showView.description)).toContain("Available renderer rules");
+    expect(String(showView.description)).toContain("Spec format");
+    expect(String(showView.description)).toContain("DecisionCard");
     expect(String(showView.description)).toContain(
-      "Use this when the next user interaction matches an available renderer rule",
+      "Use this purpose when Kody presents a decision.",
     );
   });
 
@@ -163,29 +163,54 @@ describe("ui tools", () => {
     });
   });
 
-  it("preserves renderer fields that arrive beside data instead of stripping them", async () => {
+  it("returns a model-readable error for the legacy purpose/data shape", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const showView = tools.show_view as {
-      inputSchema: unknown;
       execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
     };
 
-    const input = {
-      purpose: "approval-card",
-      data: {},
-      title: "Confirm?",
-      body: "Should I continue?",
-    };
-
-    await expect(showView.execute(input)).resolves.not.toMatchObject({
-      error: "show_view requires data",
+    await expect(
+      showView.execute({
+        purpose: "approval-card",
+        data: {},
+        title: "Confirm?",
+      }),
+    ).resolves.toMatchObject({
+      error: expect.stringContaining("root"),
     });
   });
 
-  it("does not synthesize renderer data during execution", async () => {
+  it("renders a valid spec into a render_view directive", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],
-      userText: "i want to open new issue, changelog is not properly populated",
+    }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{
+        error?: string;
+        action?: string;
+        rendererSlug?: string;
+      }>;
+    };
+
+    await expect(
+      showView.execute({
+        root: "a",
+        elements: {
+          a: {
+            type: "DecisionCard",
+            props: { title: "Continue?", body: "Pick one." },
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      action: "render_view",
+      rendererSlug: "decision-card",
+    });
+  });
+
+  it("rejects invalid specs with the offending element and prop", async () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
     }) as Record<string, unknown>;
     const showView = tools.show_view as {
       execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
@@ -193,15 +218,17 @@ describe("ui tools", () => {
 
     await expect(
       showView.execute({
-        purpose: "decision",
-        data: {},
+        root: "a",
+        elements: {
+          a: { type: "DecisionCard", props: { heading: "wrong key" } },
+        },
       }),
     ).resolves.toMatchObject({
-      error: expect.stringContaining("show_view requires data"),
+      error: expect.stringContaining('element "a"'),
     });
   });
 
-  it("advertises renderer data as an open object in the provider schema", async () => {
+  it("advertises the spec envelope in the provider schema", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const showView = tools.show_view as {
       inputSchema: Parameters<typeof asSchema>[0];
@@ -211,18 +238,11 @@ describe("ui tools", () => {
 
     expect(schema).toMatchObject({
       type: "object",
-      required: ["purpose", "data"],
-      properties: {
-        data: {
-          type: "object",
-          minProperties: 1,
-          additionalProperties: true,
-        },
-      },
+      required: ["root", "elements"],
     });
   });
 
-  it("advertises renderer-specific data fields when definitions are loaded", async () => {
+  it("advertises definition components in the element type enum", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],
     }) as Record<string, unknown>;
@@ -231,33 +251,16 @@ describe("ui tools", () => {
     };
 
     const schema = (await asSchema(showView.inputSchema).jsonSchema) as {
-      type: string;
-      oneOf: Array<{
-        properties: {
-          purpose: { enum: string[] };
-          data: {
-            required: string[];
-            properties: Record<string, { type?: string }>;
-          };
-        };
-      }>;
-    };
-    const decisionVariant = schema.oneOf.find(
-      (variant) => variant.properties.purpose.enum[0] === "decision",
-    );
-    const slugVariant = schema.oneOf.find(
-      (variant) => variant.properties.purpose.enum[0] === "decision-card",
-    );
-
-    expect(schema.type).toBe("object");
-    expect(decisionVariant?.properties.data).toMatchObject({
-      required: ["title", "body"],
       properties: {
-        title: expect.objectContaining({ type: "string" }),
-        body: expect.objectContaining({ type: "string" }),
-        actions: expect.objectContaining({ type: "array" }),
-      },
-    });
-    expect(slugVariant?.properties.purpose.enum).toEqual(["decision-card"]);
+        elements: {
+          additionalProperties: { properties: { type: { enum: string[] } } };
+        };
+      };
+    };
+    const typeEnum =
+      schema.properties.elements.additionalProperties.properties.type.enum;
+
+    expect(typeEnum).toContain("DecisionCard");
+    expect(typeEnum).toContain("Stack");
   });
 });

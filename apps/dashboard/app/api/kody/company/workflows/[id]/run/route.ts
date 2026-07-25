@@ -24,12 +24,17 @@ import {
   workflowRunRequest,
   withStoreTarget,
 } from "@kody-ade/fly/runners/run-request";
-import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import {
-  readCompanyStoreCapabilityWorkflowDefinitionFile,
+  isWorkflowDefinitionId,
+  validateWorkflowDefinition,
+  type WorkflowDefinition,
+} from "@dashboard/lib/workflow-definitions";
+import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
+import {
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { recordWorkflowRunRunner } from "@dashboard/lib/workflow-run-state-files";
 
 function activeStringSet(values: string[] | undefined): Set<string> {
   return new Set(
@@ -40,15 +45,35 @@ function activeStringSet(values: string[] | undefined): Set<string> {
   );
 }
 
-function workflowNotRunnableResponse() {
-  return NextResponse.json(
-    {
-      error: "workflow_not_runnable",
-      message:
-        "Only capability-backed Store workflows can be run immediately right now.",
-    },
-    { status: 409 },
-  );
+function newWorkflowRunId(): string {
+  return `run-${Date.now().toString(36)}`;
+}
+
+async function dispatchKnowledgeSystemRefresh(
+  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
+  auth: NonNullable<ReturnType<typeof getRequestAuth>>,
+) {
+  const repository = await octokit.rest.repos.get({
+    owner: auth.owner,
+    repo: auth.repo,
+  });
+  const ref = repository.data.default_branch || "main";
+  const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+    owner: auth.owner,
+    repo: auth.repo,
+    ref,
+    action: "refresh-knowledge-system",
+    storeRepoUrl: auth.storeRepoUrl,
+    storeRef: auth.storeRef,
+  });
+  await octokit.rest.actions.createWorkflowDispatch({
+    owner: auth.owner,
+    repo: auth.repo,
+    workflow_id: "kody.yml",
+    ref,
+    inputs,
+  });
+  return ref;
 }
 
 export async function POST(
@@ -76,6 +101,13 @@ export async function POST(
     headerAuth.storeRef,
   );
   try {
+    let requestedRunId: string | undefined;
+    try {
+      const body = await req.json();
+      if (body?.mode === "resume" && typeof body.runId === "string") requestedRunId = body.runId;
+    } catch {
+      // Empty request body is the normal new-run path.
+    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json(
@@ -93,43 +125,61 @@ export async function POST(
       headerAuth.repo,
       { force: true },
     );
-    const activeCapabilities = activeStringSet(
-      config.company?.activeCapabilities,
-    );
     const activeWorkflows = activeStringSet(config.company?.activeWorkflows);
 
-    if (!activeCapabilities.has(id)) {
-      const localWorkflow = await readWorkflowDefinitionFile(
-        id,
-        octokit,
-        headerAuth.owner,
-        headerAuth.repo,
-      );
-      if (localWorkflow) return workflowNotRunnableResponse();
-
-      if (activeWorkflows.has(id)) {
-        const storeWorkflow = await readCompanyStoreWorkflowDefinitionFile(
-          id,
-          octokit,
-        );
-        if (storeWorkflow) return workflowNotRunnableResponse();
-      }
-
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
-
-    const workflow = await readCompanyStoreCapabilityWorkflowDefinitionFile(
+    let workflow: { workflow: WorkflowDefinition } | null =
+      await readWorkflowDefinitionFile(
       id,
-      octokit,
-    );
+      headerAuth.owner,
+      headerAuth.repo,
+      );
+    if (!workflow && activeWorkflows.has(id)) {
+      workflow = await readCompanyStoreWorkflowDefinitionFile(id, octokit);
+    }
     if (!workflow) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    if (workflow.runnable !== true) return workflowNotRunnableResponse();
+    const validationIssues = validateWorkflowDefinition(workflow.workflow);
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is invalid and was not dispatched.",
+          issues: validationIssues,
+        },
+        { status: 409 },
+      );
+    }
+
+    const runId = requestedRunId && /^run-[a-z0-9]+$/.test(requestedRunId)
+      ? requestedRunId
+      : newWorkflowRunId();
+    if (id === "refresh-knowledge-system") {
+      const ref = await dispatchKnowledgeSystemRefresh(octokit, headerAuth);
+      recordAudit(req, {
+        action: "workflow.run",
+        resource: id,
+        detail: `manual GitHub dispatch for workflow ${id}`,
+      });
+      return NextResponse.json(
+        {
+          ok: true,
+          runner: "github",
+          ref,
+          workflow: id,
+          runId,
+          action: id,
+        },
+        { status: 202 },
+      );
+    }
 
     const run = await runScheduledKodyOnRunner(req, {
-      taskId: `company-workflow-${id}-${Date.now()}`,
-      runRequest: withStoreTarget(workflowRunRequest(id), headerAuth),
+      taskId: `company-workflow-${id}-${runId}`,
+      runRequest: withStoreTarget(
+        workflowRunRequest(id, runId, workflow.workflow.agent),
+        headerAuth,
+      ),
     });
     if (!run.ok) {
       return NextResponse.json(
@@ -139,6 +189,17 @@ export async function POST(
         },
         { status: run.status },
       );
+    }
+    try {
+      await recordWorkflowRunRunner(
+        headerAuth.owner,
+        headerAuth.repo,
+        id,
+        runId,
+        { kind: run.runner, machineId: run.machineId },
+      );
+    } catch (trackingError) {
+      console.warn("[company-workflows/run] runner tracking unavailable", trackingError);
     }
 
     recordAudit(req, {
@@ -153,6 +214,7 @@ export async function POST(
       machineId: run.machineId,
       ref: run.ref,
       workflow: id,
+      runId,
       action: id,
     });
   } catch (err: any) {

@@ -3,7 +3,7 @@
  * @domain todos
  * @pattern chat-tools
  * @ai-summary Chat tools to manage repo-scoped todo lists stored as
- * `todos/<slug>.json` in the state repo. A todo file is one list; each list owns note-like
+ * `todos/<slug>.json` in Convex. A todo document is one list; each list owns note-like
  * items with independent completed state.
  */
 import { tool } from "ai";
@@ -61,7 +61,7 @@ export function createTodoTools(ctx: Ctx) {
 
   return {
     list_todo_lists: tool({
-      description: `List todo lists in ${repoRef} (state repo todos/). Returns each list slug/title and item completion counts.`,
+      description: `List todo lists in ${repoRef} (Convex todos/). Returns each list slug/title and item completion counts.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -156,7 +156,7 @@ export function createTodoTools(ctx: Ctx) {
     }),
 
     delete_todo_list: tool({
-      description: `Delete one todo list from ${repoRef} (removes todos/<slug>.json from the state repo).`,
+      description: `Delete one todo list from ${repoRef} (removes todos/<slug>.json from the Convex).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),

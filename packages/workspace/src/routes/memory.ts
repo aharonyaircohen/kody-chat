@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern memory-api
- * @ai-summary Memory API — GET lists `memory/<id>.md` state-repo files, POST
+ * @ai-summary Memory API — GET lists `memory/<id>.md` Convex files, POST
  *   creates one. The index file is rebuilt by the storage helper after writes.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -14,10 +14,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   invalidateMemoryIndexPromptCache,
   isValidMemoryId,

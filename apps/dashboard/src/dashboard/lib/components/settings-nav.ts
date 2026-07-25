@@ -10,13 +10,13 @@
 import {
   Activity,
   Bell,
+  Blocks,
   Bot,
   Brain,
   Building2,
   Wand2,
   CheckCircle2,
   Code,
-  Compass,
   Cpu,
   Database,
   FileText,
@@ -26,18 +26,18 @@ import {
   KeyRound,
   Layers,
   LayoutGrid,
-  Lightbulb,
   MessageSquare,
   MonitorPlay,
+  Network,
   Package,
   Palette,
   Route,
-  Search,
+  Scale,
   ScrollText,
-  Settings as SettingsIcon,
   Settings2,
   SlidersHorizontal,
   Sparkles,
+  ShieldAlert,
   Target,
   Users,
   Workflow,
@@ -123,7 +123,7 @@ export const TODOS_NAV_ITEM: SettingsNavItem = {
   href: "/todos",
   label: "Todos",
   icon: CheckCircle2,
-  description: "Visible worklists for regular tasks, goals, and loops.",
+  description: "Finite outcomes with evidence, blockers, and related Runs.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
@@ -153,6 +153,14 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     tint: "text-emerald-300 bg-emerald-500/10",
   },
 
+  {
+    href: "/inbox",
+    label: "Inbox",
+    icon: Bell,
+    description:
+      "Everything Kody is waiting on you for — approvals, requests, and mentions.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
   {
     href: "/messages",
     label: "Messages",
@@ -225,6 +233,76 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
+    title: "Brain",
+    items: [
+      {
+        href: "/brain",
+        label: "Brain",
+        icon: Brain,
+        exact: true,
+        description: "Manage your personal Brain chat models.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+    ],
+  },
+  {
+    title: "Knowledge",
+    items: [
+      {
+        href: "/knowledge-system",
+        label: "Knowledge System",
+        icon: Network,
+        description: "Explore this repository's connected knowledge graph.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/docs",
+        label: "Docs",
+        icon: FileText,
+        description: "README and docs folder from the repo.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/context",
+        label: "Context",
+        icon: FileText,
+        description:
+          "Curated markdown context you feed Kody — attach to agent; Kody's entries frame every chat turn.",
+        tint: "text-teal-300 bg-teal-500/10",
+      },
+      {
+        href: "/policies",
+        label: "Policies",
+        icon: Scale,
+        description: "Decision rules that guide Kody's behavior.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/constraints",
+        label: "Constraints",
+        icon: ShieldAlert,
+        description: "Hard limits and guardrails for Kody.",
+        tint: "text-rose-300 bg-rose-500/10",
+      },
+      {
+        href: "/memory",
+        label: "Memory",
+        icon: Brain,
+        description:
+          "Persistent facts and feedback Kody remembers across chat turns.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+      },
+      {
+        href: "/file-spaces",
+        label: "Manage Spaces",
+        icon: Settings2,
+        exact: true,
+        description: "Add and organize repository-backed knowledge spaces.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+    ],
+  },
+  {
     title: "Fly",
     items: [
       {
@@ -284,27 +362,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "AI Agency",
     items: [
+      {
+        href: "/agency",
+        label: "Intents",
+        icon: Target,
+        description: "Manage the Agency's plain-text intents.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
       TODOS_NAV_ITEM,
       {
         href: "/agency-runs",
-        label: "Agency Runs",
+        label: "Runs",
         icon: Route,
-        description: "Kody runs for goals, loops, and workflows.",
+        description: "Execution history for capabilities and workflows.",
         tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
-        href: "/findings",
-        label: "Findings",
-        icon: Search,
-        description: "Problems recorded by agency observer loops.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
-        href: "/learning",
-        label: "Learning",
-        icon: Lightbulb,
-        description: "Traceable changes made from verified findings.",
-        tint: "text-violet-300 bg-violet-500/10",
       },
       {
         href: "/agents",
@@ -313,43 +384,32 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Agent identities that execute your capabilities.",
         tint: "text-violet-300 bg-violet-500/10",
       },
-
-      {
-        href: "/agent-goals",
-        label: "Goals",
-        icon: Target,
-        description: "Finite outcomes driven by missing evidence.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
-        href: "/company-intents",
-        label: "Intents",
-        icon: Compass,
-        description:
-          "CTO guidance for AI Agency goals, loops, and capabilities.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
       {
         href: "/agent-loops",
         label: "Loops",
         icon: History,
-        description: "Operational loops driven by schedule and health.",
+        description: "Simple triggers for a workflow or capability.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
         href: "/workflows",
         label: "Workflows",
         icon: Workflow,
-        description: "Ordered capability queues.",
+        description: "Visual capability flows.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
-        description: "Manage reusable capabilities.",
+        description: "Simple executable folders.",
         tint: "text-amber-300 bg-amber-500/10",
       },
+    ],
+  },
+  {
+    title: "Store",
+    items: [
       {
         href: "/store-catalog",
         label: "Store Catalog",
@@ -369,8 +429,27 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
+    title: "Quality",
+    items: [
+      {
+        href: "/user-journeys",
+        label: "User Journeys",
+        icon: CheckCircle2,
+        description: "Monitor and run critical end-to-end user paths.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+    ],
+  },
+  {
     title: "Agent Settings",
     items: [
+      {
+        href: "/guided-flows",
+        label: "Guided Flows",
+        icon: Route,
+        description: "Define chat-guided experiences and their renderers.",
+        tint: "text-teal-300 bg-teal-500/10",
+      },
       {
         href: "/models",
         label: "Chat Models",
@@ -414,28 +493,19 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
+        href: "/views/widgets",
+        label: "Widgets",
+        icon: Blocks,
+        description: "Per-tenant widget bundles for chat surfaces.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/instructions",
         label: "Instructions",
         icon: ScrollText,
         description:
           "Tone, length, and behavior preferences appended to every chat turn.",
         tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
-        href: "/context",
-        label: "Context",
-        icon: FileText,
-        description:
-          "Curated markdown context you feed Kody — attach to agent; Kody's entries frame every chat turn.",
-        tint: "text-teal-300 bg-teal-500/10",
-      },
-      {
-        href: "/memory",
-        label: "Memory",
-        icon: Brain,
-        description:
-          "Persistent facts and feedback Kody remembers across chat turns.",
-        tint: "text-fuchsia-300 bg-fuchsia-500/10",
       },
     ],
   },
@@ -469,6 +539,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Non-secret config shared across runs.",
         tint: "text-indigo-300 bg-indigo-500/10",
       },
+      {
+        href: "/backend",
+        label: "Backend",
+        icon: Database,
+        description:
+          "Export state data as a JSON dump and import it into the Convex backend.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
     ],
   },
   {
@@ -494,25 +572,11 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
-        href: "/docs",
-        label: "Docs",
-        icon: FileText,
-        description: "README and docs folder from the repo.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
-      {
         href: "/changelog",
         label: "Changelog",
         icon: History,
         description: "What shipped, version by version.",
         tint: "text-fuchsia-300 bg-fuchsia-500/10",
-      },
-      {
-        href: "/settings",
-        label: "Settings",
-        icon: SettingsIcon,
-        description: "Dashboard-wide preferences.",
-        tint: "text-sky-300 bg-sky-500/10",
       },
     ],
   },
@@ -545,34 +609,7 @@ function settingsSection(title: string): SettingsNavSection {
   return section;
 }
 
-export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
-  {
-    title: PRIMARY_VIEW_TITLE,
-    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
-  },
-  {
-    title: PRIMARY_NAV_TITLE,
-    items: [
-      navItemForHref("/org"),
-      navItemForHref("/messages"),
-      navItemForHref("/reports"),
-      navItemForHref("/docs"),
-      navItemForHref("/changelog"),
-    ],
-  },
-  {
-    title: "AI Agency",
-    items: [
-      TODOS_NAV_ITEM,
-      navItemForHref("/agency-runs"),
-      navItemForHref("/agent-goals"),
-      navItemForHref("/agent-loops"),
-    ],
-  },
-  settingsSection("Content"),
-];
-
-export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
+export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Work",
     icon: LayoutGrid,
@@ -582,10 +619,7 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       TASKS_NAV_ITEM,
       VIBE_NAV_ITEM,
       PREVIEW_NAV_ITEM,
-      TODOS_NAV_ITEM,
-      navItemForHref("/agency-runs"),
-      navItemForHref("/findings"),
-      navItemForHref("/learning"),
+      navItemForHref("/inbox"),
     ],
   },
   {
@@ -594,15 +628,31 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
     tint: "text-violet-300",
     collapsible: true,
     items: [
+      navItemForHref("/agency"),
+      TODOS_NAV_ITEM,
+      navItemForHref("/agency-runs"),
       navItemForHref("/agents"),
-      navItemForHref("/agent-goals"),
-      navItemForHref("/company-intents"),
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
       navItemForHref("/capabilities"),
+    ],
+  },
+  {
+    title: "Store",
+    icon: Package,
+    tint: "text-emerald-300",
+    collapsible: true,
+    items: [
       navItemForHref("/store-catalog"),
       navItemForHref("/company"),
     ],
+  },
+  {
+    title: "Quality",
+    icon: CheckCircle2,
+    tint: "text-cyan-300",
+    collapsible: true,
+    items: [navItemForHref("/user-journeys")],
   },
   {
     title: "Workspace",
@@ -614,9 +664,14 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/files"),
-      navItemForHref("/docs"),
       navItemForHref("/changelog"),
     ],
+  },
+  {
+    ...settingsSection("Knowledge"),
+    icon: Network,
+    tint: "text-cyan-300",
+    collapsible: true,
   },
   {
     ...settingsSection("Content"),
@@ -625,18 +680,18 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
   },
   {
-    title: "Kody",
+    title: "Chat",
     icon: Bot,
     tint: "text-fuchsia-300",
     collapsible: true,
     items: [
       navItemForHref("/models"),
       navItemForHref("/commands"),
+      navItemForHref("/guided-flows"),
       navItemForHref("/setup"),
       navItemForHref("/views/renderers"),
+      navItemForHref("/views/widgets"),
       navItemForHref("/instructions"),
-      navItemForHref("/context"),
-      navItemForHref("/memory"),
     ],
   },
   {
@@ -656,36 +711,15 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/activity"),
+      ...settingsSection("Brain").items,
       ...settingsSection("Fly").items,
       navItemForHref("/config"),
       navItemForHref("/secrets"),
       navItemForHref("/variables"),
+      navItemForHref("/backend"),
       navItemForHref("/notifications"),
-      navItemForHref("/settings"),
     ],
   },
-];
-
-export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
-  {
-    title: PRIMARY_VIEW_TITLE,
-    items: [
-      DASHBOARD_NAV_ITEM,
-      TASKS_NAV_ITEM,
-      VIBE_NAV_ITEM,
-      PREVIEW_NAV_ITEM,
-    ],
-  },
-  {
-    title: "Work",
-    items: [
-      TODOS_NAV_ITEM,
-      navItemForHref("/agency-runs"),
-      navItemForHref("/findings"),
-      navItemForHref("/learning"),
-    ],
-  },
-  ...ENGINEER_MODE_SECTIONS.filter((section) => section.title !== "Work"),
 ];
 
 /**

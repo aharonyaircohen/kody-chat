@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern memory-api
  * @ai-summary Memory detail API — GET reads one memory, PATCH updates it,
- *   DELETE removes it. Backed by `memory/<id>.md` in the state repo.
+ *   DELETE removes it. Backed by `memory/<id>.md` in the Convex.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -14,10 +14,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   deleteMemoryFile,
   invalidateMemoryIndexPromptCache,

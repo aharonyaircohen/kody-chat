@@ -42,7 +42,7 @@ describe("buildVibePrimer — fresh (no taskContext)", () => {
   it("keeps session and event state out of the feature branch contract", () => {
     expect(primer).toContain("git add -A");
     expect(primer).toContain("Kody session and event state");
-    expect(primer).toContain("external state repo");
+    expect(primer).toContain("external backend");
   });
 });
 

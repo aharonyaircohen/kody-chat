@@ -12,7 +12,8 @@
  */
 import "server-only";
 import { setGitHubContext, clearGitHubContext } from "../../github-client";
-import { appendInboxFeed, readInboxFeed } from "../../inbox/feed-server";
+import { appendInboxFeed, readInboxFeedForTenant } from "../../inbox/feed-server";
+import { getOwner, getRepo } from "@kody-ade/base/github/core";
 import { feedEntryId, type InboxFeedEntry } from "../../inbox/feed";
 import { buildSnippet } from "../../inbox/types";
 import {
@@ -84,7 +85,7 @@ export async function deliverInbox(
     // (ETag/304) — no extra GitHub budget on the webhook path.
     let toAppend = entries;
     try {
-      const [feed, ledger] = await Promise.all([readInboxFeed(), readTrust()]);
+      const [feed, ledger] = await Promise.all([readInboxFeedForTenant(getOwner(), getRepo()), readTrust()]);
       const { admitted, withheld } = applyCtoBackpressure(
         feed.entries,
         entries,

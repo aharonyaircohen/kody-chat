@@ -42,15 +42,15 @@ GitHub-stored artifact, all in the connected repo:
 | Source                  | Lives in                                                   | On branch            | Written by                                        | Read by                                    |
 | ----------------------- | ---------------------------------------------------------- | -------------------- | ------------------------------------------------- | ------------------------------------------ |
 | **Dashboard audit log** | `kody:audit-log` manifest issue body (a bounded JSON ring) | _(issue, no branch)_ | the dashboard, via `recordAudit`                  | `/api/kody/activity/log` (Log tab)         |
-| **AI Agency activity**  | `.kody/activity/<date>.jsonl`                              | `kody-state`         | the **engine** (`appendCompanyActivity` in kody2) | `/api/kody/activity/autonomous` (Auto tab) |
-| **Per-session events**  | `.kody/events/<sessionId>.jsonl`                           | default branch ⚠️    | the **engine** (chat/run event stream)            | `/api/kody/activity/feed` (Feed tab)       |
+| **AI Agency activity**  | `backend agency runs<date>.jsonl`                          | `Kody backend`       | the **engine** (`appendCompanyActivity` in kody2) | `/api/kody/activity/autonomous` (Auto tab) |
+| **Per-session events**  | `backend run events<sessionId>.jsonl`                      | default branch ⚠️    | the **engine** (chat/run event stream)            | `/api/kody/activity/feed` (Feed tab)       |
 | **Workflow runs**       | GitHub Actions run history                                 | _(GitHub API)_       | GitHub (kody.yml dispatches)                      | `/api/kody/activity` (Runs tab)            |
 
 > ⚠️ **Branch mismatch — flagged.** AI Agency activity is read from the
-> `kody-state` branch (correct — that's where the engine commits state), but
-> the **Feed** source still reads `.kody/events/*.jsonl` from
+> `Kody backend` branch (correct — that's where the engine commits state), but
+> the **Feed** source still reads `backend run events*.jsonl` from
 > `process.env.KODY_STORE_BRANCH ?? "main"`, i.e. the default branch, not
-> `kody-state`. See
+> `Kody backend`. See
 > [`../src/dashboard/lib/activity/feed-source.ts`](../src/dashboard/lib/activity/feed-source.ts)
 > (`const BRANCH = …`). If the engine stops writing event files to the default
 > branch (or that repo's default isn't `main`), the Feed tab silently goes
@@ -93,7 +93,7 @@ for the `action` / `resource` / `capability` / `agent` / `outcome` fields).
 
 ## The Auto tab — engine activity
 
-The engine's **own** work product: each line in `.kody/activity/<date>.jsonl`
+The engine's **own** work product: each line in `backend agency runs<date>.jsonl`
 is one named, attributed action the engine performed — _which agent member ran
 which capability, why (schedule / manual / event), and the result_ (completed /
 failed, with an optional structured `outcomeKind` + `reason`). Written by kody2
@@ -108,7 +108,7 @@ state says so).
 > **Stale doc-comment — flagged.** The route file's header summary
 > (`activity/autonomous/route.ts`) still describes this as "the PRs it opens /
 > merges / closes" backed by `fetchRecentPRs`. The actual implementation calls
-> `fetchCompanyActivity()` and reads `.kody/activity/*.jsonl`. The behavior is
+> `fetchCompanyActivity()` and reads `backend agency runs*.jsonl`. The behavior is
 > the AI Agency activity feed; only the comment is out of date.
 
 ## The Runs tab — engine health
@@ -142,7 +142,7 @@ so a normal burst doesn't trip a false alarm.
 ## The Feed tab — session event stream
 
 The deepest view: one row per chat/run **session** (not per raw event),
-grouped from the engine's per-session event files `.kody/events/<sessionId>.jsonl`.
+grouped from the engine's per-session event files `backend run events<sessionId>.jsonl`.
 Each session derives its origin from the id prefix (`vibe-1587-…` → vibe,
 `live-direct-…` → direct, `live-test-…` → test, `live-…` → live), a human
 title (the agent's first task restatement, since user prompts aren't logged),
@@ -189,10 +189,10 @@ audit thread.
 │    │                 │                  │                     │                     │
 │    ▼                 ▼                  ▼                     ▼                     │
 │ in-mem ring     fetchCompany       fetchWorkflowRuns    readFeedEntries            │
-│   +             Activity()         + fetchIssues        (.kody/events/*.jsonl)      │
-│ readAudit       (.kody/activity/    (cached/ETag)        on default branch ⚠️       │
+│   +             Activity()         + fetchIssues        (backend run events*.jsonl)      │
+│ readAudit       (backend agency runs    (cached/ETag)        on default branch ⚠️       │
 │ Durable()        *.jsonl)              │                     │                     │
-│ (kody:audit-log  on kody-state         │  join via            │                     │
+│ (kody:audit-log  on Kody backend         │  join via            │                     │
 │  issue body)        │                  │  actionFromLabels    │                     │
 │    │                │                  │  (kody:* labels)     │                     │
 └────┼────────────────┼──────────────────┼──────────────────────┼─────────────────────┘
@@ -223,8 +223,8 @@ GitHub is the broker for all four. The dashboard writes only the Log source
 | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)               | Pure fold of workflow runs → signals + flood/queue alert.                               |
 | [`../src/dashboard/lib/activity/types.ts`](../src/dashboard/lib/activity/types.ts)                     | Run/signal/alert shapes + flood/queue thresholds.                                       |
 | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                       | Pure fold of raw event lines → sessions.                                                |
-| [`../src/dashboard/lib/activity/feed-source.ts`](../src/dashboard/lib/activity/feed-source.ts)         | Rate-limit-safe reader for `.kody/events/*.jsonl` (note the branch caveat).             |
-| [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)                 | Shape + JSONL parser for engine-authored `.kody/activity/*.jsonl`.                      |
+| [`../src/dashboard/lib/activity/feed-source.ts`](../src/dashboard/lib/activity/feed-source.ts)         | Rate-limit-safe reader for `backend run events*.jsonl` (note the branch caveat).        |
+| [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)                 | Shape + JSONL parser for engine-authored `backend agency runs*.jsonl`.                  |
 | [`../src/dashboard/lib/tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)           | Consumes the same `kody:*` labels for board lanes — kept in lockstep with `action.ts`.  |
 
 ## FAQ
@@ -253,7 +253,7 @@ endpoint already performed.
 
 Likely the [branch mismatch](#the-three-sources-and-where-each-lives): Feed
 reads event files from the default branch (`KODY_STORE_BRANCH ?? "main"`) while
-Auto reads from `kody-state`. If the engine isn't writing `.kody/events/*` to
+Auto reads from `Kody backend`. If the engine isn't writing `backend run events*` to
 the branch Feed reads, the tab shows nothing. Feed is also load-on-demand and
 capped at the 12 newest sessions.
 

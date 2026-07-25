@@ -10,11 +10,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentList,
   type ChatModelEntry,
-} from "@kody-ade/kody-chat/platform/agent-entries";
+} from "@kody-ade/kody-chat-dashboard/platform/agent-entries";
 import {
   familySnapEntry,
   resolveDefaultAgentEntry,
-} from "@kody-chat/components/kody-chat-selection";
+} from "@kody-ade/kody-chat-dashboard/components/kody-chat-selection";
 
 const MODELS: ChatModelEntry[] = [
   { id: "claude-sonnet", label: "Claude Sonnet" },
@@ -85,7 +85,7 @@ describe("resolveDefaultAgentEntry", () => {
     expect(entry?.key).toBe("brain");
   });
 
-  it("falls through to the Live entry when nothing else is configured", () => {
+  it("falls through to Live when nothing else is configured", () => {
     const agentList = list();
     const entry = resolveDefaultAgentEntry({
       defaultChatEntryKey: null,
@@ -96,7 +96,7 @@ describe("resolveDefaultAgentEntry", () => {
     expect(entry?.key).toBe("kody-live");
   });
 
-  it("prefers the Fly Live variant when the repo is on Fly", () => {
+  it("uses Fly Live when the repo is on Fly", () => {
     const agentList = list({ fly: true });
     const entry = resolveDefaultAgentEntry({
       defaultChatEntryKey: null,
@@ -120,21 +120,17 @@ describe("resolveDefaultAgentEntry", () => {
 });
 
 describe("familySnapEntry", () => {
-  it("snaps Live ↔ Live-Fly within the family", () => {
-    expect(familySnapEntry("kody-live", list({ fly: true }))?.key).toBe(
-      "kody-live-fly",
-    );
+  it("snaps Live to the available Live variant", () => {
+    expect(familySnapEntry("kody-live", list({ fly: true }))?.key).toBe("kody-live-fly");
     expect(familySnapEntry("kody-live-fly", list())?.key).toBe("kody-live");
   });
 
-  it("snaps Brain ↔ Brain-Fly within the family", () => {
-    expect(familySnapEntry("brain-fly", list({ brain: true }))?.key).toBe(
-      "brain",
-    );
+  it("snaps Brain-Fly to manual Brain when Fly chat is unavailable", () => {
+    expect(familySnapEntry("brain-fly", list({ brain: true }))?.key).toBe("brain");
     expect(familySnapEntry("brain", list())).toBeNull();
   });
 
-  it("snaps a removed gateway model to another Kody row, then Live", () => {
+  it("snaps a removed gateway model to another custom row, then Live", () => {
     const withModel = list({
       models: [{ id: "claude-sonnet", label: "Claude Sonnet" }],
     });

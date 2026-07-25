@@ -151,6 +151,7 @@ export function SearchableSelect({
               filtered.map((option) => {
                 const active = option.value === value;
                 return (
+                  // eslint-disable-next-line react/forbid-elements -- custom listbox option row; kit Button base styles (centering, font, text size) would visibly alter the option layout
                   <button
                     key={option.value ?? "__none__"}
                     type="button"
@@ -367,13 +368,15 @@ export function SearchableMultiSelect({
               {selectedHeading}
             </p>
             {selectedOptions.length > 1 ? (
-              <button
+              <Button
                 type="button"
-                className="rounded px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                size="clear"
+                variant="ghost"
+                className="rounded px-1.5 py-1 text-xs font-normal text-muted-foreground hover:bg-transparent hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 onClick={() => onChange([])}
               >
                 Clear all
-              </button>
+              </Button>
             ) : null}
           </div>
           <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -386,14 +389,16 @@ export function SearchableMultiSelect({
                 <span className="truncate">
                   {option.selectedLabel ?? option.label}
                 </span>
-                <button
+                <Button
                   type="button"
-                  className="rounded-full text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  size="clear"
+                  variant="ghost"
+                  className="rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   aria-label={`Remove ${option.label}`}
                   onClick={() => remove(option.value)}
                 >
                   <X className="h-3 w-3" />
-                </button>
+                </Button>
               </span>
             ))}
             {hiddenSelectedCount ? (
@@ -443,6 +448,7 @@ export function SearchableMultiSelect({
               filtered.map((option) => {
                 const active = selected.has(option.value);
                 return (
+                  // eslint-disable-next-line react/forbid-elements -- custom listbox option row; kit Button base styles (centering, font, text size) would visibly alter the option layout
                   <button
                     key={option.value}
                     type="button"

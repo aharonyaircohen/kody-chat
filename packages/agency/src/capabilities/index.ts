@@ -1,32 +1,3 @@
-/**
- * @fileType util
- * @domain capabilities
- * @pattern capabilities-index
- * @ai-summary Public surface for the capability feature. Capabilities are
- *   stored under state-repo `capabilities/<slug>/` with `profile.json` and
- *   `capability.md`.
- */
-
-export {
-  COMMON_TOOLS,
-  PERMISSION_MODES,
-  appendContract,
-  composeProfile,
-  contractFor,
-  descriptionFromInstructions,
-  fieldsFromProfile,
-  isValidSlug,
-  mcpAllowToken,
-  serializeProfile,
-  slugFromName,
-  stripContract,
-  validateProfile,
-  type CapabilityFields,
-  type CapabilityLanding,
-  type McpServerSpec,
-  type PermissionMode,
-} from "./profile";
-
 export {
   deleteCapabilityFile,
   listCapabilityFiles,
@@ -34,13 +5,14 @@ export {
   listStoreCapabilityFiles,
   readCapabilityFile,
   readCapabilityFolderFiles,
+  readCompanyStoreCapabilityFolderFiles,
   readResolvedCapabilityFile,
-  writeCapabilityFile,
+  assertSimpleCapabilityFolder,
   writeCapabilityFolderFiles,
+  isValidSlug,
   type CapabilityDetail,
-  type CapabilityShellScript,
+  type CapabilityTool,
   type CapabilitySkill,
   type CapabilitySummary,
   type WriteCapabilityFolderFilesOptions,
-  type WriteCapabilityOptions,
 } from "./files";

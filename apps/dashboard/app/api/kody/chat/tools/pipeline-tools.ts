@@ -11,8 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
-  findBranchByIssueNumber,
-  findStatusOnBranch,
+  getStatusFromBranch,
   fetchWorkflowRuns,
   fetchOpenPRs,
 } from "@dashboard/lib/github-client";
@@ -42,10 +41,8 @@ export function createPipelineTools(ctx: Ctx) {
       }),
       execute: async ({ issueNumber }) => {
         try {
-          const branch = await findBranchByIssueNumber(issueNumber);
-          if (!branch) return { issueNumber, status: null, branch: null };
-          const status = await findStatusOnBranch(branch, issueNumber);
-          return { issueNumber, branch, status };
+          const status = await getStatusFromBranch(String(issueNumber), "");
+          return { issueNumber, source: "backend", status };
         } catch (err) {
           logger.warn({ err, issueNumber }, "kody_get_pipeline_status failed");
           return {

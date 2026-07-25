@@ -10,16 +10,16 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KodyTask, SortField } from "@kody-ade/base/types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { cn } from "../utils";
-import { TaskList } from "./TaskList";
-import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
-import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
-import { GoalDiscussionDialog } from "./GoalDiscussionDialog";
+import { TaskList } from "@dashboard/features/tasks/components/TaskList";
+import { GoalGroupedView, useGoalCollapse } from "@dashboard/features/goals/components/GoalGroupedView";
+import { CreateGoalDialog, EditGoalDialog } from "@dashboard/features/goals/components/GoalControl";
+import { GoalDiscussionDialog } from "@dashboard/features/goals/components/GoalDiscussionDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
 import type { Goal } from "../api";
 
-import { CreateTaskDialog } from "./CreateTaskDialog";
-import { EditTaskDialog } from "./EditTaskDialog";
+import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
+import { EditTaskDialog } from "@dashboard/features/tasks/components/EditTaskDialog";
 import { BugReportDialog } from "./BugReportDialog";
 import { KodyBugReportDialog } from "./KodyBugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
@@ -33,8 +33,8 @@ import {
   STATUS_FILTERS,
   type ViewMode,
 } from "./FilterBar";
-import { TaskDetail } from "./TaskDetail";
-import { PreviewModal } from "./PreviewModal";
+import { TaskDetail } from "@dashboard/features/tasks/components/TaskDetail";
+import { PreviewModal } from "@dashboard/features/previews/components/PreviewModal";
 import { Button } from "@kody-ade/base/ui/button";
 import {
   Select,
@@ -58,8 +58,6 @@ import {
   RefreshCw,
   AlertCircle,
   X as XIcon,
-  Sun,
-  Moon,
   Github,
   Layers,
   FileText,
@@ -102,11 +100,12 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
 import { repoPathForNavMatching, repoScopedHref } from "@kody-ade/base/routes";
 import { RepoManager } from "./RepoManager";
-import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
-import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
+import { DASHBOARD_NAV_ITEM } from "./settings-nav";
+import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 import {
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,
@@ -183,6 +182,7 @@ export function KodyDashboard({
   initialIssueNumber,
   initialModal,
 }: KodyDashboardProps) {
+  const navSections = useSidebarNavSections();
   const initialIssueRef = useRef(initialIssueNumber);
   // Track if initial modal has been handled to prevent re-opening on tasks change
   const initialModalHandledRef = useRef(false);
@@ -495,9 +495,6 @@ export function KodyDashboard({
     },
     [storedAuth],
   );
-
-  // Theme toggle
-  const { theme, setTheme } = useTheme();
 
   // Fetch collaborators for assignee picker
   const { data: collaborators = [] } = useQuery({
@@ -1509,7 +1506,12 @@ export function KodyDashboard({
         showRefresh={false}
       />
       <div className="flex-1 flex items-center justify-center">{content}</div>
-      <MobileMenu open={showMobileMenu} onOpenChange={setShowMobileMenu} />
+      <MobileMenu
+        open={showMobileMenu}
+        onOpenChange={setShowMobileMenu}
+        sections={navSections}
+        pinnedItem={DASHBOARD_NAV_ITEM}
+      />
     </div>
   );
 
@@ -1749,6 +1751,7 @@ export function KodyDashboard({
                   >
                     Retry
                   </Button>
+                  {/* eslint-disable-next-line react/forbid-elements -- bare icon dismiss with no hover surface; Button ghost hover bg would visibly change it */}
                   <button
                     onClick={() => setErrorDismissed(true)}
                     className="text-red-400 hover:text-red-300"
@@ -1845,6 +1848,7 @@ export function KodyDashboard({
                         user can create a task or report a bug without
                         scrolling into a goal section. */}
                     <div className="grid gap-2 grid-cols-2 p-3">
+                      {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
                         type="button"
                         onClick={handleOpenCreate}
@@ -1853,6 +1857,7 @@ export function KodyDashboard({
                         <Plus className="w-4 h-4" />
                         New task
                       </button>
+                      {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
                         type="button"
                         onClick={() => handleReportBugInGoal(null)}
@@ -2017,6 +2022,8 @@ export function KodyDashboard({
         <MobileMenu
           open={showMobileMenu}
           onOpenChange={setShowMobileMenu}
+          sections={navSections}
+          pinnedItem={DASHBOARD_NAV_ITEM}
           extras={
             <>
               <div className="px-4 pt-4">
@@ -2050,20 +2057,6 @@ export function KodyDashboard({
                       )}
                     />
                     Refresh
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-2 h-11"
-                    onClick={() =>
-                      setTheme(theme === "dark" ? "light" : "dark")
-                    }
-                  >
-                    {theme === "dark" ? (
-                      <Sun className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {theme === "dark" ? "Light mode" : "Dark mode"}
                   </Button>
                   <Button
                     variant="ghost"

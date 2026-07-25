@@ -5,14 +5,18 @@ import { describe, it, expect } from "vitest";
 import {
   buildBreadcrumbs,
   buildFileHref,
+  confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
   githubFileUrl,
+  isExpectedDeletedPath,
   joinRepoPath,
   normalizeRepoPath,
   parentRepoPath,
   replacePathPrefix,
-} from "@dashboard/components/files/FilesPage";
+  shouldShowWorkspaceLocation,
+  visibleAncestorDirectories,
+} from "@dashboard/features/file-manager/lib/file-paths";
 
 describe("buildBreadcrumbs", () => {
   it("returns empty array for empty path", () => {
@@ -108,6 +112,47 @@ describe("currentFolderPath", () => {
   });
 });
 
+describe("confineRepoPathToRoot", () => {
+  it("keeps nested destinations in a repository-root workspace", () => {
+    expect(confineRepoPathToRoot("docs/guides", "")).toBe("docs/guides");
+  });
+
+  it("keeps scoped destinations inside their workspace", () => {
+    expect(confineRepoPathToRoot("docs/guides", "docs")).toBe("docs/guides");
+    expect(confineRepoPathToRoot("src", "docs")).toBe("docs");
+  });
+});
+
+describe("visibleAncestorDirectories", () => {
+  it("keeps missing ancestors visible for a newly opened file", () => {
+    expect(
+      visibleAncestorDirectories("notes/archive/test.md", "file", ""),
+    ).toEqual(["notes", "notes/archive"]);
+  });
+
+  it("includes a newly opened folder but not the workspace root", () => {
+    expect(
+      visibleAncestorDirectories("docs/notes/archive", "dir", "docs"),
+    ).toEqual(["docs/notes", "docs/notes/archive"]);
+  });
+});
+
+describe("shouldShowWorkspaceLocation", () => {
+  it("keeps folder context visible", () => {
+    expect(shouldShowWorkspaceLocation("dir", "viewer")).toBe(true);
+  });
+
+  it("lets the document own the header while viewing or editing a file", () => {
+    expect(shouldShowWorkspaceLocation("file", "viewer")).toBe(false);
+    expect(shouldShowWorkspaceLocation("file", "editor")).toBe(false);
+  });
+
+  it("keeps navigation available for search and upload modes", () => {
+    expect(shouldShowWorkspaceLocation("file", "search")).toBe(true);
+    expect(shouldShowWorkspaceLocation("file", "upload")).toBe(true);
+  });
+});
+
 describe("joinRepoPath", () => {
   it("joins child names under the current folder", () => {
     expect(joinRepoPath("src/components", "Button.tsx")).toBe(
@@ -179,5 +224,17 @@ describe("buildFileHref", () => {
     expect(buildFileHref("docs/What now?.md")).toBe(
       "/files/docs/What%20now%3F.md",
     );
+  });
+});
+
+describe("isExpectedDeletedPath", () => {
+  it("matches a deleted file and stale reads below a deleted folder", () => {
+    const deletedPaths = new Set(["docs/old.md", "docs/old-folder"]);
+
+    expect(isExpectedDeletedPath("docs/old.md", deletedPaths)).toBe(true);
+    expect(
+      isExpectedDeletedPath("docs/old-folder/nested.md", deletedPaths),
+    ).toBe(true);
+    expect(isExpectedDeletedPath("docs/current.md", deletedPaths)).toBe(false);
   });
 });

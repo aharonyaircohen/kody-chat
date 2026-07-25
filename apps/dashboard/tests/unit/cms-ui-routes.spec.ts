@@ -17,20 +17,20 @@ describe("CMS UI routes", () => {
     expect(existsSync(resolve(root, path))).toBe(true);
     expect(readRepoFile(path)).toContain("CmsEditManager");
     expect(
-      readRepoFile("src/dashboard/lib/components/CmsManager.tsx"),
+      readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx"),
     ).toContain("export function CmsEditManager");
   });
 
   it("renders CMS forms with explicit cancel handling", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
 
     expect(source).toContain("onCancel");
     expect(source).toContain("Cancel");
   });
 
   it("offers content config creation from the unconfigured state", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
 
     expect(manager).toContain("UnconfiguredCmsState");
     expect(manager).toContain("Create content config");
@@ -43,8 +43,8 @@ describe("CMS UI routes", () => {
   });
 
   it("offers adapter switching after content is configured", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
     const configPage = "app/(chat-rail)/content/settings/page.tsx";
 
     expect(existsSync(resolve(root, configPage))).toBe(true);
@@ -60,8 +60,8 @@ describe("CMS UI routes", () => {
   });
 
   it("offers schema generation when CMS has no collections", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
 
     expect(manager).toContain("GenerateSchemaState");
     expect(manager).toContain("Generate schema");
@@ -74,8 +74,8 @@ describe("CMS UI routes", () => {
   });
 
   it("offers schema refresh when CMS already has collections", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
 
     expect(manager).toContain("CmsConfigManager");
     expect(manager).toContain("Update schema");
@@ -84,7 +84,7 @@ describe("CMS UI routes", () => {
   });
 
   it("keeps configured CMS actions out of the content entries header", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const start = source.indexOf("function CmsHeaderActions");
     const end = source.indexOf("type CmsWriteRolePreset");
     const header = source.slice(start, end);
@@ -113,7 +113,7 @@ describe("CMS UI routes", () => {
   });
 
   it("keeps CMS table filters mounted while documents load", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const start = source.indexOf("function CollectionWorkspace");
     const end = source.indexOf("function GenerateSchemaState");
     const workspace = source.slice(start, end);
@@ -127,7 +127,7 @@ describe("CMS UI routes", () => {
   });
 
   it("persists content entries list state in the URL", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const start = source.indexOf("function CmsListPage");
     const end = source.indexOf("function CmsItemPage");
     const listPage = source.slice(start, end);
@@ -143,7 +143,7 @@ describe("CMS UI routes", () => {
   });
 
   it("offers page-size selection and numbered page jumps in content entries", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const listPage = source.slice(
       source.indexOf("function CmsListPage"),
       source.indexOf("function CmsItemPage"),
@@ -161,7 +161,7 @@ describe("CMS UI routes", () => {
   });
 
   it("keeps CMS form actions visible while form fields scroll", () => {
-    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const source = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const detailStart = source.indexOf("function ContentDetailPage");
     const detailEnd = source.indexOf("function ContentFormPage");
     const detail = source.slice(detailStart, detailEnd);
@@ -179,7 +179,7 @@ describe("CMS UI routes", () => {
   });
 
   it("contains outer page scrolling in CMS without fixing the dashboard shell", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
     const shell = readRepoFile(
       "src/dashboard/lib/components/ChatRailShell.tsx",
     );
@@ -191,8 +191,8 @@ describe("CMS UI routes", () => {
   });
 
   it("offers content permissions management from content settings", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
     const writeActions = manager.slice(
       manager.indexOf("Collection write actions"),
       manager.indexOf("Collection overrides"),
@@ -226,7 +226,7 @@ describe("CMS UI routes", () => {
   });
 
   it("offers MCP connection details from content settings", () => {
-    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const manager = readRepoFile("src/dashboard/features/admin/components/CmsManager.tsx");
 
     expect(manager).toContain("CmsConfigManager");
     expect(manager).toContain("MCP Tools");
@@ -239,9 +239,9 @@ describe("CMS UI routes", () => {
 
   it("offers resource deletion from the Content Model page", () => {
     const manager = readRepoFile(
-      "src/dashboard/lib/components/ContentModelManager.tsx",
+      "src/dashboard/features/admin/components/ContentModelManager.tsx",
     );
-    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const client = readRepoFile("src/dashboard/features/admin/components/cms/client.ts");
     const resourceSettings = manager.slice(
       manager.indexOf("function ResourceSettingsBar"),
       manager.indexOf("function FieldsTable"),

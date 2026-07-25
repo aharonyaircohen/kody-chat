@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-workflows-api
- * @ai-summary Lists and creates workflow definitions in the configured Kody
- *   state repo without touching the GitHub Actions workflow-runs endpoint.
+ * @ai-summary Lists and creates validated workflow definitions in the
+ *   configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -22,27 +22,44 @@ import {
 } from "@dashboard/lib/github-client";
 import { getEngineConfig, type KodyConfig } from "@kody-ade/base/engine/config";
 import {
-  collapseManagedGoalRecordsForList,
-  type ManagedGoalRecord,
-} from "@dashboard/lib/managed-goals";
-import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
+  getProjectedEngineConfig,
+  listProjectedWorkflows,
+  saveProjectedWorkflow,
+} from "@dashboard/lib/backend/repo-projection";
 import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
+  validateWorkflowDefinition,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
-  listCompanyStoreCapabilityWorkflowDefinitionFiles,
   listCompanyStoreWorkflowDefinitionFiles,
   listWorkflowDefinitionFiles,
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+
+const workflowTransitionSchema = z.object({
+  to: z.string().trim().min(1).max(80),
+  when: z.record(z.string(), z.unknown()).optional(),
+  default: z.boolean().optional(),
+  maxIterations: z.number().int().positive().optional(),
+});
+const workflowStepSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(80),
+  input: z.unknown().optional(),
+  next: z.array(workflowTransitionSchema).optional(),
+});
 
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
+  agent: z.string().trim().min(1).max(80).default("kody"),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
+  startAt: z.string().trim().min(1).max(80).optional(),
+  steps: z.array(workflowStepSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
@@ -80,15 +97,6 @@ function activeCapabilitySlugs(config: KodyConfig): string[] {
   );
 }
 
-function referencedWorkflowSlugs(goals: ManagedGoalRecord[]): string[] {
-  const ids = new Set<string>();
-  for (const goal of goals) {
-    const id = goal.state.workflowRef?.id?.trim();
-    if (id) ids.add(id);
-  }
-  return Array.from(ids);
-}
-
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -106,31 +114,36 @@ export async function GET(req: NextRequest) {
     headerAuth.storeRef,
   );
   try {
+    try {
+      const projected = await listProjectedWorkflows(
+        headerAuth.owner,
+        headerAuth.repo,
+      );
+      if (projected.length > 0) {
+        return NextResponse.json(
+          { workflows: projected },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+    } catch {
+      // Bootstrap from GitHub when the projection is unavailable or empty.
+    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
     const localWorkflows = await listWorkflowDefinitionFiles(
-      octokit,
       headerAuth.owner,
       headerAuth.repo,
     );
-    const { config } = await getEngineConfig(
+    const { config } = await getProjectedEngineConfig(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
     );
     const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
-    const activeCapabilityIds = new Set(activeCapabilitySlugs(config));
-    const managedGoals = collapseManagedGoalRecordsForList(
-      await listManagedGoalFiles(octokit, headerAuth.owner, headerAuth.repo),
-    );
-    const referencedWorkflowIds = new Set(referencedWorkflowSlugs(managedGoals));
-    const storeWorkflowIds = new Set([
-      ...activeWorkflowIds,
-      ...referencedWorkflowIds,
-    ]);
+    const storeWorkflowIds = activeWorkflowIds;
     const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
     const storeWorkflows =
       storeWorkflowIds.size > 0
@@ -139,24 +152,18 @@ export async function GET(req: NextRequest) {
               storeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
           )
         : [];
-    const visibleIds = new Set([
-      ...localIds,
-      ...storeWorkflows.map((workflow) => workflow.id),
-    ]);
-    const storeCapabilityWorkflows =
-      activeCapabilityIds.size > 0
-        ? (
-            await listCompanyStoreCapabilityWorkflowDefinitionFiles(
-              octokit,
-              activeCapabilityIds,
-            )
-          ).filter((workflow) => !visibleIds.has(workflow.id))
-        : [];
-    const workflows = [
-      ...localWorkflows,
-      ...storeWorkflows,
-      ...storeCapabilityWorkflows,
-    ].sort((a, b) => a.id.localeCompare(b.id));
+    const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
+    await Promise.all(
+      workflows.map((workflow) =>
+        saveProjectedWorkflow(
+          headerAuth.owner,
+          headerAuth.repo,
+          workflow,
+        ).catch(() => undefined),
+      ),
+    );
     return NextResponse.json(
       { workflows },
       { headers: { "Cache-Control": "no-store" } },
@@ -215,7 +222,6 @@ export async function POST(req: NextRequest) {
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      octokit,
       headerAuth.owner,
       headerAuth.repo,
     );
@@ -239,17 +245,46 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    const [localCapabilities, { config }] = await Promise.all([
+      listLocalCapabilityFiles(),
+      getEngineConfig(octokit, headerAuth.owner, headerAuth.repo),
+    ]);
+    const knownCapabilities = new Set([
+      ...localCapabilities.map((capability) => capability.slug),
+      ...activeCapabilitySlugs(config),
+    ]);
+    const validationIssues = validateWorkflowDefinition(workflow, {
+      knownCapabilities,
+    });
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is not safe to save.",
+          issues: validationIssues,
+        },
+        { status: 400 },
+      );
+    }
     const path = workflowDefinitionPath(id);
     await writeWorkflowDefinitionFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id,
       workflow,
-      message: `chore(workflows): create workflow ${id}`,
     });
 
-    return NextResponse.json({ workflow: { id, path, workflow } });
+    return NextResponse.json({
+      workflow: {
+        id,
+        path,
+        workflow,
+        updatedAt: workflow.updatedAt,
+        source: "local",
+        readOnly: false,
+        runnable: true,
+      },
+    });
   } catch (err: any) {
     return mapGithubError(err, "failed_to_create_workflow");
   } finally {

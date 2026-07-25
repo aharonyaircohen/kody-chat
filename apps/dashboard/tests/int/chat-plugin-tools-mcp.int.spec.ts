@@ -21,9 +21,9 @@ import {
   GET as mcpGET,
   POST as mcpPOST,
 } from "../../app/api/kody/chat/plugin-tools/mcp/route";
-import { buildPluginToolsBearer } from "@kody-ade/kody-chat/platform/plugin-tools-config";
-import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
-import type { ChatToolServerContext } from "@kody-ade/kody-chat/platform/tools";
+import { buildPluginToolsBearer } from "@kody-ade/kody-chat-dashboard/platform/plugin-tools-config";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
+import type { ChatToolServerContext } from "@kody-ade/kody-chat-dashboard/platform/tools";
 
 const URL_BASE = "https://dash.test/api/kody/chat/plugin-tools/mcp";
 

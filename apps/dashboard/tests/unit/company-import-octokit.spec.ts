@@ -21,6 +21,37 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Agents now live in the Convex backend — mock the client so agent
+// import writes hit an in-memory store instead of GitHub.
+const convexDocs = vi.hoisted(() => new Map<string, unknown>());
+const convex = vi.hoisted(() => ({
+  query: vi.fn(async (_ref: unknown, args: { kind?: string }) =>
+    args.kind && convexDocs.has(args.kind)
+      ? {
+          doc: convexDocs.get(args.kind),
+          updatedAt: "2026-07-18T00:00:00.000Z",
+        }
+      : args.kind
+        ? null
+        : ([] as unknown[]),
+  ),
+  mutation: vi.fn(
+    async (_ref: unknown, args: { kind?: string; doc?: unknown }) => {
+      if (args.kind && args.doc !== undefined) {
+        convexDocs.set(args.kind, args.doc);
+      }
+      return "id-1";
+    },
+  ),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
+}));
+
 function badError(): Error {
   const e = new Error(
     "Bad credentials - https://docs.github.com/rest",
@@ -194,7 +225,9 @@ const bundle = {
 };
 
 beforeEach(() => {
+  convexDocs.clear();
   vi.clearAllMocks();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
 });
 
 describe("company import survives a cleared/bad request-context octokit", () => {
@@ -209,16 +242,18 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
 
-    // The writes really went through the GOOD octokit...
-    expect(good.repos.createOrUpdateFileContents).toHaveBeenCalled();
-    // ...and the bad global octokit was never touched.
+    // Runtime definitions and company data are backend-owned.
+    expect(convex.mutation).toHaveBeenCalled();
+    expect(good.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
+    // Neither the passed nor global GitHub client is used for runtime state.
     expect(badOctokit.repos.getContent).not.toHaveBeenCalled();
     expect(badOctokit.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
   });
 
   it("still reports a real write failure (does not mask genuine errors)", async () => {
     const good = makeGoodOctokit();
-    good.repos.createOrUpdateFileContents.mockRejectedValueOnce(badError());
+    // Agent writes go to Convex now — fail the first mutation.
+    convex.mutation.mockRejectedValueOnce(badError());
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
     // The one agent write genuinely failed; everything else still succeeded.

@@ -5,6 +5,7 @@ import {
   getToolErrorMessage,
   isToolErrorOutput,
   selectChatOutputActiveTools,
+  selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
 
 describe("chat output tools", () => {
@@ -33,7 +34,9 @@ describe("chat output tools", () => {
     ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "fetch_url", "list_reports"]);
   });
 
-  it("allows renderer output after an interactive final answer is rejected", () => {
+  it("keeps final_answer callable after an interactive final answer is rejected", () => {
+    // The show_view nudge is one-shot: the model may retry final_answer
+    // instead of being forced to fabricate a placeholder view.
     expect(
       selectChatOutputActiveTools({
         toolNames: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "list_reports"],
@@ -41,7 +44,23 @@ describe("chat output tools", () => {
         allowPreRenderTools: false,
         finalAnswerNeedsView: true,
       }),
-    ).toEqual([SHOW_VIEW_TOOL]);
+    ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]);
+  });
+
+  it("pins show_view by name when a step is locked to it (regression: MiniMax ignores generic required and ends with prose)", () => {
+    expect(selectChatOutputToolChoice([SHOW_VIEW_TOOL])).toEqual({
+      type: "tool",
+      toolName: SHOW_VIEW_TOOL,
+    });
+  });
+
+  it("keeps generic required tool choice when multiple tools are active", () => {
+    expect(
+      selectChatOutputToolChoice([SHOW_VIEW_TOOL, "list_reports"]),
+    ).toEqual("required");
+    expect(
+      selectChatOutputToolChoice([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]),
+    ).toEqual("required");
   });
 
   it("allows read tools before renderer output for explicit selection turns", () => {

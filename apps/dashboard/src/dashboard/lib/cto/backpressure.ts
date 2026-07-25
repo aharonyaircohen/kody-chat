@@ -25,7 +25,7 @@ import { DEFAULT_AGENT_SLUG } from "./recommendation";
  * Hard ceiling on undecided recommendations visible in the inbox at once,
  * applied **per capability** — a chatty capability can't crowd other capabilities out of
  * the operator's queue. Mirrors the "at most 10 pending" rule in
- * state-repo `agents/*.md`, but enforced here so it actually holds.
+ * backend `agents/*.md`, but enforced here so it actually holds.
  */
 export const MAX_PENDING_CTO_RECS = 10;
 

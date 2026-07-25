@@ -16,7 +16,6 @@ import {
 const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
-const resolveBestViewRendererDefinitionMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
 
 vi.mock("ai", () => ({
@@ -44,16 +43,21 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: vi.fn(async () => ({})),
 }));
 
-vi.mock("@dashboard/lib/github-client", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@dashboard/lib/github-client")>();
-  return {
-    ...actual,
-    createUserOctokit: vi.fn(() => ({})),
-    setGitHubContext: vi.fn(),
-    clearGitHubContext: vi.fn(),
-  };
-});
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client")
+      >();
+    return {
+      ...actual,
+      createUserOctokit: vi.fn(() => ({})),
+      setGitHubContext: vi.fn(),
+      clearGitHubContext: vi.fn(),
+    };
+  },
+);
 
 vi.mock("@kody-ade/workspace/memory/files", () => ({
   invalidateMemoryIndexPromptCache: vi.fn(),
@@ -70,39 +74,47 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@dashboard/lib/view-renderers/renderers")
-    >();
-  return {
-    ...actual,
-    loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
-    resolveBestViewRendererDefinition: resolveBestViewRendererDefinitionMock,
-  };
-});
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store")
+      >();
+    return {
+      ...actual,
+      loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
+    };
+  },
+);
 
-vi.mock("../../app/api/kody/chat/resolve-model", () => ({
-  resolveChatModel: vi.fn(async () => ({
-    model: { modelId: "test-model" },
-    apiKey: "test-key",
-    resolvedModel: {
-      id: "test-model",
-      label: "Test model",
-      provider: "openai",
-      protocol: "openai-compatible",
-      baseURL: "https://models.test/v1",
-      modelName: "test-model",
-      apiKeySecret: "TEST_MODEL_API_KEY",
-      enabled: true,
-      default: true,
-    },
-  })),
-}));
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/resolve-model",
+  () => ({
+    resolveChatModel: vi.fn(async () => ({
+      model: { modelId: "test-model" },
+      apiKey: "test-key",
+      resolvedModel: {
+        id: "test-model",
+        label: "Test model",
+        provider: "openai",
+        protocol: "openai-compatible",
+        baseURL: "https://models.test/v1",
+        modelName: "test-model",
+        apiKeySecret: "TEST_MODEL_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    })),
+  }),
+);
 
-vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
-}));
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/tools/cms-tools",
+  () => ({
+    createCmsTools: vi.fn(async () => ({})),
+  }),
+);
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {
@@ -193,14 +205,8 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
         "  - actions (actions, default available, optional)",
       definitions: [approvalRendererDefinition],
     });
-    resolveBestViewRendererDefinitionMock.mockResolvedValue({
-      definition: approvalRendererDefinition,
-      source: "repo",
-      sha: "approval-fixture",
-      htmlUrl:
-        "https://github.test/acme/app/views/renderers/approval-card.json",
-    });
     streamTextMock.mockReturnValue({
+      consumeStream: vi.fn(async () => undefined),
       toUIMessageStream: vi.fn(() => ({})),
     });
     loadInstructionsForPromptMock.mockResolvedValue(null);
@@ -258,7 +264,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
   });
 
-  it("exposes a working show_view contract for approval renderer requests", async () => {
+  it("exposes a working show_view spec contract for approval renderer requests", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
@@ -280,38 +286,42 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
           description?: string;
           inputSchema?: {
             jsonSchema?: {
-              oneOf?: Array<{
-                properties?: {
-                  purpose?: { enum?: string[] };
-                  data?: {
-                    required?: string[];
-                    properties?: Record<string, unknown>;
+              required?: string[];
+              properties?: {
+                elements?: {
+                  additionalProperties?: {
+                    properties?: { type?: { enum?: string[] } };
                   };
                 };
-              }>;
+              };
             };
           };
           execute?: (input: Record<string, unknown>) => Promise<unknown>;
         }
       | undefined;
 
-    expect(showView?.description).toContain("Available renderer rules");
-    const approvalVariant = showView?.inputSchema?.jsonSchema?.oneOf?.find(
-      (variant) => variant.properties?.purpose?.enum?.[0] === "approval-card",
-    );
-    expect(approvalVariant?.properties?.data).toMatchObject({
-      required: ["title"],
-      properties: {
-        title: expect.objectContaining({ type: "string" }),
-      },
-    });
+    expect(showView?.description).toContain("Spec format");
+    expect(showView?.description).toContain("ApprovalCard");
+    expect(showView?.inputSchema?.jsonSchema?.required).toEqual([
+      "root",
+      "elements",
+    ]);
+    expect(
+      showView?.inputSchema?.jsonSchema?.properties?.elements
+        ?.additionalProperties?.properties?.type?.enum,
+    ).toEqual(expect.arrayContaining(["ApprovalCard", "Stack", "Button"]));
     expect(showView?.execute).toBeTypeOf("function");
 
     const output = await showView?.execute?.({
-      purpose: "approval-card",
-      data: {
-        title: "Confirm this question?",
-        body: "Should I continue?",
+      root: "card",
+      elements: {
+        card: {
+          type: "ApprovalCard",
+          props: {
+            title: "Confirm this question?",
+            body: "Should I continue?",
+          },
+        },
       },
     });
 
@@ -319,23 +329,20 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       action: RENDER_VIEW_DIRECTIVE,
       view: "renderer",
       rendererSlug: "approval-card",
-      data: {
-        title: "Confirm this question?",
-        body: "Should I continue?",
-      },
-    });
-    expect(resolveBestViewRendererDefinitionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: "approval-card",
-        data: {
-          title: "Confirm this question?",
-          body: "Should I continue?",
-        },
+      ui: expect.objectContaining({
+        type: "stack",
+        children: expect.arrayContaining([
+          expect.objectContaining({
+            type: "text",
+            value: "Confirm this question?",
+            variant: "title",
+          }),
+        ]),
       }),
-    );
+    });
   });
 
-  it("repairs an empty show_view tool call using renderer definitions", async () => {
+  it("does not install arg-repair heuristics and surfaces spec errors to the model", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
@@ -350,49 +357,37 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
 
     expect(res.status).toBe(200);
-    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
-      ?.experimental_repairToolCall as
-      | ((input: {
-          toolCall: {
-            type: "tool-call";
-            toolCallId: string;
-            toolName: string;
-            input: string;
-          };
-        }) => Promise<{ input: string } | null>)
+    const options = streamTextMock.mock.calls[0]?.[0];
+    // The old pipeline scraped prose into renderer data via
+    // experimental_repairToolCall; the spec contract must not.
+    expect(options?.experimental_repairToolCall).toBeUndefined();
+
+    const showView = options?.tools?.show_view as
+      | {
+          execute?: (
+            input: Record<string, unknown>,
+          ) => Promise<{ error?: string }>;
+        }
       | undefined;
+    const output = await showView?.execute?.({});
 
-    expect(repairToolCall).toBeTypeOf("function");
-    const repaired = await repairToolCall?.({
-      toolCall: {
-        type: "tool-call",
-        toolCallId: "empty-show-view",
-        toolName: "show_view",
-        input: "{}",
-      },
-    });
-
-    expect(repaired).toMatchObject({
-      toolName: "show_view",
-    });
-    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
-      purpose: "approval-card",
-      data: {
-        title: expect.stringContaining("approval"),
-      },
+    expect(output).toMatchObject({
+      error: expect.stringContaining("root"),
     });
   });
 
-  it("repairs an empty show_view call from prior list tool results", async () => {
-    loadViewRendererContextForPromptMock.mockResolvedValue({
-      rules:
-        "- Purpose `selection-list`: Use this purpose when Kody asks the user to choose exactly one item from a list.\n" +
-        "  Data keys:\n" +
-        "  - title (text): Short title.\n" +
-        "  - body (text, optional)\n" +
-        "  - items (selection): Selectable items.",
-      definitions: [reportSelectionRendererDefinition],
+  it("retries up to twice in the same stream when a required-view turn stays silent", async () => {
+    const silentResult = () => ({
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        { toolResults: [], text: "<think>planning only, no call</think>" },
+      ]),
     });
+    streamTextMock
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult());
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
@@ -400,62 +395,72 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
         messages: [
           {
             role: "user",
-            content: "list reports and allow me to select a few",
+            content: "aske me a q and ask for approval to confirm it",
           },
         ],
       }),
     );
 
     expect(res.status).toBe(200);
-    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
-      ?.experimental_repairToolCall as
-      | ((input: {
-          toolCall: {
-            type: "tool-call";
-            toolCallId: string;
-            toolName: string;
-            input: string;
-          };
-          messages: unknown[];
-        }) => Promise<{ input: string } | null>)
-      | undefined;
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
 
-    const repaired = await repairToolCall?.({
-      toolCall: {
-        type: "tool-call",
-        toolCallId: "empty-show-view",
-        toolName: "show_view",
-        input: "{}",
-      },
-      messages: [
+    // Two corrective re-runs after the silent original, then give up.
+    expect(streamTextMock).toHaveBeenCalledTimes(3);
+    const retryMessages = streamTextMock.mock.calls[1]?.[0]?.messages;
+    const retrySystem = streamTextMock.mock.calls[1]?.[0]?.system;
+    expect(retryMessages).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ role: "system" })]),
+    );
+    expect(retrySystem).toContain("Call `show_view` NOW");
+    expect(writer.merge).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry when the turn produced a rendered view", async () => {
+    const viewResult = {
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
         {
-          role: "tool",
-          content: [
-            {
-              type: "tool-result",
-              toolName: "list_reports",
-              output: {
-                reports: [
-                  { slug: "cto", title: "CTO Report" },
-                  { slug: "security-audit", title: "Security Audit" },
-                ],
-              },
-            },
+          toolResults: [
+            { toolName: "show_view", output: { action: "render_view" } },
           ],
+          text: "",
         },
-      ],
-    });
+      ]),
+    };
+    streamTextMock.mockReturnValueOnce(viewResult);
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
 
-    expect(repaired).toMatchObject({ toolName: "show_view" });
-    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
-      purpose: "selection-list",
-      data: {
-        items: [
-          { slug: "cto", title: "CTO Report" },
-          { slug: "security-audit", title: "Security Audit" },
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "aske me a q and ask for approval to confirm it",
+          },
         ],
-      },
-    });
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(1);
+    expect(writer.merge).toHaveBeenCalledTimes(1);
   });
 
   it("forces show_view after a plain final answer asks for a user choice", async () => {
@@ -484,7 +489,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
           }>;
         }) => {
           activeTools?: string[];
-          toolChoice?: "required";
+          toolChoice?: unknown;
         })
       | undefined;
 
@@ -503,7 +508,10 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
         ],
       }),
     ).toEqual({
-      activeTools: [SHOW_VIEW_TOOL],
+      // One-shot nudge (converged with the package): final_answer stays
+      // callable so the model isn't forced to fabricate a placeholder
+      // view for conversational replies.
+      activeTools: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
       toolChoice: "required",
     });
   });

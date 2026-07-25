@@ -1,12 +1,14 @@
 /**
  * @fileoverview E2E for the DEFAULT chat path — Kody Live. The composer is
  *   disabled until the runner is "ready", so a turn is a two-step flow:
- *     Boot runner → interactive/start → poll events/poll for `chat.ready`
+ *     Boot runner → interactive/start → live transport emits `chat.ready`
  *       → composer enables → type → interactive/append
- *       → poll returns `chat.message` → assistant bubble renders.
+ *       → transport emits `chat.message` → assistant bubble renders.
  *
- *   Fully mocked at the route level (interactive/start, events/poll,
- *   interactive/append) so it runs without GitHub or a real runner. This
+ *   Fully mocked: HTTP endpoints (interactive/start, interactive/append) at
+ *   the route level, and the Convex live event stream via the
+ *   `window.__kodyLiveTransportMock` seam (Playwright cannot intercept the
+ *   Convex WebSocket), so it runs without GitHub or a real runner. This
  *   replaces the older chat-ui-mocked spec, which mocked the /trigger + SSE
  *   flow the default UI no longer drives (so it could never find the
  *   now-boot-gated composer).
@@ -60,11 +62,60 @@ async function injectAuth(page: Page): Promise<void> {
   );
 }
 
-function ndjson(events: unknown[]): string {
-  return JSON.stringify({
-    lines: events.map((e) => JSON.stringify(e)),
-    totalLines: events.length,
+/**
+ * Install the live-transport mock (before any app code runs). The runner's
+ * subscribe() gets `chat.ready` immediately; tests push further events with
+ * `pushLiveEvent`.
+ */
+async function installLiveTransportMock(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const queue: Array<{ event: string; payload: Record<string, unknown> }> =
+      [];
+    let listener:
+      | ((e: { event: string; payload: Record<string, unknown> }) => void)
+      | null = null;
+    const w = window as unknown as {
+      __kodyLiveTransportMock?: unknown;
+      __kodyPushLiveEvent?: (e: {
+        event: string;
+        payload: Record<string, unknown>;
+      }) => void;
+    };
+    w.__kodyPushLiveEvent = (e) => {
+      if (listener) listener(e);
+      else queue.push(e);
+    };
+    w.__kodyLiveTransportMock = {
+      id: "e2e-mock",
+      subscribe(
+        _sessionId: string,
+        onEvent: (e: {
+          event: string;
+          payload: Record<string, unknown>;
+        }) => void,
+      ) {
+        listener = onEvent;
+        onEvent({ event: "chat.ready", payload: {} });
+        while (queue.length) onEvent(queue.shift()!);
+        return () => {
+          listener = null;
+        };
+      },
+    };
   });
+}
+
+async function pushLiveEvent(
+  page: Page,
+  event: { event: string; payload: Record<string, unknown> },
+): Promise<void> {
+  await page.evaluate((e) => {
+    (
+      window as unknown as {
+        __kodyPushLiveEvent?: (x: typeof e) => void;
+      }
+    ).__kodyPushLiveEvent?.(e);
+  }, event);
 }
 
 interface Harness {
@@ -76,7 +127,7 @@ interface Harness {
 /**
  * Mock the live-runner endpoints and boot the runner to "ready".
  * `appendResponder` lets a test control the append outcome (e.g. 500).
- * `reply` is delivered via the poll once the turn is appended.
+ * `reply` is delivered via the mocked live transport once the turn is appended.
  */
 async function bootRunner(
   page: Page,
@@ -90,6 +141,7 @@ async function bootRunner(
   let lastBody: Record<string, unknown> | null = null;
   const reply = opts.reply ?? "pong from the runner";
 
+  await installLiveTransportMock(page);
   await page.route("**/api/kody/chat/interactive/start**", (route) =>
     route.fulfill({
       status: 200,
@@ -107,28 +159,23 @@ async function bootRunner(
         /* ignore */
       }
       if (opts.appendResponder) return opts.appendResponder(route);
-      return route.fulfill({
+      await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ ok: true }),
       });
+      // Deliver the runner's reply through the mocked live transport once
+      // the turn has been appended (fire-and-forget: the route must not
+      // block on page.evaluate).
+      if (!delivered) {
+        delivered = true;
+        void pushLiveEvent(page, {
+          event: "chat.message",
+          payload: { role: "assistant", content: reply },
+        }).catch(() => {});
+      }
     },
   );
-  await page.route("**/api/kody/events/poll**", (route) => {
-    const events: unknown[] = [{ event: "chat.ready", payload: {} }];
-    if (appended && !delivered) {
-      delivered = true;
-      events.push({
-        event: "chat.message",
-        payload: { role: "assistant", content: reply },
-      });
-    }
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: ndjson(events),
-    });
-  });
   await page.route("**/api/kody/secrets/FLY_API_TOKEN/value", (route) =>
     route.fulfill({
       status: 404,
@@ -161,7 +208,7 @@ test.describe("Chat — Kody Live default flow (mocked runner)", () => {
     await injectAuth(page);
   });
 
-  test("a turn round-trips: append carries the message, poll renders the reply", async ({
+  test("a turn round-trips: append carries the message, live transport renders the reply", async ({
     page,
   }) => {
     const viewport = await page.viewportSize();

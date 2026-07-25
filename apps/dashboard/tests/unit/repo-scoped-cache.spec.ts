@@ -6,14 +6,12 @@ import {
   reportsApi,
   staffApi,
 } from "@dashboard/lib/api";
-import { commandsQueryKeys } from "@kody-ade/kody-chat/components/CommandsManager";
-import { capabilityQueryKeys } from "@dashboard/lib/components/CapabilitiesManager";
-import { instructionsQueryKeys } from "@kody-ade/kody-chat/components/InstructionsManager";
-import { modelsQueryKeys } from "@kody-ade/kody-chat/components/ModelsManager";
-import { secretsQueryKeys } from "@kody-ade/kody-chat/components/SecretsManager";
-import { variablesQueryKeys } from "@dashboard/lib/components/VariablesManager";
-import { contextQueryKeys } from "@dashboard/lib/hooks/useContextEntries";
-import { memoryQueryKeys } from "@dashboard/lib/hooks/useMemory";
+import { commandsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/CommandsManager";
+import { capabilityQueryKeys } from "@dashboard/features/admin/components/CapabilitiesManager";
+import { instructionsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/InstructionsManager";
+import { modelsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/ModelsManager";
+import { secretsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/SecretsManager";
+import { variablesQueryKeys } from "@dashboard/features/admin/components/VariablesManager";
 import { reportQueryKeys } from "@dashboard/lib/hooks/useReports";
 import { agentQueryKeys } from "@dashboard/lib/hooks/useAgents";
 import { changelogQueryKeys } from "@dashboard/lib/hooks/useChangelog";
@@ -43,16 +41,6 @@ describe("repo-scoped dashboard caches", () => {
 
     expect(agentQueryKeys.list(scope)).toEqual([
       "kody-agent",
-      "A-Guy-educ",
-      "A-Guy",
-    ]);
-    expect(contextQueryKeys.list(scope)).toEqual([
-      "kody-context",
-      "A-Guy-educ",
-      "A-Guy",
-    ]);
-    expect(memoryQueryKeys.list(scope)).toEqual([
-      "kody-memory",
       "A-Guy-educ",
       "A-Guy",
     ]);
@@ -99,12 +87,6 @@ describe("repo-scoped dashboard caches", () => {
     ]);
 
     expect(agentQueryKeys.list(scope)).not.toEqual(agentQueryKeys.list(other));
-    expect(contextQueryKeys.list(scope)).not.toEqual(
-      contextQueryKeys.list(other),
-    );
-    expect(memoryQueryKeys.list(scope)).not.toEqual(
-      memoryQueryKeys.list(other),
-    );
     expect(reportQueryKeys.list(scope)).not.toEqual(
       reportQueryKeys.list(other),
     );

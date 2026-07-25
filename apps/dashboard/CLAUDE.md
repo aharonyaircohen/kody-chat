@@ -26,15 +26,17 @@ The dashboard intentionally keeps the env-var surface tiny. Only **one** secret
 is required; everything else is either a non-secret config knob, or lives in
 the dashboard's Settings page (user-scoped, not Vercel-scoped).
 
-| Variable                  | Required | Purpose                                                                                                                                                                                                                                                                                                          |
-| ------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `KODY_MASTER_KEY`         | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault AES-256-GCM (`vault/crypto.ts`) and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
-| `GITHUB_TOKEN`            | Yes      | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope.                                                                                                                                                                                 |
-| `KODY_CHAT_WORKFLOW_REPO` | No       | Central engine repo for chat (default: the connected repo from the user's stored credentials).                                                                                                                                                                                                                   |
-| `KODY_CHAT_WORKFLOW_ID`   | No       | Chat workflow file name (default: `kody.yml`).                                                                                                                                                                                                                                                                   |
-| `KODY_CLIENT_BRAND_REPO`  | No       | `owner/repo` whose brand registry serves public `/client/<slug>` pages (client visitors carry no dashboard cookie; without it only builtin brands resolve for them).                                                                                                                                             |
-| `JINA_API_KEY`            | No       | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier).                                                                                                                                                                                                                                         |
-| `NEXT_PUBLIC_SERVER_URL`  | Dev      | Public URL for callbacks — set in dev only.                                                                                                                                                                                                                                                                      |
+| Variable                    | Required | Purpose                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KODY_MASTER_KEY`           | Yes      | 32-byte hex/base64 secret. Powers per-repo secrets vault AES-256-GCM (`vault/crypto.ts`) and chat-ingest HMAC (`chat-token.ts`). Each consumer purpose-prefixes the key before hashing — `kody-chat-token:`, `kody-token-encryption:` — so they're cryptographically separated. Generate with `pnpm vault:init`. |
+| `GITHUB_TOKEN`              | Yes      | Server-side GitHub API token for tasks that run without a logged-in user (cron, webhook flows). Needs `repo` + `workflow` scope.                                                                                                                                                                                 |
+| `KODY_CHAT_WORKFLOW_REPO`   | No       | Central engine repo for chat (default: the connected repo from the user's stored credentials).                                                                                                                                                                                                                   |
+| `KODY_CHAT_WORKFLOW_ID`     | No       | Chat workflow file name (default: `kody.yml`).                                                                                                                                                                                                                                                                   |
+| `KODY_CLIENT_BRAND_REPO`    | No       | `owner/repo` whose brand registry serves public `/client/<slug>` pages (client visitors carry no dashboard cookie; without it only builtin brands resolve for them).                                                                                                                                             |
+| `JINA_API_KEY`              | No       | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier).                                                                                                                                                                                                                                         |
+| `CONVEX_URL`                | Yes      | Convex deployment URL (see `packages/kody-backend/.env.local`). Server-side entity storage — workflows, runs, agents, chat sessions/turns/events, action state, event log all read/write Convex via `lib/backend/convex-backend.ts`.                                                                             |
+| `NEXT_PUBLIC_CONVEX_URL`    | No       | Same value as `CONVEX_URL`, exposed to the browser. Enables client-side live subscriptions (ConvexProvider in `KodyProviders`, `useConvexLive` hooks). When unset, the UI falls back to interval polling.                                                                                                        |
+| `NEXT_PUBLIC_SERVER_URL`    | Dev      | Public URL for callbacks — set in dev only.                                                                                                                                                                                                                                                                      |
 
 > **Web Push VAPID keys are NOT a separate env var.** They're derived
 > deterministically from `KODY_MASTER_KEY` via HKDF (info: `kody-vapid:v1`).
@@ -55,7 +57,7 @@ not store the token (that would duplicate the vault entry).
 ## Secrets vault (`/secrets`)
 
 Dashboard-managed alternative to Vercel env vars. Each connected repo has
-its own encrypted blob at `.kody/secrets.enc`. Values written via the
+its own encrypted blob at `backend vault record`. Values written via the
 `/secrets` page are AES-256-GCM-encrypted with `KODY_MASTER_KEY` (one
 shared Vercel env var, separate from session/OAuth secrets) and
 committed to the repo. Runtime code reads them via
@@ -174,10 +176,10 @@ The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 
 ### Chat plugin rules (load-bearing)
 
-The chat **core + platform layers live in the `@kody-ade/kody-chat`
+The chat **core + platform layers live in the `@kody-ade/kody-chat-dashboard`
 package** (repo: https://github.com/aharonyaircohen/kody-chat, currently a
 `file:../kody-chat` tarball until the npm publish) — import them as
-`@kody-ade/kody-chat/platform[/*]` and `@kody-ade/kody-chat/core/*`.
+`@kody-ade/kody-chat-dashboard/platform[/*]` and `@kody-ade/kody-chat-dashboard/core/*`.
 Never re-create `src/dashboard/lib/chat/{core,platform}` here. The package
 imports shared host libs via the `@dashboard` alias; next.config.mjs +
 vitest.config.ts map that back into this repo so there is exactly ONE
@@ -186,7 +188,7 @@ edit in ../kody-chat, run its `pnpm test:gate`, `pnpm pack`, then
 reinstall here.
 
 Chat UI features are **plugins** under `src/dashboard/lib/chat/plugins/`
-built on the `ChatPlugin` contract (`@kody-ade/kody-chat/platform/types`):
+built on the `ChatPlugin` contract (`@kody-ade/kody-chat-dashboard/platform/types`):
 slots, send middleware, panels, tools, session state, theming. Layering
 (`core ← platform ← plugins/surface`) is lint-enforced as errors.
 
@@ -209,11 +211,11 @@ identically on the in-process chat model, Brain, and Engine.
 
 Three layers, merged at runtime:
 
-- **Repo commands** live at `.kody/commands/<slug>.md` (frontmatter: `description`, `argument-hint`; body template). Repo wins on slug collision.
-- **Store commands** live at `.kody/commands/<slug>.md` in the configured company store and provide shared defaults such as `/factory`.
+- **Repo commands** live at `backend repo documents (commands)<slug>.md` (frontmatter: `description`, `argument-hint`; body template). Repo wins on slug collision.
+- **Store commands** live at `backend repo documents (commands)<slug>.md` in the configured company store and provide shared defaults such as `/factory`.
 - **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/capability`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
 
-Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
+Drop `backend repo documents (commands).disable-builtins` to suppress every built-in for the repo.
 
 - Storage helpers: [src/dashboard/lib/commands/files.ts](src/dashboard/lib/commands/files.ts)
 - Merge + substitution: [src/dashboard/lib/commands/index.ts](src/dashboard/lib/commands/index.ts), [src/dashboard/lib/commands/substitute.ts](src/dashboard/lib/commands/substitute.ts)
@@ -225,7 +227,7 @@ Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
 ### Client brands (`/brands`, `/client/<slug>`)
 
 Client chat brands are operator-editable data, not hardcoded-only TS. Repo
-brands live at `brands/<slug>.json` in the resolved state repo and feed
+brands live at `brands/<slug>.json` in the resolved backend and feed
 `/client/<slug>` through `resolveClientBrand()`. Built-ins in
 [`client-brand.ts`](src/dashboard/lib/client-brand.ts) remain fallback seeds
 (`kody`, `kody-he`, `acme`), and unknown slugs still get a title-cased default.
@@ -243,7 +245,7 @@ Three past outages, three rules:
    Client visitors never carry `kody_client_brand_repo` (and it tracks the
    admin's last-visited repo). `KODY_CLIENT_BRAND_REPO` env is the fallback
    repo for public brand + credential resolution — keep it wired in both
-   [page.tsx](<app/client/[brandSlug]/page.tsx>) and
+   [page.tsx](app/client/[brandSlug]/page.tsx) and
    [auth.ts](src/dashboard/lib/client-auth/auth.ts).
 2. **Never do unauthenticated GitHub reads on the sign-in path.** The
    bootstrap reads (`kody.config.json`, `variables.json`, `secrets.enc`)
@@ -266,7 +268,7 @@ plain text + `$ARGUMENTS` for portable prompts.
 repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
 engine runs `kody-engine dispatch`, which branches to the chat executable, streams
 events back to `/api/kody/events/ingest` (real-time), and commits them to
-`.kody/events/{sessionId}.jsonl` (durable fallback, polled by
+`backend run events{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with
 `KODY_MASTER_KEY` — no shared DB lookup.
 

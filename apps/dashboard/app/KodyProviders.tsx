@@ -13,6 +13,7 @@ import { AuthProvider } from "@dashboard/lib/auth-context";
 import { ServiceWorkerRegister } from "@dashboard/lib/push/ServiceWorkerRegister";
 import { InboxWatcher } from "@dashboard/lib/inbox/useInboxWatcher";
 import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
+import { ConvexClientProvider } from "@dashboard/lib/convex/ConvexClientProvider";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -41,14 +42,16 @@ export function KodyProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <ServiceWorkerRegister />
-          <InboxWatcher />
-          <PageViewTracker />
-          {children}
-        </AuthProvider>
-      </ThemeProvider>
+      <ConvexClientProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ServiceWorkerRegister />
+            <InboxWatcher />
+            <PageViewTracker />
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
+      </ConvexClientProvider>
     </QueryClientProvider>
   );
 }

@@ -10,7 +10,11 @@
  */
 import type { NextRequest } from "next/server";
 import { getVariable } from "./get-variable";
-import { VAR_LLM_MODELS, ChatModelsSchema, type ChatModel } from "./models";
+import {
+  VAR_LLM_MODELS,
+  ChatModelsSchema,
+  type ChatModel,
+} from "./models";
 
 export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
   const raw = await getVariable(VAR_LLM_MODELS, { req });

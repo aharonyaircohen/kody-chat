@@ -86,10 +86,7 @@ describe("/api/notifications/preferences token verification", () => {
       login: "alice",
       mutedTypes: ["pr-ready"],
     });
-    expect(prefs.readNotificationPrefs).toHaveBeenCalledWith(
-      "alice",
-      "vault-token",
-    );
+    expect(prefs.readNotificationPrefs).toHaveBeenCalledWith("alice");
   });
 
   it("rejects an unsigned forged token", async () => {

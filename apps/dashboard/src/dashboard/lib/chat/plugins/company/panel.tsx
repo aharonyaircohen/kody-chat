@@ -11,8 +11,8 @@
 "use client";
 
 import { AuthGuard } from "../../../auth-guard";
-import { AgencySetup } from "../../../components/AgencyArchitect";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import { AgencySetup } from "@dashboard/features/agency/components/AgencyArchitect";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const COMPANY_PANEL_TESTID = "chat-panel-company";
 

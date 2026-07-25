@@ -5,7 +5,7 @@
  * @ai-summary Agency Runs page for Kody-native goal, loop, and workflow runs.
  */
 
-import { AgencyRunsPage } from "@dashboard/lib/components/AgencyRunsPage";
+import { AgencyRunsPage } from "@dashboard/features/agency/components/AgencyRunsPage";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({

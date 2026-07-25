@@ -5,7 +5,7 @@
  */
 
 import { vi } from "vitest";
-import type { ChatEvent } from "@kody-ade/kody-chat/core/transports/transport-types";
+import type { ChatEvent } from "@kody-ade/kody-chat-dashboard/core/transports/transport-types";
 
 /** A Response whose body streams the given chunks then closes. */
 export function sseResponse(chunks: string[], status = 200): Response {

@@ -3,11 +3,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const TODO_CONTROL_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/TodoControl.tsx"),
+  resolve(process.cwd(), "src/dashboard/features/tasks/components/TodoControl.tsx"),
   "utf8",
 );
 const MARKDOWN_PREVIEW_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/MarkdownPreview.tsx"),
+  resolve(
+    process.cwd(),
+    "../../packages/kody-chat-dashboard/src/dashboard/lib/components/MarkdownPreview.tsx",
+  ),
   "utf8",
 );
 

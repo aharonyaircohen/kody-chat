@@ -3,7 +3,7 @@
  * @domain runner
  * @pattern fly-inventory-server
  *
- * Server-only inventory helpers that need request auth and state-repo access.
+ * Server-only inventory helpers that need request auth and backend access.
  */
 import "server-only";
 
@@ -20,14 +20,8 @@ import {
 } from "@kody-ade/base/github/core";
 import { logger } from "@kody-ade/base/logger";
 import type { FlyPreviewConfig } from "../previews/machines-client";
-import {
-  resolveFlyContext,
-  type FlyContext,
-} from "./context";
-import {
-  listFlyInventory,
-  type FlyInventory,
-} from "./inventory";
+import { resolveFlyContext, type FlyContext } from "./context";
+import { listFlyInventory, type FlyInventory } from "./inventory";
 import { isFlyMachineRunning } from "./machine-model";
 import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
@@ -49,12 +43,6 @@ export function refreshFlyInventoryCounts(
       .length,
     total: inventory.machines.length,
   };
-}
-
-function envFlyTokenFallback(primaryToken: string): string | undefined {
-  const token =
-    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
-  return token && token !== primaryToken ? token : undefined;
 }
 
 function tokenKey(token: string): string {
@@ -135,17 +123,8 @@ export async function resolveSavedBrainServiceForRequest(
         orgSlug: resolvedContext.flyOrgSlug,
         defaultRegion: resolvedContext.flyDefaultRegion,
       });
-    let flyToken = initialFlyToken;
-    let brain = await resolveBrain(flyToken);
-    const fallbackToken = envFlyTokenFallback(initialFlyToken);
-    if (brain.stored && !brain.machine && fallbackToken) {
-      const fallbackBrain = await resolveBrain(fallbackToken);
-      if (fallbackBrain.machine) {
-        brain = fallbackBrain;
-        flyToken = fallbackToken;
-      }
-    }
-    return { brain, context: resolvedContext, flyToken };
+    const brain = await resolveBrain(initialFlyToken);
+    return { brain, context: resolvedContext, flyToken: initialFlyToken };
   } catch (err) {
     logger.warn(
       { err, owner: resolvedContext.owner },

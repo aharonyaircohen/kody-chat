@@ -44,8 +44,6 @@ export { ForeignBranchError, LockTakenError } from "./errors";
 
 export type { LockPort, Lease } from "./domain/lock-port";
 
-export { GitHubFileLock } from "./infra/github-file-lock";
-
 export {
   isKodyMarkerCommit,
   isKodyOwnedBranch,

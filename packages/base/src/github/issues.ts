@@ -8,12 +8,9 @@
 import { Octokit } from "@octokit/rest";
 import { CACHE_TTL } from "../constants";
 import { createIssueWithBestEffortMetadata } from "../github-issue-create";
-import { resolveStateRepo, stateRepoPath, writeStateBase64 } from "../state-repo";
-import type {
-  GitHubIssue,
-  GitHubComment,
-  GitHubCollaborator,
-} from "../types";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
+import type { GitHubIssue, GitHubComment, GitHubCollaborator } from "../types";
 import {
   cache,
   getCached,
@@ -441,9 +438,9 @@ export async function fetchComments(
  */
 export async function fetchKodyState(
   issueNumber: number,
-): Promise<import("../kody-state").KodyTaskState | null> {
+): Promise<import("../task-comment-state").KodyTaskState | null> {
   try {
-    const { findKodyStateInComments } = await import("../kody-state");
+    const { findKodyStateInComments } = await import("../task-comment-state");
     const comments = await fetchComments(issueNumber);
     return findKodyStateInComments(comments);
   } catch (err) {
@@ -624,22 +621,14 @@ export async function uploadIssueAttachment(
 }
 
 /**
- * Upload a comment attachment by committing it to the state repo under
- * `attachments/`, then handing back a markdown snippet to embed in the
- * comment body.
- *
- * Why commit-to-repo: GitHub's public REST API has no attachment-upload
- * endpoint (`uploadIssueAttachment` above is GHE-only). The web UI uploads to
- * a private `user-attachments` host the API can't reach. Committing the file
- * and embedding its URL is the only API-supported path.
- *
- * Caveat: `raw.githubusercontent.com` requires auth for private repos, so the
- * inline image preview won't render for other viewers on a private repo — the
- * link still resolves for anyone with repo access. Public repos render inline.
+ * Store a comment attachment in the tenant backend and return a Dashboard URL.
+ * The download route enforces the same repository authentication as the rest
+ * of the Dashboard, so private attachments never become public blobs.
  */
 export async function uploadCommentAttachment(
   file: { name: string; contentBase64: string },
-  userOctokit?: Octokit,
+  _userOctokit?: Octokit,
+  origin = "",
 ): Promise<{
   url: string;
   path: string;
@@ -647,41 +636,34 @@ export async function uploadCommentAttachment(
   isImage: boolean;
   markdown: string;
 }> {
-  const octokit = userOctokit ?? getOctokit();
   const owner = getOwner();
   const repo = getRepo();
-  const stateTarget = await resolveStateRepo(octokit, owner, repo);
-  const stateRepo = await octokit.repos.get({
-    owner: stateTarget.owner,
-    repo: stateTarget.repo,
-  });
-  const branch = stateRepo.data.default_branch;
 
-  // Sanitize: keep it filesystem/URL safe, cap length, always keep extension.
   const cleaned = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
   const safeName = cleaned.replace(/^[-.]+/, "") || "file";
-  const relativePath = `attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
-  const path = stateRepoPath(stateTarget, relativePath);
-
-  await writeStateBase64({
-    octokit,
-    owner,
-    repo,
-    path: relativePath,
-    message: `chore(attachments): add ${safeName}`,
-    contentBase64: file.contentBase64,
+  const id = globalThis.crypto.randomUUID();
+  const path = `attachment:${id}`;
+  const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(safeName);
+  await createBackendClient().mutation(backendApi.repoDocs.save, {
+    tenantId: `${owner}/${repo}`,
+    kind: path,
+    doc: {
+      name: safeName,
+      contentBase64: file.contentBase64,
+      isImage,
+    },
+    updatedAt: new Date().toISOString(),
   });
 
-  const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(safeName);
-  const rawUrl = `https://raw.githubusercontent.com/${stateTarget.owner}/${stateTarget.repo}/${branch}/${path}`;
-  const blobUrl = `https://github.com/${stateTarget.owner}/${stateTarget.repo}/blob/${branch}/${path}`;
+  const query = new URLSearchParams({ owner, repo }).toString();
+  const url = `${origin.replace(/\/+$/, "")}/api/kody/attachments/${id}?${query}`;
   const markdown = isImage
-    ? `![${safeName}](${rawUrl})`
-    : `[📎 ${safeName}](${blobUrl})`;
+    ? `![${safeName}](${url})`
+    : `[📎 ${safeName}](${url})`;
 
   return {
     path,
-    url: isImage ? rawUrl : blobUrl,
+    url,
     name: safeName,
     isImage,
     markdown,
@@ -868,4 +850,3 @@ export async function fetchCollaborators(): Promise<GitHubCollaborator[]> {
     throw error;
   }
 }
-

@@ -29,15 +29,13 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { logger } from "@kody-ade/base/logger";
 import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import {
-  isValidSlug,
-  readResolvedCapabilityFile,
-} from "@dashboard/lib/capabilities";
+import { isValidSlug } from "@dashboard/lib/capabilities";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
@@ -47,12 +45,7 @@ interface Ctx {
 }
 
 type KodyPrCommand =
-  | "fix"
-  | "fix-ci"
-  | "review"
-  | "resolve"
-  | "revert"
-  | "sync";
+  "fix" | "fix-ci" | "review" | "resolve" | "revert" | "sync";
 
 interface DispatchResult {
   number: number;
@@ -77,13 +70,14 @@ async function resolveCapabilityAction(
         "Refusing to dispatch: capability must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const capability = await readResolvedCapabilityFile(slug, ctx.octokit);
+  const capability = await readCapabilityFile(slug);
   if (!capability) {
     return {
       error: `Refusing to dispatch: capability "${slug}" was not found.`,
     };
   }
-  return { slug: capability.slug, action: capability.slug };
+  const resolvedSlug = capability.slug ?? slug;
+  return { slug: resolvedSlug, action: resolvedSlug };
 }
 
 async function dispatchOnPr(
@@ -236,7 +230,7 @@ const CAPABILITY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the state repo.",
+    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the backend.",
   );
 
 const NOTES_SCHEMA = z

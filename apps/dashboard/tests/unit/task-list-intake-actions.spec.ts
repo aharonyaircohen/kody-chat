@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TASK_LIST_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/TaskList.tsx",
+  "../../src/dashboard/features/tasks/components/TaskList.tsx",
 );
 const SOURCE = readFileSync(TASK_LIST_PATH, "utf8");
 
@@ -104,7 +104,7 @@ describe("TaskList intake actions", () => {
 
   it("renders only the task title with automatic text direction", () => {
     expect(SOURCE).toContain(
-      'import { textDirectionProps } from "../text-direction";',
+      'import { textDirectionProps } from "@dashboard/lib/text-direction";',
     );
     expect(SOURCE).toContain(
       "const taskTitleDirectionProps = textDirectionProps(task.title);",

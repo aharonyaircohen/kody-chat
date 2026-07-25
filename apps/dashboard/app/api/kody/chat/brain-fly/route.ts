@@ -42,15 +42,13 @@ import {
   type BrainCapabilityContext,
   type BrainTaskContext,
 } from "@kody-ade/brain/brain-proxy";
-import {
-  waitForServerBrainHealth,
-} from "@kody-ade/fly/infrastructure/server-brain";
+import { waitForServerBrainHealth } from "@kody-ade/fly/infrastructure/server-brain";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 import {
   withPageContext,
   withDashboardContext,
-} from "@kody-ade/kody-chat/core/page-context";
+} from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
@@ -87,6 +85,9 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    conversationId?: string;
+    modelId?: string;
+    runtime?: string;
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
     includeContext?: boolean;
     /** User-picked thinking level. Forwarded verbatim to Brain. */
     reasoningEffort?: string;
+    agentSlug?: string;
   };
   try {
     body = await req.json();
@@ -217,7 +219,9 @@ export async function POST(req: NextRequest) {
     let agentIdentity: BrainAgentIdentity | undefined;
     if (!isResume) {
       try {
-        const repoBrain = await readResolvedAgentFile(REPO_BRAIN_AGENT_SLUG);
+        const repoBrain = await readResolvedAgentFile(
+          body.agentSlug || REPO_BRAIN_AGENT_SLUG,
+        );
         if (repoBrain?.body.trim()) {
           agentIdentity = {
             slug: repoBrain.slug,
@@ -237,6 +241,9 @@ export async function POST(req: NextRequest) {
       brainUrl: provisioned.url,
       brainKey: provisioned.apiKey,
       chatId,
+      ...(body.conversationId ? { conversationId: body.conversationId } : {}),
+      ...(body.modelId ? { modelId: body.modelId } : {}),
+      ...(body.runtime ? { runtime: body.runtime } : {}),
       // Brain has no ambient-context slot; prefix page + standing dashboard
       // Context onto the user message (skip on resume — no new message).
       message: isResume

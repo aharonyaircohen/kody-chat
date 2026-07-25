@@ -7,7 +7,7 @@
  *   a JSON bundle and imports one into another repo.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { AgencySetup } from "@dashboard/lib/components/AgencyArchitect";
+import { AgencySetup } from "@dashboard/features/agency/components/AgencyArchitect";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

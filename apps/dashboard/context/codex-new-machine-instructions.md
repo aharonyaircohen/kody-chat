@@ -149,8 +149,8 @@ This is a Next.js App Router application with:
 - GitHub is the only datastore.
 - Do not add databases, Redis, Vercel KV, Vercel Blob, Edge Config, Postgres, or any other managed storage.
 - Vercel is only the Next.js host.
-- Persistent state belongs in GitHub: `.kody/*`, repo config, manifest issues, or the `kody-state` branch.
-- Time-series or machine-written state belongs on `kody-state`, not the default branch.
+- Persistent state belongs in GitHub: `backend-managed resources/*`, repo config, manifest issues, or the `Kody backend` branch.
+- Time-series or machine-written state belongs on `Kody backend`, not the default branch.
 - Scheduling should use the existing GitHub/Kody wake paths or opportunistic triggers, not Vercel Cron.
 
 ## Kody Clean Boundary
@@ -168,7 +168,7 @@ This is a Next.js App Router application with:
 - Do not invent workflows, test steps, commands, branches, or required GitHub issues.
 - Inspect local docs, config, files, or CLI behavior before explaining how something works.
 - Never edit workflow YAML unless explicitly instructed.
-- When the user says "Kody Job", treat it as a markdown job file under `.kody/jobs/<slug>.md`, not a new workflow file.
+- When the user says "Kody Job", treat it as a markdown job file under `backend-managed resources/jobs/<slug>.md`, not a new workflow file.
 - The existing Kody workflow wakes jobs; do not add new workflow files for that shape.
 
 ## Verification Rules

@@ -17,11 +17,11 @@ const ROOT = resolve(__dirname, "../..");
 const PAGE_PATH = resolve(ROOT, "app/(chat-rail)/fly/previews/page.tsx");
 const RUNNER_MANAGER_PATH = resolve(
   ROOT,
-  "src/dashboard/lib/components/RunnerManager.tsx",
+  "src/dashboard/features/admin/components/RunnerManager.tsx",
 );
 const PREVIEWS_LIST_PATH = resolve(
   ROOT,
-  "src/dashboard/lib/components/FlyPreviewsList.tsx",
+  "src/dashboard/features/previews/components/FlyPreviewsList.tsx",
 );
 
 describe("Fly Previews page", () => {

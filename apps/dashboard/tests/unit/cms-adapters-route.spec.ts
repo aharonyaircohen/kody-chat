@@ -50,7 +50,7 @@ describe("CMS adapters route", () => {
       {
         name: "github",
         label: "GitHub JSON",
-        description: "JSON documents in the state repo",
+        description: "JSON documents in the backend",
         supportsSchemaGeneration: false,
         htmlUrl:
           "https://github.com/acme/kody-store/blob/stable/cms/adapters/github/index.mjs",

@@ -30,16 +30,24 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    return [
-      {
-        source: "/repo/:owner/:repo",
-        destination: "/",
-      },
-      {
-        source: "/repo/:owner/:repo/:path*",
-        destination: "/:path*",
-      },
-    ];
+    return {
+      beforeFiles: [
+        {
+          source: "/repo/:owner/:repo/memory",
+          destination: "/memory-files",
+        },
+        {
+          source: "/repo/:owner/:repo/memory/:path+",
+          destination: "/memory-files/:path+",
+        },
+      ],
+      fallback: [
+        {
+          source: "/repo/:owner/:repo/:path+",
+          destination: "/:path+",
+        },
+      ],
+    };
   },
   experimental: {
     // Turbopack's persistent dev cache has grown pathologically large locally.
@@ -51,12 +59,19 @@ const nextConfig = {
   // exits and every route that logs an error crashes with a 500. Leaving them
   // external means the worker loads from the real node_modules path.
   serverExternalPackages: ["pino", "thread-stream", "pino-pretty", "node-pty"],
-  // The chat core/platform layers ship as TS source from @kody-ade/kody-chat;
+  // The chat core/platform layers ship as TS source from @kody-ade/kody-chat-dashboard;
   // Next must compile them like project code. The package imports its shared
   // host libs via the `@dashboard` alias — the resolveAlias entries below make
   // those resolve to THIS repo's src/dashboard so there is exactly one module
   // instance (github-client context, active-repo state, React contexts).
-  transpilePackages: ["@kody-ade/kody-chat", "@kody-ade/base", "@kody-ade/workspace", "@kody-ade/fly", "@kody-ade/agency", "@kody-ade/cms"],
+  transpilePackages: [
+    "@kody-ade/kody-chat-dashboard",
+    "@kody-ade/base",
+    "@kody-ade/workspace",
+    "@kody-ade/fly",
+    "@kody-ade/agency",
+    "@kody-ade/cms",
+  ],
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`
   // (lazy-loaded by the voice TTS hook) statically references `require("fs")`
@@ -72,7 +87,6 @@ const nextConfig = {
       async_hooks: { browser: "./src/dashboard/lib/empty-module.js" },
       "@dashboard/*": "./src/dashboard/*",
       "@/*": "./src/*",
-      "@kody-chat/*": "./node_modules/@kody-ade/kody-chat/src/dashboard/lib/*",
     },
   },
   // Exclude engine files from webpack compilation
@@ -82,15 +96,11 @@ const nextConfig = {
       ignored: ["**/src/engine/**"],
     };
     // tsconfig paths don't apply to files inside node_modules — the
-    // @kody-ade/kody-chat sources need @dashboard/@/ resolved explicitly.
+    // @kody-ade/kody-chat-dashboard sources need @dashboard/@/ resolved explicitly.
     config.resolve.alias = {
       ...config.resolve.alias,
       "@dashboard": new URL("./src/dashboard", import.meta.url).pathname,
       "@": new URL("./src", import.meta.url).pathname,
-      "@kody-chat": new URL(
-        "./node_modules/@kody-ade/kody-chat/src/dashboard/lib",
-        import.meta.url,
-      ).pathname,
     };
     // github-client.ts lazily require()s the `async_hooks` Node builtin for
     // per-request context isolation. It's imported transitively by client

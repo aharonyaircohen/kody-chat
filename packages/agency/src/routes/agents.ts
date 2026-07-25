@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agent-api
  * @ai-summary Agent Control API — GET lists agent, POST creates one.
- *   An agent is a markdown file at `agents/<slug>.md` in the state repo.
+ *   An agent is a markdown file at `agents/<slug>.md` in the backend.
  *   Duplicated from the capabilities API; the manual "Run now"
  *   path reuses the engine's `capability-tick` plumbing.
  */
@@ -13,13 +13,9 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   listResolvedAgentFiles,
   writeAgentFile,
@@ -50,22 +46,15 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const activeAgents = new Set<string>();
-    const octokit = await getUserOctokit(req);
-    if (octokit && headerAuth) {
-      const { config } = await getEngineConfig(
-        octokit,
-        headerAuth.owner,
-        headerAuth.repo,
+    if (!headerAuth)
+      return NextResponse.json(
+        { agent: [], error: "repository_context_required" },
+        { status: 400, headers: NO_STORE_HEADERS },
       );
-      for (const slug of config.company?.activeAgents ?? []) {
-        activeAgents.add(slug);
-      }
-    }
-    const agent = (await listResolvedAgentFiles()).filter(
-      (item) => item.source !== "store" || activeAgents.has(item.slug),
+    return NextResponse.json(
+      { agent: await listResolvedAgentFiles() },
+      { headers: NO_STORE_HEADERS },
     );
-    return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);
 
@@ -155,26 +144,15 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit agent files.",
-        },
-        { status: 401 },
-      );
-    }
-
     const agentMember = await writeAgentFile({
-      octokit: userOctokit,
       slug,
       title,
       body,
       ...(capabilities ? { capabilities } : {}),
     });
-
+    if (!headerAuth) {
+      throw new Error("Repository context is required to save an agent");
+    }
     recordAudit(req, {
       action: "agent.create",
       resource: slug,

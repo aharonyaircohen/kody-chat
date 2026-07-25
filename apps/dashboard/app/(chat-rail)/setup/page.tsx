@@ -5,7 +5,7 @@
  * @ai-summary Setup home: lists every registered wizard; each opens on its
  *   own page at /setup/<slug>.
  */
-import { SetupManager } from "@dashboard/lib/components/SetupManager";
+import { SetupManager } from "@dashboard/features/admin/components/SetupManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";

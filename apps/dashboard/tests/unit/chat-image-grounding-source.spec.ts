@@ -13,11 +13,14 @@ import { describe, expect, it } from "vitest";
 // kody-chat-send.ts in the phase-1.6b extraction — the guarded code
 // lives there now; assertions are unchanged.
 const KODY_CHAT_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-send.ts"),
   "utf8",
 );
 const KODY_ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/chat/kody/route.ts"),
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/kody/route.ts",
+  ),
   "utf8",
 );
 
@@ -38,6 +41,9 @@ describe("image-grounded chat turns", () => {
     expect(KODY_ROUTE_SOURCE).toContain("const hasImageParts");
     expect(KODY_ROUTE_SOURCE).toContain("const groundedSystemPrompt");
     expect(KODY_ROUTE_SOURCE).toContain("This turn includes an image");
-    expect(KODY_ROUTE_SOURCE).toContain("system: groundedSystemPrompt");
+    expect(KODY_ROUTE_SOURCE).toContain("groundedSystemPrompt,");
+    expect(KODY_ROUTE_SOURCE).toContain(
+      "system: buildTurnSystemPrompt(additionalSystemInstructions)",
+    );
   });
 });

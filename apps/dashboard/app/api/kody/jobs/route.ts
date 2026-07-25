@@ -22,7 +22,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import { readCapabilityFile } from "@dashboard/lib/capabilities";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -87,10 +87,7 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    const capability = await readResolvedCapabilityFile(
-      job.capability!,
-      userOctokit,
-    );
+    const capability = await readCapabilityFile(job.capability!);
     if (!capability) {
       return NextResponse.json(
         {

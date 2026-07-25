@@ -926,7 +926,7 @@ describe("POST /api/kody/terminal/session", () => {
     );
   });
 
-  it("uses an env Fly token for bridge provisioning while preserving the Brain token for terminal access", async () => {
+  it("does not use an environment Fly token for bridge provisioning", async () => {
     vi.stubEnv("FLY_API_TOKEN", "bridge-fly-token");
     mockSavedBrainInventory(
       "local-2",
@@ -935,16 +935,9 @@ describe("POST /api/kody/terminal/session", () => {
       "started",
       "brain-fly-token",
     );
-    bridge.ensureTerminalBridge
-      .mockRejectedValueOnce(
-        new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
-      )
-      .mockResolvedValueOnce({
-        app: "kody-terminal",
-        url: "https://bridge.example/ws",
-        machineId: "bridge-1",
-        secret: "bridge-secret",
-      });
+    bridge.ensureTerminalBridge.mockRejectedValueOnce(
+      new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
+    );
 
     const res = await sessionPOST(
       makeSessionReq({
@@ -953,35 +946,22 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(200);
-    expect(bridge.ensureTerminalBridge).toHaveBeenNthCalledWith(
-      1,
+    expect(res.status).toBe(500);
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledOnce();
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ token: "brain-fly-token" }),
     );
-    expect(bridge.ensureTerminalBridge).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ token: "bridge-fly-token" }),
-    );
-    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgSlug: "guy-koren",
-        flyToken: "brain-fly-token",
-      }),
-    );
+    expect(token.mintTerminalBridgeToken).not.toHaveBeenCalled();
   });
 
-  it("uses an env Fly token to wake the Brain when the Brain token cannot start machines", async () => {
+  it("does not use an environment Fly token to wake the Brain", async () => {
     vi.stubEnv("FLY_API_TOKEN", "operator-fly-token");
     let started = false;
-    flyPreview.startMachine
-      .mockRejectedValueOnce(
-        new Error(
-          'startMachine failed: 403 Forbidden — {"error":"unauthorized"}',
-        ),
-      )
-      .mockImplementationOnce(async () => {
-        started = true;
-      });
+    flyPreview.startMachine.mockRejectedValueOnce(
+      new Error(
+        'startMachine failed: 403 Forbidden — {"error":"unauthorized"}',
+      ),
+    );
     inventory.listFlyInventory.mockImplementation(async () => ({
       running: 0,
       total: 0,
@@ -1005,18 +985,12 @@ describe("POST /api/kody/terminal/session", () => {
       }),
     );
 
-    expect(res.status).toBe(200);
-    expect(flyPreview.startMachine).toHaveBeenNthCalledWith(
-      1,
+    expect(res.status).toBe(500);
+    expect(flyPreview.startMachine).toHaveBeenCalledOnce();
+    expect(flyPreview.startMachine).toHaveBeenCalledWith(
       "local-2",
       "brain-current",
       expect.objectContaining({ token: "brain-fly-token" }),
-    );
-    expect(flyPreview.startMachine).toHaveBeenNthCalledWith(
-      2,
-      "local-2",
-      "brain-current",
-      expect.objectContaining({ token: "operator-fly-token" }),
     );
   });
 
@@ -1105,6 +1079,43 @@ describe("POST /api/kody/terminal/session", () => {
       machineId: "brain-current",
     });
     expect(postStartPolls).toBeGreaterThan(10);
+  });
+
+  it("waits for an image replacement already booting without starting it again", async () => {
+    vi.useFakeTimers();
+    let resolveCount = 0;
+    inventory.listFlyInventory.mockImplementation(async () => ({
+      running: 0,
+      total: 0,
+      machines: [],
+    }));
+    inventoryServer.resolveSavedBrainServiceForRequest.mockImplementation(
+      async () =>
+        savedBrainResolution(
+          "local-2",
+          "brain-replacement",
+          "guy-koren",
+          resolveCount++ < 4 ? "created" : "started",
+        ) as never,
+    );
+
+    const pending = sessionPOST(
+      makeSessionReq({
+        target: "brain",
+        chatSessionId: "chat-after-image-switch",
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "local-2",
+      machineId: "brain-replacement",
+    });
+    expect(flyPreview.startMachine).not.toHaveBeenCalled();
+    expect(resolveCount).toBeGreaterThan(4);
   });
 });
 
@@ -1298,7 +1309,7 @@ describe("POST /api/kody/terminal/status", () => {
     );
   });
 
-  it("uses an env Fly token for bridge status lookup while preserving the Brain token in terminal claims", async () => {
+  it("does not use an environment Fly token for bridge status lookup", async () => {
     vi.stubEnv("FLY_API_TOKEN", "bridge-fly-token");
     mockSavedBrainInventory(
       "local-2",
@@ -1307,16 +1318,9 @@ describe("POST /api/kody/terminal/status", () => {
       "started",
       "brain-fly-token",
     );
-    bridge.findTerminalBridge
-      .mockRejectedValueOnce(
-        new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
-      )
-      .mockResolvedValueOnce({
-        app: "kody-terminal",
-        url: "https://bridge.example",
-        machineId: "bridge-1",
-        secret: "bridge-secret",
-      });
+    bridge.findTerminalBridge.mockRejectedValueOnce(
+      new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -1336,20 +1340,16 @@ describe("POST /api/kody/terminal/status", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(bridge.findTerminalBridge).toHaveBeenNthCalledWith(
-      1,
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      alive: false,
+      reason: "bridge_not_found",
+    });
+    expect(bridge.findTerminalBridge).toHaveBeenCalledOnce();
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ token: "brain-fly-token" }),
     );
-    expect(bridge.findTerminalBridge).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ token: "bridge-fly-token" }),
-    );
-    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orgSlug: "guy-koren",
-        flyToken: "brain-fly-token",
-      }),
-    );
+    expect(token.mintTerminalBridgeToken).not.toHaveBeenCalled();
   });
 
   it("uses the recorded running Brain machine for stale Brain status checks", async () => {

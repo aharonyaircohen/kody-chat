@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { ActivityPage } from "../../../components/ActivityPage";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const ACTIVITY_PANEL_TESTID = "chat-panel-activity";
 

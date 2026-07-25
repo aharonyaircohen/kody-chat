@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/agency-runs. */
-export * from "@kody-ade/agency/agency-runs";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/agency-runs";

@@ -13,7 +13,7 @@ import {
   getRequestAuth,
   getUserOctokit,
 } from "@kody-ade/base/auth";
-import { deleteEntry, markEntryRead } from "@dashboard/lib/inbox/gist-store";
+import { deleteEntry, markEntryRead } from "@dashboard/lib/inbox/convex-store";
 
 const patchSchema = z.object({
   readAt: z.union([z.string(), z.null()]),

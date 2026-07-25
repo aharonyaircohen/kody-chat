@@ -109,7 +109,7 @@ async function checkClientSigninCredentials(
     ...Object.values(PROVIDER_CATALOG[provider]?.extra ?? {}),
   ];
 
-  const { doc: variablesDoc } = await readVariables(octokit, owner, repo, {
+  const { doc: variablesDoc } = await readVariables(owner, repo, {
     force: true,
   });
   const missingVariables = requiredVariables.filter(

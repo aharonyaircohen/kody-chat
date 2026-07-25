@@ -29,7 +29,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { readInboxFeed } from "@dashboard/lib/inbox/feed-server";
+import { readInboxFeedForTenant } from "@dashboard/lib/inbox/feed-server";
 
 export async function GET(req: NextRequest) {
   const authErr = await requireKodyAuth(req);
@@ -67,9 +67,8 @@ export async function GET(req: NextRequest) {
   const sinceMs = sinceRaw ? Date.parse(sinceRaw) : NaN;
   const me = login.toLowerCase();
 
-  setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
   try {
-    const manifest = await readInboxFeed();
+    const manifest = await readInboxFeedForTenant(headerAuth.owner, headerAuth.repo);
     const entries = manifest.entries.filter((e) => {
       if (e.login !== me) return false;
       if (!Number.isNaN(sinceMs)) {

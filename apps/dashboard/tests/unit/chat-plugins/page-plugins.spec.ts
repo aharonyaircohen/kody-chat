@@ -11,40 +11,31 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
-import { FULL_GRANT } from "@kody-ade/kody-chat/platform/capabilities";
+import type { ChatPlugin } from "@kody-ade/kody-chat-dashboard/platform";
+import { FULL_GRANT } from "@kody-ade/kody-chat-dashboard/platform/capabilities";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@kody-ade/kody-chat/platform/registry";
+} from "@kody-ade/kody-chat-dashboard/platform/registry";
 
 import { activityChatPlugin } from "@dashboard/lib/chat/plugins/activity";
 import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";
-import { agentGoalsChatPlugin } from "@dashboard/lib/chat/plugins/agent-goals";
-import { agentLoopsChatPlugin } from "@dashboard/lib/chat/plugins/agent-loops";
 import { agentsChatPlugin } from "@dashboard/lib/chat/plugins/agents";
-import { brandsChatPlugin } from "@kody-ade/kody-chat/plugins/brands";
-import { capabilitiesChatPlugin } from "@dashboard/lib/chat/plugins/capabilities";
+import { brandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/brands";
 import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
-import { commandsPageChatPlugin } from "@kody-ade/kody-chat/plugins/commands-page";
+import { commandsPageChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin } from "@dashboard/lib/chat/plugins/company";
-import { companyIntentsChatPlugin } from "@dashboard/lib/chat/plugins/company-intents";
 import { configChatPlugin } from "@dashboard/lib/chat/plugins/config";
-import { contextChatPlugin } from "@kody-ade/kody-chat/plugins/context";
 import { docsChatPlugin } from "@dashboard/lib/chat/plugins/docs";
 import { filesChatPlugin } from "@dashboard/lib/chat/plugins/files";
-import { findingsChatPlugin } from "@dashboard/lib/chat/plugins/findings";
 import { inboxChatPlugin } from "@dashboard/lib/chat/plugins/inbox";
-import { instructionsChatPlugin } from "@kody-ade/kody-chat/plugins/instructions";
-import { learningChatPlugin } from "@dashboard/lib/chat/plugins/learning";
-import { memoryChatPlugin } from "@kody-ade/kody-chat/plugins/memory";
+import { instructionsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/instructions";
 import { messagesChatPlugin } from "@dashboard/lib/chat/plugins/messages";
-import { modelsChatPlugin } from "@kody-ade/kody-chat/plugins/models";
+import { modelsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/models";
 import { notificationsChatPlugin } from "@dashboard/lib/chat/plugins/notifications";
 import { previewChatPlugin } from "@dashboard/lib/chat/plugins/preview";
 import { reportsChatPlugin } from "@dashboard/lib/chat/plugins/reports";
-import { secretsChatPlugin } from "@kody-ade/kody-chat/plugins/secrets";
-import { settingsChatPlugin } from "@kody-ade/kody-chat/plugins/settings";
+import { secretsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/secrets";
 import { storeCatalogChatPlugin } from "@dashboard/lib/chat/plugins/store-catalog";
 import { todosChatPlugin } from "@dashboard/lib/chat/plugins/todos";
 import { variablesChatPlugin } from "@dashboard/lib/chat/plugins/variables";
@@ -59,36 +50,20 @@ interface PagePluginCase {
 const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "activity", title: "Activity", plugin: activityChatPlugin },
   { slug: "agency-runs", title: "Agency Runs", plugin: agencyRunsChatPlugin },
-  { slug: "agent-goals", title: "Goals", plugin: agentGoalsChatPlugin },
-  { slug: "agent-loops", title: "Loops", plugin: agentLoopsChatPlugin },
   { slug: "agents", title: "Agent", plugin: agentsChatPlugin },
   { slug: "brands", title: "Brands", plugin: brandsChatPlugin },
-  {
-    slug: "capabilities",
-    title: "Capabilities",
-    plugin: capabilitiesChatPlugin,
-  },
   { slug: "changelog", title: "Changelog", plugin: changelogChatPlugin },
   { slug: "commands-page", title: "Commands", plugin: commandsPageChatPlugin },
   { slug: "company", title: "AI Agency", plugin: companyChatPlugin },
-  {
-    slug: "company-intents",
-    title: "Intents",
-    plugin: companyIntentsChatPlugin,
-  },
   { slug: "config", title: "Config", plugin: configChatPlugin },
-  { slug: "context", title: "Context", plugin: contextChatPlugin },
   { slug: "docs", title: "Docs", plugin: docsChatPlugin },
   { slug: "files", title: "Files", plugin: filesChatPlugin },
-  { slug: "findings", title: "Findings", plugin: findingsChatPlugin },
   { slug: "inbox", title: "Inbox", plugin: inboxChatPlugin },
   {
     slug: "instructions",
     title: "Instructions",
     plugin: instructionsChatPlugin,
   },
-  { slug: "learning", title: "Learning", plugin: learningChatPlugin },
-  { slug: "memory", title: "Memory", plugin: memoryChatPlugin },
   { slug: "messages", title: "Messages", plugin: messagesChatPlugin },
   { slug: "models", title: "Chat Models", plugin: modelsChatPlugin },
   {
@@ -99,7 +74,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "preview", title: "Views", plugin: previewChatPlugin },
   { slug: "reports", title: "Reports", plugin: reportsChatPlugin },
   { slug: "secrets", title: "Secrets", plugin: secretsChatPlugin },
-  { slug: "settings", title: "Settings", plugin: settingsChatPlugin },
   {
     slug: "store-catalog",
     title: "Store Catalog",

@@ -5,7 +5,7 @@
  * @ai-summary Public surface for the commands feature. `listCommands()`
  *   merges repo-local commands, activated Store commands, then dashboard fallback
  *   built-ins. Repo wins on slug collision; Store owns shared defaults.
- *   `commands/.disable-builtins` in the state repo suppresses dashboard fallback built-ins.
+ *   `commands/.disable-builtins` in the backend suppresses dashboard fallback built-ins.
  */
 
 import { BUILTIN_COMMANDS } from "./builtins";

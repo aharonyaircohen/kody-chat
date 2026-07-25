@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern macros-api
- * @ai-summary Saved preview macros, stored in the configured state repo at `macros.json`.
+ * @ai-summary Saved preview macros, stored in the configured backend at `macros.json`.
  *   GET lists them; POST appends a new one ({ name, steps }); DELETE removes
  *   one by id (?id=). Mirrors the secrets route auth shape: header PAT for
  *   reads, verified actor + user octokit for the commits writes perform.
@@ -99,11 +99,10 @@ export async function POST(req: NextRequest) {
   setGitHubContext(auth.owner, auth.repo, auth.token);
   try {
     const macro = await addMacroToFile({
-      octokit,
       name: parsed.data.name,
       steps: parsed.data.steps as never,
     });
-    const { macros } = await readMacrosFile(octokit);
+    const { macros } = await readMacrosFile();
     return NextResponse.json({ ok: true, macro, macros });
   } catch (err) {
     return NextResponse.json(
@@ -135,10 +134,10 @@ export async function DELETE(req: NextRequest) {
 
   setGitHubContext(auth.owner, auth.repo, auth.token);
   try {
-    const removed = await deleteMacroFromFile({ octokit, id });
+    const removed = await deleteMacroFromFile({ id });
     if (!removed)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    const { macros } = await readMacrosFile(octokit);
+    const { macros } = await readMacrosFile();
     return NextResponse.json({ ok: true, macros });
   } catch (err) {
     return NextResponse.json(

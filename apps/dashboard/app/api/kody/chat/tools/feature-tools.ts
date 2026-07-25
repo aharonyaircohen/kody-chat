@@ -35,7 +35,7 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
       "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
-- Each connected repo has its own encrypted state repo blob at \`secrets.enc\`.
+- Each connected repo has its own encrypted backend blob at \`secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
   \`KODY_MASTER_KEY\` env var and committed back to the repo.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),
@@ -84,7 +84,7 @@ The legacy \`/api/kody/chat\` endpoint is deprecated and returns 410.
 Engine path details: dispatches \`kody.yml\` in the connected repo with the
 session ID and an inline HMAC token. The engine streams events back to
 \`/api/kody/events/ingest\` (real-time) and commits them to
-state repo \`events/{sessionId}.jsonl\` (durable fallback, polled by
+backend \`events/{sessionId}.jsonl\` (durable fallback, polled by
 \`/api/kody/events/stream\`). Token verified via HMAC of sessionId with
 \`KODY_MASTER_KEY\` (purpose-prefixed as \`kody-chat-token:\${KODY_MASTER_KEY}\`).`,
   },
@@ -117,8 +117,8 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
     id: "kody-capabilities",
     name: "Kody Capabilities",
     summary:
-      "Current storage folders at state repo capabilities/<slug>/ that define capability contracts.",
-    details: `A Kody Capability is stored at state repo \`capabilities/<slug>/\`:
+      "Current storage folders at backend capabilities/<slug>/ that define capability contracts.",
+    details: `A Kody Capability is stored at backend \`capabilities/<slug>/\`:
 
 - \`profile.json\` stores execution settings, tools, skills, and scripts.
 - \`capability.md\` stores the human-readable instructions and restrictions.
@@ -126,7 +126,7 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
 Intent owns why. Goal owns what should become true. Loop owns when to check.
 Agent owns who acts. Capability owns what can be run.
 
-Format (must match existing capabilities in state repo \`capabilities/\`):
+Format (must match existing capabilities in backend \`capabilities/\`):
 - \`profile.json\` metadata
 - \`capability.md\` with clear instructions
 - \`## Restrictions\`
@@ -145,14 +145,14 @@ the first turn; show the proposed profile and instructions for approval first.`,
     id: "kody-agent",
     name: "Kody Agent (reusable agent files)",
     summary:
-      "Markdown files at state repo agents/<slug>.md — pure reusable agent identities.",
-    details: `A Kody Agent member is a markdown file at state repo \`agents/<slug>.md\`. A
+      "Markdown files at backend agents/<slug>.md — pure reusable agent identities.",
+    details: `A Kody Agent member is a markdown file at backend \`agents/<slug>.md\`. A
 agent is a pure reusable identity — a markdown body describing intent,
 allowed commands, and restrictions. Agents have NO schedule, NO state,
 and NO run/tick; they're agent identities referenced by other flows. The Agent
 page is a pure agentIdentity editor (list / view / create / edit / delete).
 
-Format (must match existing agent in state repo \`agents/\`):
+Format (must match existing agent in backend \`agents/\`):
 - H1 title
 - \`## Agent\` — purpose / agentIdentity
 - \`## Allowed Commands\`
@@ -165,8 +165,8 @@ agentIdentity after a gap-analysis conversation.`,
     id: "memory",
     name: "Persistent Memory System",
     summary:
-      'Per-repo memory at state repo memory/. Index injected into every chat turn under "Remembered context".',
-    details: `Each connected repo has a persistent memory system at state repo \`memory/\`.
+      'Per-repo memory at backend memory/. Index injected into every chat turn under "Remembered context".',
+    details: `Each connected repo has a persistent memory system at backend \`memory/\`.
 
 - Memories are markdown files at \`memory/<id>.md\` (one per entry).
 - Types: \`feedback\`, \`project\`, \`reference\`, \`user\`.

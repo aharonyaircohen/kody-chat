@@ -5,7 +5,7 @@
  * @ai-summary Notifications management entry point. Renders inside the
  *   shared PageWithChat shell so the assistant is always available.
  */
-import { NotificationsManager } from "@dashboard/lib/components/NotificationsManager";
+import { NotificationsManager } from "@dashboard/features/admin/components/NotificationsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

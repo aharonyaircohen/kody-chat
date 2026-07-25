@@ -41,14 +41,13 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const existing = await readVariables(octokit, auth.owner, auth.repo, {
+    const existing = await readVariables(auth.owner, auth.repo, {
       force: true,
     });
     if (!(name in existing.doc.variables)) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     const { doc: next } = await updateVariables(
-      octokit,
       auth.owner,
       auth.repo,
       (doc) => {
@@ -56,7 +55,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
         delete nextVars[name];
         return { ...doc, variables: nextVars };
       },
-      `chore(variables): delete ${name}`,
     );
     return NextResponse.json({ ok: true, variables: listVariables(next) });
   } catch (err) {

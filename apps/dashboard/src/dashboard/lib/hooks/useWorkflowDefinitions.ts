@@ -15,14 +15,18 @@ import {
   NoTokenError,
   SessionExpiredError,
 } from "../api";
+import { stopWorkflowRun } from "../api/workflow-run-controls";
 import type {
   CreateWorkflowDefinitionInput,
   UpdateWorkflowDefinitionInput,
   WorkflowDefinitionRecord,
 } from "../workflow-definitions";
+import { useWorkflowRunStateLive } from "./useConvexLive";
 
 export const workflowDefinitionQueryKeys = {
   list: ["kody-workflow-definitions"] as const,
+  run: (id: string, runId?: string) =>
+    ["kody-workflow-run", id, runId ?? "latest"] as const,
 };
 
 type WorkflowDeleteMutationContext = {
@@ -151,15 +155,18 @@ export function useRunWorkflowDefinition() {
       workflowId: string;
       ref: string;
       workflow: string;
+      runId: string;
       action: string;
     },
     Error,
-    string
+    string | { id: string; mode?: "resume"; runId?: string }
   >({
-    mutationFn: (id) => kodyApi.workflowDefinitions.run(id),
+    mutationFn: (input) => typeof input === "string"
+      ? kodyApi.workflowDefinitions.run(input)
+      : kodyApi.workflowDefinitions.run(input.id, { mode: input.mode, runId: input.runId }),
     onSuccess: (data) => {
       toast.success("Workflow started", {
-        description: `Dispatched ${data.workflow} on ${data.ref}.`,
+        description: `Run ${data.runId} dispatched on ${data.ref}.`,
       });
     },
     onError: (error) => {
@@ -168,4 +175,36 @@ export function useRunWorkflowDefinition() {
       });
     },
   });
+}
+
+export function useStopWorkflowRun() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { workflowId: string; runId: string }>({
+    mutationFn: ({ workflowId, runId }) => stopWorkflowRun(workflowId, runId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowDefinitionQueryKeys.run(variables.workflowId, variables.runId) });
+      toast.success("Workflow stopped");
+    },
+    onError: (error) => toast.error("Failed to stop workflow", { description: error.message }),
+  });
+}
+
+export function useWorkflowRunState(id: string, runId?: string) {
+  // Reactive Convex subscription (undefined while the first snapshot loads).
+  // Convex is mandatory — the legacy 3s HTTP poll fallback was removed; the
+  // one-shot query below only fills the initial render before the first
+  // Convex snapshot arrives.
+  const live = useWorkflowRunStateLive(id.length > 0 ? id : undefined, runId);
+
+  const snapshot = useQuery({
+    queryKey: workflowDefinitionQueryKeys.run(id, runId),
+    queryFn: () => kodyApi.workflowDefinitions.latestRun(id, runId),
+    enabled: !!getStoredAuth() && id.length > 0 && live === undefined,
+    staleTime: 2_000,
+  });
+
+  if (live !== undefined) {
+    return { ...snapshot, data: live, isLoading: false } as typeof snapshot;
+  }
+  return snapshot;
 }

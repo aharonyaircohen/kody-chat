@@ -1,4 +1,4 @@
-import { CmsCreateManager } from "@dashboard/lib/components/CmsManager";
+import { CmsCreateManager } from "@dashboard/features/admin/components/CmsManager";
 import { buildKodyMetadata } from "../../../../../metadata";
 
 export const dynamic = "force-static";

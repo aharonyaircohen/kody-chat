@@ -68,9 +68,11 @@ export function StageErrorDetail({
       {/* Check runs / Job results */}
       {runId && (
         <div>
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-2 text-sm font-normal text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {expanded ? (
               <ChevronDown className="w-4 h-4" />
@@ -81,7 +83,7 @@ export function StageErrorDetail({
             <Badge variant="outline" className="ml-2">
               {passedChecks.length} passed, {failedChecks.length} failed
             </Badge>
-          </button>
+          </Button>
 
           {expanded && (
             <div className="mt-2 ml-6 space-y-2">

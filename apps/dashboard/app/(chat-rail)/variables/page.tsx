@@ -5,7 +5,7 @@
  * @ai-summary Variables management entry point. Renders inside the shared
  *   PageWithChat shell so the assistant is always available.
  */
-import { VariablesManager } from "@dashboard/lib/components/VariablesManager";
+import { VariablesManager } from "@dashboard/features/admin/components/VariablesManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
@@ -15,7 +15,7 @@ export const fetchCache = "force-cache";
 export const metadata = buildKodyMetadata({
   title: "Variables — Kody Operations Dashboard",
   description:
-    "Manage non-sensitive config stored in the state repo. For secrets use /secrets.",
+    "Manage non-sensitive config stored in Convex. For secrets use /secrets.",
   path: "/variables",
 });
 

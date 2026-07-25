@@ -5,7 +5,7 @@
  * @ai-summary Files page entry point for deep links like /files/src/app.tsx.
  */
 import type { Metadata } from "next";
-import { FilesPage } from "@dashboard/components/files/FilesPage";
+import { FilesPage } from "@dashboard/features/file-manager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";

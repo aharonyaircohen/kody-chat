@@ -1,7 +1,7 @@
 # Current implementation restructure
 
 This tracks the cleanup of repo-stored capability implementations under the
-legacy `.kody/implementations/` path.
+legacy `backend definition bundles (implementations)` path.
 
 ## Baseline rules
 

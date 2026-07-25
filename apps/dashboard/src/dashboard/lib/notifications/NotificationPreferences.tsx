@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import type { UseNotificationStoreReturn } from "./useNotificationStore";
 import { NOTIFICATION_META, type NotificationType } from "./types";
@@ -93,13 +94,15 @@ export function NotificationPreferences({
     <div className="max-h-[400px] overflow-y-auto">
       {/* Back header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={onClose}
-          className="p-0.5 text-muted-foreground hover:text-foreground rounded"
+          className="p-0.5 text-muted-foreground hover:text-foreground hover:bg-transparent rounded"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-        </button>
+        </Button>
         <span className="text-xs font-semibold">Notification Settings</span>
       </div>
 
@@ -111,6 +114,7 @@ export function NotificationPreferences({
             <Bell className="w-3.5 h-3.5 text-muted-foreground" />
             In-app notifications
           </span>
+          {/* eslint-disable-next-line react/forbid-elements -- native accent-primary checkbox; kit Checkbox (radix, h-5) is not a visual drop-in */}
           <input
             type="checkbox"
             checked={prefs.inAppEnabled}
@@ -126,6 +130,7 @@ export function NotificationPreferences({
             Browser notifications
           </span>
           {isSupported && browserPermission === "granted" ? (
+            // eslint-disable-next-line react/forbid-elements -- native accent-primary checkbox; kit Checkbox (radix, h-5) is not a visual drop-in
             <input
               type="checkbox"
               checked={prefs.browserEnabled}
@@ -135,13 +140,15 @@ export function NotificationPreferences({
               className="w-4 h-4 rounded border-border accent-primary"
             />
           ) : (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={onRequestPermission}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20"
+              className="font-normal text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
             >
               {browserPermission === "denied" ? "Blocked" : "Enable"}
-            </button>
+            </Button>
           )}
         </label>
 
@@ -155,6 +162,7 @@ export function NotificationPreferences({
             )}
             Sound
           </span>
+          {/* eslint-disable-next-line react/forbid-elements -- native accent-primary checkbox; kit Checkbox (radix, h-5) is not a visual drop-in */}
           <input
             type="checkbox"
             checked={prefs.soundEnabled}
@@ -201,8 +209,10 @@ export function NotificationPreferences({
                   </span>
                 </span>
                 <span className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="clear"
                     onClick={(e) => {
                       e.preventDefault();
                       playNotificationSound(type);
@@ -211,7 +221,8 @@ export function NotificationPreferences({
                     className="p-0.5 text-muted-foreground hover:text-foreground rounded hover:bg-accent"
                   >
                     <Play className="w-3 h-3" />
-                  </button>
+                  </Button>
+                  {/* eslint-disable-next-line react/forbid-elements -- native accent-primary checkbox; kit Checkbox (radix, h-5) is not a visual drop-in */}
                   <input
                     type="checkbox"
                     checked={enabled}

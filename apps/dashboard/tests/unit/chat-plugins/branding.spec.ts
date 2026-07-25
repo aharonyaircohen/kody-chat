@@ -12,12 +12,12 @@ import { describe, expect, it } from "vitest";
 import {
   BRANDING_PLUGIN_ID,
   createBrandingPlugin,
-} from "@kody-ade/kody-chat/plugins/branding";
+} from "@kody-ade/kody-chat-dashboard/plugins/branding";
 import { getClientBrand } from "@dashboard/lib/client-brand";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@kody-ade/kody-chat/platform/registry";
+} from "@kody-ade/kody-chat-dashboard/platform/registry";
 
 describe("branding chat plugin factory", () => {
   it("declares only the theme capability", () => {

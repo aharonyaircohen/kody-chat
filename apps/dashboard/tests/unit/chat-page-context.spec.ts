@@ -14,7 +14,7 @@ import {
   dashboardPageContextLine,
   withPageContext,
   applyPageContextToLastUser,
-} from "@kody-ade/kody-chat/core/page-context";
+} from "@kody-ade/kody-chat-dashboard/core/page-context";
 
 describe("dashboardPageContextLine", () => {
   it("returns null for missing or blank input", () => {

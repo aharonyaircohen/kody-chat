@@ -129,13 +129,13 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await page.goto(`${BASE_URL}/tasks`);
     const panel = page.locator('[data-testid="chat-first-panel"]');
     await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-testid="chat-panel-tasks"]')).toBeAttached(
+      { timeout: 15_000 },
+    );
 
-    await page.goto(`${BASE_URL}/settings`);
-    await expect(panel.getByText("Chat-first layout (beta)")).toBeVisible({
-      timeout: 15_000,
-    });
     // Non-mapped routes keep raw route-content rendering — the tasks
     // plugin panel only substitutes on /tasks (step 3 pilot scope).
+    await page.goto(`${BASE_URL}/activity`);
     await expect(page.locator('[data-testid="chat-panel-tasks"]')).toHaveCount(
       0,
     );
@@ -207,7 +207,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
     const routes: Array<[route: string, slug: string]> = [
       ["/activity", "activity"],
       ["/agency-runs", "agency-runs"],
-      ["/agent-goals", "agent-goals"],
       ["/agent-loops", "agent-loops"],
       ["/agents", "agents"],
       ["/brands", "brands"],
@@ -215,7 +214,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/changelog", "changelog"],
       ["/commands", "commands-page"],
       ["/company", "company"],
-      ["/company-intents", "company-intents"],
       ["/config", "config"],
       ["/context", "context"],
       ["/docs", "docs"],
@@ -229,7 +227,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/preview", "preview"],
       ["/reports", "reports"],
       ["/secrets", "secrets"],
-      ["/settings", "settings"],
       ["/store-catalog", "store-catalog"],
       ["/todos", "todos"],
       ["/variables", "variables"],

@@ -4,7 +4,7 @@
  * @pattern files-page
  * @ai-summary Files page entry point — serves the /files route.
  */
-import { FilesPage } from "@dashboard/components/files/FilesPage";
+import { FilesPage } from "@dashboard/features/file-manager";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain todos
  * @pattern todo-list-detail-api
- * @ai-summary Todo-list detail API — GET reads one state-repo `todos/<slug>.json`,
+ * @ai-summary Todo-list detail API — GET reads one Convex `todos/<slug>.json`,
  * PATCH edits list title/items, DELETE removes it.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -13,10 +13,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   deleteTodoFile,
   isValidTodoSlug,

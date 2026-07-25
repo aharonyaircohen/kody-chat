@@ -122,7 +122,7 @@ without republishing `@kody-ade/kody-engine`. Two variants:
 
 Both carry a **hard rule**: never end a turn with uncommitted changes (the
 runner's filesystem is ephemeral), and stage with pathspec exclusions
-(`:!.kody/sessions` `:!.kody/events`) so the dashboard's chat transcript
+(`:!backend-managed resources/sessions` `:!backend-managed resources/events`) so the dashboard's chat transcript
 doesn't leak into the PR.
 
 One subtlety worth knowing: in the two-turn flow (turn 1 creates the issue,

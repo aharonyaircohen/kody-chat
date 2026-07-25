@@ -18,16 +18,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // concatenation of both files.
 const KODY_CHAT_SOURCE =
   readFileSync(
-    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx"),
+    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/KodyChat.tsx"),
     "utf8",
   ) +
   "\n" +
   readFileSync(
-    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-send.ts"),
+    resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-send.ts"),
     "utf8",
   );
-const USE_CHAT_SESSIONS_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/core/use-chat-sessions.ts"),
+const CONVERSATION_SESSIONS_SOURCE = readFileSync(
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/core/conversation/use-conversation-sessions.ts"),
   "utf8",
 );
 const SYSTEM_PROMPT_SOURCE = readFileSync(
@@ -51,7 +51,7 @@ describe("KodyChat org scope", () => {
   });
 
   it("does not make org selection a chat session boundary", () => {
-    expect(USE_CHAT_SESSIONS_SOURCE).not.toMatch(/`org:${string}`/);
+    expect(CONVERSATION_SESSIONS_SOURCE).not.toMatch(/`org:${string}`/);
     expect(KODY_CHAT_SOURCE).not.toMatch(/`org:${selectedOrg/);
   });
 

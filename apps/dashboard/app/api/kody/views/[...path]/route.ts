@@ -2,15 +2,14 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern repo-backed-static-view-server
- * @ai-summary Serves static resources stored in the configured Kody state repo
+ * @ai-summary Serves static resources stored in the configured Kody backend
  * under `views/<view-id>/...`.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
-import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { createUserOctokit } from "@dashboard/lib/github-client";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
-import { resolveStateRepo, stateRepoPath } from "@kody-ade/base/state-repo";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 
 export const runtime = "nodejs";
@@ -18,7 +17,6 @@ export const runtime = "nodejs";
 const VIEW_ROOT = "views";
 const VIEW_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const TOKEN_SEGMENT = "_t";
-const GITHUB_API_VERSION = "2022-11-28";
 
 const HTML_CSP = [
   "sandbox allow-scripts allow-forms allow-popups allow-downloads",
@@ -175,7 +173,6 @@ type ResolvedAccess =
       ok: true;
       owner: string;
       repo: string;
-      token: string;
       viewId: string;
       resourcePath: string;
     }
@@ -222,7 +219,6 @@ function resolveAccess(req: NextRequest, segments: string[]): ResolvedAccess {
         ok: true,
         owner: claims.owner,
         repo: claims.repo,
-        token: claims.githubToken,
         viewId,
         resourcePath,
       };
@@ -272,47 +268,9 @@ function resolveAccess(req: NextRequest, segments: string[]): ResolvedAccess {
     ok: true,
     owner: auth.owner,
     repo: auth.repo,
-    token: auth.token,
     viewId,
     resourcePath,
   };
-}
-
-function encodeGitHubPath(path: string): string {
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
-async function fetchRepoFile(input: {
-  owner: string;
-  repo: string;
-  token: string;
-  repoPath: string;
-}): Promise<Buffer | null> {
-  const background = await resolveBackgroundToken(input.owner, input.repo);
-  const readToken = background?.token ?? input.token;
-  const octokit = createUserOctokit(readToken);
-  const target = await resolveStateRepo(octokit, input.owner, input.repo);
-  const repoPath = stateRepoPath(target, input.repoPath);
-  const url = `https://api.github.com/repos/${encodeURIComponent(
-    target.owner,
-  )}/${encodeURIComponent(target.repo)}/contents/${encodeGitHubPath(
-    repoPath,
-  )}?ref=${encodeURIComponent(target.branch)}`;
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${readToken}`,
-      Accept: "application/vnd.github.raw+json",
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-    },
-  });
-
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(`GitHub content read failed (${res.status})`);
-  }
-
-  return Buffer.from(await res.arrayBuffer());
 }
 
 export async function GET(
@@ -331,20 +289,19 @@ export async function GET(
     );
   }
 
-  const repoPath = `${VIEW_ROOT}/${access.viewId}/${resourcePath}`;
   try {
-    const body = await fetchRepoFile({
-      owner: access.owner,
-      repo: access.repo,
-      token: access.token,
-      repoPath,
-    });
-    if (!body) {
+    const doc = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${access.owner}/${access.repo}`,
+      kind: `${VIEW_ROOT}/${access.viewId}`,
+    })) as { doc?: { files?: Record<string, string> } } | null;
+    const encoded = doc?.doc?.files?.[resourcePath];
+    if (!encoded) {
       return NextResponse.json(
         { error: "view_file_not_found" },
         { status: 404 },
       );
     }
+    const body = Buffer.from(encoded, "base64");
     return responseForBody(body, resourcePath, req.headers.get("range"));
   } catch (err) {
     logger.error(

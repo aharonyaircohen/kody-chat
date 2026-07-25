@@ -41,11 +41,11 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 ## Features
 
 - Task board (inbox → spec → building → review → done) with drag-and-drop
-- Capability manager — markdown-defined capabilities in `.kody/capabilities/`, with legacy capabilities still readable while repos migrate
+- Capability manager — markdown-defined capabilities in `backend definitions (capabilities)`, with legacy capabilities still readable while repos migrate
 - Parallel task execution — each task is its own GitHub Actions workflow run
 - PR viewer with file diffs, CI status, and gate approvals
 - Live previews — per-PR Fly.io preview environments (see [docs/previews.md](./docs/previews.md))
-- Per-repo encrypted secrets vault (`.kody/secrets.enc`, AES-256-GCM)
+- Per-repo encrypted secrets vault (`backend vault record`, AES-256-GCM)
 - Provider-agnostic chat — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or any OpenAI-compatible endpoint, configured in-app (Anthropic Messages or OpenAI Chat Completions protocols)
 - Multiple chat backends (direct via configured provider, external Brain, engine via GitHub Actions)
 - Real-time pipeline status via GitHub webhooks (push-based, IP-verified)
@@ -110,6 +110,17 @@ BRAIN_API_KEY=local-dev-key pnpm brain:local
 # .env.example has matching BRAIN_CHAT_URL + BRAIN_CHAT_API_KEY; copy it to .env
 pnpm dev
 ```
+
+To use the ChatGPT subscription already logged into Codex on that same
+terminal, start Brain with the Codex driver:
+
+```bash
+BRAIN_DRIVER=codex-app-server BRAIN_API_KEY=local-dev-key pnpm brain:local
+```
+
+Brain starts `codex app-server` locally and uses that personal Codex login.
+No OpenAI API key is used. Keep the dashboard's Brain URL and
+`BRAIN_CHAT_API_KEY` set to the same local Brain address and key.
 
 To restrict the server's working tree, export `BRAIN_REPOS_ROOT=/path/to/repos` in Terminal 1.
 

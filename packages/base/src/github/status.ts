@@ -11,14 +11,21 @@ import {
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "../activity/company";
-import {
-  listStateDirectory,
-  readStateText,
-  stateRepoPath,
-} from "@kody-ade/base/state-repo";
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "../activity/run-logs";
 import type { KodyPipelineStatus, WorkflowRun } from "@kody-ade/base/types";
-import { getCached, getStale, setCache, getOctokit, getOwner, getRepo } from "@kody-ade/base/github/core";
+import {
+  getCached,
+  getStale,
+  setCache,
+  getOctokit,
+  getOwner,
+  getRepo,
+} from "@kody-ade/base/github/core";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@kody-ade/base/backend/convex";
 // ============ Status JSON Access ============
 
 /**
@@ -89,210 +96,126 @@ export function normalizePipelineStatus(
   };
 }
 
-/**
- * Read status.json from a branch.
- *
- * Caching: 60s TTL with ETag/`If-None-Match` revalidation. Polled per active
- * task on every /tasks tick — without 304 support, cache misses each cost a
- * full REST point. With ETag, unchanged status files revalidate for free.
- */
+function pipelineFromTaskState(
+  taskId: string,
+  value: unknown,
+  backendUpdatedAt?: string,
+): KodyPipelineStatus | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const state = value as Record<string, unknown>;
+  const core =
+    state.core && typeof state.core === "object" && !Array.isArray(state.core)
+      ? (state.core as Record<string, unknown>)
+      : null;
+  if (!core) return null;
+  const history = Array.isArray(state.history)
+    ? state.history.filter(
+        (entry): entry is Record<string, unknown> =>
+          !!entry && typeof entry === "object" && !Array.isArray(entry),
+      )
+    : [];
+  const lastTimestamp = [...history]
+    .reverse()
+    .find((entry) => typeof entry.timestamp === "string")?.timestamp;
+  const firstTimestamp = history.find(
+    (entry) => typeof entry.timestamp === "string",
+  )?.timestamp;
+  const updatedAt =
+    backendUpdatedAt ??
+    (typeof lastTimestamp === "string"
+      ? lastTimestamp
+      : new Date(0).toISOString());
+  const startedAt =
+    typeof firstTimestamp === "string" ? firstTimestamp : updatedAt;
+  const currentCapability =
+    typeof core.currentCapability === "string"
+      ? core.currentCapability
+      : typeof core.currentImplementation === "string"
+        ? core.currentImplementation
+        : null;
+  const status =
+    core.status === "succeeded"
+      ? "completed"
+      : core.status === "failed"
+        ? "failed"
+        : core.status === "running"
+          ? "running"
+          : "paused";
+  const stages: KodyPipelineStatus["stages"] = {};
+  for (const [index, entry] of history.entries()) {
+    const name =
+      (typeof entry.capability === "string" && entry.capability) ||
+      (typeof entry.implementation === "string" && entry.implementation) ||
+      (typeof entry.action === "string" && entry.action) ||
+      `run-${index + 1}`;
+    stages[`${name}-${index + 1}`] = {
+      state:
+        entry.status === "failed"
+          ? "failed"
+          : entry.status === "running"
+            ? "running"
+            : "completed",
+      startedAt:
+        typeof entry.timestamp === "string" ? entry.timestamp : undefined,
+      retries: 0,
+    };
+  }
+  if (currentCapability && status === "running") {
+    stages[currentCapability] = {
+      state: "running",
+      startedAt: updatedAt,
+      retries: 0,
+    };
+  }
+  return {
+    taskId,
+    mode: "engine",
+    pipeline: "capability",
+    startedAt,
+    updatedAt,
+    ...(status === "completed" || status === "failed"
+      ? { completedAt: updatedAt }
+      : {}),
+    state: status,
+    currentStage: currentCapability,
+    stages,
+    triggeredBy: "kody-engine",
+    ...(/^\d+$/.test(taskId) ? { issueNumber: Number(taskId) } : {}),
+    ...(typeof core.runUrl === "string" ? { runUrl: core.runUrl } : {}),
+  };
+}
+
+/** Read the engine task state from the backend and project it for legacy pipeline UI. */
 export async function getStatusFromBranch(
   taskId: string,
-  branch: string,
+  _branch: string,
 ): Promise<KodyPipelineStatus | null> {
-  const cacheKey = `status:branch:${getOwner()}:${getRepo()}:${taskId}:${branch}`;
+  const cacheKey = `status:backend:${getOwner()}:${getRepo()}:${taskId}`;
   const cached = getCached<KodyPipelineStatus>(cacheKey);
   if (cached) return cached;
 
-  const stale = getStale<KodyPipelineStatus>(cacheKey);
-  const octokit = getOctokit();
-
   try {
-    const response = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: `.tasks/${taskId}/status.json`,
-      ref: branch,
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-    });
-
-    const data = response.data;
-    const newEtag = (response.headers as Record<string, string | undefined>)
-      ?.etag;
-
-    if ("content" in data && data.content) {
-      const content = Buffer.from(data.content, "base64").toString("utf-8");
-      const raw = JSON.parse(content) as KodyPipelineStatus;
-      const status = normalizePipelineStatus(raw);
-      setCache(cacheKey, CACHE_TTL.pipeline, status, { etag: newEtag });
-      return status;
-    }
-  } catch (error: any) {
-    // 304 Not Modified — file unchanged. Refresh TTL on stale data, no rate cost.
-    if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag });
-      return stale.data;
-    }
-    if (error.status !== 404) {
-      console.error("[Kody] Error fetching status from branch:", error);
-    }
-  }
-
+    const taskKey = /^\d+$/.test(taskId) ? `issues/${taskId}` : taskId;
+    const record = (await getConvexClient().query(backendApi.taskState.get, {
+      tenantId: tenantIdFor(getOwner(), getRepo()),
+      taskKey,
+      kind: "state",
+    })) as { doc?: unknown; updatedAt?: string } | null;
+    const status = record
+      ? pipelineFromTaskState(taskId, record.doc, record.updatedAt)
+      : null;
+    if (status) setCache(cacheKey, CACHE_TTL.pipeline, status);
+    return status;
+  } catch {}
   return null;
 }
 
-/**
- * Discover and read status.json from a branch by scanning the .tasks/ directory.
- * The pipeline creates task IDs with random counters (e.g., 260306-auto-330) that
- * don't match the issue number, so we can't guess the task ID from the issue.
- * Instead, we list .tasks/ on the branch and find the newest YYMMDD-prefixed directory.
- */
+/** Resolve backend task state when the caller knows the linked issue number. */
 export async function findStatusOnBranch(
   branch: string,
   issueNumber?: number,
 ): Promise<KodyPipelineStatus | null> {
-  // Cache the .tasks/ directory listing separately from the resolved status,
-  // so the listing call can revalidate via ETag while different issueNumber
-  // queries still get distinct resolved-status caching.
-  const listingKey = `status:tasks-listing:${getOwner()}:${getRepo()}:${branch}`;
-  const cacheKey = `status:discover:${getOwner()}:${getRepo()}:${branch}:${issueNumber ?? "any"}`;
-  const cached = getCached<KodyPipelineStatus>(cacheKey);
-  if (cached) return cached;
-
-  const octokit = getOctokit();
-
-  // Fetch (or revalidate) the .tasks/ listing with ETag/304.
-  let taskDirs: string[] | null = getCached<string[]>(listingKey);
-  if (!taskDirs) {
-    const stale = getStale<string[]>(listingKey);
-    try {
-      const response = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: ".tasks",
-        ref: branch,
-        headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-      });
-
-      const data = response.data;
-      const newEtag = (response.headers as Record<string, string | undefined>)
-        ?.etag;
-
-      if (Array.isArray(data)) {
-        taskDirs = data
-          .filter(
-            (item: any) => item.type === "dir" && TASK_ID_REGEX.test(item.name),
-          )
-          .map((item: any) => item.name as string)
-          .sort()
-          .reverse(); // Newest first (YYMMDD sorts chronologically)
-        setCache(listingKey, CACHE_TTL.pipeline, taskDirs, { etag: newEtag });
-      }
-    } catch (error: any) {
-      // 304 Not Modified — directory unchanged. Reuse the stale listing.
-      if (error.status === 304 && stale) {
-        setCache(listingKey, CACHE_TTL.pipeline, stale.data, {
-          etag: stale.etag,
-        });
-        taskDirs = stale.data;
-      } else if (error.status !== 404) {
-        console.error("[Kody] Error listing .tasks/ on branch:", error);
-      }
-    }
-  }
-
-  if (!taskDirs || taskDirs.length === 0) return null;
-
-  // Try the newest task directory first (check up to 3).
-  // When issueNumber is provided, skip status files belonging to different issues
-  // (branches can accumulate status.json files from multiple pipeline runs).
-  for (const taskDir of taskDirs.slice(0, 3)) {
-    const status = await getStatusFromBranch(taskDir, branch);
-    if (status) {
-      if (
-        issueNumber &&
-        status.issueNumber &&
-        status.issueNumber !== issueNumber
-      )
-        continue;
-      setCache(cacheKey, CACHE_TTL.pipeline, status);
-      return status;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Read `todos/<id>.json` from the configured Kody state repo with cache +
- * ETag/304 revalidation. Returns `null` when the file is missing (= the
- * engine has never ticked this goal) or unparseable.
- *
- * Uses the polling token (no per-user octokit) because the goals listing
- * route is hot — every poll fetches goals, and per-user reads would
- * multiply the rate-limit cost. The state file lives in the configured Kody state repo
- * branch (engine commits it there), so the polling token is sufficient.
- */
-export async function fetchGoalStateFromRepo(goalId: string): Promise<{
-  goalIssueNumber?: number;
-  goalPrUrl?: string;
-} | null> {
-  if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `todos/${goalId}.json`;
-  const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
-  const cached = getCached<{
-    goalIssueNumber?: number;
-    goalPrUrl?: string;
-  } | null>(cacheKey);
-  if (cached !== null) return cached;
-
-  const stale = getStale<{
-    goalIssueNumber?: number;
-    goalPrUrl?: string;
-  } | null>(cacheKey);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), path, {
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-    }).catch((error: any) => {
-      if (error.status === 404) return null;
-      throw error;
-    });
-    if (!file) {
-      setCache(cacheKey, CACHE_TTL.tasks, null);
-      return null;
-    }
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(file.content) as Record<string, unknown>;
-    } catch {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: file.etag });
-      return null;
-    }
-    const goalIssueNumber =
-      typeof parsed.goalIssueNumber === "number"
-        ? parsed.goalIssueNumber
-        : undefined;
-    const goalPrUrl =
-      typeof parsed.goalPrUrl === "string" && parsed.goalPrUrl.length > 0
-        ? parsed.goalPrUrl
-        : undefined;
-    const result = { goalIssueNumber, goalPrUrl };
-    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: file.etag });
-    return result;
-  } catch (error: any) {
-    if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
-      return stale.data;
-    }
-    if (error.status === 404) {
-      setCache(cacheKey, CACHE_TTL.tasks, null);
-      return null;
-    }
-    console.error(`[Kody] Error reading goal state for ${goalId}:`, error);
-    return null;
-  }
+  return issueNumber ? getStatusFromBranch(String(issueNumber), branch) : null;
 }
 
 /**
@@ -425,7 +348,7 @@ export async function fetchKodyRunLogArtifact(
         artifactUrl: artifact.archive_download_url ?? null,
         message: parsed
           ? null
-          : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
+          : "Run log artifact did not contain the expected runtime events file.",
         events: parsed?.events ?? [],
         timeline: parsed?.timeline ?? [],
         agencyBoundaryEvals: parsed?.agencyBoundaryEvals ?? [],
@@ -478,85 +401,51 @@ async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
 }
 
 /**
- * Read the engine-authored Company Activity log — recent
- * `activity/<date>.jsonl` files committed by `appendCompanyActivity`.
- * Lists the dir, reads the newest few day-files, parses + merges newest-first.
- * Each file is ETag/304-cached (rate-limit rule #2). Returns [] when the dir
- * doesn't exist yet (no engine ticks recorded).
+ * Read the engine-authored Company Activity log from the Convex backend
+ * (dailyLogs, stream "activity" — one row per former `activity/<date>.jsonl`
+ * line). Newest-first, in-process cached (same TTL bucket as the old
+ * ETag-cached GitHub reads) with a stale fallback on backend errors.
+ * Returns [] when nothing is recorded yet; on Convex the read is a single
+ * newest-first query.
  */
-const ACTIVITY_DIR = "activity";
-const ACTIVITY_DAY_FILES = 3;
-
 export async function fetchCompanyActivity(
   limit = 100,
-  dayFiles = ACTIVITY_DAY_FILES,
 ): Promise<CompanyActivityRecord[]> {
-  const octokit = getOctokit();
   const owner = getOwner();
   const repo = getRepo();
 
-  // List the activity dir (ETag-cached). 404 = nothing recorded yet.
-  const listKey = `activity-dir:${owner}:${repo}`;
-  const listStale = getStale<string[]>(listKey);
-  let files: string[] = listStale?.data ?? [];
+  const key = `activity-recent:${owner}:${repo}:${limit}`;
+  const stale = getStale<CompanyActivityRecord[]>(key);
+  const fresh = getCached<CompanyActivityRecord[]>(key);
+  if (fresh) return fresh;
+
   try {
-    const { entries, etag } = await listStateDirectory(
-      octokit,
-      owner,
-      repo,
-      ACTIVITY_DIR,
-      {
-        headers: listStale?.etag
-          ? { "If-None-Match": listStale.etag }
-          : undefined,
-      },
-    );
-    files = entries
-      .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
-      .map((e) => e.name);
-    setCache(listKey, CACHE_TTL.tasks, files, { etag });
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && listStale) {
-      setCache(listKey, CACHE_TTL.tasks, listStale.data, {
-        etag: listStale.etag,
-      });
-      files = listStale.data;
-    } else if (status === 404) {
-      return [];
-    } else if (!listStale) {
-      return [];
+    const rows = (await getConvexClient().query(backendApi.dailyLogs.recent, {
+      tenantId: tenantIdFor(owner, repo),
+      stream: "activity",
+      limit,
+    })) as Array<{ entry: unknown }>;
+    const records = rows
+      .map((row) => coerceActivityRecord(row.entry))
+      .filter((rec): rec is CompanyActivityRecord => rec !== null);
+    const sorted = sortActivityNewestFirst(records).slice(0, limit);
+    setCache(key, CACHE_TTL.tasks, sorted);
+    return sorted;
+  } catch {
+    if (stale) {
+      setCache(key, CACHE_TTL.tasks, stale.data);
+      return stale.data;
     }
+    return [];
   }
+}
 
-  // Newest day-files first (filenames are YYYY-MM-DD.jsonl → lexicographic).
-  const recent = [...files].sort().reverse().slice(0, dayFiles);
-
-  const perFile = await Promise.all(
-    recent.map(async (name) => {
-      const path = `${ACTIVITY_DIR}/${name}`;
-      const key = `activity-file:${owner}:${repo}:${name}`;
-      const stale = getStale<CompanyActivityRecord[]>(key);
-      try {
-        const file = await readStateText(octokit, owner, repo, path, {
-          headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-        });
-        if (file) {
-          const recs = parseActivityJsonl(file.content);
-          setCache(key, CACHE_TTL.tasks, recs, { etag: file.etag });
-          return recs;
-        }
-      } catch (error: unknown) {
-        const status = (error as { status?: number })?.status;
-        if (status === 304 && stale) {
-          setCache(key, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
-          return stale.data;
-        }
-        if (stale) return stale.data;
-      }
-      return [];
-    }),
-  );
-
-  return sortActivityNewestFirst(perFile.flat()).slice(0, limit);
+/** One dailyLogs `entry` → CompanyActivityRecord (reuses the JSONL coercion). */
+function coerceActivityRecord(entry: unknown): CompanyActivityRecord | null {
+  try {
+    const parsed = parseActivityJsonl(JSON.stringify(entry));
+    return parsed[0] ?? null;
+  } catch {
+    return null;
+  }
 }

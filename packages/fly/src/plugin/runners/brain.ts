@@ -65,6 +65,8 @@ const PERF_GUEST: Record<
 };
 
 const DEFAULT_PERF_TIER: PerfTier = "medium";
+const CODEX_AUTH_VOLUME_NAME = "codex_auth";
+const CODEX_AUTH_VOLUME_GUEST_PATH = "/root/.codex";
 const BOOT_CONFIG_HASH_ENV = "KODY_BRAIN_BOOT_CONFIG_HASH";
 const RESTART_SENSITIVE_ENV_KEYS = [
   "MODEL",
@@ -441,6 +443,7 @@ interface BrainMachineServiceConfig {
 interface BrainMachineConfig {
   image?: string;
   env?: Record<string, string>;
+  mounts?: Array<Record<string, unknown>>;
   services?: BrainMachineServiceConfig[];
   [key: string]: unknown;
 }
@@ -452,6 +455,12 @@ interface FlyMachine {
   region?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+interface FlyVolume {
+  id: string;
+  name?: string;
+  region?: string;
 }
 
 /**
@@ -491,11 +500,28 @@ async function ensureApp(
   // locally so callers (and IP allocation) can use it. If Fly rejects
   // (409/422 = name taken, 403 = no write scope, etc.), the error
   // surfaces verbatim for the user to act on.
-  const created = await flyFetch<FlyApp>("/apps", {
-    method: "POST",
-    token: flyToken,
-    body: { app_name: appName, org_slug: orgSlug },
-  });
+  let created: FlyApp | null;
+  try {
+    created = await flyFetch<FlyApp>("/apps", {
+      method: "POST",
+      token: flyToken,
+      body: { app_name: appName, org_slug: orgSlug },
+    });
+  } catch (err) {
+    // The initial lookup can miss an app when its record is stale or Fly
+    // briefly returns an inconsistent result. If creation says the name is
+    // already taken, fetch it once more and reuse it when this token owns it.
+    const status = (err as { status?: number }).status;
+    if (status !== 409 && status !== 422) throw err;
+    const existing = await flyFetch<FlyApp>(
+      `/apps/${encodeURIComponent(appName)}`,
+      { token: flyToken, allow404: true },
+    );
+    if (!existing) throw err;
+    const name = existing.name ?? appName;
+    await allocateIpsIfMissing(flyToken, name);
+    return { ...existing, name };
+  }
   if (!created) {
     throw new Error("brain-fly: create app returned empty");
   }
@@ -766,8 +792,81 @@ async function destroyMachine(
   );
 }
 
+async function releaseCodexVolumeBeforeReplacement(
+  flyToken: string,
+  appName: string,
+  machine: FlyMachine,
+  codexVolumeId: string,
+): Promise<void> {
+  if (!hasCodexAuthVolume(machine.config, codexVolumeId)) return;
+  // Fly volumes are single-attach. The replacement machine cannot be
+  // created while the old machine still owns the persistent Codex volume.
+  await destroyMachine(flyToken, appName, machine.id);
+}
+
+/**
+ * Create a replacement machine, retrying transient failures. Needed because
+ * the old machine (destroyed just before this call to free the single-attach
+ * Codex volume) releases the volume asynchronously — the first create can
+ * race the detach and fail with "volume already attached". Retrying also
+ * shrinks the zero-machine window a create failure would otherwise leave.
+ */
+async function createReplacementMachine(
+  flyToken: string,
+  appName: string,
+  input: ProvisionBrainInput,
+  apiKey: string,
+  codexVolumeId: string,
+): Promise<FlyMachine> {
+  let lastError: unknown;
+  for (
+    let attempt = 0;
+    attempt <= MACHINE_RECONCILE_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    try {
+      return await createMachine(
+        flyToken,
+        appName,
+        input,
+        apiKey,
+        codexVolumeId,
+        {
+          replacement: true,
+        },
+      );
+    } catch (error) {
+      lastError = error;
+      logger.warn(
+        { app: appName, attempt, error },
+        "brain-fly: replacement machine create failed, retrying",
+      );
+      const delay = MACHINE_RECONCILE_DELAYS_MS[attempt] ?? 0;
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
 function brainAutostop(input: { suspendOnIdle?: boolean }): BrainAutostop {
   return input.suspendOnIdle === false ? false : "suspend";
+}
+
+/**
+ * Infrastructure operations that replace a Brain machine must preserve its
+ * current suspension policy unless the caller explicitly changes it. New
+ * machines still use the default auto-suspend policy.
+ */
+function preserveBrainSuspensionPolicy(
+  input: ProvisionBrainInput,
+  existing: FlyMachine | null,
+): ProvisionBrainInput {
+  if (input.suspendOnIdle !== undefined) return input;
+  const service = existing?.config?.services?.find(
+    (candidate) => candidate.autostop !== undefined,
+  );
+  if (!service) return input;
+  return { ...input, suspendOnIdle: service.autostop !== false };
 }
 
 function isBrainMachineRunning(machine: FlyMachine): boolean {
@@ -903,6 +1002,7 @@ function restartSensitiveEnvChanges(
 function alignBrainMachineConfig(
   config: BrainMachineConfig | undefined,
   input: ProvisionBrainInput,
+  codexVolumeId: string,
 ): { changed: boolean; config?: BrainMachineConfig } {
   let next = config;
   let changed = false;
@@ -916,6 +1016,23 @@ function alignBrainMachineConfig(
   const env = alignBrainEnvConfig(next, input);
   if (env.changed && env.config) {
     next = env.config;
+    changed = true;
+  }
+
+  if (!hasCodexAuthVolume(next, codexVolumeId)) {
+    next = {
+      ...(next ?? {}),
+      mounts: [
+        ...(next?.mounts ?? []).filter(
+          (mount) => mount.path !== CODEX_AUTH_VOLUME_GUEST_PATH,
+        ),
+        {
+          volume: codexVolumeId,
+          name: "codex",
+          path: CODEX_AUTH_VOLUME_GUEST_PATH,
+        },
+      ],
+    };
     changed = true;
   }
 
@@ -936,6 +1053,91 @@ async function updateMachineConfig(
   );
 }
 
+async function ensureCodexAuthVolume(
+  flyToken: string,
+  appName: string,
+  region: string,
+): Promise<FlyVolume> {
+  const path = `/apps/${encodeURIComponent(appName)}/volumes`;
+  const listed = await flyFetch<unknown>(path, { token: flyToken });
+  const volumes = Array.isArray(listed)
+    ? listed
+    : listed && typeof listed === "object" && "volumes" in listed
+      ? (listed as { volumes?: unknown }).volumes
+      : [];
+  const existing = Array.isArray(volumes)
+    ? volumes.find((volume): volume is FlyVolume =>
+        Boolean(
+          volume &&
+          typeof volume === "object" &&
+          typeof (volume as { id?: unknown }).id === "string" &&
+          (volume as { name?: unknown }).name === CODEX_AUTH_VOLUME_NAME,
+        ),
+      )
+    : undefined;
+  if (existing) return existing;
+
+  const created = await flyFetch<FlyVolume>(path, {
+    method: "POST",
+    token: flyToken,
+    body: {
+      name: CODEX_AUTH_VOLUME_NAME,
+      region,
+      size_gb: 1,
+      encrypted: true,
+    },
+  });
+  if (!created?.id) {
+    throw new BrainFlyProvisionTransientError(
+      `brain-fly: Fly returned no id for ${CODEX_AUTH_VOLUME_NAME} volume`,
+    );
+  }
+  return created;
+}
+
+function hasCodexAuthVolume(
+  config: BrainMachineConfig | undefined,
+  volumeId: string,
+): boolean {
+  return Boolean(
+    config?.mounts?.some(
+      (mount) =>
+        mount.volume === volumeId &&
+        mount.path === CODEX_AUTH_VOLUME_GUEST_PATH,
+    ),
+  );
+}
+
+async function deleteCodexAuthVolumes(
+  flyToken: string,
+  appName: string,
+): Promise<void> {
+  const path = `/apps/${encodeURIComponent(appName)}/volumes`;
+  const listed = await flyFetch<unknown>(path, {
+    token: flyToken,
+    allow404: true,
+  });
+  const volumes = Array.isArray(listed)
+    ? listed
+    : listed && typeof listed === "object" && "volumes" in listed
+      ? (listed as { volumes?: unknown }).volumes
+      : [];
+  if (!Array.isArray(volumes)) return;
+  for (const volume of volumes) {
+    if (
+      volume &&
+      typeof volume === "object" &&
+      (volume as { name?: unknown }).name === CODEX_AUTH_VOLUME_NAME &&
+      typeof (volume as { id?: unknown }).id === "string"
+    ) {
+      await flyFetch<unknown>(
+        `${path}/${encodeURIComponent((volume as { id: string }).id)}`,
+        { method: "DELETE", token: flyToken, allow404: true },
+      );
+    }
+  }
+}
+
 /**
  * Create a new persistent brain machine in the given app.
  *
@@ -949,6 +1151,7 @@ async function createMachine(
   appName: string,
   input: ProvisionBrainInput,
   apiKey: string,
+  codexVolumeId: string,
   opts: { replacement?: boolean } = {},
 ): Promise<FlyMachine> {
   const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER;
@@ -965,6 +1168,13 @@ async function createMachine(
     config: {
       image,
       env: buildMachineEnv(input, apiKey),
+      mounts: [
+        {
+          volume: codexVolumeId,
+          name: "codex",
+          path: CODEX_AUTH_VOLUME_GUEST_PATH,
+        },
+      ],
       auto_destroy: false,
       restart: { policy: "on-failure", max_retries: 3 },
       guest,
@@ -1036,12 +1246,17 @@ export async function provisionBrain(
   const flyApp = await ensureApp(input.flyToken, requested, orgSlug);
   const app = flyApp.name;
   const url = brainAppUrl(app);
+  const codexVolume = await ensureCodexAuthVolume(
+    input.flyToken,
+    app,
+    defaultRegion,
+  );
   const originalName = app !== requested ? requested : undefined;
   const requestedImage = brainImageRef(input);
   const image = input.resolveRuntimeImageRef
     ? await input.resolveRuntimeImageRef({ app, imageRef: requestedImage })
     : requestedImage;
-  const machineInput =
+  const requestedMachineInput =
     image === requestedImage ? input : { ...input, imageRef: image };
   const prepareRuntimeImage = () =>
     input.prepareRuntimeImage?.({
@@ -1053,6 +1268,10 @@ export async function provisionBrain(
   const existing = await findExistingMachine(input.flyToken, app, {
     imageRef: image,
   });
+  const machineInput = preserveBrainSuspensionPolicy(
+    requestedMachineInput,
+    existing,
+  );
   if (existing) {
     const existingImage = existing.config?.image ?? "";
     if (input.replaceExistingMachine === true) {
@@ -1069,12 +1288,18 @@ export async function provisionBrain(
         input.apiKeyOverride ||
         generateApiKey();
       await prepareRuntimeImage();
-      const created = await createMachine(
+      await releaseCodexVolumeBeforeReplacement(
+        input.flyToken,
+        app,
+        existing,
+        codexVolume.id,
+      );
+      const created = await createReplacementMachine(
         input.flyToken,
         app,
         machineInput,
         apiKey,
-        { replacement: true },
+        codexVolume.id,
       );
       const machine = await reconcileSingleActiveMachine(
         input.flyToken,
@@ -1114,12 +1339,18 @@ export async function provisionBrain(
         input.apiKeyOverride ||
         generateApiKey();
       await prepareRuntimeImage();
-      const created = await createMachine(
+      await releaseCodexVolumeBeforeReplacement(
+        input.flyToken,
+        app,
+        existing,
+        codexVolume.id,
+      );
+      const created = await createReplacementMachine(
         input.flyToken,
         app,
         machineInput,
         apiKey,
-        { replacement: true },
+        codexVolume.id,
       );
       const machine = await reconcileSingleActiveMachine(
         input.flyToken,
@@ -1157,12 +1388,18 @@ export async function provisionBrain(
         },
         "brain-fly: recreating machine — boot env changed",
       );
-      const created = await createMachine(
+      await releaseCodexVolumeBeforeReplacement(
+        input.flyToken,
+        app,
+        existing,
+        codexVolume.id,
+      );
+      const created = await createReplacementMachine(
         input.flyToken,
         app,
         machineInput,
         existingKey,
-        { replacement: true },
+        codexVolume.id,
       );
       const machine = await reconcileSingleActiveMachine(
         input.flyToken,
@@ -1182,6 +1419,7 @@ export async function provisionBrain(
     const alignedConfig = alignBrainMachineConfig(
       existing.config,
       machineInput,
+      codexVolume.id,
     );
     if (alignedConfig.changed && alignedConfig.config) {
       await updateMachineConfig(
@@ -1234,6 +1472,7 @@ export async function provisionBrain(
     app,
     machineInput,
     apiKey,
+    codexVolume.id,
   );
 
   logger.info(
@@ -1273,12 +1512,22 @@ export async function destroyBrain(input: DestroyBrainInput): Promise<void> {
 
   // Deleting the app removes all machines under it. Pass `force=true` to
   // skip the "drain in-flight requests" wait — brain machines don't carry
-  // critical state beyond the session JSONLs on the volume.
+  // critical state beyond the session JSONLs on the volume. The forced
+  // delete also cascades to volumes; Fly rejects a direct volume DELETE
+  // while a machine still mounts it, so the app delete must come first.
   await flyFetch<unknown>(`/apps/${encodeURIComponent(app)}?force=true`, {
     method: "DELETE",
     token: input.flyToken,
     allow404: true,
   });
+  try {
+    await deleteCodexAuthVolumes(input.flyToken, app);
+  } catch (error) {
+    logger.warn(
+      { app, error },
+      "brain-fly: best-effort Codex volume sweep failed after app delete",
+    );
+  }
   logger.info({ app }, "brain-fly: app destroyed");
 }
 

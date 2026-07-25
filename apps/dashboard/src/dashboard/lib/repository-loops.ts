@@ -1,0 +1,121 @@
+import type { Octokit } from "@octokit/rest";
+
+import {
+  createLoopDefinition,
+  type LoopDefinition,
+} from "@kody-ade/agency-domain";
+import {
+  readGitHubFileForWrite,
+  writeGitHubFileWithRetry,
+} from "@kody-ade/base/github-contents-write";
+
+const ROOT = ".kody-engine/definitions/loops";
+const ID = /^[a-z][a-z0-9-]{0,127}$/;
+
+function loopPath(id: string): string {
+  return `${ROOT}/${id}/loop.json`;
+}
+
+function decode(content: string | null): string {
+  return Buffer.from((content ?? "").replace(/\n/g, ""), "base64").toString(
+    "utf8",
+  );
+}
+
+export async function readRepositoryLoop(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  id: string,
+): Promise<LoopDefinition | null> {
+  if (!ID.test(id)) return null;
+  const file = await readGitHubFileForWrite(
+    octokit,
+    owner,
+    repo,
+    loopPath(id),
+  );
+  if (!file?.contentBase64) return null;
+  try {
+    const loop = createLoopDefinition(JSON.parse(decode(file.contentBase64)));
+    return loop.id === id ? loop : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function listRepositoryLoops(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<LoopDefinition[]> {
+  try {
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: ROOT,
+    });
+    if (!Array.isArray(response.data)) return [];
+    const ids = response.data
+      .filter((entry) => entry.type === "dir" && ID.test(entry.name))
+      .map((entry) => entry.name);
+    const loops = await Promise.all(
+      ids.map((id) => readRepositoryLoop(octokit, owner, repo, id)),
+    );
+    return loops.filter((loop): loop is LoopDefinition => loop !== null);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { status?: number }).status === 404
+    ) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function saveRepositoryLoop(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  value: unknown,
+  message: string,
+): Promise<{ loop: LoopDefinition; created: boolean }> {
+  const loop = createLoopDefinition(value);
+  const path = loopPath(loop.id);
+  const existing = await readGitHubFileForWrite(octokit, owner, repo, path);
+  await writeGitHubFileWithRetry(octokit, {
+    owner,
+    repo,
+    path,
+    message,
+    content: Buffer.from(
+      `${JSON.stringify(loop, null, 2)}\n`,
+      "utf8",
+    ).toString("base64"),
+    sha: existing?.sha,
+  });
+  return { loop, created: !existing };
+}
+
+export async function deleteRepositoryLoop(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  id: string,
+  message: string,
+): Promise<boolean> {
+  if (!ID.test(id)) return false;
+  const path = loopPath(id);
+  const existing = await readGitHubFileForWrite(octokit, owner, repo, path);
+  if (!existing?.sha) return false;
+  await octokit.repos.deleteFile({
+    owner,
+    repo,
+    path,
+    message,
+    sha: existing.sha,
+  });
+  return true;
+}

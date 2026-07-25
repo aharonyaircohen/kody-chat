@@ -1,9 +1,15 @@
 import "server-only";
 
-import "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 
 /**
- * Remote Store adapters are materialized into /tmp and imported from there.
- * Keep their package dependencies visible to per-route serverless tracing.
+ * Remote Store adapters are materialized into /tmp, where serverless bundles
+ * cannot resolve host packages. Inject the supported runtime dependencies into
+ * the adapter factory instead of making downloaded code import them by path.
  */
-export const CMS_RUNTIME_DEPS_ANCHORED = true;
+export function getStoreAdapterRuntime(
+  adapterName: string,
+): Record<string, unknown> {
+  if (adapterName !== "mongodb") return {};
+  return { MongoClient, ObjectId };
+}

@@ -75,10 +75,44 @@ function chatInput(page: Page) {
 }
 
 function sseBody(events: unknown[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  // A healthy AI SDK UI stream ends with `finish` + `[DONE]`; the transport
+  // treats an EOF without them as a dropped connection (kody-direct.ts).
+  const withTerminal = [...events, { type: "finish" }];
+  return (
+    withTerminal.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") +
+    "data: [DONE]\n\n"
+  );
 }
 
 async function mockShellApis(page: Page): Promise<void> {
+  await page.route("**/api/kody/chat/conversations**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isCollection = pathname.endsWith("/conversations");
+    if (request.method() === "GET" && isCollection) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ conversations: [] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: request.method() === "POST" && isCollection ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        request.method() === "GET"
+          ? {
+              conversation: null,
+              entries: [],
+              checkpoints: [],
+              runtimeBindings: [],
+              attachments: [],
+            }
+          : { ok: true },
+      ),
+    });
+  });
   await page.route("**/api/kody/tasks*", (route) =>
     route.fulfill({
       status: 200,
@@ -717,7 +751,51 @@ test.describe("Kody chat renderer output", () => {
     await page.getByRole("button", { name: /thought/i }).click();
     await expect(page.getByText("Looking now.")).toBeVisible();
     await expect(
-      page.getByText(/invoke|github_list_tree|minimax|<path>/i),
+      chatRail(page).getByText(/invoke|github_list_tree|minimax|<path>/i),
     ).toHaveCount(0);
+  });
+
+  test("direct Kody shows copied reasoning only in the collapsed section", async ({
+    page,
+  }) => {
+    const reasoning = [
+      "The user is asking why the response is long.",
+      "I need to inspect the direct chat stream.",
+    ].join("\n\n");
+    const copiedWithCollapsedWhitespace = reasoning.replace(/\s+/g, " ");
+
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "reasoning-delta", delta: reasoning },
+          {
+            type: "text-delta",
+            delta: `${copiedWithCollapsedWhitespace}\n\nFinal answer: The stream duplicated the thinking.`,
+          },
+        ]),
+      });
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "why is the answer duplicated?");
+
+    await expect(
+      page.getByText("The stream duplicated the thinking."),
+    ).toBeVisible();
+    await expect(page.getByText(copiedWithCollapsedWhitespace)).toHaveCount(0);
+
+    await page.getByRole("button", { name: /thought/i }).click();
+    await expect(
+      page.getByText("The user is asking why the response is long."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("I need to inspect the direct chat stream."),
+    ).toBeVisible();
   });
 });

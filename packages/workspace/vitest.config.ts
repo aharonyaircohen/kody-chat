@@ -5,6 +5,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
+    env: { CONVEX_URL: "", KODY_SERVICE_KEY: "" },
     include: ["tests/**/*.spec.ts"],
     exclude: ["node_modules/**"],
   },

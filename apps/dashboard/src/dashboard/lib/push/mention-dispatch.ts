@@ -135,7 +135,7 @@ async function loadMutedTypes(
   try {
     await Promise.all(
       candidates.map(async (login) => {
-        const prefs = await readNotificationPrefs(login, ctx.token);
+        const prefs = await readNotificationPrefs(login);
         if (prefs.mutedTypes.length > 0) muted.set(login, prefs.mutedTypes);
       }),
     );

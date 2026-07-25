@@ -19,7 +19,7 @@ const ISSUE_ATTACHMENT_BUTTON_PATH = resolve(
 );
 const TASK_DETAIL_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/TaskDetail.tsx",
+  "../../src/dashboard/features/tasks/components/TaskDetail.tsx",
 );
 const GITHUB_CLIENT_PATH = resolve(
   __dirname,

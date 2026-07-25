@@ -47,11 +47,8 @@ export async function GET(req: NextRequest) {
       activeAgents: config.company?.activeAgents ?? [],
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
-      activeGoals: config.company?.activeGoals ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
-      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
@@ -74,44 +71,6 @@ const slugSchema = z
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
-const activeGoalSchema = z.union([
-  slugSchema,
-  z.object({
-    template: slugSchema,
-    every: z
-      .string()
-      .regex(/^[1-9][0-9]*[mhdw]$/)
-      .optional(),
-    idPrefix: slugSchema.optional(),
-    facts: z.record(z.string(), z.unknown()).optional(),
-  }),
-]);
-
-const stateRepoSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(255)
-  .regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/i);
-const statePathSchema = z
-  .string()
-  .trim()
-  .max(255)
-  .transform((value) => value.replace(/^\/+|\/+$/g, ""))
-  .refine(
-    (value) =>
-      !value.includes("\\") &&
-      (value.length === 0 ||
-        value
-          .split("/")
-          .every((segment) => segment && segment !== "." && segment !== "..")),
-    { message: "must be a relative path without parent segments" },
-  );
-const stateSchema = z.object({
-  repo: stateRepoSchema,
-  path: statePathSchema,
-});
-
 const PatchSchema = z
   .object({
     quality: z
@@ -135,16 +94,8 @@ const PatchSchema = z
     activeAgents: z.array(slugSchema).max(200).nullable().optional(),
     activeCapabilities: z.array(slugSchema).max(200).nullable().optional(),
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
-    activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     activeWorkflows: z.array(slugSchema).max(200).nullable().optional(),
-    state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
-    // Implementation slug -> `provider/model` override. Bounded so a paste can't
-    // bloat the config blob.
-    perImplementation: z
-      .record(z.string().max(64), z.string().max(128))
-      .nullable()
-      .optional(),
     // Thinking level for the engine. Server-side validation enforces
     // the canonical vocabulary (off|low|medium|high); unknown values
     // get a 400 instead of silently landing in kody.config.json.
@@ -163,11 +114,8 @@ const PatchSchema = z
       b.activeAgents !== undefined ||
       b.activeCapabilities !== undefined ||
       b.activeCommands !== undefined ||
-      b.activeGoals !== undefined ||
       b.activeWorkflows !== undefined ||
-      b.state !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perImplementation !== undefined ||
       b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
@@ -211,11 +159,8 @@ export async function PATCH(req: NextRequest) {
     activeCommands,
     activeAgents,
     activeCapabilities,
-    activeGoals,
     activeWorkflows,
-    state,
     defaultBranch,
-    perImplementation,
     reasoningEffort,
   } = parsed.data;
 
@@ -237,11 +182,8 @@ export async function PATCH(req: NextRequest) {
         activeAgents,
         activeCapabilities,
         activeCommands,
-        activeGoals,
         activeWorkflows,
-        state,
         defaultBranch,
-        perImplementation,
         reasoningEffort,
       },
       `chore(kody): update config (${actorLogin})`,
@@ -257,11 +199,8 @@ export async function PATCH(req: NextRequest) {
       activeAgents: config.company?.activeAgents ?? [],
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
-      activeGoals: config.company?.activeGoals ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
-      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
-      perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {

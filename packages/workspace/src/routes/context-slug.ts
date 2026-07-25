@@ -4,7 +4,7 @@
  * @pattern context-api
  * @ai-summary Context entry detail API — GET reads a single entry, PATCH
  *   updates its body/agents, DELETE removes it. Backed by
- *   `context/<slug>.md` in the state repo. No built-ins, so a
+ *   `context/<slug>.md` in the Convex. No built-ins, so a
  *   missing file is a plain 404.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -16,10 +16,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   readContextFile,
   writeContextFile,
@@ -118,11 +115,9 @@ export async function PATCH(
     // `agent` are independent — changing the agent list alone leaves the
     // text intact.
     const entry = await writeContextFile({
-      octokit: userOctokit,
       slug,
       body: body ?? existing.body,
       agent: agent ?? existing.agent,
-      sha: existing.sha,
     });
     return NextResponse.json({ entry });
   } catch (error: any) {
@@ -189,7 +184,7 @@ export async function DELETE(
       );
     }
 
-    await deleteContextFile(userOctokit, slug);
+    await deleteContextFile(slug);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[Context] Error deleting context entry:", error);

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern system-prompt-api
- * @ai-summary Per-repo base system prompt override at state-repo
+ * @ai-summary Per-repo base system prompt override at backend
  *   `system-prompt.md`. GET reads it, PUT upserts it, DELETE removes it.
  *   When present, the engine chat (kody-live) uses this INSTEAD of its
  *   built-in base prompt; absent → built-in. Mirrors the instructions API.
@@ -102,16 +102,11 @@ export async function PUT(req: NextRequest) {
     }
 
     if (body.trim().length === 0) {
-      await deleteSystemPromptFile(userOctokit);
+      await deleteSystemPromptFile();
       return NextResponse.json({ systemPrompt: null });
     }
 
-    const existing = await readSystemPromptFile();
-    const systemPrompt = await writeSystemPromptFile({
-      octokit: userOctokit,
-      body,
-      sha: sha ?? existing?.sha,
-    });
+    const systemPrompt = await writeSystemPromptFile({ body });
     return NextResponse.json({ systemPrompt });
   } catch (error: any) {
     console.error("[SystemPrompt] write failed:", error);
@@ -159,7 +154,7 @@ export async function DELETE(req: NextRequest) {
     if (!userOctokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
-    await deleteSystemPromptFile(userOctokit);
+    await deleteSystemPromptFile();
     return NextResponse.json({ systemPrompt: null });
   } catch (error: any) {
     console.error("[SystemPrompt] delete failed:", error);

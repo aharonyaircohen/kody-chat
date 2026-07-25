@@ -69,7 +69,6 @@ beforeEach(() => {
       github: { owner: "acme", repo: "widgets" },
       company: {
         activeCapabilities: ["fix-ci"],
-        activeGoals: ["web-release"],
         activeWorkflows: ["release-readiness"],
       },
     },
@@ -83,7 +82,6 @@ describe("PATCH /api/kody/company/config store activation", () => {
       patchReq({
         activeAgents: ["cto"],
         activeCapabilities: ["fix-ci", "review"],
-        activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
         activeWorkflows: ["release-readiness"],
         actorLogin: "alice",
       }),
@@ -97,10 +95,7 @@ describe("PATCH /api/kody/company/config store activation", () => {
     const patch = calls[0]![3];
     expect(patch.activeAgents).toEqual(["cto"]);
     expect(patch.activeCapabilities).toEqual(["fix-ci", "review"]);
-    expect(patch.activeGoals).toEqual([
-      "web-release",
-      { template: "weekly-check", every: "1w" },
-    ]);
+    expect(patch).not.toHaveProperty("activeGoals");
     expect(patch.activeWorkflows).toEqual(["release-readiness"]);
   });
 

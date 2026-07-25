@@ -19,9 +19,7 @@ import {
   fetchWorkflowRuns,
   fetchOpenPRs,
   fetchDeploymentPreviews,
-  findBranchesByIssueNumbers,
   getStatusFromBranch,
-  findStatusOnBranch,
   createIssue,
   uploadIssueAttachment,
   postComment,
@@ -34,7 +32,7 @@ import {
 import { resolvePreviewConfigForOctokit } from "@kody-ade/fly/previews/config";
 import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
 import { mintPreviewTicket } from "@kody-ade/fly/preview-token";
-import type { KodyTaskState } from "@kody-ade/base/kody-state";
+import type { KodyTaskState } from "@kody-ade/base/task-comment-state";
 import type {
   KodyTask,
   ColumnId,
@@ -119,9 +117,7 @@ function isBacklogTask(task: KodyTask): boolean {
 
 function isRunningTask(task: KodyTask): boolean {
   return (
-    task.state === "open" &&
-    task.column !== "open" &&
-    task.column !== "done"
+    task.state === "open" && task.column !== "open" && task.column !== "done"
   );
 }
 
@@ -401,8 +397,6 @@ export async function GET(req: NextRequest) {
     }
 
     // Batch fetch branches for all active issues (5 GitHub API calls max, not 5*N)
-    const branchByIssueNumber =
-      await findBranchesByIssueNumbers(activeIssueNumbers);
 
     // Batch fetch canonical kody state only for live work.
     //
@@ -477,21 +471,8 @@ export async function GET(req: NextRequest) {
             labelNames.includes("risk-gated"));
 
         if (isLikelyActive && issue.number) {
-          const branch = branchByIssueNumber.get(issue.number);
-          if (branch) {
-            // First try with known taskId from title brackets (fast, exact path)
-            let status: Awaited<ReturnType<typeof getStatusFromBranch>> = null;
-            if (taskId) {
-              status = await getStatusFromBranch(taskId, branch);
-            }
-            // Fallback: discover task ID by scanning .tasks/ directory on the branch.
-            // Pipeline generates random task IDs (e.g., 260306-auto-330) that don't
-            // match the issue number, so we need to discover the actual directory.
-            if (!status) {
-              status = await findStatusOnBranch(branch, issue.number);
-            }
-            if (status) pipelineStatus = status;
-          }
+          const status = await getStatusFromBranch(String(issue.number), "");
+          if (status) pipelineStatus = status;
         }
 
         // Column derivation lives in @dashboard/lib/tasks/derive-column.

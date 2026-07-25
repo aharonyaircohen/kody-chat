@@ -12,7 +12,7 @@ import {
   parseSlashTrigger,
   expandSlashCommand,
   type SlashCommand,
-} from "@kody-ade/kody-chat/plugins/commands";
+} from "@kody-ade/kody-chat-dashboard/plugins/commands";
 import {
   substitute,
   tokenizeArguments,
@@ -129,6 +129,17 @@ describe("builtin commands", () => {
     expect(terminal).toBeDefined();
     expect(terminal?.argumentHint).toBe("<terminal task>");
     expect(terminal?.description).toContain("terminal");
+  });
+
+  it("includes a meeting-summary command that publishes a report", () => {
+    const meeting = BUILTIN_COMMANDS.find((c) => c.slug === "meeting-summary");
+
+    expect(meeting).toBeDefined();
+    expect(meeting?.body).toContain("$ARGUMENTS");
+    expect(meeting?.body).toContain("publish_report");
+    expect(meeting?.body).toContain("cms_list_documents");
+    expect(meeting?.body).toContain("meeting-notes");
+    expect(meeting?.body).toContain("Action items");
   });
 
   it("includes a read-only briefing command", () => {

@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/base/thread-link. */
-export * from "@kody-ade/base/thread-link";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/thread-link";

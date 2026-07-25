@@ -2,11 +2,9 @@
  * @fileType utility
  * @domain kody
  * @pattern push-subscriptions-manifest
- * @ai-summary Shared types + parse/serialize for the per-repo push-subscription
- *   manifest. Stored in a single GitHub issue labelled `kody:push-subscriptions`,
- *   same JSON-in-comment-markers pattern as `notifications.ts`. One row per
- *   browser/device — keyed by the endpoint URL (unique per browser+device per
- *   spec). The web-push channel adapter loads this and fans out.
+ * @ai-summary Shared types and validation for the repo-scoped push-subscription
+ *   manifest stored in Convex. One row per browser/device, keyed by endpoint.
+ *   The legacy issue-body parser is retained only for migration compatibility.
  *
  *   We deliberately don't classify subscriptions as "secrets" — the endpoint
  *   + p256dh/auth keys are the per-device handle GitHub Push uses; they're not
@@ -61,6 +59,48 @@ export const EMPTY_PUSH_MANIFEST: PushSubscriptionsManifest = {
   subscriptions: [],
 };
 
+export function parsePushManifest(value: unknown): PushSubscriptionsManifest {
+  if (!value || typeof value !== "object") {
+    return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
+  }
+  const parsed = value as Partial<PushSubscriptionsManifest>;
+  if (!Array.isArray(parsed.subscriptions)) {
+    return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
+  }
+  const subscriptions: PushSubscriptionRecord[] = [];
+  for (const subscription of parsed.subscriptions) {
+    if (!isSubscriptionRecord(subscription)) continue;
+    subscriptions.push({
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+      label:
+        typeof subscription.label === "string" ? subscription.label : undefined,
+      userLogin:
+        typeof subscription.userLogin === "string"
+          ? subscription.userLogin
+          : undefined,
+      createdAt:
+        typeof subscription.createdAt === "string"
+          ? subscription.createdAt
+          : new Date().toISOString(),
+      lastSeenAt:
+        typeof subscription.lastSeenAt === "string"
+          ? subscription.lastSeenAt
+          : undefined,
+      channelNotify:
+        subscription.channelNotify === "all" ||
+        subscription.channelNotify === "mentions" ||
+        subscription.channelNotify === "off"
+          ? subscription.channelNotify
+          : undefined,
+    });
+  }
+  return { version: 1, subscriptions };
+}
+
 function isSubscriptionRecord(v: unknown): v is PushSubscriptionRecord {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
@@ -92,36 +132,7 @@ export function parsePushManifestBody(
   if (!json) return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
 
   try {
-    const parsed = JSON.parse(json) as Partial<PushSubscriptionsManifest>;
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      !Array.isArray(parsed.subscriptions)
-    ) {
-      return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
-    }
-    const subs: PushSubscriptionRecord[] = [];
-    for (const s of parsed.subscriptions) {
-      if (!isSubscriptionRecord(s)) continue;
-      subs.push({
-        endpoint: s.endpoint,
-        keys: { p256dh: s.keys.p256dh, auth: s.keys.auth },
-        label: typeof s.label === "string" ? s.label : undefined,
-        userLogin: typeof s.userLogin === "string" ? s.userLogin : undefined,
-        createdAt:
-          typeof s.createdAt === "string"
-            ? s.createdAt
-            : new Date().toISOString(),
-        lastSeenAt: typeof s.lastSeenAt === "string" ? s.lastSeenAt : undefined,
-        channelNotify:
-          s.channelNotify === "all" ||
-          s.channelNotify === "mentions" ||
-          s.channelNotify === "off"
-            ? s.channelNotify
-            : undefined,
-      });
-    }
-    return { version: 1, subscriptions: subs };
+    return parsePushManifest(JSON.parse(json));
   } catch {
     return { ...EMPTY_PUSH_MANIFEST, subscriptions: [] };
   }

@@ -23,8 +23,8 @@ import {
 describe("chat-defaults bundle", () => {
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    const capabilityPath = ".kody/capabilities/kody-chat/profile.json";
-    const analyzerPath = ".kody/capabilities/kody-analyzer/profile.json";
+    const capabilityPath = "legacy/capabilities/kody-chat/profile.json";
+    const analyzerPath = "legacy/capabilities/kody-analyzer/profile.json";
 
     expect(bundle.capability.slug).toBe("kody-chat");
     if (existsSync(capabilityPath) && existsSync(analyzerPath)) {
@@ -64,7 +64,8 @@ describe("chat-defaults bundle", () => {
       "Your prose must match the tool result",
       "injected context block",
       "one direct proceed-style question",
-      "Create issues, do not start implementation",
+      "When no `## Current task` is present",
+      "Execute selected issues without another approval",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -107,7 +108,6 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/kody-tools.ts",
       "app/api/kody/chat/tools/task-tools.ts",
       "app/api/kody/chat/tools/bug-tools.ts",
-      "app/api/kody/chat/tools/goal-tools.ts",
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
@@ -115,9 +115,9 @@ describe("chat-defaults bundle", () => {
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/instructions-tools.ts",
-      "app/api/kody/chat/tools/variables-tools.ts",
-      "app/api/kody/chat/tools/secrets-tools.ts",
-      "app/api/kody/chat/tools/models-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/variables-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/secrets-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/models-tools.ts",
       "app/api/kody/chat/tools/reports-tools.ts",
       "app/api/kody/chat/tools/notifications-tools.ts",
       "app/api/kody/chat/tools/company-tools.ts",
@@ -130,7 +130,8 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/remote-tools.ts",
       "app/api/kody/chat/tools/feature-tools.ts",
       "app/api/kody/chat/tools/ui-tools.ts",
-      "app/api/kody/chat/tools/fetch-url.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/guided-flow-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/fetch-url.ts",
     ];
     // Two registries: tools declared inline as `tool({` in a file
     // (the common shape), and tools grouped in a map like
@@ -193,20 +194,20 @@ describe("chat-defaults bundle", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
   });
 
-  it("documents show_view as purpose-based renderer matching", () => {
+  it("documents show_view as spec-based rendering with strict validation", () => {
     const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
-    expect(uiTools).toContain("user-managed view purpose");
-    expect(uiTools).toContain("views/renderers/*.json");
-    expect(uiTools).toContain("purpose matches the request");
+    expect(uiTools).toContain("Render an interactive UI card");
     expect(uiTools).toContain("do not print JSON");
-    expect(uiTools).toContain("array of labels or records");
-    expect(uiTools).toContain("renderer defines defaults");
-    expect(uiTools).toContain("Only put data into the view");
+    expect(uiTools).toContain("buildShowViewGuidance");
+    expect(uiTools).toContain("validateChatViewSpec");
+    expect(uiTools).toContain("fix the spec it describes and call again");
+    expect(uiTools).toContain("Put only data that belongs");
     expect(uiTools).toContain(
-      "Do not silently copy preview, page, repo, task, memory, or research context into view fields",
+      "do not copy preview, page, repo, task, memory, or research context",
     );
-    expect(uiTools).not.toContain("rendererSlug");
-    expect(uiTools).not.toContain("preset");
+    // Guardrails against reintroducing the heuristic matcher.
+    expect(uiTools).not.toContain("resolveBestViewRendererDefinition");
+    expect(uiTools).not.toContain("purpose matches the request");
   });
 
   it("exposes 4 workflows — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
@@ -227,7 +228,7 @@ describe("chat-defaults bundle", () => {
 
     expect(analyzer!.body).toContain("diagnose-pr");
     expect(analyzer!.body).toContain("report-advise");
-    expect(analyzer!.body).toContain("goal-planner");
+    expect(analyzer!.body).toContain("todo-planner");
 
     expect(operator!.body).toContain("create-issue");
     expect(operator!.body).toContain("create-capability");
@@ -251,15 +252,16 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-capability, create-agent, vibe, memory", () => {
+  it("exposes 9 skills — including create-workflow", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
       "create-issue",
+      "create-workflow",
       "diagnose-pr",
-      "goal-planner",
       "memory",
       "report-advise",
+      "todo-planner",
       "vibe",
     ]);
   });
@@ -298,7 +300,7 @@ describe("chat-defaults bundle", () => {
 
   it("capability exposes todo-page management tools", () => {
     // Kody chat should manage the dashboard Todos page directly through
-    // state-repo todo files, not redirect todo requests into GitHub issues.
+    // backend todo files, not redirect todo requests into GitHub issues.
     const required = [
       "list_todo_lists",
       "read_todo_list",
@@ -341,7 +343,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
     // Goals / missions namespace block.
-    expect(prompt).toContain("## Goals and missions");
+    expect(prompt).toContain("## Todos");
     // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");
     expect(prompt).toContain("### kody-analyzer");
@@ -352,7 +354,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("## Skills");
     expect(prompt).toContain("### diagnose-pr");
     expect(prompt).toContain("### report-advise");
-    expect(prompt).toContain("### goal-planner");
+    expect(prompt).toContain("### todo-planner");
     expect(prompt).toContain("### create-issue");
     expect(prompt).toContain("### create-capability");
     expect(prompt).toContain("### create-agent");
@@ -368,7 +370,7 @@ describe("composeChatPrompt", () => {
     const bundle = await loadChatDefaults();
     const prompt = composeChatPrompt(bundle, { repo: null });
     expect(prompt).not.toContain("## Connected repository");
-    expect(prompt).not.toContain("## Goals and missions");
+    expect(prompt).not.toContain("## Todos");
   });
 
   it("appends the Current page block when currentPage is set", async () => {

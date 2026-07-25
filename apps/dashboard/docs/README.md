@@ -21,7 +21,7 @@ How the moving parts fit together.
   in-process, `brain`, engine via GitHub Actions) and how the selected
   agent's `backend` field picks one.
 - ✅ [Agents & Capabilities](concepts/staff-capabilities.md) — identity-only personas
-  (`.kody/agents/`) vs. capability contracts (`.kody/capabilities/`); how a capability names
+  (`backend definitions (agents)`) vs. capability contracts (`backend definitions (capabilities)`); how a capability names
   `agent:` and the engine injects the agent ahead of the capability body.
 
 ## Features
@@ -39,7 +39,7 @@ One doc per dashboard-managed store / capability.
 - ✅ [Run Mode](run-mode.md) — `Auto` vs `Manual` for loops, goals,
   workflows, and capabilities.
 - ✅ [Activity & audit](activity.md) — the Log / Auto / Runs / Feed timeline;
-  merges `recordAudit`, engine `.kody/activity` events, and GitHub artifacts.
+  merges `recordAudit`, engine `backend-managed resources/activity` events, and GitHub artifacts.
 - ✅ [Messages & mentions](messages-and-mentions.md) — `#`-channel team chat
   (GitHub Discussions) plus the `dispatchMentionPushes` spine that fans
   @mentions out to notifications and push.
@@ -57,10 +57,10 @@ One doc per dashboard-managed store / capability.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
   why the model lives on `/models` via `agent.model`.
-- ✅ [Secrets vault](secrets-vault.md) — per-repo encrypted `.kody/secrets.enc`.
-- ✅ [Variables](variables.md) — non-secret per-repo config (`.kody/variables.json`),
+- ✅ [Secrets vault](secrets-vault.md) — per-repo encrypted `backend vault record`.
+- ✅ [Variables](variables.md) — non-secret per-repo config (`backend variables record`),
   e.g. `QA_URL`, `LOGIN_USER`.
-- ✅ [Context](context.md) — `.kody/context/*.md`, curated context fed to Kody,
+- ✅ [Context](context.md) — `backend repo documents (context)*.md`, curated context fed to Kody,
   with a `agent:` audience relation. **Supersedes** the old Agency Profile.
 - 🗄️ [Agency profile](profile.md) — _historical._ The Profile feature was
   removed; see [Context](context.md) for the current model.
@@ -106,9 +106,9 @@ not behavior bugs — but two are real seams worth a look.
 ### Real seams
 
 - **Activity "Feed" tab reads the wrong source.** `activity/feed-source.ts`
-  reads `.kody/events/*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the
-  "Auto" tab reads AI Agency activity from the configured Kody state repo. If the
-  engine writes event files to state repo (or the repo default isn't
+  reads `backend run events*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the
+  "Auto" tab reads AI Agency activity from the configured Kody backend. If the
+  engine writes event files to backend (or the repo default isn't
   `main`), the Feed tab silently goes empty while Auto keeps working. See
   [activity.md](activity.md).
 - **Version-bump hook freezes silently.** `.husky/pre-commit` →
@@ -134,7 +134,7 @@ not behavior bugs — but two are real seams worth a look.
   record-a-test). See [vibe-and-voice.md](vibe-and-voice.md).
 - **`autonomous` route comment stale**: its header says it lists "PRs it
   opens/merges/closes" via `fetchRecentPRs`, but it actually calls
-  `fetchCompanyActivity()` over `.kody/activity/*.jsonl`. Behavior correct.
+  `fetchCompanyActivity()` over `backend agency runs*.jsonl`. Behavior correct.
 
 ### Reconciled earlier (no behavior bug)
 

@@ -5,7 +5,7 @@
  *
  * POST /api/kody/chat/trigger
  *
- * Persists the chat session file to the configured Kody state repo, then dispatches the
+ * Persists the chat session file to the configured Kody backend, then dispatches the
  * engine's `kody.yml` workflow with chat-mode inputs. The engine reads
  * `sessions/{sessionId}.jsonl`, runs `kody dispatch` → chat flow,
  * and streams events back to the dashboard via the ingest endpoint using
@@ -24,20 +24,19 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import { emitSystemEvent } from "@kody-ade/base/events";
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { ensureTriggerStateWriter } from "@kody-chat/user-state";
+import { ensureTriggerStateWriter } from "@kody-ade/kody-chat-dashboard/user-state";
 import { logger } from "@kody-ade/base/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat/platform/plugin-tools-config";
+import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat-dashboard/platform/plugin-tools-config";
 import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
+import { applyPageContextToLastUser } from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 export const runtime = "nodejs";
 
@@ -135,7 +134,6 @@ export async function POST(req: NextRequest) {
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
-  const sessionPath = `sessions/${taskId}.jsonl`;
 
   ensureTriggerStateWriter();
   const headerAuthForEvents = getRequestAuth(req);
@@ -155,19 +153,6 @@ export async function POST(req: NextRequest) {
     },
   );
 
-  // Serialize messages as JSONL
-  const jsonlContent =
-    messages
-      .map((m) =>
-        JSON.stringify({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-          toolCalls: m.toolCalls ?? [],
-        }),
-      )
-      .join("\n") + "\n";
-
   const octokit = await getUserOctokit(req);
   if (!octokit) {
     return NextResponse.json(
@@ -181,29 +166,6 @@ export async function POST(req: NextRequest) {
       { taskId, owner, repo, messageCount: messages.length },
       "chat: writing session file",
     );
-
-    let sha: string | undefined;
-    try {
-      sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status !== 404) {
-        logger.warn(
-          { err, taskId },
-          "chat: could not check existing session file",
-        );
-      }
-    }
-
-    await writeStateText({
-      octokit,
-      owner,
-      repo,
-      path: sessionPath,
-      message: `chat: update session ${taskId}`,
-      content: jsonlContent,
-      ...(sha ? { sha } : {}),
-    });
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 

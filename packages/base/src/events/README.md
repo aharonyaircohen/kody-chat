@@ -10,7 +10,7 @@ catalog names.
 - `emit.ts` — the single emit path (server-only, validates then fans out via `after()`)
 - `sink-registry.ts` — listener registration; a failing sink never breaks others
 - `sinks/` — `pino-sink` (debug log) and `log-sink` (day-sharded JSONL in the
-  brand state repo; only low-volume events are durably persisted)
+  brand backend; only low-volume events are durably persisted)
 - `client.ts` + `PageViewTracker.tsx` — browser tracker, batching to
   `POST /api/kody/system-events` (identity is resolved server-side)
 

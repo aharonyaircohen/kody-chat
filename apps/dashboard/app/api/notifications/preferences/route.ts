@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern notification-prefs-api
  * @ai-summary GET / POST per-user notification preferences.
- *   Persisted as `notifications/preferences/<login>.json` in the configured Kody state repo.
- *   configured Kody state repo. Authed via `x-kody-token` header (client localStorage
+ *   Persisted as `notifications/preferences/<login>.json` in the configured Kody backend.
+ *   configured Kody backend. Authed via `x-kody-token` header (client localStorage
  *   auth) or env token fallback.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
 
   setGitHubContext(auth.owner, auth.repo, token);
   try {
-    const prefs = await readNotificationPrefs(login, token);
+    const prefs = await readNotificationPrefs(login);
     return NextResponse.json({ login, mutedTypes: prefs.mutedTypes });
   } catch (err) {
     return NextResponse.json(
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       version: 1,
       mutedTypes: parsed.data.mutedTypes as ServerNotificationType[],
     };
-    await writeNotificationPrefs(login, token, prefs);
+    await writeNotificationPrefs(login, prefs);
     return NextResponse.json({ ok: true, login, mutedTypes: prefs.mutedTypes });
   } catch (err) {
     return NextResponse.json(

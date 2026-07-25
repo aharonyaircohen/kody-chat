@@ -35,6 +35,21 @@ async function seedAuth(page: Page): Promise<void> {
 
 test.describe("Route smoke", () => {
   test.beforeEach(async ({ page }) => {
+    await page.route("**/api/kody/chat/conversations**", (route) => {
+      const request = route.request();
+      const isCollection = new URL(request.url()).pathname.endsWith(
+        "/conversations",
+      );
+      return route.fulfill({
+        status: request.method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          request.method() === "GET" && isCollection
+            ? { conversations: [] }
+            : { ok: true },
+        ),
+      });
+    });
     await page.route("**/api/kody/models", (route) =>
       route.fulfill({
         status: 200,
@@ -79,7 +94,8 @@ test.describe("Route smoke", () => {
               locale: "en",
               welcomeText: "Welcome to Acme",
               source: "repo",
-              htmlUrl: "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
+              htmlUrl:
+                "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
             },
           ],
         }),
@@ -98,20 +114,24 @@ test.describe("Route smoke", () => {
     await expect(
       page.getByRole("searchbox", { name: "Search brands" }),
     ).toBeVisible();
-    await expect(page.getByText("/client/acme").first()).toBeVisible();
+    // Client surfaces are repo-scoped now: /client/<owner>/<repo>/<slug>.
     await expect(
-      page.getByRole("link", { name: "Open Acme client surface" }),
+      page.getByRole("link", {
+        name: "/client/test-owner/test-repo/acme",
+      }),
+    ).toHaveAttribute("href", "/client/test-owner/test-repo/acme");
+    await expect(
+      page.getByRole("link", { name: "Open Acme client surface" }).first(),
+    ).toHaveAttribute("href", "/client/test-owner/test-repo/acme");
+    await expect(
+      page.getByRole("link", { name: "Open Acme client surface" }).first(),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Delete Acme", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Delete", exact: true }),
     ).toBeVisible();
     await expect(page.getByText("Public surfaces")).toHaveCount(0);
     await expect(page.locator('[data-testid="chat-panel-brands"]')).toHaveCount(
       0,
     );
   });
-
 });

@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern attachments-api
- * @ai-summary Uploads a comment attachment by committing it to the configured
- *   state repo (`attachments/`) and returns markdown to embed in a comment body.
+ * @ai-summary Uploads a comment attachment to the tenant backend and returns
+ *   authenticated Dashboard markdown to embed in a comment body.
  *   Shared by every GitHub-backed composer (issues, PRs, goal discussions).
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -51,12 +51,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Commit under the user's identity when signed in, so the attachment
-    // commit is attributed to them (matches comment authorship).
     const userOctokit = await getUserOctokit(req);
     const result = await uploadCommentAttachment(
       parsed.data,
       userOctokit ?? undefined,
+      req.nextUrl.origin,
     );
 
     return NextResponse.json(result);

@@ -1,7 +1,7 @@
 # Agency Profile
 
 The Agency Profile was a set of free-form markdown files stored in the
-connected GitHub repo at `.kody/profile/<slug>.md`. You edit them from
+connected GitHub repo at `backend repo documents (profile)<slug>.md`. You edit them from
 the dashboard `/profile` page, and their concatenated bodies are
 injected into the in-process chat system prompt so Kody knows who your
 agency is and what it does — without you restating it every turn.
@@ -32,7 +32,7 @@ ship, who your customers are, your domain vocabulary, your tone.
 It is **not** the place for:
 
 - **Behavioral overrides** (how Kody should write/format/respond) —
-  those go in repo **instructions** (`.kody/instructions.md`), which are
+  those go in repo **instructions** (`backend instructions document`), which are
   appended LAST in the system prompt so they win on tone/length.
 - **Secrets** — use the [secrets vault](secrets-vault.md).
 - **Recurring work or personas** — use capabilities / agent.
@@ -49,7 +49,7 @@ Open `/profile` (Agency Profile in the dashboard).
 3. Write the **body** as plain markdown.
 4. **Create**.
 
-The dashboard commits `.kody/profile/<slug>.md` to the connected repo
+The dashboard commits `backend repo documents (profile)<slug>.md` to the connected repo
 (commit message `feat(profile): add <slug>`) and Kody picks it up on the
 next chat turn.
 
@@ -76,7 +76,7 @@ logged-in user); reads work with any dashboard auth.
                                                   │ GitHub Contents API
                                                   ▼
                                       ┌──────────────────────────────┐
-                                      │ .kody/profile/<slug>.md       │
+                                      │ backend repo documents (profile)<slug>.md       │
                                       │ (committed to connected repo) │
                                       └──────────────────────────────┘
 
@@ -90,7 +90,7 @@ logged-in user); reads work with any dashboard auth.
                                       └──────────────────────────────────────┘
 ```
 
-- **Storage:** each section is one markdown file under `.kody/profile/`
+- **Storage:** each section is one markdown file under `backend repo documents (profile)`
   in the connected repo, read/written via the GitHub Contents API
   (`src/dashboard/lib/profile/files.ts`). Leading whitespace is trimmed
   and a trailing newline is enforced on write.
@@ -116,15 +116,15 @@ logged-in user); reads work with any dashboard auth.
 
 ## File reference
 
-| File                                                                                                    | Purpose                                                                            |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/profile/files.ts`](../src/dashboard/lib/profile/files.ts)                           | Read/write/delete `.kody/profile/<slug>.md` + `loadProfileForPrompt()` (60s cache) |
-| [`app/api/kody/profile/route.ts`](../app/api/kody/profile/route.ts)                                     | `GET` (list), `POST` (create)                                                      |
-| [`app/api/kody/profile/[slug]/route.ts`](../app/api/kody/profile/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (update body), `DELETE`                                      |
-| [`src/dashboard/lib/components/ProfileManager.tsx`](../src/dashboard/lib/components/ProfileManager.tsx) | The `/profile` page UI (list, create, edit, delete)                                |
-| [`app/(chat-rail)/profile/page.tsx`](<../app/(chat-rail)/profile/page.tsx>)                             | `/profile` route entry point                                                       |
-| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadProfileForPrompt()` and passes it as `companyProfile`                   |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Agency profile` system-prompt section                               |
+| File                                                                                                    | Purpose                                                                                              |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/profile/files.ts`](../src/dashboard/lib/profile/files.ts)                           | Read/write/delete `backend repo documents (profile)<slug>.md` + `loadProfileForPrompt()` (60s cache) |
+| [`app/api/kody/profile/route.ts`](../app/api/kody/profile/route.ts)                                     | `GET` (list), `POST` (create)                                                                        |
+| [`app/api/kody/profile/[slug]/route.ts`](../app/api/kody/profile/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (update body), `DELETE`                                                        |
+| [`src/dashboard/lib/components/ProfileManager.tsx`](../src/dashboard/lib/components/ProfileManager.tsx) | The `/profile` page UI (list, create, edit, delete)                                                  |
+| [`app/(chat-rail)/profile/page.tsx`](<../app/(chat-rail)/profile/page.tsx>)                             | `/profile` route entry point                                                                         |
+| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadProfileForPrompt()` and passes it as `companyProfile`                                     |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Agency profile` system-prompt section                                                 |
 
 ## FAQ
 

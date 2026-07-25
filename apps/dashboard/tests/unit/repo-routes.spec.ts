@@ -36,6 +36,9 @@ describe("repo-scoped route contract", () => {
     expect(routes.repoReports(repo, "release-health")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports/release-health",
     );
+    expect(routes.repoKnowledgeSystem(repo)).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/knowledge-system",
+    );
     expect(routes.repoTodos(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/todos");
     expect(routes.repoTodoList(repo, "launch-plan")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan",
@@ -45,12 +48,12 @@ describe("repo-scoped route contract", () => {
     );
     expect(routes.repoSecrets(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/secrets");
     expect(routes.repoConfig(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/config");
+    expect(routes.repoBackend(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/backend");
   });
 
   it("leaves global routes outside the repo workspace", () => {
     expect(routes.orgHome()).toBe("/org");
     expect(routes.org("A-Guy-educ")).toBe("/org/A-Guy-educ");
-    expect(routes.globalSettings()).toBe("/settings");
   });
 
   it("builds generic repo-scoped child paths safely", () => {
@@ -67,8 +70,13 @@ describe("repo-scoped route contract", () => {
     expect(repoScopedHref(repo, "/reports?run=latest#summary")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports?run=latest#summary",
     );
+    expect(repoScopedHref(repo, "/operations")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/operations",
+    );
+    expect(repoScopedHref(repo, "/agency")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/agency",
+    );
     expect(repoScopedHref(repo, "/org")).toBe("/org");
-    expect(repoScopedHref(repo, "/settings")).toBe("/settings");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/tasks",
     );
@@ -95,6 +103,12 @@ describe("repo-scoped route contract", () => {
     expect(repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web")).toBe("/");
     expect(repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/tasks",
+    );
+    expect(
+      repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/constraints"),
+    ).toBe("/constraints");
+    expect(repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/policies")).toBe(
+      "/policies",
     );
     expect(
       repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/123/preview/docs"),
@@ -128,6 +142,9 @@ describe("repo-scoped route contract", () => {
     expect(legacyRepoRedirectPath(repo, "/files/src/app.tsx")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/files/src/app.tsx",
     );
+    expect(legacyRepoRedirectPath(repo, "/backend")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/backend",
+    );
     expect(legacyRepoRedirectPath(repo, "/content/entries/blog/post-1")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/content/entries/blog/post-1",
     );
@@ -136,7 +153,6 @@ describe("repo-scoped route contract", () => {
   it("does not redirect global or already repo-scoped routes", () => {
     expect(legacyRepoRedirectPath(repo, "/org")).toBeNull();
     expect(legacyRepoRedirectPath(repo, "/org/A-Guy-educ")).toBeNull();
-    expect(legacyRepoRedirectPath(repo, "/settings")).toBeNull();
     expect(
       legacyRepoRedirectPath(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks"),
     ).toBeNull();

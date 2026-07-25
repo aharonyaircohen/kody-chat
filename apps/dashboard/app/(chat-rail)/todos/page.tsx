@@ -3,10 +3,10 @@
  * @domain todos
  * @pattern todos-page
  * @ai-summary Kody worklist entry point. Manages lightweight todo files stored
- * at `todos/<slug>.json` in the configured state repo.
+ * as tenant-scoped Convex documents.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { TodoControl } from "@dashboard/lib/components/TodoControl";
+import { TodoControl } from "@dashboard/features/tasks/components/TodoControl";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

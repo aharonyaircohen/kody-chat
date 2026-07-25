@@ -82,6 +82,7 @@ export function IssueAttachmentButton({
 
   return (
     <>
+      {/* eslint-disable-next-line react/forbid-elements -- hidden file input triggered by the Button below */}
       <input
         ref={attachmentInputRef}
         type="file"

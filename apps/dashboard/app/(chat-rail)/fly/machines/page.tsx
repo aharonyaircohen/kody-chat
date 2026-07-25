@@ -4,7 +4,7 @@
  * @pattern fly-machines-page
  * @ai-summary Fly live machines page: current machine inventory and actions.
  */
-import { RunnerManager } from "@dashboard/lib/components/RunnerManager";
+import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

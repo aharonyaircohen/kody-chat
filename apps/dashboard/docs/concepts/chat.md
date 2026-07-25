@@ -109,7 +109,7 @@ not this repo.
 [`/api/kody/chat/trigger`](../../app/api/kody/chat/trigger/route.ts) is the
 fully async path:
 
-1. Serializes the messages to `.kody/sessions/{taskId}.jsonl` and commits it
+1. Serializes the messages to `backend chat sessions{taskId}.jsonl` and commits it
    to the target repo (CAS via the existing file SHA).
 2. Dispatches the `kody.yml` workflow (always `kody.yml` — the
    `KODY_CHAT_WORKFLOW_ID` env is intentionally ignored) with `sessionId` +
@@ -127,7 +127,7 @@ model is the engine's. The system prompt is `CHAT_SYSTEM_PROMPT` in
 
 ## Slash commands
 
-Slash commands (`/plan`, `/research`, `/issue`, repo `.kody/commands/*.md`,
+Slash commands (`/plan`, `/research`, `/issue`, repo `backend repo documents (commands)*.md`,
 …) work identically across all three backends: the composer expands
 `/<slug>` into rendered text **before** sending, so every endpoint just
 receives a normal user message. See [`../commands.md`](../commands.md).

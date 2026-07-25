@@ -1,5 +1,5 @@
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { OrgManager } from "@dashboard/lib/components/OrgManager";
+import { OrgManager } from "@dashboard/features/admin/components/OrgManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

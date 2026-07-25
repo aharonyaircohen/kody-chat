@@ -2,12 +2,173 @@
  * Unit tests for repo-files helpers: base64 encoding/decoding (byte-safe UTF-8)
  * and search result line-index mapping.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   base64ToString,
+  isBinaryBytes,
+  listDir,
+  readFile,
   stringToBase64,
   lineIndexFromFragment,
-} from "@dashboard/lib/repo-files";
+  repoPathExists,
+} from "@dashboard/features/file-manager/lib/repo-files";
+
+describe("listDir", () => {
+  it("treats GitHub's empty-repository response as an empty root directory", async () => {
+    const emptyRepositoryError = Object.assign(
+      new Error(
+        "This repository is empty. - https://docs.github.com/rest/repos/contents",
+      ),
+      {
+        status: 404,
+        response: {
+          status: 404,
+          data: {
+            message: "This repository is empty.",
+            documentation_url:
+              "https://docs.github.com/rest/repos/contents#get-repository-content",
+            status: "404",
+          },
+        },
+      },
+    );
+    const getContent = vi.fn().mockRejectedValue(emptyRepositoryError);
+    const octokit = { rest: { repos: { getContent } } };
+
+    await expect(
+      listDir(octokit as never, "acme", "empty-repo", ""),
+    ).resolves.toEqual([]);
+  });
+
+  it("does not hide a missing repository", async () => {
+    const notFoundError = Object.assign(new Error("Not Found"), {
+      status: 404,
+      response: {
+        status: 404,
+        data: { message: "Not Found", status: "404" },
+      },
+    });
+    const getContent = vi.fn().mockRejectedValue(notFoundError);
+    const octokit = { rest: { repos: { getContent } } };
+
+    await expect(
+      listDir(octokit as never, "acme", "missing-repo", ""),
+    ).rejects.toBe(notFoundError);
+  });
+
+  it("does not treat an empty-repository error as an empty nested directory", async () => {
+    const emptyRepositoryError = Object.assign(
+      new Error(
+        "This repository is empty. - https://docs.github.com/rest/repos/contents",
+      ),
+      {
+        status: 404,
+        response: {
+          status: 404,
+          data: { message: "This repository is empty.", status: "404" },
+        },
+      },
+    );
+    const getContent = vi.fn().mockRejectedValue(emptyRepositoryError);
+    const octokit = { rest: { repos: { getContent } } };
+
+    await expect(
+      listDir(octokit as never, "acme", "empty-repo", "docs"),
+    ).rejects.toBe(emptyRepositoryError);
+  });
+});
+
+describe("readFile", () => {
+  it("loads omitted GitHub content from the blob API before classifying an image", async () => {
+    const getContent = vi.fn().mockResolvedValue({
+      data: {
+        type: "file",
+        path: "photo.png",
+        sha: "image-sha",
+        size: 1_154_974,
+        encoding: "none",
+        content: "",
+      },
+    });
+    const getBlob = vi.fn().mockResolvedValue({
+      data: {
+        encoding: "base64",
+        content: "iVBORw0KGgo=",
+      },
+    });
+    const octokit = { rest: { repos: { getContent }, git: { getBlob } } };
+
+    await expect(
+      readFile(octokit as never, "acme", "repo", "photo.png"),
+    ).resolves.toMatchObject({
+      path: "photo.png",
+      isBinary: true,
+      content: "",
+      base64Content: "iVBORw0KGgo=",
+      encoding: "base64",
+    });
+    expect(getBlob).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "repo",
+      file_sha: "image-sha",
+    });
+  });
+
+  it("keeps large UTF-8 files editable after loading their blob content", async () => {
+    const getContent = vi.fn().mockResolvedValue({
+      data: {
+        type: "file",
+        path: "large.md",
+        sha: "text-sha",
+        size: 1_100_000,
+        encoding: "none",
+        content: "",
+      },
+    });
+    const getBlob = vi.fn().mockResolvedValue({
+      data: {
+        encoding: "base64",
+        content: stringToBase64("# Large document\n"),
+      },
+    });
+    const octokit = { rest: { repos: { getContent }, git: { getBlob } } };
+
+    await expect(
+      readFile(octokit as never, "acme", "repo", "large.md"),
+    ).resolves.toMatchObject({
+      path: "large.md",
+      isBinary: false,
+      content: "# Large document\n",
+      encoding: "base64",
+    });
+  });
+});
+
+describe("repoPathExists", () => {
+  it("checks the parent listing without probing a missing target path", async () => {
+    const getContent = vi.fn().mockResolvedValue({
+      data: [
+        {
+          name: "other.md",
+          path: "notes/other.md",
+          type: "file",
+          size: 0,
+          sha: "other",
+        },
+      ],
+    });
+    const octokit = { rest: { repos: { getContent } } };
+
+    await expect(
+      repoPathExists(octokit as never, "acme", "repo", "notes/test.md"),
+    ).resolves.toBe(false);
+    expect(getContent).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "repo",
+      path: "notes",
+    });
+  });
+});
 
 // ─── base64 helpers ────────────────────────────────────────────────────────────
 
@@ -123,5 +284,23 @@ describe("lineIndexFromFragment", () => {
     // Match is inside "return x + y" which is line 4
     const idx = fragment.indexOf("return");
     expect(lineIndexFromFragment(fragment, idx)).toBe(4);
+  });
+});
+
+describe("isBinaryBytes", () => {
+  it("keeps UTF-8 text editable", () => {
+    expect(isBinaryBytes(new TextEncoder().encode("שלום world 😀"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects content containing null bytes", () => {
+    expect(isBinaryBytes(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]))).toBe(
+      true,
+    );
+  });
+
+  it("rejects invalid UTF-8", () => {
+    expect(isBinaryBytes(Uint8Array.from([0xff, 0xfe, 0xfd]))).toBe(true);
   });
 });

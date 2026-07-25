@@ -9,28 +9,26 @@ function source(path: string): string {
 describe("rate limit polling guardrails", () => {
   it("keeps the first six hot internal pages on slower or cached paths", () => {
     expect(
-      source("src/dashboard/lib/components/FlyPreviewsList.tsx"),
+      source("src/dashboard/features/previews/components/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
-      source("node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts"),
+      source(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts",
+      ),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
-      source("src/dashboard/lib/components/BrainImagesManager.tsx"),
+      source("src/dashboard/features/admin/components/BrainImagesManager.tsx"),
     ).toContain("/api/kody/brain/image?jobId=");
     expect(
       source(
-        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/terminal/useChatTerminalRegistry.ts",
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/terminal/useChatTerminalRegistry.ts",
       ),
     ).toContain("setInterval(() => void refreshStatus(), 60_000)");
     expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
       "const AGENCY_RUNS_REFETCH_MS = 120_000",
     );
-    expect(source("src/dashboard/lib/hooks/useManagedGoals.ts")).toContain(
-      "refetchInterval: 60_000",
-    );
-    expect(source("src/dashboard/lib/hooks/useCompanyIntents.ts")).toContain(
-      "refetchInterval: 120_000",
-    );
+    // Agency model reads stay behind authenticated server routes. Their
+    // bounded polling avoids exposing the backend service key to the browser.
   });
 
   it("uses server-side caches for expensive repeated reads", () => {
@@ -38,25 +36,15 @@ describe("rate limit polling guardrails", () => {
       "discoveredImagesCache.get",
     );
     expect(
-      source("node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
+      source(
+        "node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts",
+      ),
     ).toContain("listFlyInventoryCached");
     const brainImageManagement = source(
       "../../packages/brain/src/image-management.ts",
     );
-    expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
-      brainImageManagement.indexOf("refresh: true"),
-    );
-    expect(source("../../packages/agency/src/agency-runs.ts")).toContain(
-      "WORKFLOW_OVERLAY_TTL_MS = 60_000",
-    );
-    expect(source("src/dashboard/lib/managed-goals-files.ts")).toContain(
-      "managedGoalFilesCache.get",
-    );
     expect(
-      source("../../packages/agency/src/managed-goal-run-logs.ts"),
-    ).toContain("runLogsCache.get");
-    expect(
-      source("src/dashboard/lib/company-intents-read-cache.ts"),
-    ).toContain("companyIntentRecordsCache");
+      brainImageManagement.indexOf("getTerminalBridgeExecJob"),
+    ).toBeLessThan(brainImageManagement.indexOf("refresh: true"));
   });
 });

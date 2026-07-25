@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ENGINEER_MODE_SECTIONS,
-  MOBILE_NAV_SECTIONS,
+  SIDEBAR_NAV_SECTIONS,
   PRIMARY_NAV_ITEMS,
-  PRIMARY_NAV_TITLE,
-  PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
   activeCollapsibleNavSectionTitle,
   navLabelForPath,
@@ -32,34 +29,30 @@ function sectionHrefs(
   );
 }
 
-function allHrefs(sections: readonly SettingsNavSection[]): string[] {
-  return sections.flatMap((section) => section.items.map((item) => item.href));
-}
-
 describe("settings navigation", () => {
-  it("exposes reports without legacy inbox, trust, or ledger sections", () => {
+  it("exposes reports and inbox without legacy trust or ledger sections", () => {
     const hrefs = exposedHrefs();
 
     expect(hrefs).toContain("/reports");
-    expect(hrefs).not.toContain("/inbox");
+    expect(hrefs).toContain("/inbox");
     expect(hrefs).not.toContain("/trust");
     expect(hrefs).not.toContain("/ledgers");
 
     expect(navLabelForPath("/reports")).toBe("Reports");
-    expect(navLabelForPath("/inbox")).toBeNull();
+    expect(navLabelForPath("/inbox")).toBe("Inbox");
     expect(navLabelForPath("/trust")).toBeNull();
     expect(navLabelForPath("/ledgers")).toBeNull();
   });
 
-  it("exposes durable Findings and Learning in the AI Agency section", () => {
-    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+  it("keeps findings and learning inside Reports instead of separate navigation", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).not.toContain(
       "/findings",
     );
-    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).not.toContain(
       "/learning",
     );
-    expect(navLabelForPath("/findings")).toBe("Findings");
-    expect(navLabelForPath("/learning")).toBe("Learning");
+    expect(navLabelForPath("/findings")).toBeNull();
+    expect(navLabelForPath("/learning")).toBeNull();
   });
 
   it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
@@ -91,47 +84,22 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/content/settings")).toBe("Settings");
   });
 
-  it("keeps every desktop engineer side-panel route reachable on mobile", () => {
-    const mobileHrefs = new Set(allHrefs(MOBILE_NAV_SECTIONS));
-
-    for (const href of allHrefs(ENGINEER_MODE_SECTIONS)) {
-      expect(mobileHrefs.has(href), `${href} missing from mobile nav`).toBe(
-        true,
-      );
-    }
-  });
-
-  it("uses the same workspace list in desktop engineer and mobile side panels", () => {
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_NAV_TITLE)).toEqual(
-      sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_NAV_TITLE),
-    );
-  });
-
   it("keeps Dashboard as the only attention-style home entry", () => {
     expect(navLabelForPath("/")).toBe("Dashboard");
     expect(navLabelForPath("/attention")).toBeNull();
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")).toEqual([
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")).toEqual([
       "/tasks",
       "/vibe",
       "/preview",
-      "/todos",
-      "/agency-runs",
-      "/findings",
-      "/learning",
-    ]);
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
-      "/",
-      "/tasks",
-      "/vibe",
-      "/preview",
+      "/inbox",
     ]);
   });
 
   it("keeps Views active for selected saved preview routes", () => {
     const previewHref = "/preview";
-    const previewItem = sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")
+    const previewItem = sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")
       .map((href) =>
-        ENGINEER_MODE_SECTIONS.flatMap((section) => section.items).find(
+        SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items).find(
           (item) => item.href === href,
         ),
       )
@@ -142,55 +110,121 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
   });
 
-  it("orders the desktop rail around work and collapsible ownership groups", () => {
-    expect(ENGINEER_MODE_SECTIONS.map((section) => section.title)).toEqual([
-      "Work",
-      "Agency",
-      "Workspace",
-      "Content",
-      "Kody",
-      "Client",
-      "System",
-    ]);
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")).toEqual([
-      "/tasks",
-      "/vibe",
-      "/preview",
+  it("shows only the simple Agency surfaces in product order", () => {
+    const agency = sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency");
+    expect(agency).toEqual([
+      "/agency",
       "/todos",
       "/agency-runs",
-      "/findings",
-      "/learning",
-    ]);
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Agency")).toEqual([
       "/agents",
-      "/agent-goals",
-      "/company-intents",
       "/agent-loops",
       "/workflows",
       "/capabilities",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
       "/store-catalog",
       "/company",
     ]);
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.collapsible)).toBe(
+    expect(navLabelForPath("/agency-runs")).toBe("Runs");
+    expect(navLabelForPath("/agency")).toBe("Intents");
+  });
+
+  it("orders the desktop rail around work and collapsible ownership groups", () => {
+    expect(SIDEBAR_NAV_SECTIONS.map((section) => section.title)).toEqual([
+      "Work",
+      "Agency",
+      "Store",
+      "Quality",
+      "Workspace",
+      "Knowledge",
+      "Content",
+      "Chat",
+      "Client",
+      "System",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")).toEqual([
+      "/tasks",
+      "/vibe",
+      "/preview",
+      "/inbox",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
+      "/agency",
+      "/todos",
+      "/agency-runs",
+      "/agents",
+      "/agent-loops",
+      "/workflows",
+      "/capabilities",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
+      "/store-catalog",
+      "/company",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Workspace")).toEqual([
+      "/org",
+      "/messages",
+      "/reports",
+      "/files",
+      "/changelog",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Knowledge")).toEqual([
+      "/knowledge-system",
+      "/docs",
+      "/context",
+      "/policies",
+      "/constraints",
+      "/memory",
+      "/file-spaces",
+    ]);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Chat")).not.toEqual(
+      expect.arrayContaining([
+        "/context",
+        "/memory",
+        "/policies",
+        "/constraints",
+      ]),
+    );
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.collapsible)).toBe(
       true,
     );
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.icon)).toBe(true);
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.tint)).toBe(true);
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.icon)).toBe(true);
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.tint)).toBe(true);
   });
 
   it("opens only the active collapsible parent for a nested route", () => {
     expect(
       activeCollapsibleNavSectionTitle(
-        ENGINEER_MODE_SECTIONS,
-        "/agent-goals",
+        SIDEBAR_NAV_SECTIONS,
+        "/capabilities/example",
         "",
       ),
     ).toBe("Agency");
     expect(
-      activeCollapsibleNavSectionTitle(ENGINEER_MODE_SECTIONS, "/memory", ""),
-    ).toBe("Kody");
+      activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/memory", ""),
+    ).toBe("Knowledge");
     expect(
-      activeCollapsibleNavSectionTitle(ENGINEER_MODE_SECTIONS, "/tasks", ""),
+      activeCollapsibleNavSectionTitle(
+        SIDEBAR_NAV_SECTIONS,
+        "/file-spaces",
+        "",
+      ),
+    ).toBe("Knowledge");
+    expect(
+      activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");
+  });
+
+  it("does not expose the redundant settings page", () => {
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "System")).not.toContain(
+      "/settings",
+    );
+    expect(exposedHrefs()).not.toContain("/settings");
+    expect(navLabelForPath("/settings")).toBeNull();
+  });
+
+  it("does not expose a standalone capability contracts page", () => {
+    expect(exposedHrefs()).not.toContain("/capability-contracts");
+    expect(navLabelForPath("/capability-contracts")).toBeNull();
   });
 });

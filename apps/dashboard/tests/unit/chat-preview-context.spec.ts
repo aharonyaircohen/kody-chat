@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { previewChatContextBlock } from "@kody-ade/kody-chat/core/preview-context";
+import { previewChatContextBlock } from "@dashboard/lib/previews/chat-context";
 import type { PreviewEnvironment } from "@kody-ade/fly/preview-environments";
 
 describe("previewChatContextBlock", () => {
@@ -53,13 +53,13 @@ describe("previewChatContextBlock", () => {
       repoViewPath: "views/mobile-html-1234",
       repoViewEntryPath: "index.html",
       repoViewSourceUrl:
-        "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+        "https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
     });
 
     expect(block).toContain("Source path: views/mobile-html-1234");
     expect(block).toContain("Entry file: index.html");
     expect(block).toContain(
-      "Source URL: https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+      "Source URL: https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
     );
     expect(block).toContain(
       "Preview URL: /api/kody/views/mobile-html-1234/index.html",

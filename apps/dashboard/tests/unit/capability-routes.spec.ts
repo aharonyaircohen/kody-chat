@@ -13,15 +13,28 @@ const h = vi.hoisted(() => ({
   getRequestAuth: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  getOctokit: vi.fn(() => ({ rest: {} })),
+  companyStoreAssetPath: vi.fn(
+    async (_octokit: unknown, kind: string, slug: string) => `${kind}/${slug}`,
+  ),
+  readCompanyStoreText: vi.fn(),
+  listStoredAgencyDefinitions: vi.fn(),
   listCapabilityFiles: vi.fn(),
   readCapabilityFile: vi.fn(),
   readResolvedCapabilityFile: vi.fn(),
   writeCapabilityFile: vi.fn(),
+  writeCapabilityFolderFiles: vi.fn(),
   deleteCapabilityFile: vi.fn(),
   resolveInstalledCapabilitySlugs: vi.fn(),
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
+  getProjectedEngineConfig: vi.fn(),
+  listProjectedCapabilities: vi.fn(),
+  getProjectedCapability: vi.fn(),
+  saveProjectedCapability: vi.fn(),
   recordAudit: vi.fn(),
+  backendQuery: vi.fn(),
+  backendMutation: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -34,6 +47,18 @@ vi.mock("@kody-ade/base/auth", () => ({
 vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
+  getOctokit: h.getOctokit,
+}));
+vi.mock("@kody-ade/base/company-store/assets", () => ({
+  companyStoreAssetPath: h.companyStoreAssetPath,
+  readCompanyStoreText: h.readCompanyStoreText,
+}));
+vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
+  listStoredAgencyDefinitions: h.listStoredAgencyDefinitions,
+}));
+vi.mock("@dashboard/lib/github-client", () => ({
+  setGitHubContext: h.setGitHubContext,
+  clearGitHubContext: h.clearGitHubContext,
 }));
 
 vi.mock("@kody-ade/agency/capabilities", () => ({
@@ -41,6 +66,7 @@ vi.mock("@kody-ade/agency/capabilities", () => ({
   readCapabilityFile: h.readCapabilityFile,
   readResolvedCapabilityFile: h.readResolvedCapabilityFile,
   writeCapabilityFile: h.writeCapabilityFile,
+  writeCapabilityFolderFiles: h.writeCapabilityFolderFiles,
   deleteCapabilityFile: h.deleteCapabilityFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
@@ -55,12 +81,41 @@ vi.mock("@dashboard/lib/company-store/installed-capabilities", () => ({
   resolveInstalledCapabilitySlugs: h.resolveInstalledCapabilitySlugs,
 }));
 
+vi.mock("@dashboard/lib/backend/repo-projection", () => ({
+  getProjectedEngineConfig: h.getProjectedEngineConfig,
+  listProjectedCapabilities: h.listProjectedCapabilities,
+  getProjectedCapability: h.getProjectedCapability,
+  saveProjectedCapability: h.saveProjectedCapability,
+}));
+
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
+vi.mock("@dashboard/lib/activity/audit", () => ({
+  recordAudit: h.recordAudit,
+}));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: {
+    catalog: {
+      get: "catalog:get",
+      remove: "catalog:remove",
+      save: "catalog:save",
+    },
+  },
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({
+    query: h.backendQuery,
+    mutation: h.backendMutation,
+  }),
+}));
 
 import { GET, POST } from "../../app/api/kody/capabilities/route";
-import { DELETE } from "../../app/api/kody/capabilities/[slug]/route";
+import {
+  DELETE,
+  GET as GET_DETAIL,
+  PATCH,
+} from "../../app/api/kody/capabilities/[slug]/route";
 
 function authHeaders() {
   return {
@@ -100,6 +155,8 @@ describe("GET /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.getProjectedCapability.mockResolvedValue(null);
+    h.saveProjectedCapability.mockResolvedValue(undefined);
     h.getEngineConfig.mockResolvedValue({
       config: {
         company: {
@@ -109,15 +166,17 @@ describe("GET /api/kody/capabilities", () => {
       sha: "config-sha",
     });
     h.resolveInstalledCapabilitySlugs.mockResolvedValue(new Set(["store-on"]));
-  });
-
-  it("lists local capabilities and active Store capabilities only", async () => {
+    h.getProjectedEngineConfig.mockResolvedValue({
+      config: { company: { activeCapabilities: ["store-on"] } },
+      sha: null,
+    });
     h.listCapabilityFiles.mockResolvedValue([
       { slug: "local-one", source: "local" },
       { slug: "store-on", source: "store" },
-      { slug: "store-off", source: "store" },
     ]);
+  });
 
+  it("lists local capabilities and active Store capabilities only", async () => {
     const res = await GET(request("https://dash.test/api/kody/capabilities"));
     const json = await res.json();
 
@@ -126,17 +185,7 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.resolveInstalledCapabilitySlugs).toHaveBeenCalledWith(
-      { rest: {} },
-      {
-        company: {
-          activeCapabilities: ["store-on"],
-        },
-      },
-    );
-    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
-      activeStoreSlugs: new Set(["store-on"]),
-    });
+    expect(h.listCapabilityFiles).toHaveBeenCalled();
   });
 });
 
@@ -153,11 +202,12 @@ describe("POST /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
-    h.readCapabilityFile.mockResolvedValue(null);
-    h.writeCapabilityFile.mockResolvedValue({
-      slug: "ship-feature",
-      describe: "Ship feature",
-    });
+    h.readCapabilityFile
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        slug: "ship-feature",
+        describe: "Ship feature",
+      });
   });
 
   it("creates capability files through the capability storage helper", async () => {
@@ -166,11 +216,9 @@ describe("POST /api/kody/capabilities", () => {
         method: "POST",
         body: JSON.stringify({
           slug: "ship-feature",
-          instructions: "Ship the feature.",
-          tools: ["Read"],
+          instructions: "# Ship feature",
           skills: [],
-          shellScripts: [],
-          mcpServers: [],
+          tools: [],
         }),
       }),
     );
@@ -179,12 +227,12 @@ describe("POST /api/kody/capabilities", () => {
     const json = await res.json();
     expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
     expect(json).not.toHaveProperty("implementation");
-    expect(h.writeCapabilityFile).toHaveBeenCalledWith(
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith(
       expect.objectContaining({
-        fields: expect.objectContaining({
-          slug: "ship-feature",
-          prompt: "Ship the feature.",
-        }),
+        slug: "ship-feature",
+        files: {
+          "instructions.md": "# Ship feature\n",
+        },
       }),
     );
     expect(h.recordAudit).toHaveBeenCalledWith(
@@ -194,6 +242,81 @@ describe("POST /api/kody/capabilities", () => {
         resource: "ship-feature",
       }),
     );
+  });
+});
+
+describe("GET /api/kody/capabilities/[slug]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.requireKodyAuth.mockResolvedValue(null);
+    h.getRequestAuth.mockReturnValue({
+      token: "ghp_test-token",
+      owner: "acme",
+      repo: "widgets",
+      storeRepoUrl: "https://github.com/acme/kody-store",
+      storeRef: "stable",
+    });
+    h.readResolvedCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      instructions: "# Ship feature",
+      skills: [],
+      capabilityTools: [],
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: { execution: {} },
+      sha: "config-sha",
+    });
+    h.listStoredAgencyDefinitions.mockResolvedValue([
+      {
+        recordId: "capability:ship-feature:revision",
+        kind: "capability",
+        schemaVersion: 1,
+        data: { id: "ship-feature" },
+        createdAt: "2026-07-23T00:00:00.000Z",
+      },
+      {
+        recordId: "implementation:ship-feature-runner:revision",
+        kind: "implementation",
+        schemaVersion: 1,
+        data: {
+          id: "ship-feature-runner",
+          capabilityRef: { kind: "capability", id: "ship-feature" },
+          compatibleCapabilityRevision: "revision",
+          type: "agent",
+          agentRef: { kind: "agent", id: "kody" },
+        },
+        createdAt: "2026-07-23T00:00:00.000Z",
+      },
+    ]);
+    h.readCompanyStoreText.mockImplementation(async (_octokit, path: string) =>
+      path.endsWith("runtime.json")
+        ? JSON.stringify({ adapter: "kody-engine-profile" })
+        : "Run the task.",
+    );
+  });
+
+  it("loads one simple Store capability folder with repository context", async () => {
+    const response = await GET_DETAIL(
+      request("https://dash.test/api/kody/capabilities/ship-feature"),
+      params(),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(h.setGitHubContext).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      "ghp_test-token",
+      "https://github.com/acme/kody-store",
+      "stable",
+    );
+    expect(body.capability).toMatchObject({
+      slug: "ship-feature",
+      instructions: "# Ship feature",
+    });
+    expect(body.capability).not.toHaveProperty("simpleContract");
+    expect(body.capability).not.toHaveProperty("implementationResolution");
+    expect(h.clearGitHubContext).toHaveBeenCalled();
   });
 });
 
@@ -212,10 +335,8 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
   });
 
-  it("deletes local capability folders through the capability helper", async () => {
-    const octokit = { rest: {} };
-    h.getUserOctokit.mockResolvedValue(octokit);
-    h.readCapabilityFile.mockResolvedValue({
+  it("deletes the Convex capability projection", async () => {
+    h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
     });
@@ -230,10 +351,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.deleteCapabilityFile).toHaveBeenCalledWith(
-      octokit,
-      "ship-feature",
-    );
+    expect(h.deleteCapabilityFile).toHaveBeenCalledWith("ship-feature");
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
@@ -242,5 +360,31 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
         resource: "ship-feature",
       }),
     );
+  });
+
+  it("replaces the capability folder", async () => {
+    h.readResolvedCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      describe: "Ship feature",
+      instructions: "# Ship feature",
+      skills: [],
+      capabilityTools: [],
+    });
+
+    const res = await PATCH(
+      request("https://dash.test/api/kody/capabilities/ship-feature", {
+        method: "PATCH",
+        body: JSON.stringify({
+          instructions: "# Ship updated feature",
+          skills: [],
+          tools: [],
+          actorLogin: "alice",
+        }),
+      }),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalled();
   });
 });

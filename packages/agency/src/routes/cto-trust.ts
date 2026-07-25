@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern capability-trust-management
  * @ai-summary GET/POST /api/kody/cto/trust — read + management surface for the
- *   capability-keyed trust ledger, stored as a JSON file in the configured Kody state repo
+ *   capability-keyed trust ledger, stored as a JSON file in the configured Kody backend
  *   (`state/trust.json`), NOT an issue. Powers the /trust page.
  *
  *   GET  → the full per-capability trust stats (`capabilities[slug]`) + recent log.
@@ -21,15 +21,13 @@ import {
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import { readTrust, mutateTrust } from "../cto/trust-store";
 import {
   applySubjectTrustOp,
   applySubjectTrustLevel,
   applyCapabilityTrustLevel,
+  applyCapabilityNeverAuto,
   applyTrustOp,
   isTrustSubjectKey,
   TRUST_LEVELS,
@@ -48,15 +46,26 @@ const bodySchema = z
     subject: z.string().refine(isTrustSubjectKey).optional(),
     op: z.enum(TRUST_OPS).optional(),
     level: z.enum(TRUST_LEVELS).optional(),
+    neverAuto: z.boolean().optional(),
     actorLogin: z.string().optional(),
   })
   .refine((body) => Boolean(body.capability) !== Boolean(body.subject), {
     message: "Provide exactly one of capability or subject",
     path: ["capability"],
   })
-  .refine((body) => Boolean(body.op) !== Boolean(body.level), {
-    message: "Provide exactly one of op or level",
-    path: ["op"],
+  .refine(
+    (body) =>
+      [body.op, body.level, body.neverAuto].filter(
+        (value) => value !== undefined,
+      ).length === 1,
+    {
+      message: "Provide exactly one of op, level, or neverAuto",
+      path: ["op"],
+    },
+  )
+  .refine((body) => body.neverAuto === undefined || Boolean(body.capability), {
+    message: "neverAuto applies to a capability",
+    path: ["neverAuto"],
   });
 
 /** GET — full capability trust stats + recent log for the /trust page. */
@@ -112,7 +121,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { capability, subject, op, level, actorLogin } = payload;
+    const { capability, subject, op, level, neverAuto, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -120,29 +129,49 @@ export async function POST(req: NextRequest) {
     }
 
     const manifest = await mutateTrust((current) => {
+      if (neverAuto !== undefined) {
+        return applyCapabilityNeverAuto(current, capability!, neverAuto);
+      }
       if (level) {
         return capability
           ? applyCapabilityTrustLevel(current, capability, level)
           : applySubjectTrustLevel(current, subject!, level);
+      }
+      if (capability && op === "earn") {
+        // Earn resumes the default path — clear the capability entry AND its
+        // subject-side pin so nothing keeps overriding the earned streak.
+        return applySubjectTrustOp(
+          applyTrustOp(current, op, capability),
+          op,
+          `capability:${capability}` as const,
+        );
       }
       return capability
         ? applyTrustOp(current, op!, capability)
         : applySubjectTrustOp(current, op!, subject!);
     });
     const target = capability ?? subject!;
-    const action = level ? `trust.set.${level}` : `trust.${op}`;
+    const action =
+      neverAuto !== undefined
+        ? `trust.neverAuto.${neverAuto ? "on" : "off"}`
+        : level
+          ? `trust.set.${level}`
+          : `trust.${op}`;
 
     recordAudit(req, {
       action,
       resource: target,
       ...(capability ? { capability } : {}),
-      detail: `${level ?? op} trust for ${target}`,
+      detail:
+        neverAuto !== undefined
+          ? `neverAuto=${neverAuto} for ${target}`
+          : `${level ?? op} trust for ${target}`,
     });
 
     return NextResponse.json({
       ok: true,
       ...(capability ? { capability } : { subject }),
-      ...(op ? { op } : { level }),
+      ...(neverAuto !== undefined ? { neverAuto } : op ? { op } : { level }),
       stats: capability
         ? (manifest.capabilities[capability] ?? null)
         : (manifest.subjects[subject!] ?? null),

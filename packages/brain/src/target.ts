@@ -43,7 +43,7 @@ export function resolveBrainTarget(input: {
     };
   }
 
-  // Two logins share the repo's Fly account and state repo, so a stored
+  // Two logins share the repo's Fly account and backend, so a stored
   // record seeded from another login's app (e.g. after a token swap) would
   // silently route this login's image/provision ops to that other brain
   // while the terminal resolves the live default — the split-brain bug.

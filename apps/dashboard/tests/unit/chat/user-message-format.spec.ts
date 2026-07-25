@@ -3,7 +3,7 @@
  * @domain chat
  */
 import { describe, expect, it } from "vitest";
-import { softFormatUserMessageForDisplay } from "@kody-ade/kody-chat/core/user-message-format";
+import { softFormatUserMessageForDisplay } from "@kody-ade/kody-chat-dashboard/core/user-message-format";
 
 describe("softFormatUserMessageForDisplay", () => {
   it("splits long plain human text into readable paragraphs", () => {

@@ -359,6 +359,7 @@ export function BugReportDialog({
           {/* Attachments */}
           <div className="grid gap-2">
             <Label>Attachments (screenshots)</Label>
+            {/* eslint-disable-next-line react/forbid-elements -- hidden file input triggered by the dropzone */}
             <input
               ref={fileInputRef}
               type="file"
@@ -378,13 +379,15 @@ export function BugReportDialog({
                       alt={attachment.name}
                       className="w-16 h-16 object-cover rounded-md border"
                     />
-                    <button
+                    <Button
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       onClick={() => removeAttachment(index)}
-                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X className="w-3 h-3" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>

@@ -13,6 +13,7 @@
  *   they apply.
  */
 import { Smartphone } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePushSubscription } from "./usePushSubscription";
 
 interface PushToggleProps {
@@ -77,28 +78,32 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
             <span className="text-[10px] font-medium text-muted-foreground">
               Off
             </span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               disabled={busy}
               onClick={() => void enable()}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+              className="font-normal text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary disabled:opacity-50"
             >
               {busy ? "…" : "Enable"}
-            </button>
+            </Button>
           </span>
         );
       case "on":
         return (
           <span className="flex items-center gap-1.5">
             <span className="text-[10px] font-medium text-primary">On</span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               disabled={busy}
               onClick={() => void disable()}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-accent disabled:opacity-50"
+              className="font-normal text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-accent hover:text-muted-foreground disabled:opacity-50"
             >
               {busy ? "…" : "Disable"}
-            </button>
+            </Button>
           </span>
         );
     }
@@ -142,18 +147,20 @@ export function PushToggle({ userLogin, label }: PushToggleProps) {
             </span>
             <div className="flex rounded bg-muted p-0.5">
               {(["all", "mentions", "off"] as const).map((opt) => (
-                <button
+                <Button
                   key={opt}
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => void setChannelNotify(opt)}
-                  className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${
+                  className={`font-normal text-[10px] px-1.5 py-0.5 rounded capitalize ${
                     channelNotify === opt
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-transparent"
                   }`}
                 >
                   {opt}
-                </button>
+                </Button>
               ))}
             </div>
           </div>

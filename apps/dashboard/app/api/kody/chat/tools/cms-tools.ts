@@ -1,2 +1,1 @@
-/** Tool re-export — implementation lives in @kody-ade/cms. */
-export * from "@kody-ade/cms/tools/cms-tools";
+export * from "@kody-ade/kody-chat-dashboard/chat-tools/cms";

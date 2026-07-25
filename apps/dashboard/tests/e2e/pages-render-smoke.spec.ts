@@ -37,14 +37,20 @@ const ROUTES = [
   "/models",
   "/new",
   "/notifications",
-  "/agent-goals",
   "/commands",
   "/reports",
   "/runner",
   "/agent-loops",
   "/scenario",
   "/secrets",
-  "/settings",
+  "/tasks",
+  "/jobs",
+  "/triggers",
+  "/findings",
+  "/snippets",
+  "/learning",
+  "/backend",
+  "/setup",
   "/agents",
   "/variables",
   "/vibe",
@@ -102,6 +108,21 @@ test.describe("Top-level pages — render smoke", () => {
       }
 
       const errors: string[] = [];
+      await page.route("**/api/kody/chat/conversations**", (requestRoute) => {
+        const request = requestRoute.request();
+        const isCollection = new URL(request.url()).pathname.endsWith(
+          "/conversations",
+        );
+        return requestRoute.fulfill({
+          status: request.method() === "POST" && isCollection ? 201 : 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            request.method() === "GET" && isCollection
+              ? { conversations: [] }
+              : { ok: true },
+          ),
+        });
+      });
       page.on("console", (msg) => {
         if (msg.type() === "error") errors.push(msg.text());
       });

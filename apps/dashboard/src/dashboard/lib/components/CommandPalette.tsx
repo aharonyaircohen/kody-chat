@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -216,6 +217,7 @@ export function CommandPalette() {
 
         <div className="flex items-center gap-2 border-b border-white/[0.06] px-3">
           <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+          {/* eslint-disable-next-line react/forbid-elements -- borderless transparent palette input; kit Input's border/background chrome would visibly change the composed search row */}
           <input
             autoFocus
             value={query}
@@ -251,16 +253,18 @@ export function CommandPalette() {
                       {cmd.group}
                     </p>
                   )}
-                  <button
+                  <Button
                     type="button"
+                    size="clear"
+                    variant="ghost"
                     data-index={index}
                     onMouseMove={() => setSelected(index)}
                     onClick={() => cmd.run()}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-md px-3 h-9 text-sm transition-colors",
+                      "flex w-full items-center justify-start gap-3 rounded-md px-3 h-9 text-sm font-normal transition-colors",
                       active
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-accent hover:bg-accent text-foreground hover:text-foreground"
+                        : "hover:bg-transparent text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
@@ -270,7 +274,7 @@ export function CommandPalette() {
                     {active && (
                       <CornerDownLeft className="w-3.5 h-3.5 shrink-0 opacity-60" />
                     )}
-                  </button>
+                  </Button>
                 </div>
               );
             })

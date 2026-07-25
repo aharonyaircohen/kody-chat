@@ -14,10 +14,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  isValidSlug,
-  readResolvedCapabilityFile,
-} from "@dashboard/lib/capabilities";
+import { isValidSlug, readCapabilityFile } from "@dashboard/lib/capabilities";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -84,7 +81,7 @@ export async function POST(
   }
 
   try {
-    const capability = await readResolvedCapabilityFile(slug, octokit);
+    const capability = await readCapabilityFile(slug);
     if (!capability) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

@@ -10,8 +10,8 @@
  */
 "use client";
 
-import { PreviewWorkspace } from "../../../components/PreviewWorkspace";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import { PreviewWorkspace } from "@dashboard/features/previews/components/PreviewWorkspace";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const PREVIEW_PANEL_TESTID = "chat-panel-preview";
 

@@ -128,6 +128,87 @@ export async function getUserOctokit(
   return null;
 }
 
+export type VerifiedRepoAccess = {
+  auth: RequestAuth;
+  actorLogin: string;
+  permission: string;
+  octokit: Octokit;
+};
+
+const READ_REPOSITORY_PERMISSIONS = new Set([
+  "pull",
+  "read",
+  "triage",
+  "push",
+  "write",
+  "maintain",
+  "admin",
+]);
+const WRITE_REPOSITORY_PERMISSIONS = new Set([
+  "push",
+  "write",
+  "maintain",
+  "admin",
+]);
+
+async function verifyRepoAccess(
+  req: NextRequest,
+  allowedPermissions: ReadonlySet<string>,
+  deniedError: string,
+): Promise<VerifiedRepoAccess | NextResponse> {
+  const auth = getRequestAuth(req);
+  const octokit = await getUserOctokit(req);
+  if (!auth || !octokit) {
+    return NextResponse.json(
+      { error: "request_auth_required" },
+      { status: 401 },
+    );
+  }
+  try {
+    const { data: actor } = await octokit.rest.users.getAuthenticated();
+    const { data: access } =
+      await octokit.rest.repos.getCollaboratorPermissionLevel({
+        owner: auth.owner,
+        repo: auth.repo,
+        username: actor.login,
+      });
+    if (!allowedPermissions.has(access.permission)) {
+      return NextResponse.json({ error: deniedError }, { status: 403 });
+    }
+    return {
+      auth,
+      actorLogin: actor.login,
+      permission: access.permission,
+      octokit,
+    };
+  } catch {
+    return NextResponse.json(
+      { error: "github_identity_verification_failed" },
+      { status: 403 },
+    );
+  }
+}
+
+export function verifyRepoReadAccess(
+  req: NextRequest,
+): Promise<VerifiedRepoAccess | NextResponse> {
+  return verifyRepoAccess(
+    req,
+    READ_REPOSITORY_PERMISSIONS,
+    "read_permission_required",
+  );
+}
+
+export function verifyRepoWriteAccess(
+  req: NextRequest,
+): Promise<VerifiedRepoAccess | NextResponse> {
+  return verifyRepoAccess(
+    req,
+    WRITE_REPOSITORY_PERMISSIONS,
+    "write_permission_required",
+  );
+}
+
 // ─── Verified actor identity (resolve the PAT → its GitHub user) ──────────────
 
 export interface ActorIdentity {

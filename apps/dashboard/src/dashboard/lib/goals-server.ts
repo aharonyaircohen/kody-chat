@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/goals-server. */
-export * from "@kody-ade/agency/goals-server";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/goals-server";

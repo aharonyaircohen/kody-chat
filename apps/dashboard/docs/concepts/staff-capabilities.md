@@ -5,19 +5,19 @@ This page explains the Dashboard authoring surface that implements it.
 
 Current storage has three related pieces:
 
-- **Agents** - `.kody/agents/<slug>.md`. A agent: who an actor is
+- **Agents** - `backend definitions (agents)<slug>.md`. A agent: who an actor is
   (character, values, doctrine). This is the canonical **who**.
-- **Capabilities** - `.kody/capabilities/<slug>/`. The canonical **how**:
+- **Capabilities** - `backend definitions (capabilities)<slug>/`. The canonical **how**:
   public action name, owner, cadence, safety, inputs, outputs,
   tools/data/instructions, and execution binding.
 - **Legacy implementation roots** -
-  `.kody/capabilities/<slug>/` and `.kody/implementations/<slug>/`.
+  `backend definitions (capabilities)<slug>/` and `backend definition bundles (implementations)<slug>/`.
   These are compatibility roots while older repos migrate.
 
 A capability folder always contains:
 
 ```text
-.kody/capabilities/<slug>/
+backend definitions (capabilities)<slug>/
   profile.json
   capability.md
 ```
@@ -41,15 +41,15 @@ capability supplies its own job and the agent only supplies judgment and voice.
 
 So in storage terms:
 
-|                         | Agents (who)             | Capability (how)                                | Legacy roots                                              |
-| ----------------------- | ------------------------ | ----------------------------------------------- | --------------------------------------------------------- |
-| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/`                    | `.kody/capabilities/<slug>/`, `.kody/implementations/<slug>/` |
-| Answers                 | Who is acting?           | What capability is available?                   | How is older stored implementation found?                 |
-| Owns the schedule?      | No                       | Only the capability cadence, via `profile.json` | Compatibility only                                        |
-| Owns the action name?   | No                       | Yes, `profile.json.action`                      | No                                                        |
-| Owns reusable method?   | No                       | Yes, through skills/scripts/prompts when needed | Compatibility only                                        |
-| Names the agent member? | No                       | Yes, `profile.json.agent` or legacy `runner`    | No                                                        |
-| Independently ticked?   | No                       | Yes                                             | Only for legacy compatibility                             |
+|                         | Agents (who)                            | Capability (how)                                | Legacy roots                                                                                       |
+| ----------------------- | --------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Path                    | `backend definitions (agents)<slug>.md` | `backend definitions (capabilities)<slug>/`     | `backend definitions (capabilities)<slug>/`, `backend definition bundles (implementations)<slug>/` |
+| Answers                 | Who is acting?                          | What capability is available?                   | How is older stored implementation found?                                                          |
+| Owns the schedule?      | No                                      | Only the capability cadence, via `profile.json` | Compatibility only                                                                                 |
+| Owns the action name?   | No                                      | Yes, `profile.json.action`                      | No                                                                                                 |
+| Owns reusable method?   | No                                      | Yes, through skills/scripts/prompts when needed | Compatibility only                                                                                 |
+| Names the agent member? | No                                      | Yes, `profile.json.agent` or legacy `runner`    | No                                                                                                 |
+| Independently ticked?   | No                                      | Yes                                             | Only for legacy compatibility                                                                      |
 
 ## Capability profile
 
@@ -79,7 +79,7 @@ Important fields:
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
 - `disabled` - `true` makes the scheduler skip autonomous execution.
-- `agent` - slug of the agent under `.kody/agents/<slug>.md` that performs the
+- `agent` - slug of the agent under `backend definitions (agents)<slug>.md` that performs the
   capability. Older profiles may still use `runner`.
 - `reviewer` - optional agent slug responsible for treating the output after
   the capability produces it.
@@ -93,7 +93,7 @@ The dashboard create form asks for an output type:
 
 - `Run` - no generated report is promised.
 - `Report` - timestamped files under `reports/<slug>/runs/` in the configured
-  Kody state repo are the durable output, and the report slug is stored in
+  Kody backend are the durable output, and the report slug is stored in
   `writesTo`.
 
 A capability with no agent should not auto-run. A capability pointing at a
@@ -124,12 +124,12 @@ The capability should remain readable as the operator-facing contract.
 ```text
 engine cron
   -> capability scheduler
-     -> enumerate .kody/capabilities/<slug>/ folders
+     -> enumerate backend definitions (capabilities)<slug>/ folders
      -> read profile.json
      -> skip disabled/no-agent/not-due capabilities
      -> run the due capability action
         -> load capability.md
-        -> inject .kody/agents/<agent>.md agent
+        -> inject backend definitions (agents)<agent>.md agent
         -> run configured implementation
         -> write activity/state for the dashboard
 ```
@@ -148,7 +148,7 @@ Key points:
 ## State files
 
 Runtime state is not part of the capability authoring surface. The engine writes it
-under the configured Kody state repo, and the dashboard reads it to render run status:
+under the configured Kody backend, and the dashboard reads it to render run status:
 
 - `lastTickAt` - last visible run time.
 - `nextEligibleAt` - next known eligible run time, when the engine provides it.
@@ -189,7 +189,7 @@ important per-capability throttle.
 | [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | Dashboard next-tick display math                    |
 | [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                         | Agents API                                          |
 | [`app/api/kody/capabilities/route.ts`](../../app/api/kody/capabilities/route.ts)           | Capabilities API                                    |
-| [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                         | Example identity-only agent                         |
+| [`backend definitions (agents)cto.md`](../../backend definitions (agents)cto.md)           | Example identity-only agent                         |
 | `kody2/src/scripts/dispatchCapabilityFileTicks.ts` (engine)                                | Scheduler fan-out                                   |
 | `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Capability/legacy capability loader                 |
 

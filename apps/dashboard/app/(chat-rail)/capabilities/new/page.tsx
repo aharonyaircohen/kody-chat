@@ -2,10 +2,10 @@
  * @fileType page
  * @domain capabilities
  * @pattern capabilities-page
- * @ai-summary Create a new capability backed by state-repo capabilities storage.
+ * @ai-summary Create a new capability backed by backend capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CapabilityEditorPage } from "@dashboard/lib/components/CapabilitiesManager";
+import { CapabilityEditorPage } from "@dashboard/features/admin/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";
@@ -21,7 +21,7 @@ export const metadata = buildKodyMetadata({
 export default function NewCapabilityPage() {
   return (
     <AuthGuard>
-      <CapabilityEditorPage slug={null} basePath="/capabilities" />
+      <CapabilityEditorPage basePath="/capabilities" />
     </AuthGuard>
   );
 }

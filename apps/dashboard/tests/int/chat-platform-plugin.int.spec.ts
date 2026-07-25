@@ -17,7 +17,7 @@ import {
   ChatToolRegistrationError,
   type ChatPlugin,
   type ChatToolServerContext,
-} from "@kody-ade/kody-chat/platform";
+} from "@kody-ade/kody-chat-dashboard/platform";
 
 const serverCtx: ChatToolServerContext = {
   owner: "test-owner",

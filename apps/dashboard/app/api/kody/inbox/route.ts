@@ -18,22 +18,12 @@ import {
   getRequestAuth,
   getUserOctokit,
 } from "@kody-ade/base/auth";
-import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/gist-store";
-import type { InboxEntry, InboxSource } from "@dashboard/lib/inbox/types";
-
-const SOURCES = [
-  "mention",
-  "comment",
-  "review_requested",
-  "assigned",
-  "team_mention",
-  "subscribed",
-  "other",
-] as const satisfies readonly InboxSource[];
+import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/convex-store";
+import { INBOX_SOURCES, type InboxEntry } from "@dashboard/lib/inbox/types";
 
 const entrySchema = z.object({
   id: z.string().min(1).max(256),
-  source: z.enum(SOURCES),
+  source: z.enum(INBOX_SOURCES),
   repoFullName: z.string().min(3).max(140),
   threadType: z.string().min(1).max(40),
   title: z.string().max(280),
@@ -46,6 +36,11 @@ const entrySchema = z.object({
   ctoCommand: z.string().max(300).optional(),
   ctoAgent: z.string().max(40).optional(),
   ctoCapability: z.string().max(40).optional(),
+  ctoRepo: z
+    .string()
+    .regex(/^[^/\s]+\/[^/\s]+$/)
+    .max(140)
+    .optional(),
 }) satisfies z.ZodType<InboxEntry>;
 
 const appendSchema = z.object({

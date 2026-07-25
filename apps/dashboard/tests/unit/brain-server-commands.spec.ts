@@ -12,6 +12,10 @@ const store = vi.hoisted(() => ({
   writeBrainApp: vi.fn(async () => undefined),
 }));
 
+const runtimeManager = vi.hoisted(() => ({
+  clearBrainRuntimeDeployment: vi.fn(async () => undefined),
+}));
+
 const brainFly = vi.hoisted(() => ({
   destroyBrain: vi.fn(async () => undefined),
   isBrainFlyProvisionTransientError: vi.fn(() => false),
@@ -33,6 +37,7 @@ const brainFly = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/brain/store", () => store);
+vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   ...brainFly,
   brainAppName: (account: string) => `kody-brain-${account}`,
@@ -66,6 +71,7 @@ const context: FlyContext = {
   flyToken: "fly-token",
   flyOrgSlug: "personal",
   flyDefaultRegion: "fra",
+  providerTokenSource: "repo-vault",
   allSecrets: {},
   perfTier: undefined,
 };
@@ -76,27 +82,45 @@ describe("manageBrainServer", () => {
     store.clearBrainApp.mockResolvedValue(undefined);
     store.readBrainApp.mockResolvedValue(null);
     store.writeBrainApp.mockResolvedValue(undefined);
+    runtimeManager.clearBrainRuntimeDeployment.mockResolvedValue(undefined);
   });
 
   it("does not report provision success when the Brain app record cannot be saved", async () => {
-    store.writeBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+    store.writeBrainApp.mockRejectedValueOnce(new Error("backend down"));
 
     await expect(
       manageBrainServer({ command: "provision", context }),
-    ).rejects.toThrow("state repo down");
+    ).rejects.toThrow("backend down");
 
     expect(brainFly.provisionBrain).toHaveBeenCalled();
     expect(store.writeBrainApp).toHaveBeenCalled();
   });
 
   it("does not report destroy success when the stored Brain record cannot be cleared", async () => {
-    store.clearBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+    store.clearBrainApp.mockRejectedValueOnce(new Error("backend down"));
 
     await expect(
       manageBrainServer({ command: "destroy", context }),
-    ).rejects.toThrow("state repo down");
+    ).rejects.toThrow("backend down");
 
     expect(brainFly.destroyBrain).toHaveBeenCalled();
+    expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+    );
+    expect(store.clearBrainApp).toHaveBeenCalled();
+  });
+
+  it("clears the running runtime after Fly destroys the Brain", async () => {
+    await expect(
+      manageBrainServer({ command: "destroy", context }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(brainFly.destroyBrain).toHaveBeenCalled();
+    expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+    );
     expect(store.clearBrainApp).toHaveBeenCalled();
   });
 });

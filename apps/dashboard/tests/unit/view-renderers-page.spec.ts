@@ -13,14 +13,14 @@ describe("view renderers management page", () => {
       "app/(chat-rail)/views/renderers/page.tsx",
       "utf8",
     );
-    expect(listPage).toContain("@kody-ade/kody-chat/pages/view-renderers");
+    expect(listPage).toContain("@kody-ade/kody-chat-dashboard/pages/view-renderers");
 
     const detailPage = readFileSync(
       "app/(chat-rail)/views/renderers/[slug]/page.tsx",
       "utf8",
     );
     expect(detailPage).toContain(
-      "@kody-ade/kody-chat/pages/view-renderer-detail",
+      "@kody-ade/kody-chat-dashboard/pages/view-renderer-detail",
     );
 
     expect(existsSync("app/api/kody/view-renderers/route.ts")).toBe(true);

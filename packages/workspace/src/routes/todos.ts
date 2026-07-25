@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain todos
  * @pattern todo-lists-api
- * @ai-summary Kody todo-lists API — GET lists state-repo `todos/*.json`, POST
+ * @ai-summary Kody todo-lists API — GET lists Convex `todos/*.json`, POST
  * creates a new repo-scoped todo list with optional note-like items.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -13,15 +13,8 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
-import {
-  createTodoSlug,
-  listTodoFiles,
-  writeTodoFile,
-} from "../todos/files";
+import { setGitHubContext, clearGitHubContext } from "../github";
+import { createTodoSlug, listTodoFiles, writeTodoFile } from "../todos/files";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

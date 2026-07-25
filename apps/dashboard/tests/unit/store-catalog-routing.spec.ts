@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   storeCatalogPathWithViewState,
   type StoreCatalogViewState,
-} from "../../src/dashboard/lib/components/StoreCatalogManager";
+} from "@dashboard/features/admin/components/StoreCatalogManager";
 
 describe("store catalog routing", () => {
   it("preserves non-default filter and search state in item links", () => {

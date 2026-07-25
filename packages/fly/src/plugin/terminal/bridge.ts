@@ -20,11 +20,26 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-13.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
-const START_SCRIPT = String.raw`#!/bin/sh
+export function terminalBridgeVersionFor(input: {
+  startScript: string;
+  bridgeScript: string;
+  ptyRelayScript: string;
+}): string {
+  return crypto
+    .createHash("sha256")
+    .update(input.startScript)
+    .update("\0")
+    .update(input.bridgeScript)
+    .update("\0")
+    .update(input.ptyRelayScript)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export const TERMINAL_BRIDGE_START_SCRIPT = String.raw`#!/bin/sh
 set -eu
 
 need_apt=0
@@ -39,7 +54,11 @@ if [ "$need_apt" = "1" ]; then
 fi
 
 if ! command -v flyctl >/dev/null 2>&1; then
-  curl -L https://fly.io/install.sh | sh
+  # v0.4.72 can report a running Machines app as having no started VMs when
+  # invoked from another Fly machine, which makes every nested SSH pane exit.
+  # Keep the bridge on the version proven against this machine-to-machine path
+  # until a newer release is verified by the live Brain terminal journey.
+  curl -fsSL https://fly.io/install.sh | sh -s -- v0.4.50 --non-interactive
   cp /root/.fly/bin/flyctl /usr/local/bin/flyctl
 fi
 
@@ -107,10 +126,11 @@ if pid == 0:
 slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
-control_fd = 3
-if control_fd in (master, slave, stdin_fd, stdout_fd):
-    control_fd = None
-else:
+# Only treat fd 3 as a control channel when the parent says it passed one;
+# an unrelated inherited fd 3 would otherwise block the relay forever.
+control_fd = None
+if os.environ.get("KODY_PTY_CONTROL_FD") == "3":
+    control_fd = 3
     try:
         os.fstat(control_fd)
     except OSError:
@@ -180,12 +200,25 @@ while True:
                 except ProcessLookupError:
                     pass
 
-try:
-    os.close(master)
-except OSError:
-    pass
+# The child may exit before its final output has been read from the PTY.
+# Close our slave end so the master drains to EOF, then flush what remains.
 try:
     os.close(slave_control_fd)
+except OSError:
+    pass
+while True:
+    readable, _, _ = select.select([master], [], [], 0.25)
+    if master not in readable:
+        break
+    try:
+        data = os.read(master, 65536)
+    except OSError:
+        break
+    if not data:
+        break
+    os.write(stdout_fd, data)
+try:
+    os.close(master)
 except OSError:
     pass
 if control_fd is not None:
@@ -204,6 +237,7 @@ import { spawn, spawnSync } from "node:child_process";
 const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
 const READY_TIMEOUT_MS = 75000;
+const REUSED_TMUX_READY_TIMEOUT_MS = 15000;
 const READY_PROBE_INTERVAL_MS = 2500;
 const MAX_SSH_START_ATTEMPTS = 5;
 const SSH_START_RETRY_DELAY_MS = 2000;
@@ -297,6 +331,12 @@ function verifyTerminalToken(token) {
     !/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId)
   ) {
     throw new Error("terminal token machine invalid");
+  }
+  if (
+    claims.privateAddress !== undefined &&
+    !/^[0-9A-Fa-f:]{2,64}$/.test(claims.privateAddress)
+  ) {
+    throw new Error("terminal token private address invalid");
   }
   if (claims.localExec !== true && !claims.machineId) {
     throw new Error("terminal token machine required");
@@ -746,6 +786,7 @@ function directFlySshCommand(claims) {
     "--app",
     claims.app,
     ...flyctlOrgArgs(claims.orgSlug),
+    ...(claims.privateAddress ? ["--address", claims.privateAddress] : []),
     "--machine",
     claims.machineId,
     "--pty",
@@ -759,7 +800,24 @@ function shellQuote(value) {
 }
 
 function tmuxPaneCommand(claims) {
-  return directFlySshCommand(claims).map(shellQuote).join(" ");
+  const machineBaseUrl =
+    "https://api.machines.dev/v1/apps/" +
+    claims.app +
+    "/machines/" +
+    claims.machineId;
+  const wakeAndConnect = [
+    "curl -fsS --retry 2 --retry-delay 1 -X POST",
+    '-H "Authorization: Bearer $FLY_API_TOKEN"',
+    shellQuote(machineBaseUrl + "/start"),
+    ">/dev/null 2>&1 || true;",
+    "curl -fsS --retry 2 --retry-delay 1",
+    '-H "Authorization: Bearer $FLY_API_TOKEN"',
+    shellQuote(machineBaseUrl + "/wait?state=started&timeout=60"),
+    ">/dev/null;",
+    "exec",
+    directFlySshCommand(claims).map(shellQuote).join(" "),
+  ].join(" ");
+  return ["sh", "-lc", wakeAndConnect].map(shellQuote).join(" ");
 }
 
 function tmuxSessionName(claims) {
@@ -783,6 +841,19 @@ function hasTmuxSession(sessionName) {
   return result.status === 0;
 }
 
+function tmuxSessionHasLivePane(sessionName) {
+  if (!sessionName) return false;
+  const result = spawnSync(
+    "tmux",
+    ["list-panes", "-t", sessionName, "-F", "#{pane_dead}"],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) return false;
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .some((value) => value.trim() === "0");
+}
+
 function configureTmuxSession(sessionName) {
   const options = [
     ["status", "off"],
@@ -797,16 +868,37 @@ function configureTmuxSession(sessionName) {
       throw new Error("failed to configure terminal tmux session");
     }
   }
+  const remainOnExit = spawnSync(
+    "tmux",
+    ["set-option", "-w", "-t", sessionName, "remain-on-exit", "off"],
+    { stdio: "ignore" },
+  );
+  if (remainOnExit.status !== 0) {
+    throw new Error("failed to configure terminal tmux session");
+  }
 }
 
 function ensureTmuxSession(claims, sessionName, env) {
   if (hasTmuxSession(sessionName)) {
-    configureTmuxSession(sessionName);
-    return { created: false };
+    if (tmuxSessionHasLivePane(sessionName)) {
+      configureTmuxSession(sessionName);
+      return { created: false };
+    }
+    killTmuxSession(sessionName);
   }
   const result = spawnSync(
     "tmux",
-    ["new-session", "-d", "-s", sessionName, tmuxPaneCommand(claims)],
+    [
+      "new-session",
+      "-d",
+      "-s",
+      sessionName,
+      "-e",
+      "FLY_API_TOKEN=" + claims.flyToken,
+      "-e",
+      "FLY_ACCESS_TOKEN=" + claims.flyToken,
+      tmuxPaneCommand(claims),
+    ],
     { env, stdio: "ignore" },
   );
   if (result.status !== 0) {
@@ -910,7 +1002,6 @@ function createFlyConsoleSession(claims, key) {
   };
   const readyMarker = "__KR_" + crypto.randomBytes(4).toString("hex") + "__";
   const tmuxName = key ? tmuxSessionName(claims) : null;
-  const tmuxState = tmuxName ? ensureTmuxSession(claims, tmuxName, env) : null;
   const command = tmuxName
     ? ["tmux", "attach-session", "-t", tmuxName]
     : directFlySshCommand(claims);
@@ -921,8 +1012,12 @@ function createFlyConsoleSession(claims, key) {
     key,
     tmuxSessionName: tmuxName,
     readyMarker,
-    sawOutput: false,
-    ready: Boolean(tmuxName && !tmuxState?.created),
+    // A live tmux pane only proves the local wrapper still exists. The
+    // underlying Fly SSH session may still be connecting or may have exited,
+    // so every newly reconstructed bridge session must pass the keyboard
+    // self-test before the browser is told it is ready.
+    ready: false,
+    restoring: false,
     timedOut: false,
     detaching: false,
     startAttempts: 0,
@@ -938,30 +1033,42 @@ function createFlyConsoleSession(claims, key) {
     resizeControl: null,
     restartChild: null,
   };
-  const statusTimer = setInterval(() => {
-    if (!session.sawOutput) {
+  function armReadinessChecks({ reusedTmux }) {
+    clearInterval(session.statusTimer);
+    clearTimeout(session.readyTimer);
+    session.statusTimer = setInterval(() => {
+      if (!session.ready) {
+        sendToSession(session, {
+          type: "output",
+          data: "Still opening real terminal...\r\n",
+        });
+      }
+    }, SSH_STATUS_INTERVAL_MS);
+    session.readyTimer = setTimeout(() => {
+      if (session.ready) return;
+      if (reusedTmux && session.startAttempts < MAX_SSH_START_ATTEMPTS) {
+        session.pendingOutput = "";
+        sendToSession(session, {
+          type: "output",
+          data: "Replacing stale terminal session...\r\n",
+        });
+        killTmuxSession(tmuxName);
+        session.child?.kill("SIGTERM");
+        return;
+      }
+      if (session.pendingOutput) {
+        rememberOutput(session, session.pendingOutput);
+        sendToSession(session, { type: "output", data: session.pendingOutput });
+        session.pendingOutput = "";
+      }
       sendToSession(session, {
-        type: "output",
-        data: "Still opening real terminal...\r\n",
+        type: "error",
+        message: "Terminal did not answer the keyboard self-test.",
       });
-    }
-  }, SSH_STATUS_INTERVAL_MS);
-  const readyTimer = setTimeout(() => {
-    if (session.ready) return;
-    if (session.pendingOutput) {
-      rememberOutput(session, session.pendingOutput);
-      sendToSession(session, { type: "output", data: session.pendingOutput });
-      session.pendingOutput = "";
-    }
-    sendToSession(session, {
-      type: "error",
-      message: "Terminal did not answer the keyboard self-test.",
-    });
-    session.timedOut = true;
-    session.child?.kill("SIGTERM");
-  }, READY_TIMEOUT_MS);
-  session.statusTimer = statusTimer;
-  session.readyTimer = readyTimer;
+      session.timedOut = true;
+      session.child?.kill("SIGTERM");
+    }, reusedTmux ? REUSED_TMUX_READY_TIMEOUT_MS : READY_TIMEOUT_MS);
+  }
 
   function findReadyProof(output) {
     const ttyPattern = /\/dev\/(?:pts\/[0-9]+|tty[^\s\r\n]*)/g;
@@ -969,7 +1076,7 @@ function createFlyConsoleSession(claims, key) {
     while ((match = ttyPattern.exec(output)) !== null) {
       const markerIndex = output.indexOf(readyMarker, match.index + match[0].length);
       if (markerIndex !== -1) {
-        return { tty: match[0], markerIndex };
+        return { tty: match[0], ttyIndex: match.index, markerIndex };
       }
     }
     return null;
@@ -981,23 +1088,38 @@ function createFlyConsoleSession(claims, key) {
       .replace(/^[^\r\n]*(\r\n|\n|\r)?/, "");
   }
 
+  function outputBeforeReady(output, ttyIndex) {
+    return output
+      .slice(0, ttyIndex)
+      .split(/(?<=\r\n|\n|\r)/)
+      .filter(
+        (line) =>
+          !line.includes(readyMarker) && !line.includes("tty; printf"),
+      )
+      .join("");
+  }
+
   function handleOutput(chunk) {
     const text = chunk.toString("utf8");
-    session.sawOutput = true;
     session.lastTouched = Date.now();
-    clearInterval(statusTimer);
     if (!session.ready) {
       session.pendingOutput += text;
       const proof = findReadyProof(session.pendingOutput);
       if (!proof) return;
       session.ready = true;
+      clearInterval(session.statusTimer);
+      session.statusTimer = null;
       clearInterval(session.readyProbeTimer);
       session.readyProbeTimer = null;
-      clearTimeout(readyTimer);
-      const cleanOutput = outputAfterReady(
-        session.pendingOutput,
-        proof.markerIndex,
-      );
+      clearTimeout(session.readyTimer);
+      session.readyTimer = null;
+      const restoredOutput = session.restoring
+        ? outputBeforeReady(session.pendingOutput, proof.ttyIndex)
+        : "";
+      const cleanOutput =
+        restoredOutput +
+        outputAfterReady(session.pendingOutput, proof.markerIndex);
+      session.restoring = false;
       session.pendingOutput = "";
       sendToSession(session, { type: "ready" });
       if (cleanOutput) {
@@ -1012,9 +1134,10 @@ function createFlyConsoleSession(claims, key) {
 
   function startChild() {
     if (session.child) return;
+    let tmuxState = { created: true };
     if (tmuxName) {
       try {
-        ensureTmuxSession(claims, tmuxName, env);
+        tmuxState = ensureTmuxSession(claims, tmuxName, env);
       } catch (err) {
         cleanupSession(session);
         sendToSession(session, {
@@ -1026,10 +1149,12 @@ function createFlyConsoleSession(claims, key) {
         return;
       }
     }
+    if (!session.ready) {
+      armReadinessChecks({ reusedTmux: !tmuxState.created });
+    }
     session.startAttempts += 1;
-    session.sawOutput = false;
     const child = spawn("python3", args, {
-      env,
+      env: { ...env, KODY_PTY_CONTROL_FD: "3" },
       stdio: ["pipe", "pipe", "pipe", "pipe"],
     });
     session.child = child;
@@ -1062,6 +1187,10 @@ function createFlyConsoleSession(claims, key) {
       session.resizeControl = null;
       if (session.detaching) {
         session.detaching = false;
+        session.ready = false;
+        session.timedOut = false;
+        session.startAttempts = 0;
+        session.pendingOutput = "";
         if (
           session.key &&
           session.sockets.size > 0 &&
@@ -1069,6 +1198,35 @@ function createFlyConsoleSession(claims, key) {
         ) {
           session.restartChild();
         }
+        return;
+      }
+      if (
+        session.ready &&
+        session.sockets.size > 0 &&
+        !session.timedOut &&
+        session.startAttempts < MAX_SSH_START_ATTEMPTS
+      ) {
+        session.ready = false;
+        session.restoring = true;
+        session.pendingOutput = "";
+        if (tmuxName) killTmuxSession(tmuxName);
+        sendToSession(
+          session,
+          restoreStartMessage(session.outputBuffer || ""),
+        );
+        sendToSession(session, {
+          type: "output",
+          data:
+            "Retrying terminal after unexpected tunnel exit (" +
+            (session.startAttempts + 1) +
+            "/" +
+            MAX_SSH_START_ATTEMPTS +
+            ")...\r\n",
+        });
+        session.retryTimer = setTimeout(
+          startChild,
+          sshStartRetryDelayMs(session.startAttempts),
+        );
         return;
       }
       if (
@@ -1132,17 +1290,25 @@ function createFlyConsoleSession(claims, key) {
 }
 
 function attachSocketToSession(socket, session) {
+  session.sockets.add(socket);
   if (session.key && !session.child && typeof session.restartChild === "function") {
     session.restartChild();
   }
-  session.sockets.add(socket);
   session.lastTouched = Date.now();
 
+  let detached = false;
   function detach() {
+    if (detached) return;
+    detached = true;
     session.sockets.delete(socket);
     session.lastTouched = Date.now();
     if (session.key && session.sockets.size === 0) {
       session.detaching = true;
+      session.restoring = session.ready;
+      session.ready = false;
+      session.timedOut = false;
+      session.startAttempts = 0;
+      session.pendingOutput = "";
       try {
         session.child?.kill("SIGTERM");
       } catch {}
@@ -1167,11 +1333,23 @@ function attachSocketToSession(socket, session) {
     } catch {
       return;
     }
+    if (msg.type === "ping") {
+      sendJson(socket, { type: "pong" });
+      return;
+    }
     if (msg.type === "input" && typeof msg.data === "string") {
       const inputData = stripTerminalMouseInput(msg.data);
       session.inputBytes += Buffer.byteLength(inputData);
       session.lastTouched = Date.now();
       console.log("terminal input bytes=" + session.inputBytes);
+      if (!session.ready || session.detaching) {
+        sendJson(socket, {
+          type: "input-rejected",
+          id: msg.id,
+          message: "Terminal is reconnecting.",
+        });
+        return;
+      }
       if (!inputData) {
         sendJson(socket, {
           type: "input-accepted",
@@ -1209,7 +1387,9 @@ function attachSocketToSession(socket, session) {
     }
   });
 
-  const isRestoring = Boolean(session.key && session.ready);
+  const isRestoring = Boolean(
+    session.key && (session.ready || session.restoring || session.detaching),
+  );
   if (isRestoring) {
     sendJson(socket, restoreStartMessage(session.outputBuffer || ""));
     setTimeout(() => {
@@ -1453,6 +1633,12 @@ server.listen(port, "0.0.0.0", () => {
 });
 `;
 
+export const TERMINAL_BRIDGE_VERSION = terminalBridgeVersionFor({
+  startScript: TERMINAL_BRIDGE_START_SCRIPT,
+  bridgeScript: TERMINAL_BRIDGE_SCRIPT,
+  ptyRelayScript: TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+});
+
 interface FlyFetchOpts {
   method?: "GET" | "POST" | "DELETE";
   token: string;
@@ -1663,7 +1849,9 @@ async function createBridgeMachine(
       files: [
         {
           guest_path: "/app/start.sh",
-          raw_value: Buffer.from(START_SCRIPT).toString("base64"),
+          raw_value: Buffer.from(TERMINAL_BRIDGE_START_SCRIPT).toString(
+            "base64",
+          ),
         },
         {
           guest_path: "/app/bridge.mjs",

@@ -31,7 +31,7 @@ export function createAgentAdminTools(ctx: Ctx) {
 
   return {
     list_agents: tool({
-      description: `List the agentIdentity identities in ${repoRef} (state repo agents/). Returns slug and title for each reusable agentIdentity.`,
+      description: `List the agentIdentity identities in ${repoRef} (backend agents/). Returns slug and title for each reusable agentIdentity.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -61,14 +61,14 @@ export function createAgentAdminTools(ctx: Ctx) {
     }),
 
     delete_agent: tool({
-      description: `Delete an agentIdentity from ${repoRef} (removes agents/<slug>.md from the state repo).`,
+      description: `Delete an agentIdentity from ${repoRef} (removes agents/<slug>.md from the backend).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
           const existing = await readAgentFile(slug);
           if (!existing) return { error: `agent "${slug}" not found` };
-          await deleteAgentFile(octokit, slug);
+          await deleteAgentFile(slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

@@ -14,16 +14,20 @@ export type StoreAssetKind =
   | "capabilities"
   | "implementations"
   | "workflows"
+  | "loops"
   | "commands"
   | "goals"
+  | "shared"
   | "agent"
   | "agents";
 type StoreManifestKind =
   | "capabilities"
   | "implementations"
   | "workflows"
+  | "loops"
   | "commands"
   | "goals"
+  | "shared"
   | "agent";
 export type AssetSource = "local" | "store";
 
@@ -228,7 +232,7 @@ async function companyStoreAssetRoot(
   if (typeof configured === "string" && configured.trim()) {
     return cleanStorePath(configured);
   }
-  return legacyStoreAssetRoot(kind);
+  return defaultStoreAssetRoot(kind);
 }
 
 function storeManifestKind(kind: StoreAssetKind): StoreManifestKind {
@@ -244,18 +248,6 @@ function defaultStoreAssetRoot(kind: StoreAssetKind): string {
       return "goals/templates";
     default:
       return kind;
-  }
-}
-
-function legacyStoreAssetRoot(kind: StoreAssetKind): string {
-  switch (kind) {
-    case "agents":
-    case "agent":
-      return ".kody/agents";
-    case "goals":
-      return ".kody/goals/templates";
-    default:
-      return `.kody/${kind}`;
   }
 }
 
@@ -299,9 +291,7 @@ async function readCompanyStoreConfig(
   const key = `${store.owner}/${store.repo}@${store.ref}`;
   if (configMemo?.key === key) return configMemo.value;
   const value = (async () => {
-    const raw =
-      (await readCompanyStoreText(octokit, "kody-store.json")) ??
-      (await readCompanyStoreText(octokit, ".kody/kody-store.json"));
+    const raw = await readCompanyStoreText(octokit, "kody-store.json");
     if (!raw) return null;
     try {
       return JSON.parse(raw) as StoreConfig;
@@ -320,9 +310,7 @@ async function readCompanyStoreManifest(
   const key = `${store.owner}/${store.repo}@${store.ref}`;
   if (manifestMemo?.key === key) return manifestMemo.value;
   const value = (async () => {
-    const raw =
-      (await readCompanyStoreText(octokit, "store-manifest.json")) ??
-      (await readCompanyStoreText(octokit, ".kody/store-manifest.json"));
+    const raw = await readCompanyStoreText(octokit, "store-manifest.json");
     if (!raw) return null;
     try {
       return JSON.parse(raw) as StoreManifest;

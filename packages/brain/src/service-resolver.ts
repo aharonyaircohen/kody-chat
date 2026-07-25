@@ -17,6 +17,7 @@ import {
   type ServerBrainStatusResult,
 } from "@kody-ade/fly/infrastructure/server-brain";
 import {
+  isServerProviderMachineRunning,
   rowsForServerProviderApp,
   type ServerProviderMachineRow,
 } from "@kody-ade/fly/infrastructure/server-machines";
@@ -44,24 +45,6 @@ export interface ServerBrainServiceResolution {
 }
 
 export type BrainServiceResolution = ServerBrainServiceResolution;
-
-function envFlyTokenFallback(primaryToken: string): string | undefined {
-  const token =
-    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
-  return token && token !== primaryToken ? token : undefined;
-}
-
-function sameResolvedBrainMachine(
-  a: ServerBrainServiceResolution,
-  b: ServerBrainServiceResolution,
-): boolean {
-  return Boolean(
-    a.app === b.app &&
-      a.machineId &&
-      b.machineId &&
-      a.machineId === b.machineId,
-  );
-}
 
 function flyAccessDenied(error: unknown): boolean {
   const status = (error as { status?: number })?.status;
@@ -92,7 +75,11 @@ export async function resolveBrainService(input: {
     stored,
     appNameOverride: input.appNameOverride,
   });
-  const app = input.appNameOverride ?? target.app;
+  const recordedRunningApp =
+    !input.appNameOverride && target.source === "default"
+      ? runtime?.runningApp
+      : undefined;
+  const app = input.appNameOverride ?? recordedRunningApp ?? target.app;
   const orgSlug =
     runtime?.runningApp === app && runtime.runningOrgSlug
       ? runtime.runningOrgSlug
@@ -122,26 +109,43 @@ export async function resolveBrainService(input: {
         orgSlug,
         defaultRegion: input.defaultRegion,
       });
-      machine = rowsForServerProviderApp(app, machines, Date.now(), {
+      const rows = rowsForServerProviderApp(app, machines, Date.now(), {
         feature: "brain",
         label: app,
         orgSlug,
-      }).find((row) =>
+      });
+      machine = rows.find((row) =>
         targetMachineId ? row.machineId === targetMachineId : true,
       );
+      if (!machine && targetMachineId) {
+        const runningMachines = rows.filter((row) =>
+          isServerProviderMachineRunning(row.state),
+        );
+        if (runningMachines.length === 1) {
+          machine = runningMachines[0];
+        }
+      }
     } catch (err) {
       machineLookupFailed = true;
       machineAccessDenied = machineAccessDenied || flyAccessDenied(err);
     }
 
-    const reason: BrainServiceReason | undefined =
-      machineAccessDenied
-        ? "fly_access_denied"
-        : targetMachineId && !machine && !machineLookupFailed
+    const resolvedState = machine
+      ? isServerProviderMachineRunning(machine.state)
+        ? "running"
+        : machine.state === "suspended"
+          ? "suspended"
+          : machine.state === "stopped"
+            ? "stopped"
+            : status.state
+      : status.state;
+    const reason: BrainServiceReason | undefined = machineAccessDenied
+      ? "fly_access_denied"
+      : targetMachineId && !machine && !machineLookupFailed
         ? "runtime_machine_not_found"
-        : machineLookupFailed && status.state !== "off"
+        : machineLookupFailed && resolvedState !== "off"
           ? "machine_lookup_failed"
-          : status.state !== "off"
+          : resolvedState !== "off"
             ? undefined
             : stored
               ? status.url
@@ -155,7 +159,7 @@ export async function resolveBrainService(input: {
       defaultRegion: input.defaultRegion,
       flyToken,
       stored,
-      state: status.state,
+      state: resolvedState,
       url: status.url,
       machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
       machineImageRef: machine?.imageRef ?? status.machineImageRef,
@@ -164,26 +168,5 @@ export async function resolveBrainService(input: {
     };
   };
 
-  const primary = await resolveWithToken(input.flyToken);
-  const fallback =
-    stored || runtime?.runningApp
-      ? envFlyTokenFallback(input.flyToken)
-      : undefined;
-  if (fallback) {
-    const fallbackResult = await resolveWithToken(fallback).catch(() => null);
-    // Never prefer a fallback the env token could not actually access —
-    // machineId equality alone is not proof of access (both sides derive
-    // it from the same stored runtime record even on a 403).
-    if (
-      fallbackResult &&
-      fallbackResult.reason !== "fly_access_denied" &&
-      (primary.machine
-        ? sameResolvedBrainMachine(primary, fallbackResult) &&
-          Boolean(fallbackResult.machine)
-        : fallbackResult.machine || fallbackResult.state !== "off")
-    ) {
-      return fallbackResult;
-    }
-  }
-  return primary;
+  return resolveWithToken(input.flyToken);
 }

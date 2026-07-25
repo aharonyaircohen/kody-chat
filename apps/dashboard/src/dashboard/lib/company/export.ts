@@ -4,7 +4,7 @@
  * @pattern company-export
  * @ai-summary Build a portable Company bundle from the connected repo.
  *   Reads the company-level artifact types (agents, commands, context,
- *   capabilities, managed goals, instructions) via their existing file helpers
+ *   capabilities and instructions via their existing file helpers
  *   and maps each to the repo-agnostic shape in `types.ts` — dropping
  *   sha/html_url/commit and tick timestamps, which are meaningless in another repo. Runs inside
  *   an established GitHub context (see the API route).
@@ -16,10 +16,9 @@ import { listRepoCommandFiles } from "@kody-ade/workspace/commands/files";
 import { listContextFiles } from "@kody-ade/workspace/context/files";
 import { readInstructionsFile } from "@kody-ade/workspace/instructions/files";
 import {
-  listCapabilityFiles,
+  listLocalCapabilityFiles,
   readCapabilityFolderFiles,
-} from "../capabilities";
-import { listManagedGoalFiles } from "../managed-goals-files";
+} from "@kody-ade/agency/capabilities";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
@@ -28,7 +27,6 @@ import {
   type CompanyAgentEntry,
   type CompanyCommandEntry,
   type CompanyCapabilityEntry,
-  type CompanyGoalEntry,
   type CompanyContextEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
@@ -62,7 +60,7 @@ function toContextEntry(file: ContextFile): CompanyContextEntry {
 
 /** Read every capability folder into portable path→content maps. */
 async function buildCapabilityEntries(): Promise<CompanyCapabilityEntry[]> {
-  const summaries = await listCapabilityFiles();
+  const summaries = await listLocalCapabilityFiles();
   const entries = await Promise.all(
     summaries.map(async (s) => {
       const files = await readCapabilityFolderFiles(s.slug);
@@ -70,11 +68,6 @@ async function buildCapabilityEntries(): Promise<CompanyCapabilityEntry[]> {
     }),
   );
   return entries.filter((e): e is NonNullable<typeof e> => e !== null);
-}
-
-async function buildGoalEntries(): Promise<CompanyGoalEntry[]> {
-  const goals = await listManagedGoalFiles();
-  return goals.map((goal) => ({ id: goal.id, state: goal.state }));
 }
 
 /**
@@ -99,14 +92,6 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
   }
   const assoc = config.access?.allowedAssociations;
   if (Array.isArray(assoc) && assoc.length > 0) out.allowedAssociations = assoc;
-  if (config.defaultImplementation)
-    out.defaultImplementation = config.defaultImplementation;
-  if (config.defaultPrImplementation) {
-    out.defaultPrImplementation = config.defaultPrImplementation;
-  }
-  const perExec = config.agent?.perImplementation;
-  if (perExec && Object.keys(perExec).length > 0) out.perImplementation = perExec;
-
   return Object.keys(out).length > 0 ? out : null;
 }
 
@@ -117,23 +102,15 @@ async function buildConfigBundle(): Promise<CompanyConfigBundle | null> {
  * dashboard, so re-importing them would be redundant).
  */
 export async function buildCompanyBundle(): Promise<CompanyBundle> {
-  const [
-    agent,
-    contexts,
-    commandsResult,
-    capabilities,
-    goals,
-    instructions,
-    config,
-  ] = await Promise.all([
-    listAgentFiles(),
-    listContextFiles(),
-    listRepoCommandFiles(),
-    buildCapabilityEntries(),
-    buildGoalEntries(),
-    readInstructionsFile(),
-    buildConfigBundle(),
-  ]);
+  const [agent, contexts, commandsResult, capabilities, instructions, config] =
+    await Promise.all([
+      listAgentFiles(),
+      listContextFiles(),
+      listRepoCommandFiles(),
+      buildCapabilityEntries(),
+      readInstructionsFile(),
+      buildConfigBundle(),
+    ]);
 
   return {
     kodyCompany: COMPANY_BUNDLE_VERSION,
@@ -145,7 +122,6 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),
     capabilities,
-    goals,
     instructions: instructions?.body?.trim() ? instructions.body : null,
     config,
   };

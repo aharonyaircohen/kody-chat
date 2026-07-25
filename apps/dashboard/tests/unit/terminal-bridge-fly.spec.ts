@@ -10,8 +10,10 @@ import {
   findTerminalBridge,
   TERMINAL_BRIDGE_SCRIPT,
   TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+  TERMINAL_BRIDGE_START_SCRIPT,
   TERMINAL_BRIDGE_BASE_IMAGE,
   TERMINAL_BRIDGE_VERSION,
+  terminalBridgeVersionFor,
   terminalBridgeAppName,
 } from "@kody-ade/fly/plugin/terminal/bridge";
 import type { FlyPreviewConfig } from "@kody-ade/fly/plugin/previews/machines-client";
@@ -112,6 +114,45 @@ describe("terminalBridgeAppName", () => {
   });
 });
 
+describe("terminal bridge deployment identity", () => {
+  it("pins the flyctl version proven for nested machine SSH", () => {
+    expect(TERMINAL_BRIDGE_START_SCRIPT).toContain(
+      "sh -s -- v0.4.50 --non-interactive",
+    );
+    expect(TERMINAL_BRIDGE_START_SCRIPT).not.toContain(
+      "https://fly.io/install.sh | sh\n",
+    );
+  });
+
+  it("changes whenever any shipped bridge program changes", () => {
+    const programs = {
+      startScript: TERMINAL_BRIDGE_START_SCRIPT,
+      bridgeScript: TERMINAL_BRIDGE_SCRIPT,
+      ptyRelayScript: TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+    };
+
+    expect(TERMINAL_BRIDGE_VERSION).toBe(terminalBridgeVersionFor(programs));
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        bridgeScript: `${programs.bridgeScript}\n// changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        ptyRelayScript: `${programs.ptyRelayScript}\n# changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        startScript: `${programs.startScript}\n# changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
+  });
+});
+
 describe("ensureTerminalBridge", () => {
   it("ships a persistent real-PTY SSH session", () => {
     const consoleSession = TERMINAL_BRIDGE_SCRIPT.match(
@@ -153,14 +194,17 @@ describe("ensureTerminalBridge", () => {
       "const MAX_SSH_START_RETRY_DELAY_MS = 10000;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("summarizeFlySshStartupFailure");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      "temporary upstream HTML error",
-    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("temporary upstream HTML error");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "isRetryableFlySshStartupFailure",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.child = null");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("Retrying terminal tunnel");
+    expect(consoleSession).toContain("session.sockets.size > 0");
+    expect(consoleSession).not.toContain("session.inputBytes === 0");
+    expect(consoleSession).toContain(
+      "Retrying terminal after unexpected tunnel exit",
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;",
     );
@@ -188,6 +232,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"history-limit"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("TERMINAL_TMUX_HISTORY_LIMIT");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("function tmuxPaneCommand");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      'shellQuote(machineBaseUrl + "/start")',
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("wait?state=started&timeout=60");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      '"Authorization: Bearer $FLY_API_TOKEN"',
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"attach-session"');
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "Reattached terminal session.",
@@ -200,6 +251,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "Terminal did not answer the keyboard self-test.",
     );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "armReadinessChecks({ reusedTmux: !tmuxState.created })",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "if (reusedTmux && session.startAttempts < MAX_SSH_START_ATTEMPTS)",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("killTmuxSession(tmuxName)");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");
@@ -220,6 +278,19 @@ describe("ensureTerminalBridge", () => {
     );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       '...(claims.orgSlug ? ["--org", claims.orgSlug] : [])',
+    );
+  });
+
+  it("binds Fly credentials to each tmux session instead of the shared tmux server", () => {
+    const tmuxSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function ensureTmuxSession[\s\S]*?\n}\n\nfunction rememberOutput/,
+    )?.[0];
+
+    expect(tmuxSession).toBeTruthy();
+    expect(tmuxSession).toContain('"new-session"');
+    expect(tmuxSession).toMatch(/"-e",\s*"FLY_API_TOKEN=" \+ claims\.flyToken/);
+    expect(tmuxSession).toMatch(
+      /"-e",\s*"FLY_ACCESS_TOKEN=" \+ claims\.flyToken/,
     );
   });
 
@@ -247,9 +318,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_REPLAY_CHARS = 120000;",
     );
-    expect(attachSession).toContain("restoreStartMessage(session.outputBuffer || \"\")");
+    expect(attachSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
     expect(attachSession).toContain("restoreCompleteMessage()");
-    expect(attachSession).not.toContain("session.pendingOutput");
+    expect(attachSession).toContain("if (detached) return");
+    expect(attachSession).toContain("session.restoring = session.ready");
+    expect(attachSession).toContain('session.pendingOutput = ""');
     expect(attachSession).not.toContain("Reattached terminal session.");
     expect(attachSession).toContain("session.restartChild()");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.sockets.size > 0");
@@ -284,6 +359,23 @@ describe("ensureTerminalBridge", () => {
     expect(attachSession).not.toContain(
       "if (!session.child.stdin.destroyed) {\n        session.child.stdin.write(msg.data);",
     );
+  });
+
+  it("blocks input while an established terminal tunnel is being restored", () => {
+    const consoleSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function createFlyConsoleSession[\s\S]*?\n}\n\nfunction attachSocketToSession/,
+    )?.[0];
+    const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
+    )?.[0];
+
+    expect(consoleSession).toBeTruthy();
+    expect(attachSession).toBeTruthy();
+    expect(consoleSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
+    expect(attachSession).toContain("if (!session.ready || session.detaching)");
+    expect(attachSession).toContain('message: "Terminal is reconnecting."');
   });
 
   it("does not mirror typed input when the wrapped process enables PTY echo", async () => {

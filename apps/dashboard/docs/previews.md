@@ -5,9 +5,9 @@ Per-PR preview hosting that replaces Vercel preview deployments.
 
 ## Why
 
-Vercel's preview bill is ~96% build CPU minutes. On Fly: builds run on
+Vercel's preview bill is ~~96% build CPU minutes. On Fly: builds run on
 Fly's own remote builder, and the per-PR preview machine **sleeps**
-when idle (~$0 cost) and wakes on the next request. Net result: idle
+when idle (~~$0 cost) and wakes on the next request. Net result: idle
 previews are essentially free; only build minutes cost.
 
 ## Architecture (one-shot builder pattern)
@@ -38,13 +38,13 @@ immediately with the deterministic URL. Status checks (`GET
 
 ### Components
 
-| Component            | Lives in                               | Lifetime               |
-| -------------------- | -------------------------------------- | ---------------------- |
+| Component            | Lives in                                | Lifetime               |
+| -------------------- | --------------------------------------- | ---------------------- |
 | Lifecycle / webhooks | `packages/fly/src/previews/` (monorepo) | Dashboard runtime      |
-| Builder image        | `packages/fly/builder/`                | One-shot per PR        |
-| Per-PR preview app   | Fly (auto-created)                     | Until PR closed        |
-| Per-repo base image  | GHCR (optional)                        | Until manually rebuilt |
-| Org remote builder   | `fly-builder-<org>` (Fly auto-created) | Always-on              |
+| Builder image        | `packages/fly/builder/`                 | One-shot per PR        |
+| Per-PR preview app   | Fly (auto-created)                      | Until PR closed        |
+| Per-repo base image  | GHCR (optional)                         | Until manually rebuilt |
+| Org remote builder   | `fly-builder-<org>` (Fly auto-created)  | Always-on              |
 
 ### Consumer repos = zero-touch
 
@@ -94,7 +94,7 @@ returns `{ ticket, expiresAt }`.
 
 Each repo's previews bill to that repo's Fly account. The dashboard
 reads `FLY_API_TOKEN` from the **target repo's** vault
-(`.kody/secrets.enc`). No global Fly token.
+(`backend vault record`). No global Fly token.
 
 If the vault has no `FLY_API_TOKEN`, the webhook is a silent no-op and
 `POST /api/kody/previews` returns 503 `fly_token_missing`.
@@ -150,7 +150,7 @@ Measured on a real app (A-Guy), build step only:
 ### Enabling it — per repo, one switch
 
 Add **`NSC_TENANT_ID`** (your Namespace tenant id, e.g.
-`tenant_xxxxxxxx`) to the repo's **Kody vault** (`.kody/secrets.enc`,
+`tenant_xxxxxxxx`) to the repo's **Kody vault** (`backend vault record`,
 via the `/secrets` page). That's it:
 
 - **`NSC_TENANT_ID` present** → builds on Namespace.
@@ -247,7 +247,7 @@ iframe like any other. Removing that environment also destroys its Fly app.
   blocks the browser's native PDF plugin — a raw `.pdf` would render
   blank). Any other type (images, …) is served under its own name with a
   tiny redirecting `index.html`.
-- Single source of truth is the environment list in `.kody/dashboard.json`
+- Single source of truth is the environment list in `backend dashboard configuration`
   (`namedPreviews`); the uploaded entry carries a `staticId` so removal can
   tear the Fly app down, plus an `expiresAt`. No separate ledger.
 - **Expiry: 7 days.** The dropdown shows days-left per upload and a Clock
@@ -259,12 +259,12 @@ iframe like any other. Removing that environment also destroys its Fly app.
 - Single file only, ≤ 5 MB (it's inlined into the machine config). For a
   multi-file site, use a branch preview.
 
-| Where                                          | What                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------ |
-| `POST /api/kody/previews/static`               | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
-| `DELETE /api/kody/previews/static`             | `{ id }` — destroy the Fly app (idempotent)                              |
+| Where                                         | What                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `POST /api/kody/previews/static`              | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
+| `DELETE /api/kody/previews/static`            | `{ id }` — destroy the Fly app (idempotent)                              |
 | `packages/fly/src/previews/static-preview.ts` | Builder-less create path                                                 |
-| `/preview` switcher "Upload file"              | UI entry point (PreviewEnvSwitcher)                                      |
+| `/preview` switcher "Upload file"             | UI entry point (PreviewEnvSwitcher)                                      |
 
 Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
 `KODY_PREVIEW_STATIC_WEB_ROOT`, `KODY_PREVIEW_STATIC_PORT`.

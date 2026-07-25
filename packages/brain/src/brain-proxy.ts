@@ -61,6 +61,12 @@ export interface BrainChatRequest {
   brainUrl: string;
   brainKey: string;
   chatId: string;
+  /** User-visible conversation persisted by the host; distinct from chatId. */
+  conversationId?: string;
+  /** Personal Brain model selected by the dashboard. */
+  modelId?: string;
+  /** Runtime command belonging to the selected personal Brain model. */
+  runtime?: string;
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
@@ -85,7 +91,7 @@ export interface BrainChatRequest {
   storeRepoUrl?: string;
   /** Dashboard store ref used to load CMS adapter code. */
   storeRef?: string;
-  /** Optional state-repo agent identity selected by the Dashboard route. */
+  /** Optional backend agent identity selected by the Dashboard route. */
   agentIdentity?: BrainAgentIdentity;
   /**
    * Voice modality. When true the upstream Brain server should append the
@@ -217,7 +223,7 @@ export function formatCapabilityContext(
     parts.push(`\n[Capability body]\n${truncated}`);
   }
   parts.push(
-    "\nThe user is chatting about this specific capability. A Kody capability is a folder at state-repo `capabilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `capability.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the capability does not exist.",
+    "\nThe user is chatting about this specific capability. A Kody capability is a folder at backend `capabilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `capability.md` describes purpose, output, allowed commands, and restrictions. Answer grounded in the body above — do NOT claim the capability does not exist.",
   );
   return parts.join("\n");
 }
@@ -336,6 +342,11 @@ export async function streamBrainChat(
         : {
             body: JSON.stringify({
               message: decoratedMessage,
+              ...(input.conversationId
+                ? { conversationId: input.conversationId }
+                : {}),
+              ...(input.modelId ? { modelId: input.modelId } : {}),
+              ...(input.runtime ? { runtime: input.runtime } : {}),
               ...(attachments.length > 0 ? { attachments } : {}),
               ...(repo ? { repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),

@@ -10,10 +10,15 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
-const TEST_REPO = "https://github.com/test-owner/test-repo";
 
 function sseBody(events: unknown[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  // A healthy AI SDK UI stream ends with `finish` + `[DONE]`; the transport
+  // treats an EOF without them as a dropped connection (kody-direct.ts).
+  const withTerminal = [...events, { type: "finish" }];
+  return (
+    withTerminal.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") +
+    "data: [DONE]\n\n"
+  );
 }
 
 async function seedAuth(page: Page): Promise<void> {
@@ -89,33 +94,41 @@ test.describe("Admin Kody chat regression", () => {
   test("/chat keeps models, reasoning, and sessions", async ({ page }) => {
     await page.goto(`${BASE_URL}/chat`);
     await page.waitForLoadState("domcontentloaded");
+    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
 
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    const picker = chat.locator('button[aria-haspopup="listbox"]').first();
+    const picker = chat.getByLabel("Model").first();
     await expect(picker).toBeVisible({ timeout: 15_000 });
     await picker.click();
 
-    const listbox = page.getByRole("listbox").filter({
-      has: page.getByRole("option", { name: /GPT X|Claude Y|Kody Live/i }),
+    const menu = chat.locator('[role="listbox"]:visible').first();
+    await expect(
+      menu.locator('button[role="option"]').filter({ hasText: "GPT X" }),
+    ).toBeVisible({
+      timeout: 15_000,
     });
-    await expect(listbox).toBeVisible();
     await expect(
-      listbox.getByRole("option", { name: /Kody Live/i }),
-    ).toBeVisible();
-    await expect(listbox.getByRole("option", { name: /GPT X/i })).toBeVisible();
-    await expect(
-      listbox.getByRole("option", { name: /Claude Y/i }),
-    ).toBeVisible();
-    await listbox.getByRole("option", { name: /GPT X/i }).click();
+      menu.locator('button[role="option"]').filter({ hasText: "Claude Y" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await menu
+      .locator('button[role="option"]')
+      .filter({ hasText: "GPT X" })
+      .click();
 
+    await expect(picker).toHaveAttribute("title", /GPT X/);
+    await chat.getByLabel("Effort").click();
+    const effortMenu = chat.locator('[role="listbox"]:visible').last();
     await expect(
-      chat.locator('button[title^="Thinking level"]').first(),
-    ).toHaveAttribute("title", /Medium/);
+      effortMenu.locator('button[role="option"]').filter({ hasText: "Medium" }),
+    ).toBeVisible();
     await expect(
       chat.getByRole("button", { name: "Toggle conversations" }),
     ).toBeVisible();
+
+    // The AI/Terminal mode toggle now lives in the "+" compose menu.
+    await chat.getByLabel("More compose options").click();
     await expect(chat.getByRole("button", { name: /Terminal/i })).toBeVisible();
   });
 
@@ -263,6 +276,9 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
+    // The toggle moved into the "+" compose options menu — open it first.
+    await chat.getByLabel("More compose options").click();
+
     const aiButton = chat.getByRole("button", { name: "AI chat", exact: true });
     await expect(aiButton).toBeVisible({ timeout: 15_000 });
     await expect(aiButton).toHaveAttribute("aria-pressed", "true");
@@ -317,7 +333,11 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    await expect(chat.locator('button[title="Attach files"]')).toBeVisible({
+    // Both affordances moved into the "+" compose options menu.
+    await chat.getByLabel("More compose options").click();
+    await expect(
+      chat.getByRole("button", { name: "Attach files" }),
+    ).toBeVisible({
       timeout: 15_000,
     });
     // VoiceButton is gated on agent.supportsVoice (true for the in-process
@@ -381,7 +401,7 @@ test.describe("Admin Kody chat regression", () => {
       sha: "abc123",
       updatedAt: "2026-07-01T00:00:00.000Z",
       htmlUrl:
-        "https://github.com/test-owner/test-repo/blob/kody-state/todos/inject-list.json",
+        "https://github.com/test-owner/test-repo/blob/backend-store/todos/inject-list.json",
     };
     await page.route("**/api/kody/todos", (route) =>
       route.fulfill({
@@ -451,8 +471,12 @@ test.describe("Admin Kody chat regression", () => {
     await page.goto(`${BASE_URL}/chat`);
     const chat = page.locator('[data-testid="kody-chat-root"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
-    // Composer chrome is up (the slots' neighbors rendered)…
-    await expect(chat.getByTitle("Attach files")).toBeVisible();
+    // Composer chrome is up (the slots' neighbors rendered)… Attach files
+    // lives inside the "+" compose options menu now.
+    await chat.getByLabel("More compose options").click();
+    await expect(
+      chat.getByRole("button", { name: "Attach files" }),
+    ).toBeVisible();
     // …and no plugin slot wrapper exists.
     await expect(page.locator('[data-testid="chat-plugin-slot"]')).toHaveCount(
       0,

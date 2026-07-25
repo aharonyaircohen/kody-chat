@@ -90,26 +90,30 @@ export function AddCommentDialog({
         >
           {/* Editor / Preview toggle */}
           <div className="flex items-center gap-1 border-b border-zinc-800 pb-2">
-            <button
+            <Button
+              variant="ghost"
+              size="clear"
               onClick={() => setShowPreview(false)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 !showPreview
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-zinc-800 text-white hover:bg-zinc-800 hover:text-white"
+                  : "text-zinc-500 hover:bg-transparent hover:text-zinc-300"
               }`}
             >
               <Edit className="w-3 h-3" /> Write
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="clear"
               onClick={() => setShowPreview(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                 showPreview
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-zinc-800 text-white hover:bg-zinc-800 hover:text-white"
+                  : "text-zinc-500 hover:bg-transparent hover:text-zinc-300"
               }`}
             >
               <Eye className="w-3 h-3" /> Preview
-            </button>
+            </Button>
           </div>
 
           {/* Editor */}

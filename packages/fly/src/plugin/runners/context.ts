@@ -73,6 +73,7 @@ export interface FlyContext {
   flyOrgSlug: string;
   flyDefaultRegion: string;
   perfTier: PerfTier | undefined;
+  providerTokenSource: "repo-vault" | null;
 }
 
 /**
@@ -198,14 +199,23 @@ export async function resolveFlyContext(
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
-  // Fly Machines API token. The connected repo's vault owns normal machine
-  // inventory; env is only the server fallback when the repo has no token.
+  // Fly runs outside GitHub Actions, so it cannot receive the dashboard's
+  // canonical conversation-store credentials through `toJSON(secrets)`.
+  // Server-owned values override vault entries so all dashboard runners use
+  // the same backend as the UI that launched them.
+  const convexUrl =
+    process.env.CONVEX_URL?.trim() ||
+    process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
+  const serviceKey = process.env.KODY_SERVICE_KEY?.trim();
+  if (convexUrl) allSecrets.CONVEX_URL = convexUrl;
+  if (serviceKey) allSecrets.KODY_SERVICE_KEY = serviceKey;
+
+  // Fly Machines API token. The connected repo vault is the only authority:
+  // a server-wide token must never expose another Fly account to this repo.
   const vaultFlyToken = allSecrets.FLY_API_TOKEN?.trim() || undefined;
   if ("FLY_API_TOKEN" in allSecrets) delete allSecrets.FLY_API_TOKEN;
-  const flyToken =
-    vaultFlyToken ??
-    process.env.FLY_API_TOKEN?.trim() ??
-    process.env.FLY_IO_TOKEN?.trim();
+  const flyToken = vaultFlyToken;
+  const providerTokenSource = vaultFlyToken ? ("repo-vault" as const) : null;
   const flyOrgSlug =
     allSecrets.FLY_ORG_SLUG?.trim() ||
     process.env.FLY_ORG_SLUG?.trim() ||
@@ -234,6 +244,7 @@ export async function resolveFlyContext(
       storeRepoUrl: headerAuth?.storeRepoUrl,
       storeRef: headerAuth?.storeRef,
       allSecrets,
+      providerTokenSource,
       flyToken,
       flyOrgSlug,
       flyDefaultRegion,

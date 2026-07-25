@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { DocsView } from "../../../components/DocsView";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const DOCS_PANEL_TESTID = "chat-panel-docs";
 

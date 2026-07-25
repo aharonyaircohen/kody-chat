@@ -2,22 +2,33 @@
  * @fileType utility
  * @domain kody
  * @pattern reports-files
- * @ai-summary Read-only access to goal/loop reports in the configured Kody
- *   state repo. Supports legacy `reports/<slug>.md` files and append-only
- *   report families under `reports/<slug>/runs/<run>.md`.
+ * @ai-summary Read-only access to goal/loop reports in the Convex backend
+ *   (reports.list, tenant-scoped by owner/repo). Docs hold the raw markdown
+ *   body; flat docs (no runId) are legacy single reports, docs with runId
+ *   form append-only report families.
  */
 
-import { getOctokit, getOwner, getRepo } from "./github-client";
+import { getOwner, getRepo } from "./github-client";
 import {
   parseReportSuggestedActions,
   type ReportSuggestedAction,
 } from "./report-suggested-actions";
-import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
+import { normalizeReportType } from "./report-types";
+
+export interface ReportProducer {
+  model: string | null;
+  capability: string | null;
+}
 
 export interface ReportFile {
   /** Report family slug — stable identity. */
   slug: string;
-  /** State-repo-relative markdown path for the currently shown report. */
+  /** Backend-relative markdown path for the currently shown report. */
   path: string;
   /** Run id when this report came from `reports/<slug>/runs/<run>.md`. */
   runId: string | null;
@@ -35,6 +46,10 @@ export interface ReportFile {
   size: number;
   /** Producer capability metadata from report frontmatter. */
   capabilitySlug: string | null;
+  /** Extensible report type used by Reports filters and optional renderers. */
+  reportType: string;
+  reportTypeVersion: number;
+  producer: ReportProducer;
   /** Review routing status, from report frontmatter. */
   reviewStatus: string | null;
   /** Review routing area, from report frontmatter. */
@@ -88,17 +103,33 @@ function topLevelValue(frontmatter: string | null, key: string): string | null {
   return value.length > 0 ? value : null;
 }
 
+function nestedValue(
+  frontmatter: string | null,
+  objectKey: string,
+  key: string,
+): string | null {
+  if (!frontmatter) return null;
+  const lines = frontmatter.split(/\r?\n/);
+  const start = lines.findIndex((line) =>
+    new RegExp(`^${objectKey}:\\s*$`).test(line),
+  );
+  if (start < 0) return null;
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    const match = line.match(new RegExp(`^\\s{2}${key}:\\s*(.*)$`));
+    if (match) return unquote(match[1] ?? "") || null;
+  }
+  return null;
+}
+
+function positiveInteger(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function countFindings(frontmatter: string | null): number {
   if (!frontmatter) return 0;
   return (frontmatter.match(/^\s{2}-\s+id:\s*/gm) ?? []).length;
-}
-
-function slugFromName(name: string): string | null {
-  if (!name.endsWith(".md")) return null;
-  const slug = name.slice(0, -".md".length);
-  if (slug.length === 0 || slug.startsWith(".") || slug.startsWith("_"))
-    return null;
-  return slug;
 }
 
 function runIdFromName(name: string): string | null {
@@ -151,6 +182,14 @@ function parseReportMarkdown(raw: string, slug: string) {
     capabilitySlug:
       topLevelValue(frontmatter, "capabilitySlug") ??
       topLevelValue(frontmatter, "capabilitySlug"),
+    reportType: normalizeReportType(topLevelValue(frontmatter, "reportType")),
+    reportTypeVersion: positiveInteger(
+      topLevelValue(frontmatter, "reportTypeVersion"),
+    ),
+    producer: {
+      model: nestedValue(frontmatter, "producer", "model"),
+      capability: nestedValue(frontmatter, "producer", "capability"),
+    },
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
@@ -164,39 +203,38 @@ function sortRunsNewestFirst(a: ReportRun, b: ReportRun): number {
   return bt.localeCompare(at);
 }
 
-async function readReportAtPath({
-  slug,
-  path,
-  size,
-  runId = null,
-  runs = [],
-}: {
+interface ReportDoc {
   slug: string;
-  path: string;
-  size: number;
-  runId?: string | null;
-  runs?: ReportRun[];
-}): Promise<ReportFile | null> {
-  const octokit = getOctokit();
-  const owner = getOwner();
-  const repo = getRepo();
-  const file = await readStateText(octokit, owner, repo, path);
-  if (!file) return null;
-  const raw = file.content;
-  const parsed = parseReportMarkdown(raw, slug);
+  runId?: string;
+  body: string;
+  updatedAt: string;
+}
+
+function reportFileFromDoc(doc: ReportDoc, runs: ReportRun[]): ReportFile {
+  const runId = doc.runId ?? null;
+  const parsed = parseReportMarkdown(doc.body, doc.slug);
   const generatedAt =
-    parsed.generatedAt ?? runs.find((run) => run.id === runId)?.generatedAt;
+    parsed.generatedAt ??
+    (runId
+      ? (runs.find((run) => run.id === runId)?.generatedAt ?? null)
+      : null);
+  const path = runId
+    ? `${REPORTS_DIR}/${doc.slug}/${RUNS_DIR}/${runId}.md`
+    : `${REPORTS_DIR}/${doc.slug}.md`;
   return {
-    slug,
+    slug: doc.slug,
     path,
     runId,
     runs,
     title: parsed.title,
     body: parsed.body,
-    updatedAt: generatedAt ?? new Date().toISOString(),
-    htmlUrl: file.htmlUrl ?? "",
-    size: file.size ?? size,
+    updatedAt: generatedAt ?? doc.updatedAt,
+    htmlUrl: "",
+    size: doc.body.length,
     capabilitySlug: parsed.capabilitySlug,
+    reportType: parsed.reportType,
+    reportTypeVersion: parsed.reportTypeVersion,
+    producer: parsed.producer,
     reviewStatus: parsed.reviewStatus,
     reviewArea: parsed.reviewArea,
     findingCount: parsed.findingCount,
@@ -204,113 +242,56 @@ async function readReportAtPath({
   };
 }
 
-async function listReportRuns(slug: string): Promise<ReportRun[]> {
-  const octokit = getOctokit();
-  const owner = getOwner();
-  const repo = getRepo();
-  const { entries } = await listStateDirectory(
-    octokit,
-    owner,
-    repo,
-    `${REPORTS_DIR}/${slug}/${RUNS_DIR}`,
-  );
-  const runs = entries
-    .filter((entry) => entry.type === "file")
-    .map((entry) => {
-      const id = runIdFromName(entry.name);
-      if (!id) return null;
-      return {
-        id,
-        path: `${REPORTS_DIR}/${slug}/${RUNS_DIR}/${entry.name}`,
-        generatedAt: runIdToIso(id),
-        htmlUrl: entry.htmlUrl ?? "",
-        size: entry.size ?? 0,
-      } satisfies ReportRun;
-    })
-    .filter((run): run is ReportRun => run !== null)
+function runsForSlug(docs: ReportDoc[], slug: string): ReportRun[] {
+  return docs
+    .filter(
+      (doc): doc is ReportDoc & { runId: string } =>
+        doc.slug === slug && typeof doc.runId === "string",
+    )
+    .map((doc) => ({
+      id: doc.runId,
+      path: `${REPORTS_DIR}/${slug}/${RUNS_DIR}/${doc.runId}.md`,
+      generatedAt: runIdToIso(doc.runId),
+      htmlUrl: "",
+      size: doc.body.length,
+    }))
     .sort(sortRunsNewestFirst);
-
-  return runs;
 }
 
-async function readRunReport(
-  slug: string,
-  runId?: string | null,
-): Promise<ReportFile | null> {
-  const runs = await listReportRuns(slug);
-  const latest = runId ? runs.find((run) => run.id === runId) : runs[0];
-  if (!latest) return null;
-  return readReportAtPath({
-    slug,
-    path: latest.path,
-    size: latest.size,
-    runId: latest.id,
-    runs,
-  });
+async function listReportDocs(): Promise<ReportDoc[]> {
+  return (await getConvexClient().query(backendApi.reports.list, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+  })) as ReportDoc[];
 }
 
 /**
- * List every report family under `reports/` in the configured Kody state repo.
- * Returns `[]` if the directory does not exist (fresh repo).
+ * List every report family in the Convex backend. One entry per slug —
+ * run-based families surface their newest run.
  */
 export async function listReportFiles(): Promise<ReportFile[]> {
-  const octokit = getOctokit();
-  const owner = getOwner();
-  const repo = getRepo();
-
-  const { entries } = await listStateDirectory(
-    octokit,
-    owner,
-    repo,
-    REPORTS_DIR,
-  );
-
-  const flatReports = entries
-    .filter((e) => e.type === "file")
-    .map((e) => ({
-      slug: slugFromName(e.name),
-      name: e.name,
-      size: e.size ?? 0,
-    }))
-    .filter(
-      (e): e is { slug: string; name: string; size: number } => e.slug !== null,
-    );
-
-  const folderSlugs = entries
-    .filter((e) => e.type === "dir" && isValidSlug(e.name))
-    .map((e) => e.name);
-
-  const flatFiles = await Promise.all(
-    flatReports.map(async ({ slug, name, size }) => {
-      try {
-        const filePath = `${REPORTS_DIR}/${name}`;
-        return await readReportAtPath({
-          slug,
-          path: filePath,
-          size,
-        });
-      } catch {
-        return null;
-      }
-    }),
-  );
-
-  const runFiles = await Promise.all(
-    folderSlugs.map(async (slug) => {
-      try {
-        return await readRunReport(slug);
-      } catch {
-        return null;
-      }
-    }),
-  );
-
+  const docs = await listReportDocs();
   const bySlug = new Map<string, ReportFile>();
-  for (const file of flatFiles) {
-    if (file) bySlug.set(file.slug, file);
+
+  for (const doc of docs) {
+    if (doc.runId !== undefined) continue;
+    if (!isValidSlug(doc.slug)) continue;
+    bySlug.set(doc.slug, reportFileFromDoc(doc, []));
   }
-  for (const file of runFiles) {
-    if (file) bySlug.set(file.slug, file);
+
+  const runSlugs = [
+    ...new Set(
+      docs
+        .filter((doc) => doc.runId !== undefined && isValidSlug(doc.slug))
+        .map((doc) => doc.slug),
+    ),
+  ];
+  for (const slug of runSlugs) {
+    const runs = runsForSlug(docs, slug);
+    const latest = runs[0];
+    if (!latest) continue;
+    const doc = docs.find((d) => d.slug === slug && d.runId === latest.id);
+    if (!doc) continue;
+    bySlug.set(slug, reportFileFromDoc(doc, runs));
   }
 
   // Most recently produced first — reports are time-sensitive health signals.
@@ -320,7 +301,42 @@ export async function listReportFiles(): Promise<ReportFile[]> {
 }
 
 /**
- * Read a single report by slug. Returns `null` if the file does not exist.
+ * Publish a new run under a report family. Returns the created run id.
+ */
+export async function writeReportRun(input: {
+  slug: string;
+  title: string;
+  body: string;
+  generatedAt: string;
+}): Promise<{ runId: string; path: string }> {
+  if (!isValidSlug(input.slug)) {
+    throw new Error(`invalid report slug "${input.slug}"`);
+  }
+  const runId = input.generatedAt
+    .replace(/\.\d{3}Z$/, "Z")
+    .replace(/:/g, "-");
+  if (!isValidRunId(runId)) {
+    throw new Error(`invalid generatedAt "${input.generatedAt}"`);
+  }
+  const raw = `---\ngeneratedAt: ${input.generatedAt}\n---\n# ${input.title}\n\n${input.body.replace(/\n*$/, "\n")}`;
+  await getConvexClient().mutation(backendApi.reports.save, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    slug: input.slug,
+    runId,
+    title: input.title,
+    body: raw,
+    meta: {},
+    updatedAt: input.generatedAt,
+  });
+  return {
+    runId,
+    path: `${REPORTS_DIR}/${input.slug}/${RUNS_DIR}/${runId}.md`,
+  };
+}
+
+/**
+ * Read a single report by slug (optionally a specific run). Returns `null`
+ * when it does not exist.
  */
 export async function readReportFile(
   slug: string,
@@ -329,18 +345,13 @@ export async function readReportFile(
   if (!isValidSlug(slug)) return null;
   if (runId && !isValidRunId(runId)) return null;
 
-  const runReport = await readRunReport(slug, runId);
-  if (runReport) return runReport;
-  if (runId) return null;
-
-  try {
-    return await readReportAtPath({
-      slug,
-      path: `${REPORTS_DIR}/${slug}.md`,
-      size: 0,
-    });
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
+  const docs = await listReportDocs();
+  const runs = runsForSlug(docs, slug);
+  const targetRunId = runId ?? runs[0]?.id ?? null;
+  if (targetRunId) {
+    const doc = docs.find((d) => d.slug === slug && d.runId === targetRunId);
+    return doc ? reportFileFromDoc(doc, runs) : null;
   }
+  const flat = docs.find((d) => d.slug === slug && d.runId === undefined);
+  return flat ? reportFileFromDoc(flat, []) : null;
 }

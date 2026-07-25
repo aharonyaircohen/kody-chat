@@ -70,26 +70,30 @@ export function ReportIssueDialog({
         <div className="space-y-3">
           {/* Editor / Preview toggle */}
           <div className="flex items-center gap-1 border-b border-zinc-800 pb-2">
-            <button
+            <Button
+              size="clear"
+              variant="ghost"
               onClick={() => setShowPreview(false)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded text-body-xs font-medium transition-colors ${
                 !showPreview
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-zinc-800 text-white hover:bg-zinc-800 hover:text-white"
+                  : "text-zinc-500 hover:bg-transparent hover:text-zinc-300"
               }`}
             >
               <Edit className="w-4 h-4" /> Write
-            </button>
-            <button
+            </Button>
+            <Button
+              size="clear"
+              variant="ghost"
               onClick={() => setShowPreview(true)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded text-body-xs font-medium transition-colors ${
                 showPreview
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-zinc-800 text-white hover:bg-zinc-800 hover:text-white"
+                  : "text-zinc-500 hover:bg-transparent hover:text-zinc-300"
               }`}
             >
               <Eye className="w-4 h-4" /> Preview
-            </button>
+            </Button>
           </div>
 
           {!showPreview ? (

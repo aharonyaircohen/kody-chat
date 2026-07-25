@@ -9,33 +9,30 @@ const source = (file: string) =>
   );
 
 describe("repo-scoped navigation surfaces", () => {
-  it("scopes desktop sidebar links and mode jumps through the route model", () => {
-    // Sidebar ships from @kody-ade/kody-chat — dash consumes, never forks.
+  it("scopes desktop sidebar links through the route model", () => {
+    // Sidebar ships from @kody-ade/kody-chat-dashboard — dash consumes, never forks.
     const sidebar = readFileSync(
       join(
         process.cwd(),
-        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx",
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/Sidebar.tsx",
       ),
       "utf8",
     );
     expect(sidebar).toContain("repoScopedHref");
     expect(sidebar).toContain("scopedHref(item.href)");
     expect(sidebar).toContain('scopedHref("/")');
-    expect(sidebar).toContain(
-      'scopedHref(next === "vibe" ? "/vibe" : "/tasks")',
-    );
   });
 
-  it("scopes mobile menu links through the route model", () => {
+  it("scopes mobile menu links through the shared sidebar", () => {
     const mobileMenu = readFileSync(
       join(
         process.cwd(),
-        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/MobileMenu.tsx",
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/MobileMenu.tsx",
       ),
       "utf8",
     );
-    expect(mobileMenu).toContain("repoScopedHref");
-    expect(mobileMenu).toContain("scopedHref(item.href)");
+    expect(mobileMenu).toContain('import { Sidebar } from "./Sidebar"');
+    expect(mobileMenu).toMatch(/<Sidebar\s+presentation="mobile"/);
   });
 
   it("scopes command palette navigation through the route model", () => {

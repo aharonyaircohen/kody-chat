@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SIDEBAR_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/Sidebar.tsx"),
   "utf8",
 );
 const SETTINGS_NAV_SOURCE = readFileSync(
@@ -20,7 +20,7 @@ const SETTINGS_NAV_SOURCE = readFileSync(
   "utf8",
 );
 const ORG_MANAGER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/OrgManager.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/admin/components/OrgManager.tsx"),
   "utf8",
 );
 
@@ -29,7 +29,8 @@ describe("org navigation surfaces", () => {
     expect(SETTINGS_NAV_SOURCE).toMatch(/href: "\/org"/);
     expect(SETTINGS_NAV_SOURCE).toMatch(/label: "Org"/);
     expect(SETTINGS_NAV_SOURCE).toMatch(/navItemForHref\("\/org"\)/);
-    expect(SIDEBAR_SOURCE).toMatch(/ENGINEER_MODE_SECTIONS/);
+    expect(SIDEBAR_SOURCE).toMatch(/const baseSections = hostSections/);
+    expect(SIDEBAR_SOURCE).not.toMatch(/SIDEBAR_NAV_SECTIONS/);
     expect(SIDEBAR_SOURCE).not.toMatch(/orgNavItems/);
     expect(SIDEBAR_SOURCE).not.toMatch(/title: "Organizations"/);
     expect(SIDEBAR_SOURCE).not.toMatch(

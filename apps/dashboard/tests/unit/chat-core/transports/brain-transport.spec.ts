@@ -15,7 +15,7 @@ import {
   BRAIN_ERROR_CODE_TURN,
   BRAIN_EXHAUSTED_MESSAGE,
   type BrainTurnConfig,
-} from "@kody-ade/kody-chat/core/transports/brain";
+} from "@kody-ade/kody-chat-dashboard/core/transports/brain";
 import {
   sseResponse,
   abortingResponse,
@@ -23,6 +23,7 @@ import {
   installScriptedFetch,
   eventSink,
 } from "./stream-helpers";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
 const CONFIG: BrainTurnConfig = {
   endpoint: "/api/kody/chat/brain",
@@ -85,7 +86,7 @@ describe("sendBrainTurn", () => {
         input: { q: "x" },
         status: "success",
       },
-      { type: "done" },
+      { type: "done", settled: true },
     ]);
   });
 
@@ -148,7 +149,7 @@ describe("sendBrainTurn", () => {
       resumeSince: 6,
       resumeText: "part",
     });
-    expect(sink.events.at(-1)).toEqual({ type: "done" });
+    expect(sink.events.at(-1)).toEqual({ type: "done", settled: true });
   });
 
   it("retries transient cold-start statuses by resending the message", async () => {
@@ -167,7 +168,7 @@ describe("sendBrainTurn", () => {
     expect(calls).toHaveLength(2);
     // Message was NOT delivered on the 503 — the retry resends it.
     expect(calls[1].body).toEqual(CONFIG.initialBody);
-    expect(sink.events).toEqual([{ type: "done" }]);
+    expect(sink.events).toEqual([{ type: "done", settled: true }]);
   });
 
   it("throws the route error on non-retryable HTTP failures", async () => {
@@ -281,7 +282,12 @@ describe("brainTransport (ChatTransport wrapper)", () => {
     const sink = eventSink();
     await expect(
       brainTransport.send(
-        { sessionId: "s", text: "hi", agentId: "brain" },
+        {
+          sessionId: "s",
+          text: "hi",
+          agentId: "brain",
+          preparedTurn: preparedTurnFixture,
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/BrainTurnConfig/);
@@ -299,12 +305,13 @@ describe("brainTransport (ChatTransport wrapper)", () => {
         sessionId: "s",
         text: "hi",
         agentId: "brain",
+        preparedTurn: preparedTurnFixture,
         context: CONFIG as unknown as Record<string, unknown>,
       },
       { authHeaders: {}, emit: sink.emit },
     );
 
     expect(calls[0].url).toBe(CONFIG.endpoint);
-    expect(sink.events).toEqual([{ type: "done" }]);
+    expect(sink.events).toEqual([{ type: "done", settled: true }]);
   });
 });

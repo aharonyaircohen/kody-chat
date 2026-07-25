@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Kody workspace layer — state-repo-backed content features (commands, context, instructions, brands, memory, todos): file stores, API route handlers, chat tools. Consumed as TS source.",
+  "description": "Kody workspace layer \u2014 Convex-backed content features (commands, context, instructions, brands, memory, todos): file stores, API route handlers, chat tools. Consumed as TS source.",
   "exports": {
     "./commands": "./src/commands/index.ts",
     "./commands/*": "./src/commands/*.ts",
     "./context": "./src/context/index.ts",
     "./context/*": "./src/context/*.ts",
+    "./guidance/*": "./src/guidance/*.ts",
     "./brands": "./src/brands/index.ts",
     "./brands/*": "./src/brands/*.ts",
     "./instructions": "./src/instructions/index.ts",
@@ -27,6 +28,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@kody-ade/backend": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "ai": "^6.0.97",
@@ -36,7 +38,8 @@
     "typescript": "5.9.3",
     "vitest": "^4.0.16",
     "@types/react": "^19.2.17",
-    "next": "16.2.9"
+    "next": "16.2.9",
+    "convex": "^1.17.0"
   },
   "peerDependencies": {
     "react": "19.2.7",

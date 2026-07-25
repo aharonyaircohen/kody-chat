@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       {
         error: "fly_token_missing",
         message:
-          "FLY_API_TOKEN not in this repo's secrets vault and no FLY_API_TOKEN env fallback.",
+          "FLY_API_TOKEN not in this repo's secrets vault.",
       },
       { status: 503 },
     );
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       },
       cfg,
     );
-    await setBranchPreview(octokit, auth.owner, auth.repo, branch, true);
+    await setBranchPreview(auth.owner, auth.repo, branch, true);
     return NextResponse.json(info, { status: 201 });
   } catch (err) {
     logger.error({ err, branch }, "branch-preview: create failed");
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ previews: [], flyConfigured: false });
   }
 
-  const { doc } = await readDashboardConfig(octokit, auth.owner, auth.repo);
+  const { doc } = await readDashboardConfig(auth.owner, auth.repo);
   const branches = doc.branchPreviews ?? [];
   const repo = `${auth.owner}/${auth.repo}`;
 
@@ -225,7 +225,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     await destroyPreview({ repo: `${auth.owner}/${auth.repo}`, branch }, cfg);
-    await setBranchPreview(octokit, auth.owner, auth.repo, branch, false);
+    await setBranchPreview(auth.owner, auth.repo, branch, false);
     return NextResponse.json({ ok: true });
   } catch (err) {
     logger.error({ err, branch }, "branch-preview: destroy failed");

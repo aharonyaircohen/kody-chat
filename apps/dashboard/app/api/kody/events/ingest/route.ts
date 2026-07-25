@@ -22,8 +22,8 @@
  * Also accepts an array of events for batching.
  *
  * Events are fanned out to any SSE / long-poll subscribers for this
- * sessionId. The engine also persists events to the configured state repo
- * for durability; this endpoint is the low-latency path.
+ * sessionId (low-latency path) and persisted to the Convex chatEvents
+ * stream (durability path consumed by /events/poll and /events/stream).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -33,6 +33,10 @@ import {
   getClientIp,
 } from "@dashboard/lib/webhooks/github-ip";
 import { verifySessionToken } from "@dashboard/lib/chat-token";
+import {
+  appendChatEvents,
+  type ChatEventRecord,
+} from "@dashboard/lib/chat-events-store";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
@@ -89,6 +93,7 @@ export async function POST(req: NextRequest) {
   }
 
   const events = Array.isArray(body) ? body : [body];
+  const normalized: ChatEventRecord[] = [];
   for (const event of events) {
     if (!event || typeof event.event !== "string") {
       return NextResponse.json(
@@ -96,13 +101,24 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    publish(sessionId, {
+    const record: ChatEventRecord = {
       event: event.event,
       payload: event.payload ?? {},
       runId: event.runId ?? "",
       emittedAt: event.emittedAt ?? new Date().toISOString(),
-    });
+    };
+    normalized.push(record);
+    publish(sessionId, record);
     recordIngest(sessionId, event.event);
+  }
+
+  // Durability: persist to the Convex chatEvents stream (the poll/stream
+  // readers consume this). Best-effort — a Convex hiccup must not break the
+  // low-latency in-memory push path above.
+  try {
+    await appendChatEvents(sessionId, normalized);
+  } catch (err) {
+    logger.error({ err, sessionId }, "ingest: convex append failed");
   }
 
   logger.debug(

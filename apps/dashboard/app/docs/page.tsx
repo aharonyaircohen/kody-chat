@@ -2,9 +2,8 @@
  * @fileType page
  * @domain docs
  * @pattern docs-page
- * @ai-summary Docs entry point. Renders README.md and nested docs markdown
- *   from the connected repo, listed in a left sidebar tree with rendering on
- *   the right. Read-only; docs are maintained in PRs.
+ * @ai-summary Docs entry point. Renders the connected repo's docs/ contents,
+ *   with README.md available through a separate project document entry.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { DocsView } from "@dashboard/lib/components/DocsView";
@@ -16,7 +15,7 @@ export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
   title: "Docs — Kody Operations Dashboard",
-  description: "Project documentation: README and docs folder.",
+  description: "Project documentation from the docs folder.",
   path: "/docs",
 });
 

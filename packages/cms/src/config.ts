@@ -3,7 +3,7 @@ import "server-only";
 import type { Octokit } from "@octokit/rest";
 
 import { slugifyTitle } from "@kody-ade/base/slug";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { readCmsFile } from "./repo-docs";
 import type {
   CmsCollectionConfig,
   CmsContentOperation,
@@ -159,6 +159,18 @@ interface CacheEntry {
 const CACHE = new Map<string, CacheEntry>();
 const INFLIGHT = new Map<string, Promise<CmsRuntimeConfig | null>>();
 const TTL_MS = 60_000;
+/**
+ * Last successfully loaded config per repo, kept past TTL. A cold reload
+ * fans out one GitHub read per collection file; a single transient
+ * rejection (rate limiting, "Bad request" HTML) must degrade to the last
+ * good config instead of taking the whole CMS tool family down for the
+ * turn.
+ */
+const LAST_GOOD = new Map<string, CmsRuntimeConfig | null>();
+/** Short re-check window after a failed reload served stale config. */
+const STALE_RETRY_TTL_MS = 15_000;
+const TRANSIENT_READ_RETRIES = 2;
+const TRANSIENT_READ_BACKOFF_MS = 250;
 
 function cacheKey(owner: string, repo: string): string {
   return `${owner}/${repo}`;
@@ -312,11 +324,13 @@ export function invalidateCmsConfigCache(owner?: string, repo?: string): void {
     const key = cacheKey(owner, repo);
     CACHE.delete(key);
     INFLIGHT.delete(key);
+    LAST_GOOD.delete(key);
     return;
   }
 
   CACHE.clear();
   INFLIGHT.clear();
+  LAST_GOOD.clear();
 }
 
 export async function loadCmsConfigFromState(
@@ -340,16 +354,47 @@ export async function loadCmsConfigFromState(
   }
 
   const promise = (async () => {
-    const rawConfig = await readStateJson(
-      octokit,
-      owner,
-      repo,
-      "cms/config.json",
-      { required: false },
-    );
+    try {
+      return await loadCmsConfigFresh(octokit, owner, repo, key, useCache);
+    } catch (err) {
+      // Serve the last good config on a failed reload; re-check soon.
+      if (useCache && LAST_GOOD.has(key)) {
+        const stale = LAST_GOOD.get(key) ?? null;
+        CACHE.set(key, {
+          config: stale,
+          expiresAt: Date.now() + STALE_RETRY_TTL_MS,
+        });
+        return stale;
+      }
+      throw err;
+    }
+  })().finally(() => {
+    if (useCache) {
+      INFLIGHT.delete(key);
+    }
+  });
+
+  if (!useCache) {
+    return promise;
+  }
+
+  INFLIGHT.set(key, promise);
+  return promise;
+}
+
+async function loadCmsConfigFresh(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  key: string,
+  useCache: boolean,
+): Promise<CmsRuntimeConfig | null> {
+  {
+    const rawConfig = await readCmsJson(owner, repo, "cms/config.json", false);
     if (!rawConfig) {
       if (useCache) {
         CACHE.set(key, { config: null, expiresAt: Date.now() + TTL_MS });
+        LAST_GOOD.set(key, null);
       }
       return null;
     }
@@ -369,7 +414,7 @@ export async function loadCmsConfigFromState(
     const loadedCollections = await mapWithConcurrency(
       collectionFiles,
       8,
-      (entry) => readStateJson(octokit, owner, repo, `cms/${entry}`),
+      (entry) => readCmsJson(owner, repo, `cms/${entry}`),
     );
 
     for (const collection of loadedCollections) {
@@ -392,12 +437,7 @@ export async function loadCmsConfigFromState(
 
     let environment: Record<string, unknown> = {};
     if (typeof config.environmentFile === "string" && config.environmentFile) {
-      const rawEnvironment = await readStateJson(
-        octokit,
-        owner,
-        repo,
-        `cms/${config.environmentFile}`,
-      );
+      const rawEnvironment = await readCmsJson(owner, repo, `cms/${config.environmentFile}`);
       environment = isRecord(rawEnvironment) ? rawEnvironment : {};
     }
 
@@ -427,20 +467,10 @@ export async function loadCmsConfigFromState(
 
     if (useCache) {
       CACHE.set(key, { config: normalized, expiresAt: Date.now() + TTL_MS });
+      LAST_GOOD.set(key, normalized);
     }
     return normalized;
-  })().finally(() => {
-    if (useCache) {
-      INFLIGHT.delete(key);
-    }
-  });
-
-  if (!useCache) {
-    return promise;
   }
-
-  INFLIGHT.set(key, promise);
-  return promise;
 }
 
 export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
@@ -609,16 +639,15 @@ export function normalizeSearchQuery(
   return { query, fields };
 }
 
-async function readStateJson(
-  octokit: Octokit,
+async function readCmsJson(
   owner: string,
   repo: string,
   path: string,
-  options: { required?: boolean } = {},
+  required = true,
 ): Promise<unknown | null> {
-  const file = await readStateText(octokit, owner, repo, path);
+  const file = await readCmsFile(owner, repo, path);
   if (!file) {
-    if (options.required === false) {
+    if (!required) {
       return null;
     }
     throw new CmsConfigError([`missing state file: ${path}`]);
@@ -919,6 +948,19 @@ function normalizeViews(
     errors,
   );
   if (form.length > 0) views.form = { fields: form };
+
+  const rawDocument = isRecord(raw.document) ? raw.document : undefined;
+  if (rawDocument) {
+    const documentField =
+      typeof rawDocument.field === "string" ? rawDocument.field : "";
+    if (fields.some((field) => field.name === documentField)) {
+      views.document = { field: documentField };
+    } else {
+      errors.push(
+        `${label}.document.field must name an existing field`,
+      );
+    }
+  }
 
   return Object.keys(views).length > 0 ? views : undefined;
 }

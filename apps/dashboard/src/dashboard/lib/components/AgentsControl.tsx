@@ -4,7 +4,7 @@
  * @pattern agent-control-page
  * @ai-summary Agent Control — list, view, create, edit, and delete agent.
  *   An agent is a pure reusable identity file at `agents/<slug>.md`
- *   in the state repo: a markdown body describing the agent's
+ *   in the backend: a markdown body describing the agent's
  *   intent, allowed commands, and restrictions. Agents have no schedule, no
  *   state, and no run/tick — they're agent identities referenced by other flows.
  *   The chat rail reuses the existing capability scope kind (an agent is
@@ -302,6 +302,7 @@ export function AgentsControlInner({
                   const isActive = selectedSlug === member.slug;
                   return (
                     <li key={member.slug}>
+                      {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable list row with block content; Button's inline-flex centering would break it */}
                       <button
                         type="button"
                         onClick={() => selectAgent(member.slug)}
@@ -411,7 +412,7 @@ export function AgentsControlInner({
             pendingDelete
               ? pendingDelete.source === "store"
                 ? `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store agents. The Store asset will not be deleted.`
-                : `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from the state repo agent store.`
+                : `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from the backend agent store.`
               : ""
           }
           variant="destructive"
@@ -710,9 +711,9 @@ function CapabilitiesChecklist({
   selected: string[];
   onToggle: (slug: string, on: boolean) => void;
 }) {
-  const [options, setOptions] = useState<
-    { slug: string; describe?: string }[]
-  >([]);
+  const [options, setOptions] = useState<{ slug: string; describe?: string }[]>(
+    [],
+  );
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -720,7 +721,8 @@ function CapabilitiesChecklist({
     kodyApi.capabilities
       .list()
       .then((caps) => {
-        if (active) setOptions(caps.map((c) => ({ slug: c.slug, describe: c.describe })));
+        if (active)
+          setOptions(caps.map((c) => ({ slug: c.slug, describe: c.describe })));
       })
       .catch(() => {})
       .finally(() => active && setLoaded(true));

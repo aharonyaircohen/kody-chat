@@ -4,7 +4,7 @@
  * @pattern brands-api
  * @ai-summary Brand registry API. Lists resolved repo+built-in client brands
  *   and creates repo-owned brand JSON files under `brands/<slug>.json` in the
- *   state repo.
+ *   backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -15,10 +15,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   isValidBrandSlug,
   listBrands,
@@ -149,7 +146,6 @@ export async function POST(req: NextRequest) {
     }
 
     const brand = await writeBrandFile({
-      octokit: userOctokit,
       slug,
       name: parsed.name,
       accent: parsed.accent,

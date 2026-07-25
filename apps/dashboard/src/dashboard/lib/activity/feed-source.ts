@@ -2,25 +2,23 @@
  * @fileType utility
  * @domain kody
  * @pattern activity-feed-source
- * @ai-summary Rate-limit-safe reader for the Activity Feed. The engine
- *   streams events to per-session files `events/{sessionId}.jsonl`
- *   in the configured Kody state repo. The Feed lists the events dir, takes
- *   the most-recent N sessions, and reads each via the shared ETag-aware
- *   `readEventsFile`. The directory listing has its own 60s cache + in-flight
- *   dedup + stale fallback; per-file reads get free 304s from `readEventsFile`.
- *   The Feed tab is also load-on-demand (not polled), so steady state is
- *   ~zero GitHub calls.
+ * @ai-summary Convex-backed reader for the Activity Feed. The engine streams
+ *   events through /api/kody/events/ingest which persists them to the Convex
+ *   chatEvents stream (per-session, tenant-scoped). The Feed asks Convex for
+ *   the most-recently-active N sessions (chatEvents.recentSessions) and
+ *   flattens each session's events (chatEvents.since) into EventLogEntry
+ *   records. No GitHub reads on this path anymore — the 60s in-process list
+ *   cache stays to keep the on-demand Feed tab cheap under repeat opens.
  */
-import type { Octokit } from "@octokit/rest";
-import { createUserOctokit } from "../github-client";
-import { readEventsFile } from "../chat-events-reader";
 import type { EventLogEntry } from "../kody-store/event-log";
-import { listStateDirectory } from "@kody-ade/base/state-repo";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "../backend/convex-backend";
 
-const BRANCH = process.env.KODY_STORE_BRANCH ?? "main";
-const EVENTS_DIR = "events";
 const LIST_TTL_MS = 60_000;
-/** Most-recent session files merged into one feed — caps GitHub reads. */
+/** Most-recent session streams merged into one feed. */
 const MAX_SESSIONS = 12;
 
 interface ListEntry {
@@ -30,22 +28,13 @@ interface ListEntry {
 const listCache = new Map<string, ListEntry>();
 const listInflight = new Map<string, Promise<string[]>>();
 
-/**
- * Session filenames embed an epoch (`live-1778149397247-xxx`,
- * `live-direct-1778080135`). Sort by the largest numeric token so newest
- * sessions win without a per-file mtime lookup.
- */
-function sessionTs(name: string): number {
-  let max = 0;
-  for (const n of name.match(/\d+/g) ?? []) {
-    const v = Number(n);
-    if (v > max) max = v;
-  }
-  return max;
+/** Exported for unit tests — clears the session-list cache. */
+export function _resetFeedSourceCache(): void {
+  listCache.clear();
+  listInflight.clear();
 }
 
 async function listRecentSessions(
-  octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<string[]> {
@@ -58,31 +47,25 @@ async function listRecentSessions(
 
   const promise = (async () => {
     try {
-      const { entries } = await listStateDirectory(
-        octokit,
-        owner,
-        repo,
-        EVENTS_DIR,
-      );
-      const sessions = entries
-        .filter((f) => f.type === "file" && f.name.endsWith(".jsonl"))
-        .sort((a, b) => sessionTs(b.name) - sessionTs(a.name))
-        .slice(0, MAX_SESSIONS)
-        .map((f) => f.name.replace(/\.jsonl$/, ""));
+      const sessions = (await getConvexClient().query(
+        backendApi.chatEvents.recentSessions,
+        {
+          tenantId: tenantIdFor(owner, repo),
+          limit: MAX_SESSIONS,
+        },
+      )) as string[];
       listCache.set(key, { data: sessions, expires: Date.now() + LIST_TTL_MS });
       return sessions;
     } catch (err: unknown) {
-      const e = err as { status?: number };
       if (cached) {
-        // Throttled/errored: serve last good list, refresh TTL so we don't
-        // hammer GitHub on every subsequent open while degraded.
+        // Errored: serve last good list, refresh TTL so we don't hammer the
+        // backend on every subsequent open while degraded.
         listCache.set(key, {
           data: cached.data,
           expires: Date.now() + LIST_TTL_MS,
         });
         return cached.data;
       }
-      if (e.status === 404) return []; // repo has no events dir yet
       throw err;
     } finally {
       listInflight.delete(key);
@@ -103,36 +86,35 @@ interface RawLine {
 }
 
 /**
- * Read the connected repo's recent session event files and flatten them
+ * Read the connected repo's recent session event streams and flatten them
  * into `EventLogEntry`-shaped records for the pure feed fold.
  */
 export async function readFeedEntries(
   owner: string,
   repo: string,
-  token: string,
+  _token: string,
 ): Promise<EventLogEntry[]> {
-  const octokit = createUserOctokit(token);
-  const sessions = await listRecentSessions(octokit, owner, repo);
+  const sessions = await listRecentSessions(owner, repo);
+  const tenantId = tenantIdFor(owner, repo);
 
   const entries: EventLogEntry[] = [];
   await Promise.all(
     sessions.map(async (sid) => {
-      let res;
+      let docs: Array<{ seq: number; event: unknown }>;
       try {
-        res = await readEventsFile(octokit, owner, repo, BRANCH, sid);
+        docs = (await getConvexClient().query(backendApi.chatEvents.since, {
+          tenantId,
+          sessionId: sid,
+          afterSeq: -1,
+        })) as Array<{ seq: number; event: unknown }>;
       } catch {
-        return; // one bad session file shouldn't sink the whole feed
+        return; // one bad session stream shouldn't sink the whole feed
       }
-      res.lines.forEach((line, idx) => {
-        let o: RawLine;
-        try {
-          o = JSON.parse(line) as RawLine;
-        } catch {
-          return; // skip malformed line
-        }
-        if (!o.event) return;
+      for (const doc of docs) {
+        const o = doc.event as RawLine | null;
+        if (!o || typeof o !== "object" || !o.event) continue;
         entries.push({
-          id: `${sid}:${idx}`,
+          id: `${sid}:${doc.seq}`,
           runId: o.runId ?? "unknown",
           event: o.event,
           payload: o.payload ?? {},
@@ -140,7 +122,7 @@ export async function readFeedEntries(
           actionState: o.actionState,
           emittedAt: o.emittedAt ?? new Date().toISOString(),
         });
-      });
+      }
     }),
   );
   return entries;

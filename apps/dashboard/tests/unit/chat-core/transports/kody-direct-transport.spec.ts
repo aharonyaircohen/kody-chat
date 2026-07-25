@@ -13,14 +13,17 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   sendKodyDirectTurn,
   kodyDirectTransport,
+  KODY_DIRECT_DROPPED_MESSAGE,
+  KODY_DIRECT_ERROR_CODE_DROPPED,
   type KodyDirectTurnConfig,
-} from "@kody-ade/kody-chat/core/transports/kody-direct";
+} from "@kody-ade/kody-chat-dashboard/core/transports/kody-direct";
 import {
   sseResponse,
   abortingResponse,
   installScriptedFetch,
   eventSink,
 } from "./stream-helpers";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
 const CONFIG: KodyDirectTurnConfig = {
   endpoint: "/api/kody/chat/kody",
@@ -68,8 +71,8 @@ describe("sendKodyDirectTurn", () => {
       { type: "reasoning", text: "thinking " },
       { type: "token", text: "Hello " },
       { type: "token", text: "world" },
+      { type: "done" },
     ]);
-    // Deliberately no `done` — the surface settles after send() resolves.
   });
 
   it("emits a running tool chip with its indexed description, then the success result", async () => {
@@ -96,6 +99,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "call-1",
             output: { ok: true },
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -118,6 +122,7 @@ describe("sendKodyDirectTurn", () => {
         toolName: "fetch_url",
         output: { ok: true },
       },
+      { type: "done" },
     ]);
   });
 
@@ -137,6 +142,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "fa-1",
             output: { content: "Final." },
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -147,6 +153,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "draft..." },
       { type: "text-replace", text: "Final." },
+      { type: "done" },
     ]);
   });
 
@@ -165,6 +172,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c1",
             output: { error: "renderer exploded" },
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -188,6 +196,7 @@ describe("sendKodyDirectTurn", () => {
         isError: true,
         errorText: "renderer exploded",
       },
+      { type: "done" },
     ]);
   });
 
@@ -200,6 +209,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c9",
             errorText: "timed out",
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -209,6 +219,7 @@ describe("sendKodyDirectTurn", () => {
 
     expect(sink.events).toEqual([
       { type: "tool-result", id: "c9", isError: true, errorText: "timed out" },
+      { type: "done" },
     ]);
   });
 
@@ -234,6 +245,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c2",
             output: switchAgent,
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -259,15 +271,16 @@ describe("sendKodyDirectTurn", () => {
         toolName: "switch_agent",
         output: switchAgent,
       },
+      { type: "done" },
     ]);
   });
 
   it("detects dashboard_navigate and preview_act directives", async () => {
     const navigate = {
       action: "dashboard_navigate",
-      routeId: "settings",
-      href: "/settings",
-      label: "Settings",
+      routeId: "models",
+      href: "/models",
+      label: "Chat Models",
       reason: "user asked",
     };
     const act = {
@@ -300,6 +313,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "p1",
             output: act,
           }),
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -333,6 +347,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "partial" },
       { type: "error", message: "model overloaded", recoverable: true },
+      { type: "done" },
     ]);
   });
 
@@ -361,6 +376,51 @@ describe("sendKodyDirectTurn", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(sink.events).toEqual([{ type: "token", text: "par" }]);
   });
+
+  it("emits a non-recoverable dropped-connection error when the stream ends without a terminal marker", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({ type: "reasoning-delta", delta: "thinking\u2026" }),
+          chunk({ type: "text-delta", delta: "partial" }),
+          // No `finish` chunk, no `[DONE]`: the connection dropped.
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "reasoning", text: "thinking\u2026" },
+      { type: "token", text: "partial" },
+      {
+        type: "error",
+        message: KODY_DIRECT_DROPPED_MESSAGE,
+        recoverable: false,
+        code: KODY_DIRECT_ERROR_CODE_DROPPED,
+      },
+    ]);
+  });
+
+  it("treats a `finish` chunk as terminal even without the [DONE] sentinel", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({ type: "text-delta", delta: "hi" }),
+          chunk({ type: "finish" }),
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "hi" },
+      { type: "done" },
+    ]);
+  });
 });
 
 describe("kodyDirectTransport (ChatTransport wrapper)", () => {
@@ -368,7 +428,12 @@ describe("kodyDirectTransport (ChatTransport wrapper)", () => {
     const sink = eventSink();
     await expect(
       kodyDirectTransport.send(
-        { sessionId: "s", text: "hi", agentId: "kody" },
+        {
+          sessionId: "s",
+          text: "hi",
+          agentId: "kody",
+          preparedTurn: preparedTurnFixture,
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/KodyDirectTurnConfig/);

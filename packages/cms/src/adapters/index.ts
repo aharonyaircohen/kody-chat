@@ -1,19 +1,15 @@
 import "server-only";
-import "../runtime-deps";
+import { getStoreAdapterRuntime } from "../runtime-deps";
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Octokit } from "@octokit/rest";
-import {
-  createCmsStorageTransport,
-  createGitHubStorageAdapter,
-  type CmsStorageTransport,
-} from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
 import type {
   CmsCollectionConfig,
@@ -51,7 +47,6 @@ type StoreAdapterOptions = {
   collection: CmsCollectionConfig;
   settings: CmsAdapterContext["settings"];
   getSecret: CmsAdapterContext["getSecret"];
-  getStateRepository: CmsAdapterContext["getStateRepository"];
   context: CmsAdapterContext;
   transport?: CmsStorageTransport;
 };
@@ -88,7 +83,9 @@ export function getCmsAdapter(name: string): CmsAdapter | null {
   if (!adapter) {
     adapter =
       adapterName === "storage"
-        ? createStorageCmsAdapter({ resolveTransport: createSharedStorageTransport })
+        ? createStorageCmsAdapter({
+            resolveTransport: (context) => context.transport,
+          })
         : createStoreAdapterBridge(adapterName);
     ADAPTERS.set(adapterName, adapter);
   }
@@ -159,43 +156,14 @@ async function withStoreAdapter<T>(
         collection: context.collection,
         settings: context.settings,
         getSecret: context.getSecret,
-        getStateRepository: context.getStateRepository,
         context,
-        transport: createSharedStorageTransport(context),
+        transport: context.transport,
+        ...getStoreAdapterRuntime(name),
       }),
     );
   } catch (error) {
     throw normalizeStoreAdapterError(error);
   }
-}
-
-function createSharedStorageTransport(
-  context: CmsAdapterContext,
-): CmsStorageTransport | undefined {
-  if (!context.store?.octokit || !context.getStateRepository) {
-    return undefined;
-  }
-
-  let stateRepository:
-    | ReturnType<NonNullable<CmsAdapterContext["getStateRepository"]>>
-    | undefined;
-  const resolveStateRepository = () => {
-    stateRepository ??= context.getStateRepository!();
-    return stateRepository;
-  };
-
-  return createCmsStorageTransport({
-    adapter: createGitHubStorageAdapter(context.store.octokit),
-    resolveTarget: async () => {
-      const target = await resolveStateRepository();
-      return {
-        owner: target.owner,
-        repo: target.repo,
-        ref: target.branch,
-      };
-    },
-    resolveBasePath: async () => (await resolveStateRepository()).basePath,
-  });
 }
 
 async function loadStoreAdapterModule(
@@ -313,22 +281,40 @@ async function linkRuntimeNodeModules(root: string): Promise<void> {
   if (!existsSync(runtimeNodeModules)) return;
 
   const linkPath = path.join(root, "node_modules");
-  if (existsSync(linkPath)) return;
+  if (hasRuntimePackage(linkPath)) return;
+
+  try {
+    const existing = await lstat(linkPath);
+    await rm(linkPath, {
+      recursive: !existing.isSymbolicLink(),
+      force: true,
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "ENOENT") throw error;
+  }
 
   try {
     await symlink(runtimeNodeModules, linkPath, "dir");
   } catch (error) {
-    if ((error as { code?: string })?.code === "EEXIST") return;
+    if (
+      (error as { code?: string })?.code === "EEXIST" &&
+      hasRuntimePackage(linkPath)
+    ) {
+      return;
+    }
     throw error;
   }
 }
 
 function resolveRuntimeNodeModules(): string {
-  const cwdNodeModules = path.resolve(process.cwd(), "node_modules");
-  if (existsSync(cwdNodeModules)) return cwdNodeModules;
-
   const packageNodeModules = findPackageNodeModules("mongodb/package.json");
-  return packageNodeModules ?? cwdNodeModules;
+  if (packageNodeModules) return packageNodeModules;
+
+  return path.resolve(process.cwd(), "node_modules");
+}
+
+function hasRuntimePackage(nodeModulesPath: string): boolean {
+  return existsSync(path.join(nodeModulesPath, "mongodb", "package.json"));
 }
 
 function findPackageNodeModules(packagePath: string): string | null {

@@ -62,12 +62,6 @@ export interface GoalsListResponse {
   capabilities?: { discussionsEnabled: boolean };
 }
 
-import type {
-  CreateManagedGoalInput,
-  ManagedGoalRecord,
-} from "../managed-goals";
-import type { ManagedGoalRunLogsPayload } from "../managed-goal-run-logs";
-
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
     const res = await fetch(`${API_BASE}/goals`, {
@@ -90,86 +84,6 @@ export const goalsApi = {
     });
     return handleResponse<GoalsListResponse>(res);
   },
-  listManaged: async (): Promise<ManagedGoalRecord[]> => {
-    const res = await fetch(`${API_BASE}/goals/managed`, {
-      headers: buildHeaders(),
-      cache: "no-store",
-    });
-    const payload = await handleResponse<{ goals: ManagedGoalRecord[] }>(res);
-    return payload.goals;
-  },
-  createManaged: async (
-    data: CreateManagedGoalInput & { actorLogin?: string },
-  ): Promise<ManagedGoalRecord> => {
-    const res = await fetch(`${API_BASE}/goals/managed`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
-    return payload.goal;
-  },
-
-  updateManaged: async (
-    id: string,
-    data: import("../managed-goals").UpdateManagedGoalInput,
-  ): Promise<ManagedGoalRecord> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
-      {
-        method: "PATCH",
-        headers: buildHeaders(),
-        body: JSON.stringify(data),
-      },
-    );
-    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
-    return payload.goal;
-  },
-
-  removeManaged: async (id: string): Promise<void> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-        headers: buildHeaders(),
-      },
-    );
-    await handleResponse<{ success: boolean }>(res);
-  },
-
-  runManaged: async (
-    id: string,
-  ): Promise<{
-    ok: true;
-    workflowId: string;
-    ref: string;
-    goal: ManagedGoalRecord;
-  }> => {
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/run`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-      },
-    );
-    return handleResponse(res);
-  },
-
-  runHistory: async (
-    id: string,
-    limit = 8,
-  ): Promise<ManagedGoalRunLogsPayload> => {
-    const params = new URLSearchParams({ limit: String(limit) });
-    const res = await fetch(
-      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/runs?${params}`,
-      {
-        headers: buildHeaders(),
-        cache: "no-store",
-      },
-    );
-    return handleResponse<ManagedGoalRunLogsPayload>(res);
-  },
-
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
     const res = await fetch(
       `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,

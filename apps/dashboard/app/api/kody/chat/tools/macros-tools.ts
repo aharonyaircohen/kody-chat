@@ -2,7 +2,7 @@
  * @fileType util
  * @domain preview
  * @pattern chat-tools
- * @ai-summary Chat tools for saved preview macros (`macros.json` in the state repo):
+ * @ai-summary Chat tools for saved preview macros (`macros.json` in the backend):
  *   list, read (full steps), rename, delete. Recording a NEW macro stays a
  *   browser action (the extension captures clicks) — chat can't record, but
  *   it can manage what's saved and replay one by issuing its steps via
@@ -32,11 +32,11 @@ export function createMacroTools(ctx: Ctx) {
 
   return {
     list_macros: tool({
-      description: `List the saved preview macros for ${repoRef} (state repo macros.json). Returns each macro's id, name, and step count. A macro is a recorded click-through the user can replay in the preview.`,
+      description: `List the saved preview macros for ${repoRef} (backend macros.json). Returns each macro's id, name, and step count. A macro is a recorded click-through the user can replay in the preview.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const { macros } = await readMacrosFile(octokit);
+          const { macros } = await readMacrosFile();
           return {
             macros: macros.map((m) => ({
               id: m.id,
@@ -55,7 +55,7 @@ export function createMacroTools(ctx: Ctx) {
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         try {
-          const { macros } = await readMacrosFile(octokit);
+          const { macros } = await readMacrosFile();
           const macro = macros.find((m) => m.id === id);
           if (!macro) return { error: `macro "${id}" not found` };
           return {
@@ -78,7 +78,7 @@ export function createMacroTools(ctx: Ctx) {
       }),
       execute: async ({ id, name }) => {
         try {
-          const updated = await renameMacroInFile({ octokit, id, name });
+          const updated = await renameMacroInFile({ id, name });
           if (!updated) return { error: `macro "${id}" not found` };
           return { ok: true, id: updated.id, name: updated.name };
         } catch (err) {
@@ -92,7 +92,7 @@ export function createMacroTools(ctx: Ctx) {
       inputSchema: z.object({ id: z.string().min(1) }),
       execute: async ({ id }) => {
         try {
-          const removed = await deleteMacroFromFile({ octokit, id });
+          const removed = await deleteMacroFromFile({ id });
           if (!removed) return { error: `macro "${id}" not found` };
           return { ok: true, action: "deleted", id };
         } catch (err) {

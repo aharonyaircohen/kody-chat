@@ -2,7 +2,7 @@
  * @fileType util
  * @domain kody
  * @pattern shared-slug
- * @ai-summary Shared normalization for state-repo file slugs.
+ * @ai-summary Shared normalization for backend file slugs.
  */
 
 export interface SlugifyOptions {

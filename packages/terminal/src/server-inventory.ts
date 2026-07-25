@@ -15,6 +15,8 @@ import type { NextRequest } from "next/server";
 import type { ServerProviderConfig } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   listServerProviderInventory,
+  listServerProviderMachines,
+  rowsForServerProviderApp,
   ServerProviderInventory,
   ServerProviderMachineRow,
 } from "@kody-ade/fly/infrastructure/server-machines";
@@ -58,7 +60,11 @@ export function terminalFlyConfigForMachine(
       savedBrain.brain.stored?.appName === machine.app ||
       savedBrain.brain.app === machine.app);
   const baseCfg = usesSavedBrainToken
-    ? { ...cfg, token: savedBrain.flyToken }
+    ? {
+        ...cfg,
+        token: savedBrain.flyToken,
+        defaultRegion: savedBrain.brain.defaultRegion,
+      }
     : cfg;
   return terminalTargetFlyConfig(baseCfg, machine.orgSlug);
 }
@@ -66,17 +72,7 @@ export function terminalFlyConfigForMachine(
 export function terminalBridgeConfigCandidates(
   targetCfg: ServerProviderConfig,
 ): ServerProviderConfig[] {
-  const seen = new Set([targetCfg.token]);
-  const candidates = [targetCfg];
-  for (const token of [
-    process.env.FLY_API_TOKEN?.trim(),
-    process.env.FLY_IO_TOKEN?.trim(),
-  ]) {
-    if (!token || seen.has(token)) continue;
-    seen.add(token);
-    candidates.push({ ...targetCfg, token });
-  }
-  return candidates;
+  return [targetCfg];
 }
 
 function savedBrainTargetsRequest(
@@ -104,6 +100,36 @@ function savedBrainInventory(
   return refreshServerProviderInventoryCounts(inventory);
 }
 
+async function refreshedSavedBrainInventory(
+  cfg: ServerProviderConfig,
+  savedBrain: SavedBrainServiceForRequest,
+): Promise<ServerProviderInventory> {
+  const app = savedBrain.brain.machine?.app ?? savedBrain.brain.app;
+  const targetCfg = terminalTargetFlyConfig(
+    {
+      ...cfg,
+      token: savedBrain.flyToken,
+      defaultRegion: savedBrain.brain.defaultRegion,
+    },
+    savedBrain.brain.orgSlug,
+  );
+  let machines;
+  try {
+    machines = await listServerProviderMachines(app, targetCfg);
+  } catch {
+    return savedBrainInventory(savedBrain);
+  }
+  const inventory = emptyServerProviderInventory();
+  inventory.machines = rowsForServerProviderApp(app, machines, undefined, {
+    feature: "brain",
+    label: savedBrain.brain.machine?.label ?? savedBrain.brain.app,
+    orgSlug: savedBrain.brain.orgSlug,
+  });
+  return inventory.machines.length > 0
+    ? refreshServerProviderInventoryCounts(inventory)
+    : savedBrainInventory(savedBrain);
+}
+
 export async function loadTerminalInventoryAuthority(
   req: NextRequest,
   cfg: ServerProviderConfig,
@@ -113,7 +139,11 @@ export async function loadTerminalInventoryAuthority(
   const savedBrain = await resolveSavedBrainServiceForRequest(req, context);
   if (savedBrainTargetsRequest(savedBrain, target)) {
     return {
-      inventory: savedBrainInventory(savedBrain!),
+      // Persisted Brain metadata identifies the machine but its lifecycle
+      // state can already be stale after Fly auto-suspends it. Refresh the
+      // target app so terminal startup can wake a sleeping machine instead of
+      // returning a websocket that immediately exits.
+      inventory: await refreshedSavedBrainInventory(cfg, savedBrain!),
       savedBrain,
     };
   }

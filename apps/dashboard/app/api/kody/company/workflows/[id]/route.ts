@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-workflow-detail-api
  * @ai-summary Reads, updates, and deletes workflow definition files in the
- *   configured Kody state repo.
+ *   configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -28,19 +28,36 @@ import {
 import {
   isWorkflowDefinitionId,
   mergeWorkflowDefinition,
+  validateWorkflowDefinition,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
   deleteWorkflowDefinitionFile,
-  readCompanyStoreCapabilityWorkflowDefinitionFile,
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+
+const workflowTransitionSchema = z.object({
+  to: z.string().trim().min(1).max(80),
+  when: z.record(z.string(), z.unknown()).optional(),
+  default: z.boolean().optional(),
+  maxIterations: z.number().int().positive().optional(),
+});
+const workflowStepSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(80),
+  input: z.unknown().optional(),
+  next: z.array(workflowTransitionSchema).optional(),
+});
 
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
+  agent: z.string().trim().min(1).max(80).optional(),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
+  startAt: z.string().trim().min(1).max(80).optional(),
+  steps: z.array(workflowStepSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
@@ -129,7 +146,6 @@ export async function GET(
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -148,16 +164,6 @@ export async function GET(
           return NextResponse.json({ workflow: storeWorkflow });
         }
       }
-      if (active.activeCapabilities.has(id)) {
-        const storeCapabilityWorkflow =
-          await readCompanyStoreCapabilityWorkflowDefinitionFile(
-            id,
-            context.octokit,
-          );
-        if (storeCapabilityWorkflow) {
-          return NextResponse.json({ workflow: storeCapabilityWorkflow });
-        }
-      }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -169,6 +175,7 @@ export async function GET(
         updatedAt: existing.workflow.updatedAt,
         source: "local",
         readOnly: false,
+        runnable: true,
       },
     });
   } catch (err: any) {
@@ -209,7 +216,6 @@ export async function PATCH(
     workflowDefinitionPath(id);
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -218,12 +224,7 @@ export async function PATCH(
         id,
         context.octokit,
       );
-      const storeCapabilityWorkflow =
-        await readCompanyStoreCapabilityWorkflowDefinitionFile(
-          id,
-          context.octokit,
-        );
-      if (storeWorkflow || storeCapabilityWorkflow) {
+      if (storeWorkflow) {
         return NextResponse.json(
           {
             error: "store_workflow_protected",
@@ -245,15 +246,36 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    const [{ activeCapabilities }, localCapabilities] = await Promise.all([
+      activeStoreReferenceSets(
+        context.octokit,
+        context.headerAuth.owner,
+        context.headerAuth.repo,
+      ),
+      listLocalCapabilityFiles(),
+    ]);
+    const validationIssues = validateWorkflowDefinition(workflow, {
+      knownCapabilities: new Set([
+        ...activeCapabilities,
+        ...localCapabilities.map((capability) => capability.slug),
+      ]),
+    });
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is not safe to save.",
+          issues: validationIssues,
+        },
+        { status: 400 },
+      );
+    }
 
     await writeWorkflowDefinitionFile({
-      octokit: context.octokit,
       owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
       workflow,
-      sha: existing.sha,
-      message: `chore(workflows): update workflow ${id}`,
     });
 
     return NextResponse.json({
@@ -262,6 +284,9 @@ export async function PATCH(
         path: existing.path,
         workflow,
         updatedAt: workflow.updatedAt,
+        source: "local",
+        readOnly: false,
+        runnable: true,
       },
     });
   } catch (err: any) {
@@ -292,7 +317,6 @@ export async function DELETE(
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -309,20 +333,6 @@ export async function DELETE(
         );
         patch.activeWorkflows =
           nextActiveWorkflows.length > 0 ? nextActiveWorkflows : null;
-      }
-      if (active.activeCapabilities.has(id)) {
-        const storeCapabilityWorkflow =
-          await readCompanyStoreCapabilityWorkflowDefinitionFile(
-            id,
-            context.octokit,
-          );
-        if (storeCapabilityWorkflow) {
-          const nextActiveCapabilities = [...active.activeCapabilities].filter(
-            (slug) => slug !== id,
-          );
-          patch.activeCapabilities =
-            nextActiveCapabilities.length > 0 ? nextActiveCapabilities : null;
-        }
       }
       if (Object.keys(patch).length === 0) {
         return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -341,12 +351,9 @@ export async function DELETE(
     }
 
     await deleteWorkflowDefinitionFile({
-      octokit: context.octokit,
       owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
-      sha: existing.sha,
-      message: `chore(workflows): delete workflow ${id}`,
     });
 
     return NextResponse.json({ success: true });

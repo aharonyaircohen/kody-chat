@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BRAIN_CARD_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/BrainFlyCard.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/admin/components/BrainFlyCard.tsx"),
   "utf8",
 );
 
@@ -53,6 +53,16 @@ describe("Brain on Fly settings card", () => {
     );
     expect(BRAIN_CARD_SOURCE).toContain(
       "Update\n                  the repo Fly token",
+    );
+  });
+
+  it("refreshes live Brain state while the config card stays open", () => {
+    expect(BRAIN_CARD_SOURCE).toContain("BRAIN_STATUS_REFRESH_MS");
+    expect(BRAIN_CARD_SOURCE).toContain(
+      'window.addEventListener("focus", refreshWhenVisible)',
+    );
+    expect(BRAIN_CARD_SOURCE).toContain(
+      "window.setTimeout(poll, BRAIN_STATUS_REFRESH_MS)",
     );
   });
 });

@@ -4,15 +4,13 @@
  * @pattern interactive-session
  *
  * Server-side helpers for the long-lived "interactive runner" chat mode.
- * The mode is gated by a meta line at the top of the session JSONL — see
- * kody2/src/chat/session.ts (readMeta). The runner enters a poll loop
- * instead of replying once and exiting.
+ * Interactive runners and the browser share the canonical Convex
+ * conversation timeline. GitHub dispatch only starts the runner.
  *
  * Why this lives in its own module: the existing trigger route does
  * dispatch-per-turn and assumes one workflow run = one reply. Interactive
  * mode breaks that — start() dispatches once, then append() writes to the
- * session file in the configured Kody state repo without triggering anything
- * new.
+ * shared conversation without triggering anything new.
  *
  * Auth model is the same inline HMAC token as one-shot chat — see
  * chat-token.ts. The runner verifies the token on ingest POSTs so we
@@ -20,7 +18,12 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { logger } from "@kody-ade/base/logger";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
 
 const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";
@@ -28,7 +31,7 @@ const DEFAULT_BRANCH = "main";
 /** Meta line written as the first JSONL row. The engine reads it via readMeta. */
 export interface SessionMeta {
   type: "meta";
-  mode: "interactive";
+  mode: "interactive" | "one-shot";
   createdAt: string;
   /** Idle window before the runner exits (default: 5min in engine). */
   idleExitMs?: number;
@@ -86,48 +89,11 @@ export async function writeSessionMeta(
   repo: string,
   sessionId: string,
   meta: SessionMeta,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 4,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 4,
   initialTurn?: ChatTurn,
 ): Promise<void> {
-  const path = sessionFilePath(sessionId);
-  const content = initialTurn
-    ? `${JSON.stringify(meta)}\n${JSON.stringify({
-        role: initialTurn.role,
-        content: initialTurn.content,
-        timestamp: initialTurn.timestamp,
-        toolCalls: initialTurn.toolCalls ?? [],
-      })}\n`
-    : `${JSON.stringify(meta)}\n`;
-
-  let attempt = 0;
-  while (true) {
-    attempt += 1;
-    // Re-read the sha each attempt: a concurrent start may have created this
-    // exact file (re-run of the same sessionId), and the branch HEAD may have
-    // moved, so a stale sha would just collide again.
-    const sha = await getFileSha(octokit, owner, repo, path, branch);
-    try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `chat: start interactive session ${sessionId}`,
-        content,
-        ...(sha ? { sha } : {}),
-        maxAttempts: 1,
-      });
-      return;
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status === 409 && attempt < maxRetries) {
-        await sleep(100 * attempt + Math.floor(Math.random() * 100));
-        continue;
-      }
-      throw err;
-    }
-  }
+  await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
 }
 
 /**
@@ -144,96 +110,191 @@ export async function appendUserTurn(
   repo: string,
   sessionId: string,
   turn: ChatTurn,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 3,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 3,
 ): Promise<{ turnCount: number }> {
-  const path = sessionFilePath(sessionId);
+  await recordTurn(owner, repo, sessionId, turn);
+  return { turnCount: await convexTurnCount(owner, repo, sessionId) };
+}
 
-  let attempt = 0;
-  while (true) {
-    attempt += 1;
-    const existing = await readSessionFile(octokit, owner, repo, path, branch);
-    const newContent =
-      existing.content +
-      `${JSON.stringify({
-        role: turn.role,
-        content: turn.content,
-        timestamp: turn.timestamp,
-        toolCalls: turn.toolCalls ?? [],
-      })}\n`;
+/**
+ * Read a session's transcript from the Convex record
+ * Returns null when the canonical conversation does not exist.
+ */
+export async function readSessionTranscript(
+  owner: string,
+  repo: string,
+  sessionId: string,
+): Promise<{ meta: SessionMeta; turns: ChatTurn[] } | null> {
+  const result = (await getConvexClient().query(backendApi.conversations.get, {
+    tenantId: tenantIdFor(owner, repo),
+    conversationId: sessionId,
+  })) as {
+    entries: Array<{
+      seq: number;
+      entry: {
+        kind: string;
+        role?: "user" | "assistant";
+        content?: string;
+        createdAt: string;
+      };
+    }>;
+  } | null;
+  if (!result) return null;
+  return {
+    meta: buildMetaLine(),
+    turns: [...result.entries]
+      .sort((a, b) => a.seq - b.seq)
+      .filter(
+        (doc) =>
+          doc.entry.kind === "message" &&
+          doc.entry.role &&
+          doc.entry.content !== undefined,
+      )
+      .map((doc) => ({
+        role: doc.entry.role!,
+        content: doc.entry.content!,
+        timestamp: doc.entry.createdAt,
+      })),
+  };
+}
 
-    try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `chat: append turn for ${sessionId}`,
-        content: newContent,
-        sha: existing.sha,
-        maxAttempts: 1,
+// ─── Convex transcript record ──────────────────────────────────────────────
+// Convex is the sole durable transcript record. The engine polls these records
+// directly when its Actions secrets are present.
+
+export async function recordSessionStart(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  meta: SessionMeta,
+  initialTurn?: ChatTurn,
+): Promise<void> {
+  try {
+    const client = getConvexClient();
+    const tenantId = tenantIdFor(owner, repo);
+    const existing = await client.query(backendApi.conversations.get, {
+      tenantId,
+      conversationId: sessionId,
+    });
+    if (!existing) {
+      await client.mutation(backendApi.conversations.create, {
+        tenantId,
+        conversationId: sessionId,
+        surface: "global",
+        scope: { kind: "repository", owner, repo },
+        title: "New conversation",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "live", profileId: "kody-live" },
+        createdBy: "system:interactive-runner",
+        createdAt: meta.createdAt,
+        updatedAt: meta.createdAt,
       });
-      return { turnCount: countTurnLines(newContent) };
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      // 409 = sha mismatch (concurrent runner push). Retry with fresh sha.
-      if (e.status === 409 && attempt < maxRetries) {
-        await sleep(100 * attempt + Math.floor(Math.random() * 100));
-        continue;
-      }
-      throw err;
+    } else {
+      // The chat UI creates the conversation before the user can select the
+      // live model. Reusing that conversation without changing its runtime
+      // makes the engine take the one-shot path and reject an empty warm-up
+      // with "nothing to reply to" instead of emitting chat.ready.
+      await client.mutation(backendApi.conversations.updateRuntime, {
+        tenantId,
+        conversationId: sessionId,
+        runtime: { kind: "live", profileId: "kody-live" },
+        updatedAt: meta.createdAt,
+      });
     }
+    if (initialTurn) {
+      await recordTurn(owner, repo, sessionId, initialTurn);
+    }
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex session start record failed",
+    );
+    throw err;
   }
+}
+
+export async function recordTurn(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  turn: ChatTurn,
+): Promise<void> {
+  try {
+    const client = getConvexClient();
+    const tenantId = tenantIdFor(owner, repo);
+    const detail = (await client.query(backendApi.conversations.get, {
+      tenantId,
+      conversationId: sessionId,
+    })) as { conversation: { activeAgent: { slug: string; title: string } } };
+    const normalized = normalizeTurn(turn);
+    const entryId = `${sessionId}:${turn.role}:${turn.timestamp}`;
+    await client.mutation(backendApi.conversations.appendEntry, {
+      tenantId,
+      conversationId: sessionId,
+      entryId,
+      idempotencyKey: entryId,
+      entry: {
+        kind: "message",
+        role: normalized.role,
+        author:
+          normalized.role === "user"
+            ? { kind: "user", actorId: "system:interactive-runner" }
+            : { kind: "agent", ...detail.conversation.activeAgent },
+        content: normalized.content,
+        status: "committed",
+        turnId: entryId,
+        createdAt: normalized.timestamp,
+      },
+    });
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex turn record failed",
+    );
+    throw err;
+  }
+}
+
+/** Turn count from the Convex record (used when the legacy write is off). */
+async function convexTurnCount(
+  owner: string,
+  repo: string,
+  sessionId: string,
+): Promise<number> {
+  try {
+    const detail = (await getConvexClient().query(
+      backendApi.conversations.get,
+      {
+        tenantId: tenantIdFor(owner, repo),
+        conversationId: sessionId,
+      },
+    )) as { entries: Array<{ entry: { kind: string } }> } | null;
+    return (
+      detail?.entries.filter((entry) => entry.entry.kind === "message")
+        .length ?? 0
+    );
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex turn count failed",
+    );
+    return 0;
+  }
+}
+
+function normalizeTurn(turn: ChatTurn): ChatTurn {
+  return {
+    role: turn.role,
+    content: turn.content,
+    timestamp: turn.timestamp,
+    toolCalls: turn.toolCalls ?? [],
+  };
 }
 
 // ─── internals ─────────────────────────────────────────────────────────────
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function getFileSha(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  _branch: string,
-): Promise<string | null> {
-  try {
-    return (await readStateText(octokit, owner, repo, path))?.sha ?? null;
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) return null;
-    throw err;
-  }
-}
-
-async function readSessionFile(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  _branch: string,
-): Promise<{ content: string; sha: string | undefined }> {
-  try {
-    const file = await readStateText(octokit, owner, repo, path);
-    if (!file) return { content: "", sha: undefined };
-    return { content: file.content, sha: file.sha };
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) return { content: "", sha: undefined };
-    throw err;
-  }
-}
-
-function countTurnLines(content: string): number {
-  return content.split("\n").filter((line) => {
-    if (!line.trim()) return false;
-    try {
-      const parsed = JSON.parse(line) as { role?: string };
-      return parsed.role === "user" || parsed.role === "assistant";
-    } catch {
-      return false;
-    }
-  }).length;
 }

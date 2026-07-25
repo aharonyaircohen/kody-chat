@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-api
  * @ai-summary Report detail API — GET reads the latest report run for a report
- *   family in the configured Kody state repo. Read-only.
+ *   family in the configured Kody backend. Read-only.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

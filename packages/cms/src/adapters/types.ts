@@ -32,13 +32,6 @@ export interface CmsAdapterContext {
     repoUrl?: string;
     ref?: string;
   };
-  getStateRepository?: () => Promise<{
-    octokit: Octokit;
-    owner: string;
-    repo: string;
-    branch: string;
-    basePath: string;
-  }>;
 }
 
 export interface CmsAdapter {

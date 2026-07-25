@@ -25,10 +25,12 @@ export type RepoRouteAuthSync =
 
 const REPO_OWNED_LEGACY_PREFIXES = [
   "/activity",
+  "/agency",
   "/agent-goals",
   "/agent-loops",
   "/agents",
   "/brands",
+  "/backend",
   ...PACKAGE_ADMIN_PAGE_META.map((page) => page.href),
   "/capabilities",
   "/changelog",
@@ -41,16 +43,24 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/content/models",
   "/content/settings",
   "/context",
+  "/constraints",
   "/docs",
+  "/file-spaces",
   "/files",
   "/fly",
+  "/guided-flows",
+  "/user-journeys",
+  "/inbox",
   "/instructions",
   "/jobs",
+  "/knowledge-system",
   "/memory",
   "/messages",
   "/models",
   "/notifications",
+  "/operations",
   "/preview",
+  "/policies",
   "/reports",
   "/runner",
   "/secrets",
@@ -121,7 +131,6 @@ export const routes = {
   home: () => "/",
   orgHome: () => "/org",
   org: (org: string) => joinPath("org", org),
-  globalSettings: () => "/settings",
 
   repoHome: (ref: RepoRef) => repoBasePath(ref),
   repoDashboard: (ref: RepoRef) => repoBasePath(ref),
@@ -141,6 +150,8 @@ export const routes = {
     repoSelectionPath(ref, "docs", path),
   repoReports: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "reports", slug),
+  repoKnowledgeSystem: (ref: RepoRef) =>
+    repoSelectionPath(ref, "knowledge-system"),
   repoTodos: (ref: RepoRef) => repoSelectionPath(ref, "todos"),
   repoTodoList: (ref: RepoRef, slug: string) =>
     repoSelectionPath(ref, "todos", slug),
@@ -148,6 +159,7 @@ export const routes = {
     repoSelectionPath(ref, "todos", slug, itemId),
   repoSecrets: (ref: RepoRef) => repoSelectionPath(ref, "secrets"),
   repoConfig: (ref: RepoRef) => repoSelectionPath(ref, "config"),
+  repoBackend: (ref: RepoRef) => repoSelectionPath(ref, "backend"),
   repoContext: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "context", slug),
   repoMemory: (ref: RepoRef, id?: string | null) =>

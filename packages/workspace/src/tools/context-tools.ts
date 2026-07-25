@@ -3,7 +3,7 @@
  * @domain context
  * @pattern chat-tools
  * @ai-summary Chat tools to manage curated Context entries
- *   (`context/<slug>.md` in the state repo) — list, read, create/update, delete. Context
+ *   (`context/<slug>.md` in Convex) — list, read, create/update, delete. Context
  *   is the company-curated knowledge fed to agentIdentity identities. Each entry's
  *   `agent` array scopes which agent identities see it ("kody" by default, "*" = all).
  */
@@ -27,13 +27,12 @@ interface Ctx {
 }
 
 export function createContextTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   return {
     list_context: tool({
-      description: `List curated context entries in ${repoRef} (state repo context/). Returns slug and the agentIdentity identities each entry is scoped to.`,
+      description: `List curated context entries in ${repoRef} (Convex context/). Returns slug and the agentIdentity identities each entry is scoped to.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -53,7 +52,7 @@ export function createContextTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const entry = await readContextFile(slug, octokit);
+          const entry = await readContextFile(slug);
           if (!entry) return { error: `context "${slug}" not found` };
           return { entry };
         } catch (err) {
@@ -63,7 +62,7 @@ export function createContextTools(ctx: Ctx) {
     }),
 
     create_or_update_context: tool({
-      description: `Create or update a context entry in ${repoRef} (commits context/<slug>.md in the state repo). \`agent\` lists which agent slugs see it — use ["kody"] for chat only, ["*"] for every agentIdentity, or specific slugs. The body is plain markdown (no frontmatter).`,
+      description: `Create or update a context entry for ${repoRef} in Convex. \`agent\` lists which agent slugs see it — use ["kody"] for chat only, ["*"] for every agentIdentity, or specific slugs. The body is plain markdown (no frontmatter).`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         body: z.string().min(1),
@@ -73,14 +72,11 @@ export function createContextTools(ctx: Ctx) {
         if (!isValidSlug(input.slug))
           return { error: `invalid slug "${input.slug}"` };
         try {
-          const existing = await readContextFile(input.slug, octokit);
+          const existing = await readContextFile(input.slug);
           const entry = await writeContextFile({
-            octokit,
             slug: input.slug,
             body: input.body,
             agent: input.agent,
-            sha: existing?.sha,
-            message: `${existing ? "chore" : "feat"}(context): ${existing ? "update" : "add"} ${input.slug}${by}`,
           });
           return {
             ok: true,
@@ -95,14 +91,14 @@ export function createContextTools(ctx: Ctx) {
     }),
 
     delete_context: tool({
-      description: `Delete a context entry from ${repoRef} (removes context/<slug>.md from the state repo).`,
+      description: `Delete a context entry from ${repoRef} (removes context/<slug>.md from the Convex).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await readContextFile(slug, octokit);
+          const existing = await readContextFile(slug);
           if (!existing) return { error: `context "${slug}" not found` };
-          await deleteContextFile(octokit, slug);
+          await deleteContextFile(slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

@@ -31,6 +31,15 @@ function staleShaError() {
   );
 }
 
+function missingShaError() {
+  return Object.assign(
+    new Error(
+      '"sha" wasn\'t supplied. - https://docs.github.com/rest/repos/contents#create-or-update-file-contents',
+    ),
+    { status: 422 },
+  );
+}
+
 describe("github contents write helpers", () => {
   it("retries a fixed-content write with the latest sha", async () => {
     const writes: Array<Record<string, unknown>> = [];
@@ -113,5 +122,43 @@ describe("github contents write helpers", () => {
     expect(result.written).toBe(true);
     expect(writes.map((write) => write.sha)).toEqual(["sha-1", "sha-2"]);
     expect(decode(writes[1]?.content)).toBe("a\nb\nmine\n");
+  });
+
+  it("retries when an existing file rejects a create without sha", async () => {
+    const writes: Array<Record<string, unknown>> = [];
+    const repos = {
+      getContent: vi.fn().mockResolvedValue(contentResponse("", "sha-gitkeep")),
+      createOrUpdateFileContents: vi
+        .fn()
+        .mockImplementationOnce(async (params: Record<string, unknown>) => {
+          writes.push(params);
+          throw missingShaError();
+        })
+        .mockImplementationOnce(async (params: Record<string, unknown>) => {
+          writes.push(params);
+          return {
+            data: {
+              content: { sha: "blob-gitkeep" },
+              commit: { sha: "commit-gitkeep" },
+            },
+          };
+        }),
+    };
+
+    await writeGitHubFileWithRetry(
+      { rest: { repos } },
+      {
+        owner: "o",
+        repo: "r",
+        path: "docs/existing/.gitkeep",
+        message: "create folder",
+        content: encode(""),
+      },
+    );
+
+    expect(writes.map((write) => write.sha)).toEqual([
+      undefined,
+      "sha-gitkeep",
+    ]);
   });
 });

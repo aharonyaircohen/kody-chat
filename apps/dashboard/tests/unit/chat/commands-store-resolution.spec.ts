@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getContent = vi.fn();
 const listCommits = vi.fn();
+const backend = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
 const octokit = {
   repos: {
     get: vi.fn(async () => ({ data: { default_branch: "main" } })),
@@ -19,6 +23,9 @@ vi.mock("@kody-ade/workspace/github", () => ({
   getStoreRepoUrl: vi.fn(
     () => "https://github.com/aharonyaircohen/kody-company-store",
   ),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
 }));
 
 vi.mock("@kody-ade/base/company-store/assets", async (importOriginal) => {
@@ -66,7 +73,10 @@ vi.mock("@kody-ade/base/company-store/assets", async (importOriginal) => {
   };
 });
 
-import { listCommands, readResolvedCommandFile } from "@kody-ade/workspace/commands";
+import {
+  listCommands,
+  readResolvedCommandFile,
+} from "@kody-ade/workspace/commands";
 
 function repoCommandContent(body: string): string {
   return Buffer.from(
@@ -78,6 +88,34 @@ function repoCommandContent(body: string): string {
 describe("Store command resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    backend.query.mockImplementation(
+      async (_fn: unknown, args: { prefix?: string; kind?: string }) => {
+        if (args.prefix === "command:") {
+          return [
+            {
+              kind: "command:review",
+              doc: {
+                description: "Repo review",
+                argumentHint: "",
+                body: "Repo review body\n",
+              },
+              updatedAt: "2026-06-24T00:00:00.000Z",
+            },
+          ];
+        }
+        if (args.kind === "command:review") {
+          return {
+            doc: {
+              description: "Repo review",
+              argumentHint: "",
+              body: "Repo review body\n",
+            },
+            updatedAt: "2026-06-24T00:00:00.000Z",
+          };
+        }
+        return null;
+      },
+    );
     listCommits.mockResolvedValue({ data: [] });
     getContent.mockImplementation(async ({ path }: { path: string }) => {
       if (path === "repo/commands") {

@@ -44,6 +44,7 @@ jobs:
       group: kody-${{ inputs.sessionId || inputs.issue_number || inputs.capability || github.event.issue.number || github.sha }}
       cancel-in-progress: false
     permissions:
+      id-token: write
       issues: write
       pull-requests: write
       contents: write
@@ -63,10 +64,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Hydrate Kody Store definitions
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.KODY_STORE_REPOSITORY || 'aharonyaircohen/kody-company-store' }}
+          ref: ${{ vars.KODY_STORE_REF || 'main' }}
+          path: .kody-engine/store
+          token: ${{ secrets.KODY_TOKEN || github.token }}
+
       - env:
           ALL_SECRETS: ${{ toJSON(secrets) }}
           SESSION_ID: ${{ inputs.sessionId }}
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
-        run: npx -y -p @kody-ade/kody-engine@latest kody-engine
+          KODY_DEFINITIONS_ROOT: ${{ github.workspace }}/.kody-engine/store
+          KODY_DEFINITIONS_ROOT_CWD: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          test -f .kody-engine/store/kody-store.json
+          test -f .kody-engine/definitions/loops/ci-repair/loop.json
+          npx -y -p @kody-ade/kody-engine@latest kody-engine version
+          npx -y -p @kody-ade/kody-engine@latest kody-engine ci --cwd "$GITHUB_WORKSPACE"

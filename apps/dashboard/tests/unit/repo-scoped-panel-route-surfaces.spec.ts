@@ -1,25 +1,29 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
-// Panels that moved to @kody-ade/kody-chat are read from the package copy.
+// Panels that moved to @kody-ade/kody-chat-dashboard are read from the package copy.
 const PACKAGE_COMPONENTS = new Set([
-  "DefaultChatCard.tsx",
   "SecretsManager.tsx",
   "CommandsManager.tsx",
   "ModelsManager.tsx",
-  "SettingsManager.tsx",
-  "MemoryManager.tsx",
-  "ContextControl.tsx",
   "BrandsManager.tsx",
   "InstructionsManager.tsx",
 ]);
-const componentsRoot = (file: string) =>
-  PACKAGE_COMPONENTS.has(file)
-    ? "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components"
-    : "src/dashboard/lib/components";
-const component = (file: string) => read(join(componentsRoot(file), file));
+const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features")).map(
+  (f) => join("src/dashboard/features", f, "components"),
+);
+const componentsRoot = (file: string) => {
+  if (PACKAGE_COMPONENTS.has(file))
+    return "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components";
+  for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
+    if (existsSync(join(process.cwd(), dir, file))) return dir;
+  }
+  return "src/dashboard/lib/components";
+};
+const component = (file: string) =>
+  read(file.startsWith("src/") ? file : join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
   read(
     file.startsWith("src/") || file.startsWith("node_modules/")
@@ -31,6 +35,42 @@ const directRepoOwnedLinkHref =
   /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
 
 describe("repo-scoped panel route surfaces", () => {
+  it("keeps file-backed guidance pages on their route-owned workspaces", () => {
+    const shell = read(
+      "src/dashboard/lib/components/ChatRailShell.tsx",
+    );
+    expect(shell).not.toContain("contextChatPlugin");
+    expect(shell).not.toContain("memoryChatPlugin");
+    expect(shell).not.toContain('"/context": CONTEXT_PANEL_ID');
+    expect(shell).not.toContain('"/memory": MEMORY_PANEL_ID');
+
+    for (const path of [
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/ContextControl.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/MemoryManager.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/context/index.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/context/panel.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/memory/index.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/memory/panel.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/context.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/context-detail.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/memory.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages/memory-detail.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useContextEntries.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useMemory.ts",
+      "src/dashboard/lib/hooks/useContextEntries.ts",
+      "src/dashboard/lib/hooks/useMemory.ts",
+    ]) {
+      expect(existsSync(join(process.cwd(), path)), path).toBe(false);
+    }
+
+    const packageApi = read(
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/integration-api.ts",
+    );
+    expect(packageApi).not.toContain("export const contextApi");
+    expect(packageApi).not.toContain("export const memoryApi");
+
+  });
+
   it("has reusable client primitives for scoped links and imperative navigation", () => {
     const hookPath = join(
       process.cwd(),
@@ -43,32 +83,32 @@ describe("repo-scoped panel route surfaces", () => {
 
     expect(existsSync(hookPath)).toBe(true);
     expect(existsSync(linkPath)).toBe(true);
-    expect(read("src/dashboard/lib/hooks/useRepoScopedHref.ts")).toContain(
-      "repoScopedHref",
-    );
-    expect(read("src/dashboard/lib/components/RepoScopedLink.tsx")).toContain(
-      "useRepoScopedHref",
-    );
+    expect(
+      read(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useRepoScopedHref.ts",
+      ),
+    ).toContain("repoScopedHref");
+    expect(
+      read(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/RepoScopedLink.tsx",
+      ),
+    ).toContain("useRepoScopedHref");
   });
 
   it("does not render direct repo-owned href literals in panel components", () => {
     for (const file of [
       "DashboardHome.tsx",
       "InboxList.tsx",
-      "DefaultChatCard.tsx",
       "VaultLockedBanner.tsx",
       "src/dashboard/lib/push/PushCard.tsx",
       "SecretsManager.tsx",
       "CommandsManager.tsx",
       "ModelsManager.tsx",
-      "SettingsManager.tsx",
-      "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
-      "node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
       "RunnerManager.tsx",
       "NotificationsManager.tsx",
-      "ManagedModelsView.tsx",
     ]) {
       expect(sourceFile(file), file).not.toMatch(directRepoOwnedLinkHref);
     }
@@ -76,11 +116,10 @@ describe("repo-scoped panel route surfaces", () => {
 
   it("uses scoped imperative navigation for selection reset routes", () => {
     for (const file of [
-      "MemoryManager.tsx",
       "AgentsControl.tsx",
-      "ContextControl.tsx",
-      "DocsView.tsx",
-      "CompanyIntentsView.tsx",
+      // DocsView is now a thin wrapper around the file-manager FilesPage,
+      // which owns the repo-scoped navigation.
+      "src/dashboard/features/file-manager/components/FilesPage.tsx",
       "PreviewWorkspace.tsx",
       "MessagesView.tsx",
       "TodoControl.tsx",

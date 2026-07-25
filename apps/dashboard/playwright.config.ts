@@ -40,7 +40,10 @@ export default defineConfig({
 
   use: {
     /* Target URL — set via BASE_URL env var */
-    baseURL: process.env.BASE_URL ?? "http://127.0.0.1:3333",
+    baseURL:
+      process.env.PW_LOCAL === "1"
+        ? "http://127.0.0.1:3333"
+        : (process.env.BASE_URL ?? "http://127.0.0.1:3333"),
 
     /* Capture trace on first retry for debugging */
     trace: "on-first-retry",

@@ -57,6 +57,7 @@ function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {
     flyToken: "fly-token",
     flyOrgSlug: "personal",
     flyDefaultRegion: "fra",
+    providerTokenSource: "repo-vault",
     perfTier: "medium",
     ...overrides,
   };

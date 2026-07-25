@@ -4,7 +4,7 @@
  * @pattern models-api
  * @ai-summary GET — list chat models from the LLM_MODELS variable.
  *   PUT — replace the entire list with a validated ChatModel[] array.
- *   Backing storage is the LLM_MODELS entry in state repo variables.json.
+ *   Backing storage is the LLM_MODELS entry in backend variables.json.
  *
  *   Why a dedicated route instead of /api/kody/variables: validation. The
  *   chat UI dropdown and the chat route both depend on the shape, so we
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const { doc } = await readVariables(octokit, auth.owner, auth.repo);
+    const { doc } = await readVariables(auth.owner, auth.repo);
     const raw = doc.variables[VAR_LLM_MODELS]?.value;
     if (!raw)
       return NextResponse.json({ models: [] }, { headers: NO_STORE_HEADERS });
@@ -151,7 +151,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readVariables(octokit, auth.owner, auth.repo, {
+    const { doc } = await readVariables(auth.owner, auth.repo, {
       force: true,
     });
     const next: VariablesDocument = {
@@ -165,14 +165,7 @@ export async function PUT(req: NextRequest) {
         },
       },
     };
-    await writeVariables(
-      octokit,
-      auth.owner,
-      auth.repo,
-      next,
-      sha,
-      `chore(variables): update chat models`,
-    );
+    await writeVariables(auth.owner, auth.repo, next);
     invalidateVariablesCache(auth.owner, auth.repo);
 
     // Sync the engine's model into kody.config.json (`agent.model`). This is

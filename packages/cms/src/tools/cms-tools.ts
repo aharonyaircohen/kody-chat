@@ -4,10 +4,7 @@ import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
 import { getCmsActorRole } from "../roles";
-import {
-  canWriteOperation,
-  type CmsWriteOperation,
-} from "../permissions";
+import { canWriteOperation, type CmsWriteOperation } from "../permissions";
 import {
   annotateCmsListResult,
   normalizeCmsDocumentIdInput,
@@ -29,8 +26,6 @@ import type {
   CmsSortEntry,
 } from "../types";
 import { getCmsDocumentValidationIssues } from "../validation";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
-import { resolveStateRepo } from "@kody-ade/base/state-repo";
 
 interface Ctx {
   req: NextRequest;
@@ -93,9 +88,6 @@ export async function createCmsTools({
   const actorRole = await getCmsActorRole(req, octokit, owner, repo);
   const cms = await listCmsCollections(octokit, owner, repo, actorRole);
   if (cms.configured === false) return {};
-  const stateBranch = await resolveStateRepo(octokit, owner, repo)
-    .then((target) => target.branch)
-    .catch(() => STATE_BRANCH);
   const mutationOperations = getAvailableMutationOperations(cms);
   const mutationOperationsTuple = toMutationOperationsTuple(mutationOperations);
 
@@ -106,7 +98,7 @@ export async function createCmsTools({
       inputSchema: z.object({}),
       execute: async () => ({
         collections: cms.collections.map((collection) =>
-          toCollectionSummary(collection, stateBranch),
+          toCollectionSummary(collection),
         ),
       }),
     }),
@@ -367,16 +359,13 @@ function findCollection(
   return collection;
 }
 
-function toCollectionSummary(
-  collection: CmsCollectionConfig,
-  stateBranch: string,
-) {
+function toCollectionSummary(collection: CmsCollectionConfig) {
   return {
     name: collection.name,
     label: collection.label,
     adapter: collection.adapter,
     source: collection.source,
-    storage: describeCollectionStorage(collection, stateBranch),
+    storage: describeCollectionStorage(collection),
     titleField: collection.titleField,
     searchFields: collection.searchFields,
     writePolicy: collection.writePolicy,
@@ -454,10 +443,7 @@ function describeField(field: CmsFieldConfig): string {
   return `${field.name} (${field.type}${suffix ? `, ${suffix}` : ""})`;
 }
 
-function describeCollectionStorage(
-  collection: CmsCollectionConfig,
-  stateBranch: string,
-) {
+function describeCollectionStorage(collection: CmsCollectionConfig) {
   const path =
     collection.source.path ?? collection.source.collection ?? collection.name;
   const idField = collection.source.idField ?? "_id";
@@ -465,11 +451,10 @@ function describeCollectionStorage(
 
   if (collection.adapter === "github") {
     return {
-      kind: "github-json",
+      kind: "backend-json",
       path,
       idField,
       extension,
-      branch: stateBranch,
     };
   }
 

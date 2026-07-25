@@ -27,16 +27,16 @@ import {
   updateFlyConnectionState,
   waitForFlyInputAck,
   type FlyConnectionDeps,
-} from "@kody-chat/chat/plugins/terminal/fly-connection";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal/fly-connection";
 import {
   openTerminalWebLink,
   usefulCapturedOutput,
-} from "@kody-chat/chat/plugins/terminal/terminal-text";
-import { resetTerminalUiForRestart } from "@kody-chat/chat/plugins/terminal/xterm-setup";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal/terminal-text";
+import { resetTerminalUiForRestart } from "@kody-ade/kody-chat-dashboard/plugins/terminal/xterm-setup";
 import type {
   ChatTerminalConnectionState,
   TerminalInputSignal,
-} from "@kody-chat/chat/plugins/terminal/types";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal/types";
 
 interface DepsHarness {
   ref: { current: FlyConnectionDeps };
@@ -77,6 +77,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     flyReconnectNoticeRef: { current: false },
     flyReconnectAttemptRef: { current: 0 },
     flyReconnectExhaustedRef: { current: false },
+    flyExitRecoveryAttemptRef: { current: 0 },
     pendingFlyInputAckTimerRef: { current: null },
     setFlyConnectionState: (state) => void states.push(state),
     notifyConnectionState: () => {},
@@ -85,8 +86,8 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     setInputSignalBriefly: (signal) => void briefSignals.push(signal),
     appendCapturedOutput: () => {},
     notifyTerminalSessionEnded: () => {},
-    ...overrides,
   };
+  Object.assign(deps, overrides);
   return {
     ref: { current: deps },
     writes,
@@ -187,15 +188,17 @@ describe("remote input gating", () => {
 });
 
 describe("terminal restart UI", () => {
-  it("resets terminal modes and clears the old screen before reconnecting", () => {
+  it("leaves alternate-screen modes without deleting scrollback", () => {
     const calls: string[] = [];
     resetTerminalUiForRestart({
-      reset: () => void calls.push("reset"),
-      clear: () => void calls.push("clear"),
+      write: (data) => void calls.push(data),
       focus: () => void calls.push("focus"),
     });
 
-    expect(calls).toEqual(["reset", "clear", "focus"]);
+    expect(calls).toEqual([
+      "\u001b[?1049l\u001b[?2004l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[0m\r\n",
+      "focus",
+    ]);
   });
 });
 
@@ -256,13 +259,13 @@ describe("input acknowledgement before 'sent'", () => {
 });
 
 describe("stale connect guards", () => {
-  it("lets the bridge own startup retries and the browser own established socket recovery", () => {
+  it("recovers both cold-start and established socket failures", () => {
     expect(
       shouldReconnectFlySocket({ state: "connecting", reconnectAttempt: 0 }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldReconnectFlySocket({ state: "restoring", reconnectAttempt: 0 }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldReconnectFlySocket({ state: "connected", reconnectAttempt: 0 }),
     ).toBe(true);
@@ -291,6 +294,31 @@ describe("stale connect guards", () => {
 
     await connectFly(harness.ref);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("stops reconnecting when the repo has no running Brain target", async () => {
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "machine_not_found",
+            message: "Machine not found.",
+          }),
+          { status: 404, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const harness = makeDeps();
+    harness.ref.current.flyReconnectAttemptRef.current = 1;
+
+    await connectFly(harness.ref, { force: true });
+
+    expect(harness.states.at(-1)).toBe("error");
+    expect(harness.errors.at(-1)).toBe(
+      "No running Brain is selected for this repository. Run a Brain image, then connect again.",
+    );
+    vi.runAllTimers();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("skips repeat attempts for failed or in-flight keys until forced", () => {

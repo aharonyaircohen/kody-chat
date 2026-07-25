@@ -12,6 +12,25 @@ export interface CapabilitySummary {
   readOnly?: boolean;
 }
 
+export interface CapabilityAsset {
+  name: string;
+  content?: string;
+  body?: string;
+}
+
+export interface CapabilityDetail extends CapabilitySummary {
+  instructions: string;
+  skills: CapabilityAsset[];
+  capabilityTools: CapabilityAsset[];
+}
+
+export interface CapabilityWriteInput {
+  slug?: string;
+  instructions: string;
+  skills: Array<{ path: string; content: string }>;
+  tools: Array<{ path: string; content: string }>;
+}
+
 export const capabilitiesApi = {
   list: async (): Promise<CapabilitySummary[]> => {
     const res = await fetch(`${API_BASE}/capabilities`, {
@@ -22,6 +41,49 @@ export const capabilitiesApi = {
       capabilities: CapabilitySummary[];
     }>(res);
     return data.capabilities;
+  },
+
+  get: async (slug: string): Promise<CapabilityDetail> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      { headers: buildHeaders(), cache: "no-store" },
+    );
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  create: async (input: CapabilityWriteInput): Promise<CapabilityDetail> => {
+    const res = await fetch(`${API_BASE}/capabilities`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(input),
+    });
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  update: async (
+    slug: string,
+    input: CapabilityWriteInput,
+  ): Promise<CapabilityDetail> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
+    return (await handleResponse<{ capability: CapabilityDetail }>(res))
+      .capability;
+  },
+
+  remove: async (slug: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/capabilities/${encodeURIComponent(slug)}`,
+      { method: "DELETE", headers: buildHeaders() },
+    );
+    await handleResponse(res);
   },
 
   run: async (

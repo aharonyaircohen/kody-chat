@@ -6,10 +6,11 @@
  *   from the client-auth catalog: no `?provider=` shows a provider picker;
  *   with one, the generic WizardRunner walks the declarative steps.
  */
-import { headers } from "next/headers";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
+import { requestOrigin } from "@kody-ade/base/request-origin";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { WizardRunner } from "@dashboard/lib/components/WizardRunner";
@@ -18,8 +19,8 @@ import {
   providerLabel,
 } from "@dashboard/lib/client-auth/catalog";
 import {
-  CLIENT_SIGNIN_WIZARD_SLUG,
   clientSigninWizard,
+  CLIENT_SIGNIN_WIZARD_SLUG,
 } from "@dashboard/lib/wizards/client-signin";
 import { getWizardEntry } from "@dashboard/lib/wizards/registry";
 import { buildKodyMetadata } from "../../../metadata";
@@ -35,13 +36,6 @@ export const metadata = buildKodyMetadata({
 interface WizardPageProps {
   params: Promise<{ wizard: string }>;
   searchParams: Promise<{ provider?: string }>;
-}
-
-async function requestOrigin(): Promise<string> {
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
-  const proto = headerList.get("x-forwarded-proto") ?? "https";
-  return host ? `${proto}://${host}` : "https://your-dashboard";
 }
 
 export default async function WizardPage({
@@ -79,7 +73,12 @@ export default async function WizardPage({
     );
   }
 
-  const definition = clientSigninWizard(provider, await requestOrigin());
+  if (!(provider in PROVIDER_CATALOG)) notFound();
+
+  const origin = requestOrigin(
+    new Request("http://localhost:3000", { headers: await headers() }),
+  );
+  const definition = clientSigninWizard(provider, origin);
   if (!definition) notFound();
 
   return (

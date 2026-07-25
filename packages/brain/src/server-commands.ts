@@ -21,15 +21,12 @@ import {
 import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import { resolveBrainService } from "./service-resolver";
+import { clearBrainRuntimeDeployment } from "./runtime-manager";
 import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";
 import { resolveBrainTarget } from "./target";
 
 export type BrainServerCommand =
-  | "provision"
-  | "resume"
-  | "suspend"
-  | "destroy"
-  | "update-suspension";
+  "provision" | "resume" | "suspend" | "destroy" | "update-suspension";
 
 export interface ManageBrainServerInput {
   command: BrainServerCommand;
@@ -62,13 +59,17 @@ function requireFlyToken(context: ServerProviderContext): string {
   return context.flyToken;
 }
 
-async function resolveCurrentBrain(context: ServerProviderContext) {
+async function resolveCurrentBrain(
+  context: ServerProviderContext,
+  appNameOverride?: string,
+) {
   return resolveBrainService({
     flyToken: requireFlyToken(context),
     account: context.account,
     githubToken: context.githubToken,
     orgSlug: context.flyOrgSlug,
     defaultRegion: context.flyDefaultRegion,
+    ...(appNameOverride ? { appNameOverride } : {}),
   });
 }
 
@@ -88,9 +89,10 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   const flyToken = requireFlyToken(context);
 
   if (input.command === "provision") {
-    const stored = await readBrainApp(context.account, context.githubToken).catch(
-      () => null,
-    );
+    const stored = await readBrainApp(
+      context.account,
+      context.githubToken,
+    ).catch(() => null);
     const target = resolveBrainTarget({
       account: context.account,
       contextOrgSlug: context.flyOrgSlug,
@@ -133,7 +135,7 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
     }
   }
 
-  const brain = await resolveCurrentBrain(context);
+  const brain = await resolveCurrentBrain(context, input.appNameOverride);
 
   if (input.command === "resume") {
     await resumeServerBrain({
@@ -167,7 +169,12 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
       defaultRegion: context.flyDefaultRegion,
       appNameOverride: brain.app,
     });
-    await clearBrainApp(context.account, context.githubToken);
+    const destroyedStoredBrain =
+      !input.appNameOverride || brain.stored?.appName === brain.app;
+    if (destroyedStoredBrain) {
+      await clearBrainRuntimeDeployment(context.account, context.githubToken);
+      await clearBrainApp(context.account, context.githubToken);
+    }
     return { ok: true };
   }
 

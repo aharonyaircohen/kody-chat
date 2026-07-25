@@ -7,16 +7,13 @@
  *   capability slug. Two capabilities sharing an agent identity earn autonomy independently.
  *
  *     - keyed by capability slug → stats (mode/approvals/rejections/streak);
- *     - stored as a JSON file in the configured Kody state repo (see `trust-store.ts`),
- *       never on an issue;
+ *     - stored as a repo-scoped Convex manifest (see `trust-store.ts`);
  *     - read by BOTH the engine (the gate that lets a trusted capability self-dispatch)
  *       and the dashboard (the /trust page), so this shape is a shared contract.
  *
  *   All transforms are pure + immutable. Keep the JSON shape stable across repos.
  */
 
-/** Path of the single per-repo ledger file in the configured Kody state repo. */
-export const TRUST_FILE_PATH = "state/trust.json";
 export const TRUST_MANIFEST_VERSION = 1 as const;
 
 /** Bound the log — it's a recent-activity signal, not an archive. */
@@ -49,6 +46,8 @@ export interface TrustCapabilityStats {
   mode: TrustMode;
   /** User-facing trust level for one runnable item. */
   level: TrustLevel;
+  /** Pins the item to approval-required even after graduating to auto. */
+  neverAuto?: boolean;
 }
 
 export interface TrustDecisionLogEntry {
@@ -215,7 +214,7 @@ export function latestTrustDecisions(
 // Operator overrides (the /trust page buttons) — pure
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TRUST_OPS = ["reset", "graduate", "degrade"] as const;
+export const TRUST_OPS = ["reset", "graduate", "degrade", "earn"] as const;
 export type TrustOp = (typeof TRUST_OPS)[number];
 
 /** Wipe a capability's trust back to zero / "ask". */
@@ -258,6 +257,24 @@ export function degradeCapability(
   });
 }
 
+/**
+ * Back to the default earning path — asks now, keeps the earned streak and
+ * totals, and lifts a neverAuto pin. Unlike `degrade` this is non-destructive:
+ * the capability resumes graduating from where it left off.
+ */
+export function earnCapability(
+  manifest: TrustManifest,
+  capability: string,
+): TrustManifest {
+  const prev = statsFor(manifest, capability);
+  const { neverAuto: _pin, ...rest } = prev;
+  return withStats(manifest, capability, {
+    ...rest,
+    mode: "ask",
+    level: "approval-required",
+  });
+}
+
 export function applyTrustOp(
   manifest: TrustManifest,
   op: TrustOp,
@@ -270,6 +287,8 @@ export function applyTrustOp(
       return graduateCapability(manifest, capability);
     case "degrade":
       return degradeCapability(manifest, capability);
+    case "earn":
+      return earnCapability(manifest, capability);
   }
 }
 
@@ -308,6 +327,20 @@ export function resetSubject(
   return { ...manifest, subjects };
 }
 
+/** Subject twin of `earnCapability` — ask now, streak and totals kept, pin lifted. */
+export function earnSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustManifest {
+  const prev = statsForSubject(manifest, subject);
+  const { neverAuto: _pin, ...rest } = prev;
+  return withSubjectStats(manifest, subject, {
+    ...rest,
+    mode: "ask",
+    level: "approval-required",
+  });
+}
+
 export function applySubjectTrustOp(
   manifest: TrustManifest,
   op: TrustOp,
@@ -320,6 +353,8 @@ export function applySubjectTrustOp(
       return graduateSubject(manifest, subject);
     case "degrade":
       return degradeSubject(manifest, subject);
+    case "earn":
+      return earnSubject(manifest, subject);
   }
 }
 
@@ -386,6 +421,23 @@ export function trustLevelForCapability(
   if (capabilityStats?.mode === "auto") return "auto-approval";
   if (subjectStats?.mode === "auto") return "can-run";
   return "approval-required";
+}
+
+/** Pin or unpin a capability (and its subject entry) to approval-required. */
+export function applyCapabilityNeverAuto(
+  manifest: TrustManifest,
+  capability: string,
+  neverAuto: boolean,
+): TrustManifest {
+  const subject = trustSubjectKey("capability", capability);
+  const withCapability = withStats(manifest, capability, {
+    ...statsFor(manifest, capability),
+    neverAuto,
+  });
+  return withSubjectStats(withCapability, subject, {
+    ...statsForSubject(withCapability, subject),
+    neverAuto,
+  });
 }
 
 /** True when the engine may let this capability self-dispatch. */
@@ -504,6 +556,7 @@ function normalizeStats(
     consecutiveApprovals,
     mode,
     level,
+    ...(stats?.neverAuto === true ? { neverAuto: true } : {}),
   };
 }
 

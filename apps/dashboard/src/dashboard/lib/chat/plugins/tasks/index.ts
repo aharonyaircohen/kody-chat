@@ -21,7 +21,7 @@
  *   passes this plugin; ClientChatSurface does not (no admin task board on
  *   client brand surfaces).
  */
-import { createLazyPanel, type ChatPlugin } from "@kody-ade/kody-chat/platform";
+import { createLazyPanel, type ChatPlugin } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const TASKS_PLUGIN_ID = "tasks";
 export const TASKS_PANEL_ID = "tasks";

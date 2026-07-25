@@ -13,9 +13,16 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKFLOWS_MANAGER_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/WorkflowsManager.tsx",
+  "../../src/dashboard/features/workflows/components/WorkflowsManager.tsx",
 );
 const SOURCE = readFileSync(WORKFLOWS_MANAGER_PATH, "utf8");
+const WORKFLOW_EDITOR_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../src/dashboard/features/workflows/components/WorkflowEditorDialog.tsx",
+  ),
+  "utf8",
+);
 
 describe("WorkflowsManager run button", () => {
   it("uses the workflow-definition run hook", () => {
@@ -45,9 +52,10 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
   });
 
-  it("gives the workflow capability picker enough dialog room", () => {
-    expect(SOURCE).toContain('modalSize="wide"');
-    expect(SOURCE).toContain('modalHeight="viewport"');
-    expect(SOURCE).toContain("SearchableMultiSelect");
+  it("gives the visual workflow editor enough dialog room", () => {
+    expect(WORKFLOW_EDITOR_SOURCE).toContain('modalSize="wide"');
+    expect(WORKFLOW_EDITOR_SOURCE).toContain('modalHeight="viewport"');
+    expect(WORKFLOW_EDITOR_SOURCE).toContain("WorkflowGraphCanvas");
+    expect(WORKFLOW_EDITOR_SOURCE).toContain("Add step");
   });
 });

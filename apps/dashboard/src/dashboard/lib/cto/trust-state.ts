@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/cto/trust-state. */
-export * from "@kody-ade/agency/cto/trust-state";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/cto/trust-state";

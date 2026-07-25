@@ -55,7 +55,7 @@ export class ManifestBodyTooLargeError extends Error {
     public readonly maxBytes: number,
   ) {
     super(
-      `${manifestName} body is ${bytes} bytes, over the ${maxBytes}-byte budget. Refusing to write — GitHub would reject it at 65536 and the CAS loop would loop on a bogus conflict.`,
+      `${manifestName} body is ${bytes} bytes, over the ${maxBytes}-byte budget. Refusing to write an oversized manifest.`,
     );
   }
 }

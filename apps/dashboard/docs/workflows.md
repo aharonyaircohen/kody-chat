@@ -23,7 +23,7 @@ A workflow does not own:
 
 ## Local workflows
 
-Local workflow definitions live in the configured Kody state repo:
+Local workflow definitions live in the configured Kody backend:
 
 ```text
 workflows/<slug>/workflow.json
@@ -49,7 +49,7 @@ Example:
 Store workflow definitions live in the company Store repo:
 
 ```text
-.kody/workflows/<slug>/workflow.json
+backend-managed resources/workflows/<slug>/workflow.json
 ```
 
 The dashboard shows Store workflows on `/workflows` only when this repo links
@@ -76,7 +76,7 @@ Importing a workflow:
 - Adds the workflow slug to `company.activeWorkflows`.
 - Adds any Store capabilities used by the workflow to `company.activeCapabilities`.
 - Adds each capability agent to `company.activeAgents` when required.
-- Does not copy the workflow JSON into the local state repo.
+- Does not copy the workflow JSON into the local backend.
 
 If a local workflow has the same slug, the local workflow wins and the Store
 workflow is hidden for that slug.

@@ -84,8 +84,7 @@ export const companyApi = {
   },
 };
 
-/** The dashboard-editable slice of kody.config.json (see /engine).
- * `perImplementation` (model routing) is edited on /models, the rest here. */
+/** The dashboard-editable slice of kody.config.json. */
 export interface EngineEditableConfig {
   quality: {
     typecheck?: string;
@@ -98,22 +97,12 @@ export interface EngineEditableConfig {
   activeAgents?: string[];
   activeCapabilities?: string[];
   activeCommands?: string[];
-  activeGoals?: Array<
-    | string
-    | {
-        template: string;
-        every?: string;
-        idPrefix?: string;
-        facts?: Record<string, unknown>;
-      }
-  >;
   activeWorkflows?: string[];
   state: {
     repo?: string;
     path?: string;
   } | null;
   defaultBranch: string;
-  perImplementation: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary
    * via Zod, so the client only needs the string channel. */

@@ -47,6 +47,7 @@ interface FeedEntry {
   ctoCommand?: string;
   ctoAgent?: string;
   ctoCapability?: string;
+  ctoRepo?: string;
   category?: InboxEntry["category"];
 }
 
@@ -107,6 +108,7 @@ async function runOnce(opts: {
     ...(f.ctoCommand ? { ctoCommand: f.ctoCommand } : {}),
     ...(f.ctoAgent ? { ctoAgent: f.ctoAgent } : {}),
     ...(f.ctoCapability ? { ctoCapability: f.ctoCapability } : {}),
+    ...(f.ctoRepo ? { ctoRepo: f.ctoRepo } : {}),
     ...(f.category ? { category: f.category } : {}),
   }));
 

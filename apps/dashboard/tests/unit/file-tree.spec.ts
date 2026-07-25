@@ -19,9 +19,11 @@ import {
   ancestorPaths,
   applyTreeOverlay,
   buildTree,
+  fileTreeHeaderLabel,
   pathAndAncestorPaths,
-} from "@dashboard/components/files/FileTree";
-import type { FileEntry } from "@dashboard/lib/repo-files";
+  treeItemKeyAction,
+} from "@dashboard/features/file-manager/components/FileTree";
+import type { FileEntry } from "@dashboard/features/file-manager/lib/repo-files";
 
 function file(name: string, path: string, size = 10): FileEntry {
   return { name, path, type: "file", size, sha: `sha-${name}` };
@@ -156,6 +158,20 @@ describe("buildTree", () => {
 });
 
 describe("applyTreeOverlay", () => {
+  it("does not let a navigation placeholder turn a known file into a folder", () => {
+    const entries = [file("README.md", "README.md", 100)];
+
+    expect(
+      applyTreeOverlay(entries, "", {
+        upserts: {
+          "README.md": dir("README.md", "README.md"),
+        },
+        deletes: {},
+        version: 1,
+      }),
+    ).toEqual(entries);
+  });
+
   it("shows newly-created entries before GitHub's directory listing catches up", () => {
     const entries = [file("old.ts", "src/old.ts")];
 
@@ -187,6 +203,12 @@ describe("applyTreeOverlay", () => {
 });
 
 describe("path helpers", () => {
+  it("uses a clear navigation label for repository and scoped trees", () => {
+    expect(fileTreeHeaderLabel("")).toBe("Repository");
+    expect(fileTreeHeaderLabel("docs")).toBe("Documents");
+    expect(fileTreeHeaderLabel("src/components")).toBe("components");
+  });
+
   it("returns only parent folders for a file path", () => {
     expect(ancestorPaths("src/components/Button.tsx")).toEqual([
       "src",
@@ -203,5 +225,21 @@ describe("path helpers", () => {
 
   it("returns no parents for a root file", () => {
     expect(ancestorPaths("README.md")).toEqual([]);
+  });
+});
+
+describe("treeItemKeyAction", () => {
+  it("activates files and folders with Enter or Space", () => {
+    expect(treeItemKeyAction("Enter", false, false)).toBe("select");
+    expect(treeItemKeyAction(" ", true, false)).toBe("select");
+  });
+
+  it("expands and collapses folders with arrow keys", () => {
+    expect(treeItemKeyAction("ArrowRight", true, false)).toBe("expand");
+    expect(treeItemKeyAction("ArrowLeft", true, true)).toBe("collapse");
+  });
+
+  it("ignores folder-only keys for files", () => {
+    expect(treeItemKeyAction("ArrowRight", false, false)).toBeNull();
   });
 });

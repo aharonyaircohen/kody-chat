@@ -30,6 +30,7 @@ export function AttachmentBar({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+      {/* eslint-disable-next-line react/forbid-elements -- hidden file input */}
       <input
         ref={inputRef}
         type="file"
@@ -64,14 +65,16 @@ export function AttachmentBar({
             <Loader2 className="w-3 h-3 animate-spin shrink-0" />
           ) : null}
           <span className="truncate">{a.name}</span>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => removeAttachment(a.id)}
-            className="shrink-0 opacity-60 hover:opacity-100"
+            className="shrink-0 opacity-60 hover:bg-transparent hover:text-inherit hover:opacity-100"
             title="Remove"
           >
             <X className="w-3 h-3" />
-          </button>
+          </Button>
         </span>
       ))}
     </div>

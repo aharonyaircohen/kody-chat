@@ -28,28 +28,39 @@ const h = vi.hoisted(() => ({
   readResolvedAgentFile: vi.fn(),
   getEngineConfig: vi.fn(),
 }));
-vi.mock("../../app/api/kody/chat/resolve-model", () => ({
-  resolveChatModel: h.resolveChatModel,
-}));
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/resolve-model",
+  () => ({
+    resolveChatModel: h.resolveChatModel,
+  }),
+);
 vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: h.resolveBackgroundToken,
 }));
-vi.mock("@dashboard/lib/client-brand", () => ({
-  resolveClientBrand: h.resolveClientBrand,
-}));
-vi.mock("@dashboard/lib/chat-defaults", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@dashboard/lib/chat-defaults")>();
-  return {
-    ...actual,
-    loadChatDefaults: vi.fn(async () => ({
-      agentIdentity: "You are a test assistant.",
-      capability: { slug: "kody-chat", title: "Chat", body: "", tools: [] },
-      workflows: [],
-      skills: {},
-    })),
-  };
-});
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/client-brand",
+  () => ({
+    resolveClientBrand: h.resolveClientBrand,
+  }),
+);
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat-defaults",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat-defaults")
+      >();
+    return {
+      ...actual,
+      loadChatDefaults: vi.fn(async () => ({
+        agentIdentity: "You are a test assistant.",
+        capability: { slug: "kody-chat", title: "Chat", body: "", tools: [] },
+        workflows: [],
+        skills: {},
+      })),
+    };
+  },
+);
 vi.mock("@kody-ade/workspace/memory/files", () => ({
   invalidateMemoryIndexPromptCache: vi.fn(),
   loadMemoryIndexForPrompt: h.loadMemoryIndexForPrompt,
@@ -62,12 +73,16 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
-vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
-  loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
-}));
-vi.mock("@dashboard/lib/agent-files", () => ({
+vi.mock(
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/standalone-renderer-store",
+  () => ({
+    loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
+  }),
+);
+vi.mock("../../../../packages/kody-chat-dashboard/src/dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   readResolvedAgentFile: h.readResolvedAgentFile,
+  listResolvedAgentFiles: vi.fn(async () => [await h.readResolvedAgentFile()]),
 }));
 vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
@@ -76,14 +91,14 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   writeConfigPatch: vi.fn(),
 }));
 
-import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
+import { POST as kodyChatPOST } from "../../../../packages/kody-chat-dashboard/app/api/kody/chat/kody/route";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { POST as brainPOST } from "../../app/api/kody/chat/brain/route";
 import {
   CLIENT_SURFACE_TOOL_ALLOWLIST,
   mintClientSurfaceTicket,
   SURFACE_TICKET_HEADER,
-} from "@kody-ade/kody-chat/platform/surface-scope";
+} from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,
@@ -151,7 +166,12 @@ function mockModel(): MockLanguageModelV3 {
             type: "finish",
             finishReason: { unified: "tool-calls", raw: "tool-calls" },
             usage: {
-              inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+              inputTokens: {
+                total: 1,
+                noCache: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
               outputTokens: { total: 1, text: 1, reasoning: 0 },
             },
           },
@@ -177,7 +197,16 @@ describe("surface scoping — kody in-process route", () => {
     });
     h.resolveChatModel.mockResolvedValue({
       model,
-      resolvedModel: { id: "mock/model", modelName: "mock-model" },
+      resolvedModel: {
+        id: "mock/model",
+        label: "Mock model",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://api.example.test/v1",
+        modelName: "mock-model",
+        apiKeySecret: "MOCK_API_KEY",
+        enabled: true,
+      },
     });
 
     const res = await kodyChatPOST(
@@ -187,10 +216,7 @@ describe("surface scoping — kody in-process route", () => {
     // Drain the stream so onFinish/cleanup runs.
     await res.text();
 
-    expect(h.resolveBackgroundToken).toHaveBeenCalledWith(
-      "acme-co",
-      "widgets",
-    );
+    expect(h.resolveBackgroundToken).toHaveBeenCalledWith("acme-co", "widgets");
 
     expect(h.resolveChatModel).toHaveBeenCalledWith(
       expect.any(NextRequest),

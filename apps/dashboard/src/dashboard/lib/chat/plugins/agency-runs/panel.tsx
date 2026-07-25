@@ -10,8 +10,8 @@
  */
 "use client";
 
-import { AgencyRunsPage } from "../../../components/AgencyRunsPage";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import { AgencyRunsPage } from "@dashboard/features/agency/components/AgencyRunsPage";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const AGENCY_RUNS_PANEL_TESTID = "chat-panel-agency-runs";
 

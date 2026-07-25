@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Tests with coverage thresholds (dashboard)
+        run: pnpm --filter kody-dashboard exec vitest run tests/unit tests/int --coverage
+
+      - name: Tests with coverage thresholds (kody-chat)
+        run: pnpm --filter @kody-ade/kody-chat-dashboard exec vitest run tests/unit tests/int --coverage
+
+      - name: Tests with coverage thresholds (brain)
+        run: pnpm --filter @kody-ade/brain exec vitest run --coverage
+
+      - name: Remaining package tests
+        run: pnpm -r --filter '!kody-dashboard' --filter '!@kody-ade/kody-chat-dashboard' --filter '!@kody-ade/brain' --if-present test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter kody-dashboard exec playwright install --with-deps chromium
+
+      - name: E2E gate (dashboard)
+        env:
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY || 'ci-only-0000000000000000000000000000000000000000000000000000000000000000' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_GITHUB_REPO: ${{ github.repository }}
+          KODY_BOT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm --filter kody-dashboard test:e2e:gate
+
+  convex-smoke:
+    if: ${{ vars.CONVEX_SMOKE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CONVEX_URL: ${{ secrets.CONVEX_URL }}
+      KODY_SERVICE_KEY: ${{ secrets.KODY_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify smoke-test credentials
+        run: |
+          test -n "$CONVEX_URL" || { echo "CONVEX_URL secret is required"; exit 1; }
+          test -n "$KODY_SERVICE_KEY" || { echo "KODY_SERVICE_KEY secret is required"; exit 1; }
+
+      - name: Run live Convex smoke tests
+        run: pnpm --filter @kody-ade/backend test:smoke

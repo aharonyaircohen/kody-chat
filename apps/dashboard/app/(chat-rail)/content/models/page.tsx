@@ -1,4 +1,4 @@
-import { ContentModelManager } from "@dashboard/lib/components/ContentModelManager";
+import { ContentModelManager } from "@dashboard/features/admin/components/ContentModelManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

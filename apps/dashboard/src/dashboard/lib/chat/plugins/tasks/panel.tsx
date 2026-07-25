@@ -18,7 +18,7 @@
 "use client";
 
 import { AuthGate } from "../../../components/AuthGate";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const TASKS_PANEL_TESTID = "chat-panel-tasks";
 

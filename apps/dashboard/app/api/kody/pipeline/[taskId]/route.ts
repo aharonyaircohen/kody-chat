@@ -11,16 +11,10 @@ import { pipelineParamsSchema } from "@dashboard/lib/schemas";
 import { apiValidationError } from "@dashboard/lib/api-responses";
 import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
-  findTaskBranch,
-  findBranchByIssueNumber,
   getStatusFromBranch,
-  findStatusOnBranch,
-  getStatusFromArtifact,
-  fetchWorkflowRuns,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
 
 export async function GET(
   req: NextRequest,
@@ -49,48 +43,12 @@ export async function GET(
   }
 
   try {
-    // Try branch status first (for running tasks)
-    const branch = await findTaskBranch(taskId);
-    if (branch) {
-      let status = await getStatusFromBranch(taskId, branch);
-      // Fallback: discover task ID by scanning .tasks/ directory
-      if (!status) {
-        status = await findStatusOnBranch(branch);
-      }
-      if (status) {
-        return NextResponse.json({
-          status,
-          source: "branch",
-        });
-      }
-    }
-
-    // If taskId looks like an issue number, try finding branch by issue number
-    if (/^\d+$/.test(taskId)) {
-      const issueBranch = await findBranchByIssueNumber(parseInt(taskId));
-      if (issueBranch) {
-        const status = await findStatusOnBranch(issueBranch);
-        if (status) {
-          return NextResponse.json({
-            status,
-            source: "branch",
-          });
-        }
-      }
-    }
-
-    // Try artifact status (for completed tasks)
-    const workflowRuns = await fetchWorkflowRuns({ perPage: 10 });
-    const run = matchWorkflowRunToTask(workflowRuns, "", 0, taskId);
-
-    if (run) {
-      const status = await getStatusFromArtifact(taskId, run.id.toString());
-      if (status) {
-        return NextResponse.json({
-          status,
-          source: "artifact",
-        });
-      }
+    const status = await getStatusFromBranch(taskId, "");
+    if (status) {
+      return NextResponse.json({
+        status,
+        source: "backend",
+      });
     }
 
     // No status found

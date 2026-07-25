@@ -18,7 +18,7 @@ import {
 } from "../image-management";
 import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolveRequiredServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,22 +36,22 @@ function errorCode(err: unknown, fallback: string): string {
     : fallback;
 }
 
+function providerContextErrorBody(input: { error: string; message?: string }) {
+  return {
+    error: input.error,
+    ...(input.message ? { message: input.message } : {}),
+  };
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolveRequiredServerProviderContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-  }
-  if (!ctx.context.flyToken) {
-    return NextResponse.json(
-      {
-        error:
-          "Brain image save needs a Fly Machines token. Add FLY_API_TOKEN to the repo Secrets vault.",
-      },
-      { status: 400 },
-    );
+    return NextResponse.json(providerContextErrorBody(ctx), {
+      status: ctx.status,
+    });
   }
 
   setGitHubContext(
@@ -120,9 +120,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolveRequiredServerProviderContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    return NextResponse.json(providerContextErrorBody(ctx), {
+      status: ctx.status,
+    });
   }
   const requestedJobId = req.nextUrl.searchParams.get("jobId")?.trim();
 
@@ -185,9 +187,11 @@ export async function DELETE(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolveRequiredServerProviderContext(req);
   if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    return NextResponse.json(providerContextErrorBody(ctx), {
+      status: ctx.status,
+    });
   }
 
   const imageRef = req.nextUrl.searchParams.get("imageRef")?.trim();

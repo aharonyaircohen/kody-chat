@@ -11,7 +11,7 @@ import {
   getRequestAuth,
   getUserOctokit,
 } from "@kody-ade/base/auth";
-import { clearInbox } from "@dashboard/lib/inbox/gist-store";
+import { clearInbox } from "@dashboard/lib/inbox/convex-store";
 
 export async function POST(req: NextRequest) {
   const authErr = await requireKodyAuth(req);

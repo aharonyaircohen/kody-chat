@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const VARIABLES_SOURCE = readFileSync(
-  "src/dashboard/lib/components/VariablesManager.tsx",
+  "src/dashboard/features/admin/components/VariablesManager.tsx",
   "utf8",
 );
 const SECRETS_SOURCE = readFileSync(
-  "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/SecretsManager.tsx",
+  "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/SecretsManager.tsx",
   "utf8",
 );
 

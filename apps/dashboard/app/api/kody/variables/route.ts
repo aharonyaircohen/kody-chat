@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const { doc } = await readVariables(octokit, auth.owner, auth.repo);
+    const { doc } = await readVariables(auth.owner, auth.repo);
     return NextResponse.json(
       { variables: listVariables(doc) },
       { headers: NO_STORE_HEADERS },
@@ -112,7 +112,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const { doc: next } = await updateVariables(
-      octokit,
       auth.owner,
       auth.repo,
       (doc) => ({
@@ -126,7 +125,6 @@ export async function POST(req: NextRequest) {
           },
         },
       }),
-      `chore(variables): upsert ${parsed.data.name}`,
     );
     return NextResponse.json({ ok: true, variables: listVariables(next) });
   } catch (err) {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCmsFormPayload,
   buildCmsFormValues,
-} from "@dashboard/lib/components/cms/form-values";
+} from "@dashboard/features/admin/components/cms/form-values";
 import type { CmsFieldConfig } from "@kody-ade/cms/types";
 
 describe("CMS form values", () => {

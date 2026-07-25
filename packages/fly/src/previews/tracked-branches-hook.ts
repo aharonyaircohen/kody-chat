@@ -4,7 +4,7 @@
  * @pattern host-injection-hook
  *
  * Host-injected reader for the repo's tracked branch-preview list. The list
- * lives in the host's dashboard config (`dashboard.json` in the state repo,
+ * lives in the host's dashboard config (`dashboard.json` in the backend,
  * a host-owned module the fly package must not depend on). Hosts wire the
  * real reader at startup (instrumentation.ts), mirroring the events
  * setEventFlushScheduler pattern. Without wiring, tracked-branch pushes

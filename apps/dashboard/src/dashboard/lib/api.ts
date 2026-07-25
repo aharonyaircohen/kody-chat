@@ -11,6 +11,7 @@ export * from "./api/tasks";
 export * from "./api/prs";
 export * from "./api/repo";
 export * from "./api/workflow-definitions";
+export * from "./api/workflow-run-controls";
 export * from "./api/remote";
 export * from "./api/capabilities";
 export * from "./api/agents";
@@ -21,7 +22,6 @@ export * from "./api/reports";
 export * from "./api/goals";
 export * from "./api/notifications";
 export * from "./api/changelog";
-export * from "./api/docs";
 export * from "./api/vibe";
 export * from "./api/cto";
 export * from "./api/activity";
@@ -29,8 +29,6 @@ export * from "./api/messages";
 export * from "./api/bugs";
 export * from "./api/company";
 export * from "./api/jobs";
-export * from "./api/company-intents";
-export * from "./api/agency-state";
 
 import { tasksApi, taskDocsApi } from "./api/tasks";
 import { prsApi } from "./api/prs";
@@ -46,7 +44,6 @@ import { reportsApi } from "./api/reports";
 import { goalsApi } from "./api/goals";
 import { notificationsApi } from "./api/notifications";
 import { changelogApi } from "./api/changelog";
-import { docsApi } from "./api/docs";
 import { vibeApi } from "./api/vibe";
 import { ctoApi } from "./api/cto";
 import { activityApi, agencyRunsApi } from "./api/activity";
@@ -54,8 +51,6 @@ import { messagesApi } from "./api/messages";
 import { kodyBugsApi } from "./api/bugs";
 import { companyApi } from "./api/company";
 import { jobsApi } from "./api/jobs";
-import { companyIntentsApi } from "./api/company-intents";
-import { agencyStateApi } from "./api/agency-state";
 
 // ============ Combined API ============
 
@@ -76,14 +71,11 @@ export const kodyApi = {
   todos: todosApi,
   memory: memoryApi,
   company: companyApi,
-  companyIntents: companyIntentsApi,
-  agencyState: agencyStateApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,
   notifications: notificationsApi,
   changelog: changelogApi,
-  docs: docsApi,
   vibe: vibeApi,
   cto: ctoApi,
   activity: activityApi,

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { deriveTaskColumn } from "@dashboard/lib/tasks/derive-column";
-import type { KodyTaskState } from "@kody-ade/base/kody-state";
+import type { KodyTaskState } from "@kody-ade/base/task-comment-state";
 import type {
   GitHubIssue,
   GitHubPR,

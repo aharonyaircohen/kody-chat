@@ -2,8 +2,7 @@
  * @fileType api-endpoint
  * @domain capabilities
  * @pattern capabilities-api
- * @ai-summary Capabilities Control API — GET lists custom capabilities stored
- *   at `capabilities/<slug>/` in the state repo, POST creates one.
+ * @ai-summary Capabilities Control API backed by the tenant Convex catalog.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -11,23 +10,19 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import {
+  listCapabilityFiles,
+  readCapabilityFile,
+  writeCapabilityFolderFiles,
+} from "@kody-ade/agency/capabilities";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  listCapabilityFiles,
-  readCapabilityFile,
-  writeCapabilityFile,
-  isValidSlug,
-  PERMISSION_MODES,
-} from "@dashboard/lib/capabilities";
-import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { isValidSlug } from "@dashboard/lib/capabilities";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -49,33 +44,14 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    let activeCapabilities = new Set<string>();
-    let defaults = { issue: null as string | null, pr: null as string | null };
-    if (headerAuth) {
-      const userOctokit = await getUserOctokit(req);
-      if (userOctokit) {
-        const { config } = await getEngineConfig(
-          userOctokit,
-          headerAuth.owner,
-          headerAuth.repo,
-        );
-        defaults = {
-          issue: config.defaultImplementation ?? null,
-          pr: config.defaultPrImplementation ?? null,
-        };
-        activeCapabilities = await resolveInstalledCapabilitySlugs(
-          userOctokit,
-          config,
-        );
-      }
-    }
-    const capabilities = (
-      await listCapabilityFiles({ activeStoreSlugs: activeCapabilities })
-    ).filter(
-      (item) => item.source !== "store" || activeCapabilities.has(item.slug),
-    );
+    if (!headerAuth)
+      return NextResponse.json(
+        { error: "repository_context_required" },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
+    const projected = await listCapabilityFiles();
     return NextResponse.json(
-      { capabilities, defaults },
+      { capabilities: projected },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {
@@ -104,43 +80,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const skillSchema = z.object({
-  name: z.string().min(1).max(64),
-  body: z.string().default(""),
+const createCapabilitySchema = z.object({
+  slug: z.string().min(1).max(64),
+  instructions: z.string().min(1),
+  skills: z
+    .array(z.object({ path: z.string().min(1), content: z.string() }))
+    .default([]),
+  tools: z
+    .array(z.object({ path: z.string().min(1), content: z.string() }))
+    .default([]),
+  actorLogin: z.string().optional(),
 });
-const shellSchema = z.object({
-  name: z.string().regex(/^[a-zA-Z0-9._-]+\.sh$/, "must be a *.sh filename"),
-  content: z.string().default(""),
-});
-const mcpServerSchema = z.object({
-  name: z
-    .string()
-    .regex(/^[a-zA-Z0-9_-]+$/, "letters, digits, dash, underscore"),
-  command: z.string().min(1, "command is required"),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-});
-
-const createCapabilitySchema = z
-  .object({
-    slug: z.string().min(1).max(64),
-    describe: z.string().default(""),
-    instructions: z.string().min(1, "instructions are required").optional(),
-    prompt: z.string().min(1).optional(),
-    model: z.string().default("inherit"),
-    permissionMode: z.enum(PERMISSION_MODES).default("acceptEdits"),
-    tools: z.array(z.string()).default([]),
-    skills: z.array(skillSchema).default([]),
-    shellScripts: z.array(shellSchema).default([]),
-    mcpServers: z.array(mcpServerSchema).default([]),
-    landing: z.enum(["pr", "comment"]).default("pr"),
-    profileJsonOverride: z.string().optional(),
-    actorLogin: z.string().optional(),
-  })
-  .refine((input) => input.instructions || input.prompt, {
-    message: "instructions are required",
-    path: ["instructions"],
-  });
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -158,25 +108,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const input = createCapabilitySchema.parse(await req.json());
-    const instructions = input.instructions ?? input.prompt ?? "";
-
-    if (!isValidSlug(input.slug)) {
+    const slug = input.slug;
+    if (!isValidSlug(slug)) {
       return NextResponse.json(
         {
           error: "invalid_slug",
-          message:
-            "Capability name must be lowercase letters, digits, dashes, or underscores.",
+          message: "Use lowercase letters, numbers, and dashes.",
         },
         { status: 400 },
       );
     }
-
-    const existing = await readCapabilityFile(input.slug);
-    if (existing) {
+    if (await readCapabilityFile(slug)) {
       return NextResponse.json(
         {
           error: "slug_taken",
-          message: `Capability "${input.slug}" already exists.`,
+          message: `Capability "${slug}" already exists.`,
         },
         { status: 409 },
       );
@@ -185,41 +131,29 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, input.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
+    if (!headerAuth)
       return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit capability files.",
-        },
-        { status: 401 },
+        { error: "repository_context_required" },
+        { status: 400 },
       );
+    const files: Record<string, string> = {
+      "instructions.md": `${input.instructions.trim()}\n`,
+    };
+    for (const skill of input.skills) {
+      files[`skills/${skill.path}`] = skill.content;
     }
-
-    const capability = await writeCapabilityFile({
-      octokit: userOctokit,
-      fields: {
-        slug: input.slug,
-        describe: input.describe,
-        prompt: instructions,
-        model: input.model,
-        permissionMode: input.permissionMode,
-        tools: input.tools,
-        skills: input.skills.map((s) => s.name),
-        shellScripts: input.shellScripts.map((s) => s.name),
-        mcpServers: input.mcpServers,
-        landing: input.landing,
-      },
-      skills: input.skills,
-      shellScripts: input.shellScripts,
-      profileJsonOverride: input.profileJsonOverride,
+    for (const tool of input.tools) {
+      files[`tools/${tool.path}`] = tool.content;
+    }
+    await writeCapabilityFolderFiles({
+      slug,
+      files,
     });
-
+    const capability = await readCapabilityFile(slug);
     recordAudit(req, {
       action: "capability.create",
-      resource: input.slug,
-      detail: `created capability ${input.slug}`,
+      resource: slug,
+      detail: `created capability ${slug}`,
     });
 
     return NextResponse.json({ capability });

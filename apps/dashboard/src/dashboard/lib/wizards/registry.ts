@@ -6,12 +6,9 @@
  *   these; each runs on its own page at /setup/<slug>. New wizards add an
  *   entry here plus a definition module (see client-signin.ts).
  *
- *   PLANNED (build when the 2nd–3rd wizard arrives, not before): load
- *   definitions config-only from `.kody/wizards/<slug>.json` in the state
- *   repo, merged over these builtins — same layering as slash commands
- *   (repo wins on slug collision). Definitions stay pure data; `check`
- *   steps may only REFERENCE server probes by checkId from the registry in
- *   app/api/kody/wizards/check/route.ts — JSON must never define logic.
+ *   Definitions stay product-owned until a backend-backed editor is needed.
+ *   `check` steps may only reference server probes by checkId from the
+ *   registry in app/api/kody/wizards/check/route.ts.
  */
 import { CLIENT_SIGNIN_WIZARD_SLUG } from "./client-signin";
 
