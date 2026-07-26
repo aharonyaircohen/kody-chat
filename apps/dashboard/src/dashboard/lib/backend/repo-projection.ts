@@ -11,7 +11,10 @@ export async function getProjectedEngineConfig(
   owner: string,
   repo: string,
 ): Promise<{ config: KodyConfig; sha: string | null }> {
-  const projected = await listCatalogEntries<{ config: KodyConfig; sha: string | null }>(owner, repo, "config");
+  const projected = await listCatalogEntries<{
+    config: KodyConfig;
+    sha: string | null;
+  }>(owner, repo, "config");
   const current = projected.find((entry) => entry.slug === "kody.config.json");
   return current?.doc?.config
     ? { config: current.doc.config, sha: current.doc.sha ?? null }
@@ -53,6 +56,38 @@ export async function saveProjectedWorkflow(
     source: workflow.source === "store" ? "store" : "local",
     updatedAt: workflow.updatedAt ?? new Date().toISOString(),
   });
+}
+
+/**
+ * Keep the read-only Store view in sync without touching tenant-owned
+ * workflows. Store remains authoritative; this projection is replaceable.
+ */
+export async function reconcileProjectedStoreWorkflows(
+  owner: string,
+  repo: string,
+  workflows: readonly WorkflowDefinitionRecord[],
+): Promise<void> {
+  const projected = await listProjectedWorkflows(owner, repo);
+  const desiredIds = new Set(workflows.map((workflow) => workflow.id));
+  const staleStoreWorkflows = projected.filter(
+    (workflow) => workflow.source === "store" && !desiredIds.has(workflow.id),
+  );
+
+  await Promise.all([
+    ...workflows.map((workflow) =>
+      saveProjectedWorkflow(owner, repo, {
+        ...workflow,
+        source: "store",
+        readOnly: true,
+      }),
+    ),
+    ...staleStoreWorkflows.map((workflow) =>
+      getConvexClient().mutation(backendApi.workflows.remove, {
+        tenantId: tenantIdFor(owner, repo),
+        workflowId: workflow.id,
+      }),
+    ),
+  ]);
 }
 
 export async function listProjectedCapabilities(

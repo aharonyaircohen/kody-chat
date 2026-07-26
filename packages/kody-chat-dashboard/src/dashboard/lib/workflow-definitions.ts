@@ -76,6 +76,8 @@ export interface WorkflowValidationOptions {
   knownCapabilities?: ReadonlySet<string>;
 }
 
+export const WORKFLOW_END_STEP_ID = "$end";
+
 const WORKFLOW_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
@@ -149,13 +151,15 @@ function normalizeWorkflowTransitions(
   for (const item of values) {
     if (typeof item === "string") {
       const to = item.trim();
-      if (WORKFLOW_ID_PATTERN.test(to)) transitions.push({ to });
+      if (to === WORKFLOW_END_STEP_ID || WORKFLOW_ID_PATTERN.test(to)) {
+        transitions.push({ to });
+      }
       continue;
     }
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const raw = item as Record<string, unknown>;
     const to = typeof raw.to === "string" ? raw.to.trim() : "";
-    if (!WORKFLOW_ID_PATTERN.test(to)) continue;
+    if (to !== WORKFLOW_END_STEP_ID && !WORKFLOW_ID_PATTERN.test(to)) continue;
     const maxIterations =
       typeof raw.maxIterations === "number" &&
       Number.isInteger(raw.maxIterations) &&
@@ -319,6 +323,7 @@ export function validateWorkflowDefinition(
     );
 
   const adjacency = new Map<string, string[]>();
+  const explicitEndSources = new Set<string>();
   steps.forEach((step, stepIndex) => {
     const transitions = step.next ?? [];
     adjacency.set(step.id, []);
@@ -364,15 +369,18 @@ export function validateWorkflowDefinition(
 
     transitions.forEach((transition, transitionIndex) => {
       const path = `steps[${stepIndex}].next[${transitionIndex}]`;
+      if (transition.to === WORKFLOW_END_STEP_ID) {
+        explicitEndSources.add(step.id);
+      }
       const targetIndex = ids.indexOf(transition.to);
-      if (targetIndex < 0) {
+      if (transition.to !== WORKFLOW_END_STEP_ID && targetIndex < 0) {
         addIssue(
           issues,
           "missing_transition_target",
           `${path}.to`,
           `Step ${step.id} connects to missing step ${transition.to}.`,
         );
-      } else {
+      } else if (targetIndex >= 0) {
         adjacency.get(step.id)?.push(transition.to);
       }
       if (transition.default && transition.when)
@@ -438,7 +446,12 @@ export function validateWorkflowDefinition(
           `Step ${step.id} can never run.`,
         );
     });
-    if (![...reachable].some((id) => (adjacency.get(id) ?? []).length === 0))
+    if (
+      ![...reachable].some(
+        (id) =>
+          (adjacency.get(id) ?? []).length === 0 || explicitEndSources.has(id),
+      )
+    )
       addIssue(
         issues,
         "missing_terminal_step",

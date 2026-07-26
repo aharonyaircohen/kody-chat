@@ -23,8 +23,7 @@ import {
 import { getEngineConfig, type KodyConfig } from "@kody-ade/base/engine/config";
 import {
   getProjectedEngineConfig,
-  listProjectedWorkflows,
-  saveProjectedWorkflow,
+  reconcileProjectedStoreWorkflows,
 } from "@dashboard/lib/backend/repo-projection";
 import {
   buildWorkflowDefinition,
@@ -114,20 +113,6 @@ export async function GET(req: NextRequest) {
     headerAuth.storeRef,
   );
   try {
-    try {
-      const projected = await listProjectedWorkflows(
-        headerAuth.owner,
-        headerAuth.repo,
-      );
-      if (projected.length > 0) {
-        return NextResponse.json(
-          { workflows: projected },
-          { headers: { "Cache-Control": "no-store" } },
-        );
-      }
-    } catch {
-      // Bootstrap from GitHub when the projection is unavailable or empty.
-    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
@@ -155,15 +140,11 @@ export async function GET(req: NextRequest) {
     const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
       a.id.localeCompare(b.id),
     );
-    await Promise.all(
-      workflows.map((workflow) =>
-        saveProjectedWorkflow(
-          headerAuth.owner,
-          headerAuth.repo,
-          workflow,
-        ).catch(() => undefined),
-      ),
-    );
+    await reconcileProjectedStoreWorkflows(
+      headerAuth.owner,
+      headerAuth.repo,
+      storeWorkflows,
+    ).catch(() => undefined);
     return NextResponse.json(
       { workflows },
       { headers: { "Cache-Control": "no-store" } },

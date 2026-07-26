@@ -2,11 +2,12 @@ import type {
   WorkflowDefinition,
   WorkflowStepDefinition,
 } from "./workflow-definitions";
+import { WORKFLOW_END_STEP_ID } from "./workflow-definitions";
 import { friendlyDecisionQuestion } from "./workflow-condition";
 
 export interface WorkflowGraphNode {
   id: string;
-  kind?: "capability" | "decision";
+  kind?: "capability" | "decision" | "terminal";
   capability?: string;
   question?: string;
   input?: unknown;
@@ -41,7 +42,10 @@ export function addWorkflowGraphStep(
   const node: WorkflowGraphNode = { id, capability };
   const previous = [...graph.nodes]
     .reverse()
-    .find((candidate) => candidate.kind !== "decision");
+    .find(
+      (candidate) =>
+        candidate.kind !== "decision" && candidate.kind !== "terminal",
+    );
   const canAppend =
     previous && !graph.edges.some((edge) => edge.source === previous.id);
   const edgeIds = new Set(graph.edges.map((edge) => edge.id));
@@ -101,7 +105,9 @@ export function removeWorkflowGraphNode(
   );
   const startAt = nodes.some((node) => node.id === graph.startAt)
     ? graph.startAt
-    : (nodes.find((node) => node.kind !== "decision")?.id ?? null);
+    : (nodes.find(
+        (node) => node.kind !== "decision" && node.kind !== "terminal",
+      )?.id ?? null);
   return { startAt, nodes, edges };
 }
 
@@ -109,10 +115,12 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   const errors: string[] = [];
   const ids = graph.nodes.map((node) => node.id);
   const idSet = new Set(ids);
+  const startNode = graph.nodes.find((node) => node.id === graph.startAt);
   if (
     !graph.startAt ||
     !idSet.has(graph.startAt) ||
-    graph.nodes.find((node) => node.id === graph.startAt)?.kind === "decision"
+    startNode?.kind === "decision" ||
+    startNode?.kind === "terminal"
   ) {
     errors.push("Choose a valid starting capability.");
   }
@@ -121,11 +129,17 @@ export function validateWorkflowGraph(graph: WorkflowGraph): string[] {
   }
   const positions = new Map(
     graph.nodes
-      .filter((node) => node.kind !== "decision")
+      .filter((node) => node.kind !== "decision" && node.kind !== "terminal")
       .map((node, index) => [node.id, index]),
   );
   const decisionIncoming = new Map<string, WorkflowGraphEdge>();
   for (const node of graph.nodes) {
+    if (node.kind === "terminal") {
+      if (graph.edges.some((edge) => edge.source === node.id)) {
+        errors.push("The workflow end cannot connect to another step.");
+      }
+      continue;
+    }
     if (node.kind !== "decision") continue;
     const incoming = graph.edges.filter((edge) => edge.target === node.id);
     if (incoming.length !== 1) {
@@ -224,7 +238,7 @@ export function workflowDefinitionGraph(
           ? { maxIterations: next.maxIterations }
           : {}),
       }));
-      if (!outgoing.some((edge) => edge.when || edge.default)) {
+      if (!outgoing.some((edge) => edge.when) && outgoing.length <= 1) {
         edges.push(...outgoing);
         continue;
       }
@@ -242,6 +256,12 @@ export function workflowDefinitionGraph(
         target: decisionId,
       });
       edges.push(...outgoing.map((edge) => ({ ...edge, source: decisionId })));
+    }
+    if (
+      edges.some((edge) => edge.target === WORKFLOW_END_STEP_ID) &&
+      !nodes.some((node) => node.id === WORKFLOW_END_STEP_ID)
+    ) {
+      nodes.push({ id: WORKFLOW_END_STEP_ID, kind: "terminal" });
     }
     return {
       startAt: workflow.startAt ?? workflow.steps[0]?.id ?? null,
@@ -273,7 +293,9 @@ export function graphWorkflowDefinition(
   startAt: string | null,
 ): WorkflowDefinition {
   const now = new Date().toISOString();
-  const capabilityNodes = nodes.filter((node) => node.kind !== "decision");
+  const capabilityNodes = nodes.filter(
+    (node) => node.kind !== "decision" && node.kind !== "terminal",
+  );
   const decisionNodes = nodes.filter((node) => node.kind === "decision");
   const foldedEdges: WorkflowGraphEdge[] = edges.filter(
     (edge) =>

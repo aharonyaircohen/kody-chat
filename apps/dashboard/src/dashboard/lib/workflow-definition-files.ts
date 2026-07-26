@@ -34,6 +34,7 @@ const STORE_CAPABILITY_WORKFLOW_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 interface WorkflowDoc {
   workflowId: string;
   definition: unknown;
+  source: "local" | "store";
   updatedAt: string;
 }
 
@@ -53,7 +54,7 @@ export async function readWorkflowDefinitionFile(
     tenantId: tenantIdFor(owner, repo),
     workflowId: id,
   })) as WorkflowDoc | null;
-  if (!doc) return null;
+  if (!doc || doc.source === "store") return null;
   const workflow = normalizeWorkflowDefinition(doc.definition);
   if (!workflow) return null;
   return { workflow, sha: "", path };
@@ -68,6 +69,7 @@ export async function listWorkflowDefinitionFiles(
   })) as WorkflowDoc[];
 
   const workflows = docs
+    .filter((doc) => doc.source !== "store")
     .map((doc): WorkflowDefinitionRecord | null => {
       const workflow = normalizeWorkflowDefinition(doc.definition);
       if (!workflow) return null;

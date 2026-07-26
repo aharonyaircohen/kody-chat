@@ -104,6 +104,49 @@ describe("workflow graph", () => {
     ]);
   });
 
+  it("shows terminal paths and keeps a single default connection direct", () => {
+    const graph = workflowDefinitionGraph({
+      name: "Review loop",
+      agent: "kody",
+      capabilities: ["review", "fix"],
+      startAt: "review",
+      steps: [
+        {
+          id: "review",
+          capability: "review",
+          next: [
+            {
+              to: "$end",
+              when: { "result.verdict": "pass" },
+            },
+            { to: "fix", default: true },
+          ],
+        },
+        {
+          id: "fix",
+          capability: "fix",
+          next: [{ to: "review", default: true, maxIterations: 3 }],
+        },
+      ],
+      createdAt: "2026-07-15T00:00:00Z",
+      updatedAt: "2026-07-15T00:00:00Z",
+    });
+
+    expect(graph.nodes).toContainEqual({ id: "$end", kind: "terminal" });
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({ id: "review__decision", kind: "decision" }),
+    );
+    expect(graph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "fix__decision" }),
+    );
+    expect(graph.edges.map(({ source, target }) => [source, target])).toEqual([
+      ["review", "review__decision"],
+      ["review__decision", "$end"],
+      ["review__decision", "fix"],
+      ["fix", "review"],
+    ]);
+  });
+
   it("folds visual decision nodes back into the engine workflow format", () => {
     const definition = graphWorkflowDefinition(
       "Release",
@@ -142,6 +185,27 @@ describe("workflow graph", () => {
     expect(
       definition.steps?.some((step) => step.id === "inspect__decision"),
     ).toBe(false);
+  });
+
+  it("folds the terminal node back into an explicit workflow end", () => {
+    const definition = graphWorkflowDefinition(
+      "Review",
+      [
+        { id: "review", capability: "review" },
+        { id: "$end", kind: "terminal" },
+      ],
+      [{ id: "review-end", source: "review", target: "$end" }],
+      "review",
+    );
+
+    expect(definition.capabilities).toEqual(["review"]);
+    expect(definition.steps).toEqual([
+      {
+        id: "review",
+        capability: "review",
+        next: [{ to: "$end" }],
+      },
+    ]);
   });
 
   it("rejects unsafe loops and broken connections before save", () => {
