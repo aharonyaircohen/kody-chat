@@ -1,10 +1,11 @@
 import {
-  canAccessMemoryScope,
+  canPerformMemoryAction,
   createMemory,
   createMemoryRevision,
   reviseMemory,
   type EvidenceRef,
   type Memory,
+  type MemoryAction,
   type MemoryContent,
   type MemoryKind,
   type MemoryPrincipal,
@@ -19,9 +20,7 @@ export interface MemoryStore {
   ): Promise<void>;
   get(id: string): Promise<Readonly<Memory> | null>;
   list(scopes: readonly MemoryScope[]): Promise<readonly Readonly<Memory>[]>;
-  listRevisions(
-    memoryId: string,
-  ): Promise<readonly Readonly<MemoryRevision>[]>;
+  listRevisions(memoryId: string): Promise<readonly Readonly<MemoryRevision>[]>;
   search(
     scopes: readonly MemoryScope[],
     query: string,
@@ -97,7 +96,9 @@ function requireAccessibleScopes(
   principal: Readonly<MemoryPrincipal>,
   scopes: readonly MemoryScope[],
 ): void {
-  if (scopes.some((scope) => !canAccessMemoryScope(principal, scope))) {
+  if (
+    scopes.some((scope) => !canPerformMemoryAction(principal, scope, "read"))
+  ) {
     throw new MemoryAccessDeniedError();
   }
 }
@@ -106,10 +107,17 @@ async function findAccessibleMemory(
   store: MemoryStore,
   principal: Readonly<MemoryPrincipal>,
   memoryId: string,
+  action: MemoryAction,
 ): Promise<Readonly<Memory>> {
   const memory = await store.get(memoryId);
-  if (!memory || !canAccessMemoryScope(principal, memory.scope)) {
+  if (!memory) {
     throw new MemoryNotFoundError();
+  }
+  if (!canPerformMemoryAction(principal, memory.scope, action)) {
+    if (!canPerformMemoryAction(principal, memory.scope, "read")) {
+      throw new MemoryNotFoundError();
+    }
+    throw new MemoryAccessDeniedError();
   }
   return memory;
 }
@@ -125,18 +133,24 @@ export function createMemoryApplication({
         store,
         command.principal,
         command.memoryId,
+        "read",
       );
     },
 
     async history(
       command: GetCommand,
     ): Promise<readonly Readonly<MemoryRevision>[]> {
-      await findAccessibleMemory(store, command.principal, command.memoryId);
+      await findAccessibleMemory(
+        store,
+        command.principal,
+        command.memoryId,
+        "read",
+      );
       return await store.listRevisions(command.memoryId);
     },
 
     async remember(command: RememberCommand): Promise<Readonly<Memory>> {
-      if (!canAccessMemoryScope(command.principal, command.scope)) {
+      if (!canPerformMemoryAction(command.principal, command.scope, "write")) {
         throw new MemoryAccessDeniedError();
       }
       const memoryId = nextId();
@@ -150,7 +164,7 @@ export function createMemoryApplication({
         content: command.content,
         evidence: command.evidence,
         reason: command.reason,
-        actor: { kind: "user", id: command.principal.userId },
+        actor: command.principal.actor,
         createdAt,
       });
       const memory = createMemory({
@@ -175,6 +189,7 @@ export function createMemoryApplication({
         store,
         command.principal,
         command.memoryId,
+        "write",
       );
       const result = reviseMemory(current, {
         revisionId: nextId(),
@@ -182,7 +197,7 @@ export function createMemoryApplication({
         content: command.content,
         evidence: command.evidence,
         reason: command.reason,
-        actor: { kind: "user", id: command.principal.userId },
+        actor: command.principal.actor,
         createdAt: now(),
       });
       await store.revise(result.memory, result.revision);
@@ -190,7 +205,12 @@ export function createMemoryApplication({
     },
 
     async forget(command: ForgetCommand): Promise<Readonly<{ deleted: true }>> {
-      await findAccessibleMemory(store, command.principal, command.memoryId);
+      await findAccessibleMemory(
+        store,
+        command.principal,
+        command.memoryId,
+        "delete",
+      );
       const deleted = await store.remove(command.memoryId);
       if (!deleted) throw new MemoryNotFoundError();
       return Object.freeze({ deleted: true });
@@ -201,9 +221,7 @@ export function createMemoryApplication({
       return store.list(command.scopes);
     },
 
-    async search(
-      command: SearchCommand,
-    ): Promise<readonly Readonly<Memory>[]> {
+    async search(command: SearchCommand): Promise<readonly Readonly<Memory>[]> {
       requireAccessibleScopes(command.principal, command.scopes);
       const query = command.query.trim();
       if (!query) throw new Error("Memory search query is required");

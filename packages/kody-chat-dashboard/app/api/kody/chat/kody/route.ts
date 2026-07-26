@@ -889,7 +889,10 @@ async function handleKodyDirectPost(
     try {
       memoryContext = await loadRelevantMemoryForPrompt(
         {
-          actorId: `github:${verifiedActorGithubId}`,
+          actor: {
+            kind: "user",
+            id: `github:${verifiedActorGithubId}`,
+          },
           tenantId: `${repo.owner}/${repo.repo}`,
         },
         latestUserText ?? "",

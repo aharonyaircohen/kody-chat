@@ -53,7 +53,7 @@ export function createMemoryTools(context: MemoryToolContext) {
   let currentRuntime: ReturnType<typeof createMemoryRuntime> | null = null;
   const runtime = () => {
     currentRuntime ??= createMemoryRuntime({
-      actorId: context.actorId,
+      actor: { kind: "user", id: context.actorId },
       tenantId,
     });
     return currentRuntime;
@@ -74,7 +74,10 @@ export function createMemoryTools(context: MemoryToolContext) {
         try {
           const scope =
             input.scope === "user"
-              ? { kind: "user" as const, userId: runtime().principal.userId }
+              ? {
+                  kind: "user" as const,
+                  userId: runtime().principal.actor.id,
+                }
               : { kind: "repository" as const, tenantId };
           const content = {
             title: input.title,

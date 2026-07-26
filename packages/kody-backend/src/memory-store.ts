@@ -1,4 +1,5 @@
 import type {
+  MemoryActor,
   Memory,
   MemoryRevision,
   MemoryScope,
@@ -8,7 +9,7 @@ import type { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 
 export interface MemoryCallerContext {
-  readonly actorId: string;
+  readonly actor: Readonly<MemoryActor>;
   readonly tenantId: string;
 }
 
@@ -26,7 +27,7 @@ export function createConvexMemoryStore(
   caller: Readonly<MemoryCallerContext>,
 ): MemoryStore {
   const callerArgs = {
-    actorId: caller.actorId,
+    actor: caller.actor,
     tenantId: caller.tenantId,
   };
 

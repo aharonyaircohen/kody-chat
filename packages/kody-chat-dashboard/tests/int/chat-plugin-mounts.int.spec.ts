@@ -70,8 +70,11 @@ vi.mock("@kody-ade/base/auth", async (importOriginal) => {
 });
 
 // Best-effort prompt loaders hit GitHub; stub them to their empty shapes.
+const loadRelevantMemoryForPromptMock = vi.hoisted(() =>
+  vi.fn(async () => null),
+);
 vi.mock("@kody-ade/workspace/memory", () => ({
-  loadRelevantMemoryForPrompt: vi.fn(async () => null),
+  loadRelevantMemoryForPrompt: loadRelevantMemoryForPromptMock,
   createMemoryRuntime: vi.fn(),
 }));
 vi.mock("@kody-ade/workspace/instructions/files", () => ({
@@ -80,12 +83,15 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
-vi.mock("../../src/dashboard/lib/view-renderers/standalone-renderer-store", () => ({
-  loadViewRendererContextForPrompt: vi.fn(async () => ({
-    rules: null,
-    definitions: [],
-  })),
-}));
+vi.mock(
+  "../../src/dashboard/lib/view-renderers/standalone-renderer-store",
+  () => ({
+    loadViewRendererContextForPrompt: vi.fn(async () => ({
+      rules: null,
+      definitions: [],
+    })),
+  }),
+);
 
 // CMS tool creation awaits GitHub reads on the request path — stub to empty.
 const createCmsToolsMock = vi.hoisted(() => vi.fn(async () => ({})));
@@ -175,6 +181,13 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
   it("zero plugins registered: streams with the built-in tool map only", async () => {
     const { status, toolNames } = await postAndCaptureToolNames();
     expect(status).toBe(200);
+    expect(loadRelevantMemoryForPromptMock).toHaveBeenCalledWith(
+      {
+        actor: { kind: "user", id: "github:1" },
+        tenantId: "owner/repo",
+      },
+      "hi",
+    );
     // Sanity: the built-in set is present and no plugin tool leaked in.
     expect(toolNames).toContain("fetch_url");
     expect(toolNames).not.toContain("fixture_echo");

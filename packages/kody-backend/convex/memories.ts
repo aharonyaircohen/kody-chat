@@ -1,7 +1,11 @@
 import {
+  canPerformMemoryAction,
   createMemory,
   createMemoryRevision,
   type Memory,
+  type MemoryAction,
+  type MemoryActor,
+  type MemoryPrincipal,
   type MemoryRevision,
   type MemoryScope,
 } from "@kody-ade/memory";
@@ -11,22 +15,26 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import {
   memoryRevisionValidator,
+  memoryActorValidator,
   memoryScopeValidator,
   memoryValidator,
 } from "./memoryValidators";
 
 type DatabaseContext = Pick<QueryCtx | MutationCtx, "db">;
 
-function requireScopeAccess(
-  actorId: string,
+function requireMemoryPermission(
+  actor: Readonly<MemoryActor>,
   tenantId: string,
   scope: MemoryScope,
+  action: MemoryAction,
 ): void {
-  const allowed =
-    scope.kind === "user"
-      ? scope.userId === actorId
-      : scope.tenantId === tenantId;
-  if (!allowed) throw new Error("Memory scope does not match caller context");
+  const principal: MemoryPrincipal = {
+    actor,
+    tenantIds: [tenantId],
+  };
+  if (!canPerformMemoryAction(principal, scope, action)) {
+    throw new Error("Memory scope permission denied");
+  }
 }
 
 function scopeFields(scope: MemoryScope): {
@@ -109,9 +117,7 @@ function memoryDocument(memory: Readonly<Memory>) {
     status: memory.status,
     createdAt: memory.createdAt,
     updatedAt: memory.updatedAt,
-    ...(memory.expiresAt === undefined
-      ? {}
-      : { expiresAt: memory.expiresAt }),
+    ...(memory.expiresAt === undefined ? {} : { expiresAt: memory.expiresAt }),
   };
 }
 
@@ -166,15 +172,18 @@ function sameContent(
   );
 }
 
-function validateUserActor(actorId: string, revision: MemoryRevision): void {
-  if (revision.actor.kind !== "user" || revision.actor.id !== actorId) {
+function validateActor(
+  actor: Readonly<MemoryActor>,
+  revision: MemoryRevision,
+): void {
+  if (revision.actor.kind !== actor.kind || revision.actor.id !== actor.id) {
     throw new Error("Memory revision actor does not match caller context");
   }
 }
 
 export const create = mutation({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     memory: memoryValidator,
     revision: memoryRevisionValidator,
@@ -182,17 +191,15 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const memory = createMemory(args.memory);
     const revision = createMemoryRevision(args.revision);
-    requireScopeAccess(args.actorId, args.tenantId, memory.scope);
-    validateUserActor(args.actorId, revision);
+    requireMemoryPermission(args.actor, args.tenantId, memory.scope, "write");
+    validateActor(args.actor, revision);
     validateCreatePair(memory, revision);
     if (await findMemory(ctx, memory.id)) {
       throw new Error("Memory already exists");
     }
     const existingRevision = await ctx.db
       .query("memoryRevisions")
-      .withIndex("by_revision", (index) =>
-        index.eq("revisionId", revision.id),
-      )
+      .withIndex("by_revision", (index) => index.eq("revisionId", revision.id))
       .unique();
     if (existingRevision) throw new Error("Memory revision already exists");
 
@@ -204,7 +211,7 @@ export const create = mutation({
 
 export const get = query({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     memoryId: v.string(),
   },
@@ -213,7 +220,7 @@ export const get = query({
     if (!doc) return null;
     const memory = memoryFromDoc(doc);
     try {
-      requireScopeAccess(args.actorId, args.tenantId, memory.scope);
+      requireMemoryPermission(args.actor, args.tenantId, memory.scope, "read");
       return memory;
     } catch {
       return null;
@@ -223,12 +230,12 @@ export const get = query({
 
 export const list = query({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     scope: memoryScopeValidator,
   },
   handler: async (ctx, args) => {
-    requireScopeAccess(args.actorId, args.tenantId, args.scope);
+    requireMemoryPermission(args.actor, args.tenantId, args.scope, "read");
     const scope = scopeFields(args.scope);
     const docs = await ctx.db
       .query("memories")
@@ -246,14 +253,14 @@ export const list = query({
 
 export const search = query({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     scope: memoryScopeValidator,
     searchText: v.string(),
     limit: v.number(),
   },
   handler: async (ctx, args) => {
-    requireScopeAccess(args.actorId, args.tenantId, args.scope);
+    requireMemoryPermission(args.actor, args.tenantId, args.scope, "read");
     const searchText = args.searchText.trim();
     if (!searchText) throw new Error("Memory search text is required");
     if (!Number.isInteger(args.limit) || args.limit < 1 || args.limit > 20) {
@@ -276,7 +283,7 @@ export const search = query({
 
 export const listRevisions = query({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     memoryId: v.string(),
   },
@@ -285,15 +292,13 @@ export const listRevisions = query({
     if (!doc) return [];
     const memory = memoryFromDoc(doc);
     try {
-      requireScopeAccess(args.actorId, args.tenantId, memory.scope);
+      requireMemoryPermission(args.actor, args.tenantId, memory.scope, "read");
     } catch {
       return [];
     }
     const revisions = await ctx.db
       .query("memoryRevisions")
-      .withIndex("by_memory", (index) =>
-        index.eq("memoryId", args.memoryId),
-      )
+      .withIndex("by_memory", (index) => index.eq("memoryId", args.memoryId))
       .order("asc")
       .collect();
     return revisions.map(revisionFromDoc);
@@ -302,7 +307,7 @@ export const listRevisions = query({
 
 export const revise = mutation({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     expectedRevisionId: v.string(),
     memory: memoryValidator,
@@ -314,8 +319,8 @@ export const revise = mutation({
     const currentDoc = await findMemory(ctx, memory.id);
     if (!currentDoc) throw new Error("Memory not found");
     const current = memoryFromDoc(currentDoc);
-    requireScopeAccess(args.actorId, args.tenantId, current.scope);
-    validateUserActor(args.actorId, revision);
+    requireMemoryPermission(args.actor, args.tenantId, current.scope, "write");
+    validateActor(args.actor, revision);
     if (current.currentRevisionId !== args.expectedRevisionId) {
       throw new Error("Memory changed since it was read");
     }
@@ -334,9 +339,7 @@ export const revise = mutation({
     }
     const existingRevision = await ctx.db
       .query("memoryRevisions")
-      .withIndex("by_revision", (index) =>
-        index.eq("revisionId", revision.id),
-      )
+      .withIndex("by_revision", (index) => index.eq("revisionId", revision.id))
       .unique();
     if (existingRevision) throw new Error("Memory revision already exists");
 
@@ -348,7 +351,7 @@ export const revise = mutation({
 
 export const remove = mutation({
   args: {
-    actorId: v.string(),
+    actor: memoryActorValidator,
     tenantId: v.string(),
     memoryId: v.string(),
   },
@@ -356,12 +359,10 @@ export const remove = mutation({
     const doc = await findMemory(ctx, args.memoryId);
     if (!doc) return false;
     const memory = memoryFromDoc(doc);
-    requireScopeAccess(args.actorId, args.tenantId, memory.scope);
+    requireMemoryPermission(args.actor, args.tenantId, memory.scope, "delete");
     const revisions = await ctx.db
       .query("memoryRevisions")
-      .withIndex("by_memory", (index) =>
-        index.eq("memoryId", args.memoryId),
-      )
+      .withIndex("by_memory", (index) => index.eq("memoryId", args.memoryId))
       .collect();
     for (const revision of revisions) {
       await ctx.db.delete(revision._id);

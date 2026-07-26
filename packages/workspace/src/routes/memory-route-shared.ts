@@ -25,7 +25,7 @@ export async function requestMemoryContext(
 
   const tenantId = `${access.auth.owner}/${access.auth.repo}`;
   const runtime = createMemoryRuntime({
-    actorId: `github:${access.actorGithubId}`,
+    actor: { kind: "user", id: `github:${access.actorGithubId}` },
     tenantId,
   });
   return runtime;

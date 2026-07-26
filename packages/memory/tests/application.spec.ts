@@ -26,7 +26,9 @@ class InMemoryStore implements MemoryStore {
     return this.memories.get(id) ?? null;
   }
 
-  async list(scopes: readonly MemoryScope[]): Promise<readonly Readonly<Memory>[]> {
+  async list(
+    scopes: readonly MemoryScope[],
+  ): Promise<readonly Readonly<Memory>[]> {
     return [...this.memories.values()].filter((memory) =>
       scopes.some(
         (scope) =>
@@ -35,12 +37,8 @@ class InMemoryStore implements MemoryStore {
             ? scope.userId ===
               (memory.scope as Extract<MemoryScope, { kind: "user" }>).userId
             : scope.tenantId ===
-              (
-                memory.scope as Extract<
-                  MemoryScope,
-                  { kind: "repository" }
-                >
-              ).tenantId),
+              (memory.scope as Extract<MemoryScope, { kind: "repository" }>)
+                .tenantId),
       ),
     );
   }
@@ -61,11 +59,7 @@ class InMemoryStore implements MemoryStore {
     const words = query.toLowerCase();
     return (await this.list(scopes))
       .filter((memory) =>
-        [
-          memory.content.title,
-          memory.content.summary,
-          memory.content.body,
-        ]
+        [memory.content.title, memory.content.summary, memory.content.body]
           .join(" ")
           .toLowerCase()
           .includes(words),
@@ -89,10 +83,7 @@ class InMemoryStore implements MemoryStore {
 function createTestApplication() {
   const store = new InMemoryStore();
   const ids = ["memory-1", "revision-1", "revision-2"];
-  const times = [
-    "2026-07-25T10:00:00.000Z",
-    "2026-07-25T11:00:00.000Z",
-  ];
+  const times = ["2026-07-25T10:00:00.000Z", "2026-07-25T11:00:00.000Z"];
   const application = createMemoryApplication({
     store,
     nextId: () => {
@@ -110,7 +101,17 @@ function createTestApplication() {
 }
 
 const principal = {
-  userId: "user-1",
+  actor: { kind: "user" as const, id: "user-1" },
+  tenantIds: ["acme/widgets"],
+};
+
+const enginePrincipal = {
+  actor: { kind: "engine" as const, id: "memory-steward" },
+  tenantIds: ["acme/widgets"],
+};
+
+const systemPrincipal = {
+  actor: { kind: "system" as const, id: "memory-system" },
   tenantIds: ["acme/widgets"],
 };
 
@@ -155,6 +156,97 @@ describe("memory application", () => {
         },
         evidence: [{ source: "message", id: "message-1" }],
         reason: "Unauthorized test.",
+      }),
+    ).rejects.toBeInstanceOf(MemoryAccessDeniedError);
+    expect(store.memories.size).toBe(0);
+  });
+
+  it("lets the memory steward write repository memory with engine attribution", async () => {
+    const { application, store } = createTestApplication();
+
+    await application.remember({
+      principal: enginePrincipal,
+      scope: { kind: "repository", tenantId: "acme/widgets" },
+      kind: "decision",
+      content: {
+        title: "Package manager",
+        summary: "This repository uses pnpm.",
+        body: "Use pnpm for repository commands and dependency changes.",
+      },
+      evidence: [{ source: "engine-run", id: "run-1" }],
+      reason: "A completed run provided strong repository evidence.",
+    });
+
+    expect(store.revisions.get("revision-1")).toMatchObject({
+      actor: { kind: "engine", id: "memory-steward" },
+      evidence: [{ source: "engine-run", id: "run-1" }],
+    });
+  });
+
+  it("never lets the memory steward read or write personal memory", async () => {
+    const { application } = createTestApplication();
+
+    await expect(
+      application.remember({
+        principal: enginePrincipal,
+        scope: { kind: "user", userId: "memory-steward" },
+        kind: "fact",
+        content: {
+          title: "Personal detail",
+          summary: "Automation must not create personal memory.",
+          body: "Run learning is restricted to repository memory.",
+        },
+        evidence: [{ source: "engine-run", id: "run-1" }],
+        reason: "This write must be rejected.",
+      }),
+    ).rejects.toBeInstanceOf(MemoryAccessDeniedError);
+    await expect(
+      application.list({
+        principal: enginePrincipal,
+        scopes: [{ kind: "user", userId: "memory-steward" }],
+      }),
+    ).rejects.toBeInstanceOf(MemoryAccessDeniedError);
+  });
+
+  it("never lets the memory steward delete repository memory", async () => {
+    const { application, store } = createTestApplication();
+    await application.remember({
+      principal: enginePrincipal,
+      scope: { kind: "repository", tenantId: "acme/widgets" },
+      kind: "fact",
+      content: {
+        title: "Runtime owner",
+        summary: "Convex owns runtime state.",
+        body: "Repository runtime state is stored in Convex.",
+      },
+      evidence: [{ source: "engine-run", id: "run-1" }],
+      reason: "A completed run confirmed this repository fact.",
+    });
+
+    await expect(
+      application.forget({
+        principal: enginePrincipal,
+        memoryId: "memory-1",
+      }),
+    ).rejects.toBeInstanceOf(MemoryAccessDeniedError);
+    expect(store.memories.has("memory-1")).toBe(true);
+  });
+
+  it("never gives a system actor direct memory access", async () => {
+    const { application, store } = createTestApplication();
+
+    await expect(
+      application.remember({
+        principal: systemPrincipal,
+        scope: { kind: "repository", tenantId: "acme/widgets" },
+        kind: "fact",
+        content: {
+          title: "System record",
+          summary: "System actors are audit identities only.",
+          body: "A system actor must not call memory directly.",
+        },
+        evidence: [{ source: "engine-run", id: "run-1" }],
+        reason: "This direct system write must be rejected.",
       }),
     ).rejects.toBeInstanceOf(MemoryAccessDeniedError);
     expect(store.memories.size).toBe(0);
@@ -210,7 +302,10 @@ describe("memory application", () => {
 
     await expect(
       application.correct({
-        principal: { userId: "user-2", tenantIds: [] },
+        principal: {
+          actor: { kind: "user", id: "user-2" },
+          tenantIds: [],
+        },
         memoryId: "memory-1",
         kind: "fact",
         content: {
@@ -225,13 +320,19 @@ describe("memory application", () => {
     expect(store.memories.get("memory-1")?.content.title).toBe("Role");
     await expect(
       application.get({
-        principal: { userId: "user-2", tenantIds: [] },
+        principal: {
+          actor: { kind: "user", id: "user-2" },
+          tenantIds: [],
+        },
         memoryId: "memory-1",
       }),
     ).rejects.toBeInstanceOf(MemoryNotFoundError);
     await expect(
       application.history({
-        principal: { userId: "user-2", tenantIds: [] },
+        principal: {
+          actor: { kind: "user", id: "user-2" },
+          tenantIds: [],
+        },
         memoryId: "memory-1",
       }),
     ).rejects.toBeInstanceOf(MemoryNotFoundError);
