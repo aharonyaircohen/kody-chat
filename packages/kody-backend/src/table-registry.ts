@@ -129,6 +129,11 @@ export const TABLES: readonly TableDef[] = [
     global: true,
   },
   {
+    table: "memoryLearningRuns",
+    naturalKey: ["sourceRunId"],
+    upsertIndex: "by_source",
+  },
+  {
     table: "knowledgeGraphs",
     naturalKey: [],
     upsertIndex: "by_tenant",

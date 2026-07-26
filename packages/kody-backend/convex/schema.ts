@@ -46,12 +46,7 @@ export default defineSchema({
     expiresAt: v.optional(v.string()),
   })
     .index("by_memory", ["memoryId"])
-    .index("by_scope_status", [
-      "scopeKind",
-      "scopeId",
-      "status",
-      "updatedAt",
-    ])
+    .index("by_scope_status", ["scopeKind", "scopeId", "status", "updatedAt"])
     .searchIndex("search_memory", {
       searchField: "searchText",
       filterFields: ["scopeKind", "scopeId", "status", "kind"],
@@ -72,6 +67,23 @@ export default defineSchema({
   })
     .index("by_revision", ["revisionId"])
     .index("by_memory", ["memoryId", "createdAt"]),
+
+  memoryLearningRuns: defineTable({
+    tenantId: v.string(),
+    sourceRunId: v.string(),
+    claimedBy: v.string(),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    claimedAt: v.string(),
+    leaseUntil: v.string(),
+    completedAt: v.optional(v.string()),
+    failure: v.optional(v.string()),
+  })
+    .index("by_source", ["tenantId", "sourceRunId"])
+    .index("by_status", ["tenantId", "status", "claimedAt"]),
 
   workflows: defineTable({
     tenantId: v.string(),

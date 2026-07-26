@@ -35,6 +35,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as macros from "../macros.js";
 import type * as manifests from "../manifests.js";
 import type * as memories from "../memories.js";
+import type * as memoryLearning from "../memoryLearning.js";
 import type * as memoryValidators from "../memoryValidators.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as repoDocs from "../repoDocs.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   macros: typeof macros;
   manifests: typeof manifests;
   memories: typeof memories;
+  memoryLearning: typeof memoryLearning;
   memoryValidators: typeof memoryValidators;
   notificationPrefs: typeof notificationPrefs;
   repoDocs: typeof repoDocs;
