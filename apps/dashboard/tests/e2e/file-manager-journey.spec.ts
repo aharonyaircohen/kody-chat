@@ -793,11 +793,19 @@ test.describe("repository file manager", () => {
     await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
     await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
 
+    await expect(page.getByRole("button", { name: "Bold" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Mermaid diagram" }),
+    ).toBeVisible();
     const editor = page.getByRole("textbox", { name: "Editor content" });
     await editor.click({ force: true });
     await editor.press("ControlOrMeta+A");
     await editor.press("Backspace");
     await page.keyboard.insertText("Updated notes\n");
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await expect(page.getByText("Updated notes", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Write", exact: true }).click();
+    await expect(editor).toHaveValue("Updated notes\n");
 
     const saveRequestPromise = page.waitForRequest(
       (request) =>
@@ -901,7 +909,7 @@ test.describe("repository file manager", () => {
 
     const editor = page.getByRole("textbox", { name: "Editor content" });
     await editor.click({ force: true });
-    await editor.press("Control+A");
+    await editor.press("ControlOrMeta+A");
     await editor.press("Backspace");
     await editor.type("Unsaved browser draft");
     await expect(
@@ -920,8 +928,8 @@ test.describe("repository file manager", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
     await expect(
-      page.getByText("Unsaved browser draft", { exact: true }),
-    ).toBeVisible();
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toHaveValue("Unsaved browser draft");
     expect(runtimeFailures).toEqual([]);
   });
 

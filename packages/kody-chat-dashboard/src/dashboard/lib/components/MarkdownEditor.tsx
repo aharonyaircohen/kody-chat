@@ -35,7 +35,7 @@ import { EMOJI_LIST } from "@kody-ade/base/constants";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { MarkdownPreview } from "./MarkdownPreview";
 
-type EditorMode = "write" | "preview" | "split";
+export type MarkdownEditorMode = "write" | "preview" | "split";
 
 interface MarkdownEditorProps {
   id?: string;
@@ -60,6 +60,9 @@ interface MarkdownEditorProps {
   onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
   /** Optional override for preview empty-state message */
   emptyPreview?: string;
+  defaultMode?: MarkdownEditorMode;
+  fillHeight?: boolean;
+  textareaAriaLabel?: string;
 }
 
 export function MarkdownEditor({
@@ -79,8 +82,11 @@ export function MarkdownEditor({
   onClick,
   onBlur,
   emptyPreview = "*Nothing to preview*",
+  defaultMode = "write",
+  fillHeight = false,
+  textareaAriaLabel,
 }: MarkdownEditorProps) {
-  const [mode, setMode] = useState<EditorMode>("write");
+  const [mode, setMode] = useState<MarkdownEditorMode>(defaultMode);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const setTextareaNode = useCallback(
@@ -181,7 +187,8 @@ export function MarkdownEditor({
     <div
       {...autoDirProps}
       className={cn(
-        "min-h-[160px] max-h-[55vh] min-w-0 w-full overflow-auto p-4 border border-border rounded-md bg-background text-start",
+        "min-h-[160px] min-w-0 w-full overflow-auto p-4 border border-border rounded-md bg-background text-start",
+        fillHeight ? "min-h-0 flex-1" : "max-h-[55vh]",
         rtlAwareMarkdownClassName,
       )}
     >
@@ -205,15 +212,24 @@ export function MarkdownEditor({
       autoFocus={autoFocus}
       disabled={disabled}
       dir="auto"
+      aria-label={textareaAriaLabel}
       className={cn(
-        "font-mono text-code-md resize-y max-h-[55vh] text-start leading-relaxed",
+        "font-mono text-code-md text-start leading-relaxed",
+        fillHeight
+          ? "min-h-0 h-full flex-1 resize-none"
+          : "max-h-[55vh] resize-y",
         textareaClassName,
       )}
     />
   );
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div
+      className={cn(
+        fillHeight ? "flex min-h-0 flex-col gap-3" : "space-y-3",
+        className,
+      )}
+    >
       <div className="flex items-center flex-wrap gap-1 border border-border rounded-md p-1.5 bg-muted/30">
         <ToolbarButton
           title="Undo"
@@ -388,7 +404,12 @@ export function MarkdownEditor({
       {mode === "preview" ? preview : null}
       {mode === "write" ? editor : null}
       {mode === "split" ? (
-        <div className="grid gap-2 md:grid-cols-2">
+        <div
+          className={cn(
+            "grid gap-2 md:grid-cols-2",
+            fillHeight && "min-h-0 flex-1",
+          )}
+        >
           {editor}
           {preview}
         </div>
@@ -434,9 +455,9 @@ function ModeButton({
   title,
   children,
 }: {
-  mode: EditorMode;
-  target: EditorMode;
-  onClick: (mode: EditorMode) => void;
+  mode: MarkdownEditorMode;
+  target: MarkdownEditorMode;
+  onClick: (mode: MarkdownEditorMode) => void;
   title: string;
   children: React.ReactNode;
 }) {

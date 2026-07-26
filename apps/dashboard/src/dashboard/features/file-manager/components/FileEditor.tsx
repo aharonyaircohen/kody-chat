@@ -28,11 +28,7 @@ import { monacoLanguage } from "../lib/repo-files-lang";
 import { readFile, writeFile } from "../lib/repo-files";
 import { useFilesTransport } from "../lib/transport";
 import type { Octokit } from "@octokit/rest";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
-import {
-  autoDirProps,
-  rtlAwareMarkdownClassName,
-} from "@dashboard/lib/text-direction";
+import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
 import { useTheme } from "@dashboard/providers/Theme";
 import { createLatestRequestGuard } from "../lib/latest-request";
 import {
@@ -93,7 +89,6 @@ export function FileEditor({
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const isHtml = isHtmlFile(path);
-  const supportsPreview = isMarkdown || isHtml;
   const draftStorageKey = useMemo(
     () => fileDraftStorageKey(owner, repo, path),
     [owner, repo, path],
@@ -156,8 +151,8 @@ export function FileEditor({
   }, [transport, octokit, owner, repo, path, draftStorageKey, requestGuard]);
 
   useEffect(() => {
-    setViewMode(supportsPreview ? defaultMarkdownViewMode : "edit");
-  }, [defaultMarkdownViewMode, path, supportsPreview]);
+    setViewMode(isHtml ? defaultMarkdownViewMode : "edit");
+  }, [defaultMarkdownViewMode, isHtml, path]);
 
   // Track dirty state
   useEffect(() => {
@@ -307,7 +302,7 @@ export function FileEditor({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {supportsPreview && (
+          {isHtml && (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <Button
                 variant="ghost"
@@ -404,6 +399,21 @@ export function FileEditor({
           <div className="flex w-full flex-col items-center justify-center text-muted-foreground">
             <span>{error}</span>
           </div>
+        ) : isMarkdown ? (
+          <MarkdownEditor
+            key={path}
+            value={content}
+            onChange={setContent}
+            defaultMode={
+              defaultMarkdownViewMode === "edit"
+                ? "write"
+                : defaultMarkdownViewMode
+            }
+            fillHeight
+            textareaAriaLabel="Editor content"
+            className="min-h-0 flex-1 rounded-xl border border-border bg-card p-3 shadow-sm"
+            textareaClassName="w-full"
+          />
         ) : viewMode === "edit" || viewMode === "split" ? (
           <div
             className={cn(
@@ -435,51 +445,23 @@ export function FileEditor({
           </div>
         ) : null}
 
-        {viewMode === "preview" &&
-          (isHtml ? (
-            <HtmlPreview
-              className="min-h-0 flex-1 rounded-xl border border-border"
-              content={content}
-              fileName={fileName}
-            />
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-card">
-              <div className="mx-auto max-w-4xl px-10 py-12 lg:px-16">
-                <MarkdownPreview
-                  {...autoDirProps}
-                  content={content}
-                  className={cn(
-                    "break-words text-start md:prose-lg",
-                    rtlAwareMarkdownClassName,
-                  )}
-                />
-              </div>
-            </div>
-          ))}
+        {viewMode === "preview" && isHtml ? (
+          <HtmlPreview
+            className="min-h-0 flex-1 rounded-xl border border-border"
+            content={content}
+            fileName={fileName}
+          />
+        ) : null}
 
-        {viewMode === "split" && <div className="w-2" />}
+        {viewMode === "split" && isHtml ? <div className="w-2" /> : null}
 
-        {viewMode === "split" &&
-          (isHtml ? (
-            <HtmlPreview
-              className="min-h-0 w-1/2 rounded-r-xl border border-border"
-              content={content}
-              fileName={fileName}
-            />
-          ) : (
-            <div className="min-h-0 w-1/2 overflow-y-auto rounded-r-xl border border-border bg-card">
-              <div className="mx-auto max-w-3xl px-8 py-10">
-                <MarkdownPreview
-                  {...autoDirProps}
-                  content={content}
-                  className={cn(
-                    "break-words text-start md:prose-base",
-                    rtlAwareMarkdownClassName,
-                  )}
-                />
-              </div>
-            </div>
-          ))}
+        {viewMode === "split" && isHtml ? (
+          <HtmlPreview
+            className="min-h-0 w-1/2 rounded-r-xl border border-border"
+            content={content}
+            fileName={fileName}
+          />
+        ) : null}
       </div>
     </div>
   );
