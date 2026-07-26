@@ -21,6 +21,22 @@ export async function getProjectedEngineConfig(
     : { config: defaultConfig, sha: null };
 }
 
+export async function saveProjectedEngineConfig(
+  owner: string,
+  repo: string,
+  config: KodyConfig,
+  sha: string | null,
+): Promise<void> {
+  await saveCatalogEntry(
+    owner,
+    repo,
+    "config",
+    "kody.config.json",
+    { config, sha },
+    "dashboard-write",
+  );
+}
+
 export async function listProjectedWorkflows(
   owner: string,
   repo: string,

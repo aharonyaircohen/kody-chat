@@ -36,6 +36,7 @@ import {
 } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
+import { saveProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 import {
   deleteRepositoryLoop,
   readRepositoryLoop,
@@ -86,6 +87,52 @@ function append(current: string[] | undefined, values: string[]): string[] {
 
 function without(current: string[] | undefined, value: string): string[] {
   return (current ?? []).filter((entry) => entry !== value);
+}
+
+async function writeStoreConfigPatch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  patch: ConfigPatch,
+  commitMessage: string,
+): Promise<void> {
+  const { sha } = await writeConfigPatch(
+    octokit,
+    owner,
+    repo,
+    patch,
+    commitMessage,
+  );
+  const { config } = await getEngineConfig(octokit, owner, repo, {
+    force: true,
+  });
+  await saveProjectedEngineConfig(owner, repo, config, sha);
+}
+
+async function saveStoreWorkflowProjection(
+  owner: string,
+  repo: string,
+  slug: string,
+  workflow: WorkflowDefinition,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.workflows.save, {
+    tenantId: `${owner}/${repo}`,
+    workflowId: slug,
+    definition: workflow,
+    source: "store",
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function removeStoreWorkflowProjection(
+  owner: string,
+  repo: string,
+  slug: string,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.workflows.remove, {
+    tenantId: `${owner}/${repo}`,
+    workflowId: slug,
+  });
 }
 
 async function readStoreWorkflow(
@@ -186,7 +233,7 @@ async function activate(
     );
     return { imported: true, status: "imported" as const };
   }
-  const { config } = await getEngineConfig(octokit, owner, repo, {
+  const { config, sha } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
   const company = config.company;
@@ -213,10 +260,19 @@ async function activate(
     return JSON.stringify(current ?? []) !== JSON.stringify(value ?? []);
   });
   if (!changed) {
+    await saveProjectedEngineConfig(owner, repo, config, sha);
+    if (kind === "workflow" && workflow) {
+      await saveStoreWorkflowProjection(
+        owner,
+        repo,
+        slug,
+        workflow as WorkflowDefinition,
+      );
+    }
     return { imported: false, status: "already_local" as const };
   }
 
-  await writeConfigPatch(
+  await writeStoreConfigPatch(
     octokit,
     owner,
     repo,
@@ -224,13 +280,12 @@ async function activate(
     `chore(kody): add store ${kind} ${slug}`,
   );
   if (kind === "workflow" && workflow) {
-    await createBackendClient().mutation(backendApi.workflows.save, {
-      tenantId: `${owner}/${repo}`,
-      workflowId: slug,
-      definition: workflow as WorkflowDefinition,
-      source: "store",
-      updatedAt: new Date().toISOString(),
-    });
+    await saveStoreWorkflowProjection(
+      owner,
+      repo,
+      slug,
+      workflow as WorkflowDefinition,
+    );
   }
   return { imported: true, status: "imported" as const };
 }
@@ -242,7 +297,7 @@ async function deactivate(
   kind: ImportKind,
   slug: string,
 ) {
-  const { config } = await getEngineConfig(octokit, owner, repo, {
+  const { config, sha } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
   if (kind === "loop") {
@@ -263,6 +318,10 @@ async function deactivate(
   const current = config.company?.[field] as string[] | undefined;
   const next = without(current, slug);
   if (next.length === (current ?? []).length) {
+    await saveProjectedEngineConfig(owner, repo, config, sha);
+    if (kind === "workflow") {
+      await removeStoreWorkflowProjection(owner, repo, slug);
+    }
     return { removed: false, status: "already_missing" as const };
   }
 
@@ -284,7 +343,7 @@ async function deactivate(
   const patch = {
     [field]: next.length ? next : null,
   } as ConfigPatch;
-  await writeConfigPatch(
+  await writeStoreConfigPatch(
     octokit,
     owner,
     repo,
@@ -292,10 +351,7 @@ async function deactivate(
     `chore(kody): remove store ${kind} ${slug}`,
   );
   if (kind === "workflow") {
-    await createBackendClient().mutation(backendApi.workflows.remove, {
-      tenantId: `${owner}/${repo}`,
-      workflowId: slug,
-    });
+    await removeStoreWorkflowProjection(owner, repo, slug);
   }
   return { removed: true, status: "removed" as const };
 }

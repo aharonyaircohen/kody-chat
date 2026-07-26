@@ -21,4 +21,13 @@ describe("simple Store activation", () => {
     expect(source).toContain("workflowDefinition.agent");
     expect(source).toContain("activeWorkflowBlockers");
   });
+
+  it("projects every Store config change into the Dashboard read model", () => {
+    expect(source).toContain("saveProjectedEngineConfig");
+    expect(source).toMatch(
+      /await writeConfigPatch[\s\S]*await saveProjectedEngineConfig/,
+    );
+    expect(source).toContain("saveStoreWorkflowProjection");
+    expect(source).not.toMatch(/if \(!changed\) \{\s*return/);
+  });
 });
