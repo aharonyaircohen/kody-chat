@@ -3,6 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("memory package boundaries", () => {
+  it("builds its exported files during a clean workspace install", () => {
+    const pkg = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+
+    expect(pkg.scripts?.prepare).toBe("pnpm build");
+  });
+
   it("has no runtime dependencies", () => {
     const pkg = JSON.parse(
       readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"),
