@@ -205,6 +205,19 @@ async function installFileManagerHarness(
     if (pathname === `${repoPrefix}/git/commits/head-1` && method === "GET") {
       return json(route, { sha: "head-1", tree: { sha: "tree-1" } });
     }
+    if (pathname === `${repoPrefix}/git/trees/tree-1` && method === "GET") {
+      return json(route, {
+        sha: "tree-1",
+        truncated: false,
+        tree: [...files.entries()].map(([path, file]) => ({
+          path,
+          mode: "100644",
+          type: "blob",
+          sha: file.sha,
+          size: Buffer.byteLength(file.content),
+        })),
+      });
+    }
     if (pathname === `${repoPrefix}/git/blobs` && method === "POST") {
       const body = request.postDataJSON() as { content: string };
       const sha = `blob-${sequence++}`;
@@ -243,10 +256,13 @@ async function installFileManagerHarness(
           files.delete(entry.path);
           continue;
         }
+        const existing = [...files.values()].find(
+          (file) => file.sha === entry.sha,
+        );
         files.set(entry.path, {
-          content: Buffer.from(blobs.get(entry.sha) ?? "", "base64").toString(
-            "utf8",
-          ),
+          content:
+            existing?.content ??
+            Buffer.from(blobs.get(entry.sha) ?? "", "base64").toString("utf8"),
           sha: entry.sha,
         });
       }
@@ -476,9 +492,9 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByRole("treeitem", { name: "external.md 16 B" }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("treeitem", { name: /guide\.md/ }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("treeitem", { name: /guide\.md/ })).toHaveCount(
+      0,
+    );
     expect(rootDirectoryReads()).toBe(2);
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
@@ -596,9 +612,7 @@ test.describe("repository file manager", () => {
     expect(runtimeFailures).toEqual([]);
   });
 
-  test("runs HTML as an isolated browser document", async ({
-    page,
-  }) => {
+  test("runs HTML as an isolated browser document", async ({ page }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const externalPreviewRequests: string[] = [];
     await page.route("https://preview.invalid/tailwind.js", (route) => {
@@ -628,9 +642,7 @@ test.describe("repository file manager", () => {
     await installFileManagerHarness(page, { htmlPreview: true });
 
     await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
-    await page
-      .getByRole("treeitem", { name: /preview\.html/ })
-      .click();
+    await page.getByRole("treeitem", { name: /preview\.html/ }).click();
     await expect(
       page.getByRole("textbox", { name: "Editor content" }),
     ).toBeVisible();
@@ -644,9 +656,9 @@ test.describe("repository file manager", () => {
     ).toBeVisible();
     await expect
       .poll(() =>
-        preview.getByRole("heading").evaluate(
-          (heading) => getComputedStyle(heading).color,
-        ),
+        preview
+          .getByRole("heading")
+          .evaluate((heading) => getComputedStyle(heading).color),
       )
       .toBe("rgb(37, 99, 235)");
     await expect(
@@ -813,14 +825,25 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByRole("button", { name: "Mermaid diagram" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit mode" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "View mode" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Split mode" }),
+    ).toHaveCount(0);
     const editor = page.getByRole("textbox", { name: "Editor content" });
     await editor.click({ force: true });
     await editor.press("ControlOrMeta+A");
     await editor.press("Backspace");
     await page.keyboard.insertText("Updated notes\n");
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
-    await expect(page.getByText("Updated notes", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Write", exact: true }).click();
+    await page.getByRole("button", { name: "View mode" }).click();
+    await expect(editor).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Bold" })).toHaveCount(0);
+    await expect(
+      page.getByText("Updated notes", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Edit mode" }).click();
     await expect(editor).toHaveValue("Updated notes\n");
 
     const saveRequestPromise = page.waitForRequest(

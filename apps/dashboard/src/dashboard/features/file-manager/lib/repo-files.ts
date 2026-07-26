@@ -3,7 +3,7 @@
  * @domain files
  * @pattern repo-files
  * @ai-summary GitHub Contents API wrapper for the /files page. Provides
- *   listDir, readFile, writeFile, deleteFile, moveFile, createSymlink,
+ *   listDir, readFile, writeFile, deleteFile, createSymlink,
  *   uploadFile, searchCode, and commitsForPath — all using the user's
  *   token so permissions match their GitHub access.
  */
@@ -300,54 +300,6 @@ export async function deleteFile(
     message,
     sha,
   });
-}
-
-// ─── moveFile ───────────────────────────────────────────────────────────────
-
-export async function moveFile(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  sourcePath: string,
-  destPath: string,
-  message: string,
-): Promise<{ sha: string; commitSha: string }> {
-  // Read source content
-  const file = await readFile(octokit, owner, repo, sourcePath);
-  if (!file) throw new Error(`Source file not found: ${sourcePath}`);
-
-  // Get source SHA
-  const res = await octokit.rest.repos.getContent({
-    owner,
-    repo,
-    path: sourcePath,
-  });
-  const data = res.data;
-  const sha = Array.isArray(data) ? "" : (data.sha ?? "");
-
-  // Create file at destination, delete source
-  const result = await writeFile(
-    octokit,
-    owner,
-    repo,
-    destPath,
-    file.content,
-    message,
-  );
-
-  // Delete source (only if dest is different from source)
-  if (sourcePath !== destPath) {
-    await deleteFile(
-      octokit,
-      owner,
-      repo,
-      sourcePath,
-      sha,
-      `chore: moved to ${destPath}`,
-    );
-  }
-
-  return result;
 }
 
 // ─── createSymlink ──────────────────────────────────────────────────────────

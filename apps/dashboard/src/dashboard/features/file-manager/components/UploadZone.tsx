@@ -13,8 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { cn } from "@dashboard/lib/utils";
-import { uploadFile } from "../lib/repo-files";
-import type { Octokit } from "@octokit/rest";
+import { useFilesTransport } from "../lib/transport";
 import {
   DEFAULT_FILE_UPLOAD_POLICY,
   type FileUploadPolicy,
@@ -23,9 +22,6 @@ import {
 import { uploadRepositoryFiles } from "../lib/upload-repository-files";
 
 interface UploadZoneProps {
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onUploadComplete?: (uploaded: {
     path: string;
     size: number;
@@ -43,14 +39,12 @@ interface UploadingFile {
 }
 
 export function UploadZone({
-  octokit,
-  owner,
-  repo,
   onUploadComplete,
   destinationDir = "",
   workspaceRoot = "",
   uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
 }: UploadZoneProps) {
+  const transport = useFilesTransport();
   const [uploading, setUploading] = useState<UploadingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [destination, setDestination] = useState(destinationDir);
@@ -64,8 +58,8 @@ export function UploadZone({
 
   const handleFiles = useCallback(
     async (files: FileList) => {
-      if (!octokit) {
-        toast.error("Not authenticated");
+      if (!transport?.uploadFile) {
+        toast.error("Uploads are not supported in this workspace");
         return;
       }
 
@@ -81,8 +75,10 @@ export function UploadZone({
         destinationDir: destination,
         workspaceRoot,
         policy: uploadPolicy,
-        upload: (path, file, message) =>
-          uploadFile(octokit, owner, repo, path, file, message),
+        upload: async (path, file) => {
+          const uploaded = await transport.uploadFile!(path, file);
+          return { sha: uploaded?.version ?? "" };
+        },
         onUploaded: ({ file, path, sha }) => {
           toast.success(`Uploaded ${file.name}`);
           setUploading((prev) =>
@@ -105,15 +101,7 @@ export function UploadZone({
         },
       });
     },
-    [
-      octokit,
-      owner,
-      repo,
-      destination,
-      onUploadComplete,
-      uploadPolicy,
-      workspaceRoot,
-    ],
+    [transport, destination, onUploadComplete, uploadPolicy, workspaceRoot],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

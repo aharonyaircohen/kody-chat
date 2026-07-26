@@ -8,6 +8,7 @@
     "./logger": "./src/logger.ts",
     "./auth-headers": "./src/auth-headers.ts",
     "./github-contents-write": "./src/github-contents-write.ts",
+    "./github-tree-commit": "./src/github-tree-commit.ts",
     "./utils/ui": "./src/utils/ui.ts",
     "./constants": "./src/constants.ts",
     "./types": "./src/types.ts",

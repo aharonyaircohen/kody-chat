@@ -2,16 +2,29 @@
  * @fileType util
  * @domain files
  * @pattern files-transport
- * @ai-summary Pluggable read transport for the file-manager workspace.
- *   Default (no provider) is the GitHub Contents API via octokit props.
- *   A host page may supply a custom transport (e.g. database-backed
- *   virtual files) through FilesPage's `transport` prop; custom
- *   transports are read-only — all write UI stays disabled.
+ * @ai-summary Provider-neutral file workspace contract. Required read
+ *   operations establish the workspace; optional methods advertise write,
+ *   upload, delete, move, copy, and folder capabilities.
  */
 "use client";
 
 import { createContext, useContext } from "react";
 import type { FileContent, FileEntry } from "./repo-files";
+
+export interface FilePathMutation {
+  sourcePath: string;
+  sourceType: FileEntry["type"];
+  targetPath: string;
+}
+
+export interface FileWriteResult {
+  version?: string;
+}
+
+export interface FileWriteOptions {
+  /** null creates, a version updates, and undefined lets the provider resolve. */
+  expectedVersion?: string | null;
+}
 
 export interface FilesTransport {
   /**
@@ -27,9 +40,21 @@ export interface FilesTransport {
    * Optional write: create or replace a file. When absent the workspace
    * is read-only and all write UI stays hidden.
    */
-  writeFile?: (path: string, content: string) => Promise<void>;
+  writeFile?: (
+    path: string,
+    content: string,
+    options?: FileWriteOptions,
+  ) => Promise<FileWriteResult | void>;
   /** Optional delete. Only offered when defined. */
-  deleteFile?: (path: string) => Promise<void>;
+  deleteFile?: (path: string, type?: FileEntry["type"]) => Promise<void>;
+  /** Optional folder creation. */
+  createFolder?: (path: string) => Promise<FileWriteResult | void>;
+  /** Optional binary-safe upload. */
+  uploadFile?: (path: string, file: File) => Promise<FileWriteResult | void>;
+  /** Optional atomic move or rename. */
+  movePath?: (mutation: FilePathMutation) => Promise<void>;
+  /** Optional atomic copy. */
+  duplicatePath?: (mutation: FilePathMutation) => Promise<void>;
   /** Optional external link for the "Open on …" action. */
   externalUrl?: (path: string, type: FileEntry["type"]) => string | null;
 }
@@ -38,7 +63,7 @@ const FilesTransportContext = createContext<FilesTransport | null>(null);
 
 export const FilesTransportProvider = FilesTransportContext.Provider;
 
-/** The custom transport for this workspace, or null for GitHub default. */
+/** The active storage provider for this workspace. */
 export function useFilesTransport(): FilesTransport | null {
   return useContext(FilesTransportContext);
 }

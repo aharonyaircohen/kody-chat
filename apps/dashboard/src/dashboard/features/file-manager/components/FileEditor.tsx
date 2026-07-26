@@ -202,7 +202,10 @@ export function FileEditor({
     try {
       let nextSha = loadedSha;
       if (transport) {
-        await transport.writeFile!(path, content);
+        const result = await transport.writeFile!(path, content, {
+          expectedVersion: loadedSha,
+        });
+        nextSha = result?.version ?? loadedSha;
       } else {
         const result = await writeFile(
           octokit!,
