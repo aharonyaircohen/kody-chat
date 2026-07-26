@@ -9,7 +9,7 @@ const TODO_CONTROL_SOURCE = readFileSync(
 const MARKDOWN_PREVIEW_SOURCE = readFileSync(
   resolve(
     process.cwd(),
-    "../../packages/kody-chat-dashboard/src/dashboard/lib/components/MarkdownPreview.tsx",
+    "../../packages/base/src/markdown/MarkdownPreview.tsx",
   ),
   "utf8",
 );

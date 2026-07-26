@@ -34,6 +34,8 @@ async function installFileManagerHarness(
   options: {
     emptyRepository?: boolean;
     fileReadDelayMs?: number;
+    fileWriteDelayMs?: number;
+    treeMutationVisibilityDelayMs?: number;
     htmlPreview?: boolean;
     largeImage?: boolean;
     officePreview?: boolean;
@@ -94,6 +96,8 @@ async function installFileManagerHarness(
   const blobs = new Map<string, string>();
   const unhandledGitHubRequests: string[] = [];
   let pendingTree: GitTreeEntry[] = [];
+  let contentsSnapshotBeforeTreeMutation: Map<string, MockFile> | null = null;
+  let treeMutationVisibleAt = 0;
   let rootDirectoryReads = 0;
   let sequence = 1;
 
@@ -149,6 +153,13 @@ async function installFileManagerHarness(
       repo: REPO,
     }),
   );
+  await page.route("**/api/kody/cms", (route) =>
+    json(route, { cms: { configured: false, collections: [] } }),
+  );
+  await page.route("**/api/kody/navigation-favorites", (route) =>
+    json(route, { favoriteHrefs: [] }),
+  );
+  await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
   await page.route("**/api/kody/models", (route) =>
     json(route, { models: [] }),
   );
@@ -251,6 +262,7 @@ async function installFileManagerHarness(
       pathname === `${repoPrefix}/git/refs/heads/main` &&
       method === "PATCH"
     ) {
+      contentsSnapshotBeforeTreeMutation = new Map(files);
       for (const entry of pendingTree) {
         if (entry.sha === null) {
           files.delete(entry.path);
@@ -267,14 +279,27 @@ async function installFileManagerHarness(
         });
       }
       pendingTree = [];
+      treeMutationVisibleAt =
+        Date.now() + (options.treeMutationVisibilityDelayMs ?? 0);
       return json(route, { object: { sha: "head-2" } });
     }
 
     const contentsPrefix = `${repoPrefix}/contents`;
     if (pathname.startsWith(contentsPrefix)) {
       const path = pathname.slice(contentsPrefix.length).replace(/^\/+/, "");
+      const readableFiles =
+        method === "GET" &&
+        contentsSnapshotBeforeTreeMutation &&
+        Date.now() < treeMutationVisibleAt
+          ? contentsSnapshotBeforeTreeMutation
+          : files;
 
       if (method === "PUT") {
+        if (options.fileWriteDelayMs) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.fileWriteDelayMs),
+          );
+        }
         const body = request.postDataJSON() as { content: string };
         const sha = `content-${sequence++}`;
         files.set(path, {
@@ -296,13 +321,13 @@ async function installFileManagerHarness(
         });
       }
 
-      if (method === "GET" && files.has(path)) {
+      if (method === "GET" && readableFiles.has(path)) {
         if (options.fileReadDelayMs) {
           await new Promise((resolve) =>
             setTimeout(resolve, options.fileReadDelayMs),
           );
         }
-        const file = files.get(path)!;
+        const file = readableFiles.get(path)!;
         return json(route, {
           type: "file",
           name: path.split("/").pop(),
@@ -321,12 +346,16 @@ async function installFileManagerHarness(
 
       if (method === "GET") {
         if (path === "") rootDirectoryReads += 1;
-        if (options.emptyRepository && path === "" && files.size === 0) {
+        if (
+          options.emptyRepository &&
+          path === "" &&
+          readableFiles.size === 0
+        ) {
           return json(route, { message: "This repository is empty." }, 404);
         }
         const prefix = path ? `${path}/` : "";
         const entries = new Map<string, Record<string, unknown>>();
-        for (const [filePath, file] of files) {
+        for (const [filePath, file] of readableFiles) {
           if (!filePath.startsWith(prefix)) continue;
           const remainder = filePath.slice(prefix.length);
           const [name, ...nested] = remainder.split("/");
@@ -371,9 +400,22 @@ async function installFileManagerHarness(
 
 function collectRuntimeFailures(
   page: Page,
-  options: { emptyRepository?: boolean } = {},
+  options: {
+    emptyRepository?: boolean;
+    expectedMissingPaths?: string[];
+  } = {},
 ) {
   const failures: string[] = [];
+  const expectedMissingPaths = [
+    "e2e-workspace/renamed.txt",
+    ...(options.expectedMissingPaths ?? []),
+  ];
+  const isExpectedMissingPath = (value: string) => {
+    const decoded = decodeURIComponent(value);
+    return expectedMissingPaths.some((path) =>
+      decoded.includes(`/repos/${OWNER}/${REPO}/contents/${path}`),
+    );
+  };
   page.on("pageerror", (error) => failures.push(error.message));
   page.on("console", (message) => {
     const text = message.text();
@@ -385,9 +427,7 @@ function collectRuntimeFailures(
     if (
       message.type() === "error" &&
       !text.startsWith("Failed to load resource:") &&
-      !text.includes(
-        "/contents/e2e-workspace%2Frenamed.txt - 404 with id UNKNOWN",
-      ) &&
+      !isExpectedMissingPath(text) &&
       !isExpectedEmptyRepositoryResponse
     ) {
       failures.push(text);
@@ -407,10 +447,7 @@ function collectRuntimeFailures(
     if (response.status() < 400) return;
     const url = response.url();
     const isExpectedExistenceProbe =
-      response.status() === 404 &&
-      decodeURIComponent(url).includes(
-        `/repos/${OWNER}/${REPO}/contents/e2e-workspace/renamed.txt`,
-      );
+      response.status() === 404 && isExpectedMissingPath(url);
     const isExpectedEmptyRepositoryResponse =
       options.emptyRepository &&
       response.status() === 404 &&
@@ -526,6 +563,52 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByRole("treeitem", { name: "uploaded.txt 17 B" }),
     ).toBeVisible();
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("shows immediate progress while a dragged file is uploading", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { files, unhandledGitHubRequests } = await installFileManagerHarness(
+      page,
+      { fileWriteDelayMs: 2_000 },
+    );
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("treeitem", { name: "README.md 12 B" }),
+    ).toBeVisible();
+
+    await page.getByTestId("file-workspace-drop-target").evaluate((target) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        new File(["# Dragged\n"], "dragged.md", { type: "text/markdown" }),
+      );
+      for (const type of ["dragenter", "dragover", "drop"]) {
+        target.dispatchEvent(
+          new DragEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: transfer,
+          }),
+        );
+      }
+    });
+
+    await expect(
+      page.getByRole("status", { name: "Uploading dragged.md" }),
+    ).toBeVisible({ timeout: 500 });
+    await expect
+      .poll(() => files.get("dragged.md")?.content)
+      .toBe("# Dragged\n");
+    await expect(
+      page.getByRole("treeitem", { name: "dragged.md 10 B" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status", { name: "Uploading dragged.md" }),
+    ).toHaveCount(0);
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });
@@ -936,6 +1019,44 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByText("Choose what you want to work on"),
     ).toBeVisible();
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps a moved file visible while GitHub listings catch up", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page, {
+      expectedMissingPaths: ["docs/notes.md"],
+    });
+    const { files, unhandledGitHubRequests } = await installFileManagerHarness(
+      page,
+      {
+        treeMutationVisibilityDelayMs: 5_000,
+      },
+    );
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    const docsFolder = page.getByRole("treeitem", { name: "docs" });
+    await docsFolder.click();
+    await expect(
+      page.getByRole("treeitem", { name: "guide.md 8 B" }),
+    ).toBeVisible();
+
+    await page
+      .getByRole("treeitem", { name: "notes.md 16 B" })
+      .dragTo(docsFolder);
+    await expect.poll(() => files.has("docs/notes.md")).toBe(true);
+    await expect(files.has("notes.md")).toBe(false);
+
+    await expect(
+      page.getByRole("treeitem").filter({ hasText: "notes.md" }),
+    ).toBeVisible({ timeout: 1_000 });
+    await page.getByRole("button", { name: "Refresh files" }).click();
+    await expect(
+      page.getByRole("treeitem").filter({ hasText: "notes.md" }),
+    ).toBeVisible();
+
+    expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });
 

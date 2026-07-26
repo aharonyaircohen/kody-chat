@@ -27,6 +27,7 @@ import {
   FolderOpen,
   Search,
   Upload,
+  LoaderCircle,
   ChevronRight,
   PanelLeft,
   MoreHorizontal,
@@ -199,6 +200,7 @@ export function FilesPage({
   const [treeOverlay, setTreeOverlay] =
     useState<FileTreeOverlay>(emptyTreeOverlay);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const openRequestRef = useRef(0);
   const openedInitialPathRef = useRef<string | null>(null);
   const dragDepthRef = useRef(0);
@@ -520,6 +522,7 @@ export function FilesPage({
       const uploadList = Array.from(files).filter((file) => file.name);
       if (uploadList.length === 0) return;
 
+      setUploadingFiles((current) => [...current, ...uploadList]);
       const result = await uploadRepositoryFiles({
         files: uploadList,
         destinationDir: currentFolder,
@@ -539,6 +542,11 @@ export function FilesPage({
         },
         onRejected: ({ file, error }) =>
           toast.error(`Failed to upload ${file.name}: ${error}`),
+      }).finally(() => {
+        const completedFiles = new Set(uploadList);
+        setUploadingFiles((current) =>
+          current.filter((file) => !completedFiles.has(file)),
+        );
       });
 
       if (result.uploaded.length > 0) {
@@ -784,6 +792,9 @@ export function FilesPage({
       setOpeningPathType(pathType);
       setViewMode("viewer");
       removeTreePath(source);
+      upsertTreeEntry(treeEntryForPath(target, pathType));
+      upsertTreeAncestors(target, pathType);
+      deletedPathsRef.current.delete(target);
       toast.success(`Moved ${source} to ${target}`);
       handleRefresh();
       await openRepoPath(target, {
@@ -791,7 +802,14 @@ export function FilesPage({
       });
       return true;
     },
-    [activeTransport, removeTreePath, handleRefresh, openRepoPath],
+    [
+      activeTransport,
+      removeTreePath,
+      upsertTreeEntry,
+      upsertTreeAncestors,
+      handleRefresh,
+      openRepoPath,
+    ],
   );
 
   const handleConfirmMove = useCallback(async () => {
@@ -1224,12 +1242,9 @@ export function FilesPage({
 
   return (
     <FilesTransportProvider value={activeTransport ?? null}>
-      <FileWorkspaceShell
-        title={title}
-        subtitle={subtitle}
-        actions={actions}
-      >
+      <FileWorkspaceShell title={title} subtitle={subtitle} actions={actions}>
         <div
+          data-testid="file-workspace-drop-target"
           className="relative flex h-full"
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
@@ -1342,6 +1357,26 @@ export function FilesPage({
                   {currentFolder ? `/${currentFolder}` : "/"}
                 </p>
               </div>
+            </div>
+          ) : null}
+
+          {uploadingFiles.length > 0 ? (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label={
+                uploadingFiles.length === 1
+                  ? `Uploading ${uploadingFiles[0].name}`
+                  : `Uploading ${uploadingFiles.length} files`
+              }
+              className="absolute bottom-4 right-4 z-40 flex max-w-xs items-center gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-lg"
+            >
+              <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary" />
+              <span className="truncate font-medium">
+                {uploadingFiles.length === 1
+                  ? `Uploading ${uploadingFiles[0].name}`
+                  : `Uploading ${uploadingFiles.length} files`}
+              </span>
             </div>
           ) : null}
         </div>
