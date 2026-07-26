@@ -36,7 +36,7 @@ export function RepositoryFileSpace({
       newFileNameOnly
       showSearch={false}
       uploadPolicy={MARKDOWN_FILE_UPLOAD_POLICY}
-      defaultMarkdownViewMode="preview"
+      defaultFileMode="view"
     />
   );
 }

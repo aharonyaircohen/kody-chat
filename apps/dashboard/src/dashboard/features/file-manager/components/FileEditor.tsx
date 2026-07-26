@@ -3,8 +3,7 @@
  * @domain files
  * @pattern file-editor
  * @ai-summary Editable Monaco Editor for the /files page. Supports
- *   read-only / edit mode, unsaved changes indicator, Ctrl+S save, and
- *   Markdown preview/split modes.
+ *   view / edit mode, unsaved changes indicator, and Ctrl+S save.
  */
 "use client";
 
@@ -17,7 +16,6 @@ import {
   Loader2,
   Eye,
   Edit3,
-  Columns,
   FileText,
   PanelLeft,
 } from "lucide-react";
@@ -51,7 +49,7 @@ const MonacoEditor = dynamic(
   },
 ) as React.ComponentType<EditorProps>;
 
-export type FileEditorViewMode = "edit" | "preview" | "split";
+export type FileEditorMode = "edit" | "view";
 
 interface FileEditorProps {
   path: string;
@@ -60,7 +58,7 @@ interface FileEditorProps {
   owner: string;
   repo: string;
   onShowFilePanel?: () => void;
-  defaultMarkdownViewMode?: FileEditorViewMode;
+  defaultMode?: FileEditorMode;
 }
 
 export function FileEditor({
@@ -70,7 +68,7 @@ export function FileEditor({
   owner,
   repo,
   onShowFilePanel,
-  defaultMarkdownViewMode = "edit",
+  defaultMode = "edit",
 }: FileEditorProps) {
   const { theme } = useTheme();
   const [originalContent, setOriginalContent] = useState<string>("");
@@ -78,9 +76,7 @@ export function FileEditor({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<FileEditorViewMode>(
-    defaultMarkdownViewMode,
-  );
+  const [mode, setMode] = useState<FileEditorMode>(defaultMode);
   const [isDirty, setIsDirty] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [loadedSha, setLoadedSha] = useState(sha);
@@ -89,6 +85,7 @@ export function FileEditor({
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const isHtml = isHtmlFile(path);
+  const supportsView = isMarkdown || isHtml;
   const draftStorageKey = useMemo(
     () => fileDraftStorageKey(owner, repo, path),
     [owner, repo, path],
@@ -151,8 +148,8 @@ export function FileEditor({
   }, [transport, octokit, owner, repo, path, draftStorageKey, requestGuard]);
 
   useEffect(() => {
-    setViewMode(isHtml ? defaultMarkdownViewMode : "edit");
-  }, [defaultMarkdownViewMode, isHtml, path]);
+    setMode(supportsView ? defaultMode : "edit");
+  }, [defaultMode, path, supportsView]);
 
   // Track dirty state
   useEffect(() => {
@@ -305,21 +302,21 @@ export function FileEditor({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isHtml && (
+          {supportsView ? (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <Button
                 variant="ghost"
                 size="clear"
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg",
-                  viewMode === "edit"
+                  mode === "edit"
                     ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
                     : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
-                onClick={() => setViewMode("edit")}
+                onClick={() => setMode("edit")}
                 title="Edit mode"
                 aria-label="Edit mode"
-                aria-pressed={viewMode === "edit"}
+                aria-pressed={mode === "edit"}
               >
                 <Edit3 className="h-4 w-4" />
               </Button>
@@ -328,35 +325,19 @@ export function FileEditor({
                 size="clear"
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg",
-                  viewMode === "preview"
+                  mode === "view"
                     ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
                     : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
-                onClick={() => setViewMode("preview")}
-                title="Preview mode"
-                aria-label="Preview mode"
-                aria-pressed={viewMode === "preview"}
+                onClick={() => setMode("view")}
+                title="View mode"
+                aria-label="View mode"
+                aria-pressed={mode === "view"}
               >
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="clear"
-                className={cn(
-                  "grid h-8 w-8 place-items-center rounded-lg",
-                  viewMode === "split"
-                    ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
-                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
-                )}
-                onClick={() => setViewMode("split")}
-                title="Split mode"
-                aria-label="Split mode"
-                aria-pressed={viewMode === "split"}
-              >
-                <Columns className="h-4 w-4" />
-              </Button>
             </div>
-          )}
+          ) : null}
 
           {isDirty ? (
             <Button
@@ -407,23 +388,16 @@ export function FileEditor({
             key={path}
             value={content}
             onChange={setContent}
-            defaultMode={
-              defaultMarkdownViewMode === "edit"
-                ? "write"
-                : defaultMarkdownViewMode
-            }
+            mode={mode === "edit" ? "write" : "preview"}
+            showModeControls={false}
+            showToolbar={mode === "edit"}
             fillHeight
             textareaAriaLabel="Editor content"
             className="min-h-0 flex-1 rounded-xl border border-border bg-card p-3 shadow-sm"
             textareaClassName="w-full"
           />
-        ) : viewMode === "edit" || viewMode === "split" ? (
-          <div
-            className={cn(
-              "min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card shadow-sm",
-              viewMode === "split" && "w-1/2 rounded-r-none",
-            )}
-          >
+        ) : mode === "edit" ? (
+          <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <MonacoEditor
               height="100%"
               language={monacoLanguage(path)}
@@ -448,19 +422,9 @@ export function FileEditor({
           </div>
         ) : null}
 
-        {viewMode === "preview" && isHtml ? (
+        {mode === "view" && isHtml ? (
           <HtmlPreview
             className="min-h-0 flex-1 rounded-xl border border-border"
-            content={content}
-            fileName={fileName}
-          />
-        ) : null}
-
-        {viewMode === "split" && isHtml ? <div className="w-2" /> : null}
-
-        {viewMode === "split" && isHtml ? (
-          <HtmlPreview
-            className="min-h-0 w-1/2 rounded-r-xl border border-border"
             content={content}
             fileName={fileName}
           />

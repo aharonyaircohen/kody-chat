@@ -60,7 +60,11 @@ interface MarkdownEditorProps {
   onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
   /** Optional override for preview empty-state message */
   emptyPreview?: string;
+  mode?: MarkdownEditorMode;
   defaultMode?: MarkdownEditorMode;
+  onModeChange?: (mode: MarkdownEditorMode) => void;
+  showModeControls?: boolean;
+  showToolbar?: boolean;
   fillHeight?: boolean;
   textareaAriaLabel?: string;
 }
@@ -82,13 +86,26 @@ export function MarkdownEditor({
   onClick,
   onBlur,
   emptyPreview = "*Nothing to preview*",
+  mode: controlledMode,
   defaultMode = "write",
+  onModeChange,
+  showModeControls = true,
+  showToolbar = true,
   fillHeight = false,
   textareaAriaLabel,
 }: MarkdownEditorProps) {
-  const [mode, setMode] = useState<MarkdownEditorMode>(defaultMode);
+  const [internalMode, setInternalMode] =
+    useState<MarkdownEditorMode>(defaultMode);
+  const mode = controlledMode ?? internalMode;
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const setMode = useCallback(
+    (nextMode: MarkdownEditorMode) => {
+      if (controlledMode === undefined) setInternalMode(nextMode);
+      onModeChange?.(nextMode);
+    },
+    [controlledMode, onModeChange],
+  );
   const setTextareaNode = useCallback(
     (node: HTMLTextAreaElement | null) => {
       textareaRef.current = node;
@@ -230,176 +247,191 @@ export function MarkdownEditor({
         className,
       )}
     >
-      <div className="flex items-center flex-wrap gap-1 border border-border rounded-md p-1.5 bg-muted/30">
-        <ToolbarButton
-          title="Undo"
-          onClick={() => runTextareaCommand("undo")}
-          disabled={disabled}
-        >
-          <Undo2 className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Redo"
-          onClick={() => runTextareaCommand("redo")}
-          disabled={disabled}
-        >
-          <Redo2 className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarDivider />
-
-        <ToolbarButton
-          title="Bold"
-          onClick={() => insertInline("**", "**", "bold")}
-          disabled={disabled}
-        >
-          <Bold className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Italic"
-          onClick={() => insertInline("*", "*", "italic")}
-          disabled={disabled}
-        >
-          <Italic className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Inline code"
-          onClick={() => insertInline("`", "`", "code")}
-          disabled={disabled}
-        >
-          <Code className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Link"
-          onClick={() => insertInline("[", "](url)", "link")}
-          disabled={disabled}
-        >
-          <Link2 className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarDivider />
-
-        <ToolbarButton
-          title="Heading"
-          onClick={() => insertAtLineStart("## ")}
-          disabled={disabled}
-        >
-          <Heading className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Quote"
-          onClick={() => insertAtLineStart("> ")}
-          disabled={disabled}
-        >
-          <Quote className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="List"
-          onClick={() => insertAtLineStart("- ")}
-          disabled={disabled}
-        >
-          <List className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Checklist"
-          onClick={() => insertAtLineStart("- [ ] ")}
-          disabled={disabled}
-        >
-          <ListChecks className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarDivider />
-
-        <ToolbarButton
-          title="Code block"
-          onClick={() => insertBlock("```ts\n\n```", "```ts\n".length)}
-          disabled={disabled}
-        >
-          <Braces className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Mermaid diagram"
-          onClick={() =>
-            insertBlock(
-              "```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```",
-              "```mermaid\n".length,
-            )
-          }
-          disabled={disabled}
-        >
-          <Workflow className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Callout"
-          onClick={() => insertBlock("> [!NOTE]\n> ", "> [!NOTE]\n> ".length)}
-          disabled={disabled}
-        >
-          <AlertTriangle className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          title="Table"
-          onClick={() =>
-            insertBlock(
-              "| Name | Value |\n| --- | --- |\n| Item | Detail |",
-              "| Name | Value |\n| --- | --- |\n| ".length,
-            )
-          }
-          disabled={disabled}
-        >
-          <Table2 className="w-4 h-4" />
-        </ToolbarButton>
-
-        <div className="relative">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className="h-9 w-9 p-0 text-body-sm"
-            title="Emoji"
+      {showToolbar ? (
+        <div className="flex items-center flex-wrap gap-1 border border-border rounded-md p-1.5 bg-muted/30">
+          <ToolbarButton
+            title="Undo"
+            onClick={() => runTextareaCommand("undo")}
             disabled={disabled}
           >
-            😊
-          </Button>
+            <Undo2 className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Redo"
+            onClick={() => runTextareaCommand("redo")}
+            disabled={disabled}
+          >
+            <Redo2 className="w-4 h-4" />
+          </ToolbarButton>
 
-          {showEmojiPicker ? (
-            <div className="absolute z-20 top-full left-0 mt-1 w-56 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover p-2 grid grid-cols-6 gap-1">
-              {EMOJI_LIST.slice(0, 60).map((emoji, index) => (
-                <Button
-                  key={index}
-                  type="button"
-                  variant="ghost"
-                  size="clear"
-                  onClick={() => insertEmoji(emoji)}
-                  className="p-1 hover:bg-accent rounded text-lg"
-                >
-                  {emoji}
-                </Button>
-              ))}
-            </div>
+          <ToolbarDivider />
+
+          <ToolbarButton
+            title="Bold"
+            onClick={() => insertInline("**", "**", "bold")}
+            disabled={disabled}
+          >
+            <Bold className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Italic"
+            onClick={() => insertInline("*", "*", "italic")}
+            disabled={disabled}
+          >
+            <Italic className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Inline code"
+            onClick={() => insertInline("`", "`", "code")}
+            disabled={disabled}
+          >
+            <Code className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Link"
+            onClick={() => insertInline("[", "](url)", "link")}
+            disabled={disabled}
+          >
+            <Link2 className="w-4 h-4" />
+          </ToolbarButton>
+
+          <ToolbarDivider />
+
+          <ToolbarButton
+            title="Heading"
+            onClick={() => insertAtLineStart("## ")}
+            disabled={disabled}
+          >
+            <Heading className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Quote"
+            onClick={() => insertAtLineStart("> ")}
+            disabled={disabled}
+          >
+            <Quote className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="List"
+            onClick={() => insertAtLineStart("- ")}
+            disabled={disabled}
+          >
+            <List className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Checklist"
+            onClick={() => insertAtLineStart("- [ ] ")}
+            disabled={disabled}
+          >
+            <ListChecks className="w-4 h-4" />
+          </ToolbarButton>
+
+          <ToolbarDivider />
+
+          <ToolbarButton
+            title="Code block"
+            onClick={() => insertBlock("```ts\n\n```", "```ts\n".length)}
+            disabled={disabled}
+          >
+            <Braces className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Mermaid diagram"
+            onClick={() =>
+              insertBlock(
+                "```mermaid\ngraph TD\n  A[Start] --> B[Done]\n```",
+                "```mermaid\n".length,
+              )
+            }
+            disabled={disabled}
+          >
+            <Workflow className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Callout"
+            onClick={() => insertBlock("> [!NOTE]\n> ", "> [!NOTE]\n> ".length)}
+            disabled={disabled}
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            title="Table"
+            onClick={() =>
+              insertBlock(
+                "| Name | Value |\n| --- | --- |\n| Item | Detail |",
+                "| Name | Value |\n| --- | --- |\n| ".length,
+              )
+            }
+            disabled={disabled}
+          >
+            <Table2 className="w-4 h-4" />
+          </ToolbarButton>
+
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowEmojiPicker((prev) => !prev)}
+              className="h-9 w-9 p-0 text-body-sm"
+              title="Emoji"
+              disabled={disabled}
+            >
+              😊
+            </Button>
+
+            {showEmojiPicker ? (
+              <div className="absolute z-20 top-full left-0 mt-1 w-56 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover p-2 grid grid-cols-6 gap-1">
+                {EMOJI_LIST.slice(0, 60).map((emoji, index) => (
+                  <Button
+                    key={index}
+                    type="button"
+                    variant="ghost"
+                    size="clear"
+                    onClick={() => insertEmoji(emoji)}
+                    className="p-1 hover:bg-accent rounded text-lg"
+                  >
+                    {emoji}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {showModeControls ? (
+            <>
+              <ToolbarDivider />
+              <ModeButton
+                mode={mode}
+                target="write"
+                onClick={setMode}
+                title="Write"
+              >
+                <Edit3 className="w-4 h-4" />
+              </ModeButton>
+              <ModeButton
+                mode={mode}
+                target="preview"
+                onClick={setMode}
+                title="Preview"
+              >
+                <Eye className="w-4 h-4" />
+              </ModeButton>
+              <ModeButton
+                mode={mode}
+                target="split"
+                onClick={setMode}
+                title="Split"
+              >
+                <Columns2 className="w-4 h-4" />
+              </ModeButton>
+            </>
           ) : null}
+          <span className="ml-auto px-2 text-body-xs tabular-nums text-muted-foreground">
+            {value.length}
+          </span>
         </div>
-
-        <ToolbarDivider />
-
-        <ModeButton mode={mode} target="write" onClick={setMode} title="Write">
-          <Edit3 className="w-4 h-4" />
-        </ModeButton>
-        <ModeButton
-          mode={mode}
-          target="preview"
-          onClick={setMode}
-          title="Preview"
-        >
-          <Eye className="w-4 h-4" />
-        </ModeButton>
-        <ModeButton mode={mode} target="split" onClick={setMode} title="Split">
-          <Columns2 className="w-4 h-4" />
-        </ModeButton>
-        <span className="ml-auto px-2 text-body-xs tabular-nums text-muted-foreground">
-          {value.length}
-        </span>
-      </div>
+      ) : null}
 
       {mode === "preview" ? preview : null}
       {mode === "write" ? editor : null}

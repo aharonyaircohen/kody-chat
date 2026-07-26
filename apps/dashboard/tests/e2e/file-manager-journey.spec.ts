@@ -646,7 +646,7 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByRole("textbox", { name: "Editor content" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Preview mode" }).click();
+    await page.getByRole("button", { name: "View mode" }).click();
 
     const preview = page.frameLocator(
       'iframe[title="Preview of preview.html"]',
@@ -708,7 +708,7 @@ test.describe("repository file manager", () => {
       page.getByRole("textbox", { name: "Editor content" }),
     ).toBeVisible();
     await expect(page).toHaveURL(`${REPO_ROUTE}/lesson%20page.html`);
-    await page.getByRole("button", { name: "Preview mode" }).click();
+    await page.getByRole("button", { name: "View mode" }).click();
 
     const preview = page.frameLocator(
       'iframe[title="Preview of lesson page.html"]',
@@ -829,9 +829,9 @@ test.describe("repository file manager", () => {
       page.getByRole("button", { name: "Edit mode" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("button", { name: "View mode" })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Split mode" }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Split mode" })).toHaveCount(
+      0,
+    );
     const editor = page.getByRole("textbox", { name: "Editor content" });
     await editor.click({ force: true });
     await editor.press("ControlOrMeta+A");

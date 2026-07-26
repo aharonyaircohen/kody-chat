@@ -251,7 +251,7 @@ export function AgentGuidanceFilesView({
         newFileNameOnly
         showSearch={false}
         showUpload={false}
-        defaultMarkdownViewMode="edit"
+        defaultFileMode="edit"
       />
     </AuthGuard>
   );

@@ -167,7 +167,7 @@ export function ReportsFilesView({
         headerActions={(ctx) => headerActions(ctx)}
         showSearch={false}
         showUpload={false}
-        defaultMarkdownViewMode="preview"
+        defaultFileMode="view"
       />
 
       <CreateTaskDialog

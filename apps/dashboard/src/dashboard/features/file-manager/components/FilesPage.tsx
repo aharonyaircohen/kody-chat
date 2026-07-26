@@ -64,7 +64,7 @@ import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
 import { FileLoadingState } from "./FileLoadingState";
 import { FileEditor } from "./FileEditor";
-import type { FileEditorViewMode } from "./FileEditor";
+import type { FileEditorMode } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
 import { FileSearch } from "./FileSearch";
 import { UploadZone } from "./UploadZone";
@@ -134,7 +134,7 @@ interface FilesPageProps {
   showSearch?: boolean;
   showUpload?: boolean;
   uploadPolicy?: FileUploadPolicy;
-  defaultMarkdownViewMode?: FileEditorViewMode;
+  defaultFileMode?: FileEditorMode;
   /**
    * Storage provider for this workspace. Each optional method enables its
    * matching capability. When omitted, the connected GitHub repository is
@@ -162,7 +162,7 @@ export function FilesPage({
   showSearch = true,
   showUpload = true,
   uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
-  defaultMarkdownViewMode = "edit",
+  defaultFileMode = "edit",
   transport,
   headerActions,
 }: FilesPageProps) {
@@ -1005,7 +1005,7 @@ export function FilesPage({
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }
-          defaultMarkdownViewMode={defaultMarkdownViewMode}
+          defaultMode={defaultFileMode}
         />
       );
     }

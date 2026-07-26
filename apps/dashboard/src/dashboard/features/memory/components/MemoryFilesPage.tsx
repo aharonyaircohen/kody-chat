@@ -268,7 +268,7 @@ export function MemoryFilesPage({
         headerActions={memoryActions}
         showSearch={false}
         showUpload={false}
-        defaultMarkdownViewMode="preview"
+        defaultFileMode="view"
       />
 
       <MemoryFormDialog

@@ -40,7 +40,7 @@ describe("file workspace themes", () => {
     expect(source).toContain('contentClassName="!p-0"');
   });
 
-  it("shows compact editor actions only when they can do something", () => {
+  it("keeps file mode controls in the header without split mode", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
@@ -52,11 +52,10 @@ describe("file workspace themes", () => {
     expect(source).toContain('aria-label="Save changes"');
     expect(source).toContain('title="Discard unsaved changes"');
     expect(source).toContain('aria-label="Edit mode"');
-    expect(source).toContain('aria-label="Preview mode"');
-    expect(source).toContain('aria-label="Split mode"');
+    expect(source).toContain('aria-label="View mode"');
+    expect(source).not.toContain('aria-label="Split mode"');
     expect(source).not.toMatch(/<Edit3[^>]*\/>\s*Edit/);
-    expect(source).not.toMatch(/<Eye[^>]*\/>\s*Preview/);
-    expect(source).not.toMatch(/<Columns[^>]*\/>\s*Split/);
+    expect(source).not.toMatch(/<Eye[^>]*\/>\s*View/);
     expect(source).toContain("{isDirty ? (");
     expect(source).not.toContain("Close");
   });
