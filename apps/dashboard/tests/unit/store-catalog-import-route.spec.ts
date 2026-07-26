@@ -30,4 +30,10 @@ describe("simple Store activation", () => {
     expect(source).toContain("saveStoreWorkflowProjection");
     expect(source).not.toMatch(/if \(!changed\) \{\s*return/);
   });
+
+  it("publishes executable Store definitions for Engine hydration", () => {
+    expect(source).toContain("publishStoreExecutionDefinitions");
+    expect(source).toContain("backendApi.definitions.publish");
+    expect(source).toContain("backendApi.definitions.retire");
+  });
 });

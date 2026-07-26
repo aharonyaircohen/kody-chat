@@ -16,6 +16,11 @@ import {
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import {
+  companyStoreAssetPath,
+  listCompanyStoreDirectorySafe,
+  readCompanyStoreText,
+} from "@kody-ade/base/company-store/assets";
+import {
   getEngineConfig,
   writeConfigPatch,
   type ConfigPatch,
@@ -37,6 +42,7 @@ import {
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
 import { saveProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
+import { publishStoreExecutionDefinitions } from "@dashboard/lib/store-definition-activation";
 import {
   deleteRepositoryLoop,
   readRepositoryLoop,
@@ -145,6 +151,98 @@ async function readStoreWorkflow(
   return record?.workflow ?? null;
 }
 
+async function readStoreTree(
+  octokit: Octokit,
+  root: string,
+  relative = "",
+  files: Record<string, string> = {},
+): Promise<Record<string, string>> {
+  for (const entry of await listCompanyStoreDirectorySafe(octokit, root)) {
+    const path = `${root}/${entry.name}`;
+    const filePath = relative ? `${relative}/${entry.name}` : entry.name;
+    if (entry.type === "dir") {
+      await readStoreTree(octokit, path, filePath, files);
+    } else if (entry.type === "file") {
+      const content = await readCompanyStoreText(octokit, path);
+      if (content !== null) files[filePath] = content;
+    }
+  }
+  return files;
+}
+
+async function publishStoreDefinitions(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  agentSlugs: readonly string[],
+  capabilitySlugs: readonly string[],
+): Promise<void> {
+  if (agentSlugs.length === 0 && capabilitySlugs.length === 0) return;
+
+  const [agentEntries, capabilityEntries, shared] = await Promise.all([
+    Promise.all(
+      agentSlugs.map(async (slug) => {
+        const path = await companyStoreAssetPath(
+          octokit,
+          "agents",
+          `${slug}.md`,
+        );
+        const raw = await readCompanyStoreText(octokit, path);
+        if (raw === null) {
+          throw Object.assign(new Error(`Store Agent "${slug}" not found.`), {
+            status: 404,
+          });
+        }
+        return [slug, raw] as const;
+      }),
+    ),
+    Promise.all(
+      capabilitySlugs.map(async (slug) => {
+        const files = await readCompanyStoreCapabilityFolderFiles(
+          slug,
+          octokit,
+        );
+        if (!files) {
+          throw Object.assign(
+            new Error(`Store Capability "${slug}" not found.`),
+            { status: 404 },
+          );
+        }
+        return [slug, files] as const;
+      }),
+    ),
+    capabilitySlugs.length === 0
+      ? Promise.resolve({})
+      : companyStoreAssetPath(octokit, "shared").then((root) =>
+          readStoreTree(octokit, root),
+        ),
+  ]);
+
+  const client = createBackendClient();
+  await publishStoreExecutionDefinitions({
+    tenantId: `${owner}/${repo}`,
+    agents: Object.fromEntries(agentEntries),
+    capabilities: Object.fromEntries(capabilityEntries),
+    shared,
+    createdAt: new Date().toISOString(),
+    publish: (definition) =>
+      client.mutation(backendApi.definitions.publish, definition),
+  });
+}
+
+async function retireStoreDefinition(
+  owner: string,
+  repo: string,
+  kind: "agent" | "capability",
+  slug: string,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.definitions.retire, {
+    tenantId: `${owner}/${repo}`,
+    kind,
+    slug,
+  });
+}
+
 async function assertExists(
   octokit: Octokit,
   kind: ImportKind,
@@ -238,6 +336,26 @@ async function activate(
   });
   const company = config.company;
   const patch: ConfigPatch = {};
+  const agentSlugs =
+    kind === "workflow" && workflow
+      ? [(workflow as WorkflowDefinition).agent]
+      : kind === "agent"
+        ? [slug]
+        : [];
+  const capabilitySlugs =
+    kind === "workflow" && workflow
+      ? (workflow as WorkflowDefinition).capabilities
+      : kind === "capability"
+        ? [slug]
+        : [];
+
+  await publishStoreDefinitions(
+    octokit,
+    owner,
+    repo,
+    agentSlugs,
+    capabilitySlugs,
+  );
 
   if (kind === "workflow" && workflow) {
     const workflowDefinition = workflow as WorkflowDefinition;
@@ -321,6 +439,8 @@ async function deactivate(
     await saveProjectedEngineConfig(owner, repo, config, sha);
     if (kind === "workflow") {
       await removeStoreWorkflowProjection(owner, repo, slug);
+    } else if (kind === "agent" || kind === "capability") {
+      await retireStoreDefinition(owner, repo, kind, slug);
     }
     return { removed: false, status: "already_missing" as const };
   }
@@ -352,6 +472,8 @@ async function deactivate(
   );
   if (kind === "workflow") {
     await removeStoreWorkflowProjection(owner, repo, slug);
+  } else if (kind === "agent" || kind === "capability") {
+    await retireStoreDefinition(owner, repo, kind, slug);
   }
   return { removed: true, status: "removed" as const };
 }
