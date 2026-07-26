@@ -578,8 +578,10 @@ export function WorkflowGraphCanvas({
         </span>
         <span className="font-mono">
           {capabilityCount} steps
-          {decisionCount > 0 ? ` · ${decisionCount} decisions` : ""} ·{" "}
-          {graph.edges.length} paths
+          {decisionCount > 0
+            ? ` · ${decisionCount} decision${decisionCount === 1 ? "" : "s"}`
+            : ""}{" "}
+          · {graph.edges.length} paths
         </span>
       </div>
       <div
