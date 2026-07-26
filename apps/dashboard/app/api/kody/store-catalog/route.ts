@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   setGitHubContext(
     auth.owner,
     auth.repo,
-    undefined,
+    auth.token,
     auth.storeRepoUrl,
     auth.storeRef,
   );
@@ -94,18 +94,13 @@ export async function GET(req: NextRequest) {
       await Promise.all(
         workflowSlugs
           .filter((slug) => active.workflow.has(slug))
-          .map((slug) =>
-            readCompanyStoreWorkflowDefinitionFile(slug, octokit),
-          ),
+          .map((slug) => readCompanyStoreWorkflowDefinitionFile(slug, octokit)),
       )
     ).filter((workflow) => workflow !== null);
 
     const workflowBlockers = (agent: string) =>
       activeWorkflows
-        .filter(
-          (item) =>
-            item.workflow.agent === agent,
-        )
+        .filter((item) => item.workflow.agent === agent)
         .map((item) => ({
           kind: "workflow" as const,
           slug: item.id,

@@ -26,8 +26,12 @@ describe("simple Store catalog", () => {
     expect(source).not.toContain("listStoreCommandFiles");
     expect(source).not.toContain("listCompanyStoreWorkflowDefinitionFiles");
     expect(source).not.toContain("listStoreLoops");
-    expect(source).toContain(
-      ".filter((slug) => active.workflow.has(slug))",
+    expect(source).toContain(".filter((slug) => active.workflow.has(slug))");
+  });
+
+  it("uses the authenticated repository token for Store reads", () => {
+    expect(source).toMatch(
+      /setGitHubContext\(\s*auth\.owner,\s*auth\.repo,\s*auth\.token,/,
     );
   });
 });
