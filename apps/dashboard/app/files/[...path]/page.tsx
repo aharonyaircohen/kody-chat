@@ -5,7 +5,7 @@
  * @ai-summary Files page entry point for deep links like /files/src/app.tsx.
  */
 import type { Metadata } from "next";
-import { FilesPage } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +22,5 @@ export default async function FilesPathRoute({
   params: Promise<{ path: string[] }>;
 }) {
   const { path } = await params;
-  return <FilesPage initialPath={path.join("/")} />;
+  return <DashboardFilesPage initialPath={path.join("/")} />;
 }

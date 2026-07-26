@@ -17,10 +17,10 @@ import { useRunCapability } from "@dashboard/lib/hooks/useCapabilities";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 
 export interface CapabilityQueryScope {
   owner?: string | null;
@@ -299,7 +299,7 @@ export function CapabilitiesWorkspace({
   ]);
 
   return (
-    <FilesPage
+    <DashboardFilesPage
       title="Capabilities"
       routeBase={`${basePath}/files`}
       initialPath={initialPath}

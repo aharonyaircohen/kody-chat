@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import FlyfishFileViewer, {
   type ViewerState,
 } from "@file-viewer/react";
-import { useTheme } from "@dashboard/providers/Theme";
+import { useFileManagerColorScheme } from "../lib/color-scheme";
 import { flyfishRenderer } from "../lib/flyfish-preview-adapter";
 import type { AdvancedFileRenderer } from "../lib/advanced-file-preview";
 import { createFilePreviewFile } from "../lib/file-preview-source";
@@ -20,7 +20,7 @@ export function AdvancedFilePreview({
   fileName,
   renderer,
 }: AdvancedFilePreviewProps) {
-  const { theme } = useTheme();
+  const theme = useFileManagerColorScheme();
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );

@@ -8,11 +8,13 @@ export interface FileDraft {
 export type NewFileDraft = Omit<FileDraft, "version">;
 
 export function fileDraftStorageKey(
-  owner: string,
-  repo: string,
+  workspaceKey: string,
   path: string,
 ): string {
-  return `kody:file-draft:${owner}/${repo}/${path}`;
+  const stableWorkspaceKey = workspaceKey.startsWith("github:")
+    ? workspaceKey.slice("github:".length)
+    : workspaceKey;
+  return `kody:file-draft:${stableWorkspaceKey}/${path}`;
 }
 
 export function serializeFileDraft(draft: NewFileDraft): string {

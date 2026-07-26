@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { cn } from "@dashboard/lib/utils";
-import { FILE_HTML_PREVIEW_SANDBOX } from "@dashboard/lib/html-preview-security";
+import { cn } from "@kody-ade/base/utils/ui";
+import { FILE_HTML_PREVIEW_SANDBOX } from "../lib/html-preview-security";
 import { htmlPreviewDocument } from "../lib/html-preview";
 
 interface HtmlPreviewProps {

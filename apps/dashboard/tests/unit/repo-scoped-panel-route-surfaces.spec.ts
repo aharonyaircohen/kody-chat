@@ -117,9 +117,8 @@ describe("repo-scoped panel route surfaces", () => {
   it("uses scoped imperative navigation for selection reset routes", () => {
     for (const file of [
       "AgentsControl.tsx",
-      // DocsView is now a thin wrapper around the file-manager FilesPage,
-      // which owns the repo-scoped navigation.
-      "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      // DashboardFilesPage owns host routing; the File Manager stays agnostic.
+      "src/dashboard/features/file-spaces/DashboardFilesPage.tsx",
       "PreviewWorkspace.tsx",
       "MessagesView.tsx",
       "TodoControl.tsx",

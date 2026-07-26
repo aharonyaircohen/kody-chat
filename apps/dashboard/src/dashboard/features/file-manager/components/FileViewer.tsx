@@ -22,17 +22,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "@kody-ade/base/utils/ui";
 import { monacoLanguage } from "../lib/repo-files-lang";
-import { readFile } from "../lib/repo-files";
 import { useFilesTransport } from "../lib/transport";
-import type { Octokit } from "@octokit/rest";
-import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+import { MarkdownPreview } from "@kody-ade/base/markdown/MarkdownPreview";
 import {
   autoDirProps,
   rtlAwareMarkdownClassName,
-} from "@dashboard/lib/text-direction";
-import { useTheme } from "@dashboard/providers/Theme";
+} from "../lib/text-direction";
+import { useFileManagerColorScheme } from "../lib/color-scheme";
 import { createLatestRequestGuard } from "../lib/latest-request";
 import { filePreview } from "../lib/file-preview";
 import {
@@ -70,9 +68,6 @@ const AdvancedFilePreview = dynamic(
 interface FileViewerProps {
   path: string;
   sha: string;
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onViewDiff?: () => void;
   onShowFilePanel?: () => void;
 }
@@ -88,13 +83,10 @@ function formatBytes(bytes: number): string {
 export function FileViewer({
   path,
   sha,
-  octokit,
-  owner,
-  repo,
   onViewDiff,
   onShowFilePanel,
 }: FileViewerProps) {
-  const { theme } = useTheme();
+  const theme = useFileManagerColorScheme();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +98,7 @@ export function FileViewer({
   const transport = useFilesTransport();
 
   const loadContent = useCallback(async () => {
-    if ((!transport && !octokit) || !path) return;
+    if (!transport || !path) return;
     const requestId = requestGuard.next();
     setLoading(true);
     setError(null);
@@ -115,9 +107,7 @@ export function FileViewer({
     setIsBinary(false);
     setFileSize(0);
     try {
-      const file = transport
-        ? await transport.readFile(path)
-        : await readFile(octokit!, owner, repo, path);
+      const file = await transport.readFile(path);
       if (!requestGuard.isCurrent(requestId)) return;
       if (!file) {
         setError("File not found");
@@ -133,7 +123,7 @@ export function FileViewer({
     } finally {
       if (requestGuard.isCurrent(requestId)) setLoading(false);
     }
-  }, [transport, octokit, owner, repo, path, requestGuard]);
+  }, [transport, path, requestGuard]);
 
   useEffect(() => {
     void loadContent();

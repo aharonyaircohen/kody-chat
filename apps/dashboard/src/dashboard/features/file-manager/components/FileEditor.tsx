@@ -21,13 +21,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "@kody-ade/base/utils/ui";
 import { monacoLanguage } from "../lib/repo-files-lang";
-import { readFile, writeFile } from "../lib/repo-files";
 import { useFilesTransport } from "../lib/transport";
-import type { Octokit } from "@octokit/rest";
-import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
-import { useTheme } from "@dashboard/providers/Theme";
+import { MarkdownEditor } from "@kody-ade/base/markdown/MarkdownEditor";
+import { useFileManagerColorScheme } from "../lib/color-scheme";
 import { createLatestRequestGuard } from "../lib/latest-request";
 import {
   fileDraftStorageKey,
@@ -54,9 +52,6 @@ export type FileEditorMode = "edit" | "view";
 interface FileEditorProps {
   path: string;
   sha: string;
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onShowFilePanel?: () => void;
   defaultMode?: FileEditorMode;
 }
@@ -64,13 +59,10 @@ interface FileEditorProps {
 export function FileEditor({
   path,
   sha,
-  octokit,
-  owner,
-  repo,
   onShowFilePanel,
   defaultMode = "edit",
 }: FileEditorProps) {
-  const { theme } = useTheme();
+  const theme = useFileManagerColorScheme();
   const [originalContent, setOriginalContent] = useState<string>("");
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -87,13 +79,13 @@ export function FileEditor({
   const isHtml = isHtmlFile(path);
   const supportsView = isMarkdown || isHtml;
   const draftStorageKey = useMemo(
-    () => fileDraftStorageKey(owner, repo, path),
-    [owner, repo, path],
+    () => fileDraftStorageKey(transport?.cacheKey ?? "workspace", path),
+    [transport?.cacheKey, path],
   );
 
   // Load file content on mount
   useEffect(() => {
-    if ((!transport && !octokit) || !path) return;
+    if (!transport || !path) return;
     const requestId = requestGuard.next();
 
     const load = async () => {
@@ -101,9 +93,7 @@ export function FileEditor({
       setDraftReady(false);
       setError(null);
       try {
-        const file = transport
-          ? await transport.readFile(path)
-          : await readFile(octokit!, owner, repo, path);
+        const file = await transport.readFile(path);
         if (!requestGuard.isCurrent(requestId)) return;
         if (!file) {
           setError("File not found");
@@ -145,7 +135,7 @@ export function FileEditor({
     return () => {
       if (requestGuard.isCurrent(requestId)) requestGuard.invalidate();
     };
-  }, [transport, octokit, owner, repo, path, draftStorageKey, requestGuard]);
+  }, [transport, path, draftStorageKey, requestGuard]);
 
   useEffect(() => {
     setMode(supportsView ? defaultMode : "edit");
@@ -194,27 +184,14 @@ export function FileEditor({
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (transport ? !transport.writeFile : !octokit) return;
+    if (!transport?.writeFile) return;
     setSaving(true);
     try {
       let nextSha = loadedSha;
-      if (transport) {
-        const result = await transport.writeFile!(path, content, {
-          expectedVersion: loadedSha,
-        });
-        nextSha = result?.version ?? loadedSha;
-      } else {
-        const result = await writeFile(
-          octokit!,
-          owner,
-          repo,
-          path,
-          content,
-          `chore: update ${path}`,
-          loadedSha,
-        );
-        nextSha = result.sha;
-      }
+      const result = await transport.writeFile(path, content, {
+        expectedVersion: loadedSha,
+      });
+      nextSha = result?.version ?? loadedSha;
       localStorage.removeItem(draftStorageKey);
       setLoadedSha(nextSha);
       setOriginalContent(content);
@@ -227,9 +204,6 @@ export function FileEditor({
     }
   }, [
     transport,
-    octokit,
-    owner,
-    repo,
     path,
     content,
     loadedSha,

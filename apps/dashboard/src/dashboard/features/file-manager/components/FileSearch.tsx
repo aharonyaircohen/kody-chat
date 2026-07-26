@@ -11,14 +11,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileCode2, X } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
-import { searchCode, type SearchResult } from "../lib/repo-files";
-import type { Octokit } from "@octokit/rest";
+import { cn } from "@kody-ade/base/utils/ui";
+import type { SearchResult } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 
 interface FileSearchProps {
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onResultClick: (path: string, line?: number) => void;
   onClose?: () => void;
 }
@@ -35,12 +32,10 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function FileSearch({
-  octokit,
-  owner,
-  repo,
   onResultClick,
   onClose,
 }: FileSearchProps) {
+  const transport = useFilesTransport();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,7 +52,7 @@ export function FileSearch({
 
   // Search when debounced query changes
   useEffect(() => {
-    if (!octokit || debouncedQuery.trim().length < 2) {
+    if (!transport?.search || debouncedQuery.trim().length < 2) {
       setResults([]);
       setTotal(0);
       return;
@@ -67,7 +62,7 @@ export function FileSearch({
       setLoading(true);
       setError(null);
       try {
-        const data = await searchCode(octokit, owner, repo, debouncedQuery);
+        const data = await transport.search!(debouncedQuery);
         setResults(data.results);
         setTotal(data.total);
       } catch (err) {
@@ -78,7 +73,7 @@ export function FileSearch({
     };
 
     doSearch();
-  }, [octokit, owner, repo, debouncedQuery]);
+  }, [transport, debouncedQuery]);
 
   const handleClear = () => {
     setQuery("");

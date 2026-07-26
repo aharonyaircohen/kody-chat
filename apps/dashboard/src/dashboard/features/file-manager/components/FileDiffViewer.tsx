@@ -13,13 +13,9 @@ import type { DiffEditorProps } from "@monaco-editor/react";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
-import {
-  commitsForPath,
-  getFileAtRef,
-  type CommitInfo,
-} from "../lib/repo-files";
-import type { Octokit } from "@octokit/rest";
+import { cn } from "@kody-ade/base/utils/ui";
+import type { CommitInfo } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 
 const DiffEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.DiffEditor),
@@ -35,19 +31,14 @@ const DiffEditor = dynamic(
 
 interface FileDiffViewerProps {
   path: string;
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onClose: () => void;
 }
 
 export function FileDiffViewer({
   path,
-  octokit,
-  owner,
-  repo,
   onClose,
 }: FileDiffViewerProps) {
+  const transport = useFilesTransport();
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [leftCommit, setLeftCommit] = useState<CommitInfo | null>(null);
@@ -58,10 +49,13 @@ export function FileDiffViewer({
 
   // Load commit history
   useEffect(() => {
-    if (!octokit) return;
+    if (!transport?.history) {
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       try {
-        const history = await commitsForPath(octokit, owner, repo, path, 20);
+        const history = await transport.history!(path, 20);
         setCommits(history);
         if (history.length >= 2) {
           setLeftCommit(history[1]);
@@ -77,16 +71,16 @@ export function FileDiffViewer({
       }
     };
     load();
-  }, [octokit, owner, repo, path]);
+  }, [transport, path]);
 
   // Load content for selected commits
   const loadDiffContent = useCallback(async () => {
-    if (!octokit || !leftCommit || !rightCommit) return;
+    if (!transport?.readVersion || !leftCommit || !rightCommit) return;
     setLoadingContent(true);
     try {
       const [left, right] = await Promise.all([
-        getFileAtRef(octokit, owner, repo, path, leftCommit.sha),
-        getFileAtRef(octokit, owner, repo, path, rightCommit.sha),
+        transport.readVersion(path, leftCommit.sha),
+        transport.readVersion(path, rightCommit.sha),
       ]);
       setLeftContent(left?.content ?? "");
       setRightContent(right?.content ?? "");
@@ -95,7 +89,7 @@ export function FileDiffViewer({
     } finally {
       setLoadingContent(false);
     }
-  }, [octokit, owner, repo, path, leftCommit, rightCommit]);
+  }, [transport, path, leftCommit, rightCommit]);
 
   // Load diff when commits change
   useEffect(() => {

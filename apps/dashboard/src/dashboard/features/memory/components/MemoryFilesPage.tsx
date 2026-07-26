@@ -7,10 +7,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { useAuth } from "@dashboard/lib/auth-context";
 import {
@@ -260,7 +260,7 @@ export function MemoryFilesPage({
 
   return (
     <AuthGuard>
-      <FilesPage
+      <DashboardFilesPage
         title="Memory"
         routeBase="/memory"
         initialPath={activePathRef.current}

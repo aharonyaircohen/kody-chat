@@ -7,7 +7,7 @@ import {
 
 describe("file drafts", () => {
   it("scopes drafts by repository and path", () => {
-    expect(fileDraftStorageKey("acme", "repo", "docs/a.md")).toBe(
+    expect(fileDraftStorageKey("github:acme/repo", "docs/a.md")).toBe(
       "kody:file-draft:acme/repo/docs/a.md",
     );
   });

@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { FilesPage } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const FILES_PANEL_TESTID = "chat-panel-files";
@@ -18,7 +18,7 @@ export const FILES_PANEL_TESTID = "chat-panel-files";
 export function FilesPanelView(_props: ChatPanelViewProps) {
   return (
     <div className="contents" data-testid={FILES_PANEL_TESTID}>
-      <FilesPage />
+      <DashboardFilesPage />
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { Upload, Loader2, File, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "@kody-ade/base/utils/ui";
 import { useFilesTransport } from "../lib/transport";
 import {
   DEFAULT_FILE_UPLOAD_POLICY,

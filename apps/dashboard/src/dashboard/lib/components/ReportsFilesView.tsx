@@ -14,10 +14,10 @@ import { useMemo, useState } from "react";
 import { Target, CircleDot } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { AuthGuard } from "../auth-guard";
 import { useReports } from "../hooks/useReports";
 import { reportsApi, type Report } from "../api/reports";
@@ -159,7 +159,7 @@ export function ReportsFilesView({
 
   return (
     <AuthGuard>
-      <FilesPage
+      <DashboardFilesPage
         title="Reports"
         routeBase="/reports"
         initialPath={initialPath}

@@ -1,7 +1,15 @@
 import type { Octokit } from "@octokit/rest";
 
 import { githubFileUrl } from "./file-paths";
-import { listDir, readFile, uploadFile, writeFile } from "./repo-files";
+import {
+  commitsForPath,
+  getFileAtRef,
+  listDir,
+  readFile,
+  searchCode,
+  uploadFile,
+  writeFile,
+} from "./repo-files";
 import {
   deleteRepositoryPath,
   duplicateRepositoryPath,
@@ -81,5 +89,10 @@ export function createGitHubFilesTransport(
       );
     },
     externalUrl: (path, type) => githubFileUrl(owner, repo, path, type),
+    search: (query) => searchCode(octokit, owner, repo, query),
+    history: (path, limit = 20) =>
+      commitsForPath(octokit, owner, repo, path, limit),
+    readVersion: (path, version) =>
+      getFileAtRef(octokit, owner, repo, path, version),
   };
 }

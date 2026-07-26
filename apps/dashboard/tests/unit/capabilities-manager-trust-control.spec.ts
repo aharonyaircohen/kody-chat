@@ -24,7 +24,7 @@ describe("CapabilitiesManager trust control", () => {
     expect(source).toContain("FilesPage");
     expect(source).toContain("FilesTransport");
     expect(source).toContain('"@dashboard/features/file-manager"');
-    expect(source).toContain("<FilesPage");
+    expect(source).toContain("<DashboardFilesPage");
     expect(source).not.toContain("function CapabilityForm");
     expect(source).not.toContain("function AssetEditor");
     expect(source).not.toContain("function ContractEditor");

@@ -9,7 +9,12 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { FileContent, FileEntry } from "./repo-files";
+import type {
+  CommitInfo,
+  FileContent,
+  FileEntry,
+  SearchResult,
+} from "./repo-files";
 
 export interface FilePathMutation {
   sourcePath: string;
@@ -24,6 +29,11 @@ export interface FileWriteResult {
 export interface FileWriteOptions {
   /** null creates, a version updates, and undefined lets the provider resolve. */
   expectedVersion?: string | null;
+}
+
+export interface FileSearchResults {
+  results: SearchResult[];
+  total: number;
 }
 
 export interface FilesTransport {
@@ -57,6 +67,15 @@ export interface FilesTransport {
   duplicatePath?: (mutation: FilePathMutation) => Promise<void>;
   /** Optional external link for the "Open on …" action. */
   externalUrl?: (path: string, type: FileEntry["type"]) => string | null;
+  /** Optional full-text search capability. */
+  search?: (query: string) => Promise<FileSearchResults>;
+  /** Optional version history capability. */
+  history?: (path: string, limit?: number) => Promise<CommitInfo[]>;
+  /** Optional read of a file at a historical version. */
+  readVersion?: (
+    path: string,
+    version: string,
+  ) => Promise<FileContent | null>;
 }
 
 const FilesTransportContext = createContext<FilesTransport | null>(null);

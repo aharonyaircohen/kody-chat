@@ -1,1 +1,1 @@
-export { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+export { MarkdownPreview } from "@kody-ade/base/markdown/MarkdownPreview";

@@ -32,12 +32,15 @@ describe("file workspace themes", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
-        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+        "src/dashboard/features/file-manager/components/FileWorkspaceShell.tsx",
       ),
       "utf8",
     );
 
-    expect(source).toContain('contentClassName="!p-0"');
+    expect(source).toContain(
+      '<main className="min-h-0 flex-1 overflow-y-auto">',
+    );
+    expect(source).not.toContain("px-5 py-7");
   });
 
   it("keeps file mode controls in the header without split mode", () => {

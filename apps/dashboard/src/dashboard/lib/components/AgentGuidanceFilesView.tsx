@@ -15,10 +15,10 @@ import {
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { AuthGuard } from "../auth-guard";
 import { useAuth } from "../auth-context";
 import { useAgents } from "../hooks/useAgents";
@@ -240,7 +240,7 @@ export function AgentGuidanceFilesView({
 
   return (
     <AuthGuard>
-      <FilesPage
+      <DashboardFilesPage
         title={definition.title}
         routeBase={definition.routeBase}
         initialPath={initialPath}

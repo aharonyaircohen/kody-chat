@@ -18,7 +18,6 @@ import {
   type ReactNode,
 } from "react";
 import { FilesTransportProvider, type FilesTransport } from "../lib/transport";
-import { Octokit } from "@octokit/rest";
 import {
   Copy,
   Download,
@@ -35,15 +34,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@dashboard/lib/utils";
-import { useAuth } from "@dashboard/lib/auth-context";
-import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
+import { cn } from "@kody-ade/base/utils/ui";
 import {
   base64ToBytes,
   type FileEntry,
   getHttpStatus,
 } from "../lib/repo-files";
-import { createGitHubFilesTransport } from "../lib/github-files-transport";
 import {
   buildBreadcrumbs,
   buildWorkspaceFileHref,
@@ -74,7 +70,7 @@ import {
 } from "../lib/file-upload-policy";
 import { uploadRepositoryFiles } from "../lib/upload-repository-files";
 import { fileSupportsTextEditing } from "../lib/file-preview";
-import { PageShell } from "@dashboard/lib/components/PageShell";
+import { FileWorkspaceShell } from "./FileWorkspaceShell";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import {
@@ -120,7 +116,7 @@ function treeEntryForPath(
   };
 }
 
-interface FilesPageProps {
+export interface FilesPageProps {
   initialPath?: string;
   title?: string;
   rootPath?: string;
@@ -140,7 +136,11 @@ interface FilesPageProps {
    * matching capability. When omitted, the connected GitHub repository is
    * adapted to the same contract.
    */
-  transport?: FilesTransport;
+  transport: FilesTransport | null;
+  /** Converts a workspace-local href into the host application's href. */
+  resolveHref?: (href: string) => string;
+  /** Host-provided workspace identity shown beside the page title. */
+  subtitle?: string;
   /** Extra host-page actions rendered in the workspace header. */
   headerActions?: (ctx: {
     selectedPath: string | null;
@@ -164,23 +164,11 @@ export function FilesPage({
   uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
   defaultFileMode = "edit",
   transport,
+  resolveHref = (href) => href,
+  subtitle = "Browse and edit files",
   headerActions,
 }: FilesPageProps) {
-  const { auth } = useAuth();
-  const scopedHref = useRepoScopedHref();
-  const octokit = useMemo(
-    () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
-    [auth?.token],
-  );
-  const githubTransport = useMemo(
-    () =>
-      octokit && auth
-        ? createGitHubFilesTransport(octokit, auth.owner, auth.repo)
-        : null,
-    [auth, octokit],
-  );
-  const activeTransport = transport ?? githubTransport;
-  const githubOctokit = transport ? null : octokit;
+  const activeTransport = transport;
 
   const initialRepoPath = useMemo(
     () => normalizeRepoPath(initialPath),
@@ -222,11 +210,14 @@ export function FilesPage({
   const canUpload = Boolean(activeTransport?.uploadFile);
   const canMove = Boolean(activeTransport?.movePath);
   const canDuplicate = Boolean(activeTransport?.duplicatePath);
-  const canSearch = showSearch && Boolean(githubOctokit);
+  const canSearch = showSearch && Boolean(activeTransport?.search);
+  const canViewHistory = Boolean(
+    activeTransport?.history && activeTransport?.readVersion,
+  );
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
-  }, [auth?.owner, auth?.repo]);
+  }, [activeTransport?.cacheKey]);
 
   // Build breadcrumbs from selected file path
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
@@ -291,7 +282,7 @@ export function FilesPage({
           ? normalizedPath.slice(workspaceRoot.length + 1)
           : normalizedPath;
       const workspaceHref = buildWorkspaceFileHref(routeBase, relativePath);
-      const href = scopedHref(workspaceHref);
+      const href = resolveHref(workspaceHref);
       if (typeof window !== "undefined" && window.location.pathname === href) {
         return;
       }
@@ -304,7 +295,7 @@ export function FilesPage({
         : window.History.prototype.pushState;
       updateHistory.call(window.history, null, "", href);
     },
-    [routeBase, scopedHref, workspaceRoot],
+    [routeBase, resolveHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -422,7 +413,7 @@ export function FilesPage({
 
   useEffect(() => {
     if (!activeTransport) return;
-    const initialOpenKey = `${auth?.owner}/${auth?.repo}:${initialRepoPath}`;
+    const initialOpenKey = `${activeTransport.cacheKey ?? "workspace"}:${initialRepoPath}`;
 
     if (!initialRepoPath) {
       openedInitialPathRef.current = initialOpenKey;
@@ -435,7 +426,7 @@ export function FilesPage({
     if (openedInitialPathRef.current === initialOpenKey) return;
     openedInitialPathRef.current = initialOpenKey;
     void openRepoPath(initialRepoPath, { updateRoute: false });
-  }, [activeTransport, auth, initialRepoPath, openRepoPath]);
+  }, [activeTransport, initialRepoPath, openRepoPath]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -931,9 +922,6 @@ export function FilesPage({
     if (viewMode === "search") {
       return (
         <FileSearch
-          octokit={githubOctokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onResultClick={handleSearchResultClick}
           onClose={() =>
             setViewMode(
@@ -976,9 +964,6 @@ export function FilesPage({
       return (
         <FileDiffViewer
           path={selectedFile.path}
-          octokit={githubOctokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onClose={() =>
             setViewMode(
               writeable &&
@@ -999,9 +984,6 @@ export function FilesPage({
         <FileEditor
           path={selectedFile.path}
           sha={selectedFile.sha}
-          octokit={githubOctokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }
@@ -1015,10 +997,7 @@ export function FilesPage({
         <FileViewer
           path={selectedFile.path}
           sha={selectedFile.sha}
-          octokit={githubOctokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
-          onViewDiff={handleViewDiff}
+          onViewDiff={canViewHistory ? handleViewDiff : undefined}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }
@@ -1245,27 +1224,10 @@ export function FilesPage({
 
   return (
     <FilesTransportProvider value={activeTransport ?? null}>
-      <PageShell
+      <FileWorkspaceShell
         title={title}
-        titleContent={
-          <div className="min-w-0">
-            <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Repository workspace
-            </p>
-            <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
-              {title}
-            </h1>
-          </div>
-        }
-        subtitle={
-          auth
-            ? `${auth.owner}/${auth.repo}`
-            : "Browse and edit repository files"
-        }
-        backHref={null}
+        subtitle={subtitle}
         actions={actions}
-        width="full"
-        contentClassName="!p-0"
       >
         <div
           className="relative flex h-full"
@@ -1286,9 +1248,6 @@ export function FilesPage({
                 }
                 selectedPath={selectedPath}
                 selectedPathType={selectedPathType}
-                octokit={githubOctokit}
-                owner={auth?.owner ?? ""}
-                repo={auth?.repo ?? ""}
                 refreshKey={refreshKey}
                 onRefresh={handleRefresh}
                 onDelete={canDelete ? handleDelete : undefined}
@@ -1560,7 +1519,7 @@ export function FilesPage({
             </DialogContent>
           </Dialog>
         )}
-      </PageShell>
+      </FileWorkspaceShell>
     </FilesTransportProvider>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { FilesPage, type FileEntry } from "@dashboard/features/file-manager";
+import type { FileEntry } from "@dashboard/features/file-manager";
 import { MARKDOWN_FILE_UPLOAD_POLICY } from "@dashboard/features/file-manager/lib/file-upload-policy";
+import { DashboardFilesPage } from "./DashboardFilesPage";
 
 export function isMarkdownFileSpaceEntry(entry: FileEntry): boolean {
   return entry.type === "dir" || entry.path.toLowerCase().endsWith(".md");
@@ -23,7 +24,7 @@ export function RepositoryFileSpace({
   protectedPaths?: string[];
 }) {
   return (
-    <FilesPage
+    <DashboardFilesPage
       title={title}
       rootPath={rootPath}
       routeBase={routeBase}
