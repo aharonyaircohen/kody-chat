@@ -71,6 +71,7 @@ import {
 import { resolveRepoPathFromListings } from "../lib/repo-path-resolution";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
+import { FileLoadingState } from "./FileLoadingState";
 import { FileEditor } from "./FileEditor";
 import type { FileEditorViewMode } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
@@ -342,6 +343,10 @@ export function FilesPage({
         setViewMode("viewer");
       }
       if (options.typeHint === "dir") {
+        setSelectedFile(null);
+        setViewMode("viewer");
+      }
+      if (options.typeHint === "file") {
         setSelectedFile(null);
         setViewMode("viewer");
       }
@@ -1037,6 +1042,14 @@ export function FilesPage({
   );
 
   const renderMainContent = () => {
+    if (openingPathType === "file" && selectedPath && !selectedFile) {
+      return (
+        <FileLoadingState
+          fileName={selectedPath.split("/").pop() ?? selectedPath}
+        />
+      );
+    }
+
     if (viewMode === "search") {
       return (
         <FileSearch

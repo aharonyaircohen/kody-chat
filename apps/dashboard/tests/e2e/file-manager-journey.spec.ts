@@ -564,12 +564,28 @@ test.describe("repository file manager", () => {
   }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      fileReadDelayMs: 2_000,
       largeImage: true,
     });
 
     await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toBeVisible();
     await page.getByRole("treeitem", { name: /large-image\.png/ }).click();
 
+    await expect(
+      page.getByRole("status", {
+        name: "Loading preview of large-image.png",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: /large-image\.png/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.getByRole("textbox", { name: "Editor content" }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole("img", { name: "Preview of large-image.png" }),
     ).toBeVisible();

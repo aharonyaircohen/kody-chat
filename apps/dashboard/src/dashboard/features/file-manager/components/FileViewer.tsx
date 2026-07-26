@@ -41,6 +41,7 @@ import {
 } from "../lib/advanced-file-preview";
 import { useFilePreviewUrl } from "../lib/use-file-preview-url";
 import { NativeFilePreview } from "./NativeFilePreview";
+import { FileLoadingState } from "./FileLoadingState";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -55,8 +56,7 @@ const MonacoEditor = dynamic(
 ) as React.ComponentType<EditorProps>;
 
 const AdvancedFilePreview = dynamic(
-  () =>
-    import("./AdvancedFilePreview").then((mod) => mod.AdvancedFilePreview),
+  () => import("./AdvancedFilePreview").then((mod) => mod.AdvancedFilePreview),
   {
     ssr: false,
     loading: () => (
@@ -254,9 +254,7 @@ export function FileViewer({
 
       <div className="min-h-0 flex-1 bg-muted/20 p-3">
         {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <FileLoadingState fileName={fileName} />
         ) : error ? (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <FileQuestion className="mb-2 h-8 w-8" />
