@@ -44,6 +44,7 @@ import {
 const FILES = {
   "instructions.md": "Check CI and return the findings.\n",
   "contract.json": JSON.stringify({
+    execution: "agent",
     input: { type: "object" },
     output: {
       type: "object",
@@ -138,5 +139,40 @@ describe("simple capability folders", () => {
       }),
     ).toThrow(/input.*output/i);
     expect(() => assertSimpleCapabilityFolder({})).toThrow(/instructions.md/i);
+  });
+
+  it("accepts explicit execution and requires the deterministic entrypoint", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": undefined as never,
+      }),
+    ).toThrow(/tools\/run\.sh/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "automatic",
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/execution/i);
   });
 });

@@ -54,7 +54,7 @@ describe("Convex capability chat tools", () => {
       {
         slug: "greet",
         instructions: "say hello",
-        contract: { input: {}, output: {} },
+        contract: { execution: "agent", input: {}, output: {} },
         tools: [],
         skills: [],
       },
@@ -70,7 +70,33 @@ describe("Convex capability chat tools", () => {
         slug: "greet",
         files: expect.objectContaining({
           "instructions.md": "say hello\n",
-          "contract.json": '{\n  "input": {},\n  "output": {}\n}\n',
+          "contract.json":
+            '{\n  "execution": "agent",\n  "input": {},\n  "output": {}\n}\n',
+        }),
+      }),
+    );
+  });
+
+  it("creates a script-backed capability with the fixed entrypoint", async () => {
+    const tools = createCapabilityTools(ctx as never);
+
+    await tools.create_or_update_capability.execute!(
+      {
+        slug: "greet-script",
+        instructions: "say hello deterministically",
+        contract: { execution: "script", input: {}, output: {} },
+        tools: [{ path: "run.sh", content: "#!/bin/sh\nprintf '{}'\n" }],
+        skills: [],
+      },
+      {} as never,
+    );
+
+    expect(capabilityFiles.writeCapabilityFolderFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "greet-script",
+        files: expect.objectContaining({
+          "contract.json": expect.stringContaining('"execution": "script"'),
+          "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
         }),
       }),
     );

@@ -141,7 +141,11 @@ export async function POST(req: NextRequest) {
       "instructions.md": `${input.instructions.trim()}\n`,
       "contract.json":
         input.contract ??
-        `${JSON.stringify({ input: {}, output: {} }, null, 2)}\n`,
+        `${JSON.stringify(
+          { execution: "agent", input: {}, output: {} },
+          null,
+          2,
+        )}\n`,
     };
     for (const skill of input.skills) {
       files[`skills/${skill.path}`] = skill.content;

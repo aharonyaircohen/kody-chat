@@ -231,7 +231,11 @@ describe("POST /api/kody/capabilities", () => {
         files: {
           "instructions.md": "# Ship feature\n",
           "contract.json":
-            JSON.stringify({ input: {}, output: {} }, null, 2) + "\n",
+            JSON.stringify(
+              { execution: "agent", input: {}, output: {} },
+              null,
+              2,
+            ) + "\n",
         },
       }),
     );

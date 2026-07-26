@@ -16,6 +16,9 @@ describe("capability creation guide wiring", () => {
     );
     expect(CAPABILITY_GUIDE).toContain("instructions.md");
     expect(CAPABILITY_GUIDE).toContain("contract.json");
+    expect(CAPABILITY_GUIDE).toContain('execution');
+    expect(CAPABILITY_GUIDE).toContain('"script"');
+    expect(CAPABILITY_GUIDE).toContain('"agent"');
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
     expect(CAPABILITY_GUIDE).not.toContain("Implementation");
   });
@@ -23,6 +26,7 @@ describe("capability creation guide wiring", () => {
   it("exposes a guide tool before capability creation", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("read_capability_creation_guide");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("contract.json");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("execution:");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
       "read_capability_creation_guide",
     );

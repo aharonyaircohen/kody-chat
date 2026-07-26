@@ -25,7 +25,11 @@ const assetSchema = z.object({
 
 function files(input: {
   instructions: string;
-  contract: { input: Record<string, unknown>; output: Record<string, unknown> };
+  contract: {
+    execution: "agent" | "script";
+    input: Record<string, unknown>;
+    output: Record<string, unknown>;
+  };
   skills: Array<z.infer<typeof assetSchema>>;
   tools: Array<z.infer<typeof assetSchema>>;
 }): Record<string, string> {
@@ -51,7 +55,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          "A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares its one JSON input and output; instructions explain the work.",
+          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh; instructions explain the work.',
       }),
     }),
 
@@ -80,10 +84,11 @@ export function createCapabilityTools(ctx: Ctx) {
         instructions: z.string().min(1),
         contract: z
           .object({
+            execution: z.enum(["agent", "script"]).default("agent"),
             input: z.record(z.string(), z.unknown()),
             output: z.record(z.string(), z.unknown()),
           })
-          .default({ input: {}, output: {} }),
+          .default({ execution: "agent", input: {}, output: {} }),
         skills: z.array(assetSchema).default([]),
         tools: z.array(assetSchema).default([]),
       }),

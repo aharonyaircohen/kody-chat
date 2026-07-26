@@ -11,9 +11,15 @@ capabilities/<slug>/
 ```
 
 - `instructions.md` explains the work.
-- `contract.json` declares the one JSON input and one JSON output.
+- `contract.json` declares `execution: "agent" | "script"`, one JSON input,
+  and one JSON output.
 - `skills/` contains optional reusable instruction files.
 - `tools/` contains optional executable or tool configuration files.
+
+A script-backed Capability must provide `tools/run.sh`. The script receives the
+input in `KODY_CAPABILITY_INPUT` and `KODY_ARG_<NAME>` environment variables and
+must return exactly one JSON value on stdout. An agent-backed Capability uses
+`instructions.md`, optional skills, and tools.
 
 A Capability does not select an Agent, model, schedule, permission mode, or
 Workflow. Direct runs use Kody. To use another Agent, put the Capability in a

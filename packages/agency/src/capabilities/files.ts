@@ -34,6 +34,8 @@ export interface CapabilityTool {
   content: string;
 }
 
+export type CapabilityExecution = "agent" | "script";
+
 export interface CapabilitySummary {
   slug: string;
   describe: string;
@@ -44,6 +46,7 @@ export interface CapabilitySummary {
 }
 
 export interface CapabilityDetail extends CapabilitySummary {
+  execution: CapabilityExecution;
   instructions: string;
   contract: string | null;
   skills: CapabilitySkill[];
@@ -112,10 +115,14 @@ function detailFromFiles(
 ): CapabilityDetail {
   assertSimpleCapabilityFolder(files);
   const instructions = files[INSTRUCTIONS_FILE]!;
+  const contract = files[CONTRACT_FILE]
+    ? parseCapabilityContract(files[CONTRACT_FILE])
+    : null;
   return {
     slug,
     describe: description(instructions, slug),
     ...options,
+    execution: contract?.execution ?? "agent",
     instructions,
     contract: files[CONTRACT_FILE] ?? null,
     skills: Object.entries(files)
@@ -331,27 +338,54 @@ export function assertSimpleCapabilityFolder(
   }
   const contract = files[CONTRACT_FILE];
   if (contract !== undefined) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(contract);
-    } catch {
-      throw new Error("contract.json must be valid JSON");
-    }
-    const value = asRecord(parsed);
-    if (!value || !asRecord(value.input) || !asRecord(value.output)) {
+    const parsed = parseCapabilityContract(contract);
+    if (
+      parsed.execution === "script" &&
+      (typeof files["tools/run.sh"] !== "string" ||
+        !files["tools/run.sh"].trim())
+    ) {
       throw new Error(
-        "contract.json must contain input and output JSON schemas",
-      );
-    }
-    const unsupported = Object.keys(value).filter(
-      (key) => key !== "input" && key !== "output",
-    );
-    if (unsupported.length > 0) {
-      throw new Error(
-        `contract.json contains unsupported fields: ${unsupported.join(", ")}`,
+        'Script-backed Capability requires a non-empty "tools/run.sh" file',
       );
     }
   }
+}
+
+function parseCapabilityContract(raw: string): {
+  execution?: CapabilityExecution;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("contract.json must be valid JSON");
+  }
+  const value = asRecord(parsed);
+  if (!value || !asRecord(value.input) || !asRecord(value.output)) {
+    throw new Error("contract.json must contain input and output JSON schemas");
+  }
+  if (
+    value.execution !== undefined &&
+    value.execution !== "agent" &&
+    value.execution !== "script"
+  ) {
+    throw new Error('contract.json execution must be "agent" or "script"');
+  }
+  const unsupported = Object.keys(value).filter(
+    (key) => key !== "execution" && key !== "input" && key !== "output",
+  );
+  if (unsupported.length > 0) {
+    throw new Error(
+      `contract.json contains unsupported fields: ${unsupported.join(", ")}`,
+    );
+  }
+  return {
+    ...(value.execution ? { execution: value.execution } : {}),
+    input: value.input as Record<string, unknown>,
+    output: value.output as Record<string, unknown>,
+  };
 }
 
 export async function writeCapabilityFolderFiles(
