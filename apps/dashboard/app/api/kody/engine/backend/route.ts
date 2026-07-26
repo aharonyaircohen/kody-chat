@@ -59,26 +59,6 @@ const operations = {
   "workflows.list": { kind: "query", fn: backendApi.workflows.list },
   "workflowRuns.get": { kind: "query", fn: backendApi.workflowRuns.get },
   "workflowRuns.save": { kind: "mutation", fn: backendApi.workflowRuns.save },
-  "workflowCheckpoints.get": {
-    kind: "query",
-    fn: backendApi.workflowCheckpoints.get,
-  },
-  "workflowCheckpoints.list": {
-    kind: "query",
-    fn: backendApi.workflowCheckpoints.list,
-  },
-  "workflowCheckpoints.save": {
-    kind: "mutation",
-    fn: backendApi.workflowCheckpoints.save,
-  },
-  "workflowCheckpoints.saveWrites": {
-    kind: "mutation",
-    fn: backendApi.workflowCheckpoints.saveWrites,
-  },
-  "workflowCheckpoints.deleteThread": {
-    kind: "mutation",
-    fn: backendApi.workflowCheckpoints.deleteThread,
-  },
 } as const;
 
 export async function POST(request: Request) {

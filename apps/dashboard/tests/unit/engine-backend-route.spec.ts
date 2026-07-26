@@ -81,39 +81,4 @@ describe("POST /api/kody/engine/backend", () => {
     expect(response.status).toBe(400);
     expect(backend.query).not.toHaveBeenCalled();
   });
-
-  it("stores checkpoints only under the repository signed by GitHub", async () => {
-    backend.mutation.mockResolvedValue({ ok: true });
-
-    const response = await POST(
-      request({
-        kind: "mutation",
-        operation: "workflowCheckpoints.save",
-        args: {
-          tenantId: "attacker/repo",
-          threadId: "run-1",
-          checkpointNs: "",
-          checkpointId: "cp-1",
-          checkpointType: "json",
-          checkpoint: "e30=",
-          metadataType: "json",
-          metadata: "e30=",
-          updatedAt: "now",
-        },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
-      tenantId: "trusted/repo",
-      threadId: "run-1",
-      checkpointNs: "",
-      checkpointId: "cp-1",
-      checkpointType: "json",
-      checkpoint: "e30=",
-      metadataType: "json",
-      metadata: "e30=",
-      updatedAt: "now",
-    });
-  });
 });
