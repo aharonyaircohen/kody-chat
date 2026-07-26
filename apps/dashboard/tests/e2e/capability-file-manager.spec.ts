@@ -66,6 +66,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
           slug: SLUG,
           describe: "Inspect a change.",
           instructions: body.instructions,
+          contract: JSON.stringify({ input: {}, output: {} }, null, 2),
           skills: [{ name: "review.md", content: "Review carefully." }],
           capabilityTools: [{ name: "check.sh", content: "echo checked" }],
         },
@@ -76,6 +77,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
         slug: SLUG,
         describe: "Inspect a change.",
         instructions: "# Inspect\n\nInspect the supplied request.",
+        contract: JSON.stringify({ input: {}, output: {} }, null, 2),
         skills: [{ name: "review.md", content: "Review carefully." }],
         capabilityTools: [{ name: "check.sh", content: "echo checked" }],
       },
@@ -116,9 +118,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
   await expect(
     tree.getByText("instructions.md", { exact: true }),
   ).toBeVisible();
-  await expect(
-    tree.getByText("contract.json", { exact: true }),
-  ).toHaveCount(0);
+  await expect(tree.getByText("contract.json", { exact: true })).toBeVisible();
   await expect(tree.getByText("skills", { exact: true })).toBeVisible();
   await expect(tree.getByText("tools", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run as Kody" })).toBeVisible();

@@ -9,7 +9,8 @@ Status: **Current Dashboard and generic Engine loader**
 - Store capabilities: read-only GitHub assets
 - Owner: `packages/agency/src/capabilities/files.ts`
 
-The file contract permits only `instructions.md`, `skills/**`, and `tools/**`.
+The file contract permits only `instructions.md`, `contract.json`, `skills/**`,
+and `tools/**`.
 The shared File Manager edits the folder through Capability-owned configuration;
 the File Manager remains domain-agnostic.
 

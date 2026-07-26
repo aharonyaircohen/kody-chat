@@ -202,12 +202,10 @@ describe("POST /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
-    h.readCapabilityFile
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        slug: "ship-feature",
-        describe: "Ship feature",
-      });
+    h.readCapabilityFile.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      slug: "ship-feature",
+      describe: "Ship feature",
+    });
   });
 
   it("creates capability files through the capability storage helper", async () => {
@@ -232,6 +230,8 @@ describe("POST /api/kody/capabilities", () => {
         slug: "ship-feature",
         files: {
           "instructions.md": "# Ship feature\n",
+          "contract.json":
+            JSON.stringify({ input: {}, output: {} }, null, 2) + "\n",
         },
       }),
     );

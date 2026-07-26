@@ -34,10 +34,14 @@ describe("CapabilitiesManager trust control", () => {
 
   it("keeps the simple capability folder in the shared workspace", () => {
     expect(source).toContain("const root = detail.slug");
-    for (const entry of ["instructions.md", "skills", "tools"]) {
+    for (const entry of [
+      "instructions.md",
+      "contract.json",
+      "skills",
+      "tools",
+    ]) {
       expect(source).toContain(entry);
     }
-    expect(source).not.toContain("contract.json");
   });
 
   it("keeps the capability route owned by the file workspace", () => {

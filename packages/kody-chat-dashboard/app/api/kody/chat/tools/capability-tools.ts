@@ -25,11 +25,13 @@ const assetSchema = z.object({
 
 function files(input: {
   instructions: string;
+  contract: { input: Record<string, unknown>; output: Record<string, unknown> };
   skills: Array<z.infer<typeof assetSchema>>;
   tools: Array<z.infer<typeof assetSchema>>;
 }): Record<string, string> {
   return {
     "instructions.md": `${input.instructions.trim()}\n`,
+    "contract.json": `${JSON.stringify(input.contract, null, 2)}\n`,
     ...Object.fromEntries(
       input.skills.map((asset) => [`skills/${asset.path}`, asset.content]),
     ),
@@ -49,7 +51,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          "A Capability is one folder containing instructions.md, skills/, and tools/. It receives one JSON-compatible input and returns one JSON-compatible output. Explain their meaning in instructions.md.",
+          "A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares its one JSON input and output; instructions explain the work.",
       }),
     }),
 
@@ -76,6 +78,12 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         instructions: z.string().min(1),
+        contract: z
+          .object({
+            input: z.record(z.string(), z.unknown()),
+            output: z.record(z.string(), z.unknown()),
+          })
+          .default({ input: {}, output: {} }),
         skills: z.array(assetSchema).default([]),
         tools: z.array(assetSchema).default([]),
       }),

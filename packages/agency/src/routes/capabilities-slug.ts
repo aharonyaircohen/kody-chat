@@ -22,6 +22,7 @@ const fileSchema = z.object({
 
 const updateSchema = z.object({
   instructions: z.string().trim().min(1),
+  contract: z.string().nullable().optional(),
   skills: z.array(fileSchema).default([]),
   tools: z.array(fileSchema).default([]),
   actorLogin: z.string().optional(),
@@ -48,6 +49,7 @@ function capabilityFiles(input: z.infer<typeof updateSchema>) {
   const files: Record<string, string> = {
     "instructions.md": `${input.instructions.trim()}\n`,
   };
+  if (input.contract) files["contract.json"] = input.contract;
   for (const skill of input.skills) {
     files[`skills/${skill.path}`] = skill.content;
   }

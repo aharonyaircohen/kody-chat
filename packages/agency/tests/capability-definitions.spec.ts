@@ -25,7 +25,10 @@ vi.mock("@kody-ade/base/company-store/assets", () => ({
   companyStoreAssetPath: vi.fn(),
   listCompanyStoreAssetSlugs: storeAssets.listSlugs,
   listCompanyStoreDirectorySafe: storeAssets.listDirectory,
-  mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [...local, ...store],
+  mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [
+    ...local,
+    ...store,
+  ],
   readCompanyStoreText: storeAssets.readText,
 }));
 
@@ -40,6 +43,14 @@ import {
 
 const FILES = {
   "instructions.md": "Check CI and return the findings.\n",
+  "contract.json": JSON.stringify({
+    input: { type: "object" },
+    output: {
+      type: "object",
+      properties: { status: { type: "string" } },
+      required: ["status"],
+    },
+  }),
   "skills/ci/SKILL.md": "Use CI evidence.",
   "tools/check.sh": "#!/bin/sh\nexit 0\n",
 };
@@ -70,6 +81,7 @@ describe("simple capability folders", () => {
     expect(await readCapabilityFile("ci-health")).toMatchObject({
       slug: "ci-health",
       instructions: "Check CI and return the findings.\n",
+      contract: FILES["contract.json"],
       skills: [{ name: "ci/SKILL.md" }],
       capabilityTools: [{ name: "check.sh" }],
     });
@@ -96,10 +108,7 @@ describe("simple capability folders", () => {
     storeAssets.listSlugs.mockResolvedValue(["ci-health", "release"]);
 
     expect(
-      await listStoreCapabilityFiles(
-        {} as never,
-        new Set(["ci-health"]),
-      ),
+      await listStoreCapabilityFiles({} as never, new Set(["ci-health"])),
     ).toEqual([
       {
         slug: "release",
@@ -114,19 +123,20 @@ describe("simple capability folders", () => {
     expect(storeAssets.readText).not.toHaveBeenCalled();
   });
 
-  it("rejects profiles, contracts, and missing instructions", () => {
+  it("accepts contracts but rejects profiles and missing instructions", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
         "profile.json": "{}",
       }),
     ).toThrow(/only allows/i);
+    expect(() => assertSimpleCapabilityFolder(FILES)).not.toThrow();
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
         "contract.json": "{}",
       }),
-    ).toThrow(/only allows/i);
+    ).toThrow(/input.*output/i);
     expect(() => assertSimpleCapabilityFolder({})).toThrow(/instructions.md/i);
   });
 });

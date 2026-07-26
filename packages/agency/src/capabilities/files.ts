@@ -1,6 +1,6 @@
 /**
  * A Capability is one small folder:
- * instructions.md, skills/, and tools/.
+ * instructions.md, optional contract.json, skills/, and tools/.
  *
  * Local folders are stored as one Convex document. Store folders are read
  * directly from the configured Company Store.
@@ -20,6 +20,7 @@ import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
 const INSTRUCTIONS_FILE = "instructions.md";
+const CONTRACT_FILE = "contract.json";
 const KIND_PREFIX = "capability:";
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -44,6 +45,7 @@ export interface CapabilitySummary {
 
 export interface CapabilityDetail extends CapabilitySummary {
   instructions: string;
+  contract: string | null;
   skills: CapabilitySkill[];
   capabilityTools: CapabilityTool[];
 }
@@ -115,6 +117,7 @@ function detailFromFiles(
     describe: description(instructions, slug),
     ...options,
     instructions,
+    contract: files[CONTRACT_FILE] ?? null,
     skills: Object.entries(files)
       .flatMap(([path, body]) =>
         path.startsWith("skills/") && path !== "skills/.gitkeep"
@@ -133,14 +136,7 @@ function detailFromFiles(
 }
 
 function summary(detail: CapabilityDetail): CapabilitySummary {
-  const {
-    slug,
-    describe,
-    updatedAt,
-    htmlUrl,
-    source,
-    readOnly,
-  } = detail;
+  const { slug, describe, updatedAt, htmlUrl, source, readOnly } = detail;
   return { slug, describe, updatedAt, htmlUrl, source, readOnly };
 }
 
@@ -321,16 +317,40 @@ export function assertSimpleCapabilityFolder(
     assertSafePath(path);
     if (
       path !== INSTRUCTIONS_FILE &&
+      path !== CONTRACT_FILE &&
       !path.startsWith("skills/") &&
       !path.startsWith("tools/")
     ) {
       throw new Error(
-        `Capability folder only allows instructions.md, skills/, and tools/; found ${path}`,
+        `Capability folder only allows instructions.md, contract.json, skills/, and tools/; found ${path}`,
       );
     }
   }
   if (typeof files[INSTRUCTIONS_FILE] !== "string") {
     throw new Error("Capability folder requires instructions.md");
+  }
+  const contract = files[CONTRACT_FILE];
+  if (contract !== undefined) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(contract);
+    } catch {
+      throw new Error("contract.json must be valid JSON");
+    }
+    const value = asRecord(parsed);
+    if (!value || !asRecord(value.input) || !asRecord(value.output)) {
+      throw new Error(
+        "contract.json must contain input and output JSON schemas",
+      );
+    }
+    const unsupported = Object.keys(value).filter(
+      (key) => key !== "input" && key !== "output",
+    );
+    if (unsupported.length > 0) {
+      throw new Error(
+        `contract.json contains unsupported fields: ${unsupported.join(", ")}`,
+      );
+    }
   }
 }
 

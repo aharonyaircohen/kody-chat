@@ -5,11 +5,13 @@ A Capability is one small executable method. It is stored as one folder:
 ```text
 capabilities/<slug>/
 ├── instructions.md
+├── contract.json
 ├── skills/
 └── tools/
 ```
 
-- `instructions.md` explains the one input value, the work, and the one output value.
+- `instructions.md` explains the work.
+- `contract.json` declares the one JSON input and one JSON output.
 - `skills/` contains optional reusable instruction files.
 - `tools/` contains optional executable or tool configuration files.
 

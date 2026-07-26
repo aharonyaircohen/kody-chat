@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
 const createCapabilitySchema = z.object({
   slug: z.string().min(1).max(64),
   instructions: z.string().min(1),
+  contract: z.string().nullable().optional(),
   skills: z
     .array(z.object({ path: z.string().min(1), content: z.string() }))
     .default([]),
@@ -138,6 +139,9 @@ export async function POST(req: NextRequest) {
       );
     const files: Record<string, string> = {
       "instructions.md": `${input.instructions.trim()}\n`,
+      "contract.json":
+        input.contract ??
+        `${JSON.stringify({ input: {}, output: {} }, null, 2)}\n`,
     };
     for (const skill of input.skills) {
       files[`skills/${skill.path}`] = skill.content;

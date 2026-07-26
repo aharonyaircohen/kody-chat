@@ -54,6 +54,7 @@ describe("Convex capability chat tools", () => {
       {
         slug: "greet",
         instructions: "say hello",
+        contract: { input: {}, output: {} },
         tools: [],
         skills: [],
       },
@@ -69,6 +70,7 @@ describe("Convex capability chat tools", () => {
         slug: "greet",
         files: expect.objectContaining({
           "instructions.md": "say hello\n",
+          "contract.json": '{\n  "input": {},\n  "output": {}\n}\n',
         }),
       }),
     );
