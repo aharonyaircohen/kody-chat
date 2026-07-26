@@ -29,6 +29,7 @@ import {
   isWorkflowDefinitionId,
   mergeWorkflowDefinition,
   validateWorkflowDefinition,
+  workflowStepDefinitionSchema,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
@@ -39,25 +40,12 @@ import {
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
 
-const workflowTransitionSchema = z.object({
-  to: z.string().trim().min(1).max(80),
-  when: z.record(z.string(), z.unknown()).optional(),
-  default: z.boolean().optional(),
-  maxIterations: z.number().int().positive().optional(),
-});
-const workflowStepSchema = z.object({
-  id: z.string().trim().min(1).max(80),
-  capability: z.string().trim().min(1).max(80),
-  input: z.unknown().optional(),
-  next: z.array(workflowTransitionSchema).optional(),
-});
-
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   agent: z.string().trim().min(1).max(80).optional(),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
   startAt: z.string().trim().min(1).max(80).optional(),
-  steps: z.array(workflowStepSchema).min(1).optional(),
+  steps: z.array(workflowStepDefinitionSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
