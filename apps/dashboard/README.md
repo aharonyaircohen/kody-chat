@@ -36,6 +36,11 @@ pnpm dev
 
 Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed. Add at least one LLM provider in the dashboard's Models manager (any OpenAI-compatible or Anthropic endpoint — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or a custom endpoint).
 
+To confirm that a connected repo is ready, follow the
+[Kody setup verification](./docs/engine-install.md#verify-the-setup). If the
+setup is missing or broken, send `/init` in dashboard chat to install or repair
+it, then repeat the verification.
+
 ---
 
 ## Features

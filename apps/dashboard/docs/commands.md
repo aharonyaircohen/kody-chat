@@ -103,7 +103,7 @@ built-ins for cold-start and unavailable-Store cases.
 | `/explain`    | Explain topic in codebase.                                 |
 | `/factory`    | Create an agent-factory backend PR for model definitions.  |
 | `/goal`       | Draft new goal.                                            |
-| `/init`       | Install Kody engine in connected repo.                     |
+| `/init`       | Verify/repair setup by installing Kody in the connected repo. See [setup verification](./engine-install.md#verify-the-setup). |
 | `/issue`      | Research, draft, create issue, then offer to run Kody.     |
 | `/meeting-summary` | Summarize pasted meeting notes into a saved report.   |
 | `/mission`    | Draft a mission task group.                                |

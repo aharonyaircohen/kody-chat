@@ -16,10 +16,13 @@ auth headers):
    - File present and matches latest → no commit.
    - File present and differs → update (`chore(kody): sync engine workflow to latest template`).
    - `force: true` always commits.
-3. **Writes `KODY_TOKEN`** as a compatibility secret when the caller's PAT
+3. **Creates or updates `kody.config.json`** without replacing unrelated
+   repo settings. If an engine model is configured in the dashboard, `/init`
+   writes it to `agent.model`.
+4. **Writes `KODY_TOKEN`** as a compatibility secret when the caller's PAT
    can manage Actions secrets. It is optional: the engine falls back through
    PAT, GitHub App credentials, and finally GitHub's built-in token.
-4. **Makes repo vault secrets available to workflows.** Reads
+5. **Makes repo vault secrets available to workflows.** Reads
    `backend vault record`, decrypts it with the dashboard's
    `KODY_MASTER_KEY`, and writes each entry as a repo Actions secret.
    This keeps older env-based engine paths working. Newer engine scripts that
@@ -29,12 +32,45 @@ auth headers):
      reserves them).
    - Invalid names (anything not matching `^[A-Z_][A-Z0-9_]*$`) are
      skipped.
-5. **Registers the dashboard webhook** at
+6. **Registers the dashboard webhook** at
    `<dashboard-base>/api/webhooks/github` so push-based cache
    invalidation works.
 
-Each step after the workflow commit is **soft-fail** — failures are
-reported in `nextSteps` and `summary` but never abort the install.
+Secret writes, vault mirroring, and webhook registration are **soft-fail**:
+their failures appear in `nextSteps` and `summary` without undoing the
+workflow/config install.
+
+## Verify the setup
+
+Check the connected repo, not only the dashboard:
+
+1. Confirm the repo contains `.github/workflows/kody.yml` and
+   `kody.config.json` on its default branch.
+2. Confirm the dashboard has an enabled engine/default model and that the
+   model's API-key secret exists under **Settings → Secrets**.
+3. In chat, select **Kody Live** and send a read-only request such as:
+   `Reply with this repo's name and current branch. Do not edit files.`
+4. Wait for Kody Live to become ready and return the answer. Then confirm the
+   matching Kody workflow run completed successfully in the repo's
+   **GitHub Actions** tab.
+
+The files prove that Kody was installed. The completed read-only run proves
+that the workflow, model, credentials, and dashboard event path work together.
+
+## Repair a missing or broken setup
+
+In the connected repo's dashboard chat, send `/init` by itself. The command is
+idempotent: it creates or updates the workflow and config, refreshes compatible
+repo secrets, and refreshes the webhook without replacing unrelated
+`kody.config.json` settings.
+
+Read the full `/init` summary and complete every item under `nextSteps`.
+An `ok: true` response means the workflow/config install succeeded; secret and
+webhook steps can still have soft failures. After resolving them, re-run
+`/init`, then repeat the Kody Live verification above.
+
+`/init` cannot invent an LLM model or provider key. Configure those in the
+dashboard first if they are missing.
 
 ## Inputs
 
