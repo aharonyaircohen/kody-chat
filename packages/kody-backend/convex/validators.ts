@@ -15,8 +15,19 @@ export const workflowTransitionValidator = v.object({
 export const workflowStepValidator = v.object({
   id: v.string(),
   capability: v.string(),
+  input: v.optional(v.any()),
+  action: v.optional(v.string()),
+  evidence: v.optional(v.string()),
+  target: v.optional(v.union(v.literal("issue"), v.literal("pr"))),
+  delivery: v.optional(v.literal("pull-request")),
+  targetFact: v.optional(v.string()),
+  reason: v.optional(v.string()),
   inputs: v.optional(v.record(v.string(), v.object({ from: v.string() }))),
   next: v.optional(v.array(workflowTransitionValidator)),
+  runWhen: v.optional(v.record(v.string(), v.any())),
+  continueOn: v.optional(v.array(v.string())),
+  saveReport: v.optional(v.boolean()),
+  report: v.optional(v.record(v.string(), v.any())),
 });
 
 export const workflowDefinitionValidator = v.object({
