@@ -90,7 +90,10 @@ export function createMemoryTools(context: MemoryToolContext) {
             query: input.summary,
             limit: 10,
           });
-          const duplicate = findDuplicateMemory(candidates, content);
+          const duplicate = findDuplicateMemory(candidates, {
+            kind: input.kind,
+            content,
+          });
           if (duplicate) {
             return {
               memory: duplicate,
