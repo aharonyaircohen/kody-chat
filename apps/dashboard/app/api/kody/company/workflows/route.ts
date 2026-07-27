@@ -21,10 +21,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getEngineConfig, type KodyConfig } from "@kody-ade/base/engine/config";
-import {
-  getProjectedEngineConfig,
-  reconcileProjectedStoreWorkflows,
-} from "@dashboard/lib/backend/repo-projection";
+import { reconcileProjectedStoreWorkflows } from "@dashboard/lib/backend/repo-projection";
 import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
@@ -110,7 +107,7 @@ export async function GET(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
-    const { config } = await getProjectedEngineConfig(
+    const { config } = await getEngineConfig(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
