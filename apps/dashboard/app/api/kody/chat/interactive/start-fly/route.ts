@@ -26,9 +26,9 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import {
-  chatRunRequest,
+  chatExecutionRequest,
   withStoreTarget,
-} from "@kody-ade/fly/runners/run-request";
+} from "@kody-ade/fly/runners/execution-request-builders";
 import {
   claimOrRunServer,
   resolveServerContext,
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     const result = await claimOrRunServer(ctxResult.context, {
       taskId,
       runRequest: withStoreTarget(
-        chatRunRequest(taskId),
+        chatExecutionRequest(`chat-${taskId}`, taskId),
         ctxResult.context as Parameters<typeof withStoreTarget>[1],
       ),
       idleExitMs,

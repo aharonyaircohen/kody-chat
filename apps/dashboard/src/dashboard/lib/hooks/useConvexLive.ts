@@ -91,7 +91,6 @@ interface ChatEventDoc {
 interface WorkflowRunDoc {
   runId: string;
   state: unknown;
-  runner?: { kind: "pool" | "fly"; machineId: string };
 }
 
 /**
@@ -141,7 +140,7 @@ export function useWorkflowRunStateLive(
   const targetRunId =
     runId ??
     docs
-      .filter((doc) => /^run-[a-z0-9]+$/.test(doc.runId))
+      .filter((doc) => /^run-[a-z0-9_-]+$/i.test(doc.runId))
       .map((doc) => doc.runId)
       .sort()
       .at(-1);
@@ -152,12 +151,5 @@ export function useWorkflowRunStateLive(
   const state = doc
     ? normalizeWorkflowRunState(deepUnescapeKeys(doc.state))
     : null;
-  return state
-    ? {
-        workflowId,
-        runId: targetRunId,
-        state,
-        ...(doc?.runner ? { runner: doc.runner } : {}),
-      }
-    : null;
+  return state ? { workflowId, runId: targetRunId, state } : null;
 }

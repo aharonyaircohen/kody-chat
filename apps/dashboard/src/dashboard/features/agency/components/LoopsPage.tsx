@@ -8,6 +8,7 @@ import {
   History,
   Loader2,
   Pencil,
+  Play,
   Plus,
   Power,
   PowerOff,
@@ -36,6 +37,7 @@ import {
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { buildHeaders, handleResponse } from "@dashboard/lib/api";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import {
   SearchableSelect,
@@ -77,6 +79,7 @@ export function LoopsPage({
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Loop | null>(null);
+  const [runCandidate, setRunCandidate] = useState<Loop | null>(null);
   const [search, setSearch] = useState("");
   const loops = useQuery({
     queryKey: LOOP_KEY,
@@ -126,6 +129,22 @@ export function LoopsPage({
     },
     onError: (error: Error) =>
       toast.error("Could not update loop", { description: error.message }),
+  });
+  const runLoop = useMutation({
+    mutationFn: async (loop: Loop) =>
+      handleResponse<{ runId: string }>(
+        await fetch(`/api/kody/loops/${encodeURIComponent(loop.id)}/run`, {
+          method: "POST",
+          headers: buildHeaders(),
+          body: JSON.stringify({ approved: true }),
+        }),
+      ),
+    onSuccess: (result) =>
+      toast.success("Loop started", {
+        description: `Run ${result.runId} accepted by Kody Engine.`,
+      }),
+    onError: (error: Error) =>
+      toast.error("Could not run Loop", { description: error.message }),
   });
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -184,8 +203,10 @@ export function LoopsPage({
               onEdit={() => setEditing(selected)}
               onToggle={() => toggleEnabled.mutate(selected)}
               onDelete={() => remove.mutate(selected.id)}
+              onRun={() => setRunCandidate(selected)}
               toggling={toggleEnabled.isPending}
               deleting={remove.isPending}
+              running={runLoop.isPending}
             />
           ) : (
             <EmptyState
@@ -234,6 +255,17 @@ export function LoopsPage({
           />
         )}
       </MasterDetailShell>
+
+      <ConfirmDialog
+        open={!!runCandidate}
+        title={`Run ${runCandidate?.id ?? "Loop"} now?`}
+        description="This starts only this Loop through Kody Engine and may update repository state."
+        confirmLabel="Approve and run"
+        onClose={() => setRunCandidate(null)}
+        onConfirm={() => {
+          if (runCandidate) runLoop.mutate(runCandidate);
+        }}
+      />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-xl">
@@ -289,16 +321,20 @@ function LoopDetail({
   onEdit,
   onToggle,
   onDelete,
+  onRun,
   toggling,
   deleting,
+  running,
 }: {
   loop: Loop;
   onBack: () => void;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onRun: () => void;
   toggling: boolean;
   deleting: boolean;
+  running: boolean;
 }) {
   return (
     <article className="mx-auto max-w-4xl space-y-7 p-5 md:p-8">
@@ -320,6 +356,19 @@ function LoopDetail({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={onRun}
+              disabled={!loop.enabled || running}
+              aria-label={`Run Loop ${loop.id}`}
+            >
+              {running ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Run now
+            </Button>
             <Button
               variant="outline"
               size="sm"

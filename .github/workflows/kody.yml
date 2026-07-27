@@ -28,6 +28,10 @@ on:
         description: "Dashboard event ingest URL (chat mode)"
         type: string
         default: ""
+      runRequest:
+        description: "Provider-neutral Kody Engine execution request"
+        type: string
+        default: ""
   issue_comment:
     types: [created]
   pull_request:
@@ -80,6 +84,7 @@ jobs:
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
+          KODY_RUN_REQUEST_JSON: ${{ inputs.runRequest }}
           KODY_DEFINITIONS_ROOT: ${{ github.workspace }}/.kody-engine/store
           KODY_DEFINITIONS_ROOT_CWD: ${{ github.workspace }}
         working-directory: ${{ github.workspace }}

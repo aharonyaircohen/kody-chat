@@ -61,6 +61,9 @@ importers:
       '@kody-ade/cms':
         specifier: workspace:*
         version: link:../../packages/cms
+      '@kody-ade/engine-contracts':
+        specifier: workspace:^
+        version: link:../../packages/engine-contracts
       '@kody-ade/fly':
         specifier: workspace:*
         version: link:../../packages/fly
@@ -546,11 +549,26 @@ importers:
         specifier: ^4.0.16
         version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
 
+  packages/engine-contracts:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.5.4
+        version: 22.20.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.0.16
+        version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
+
   packages/fly:
     dependencies:
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../base
+      '@kody-ade/engine-contracts':
+        specifier: workspace:*
+        version: link:../engine-contracts
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1

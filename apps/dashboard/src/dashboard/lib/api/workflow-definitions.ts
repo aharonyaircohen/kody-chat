@@ -79,14 +79,13 @@ export const workflowDefinitionsApi = {
 
   run: async (
     id: string,
-    options?: { mode?: "resume"; runId?: string },
+    options?: { mode?: "resume"; runId?: string; approved?: boolean },
   ): Promise<{
     ok: boolean;
-    workflowId: string;
-    ref: string;
+    execution: "kody-engine";
     workflow: string;
     runId: string;
-    action: string;
+    acceptedAt: string;
   }> => {
     const res = await fetch(
       `${API_BASE}/company/workflows/${encodeURIComponent(id)}/run`,

@@ -7,7 +7,6 @@ import {
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
-  workflowRunnerValidator,
   guidedFlowStatusValidator,
 } from "./validators";
 import {
@@ -98,7 +97,6 @@ export default defineSchema({
     workflowId: v.string(),
     runId: v.string(),
     state: workflowRunStateValidator,
-    runner: v.optional(workflowRunnerValidator),
     updatedAt: v.string(),
   })
     .index("by_run", ["tenantId", "workflowId", "runId"])

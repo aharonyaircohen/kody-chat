@@ -1,6 +1,6 @@
 import { query } from "./_generated/server"
 import { v } from "convex/values"
-import { workflowRunStateValidator, workflowRunnerValidator } from "./validators"
+import { workflowRunStateValidator } from "./validators"
 import { serviceMutation, serviceQuery } from "./lib/auth"
 
 // DELIBERATELY PUBLIC (no requireServiceKey): the browser subscribes to this
@@ -41,7 +41,6 @@ export const save = serviceMutation({
     workflowId: v.string(),
     runId: v.string(),
     state: workflowRunStateValidator,
-    runner: v.optional(workflowRunnerValidator),
     updatedAt: v.string(),
   },
   handler: async (ctx, args) => {
@@ -54,7 +53,6 @@ export const save = serviceMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         state: args.state,
-        ...(args.runner ? { runner: args.runner } : {}),
         updatedAt: args.updatedAt,
       })
       return existing._id

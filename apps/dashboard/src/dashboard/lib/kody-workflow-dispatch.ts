@@ -1,3 +1,5 @@
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
+
 type WorkflowInputNames = Set<string> | null;
 
 interface OctokitContentReader {
@@ -32,6 +34,7 @@ export interface KodyWorkflowDispatchInputRequest {
   dashboardUrl?: string;
   storeRepoUrl?: string;
   storeRef?: string;
+  executionRequest?: EngineExecutionRequest;
 }
 
 const KODY_WORKFLOW_PATH = ".github/workflows/kody.yml";
@@ -160,7 +163,16 @@ function buildInputsForNames(
 ): Record<string, string> {
   const inputs: Record<string, string> = {};
 
-  if (request.action) {
+  if (request.executionRequest) {
+    if (!supportsInput(inputNames, "runRequest")) {
+      throw new Error(
+        "kody.yml workflow_dispatch must declare the runRequest input.",
+      );
+    }
+    inputs.runRequest = JSON.stringify(request.executionRequest);
+  }
+
+  if (request.action && !request.executionRequest) {
     const actionInput =
       inputNames === null
         ? "implementation"

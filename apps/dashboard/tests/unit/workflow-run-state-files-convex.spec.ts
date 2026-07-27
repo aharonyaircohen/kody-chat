@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe("workflow run state convex reads", () => {
   it("reads one run via workflowRuns.get", async () => {
-    convex.query.mockResolvedValue({ runId: "run-b2", state: RUN_STATE, runner: { kind: "fly", machineId: "m1" } });
+    convex.query.mockResolvedValue({ runId: "run-b2", state: RUN_STATE });
 
     const record = await readWorkflowRunStateFile(
       "acme",
@@ -54,7 +54,7 @@ describe("workflow run state convex reads", () => {
 
     expect(record?.workflowId).toBe("release");
     expect(record?.runId).toBe("run-b2");
-    expect(record?.runner).toEqual({ kind: "fly", machineId: "m1" });
+    expect(record).not.toHaveProperty("runner");
     const [ref, args] = convex.query.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("workflowRuns:get");
     expect(args).toEqual({

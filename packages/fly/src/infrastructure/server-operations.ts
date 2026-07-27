@@ -12,7 +12,7 @@ import type { Octokit } from "@octokit/rest";
 import { getServerProvider } from "./installed";
 import type { ServerContextBase } from "@kody-ade/base/infrastructure/contracts";
 import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
-import type { KodyRunRequest } from "../runners/run-request";
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 import type {
   ServerProviderFeature as ProviderFeature,
   ServerProviderInventory as ProviderInventory,
@@ -204,7 +204,7 @@ export interface ProviderCreateMachineInput {
 export interface ProviderSpawnRunnerInput {
   repo: string;
   githubToken: string;
-  runRequest: KodyRunRequest;
+  runRequest: EngineExecutionRequest;
   providerToken?: string;
   flyToken?: string;
   [key: string]: unknown;

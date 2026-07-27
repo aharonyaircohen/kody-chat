@@ -11,14 +11,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { spawnRunner } from "@kody-ade/fly/plugin/runners/fly";
 import {
-  chatRunRequest,
-  goalRunRequest,
-} from "@kody-ade/fly/runners/run-request";
+  chatExecutionRequest,
+  goalExecutionRequest,
+} from "@kody-ade/fly/runners/execution-request-builders";
 
 const BASE_INPUT = {
   repo: "acme/widgets",
   githubToken: "gh-pat",
-  runRequest: chatRunRequest("sess-1"),
+  runRequest: chatExecutionRequest("chat-sess-1", "sess-1"),
   flyToken: "fly-test-token",
 };
 
@@ -96,7 +96,7 @@ describe("spawnRunner", () => {
     await spawnRunner({
       repo: "acme/widgets",
       githubToken: "gh-pat",
-      runRequest: goalRunRequest("weekly-docs"),
+      runRequest: goalExecutionRequest("goal-weekly-docs", "weekly-docs"),
       flyToken: "fly-test-token",
     });
 

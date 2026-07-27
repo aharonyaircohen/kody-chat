@@ -67,11 +67,6 @@ export const workflowRunStateValidator = v.object({
   blocker: v.optional(v.string()),
 });
 
-export const workflowRunnerValidator = v.object({
-  kind: v.union(v.literal("pool"), v.literal("fly")),
-  machineId: v.string(),
-});
-
 export const guidedFlowStatusValidator = v.union(
   v.literal("active"),
   v.literal("completed"),

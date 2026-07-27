@@ -17,7 +17,7 @@
  */
 
 import { logger } from "@kody-ade/base/logger";
-import type { KodyRunRequest } from "../../runners/run-request";
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 
@@ -40,7 +40,7 @@ export interface SpawnRunnerInput {
   /** GitHub token with repo + workflow scope (the user's PAT) */
   githubToken: string;
   /** Canonical engine target/intent request. */
-  runRequest: KodyRunRequest;
+  runRequest: EngineExecutionRequest;
   /** Dashboard ingest URL with HMAC token appended */
   dashboardUrl?: string;
   /** Optional initial chat message; empty for interactive chat */

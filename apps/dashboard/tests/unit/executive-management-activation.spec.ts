@@ -18,20 +18,31 @@ describe("kody-chat company activation", () => {
     expect(config).not.toHaveProperty("state");
   });
 
-  it("activates the installed CI repair loop", () => {
+  it("activates CI repair and the installed memory agency", () => {
     const config = JSON.parse(
       readFileSync(resolve(repoRoot, "kody.config.json"), "utf8"),
     );
 
-    expect(config.company.activeAgents).toEqual(["kody"]);
+    expect(config.company.activeAgents).toEqual(["kody", "memory-steward"]);
     expect(config.company.activeCapabilities).toEqual([
       "ci-health-check",
       "run",
       "review",
       "fix",
       "merge",
+      "extract-run-learning",
+      "detect-memory-duplicates",
+      "detect-memory-conflicts",
+      "decide-memory-change",
+      "apply-memory-changes",
+      "verify-memory-change",
+      "detect-stale-memory",
     ]);
-    expect(config.company.activeWorkflows).toEqual(["ci-repair"]);
+    expect(config.company.activeWorkflows).toEqual([
+      "ci-repair",
+      "learn-from-runs",
+      "maintain-memory-quality",
+    ]);
   });
 
   it("ships the standard root workflow with a 15-minute scheduler wake", () => {

@@ -35,7 +35,6 @@ import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
   useRunWorkflowDefinition,
-  useStopWorkflowRun,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
   useWorkflowRunState,
@@ -91,6 +90,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useState<WorkflowDefinitionRecord | null>(null);
   const [deletingWorkflow, setDeletingWorkflow] =
     useState<WorkflowDefinitionRecord | null>(null);
+  const [approvalWorkflow, setApprovalWorkflow] =
+    useState<WorkflowDefinitionRecord | null>(null);
   const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
   const {
@@ -107,7 +108,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const runWorkflow = useRunWorkflowDefinition();
-  const stopWorkflow = useStopWorkflowRun();
   const trust = useTrust();
 
   const filtered = useMemo(
@@ -204,6 +204,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               trustPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
+                if (selectedTrustLevel === "approval-required") {
+                  setApprovalWorkflow(selectedWorkflow);
+                  return;
+                }
                 const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
                 setActiveRunIds((current) => ({
                   ...current,
@@ -228,12 +232,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                   [selectedWorkflow.id]: run.runId,
                 }));
               }}
-              onStop={(currentRunId) =>
-                stopWorkflow.mutateAsync({
-                  workflowId: selectedWorkflow.id,
-                  runId: currentRunId,
-                })
-              }
               runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
@@ -246,7 +244,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 runWorkflow.isPending &&
                 runWorkflow.variables === selectedWorkflow.id
               }
-              stopPending={stopWorkflow.isPending}
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
               onDelete={() => setDeletingWorkflow(selectedWorkflow)}
             />
@@ -305,6 +302,24 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           const created = await createWorkflow.mutateAsync(payload);
           setCreateOpen(false);
           selectWorkflow(created.id);
+        }}
+      />
+      <ConfirmDialog
+        open={!!approvalWorkflow}
+        title={`Run ${approvalWorkflow?.workflow.name ?? "workflow"}?`}
+        description="This workflow requires your approval before Kody Engine can start it."
+        confirmLabel="Approve and run"
+        onClose={() => setApprovalWorkflow(null)}
+        onConfirm={() => {
+          if (!approvalWorkflow) return;
+          void runWorkflow
+            .mutateAsync({ id: approvalWorkflow.id, approved: true })
+            .then((run) => {
+              setActiveRunIds((current) => ({
+                ...current,
+                [approvalWorkflow.id]: run.runId,
+              }));
+            });
         }}
       />
       <ConfirmDialog
@@ -403,11 +418,9 @@ function WorkflowDetail({
   onRun,
   onResume,
   onRetry,
-  onStop,
   runId,
   onTrustLevelChange,
   runPending,
-  stopPending,
   onEdit,
   onDelete,
 }: {
@@ -418,11 +431,9 @@ function WorkflowDetail({
   onRun: () => void | Promise<void>;
   onResume: (runId: string) => void | Promise<void>;
   onRetry: () => void | Promise<void>;
-  onStop: (runId: string) => void | Promise<void>;
   runId?: string;
   onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   runPending: boolean;
-  stopPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -447,25 +458,6 @@ function WorkflowDetail({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          {latestRun?.state.status === "running" && latestRunId ? (
-            latestRun.runner?.kind === "fly" ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => void onStop(latestRunId)}
-                disabled={stopPending}
-              >
-                Stop
-              </Button>
-            ) : (
-              <span
-                className="text-xs text-muted-foreground"
-                title="Shared runners cannot be stopped safely."
-              >
-                Stop unavailable on shared runner
-              </span>
-            )
-          ) : null}
           {latestRun &&
           latestRun.state.status !== "running" &&
           latestRun.state.status !== "done" ? (
