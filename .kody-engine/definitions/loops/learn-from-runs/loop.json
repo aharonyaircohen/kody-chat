@@ -1,0 +1,15 @@
+{
+  "id": "learn-from-runs",
+  "trigger": {
+    "type": "schedule",
+    "every": "1h"
+  },
+  "target": {
+    "kind": "workflow",
+    "id": "learn-from-runs"
+  },
+  "input": {
+    "mode": "unprocessed-completed-runs"
+  },
+  "enabled": true
+}
