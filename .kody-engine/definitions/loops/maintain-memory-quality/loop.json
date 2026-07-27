@@ -1,0 +1,15 @@
+{
+  "id": "maintain-memory-quality",
+  "trigger": {
+    "type": "schedule",
+    "every": "1d"
+  },
+  "target": {
+    "kind": "workflow",
+    "id": "maintain-memory-quality"
+  },
+  "input": {
+    "mode": "repository-memory-quality"
+  },
+  "enabled": true
+}
