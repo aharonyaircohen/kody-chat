@@ -32,6 +32,7 @@ function json(route: Route, body: unknown, status = 200) {
 async function installFileManagerHarness(
   page: Page,
   options: {
+    codeFile?: boolean;
     emptyRepository?: boolean;
     failedDirectory?: string;
     fileReadDelayMs?: number;
@@ -53,6 +54,12 @@ async function installFileManagerHarness(
           ["docs/guide.md", { content: "# Guide\n", sha: "guide-sha" }],
         ],
   );
+  if (options.codeFile) {
+    files.set("example.ts", {
+      content: "export const ready = true;\n",
+      sha: "example-ts-sha",
+    });
+  }
   if (options.largeImage) {
     files.set("large-image.png", {
       content: "",
@@ -506,6 +513,33 @@ test.describe("repository file manager", () => {
       page.getByRole("treeitem", { name: "guide.md 8 B" }),
     ).toBeVisible();
 
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps the code editor in sync with the dashboard theme", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("kody-theme", "dark");
+    });
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      codeFile: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /example\.ts/ }).click();
+
+    const editor = page.locator(".monaco-editor").first();
+    await expect(editor).toHaveClass(/vs-dark/);
+
+    await page.evaluate(() => {
+      document.documentElement.setAttribute("data-theme", "light");
+    });
+
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(editor).not.toHaveClass(/vs-dark/);
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });

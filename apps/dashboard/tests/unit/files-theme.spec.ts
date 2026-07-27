@@ -2,9 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CORE_FILE_SURFACES = [
+const THEMED_FILE_SURFACES = [
   "FileContextMenu.tsx",
+  "FileDiffViewer.tsx",
   "FileEditor.tsx",
+  "FileSearch.tsx",
   "FileTree.tsx",
   "FileViewer.tsx",
   "UploadZone.tsx",
@@ -12,7 +14,7 @@ const CORE_FILE_SURFACES = [
 
 describe("file workspace themes", () => {
   it("uses shared theme colors instead of fixed dark surfaces", () => {
-    for (const file of CORE_FILE_SURFACES) {
+    for (const file of THEMED_FILE_SURFACES) {
       const source = readFileSync(
         resolve(
           process.cwd(),
