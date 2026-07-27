@@ -834,16 +834,13 @@ export function FileTree({
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : rootError || treeError ? (
+        ) : rootError ? (
           <div
             className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-destructive"
             role="alert"
           >
             <FileQuestion className="h-8 w-8" />
-            <span>
-              {treeError ??
-                `Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}
-            </span>
+            <span>{`Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}</span>
             <Button
               type="button"
               variant="outline"
@@ -857,32 +854,57 @@ export function FileTree({
               Try again
             </Button>
           </div>
-        ) : rootNodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
-            <FileQuestion className="w-8 h-8 mb-2" />
-            <span>This folder is empty</span>
-          </div>
         ) : (
-          rootNodes.map((node) => (
-            <TreeNodeRow
-              key={node.entry.path}
-              node={node}
-              depth={0}
-              onToggle={handleToggle}
-              onSelect={handleSelect}
-              onFolderSelect={onFolderSelect}
-              selectedPath={selectedPath}
-              sortKey={sortKey}
-              onContextMenu={handleContextMenu}
-              onDragStartMove={onMove ? handleDragStartMove : undefined}
-              onDragEndMove={handleDragEndMove}
-              onDragOverFolder={handleDragOverFolder}
-              onDropOnFolder={handleDropOnFolder}
-              dropTargetPath={dropTargetPath}
-              protectedPaths={protectedPathSet}
-              variant={variant}
-            />
-          ))
+          <>
+            {treeError ? (
+              <div
+                className="mb-2 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                role="alert"
+              >
+                <FileQuestion className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{treeError}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="clear"
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-normal text-foreground hover:bg-muted"
+                  onClick={() => {
+                    setTreeError(null);
+                    onRefresh();
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+            {rootNodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
+                <FileQuestion className="w-8 h-8 mb-2" />
+                <span>This folder is empty</span>
+              </div>
+            ) : (
+              rootNodes.map((node) => (
+                <TreeNodeRow
+                  key={node.entry.path}
+                  node={node}
+                  depth={0}
+                  onToggle={handleToggle}
+                  onSelect={handleSelect}
+                  onFolderSelect={onFolderSelect}
+                  selectedPath={selectedPath}
+                  sortKey={sortKey}
+                  onContextMenu={handleContextMenu}
+                  onDragStartMove={onMove ? handleDragStartMove : undefined}
+                  onDragEndMove={handleDragEndMove}
+                  onDragOverFolder={handleDragOverFolder}
+                  onDropOnFolder={handleDropOnFolder}
+                  dropTargetPath={dropTargetPath}
+                  protectedPaths={protectedPathSet}
+                  variant={variant}
+                />
+              ))
+            )}
+          </>
         )}
       </div>
 

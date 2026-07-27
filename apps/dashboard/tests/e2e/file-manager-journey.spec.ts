@@ -33,6 +33,7 @@ async function installFileManagerHarness(
   page: Page,
   options: {
     emptyRepository?: boolean;
+    failedDirectory?: string;
     fileReadDelayMs?: number;
     fileWriteDelayMs?: number;
     treeMutationVisibilityDelayMs?: number;
@@ -346,6 +347,9 @@ async function installFileManagerHarness(
 
       if (method === "GET") {
         if (path === "") rootDirectoryReads += 1;
+        if (path === options.failedDirectory) {
+          return json(route, { message: "Not Found" }, 404);
+        }
         if (
           options.emptyRepository &&
           path === "" &&
@@ -533,6 +537,33 @@ test.describe("repository file manager", () => {
       0,
     );
     expect(rootDirectoryReads()).toBe(2);
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps the tree visible when one folder cannot load", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page, {
+      expectedMissingPaths: ["docs"],
+    });
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      failedDirectory: "docs",
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: "docs" }).click();
+
+    await expect(
+      page.getByText("Could not load docs", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: "README.md 12 B" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("treeitem", { name: "notes.md 16 B" }),
+    ).toBeVisible();
+    await expect(page.getByRole("treeitem", { name: "docs" })).toBeVisible();
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });
