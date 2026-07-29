@@ -17,11 +17,17 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 const requestSchema = z.object({
   name: z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
 });
-const upsertSchema = requestSchema.extend({
-  value: z
-    .string()
-    .min(1)
-    .max(64 * 1024),
+const upsertSchema = z.object({
+  secrets: z
+    .record(
+      z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
+      z.string().min(1).max(64 * 1024),
+    )
+    .refine(
+      (secrets) =>
+        Object.keys(secrets).length > 0 && Object.keys(secrets).length <= 32,
+      "expected between 1 and 32 secrets",
+    ),
 });
 
 async function workflowRepository(
@@ -134,11 +140,16 @@ export async function PUT(request: Request) {
       ...current,
       secrets: {
         ...current.secrets,
-        [parsed.data.name]: {
-          value: parsed.data.value,
-          updatedAt,
-          updatedBy: identity.actor,
-        },
+        ...Object.fromEntries(
+          Object.entries(parsed.data.secrets).map(([name, value]) => [
+            name,
+            {
+              value,
+              updatedAt,
+              updatedBy: identity.actor,
+            },
+          ]),
+        ),
       },
     };
     await backend.mutation(backendApi.repoDocs.save, {
@@ -148,13 +159,13 @@ export async function PUT(request: Request) {
       updatedAt,
     });
     return NextResponse.json(
-      { ok: true, name: parsed.data.name },
+      { ok: true, names: Object.keys(parsed.data.secrets) },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {
     console.error("Kody engine secret upsert failed", {
       repository: identity.repository,
-      name: parsed.data.name,
+      names: Object.keys(parsed.data.secrets),
       error: error instanceof Error ? error.message : "unknown",
     });
     return NextResponse.json(

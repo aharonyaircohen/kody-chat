@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe("PUT /api/kody/engine/secret", () => {
-  it("upserts only into the repository signed by GitHub and preserves existing secrets", async () => {
+  it("atomically upserts only into the signed repository and preserves existing secrets", async () => {
     backend.query.mockResolvedValue({
       doc: { ciphertext: "encrypted-current-vault" },
     });
@@ -67,7 +67,12 @@ describe("PUT /api/kody/engine/secret", () => {
     );
 
     const response = await PUT(
-      request({ name: "VERCEL_ACCESS_TOKEN", value: "migrated" }),
+      request({
+        secrets: {
+          VERCEL_ACCESS_TOKEN: "migrated",
+          VERCEL_PROJECT_ID: "project",
+        },
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -81,6 +86,9 @@ describe("PUT /api/kody/engine/secret", () => {
     expect(crypto.encrypt).toHaveBeenCalledWith(
       expect.stringContaining('"VERCEL_ACCESS_TOKEN"'),
     );
+    expect(crypto.encrypt).toHaveBeenCalledWith(
+      expect.stringContaining('"VERCEL_PROJECT_ID"'),
+    );
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -92,7 +100,9 @@ describe("PUT /api/kody/engine/secret", () => {
   });
 
   it("rejects invalid secret names before touching persistence", async () => {
-    const response = await PUT(request({ name: "bad-name", value: "secret" }));
+    const response = await PUT(
+      request({ secrets: { "bad-name": "secret" } }),
+    );
 
     expect(response.status).toBe(400);
     expect(backend.query).not.toHaveBeenCalled();
