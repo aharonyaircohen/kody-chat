@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildChatKnowledgeIndex,
   parseChatKnowledgeGraph,
   searchChatKnowledge,
 } from "../src/chat-knowledge";
@@ -77,8 +78,9 @@ const graph = parseChatKnowledgeGraph({
 
 describe("Chat knowledge search", () => {
   it("returns a bounded connected answer with evidence", () => {
+    const index = buildChatKnowledgeIndex(graph);
     const result = searchChatKnowledge(
-      graph,
+      index,
       "Where is subscription state stored?",
     );
     expect(result.facts.map((fact) => fact.id)).toContain("subscriptions");
@@ -92,6 +94,41 @@ describe("Chat knowledge search", () => {
     expect(result.sources.length).toBeLessThanOrEqual(20);
   });
 
+  it("builds reusable lookup maps without copying the graph", () => {
+    const index = buildChatKnowledgeIndex(graph);
+
+    expect(index.graph).toBe(graph);
+    expect(index.nodesById.get("billing")).toBe(graph.graph.nodes[1]);
+    expect(index.neighborsById.get("billing")).toEqual([
+      "product",
+      "subscriptions",
+    ]);
+  });
+
+  it("returns the same connected neighborhood regardless of edge order", () => {
+    const reversed = {
+      ...graph,
+      graph: {
+        ...graph.graph,
+        edges: [...graph.graph.edges].reverse(),
+      },
+    };
+
+    const forwardResult = searchChatKnowledge(
+      buildChatKnowledgeIndex(graph),
+      "What does the product use for charging?",
+    );
+    const reversedResult = searchChatKnowledge(
+      buildChatKnowledgeIndex(reversed),
+      "What does the product use for charging?",
+    );
+
+    expect(reversedResult.facts.map((fact) => fact.id)).toEqual(
+      forwardResult.facts.map((fact) => fact.id),
+    );
+    expect(reversedResult.relationships).toEqual(forwardResult.relationships);
+  });
+
   it("rejects dangling relationships", () => {
     expect(() =>
       parseChatKnowledgeGraph({
@@ -102,5 +139,68 @@ describe("Chat knowledge search", () => {
         },
       }),
     ).toThrow(/edge/i);
+  });
+
+  it("rejects invalid graph, node, and source records", () => {
+    expect(() => parseChatKnowledgeGraph(null)).toThrow(/graph/i);
+    expect(() =>
+      parseChatKnowledgeGraph({
+        ...graph,
+        graph: { nodes: [{}], edges: [] },
+      }),
+    ).toThrow(/node/i);
+    expect(() =>
+      parseChatKnowledgeGraph({
+        ...graph,
+        sources: [{}],
+      }),
+    ).toThrow(/source/i);
+  });
+
+  it("normalizes optional metadata and valid gaps", () => {
+    const parsed = parseChatKnowledgeGraph({
+      kind: "chat-knowledge-graph",
+      status: "blocked",
+      graph: {
+        nodes: [{ id: "company", type: "company", label: "Acme" }],
+        edges: [],
+      },
+      sources: [],
+      gaps: [
+        {
+          questionId: "business-1",
+          reason: "CRM access is missing",
+          neededSourceKinds: ["crm"],
+        },
+        { questionId: 1 },
+      ],
+    });
+
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      status: "blocked",
+      summary: "",
+      coverage: [],
+      gaps: [{
+        questionId: "business-1",
+        reason: "CRM access is missing",
+        neededSourceKinds: ["crm"],
+      }],
+    });
+    expect(parsed.graph.nodes[0]).toMatchObject({
+      summary: undefined,
+      sourceIds: [],
+    });
+  });
+
+  it("returns an empty bounded result when no indexed terms match", () => {
+    const result = searchChatKnowledge(
+      buildChatKnowledgeIndex(graph),
+      "unrelated terminology",
+    );
+
+    expect(result.facts).toEqual([]);
+    expect(result.relationships).toEqual([]);
+    expect(result.sources).toEqual([]);
   });
 });

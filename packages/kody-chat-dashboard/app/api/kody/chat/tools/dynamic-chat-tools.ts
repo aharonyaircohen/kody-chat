@@ -3,6 +3,8 @@ import { z } from "zod";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
+  buildChatKnowledgeIndex,
+  type ChatKnowledgeIndex,
   parseChatKnowledgeGraph,
   searchChatKnowledge,
 } from "@kody-ade/knowledge";
@@ -12,12 +14,53 @@ type PublishedTool = {
   title: string;
   description: string;
   handlerKind: "knowledge_graph_search";
+  dataStorageId: string;
   dataUrl: string | null;
 };
+
+const MAX_CACHED_KNOWLEDGE_VERSIONS = 32;
+const knowledgeIndexCache = new Map<string, Promise<ChatKnowledgeIndex>>();
 
 const querySchema = z.object({
   question: z.string().trim().min(2).max(500),
 });
+
+function rememberKnowledgeIndex(
+  version: string,
+  load: () => Promise<ChatKnowledgeIndex>,
+): Promise<ChatKnowledgeIndex> {
+  const cached = knowledgeIndexCache.get(version);
+  if (cached) return cached;
+
+  const pending = load().catch((error) => {
+    knowledgeIndexCache.delete(version);
+    throw error;
+  });
+  knowledgeIndexCache.set(version, pending);
+
+  const oldestVersion = knowledgeIndexCache.keys().next().value;
+  if (
+    knowledgeIndexCache.size > MAX_CACHED_KNOWLEDGE_VERSIONS &&
+    typeof oldestVersion === "string"
+  ) {
+    knowledgeIndexCache.delete(oldestVersion);
+  }
+  return pending;
+}
+
+async function loadKnowledgeIndex(
+  definition: PublishedTool,
+): Promise<ChatKnowledgeIndex> {
+  const dataUrl = definition.dataUrl;
+  if (!dataUrl) throw new Error("tool_data_unavailable");
+  return await rememberKnowledgeIndex(definition.dataStorageId, async () => {
+    const response = await fetch(dataUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error("tool_data_unavailable");
+    return buildChatKnowledgeIndex(
+      parseChatKnowledgeGraph(await response.json()),
+    );
+  });
+}
 
 async function knowledgeGraphTool(definition: PublishedTool) {
   return tool({
@@ -28,12 +71,14 @@ async function knowledgeGraphTool(definition: PublishedTool) {
     inputSchema: querySchema,
     execute: async ({ question }) => {
       if (!definition.dataUrl) return { error: "tool_data_unavailable" };
-      const response = await fetch(definition.dataUrl, { cache: "no-store" });
-      if (!response.ok) return { error: "tool_data_unavailable" };
-      return searchChatKnowledge(
-        parseChatKnowledgeGraph(await response.json()),
-        question,
-      );
+      try {
+        return searchChatKnowledge(
+          await loadKnowledgeIndex(definition),
+          question,
+        );
+      } catch {
+        return { error: "tool_data_unavailable" };
+      }
     },
   });
 }

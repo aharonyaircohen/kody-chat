@@ -49,6 +49,16 @@ export type ChatKnowledgeSearchResult = {
   gaps: ChatKnowledgeGraph["gaps"];
 };
 
+export type ChatKnowledgeIndex = {
+  graph: ChatKnowledgeGraph;
+  nodesById: ReadonlyMap<string, ChatKnowledgeNode>;
+  neighborsById: ReadonlyMap<string, readonly string[]>;
+  nodeIdsByToken: ReadonlyMap<string, readonly string[]>;
+  labelTokensById: ReadonlyMap<string, ReadonlySet<string>>;
+  searchableTokensById: ReadonlyMap<string, ReadonlySet<string>>;
+  nodeOrderById: ReadonlyMap<string, number>;
+};
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -163,18 +173,82 @@ function tokens(value: string): string[] {
     .filter((token) => token && !STOP.has(token));
 }
 
-export function searchChatKnowledge(
+export function buildChatKnowledgeIndex(
   graph: ChatKnowledgeGraph,
+): ChatKnowledgeIndex {
+  const nodesById = new Map(
+    graph.graph.nodes.map((node) => [node.id, node] as const),
+  );
+  const nodeOrderById = new Map(
+    graph.graph.nodes.map((node, index) => [node.id, index] as const),
+  );
+  const labelTokensById = new Map<string, ReadonlySet<string>>();
+  const searchableTokensById = new Map<string, ReadonlySet<string>>();
+  const mutableNodeIdsByToken = new Map<string, string[]>();
+  const mutableNeighborsById = new Map(
+    graph.graph.nodes.map((node) => [node.id, new Set<string>()] as const),
+  );
+
+  for (const node of graph.graph.nodes) {
+    labelTokensById.set(node.id, new Set(tokens(node.label)));
+    const searchableTokens = new Set(
+      tokens(`${node.label} ${node.type} ${node.summary ?? ""}`),
+    );
+    searchableTokensById.set(node.id, searchableTokens);
+    for (const token of searchableTokens) {
+      const nodeIds = mutableNodeIdsByToken.get(token) ?? [];
+      mutableNodeIdsByToken.set(token, [...nodeIds, node.id]);
+    }
+  }
+  for (const edge of graph.graph.edges) {
+    mutableNeighborsById.get(edge.source)!.add(edge.target);
+    mutableNeighborsById.get(edge.target)!.add(edge.source);
+  }
+
+  const byNodeOrder = (left: string, right: string) =>
+    nodeOrderById.get(left)! - nodeOrderById.get(right)!;
+  const neighborsById = new Map(
+    [...mutableNeighborsById].map(([nodeId, neighbors]) => [
+      nodeId,
+      [...neighbors].sort(byNodeOrder),
+    ]),
+  );
+  const nodeIdsByToken = new Map(
+    [...mutableNodeIdsByToken].map(([token, nodeIds]) => [
+      token,
+      [...nodeIds].sort(byNodeOrder),
+    ]),
+  );
+
+  return {
+    graph,
+    nodesById,
+    neighborsById,
+    nodeIdsByToken,
+    labelTokensById,
+    searchableTokensById,
+    nodeOrderById,
+  };
+}
+
+export function searchChatKnowledge(
+  index: ChatKnowledgeIndex,
   question: string,
 ): ChatKnowledgeSearchResult {
   const query = tokens(question);
-  const ranked = graph.graph.nodes
-    .map((node, index) => {
-      const label = tokens(node.label);
-      const text = new Set(tokens(`${node.label} ${node.type} ${node.summary ?? ""}`));
-      const matches = query.filter((token) => text.has(token)).length;
-      const score = matches * 10 + query.filter((token) => label.includes(token)).length * 8;
-      return { node, score, index };
+  const candidateIds = new Set(
+    query.flatMap((token) => index.nodeIdsByToken.get(token) ?? []),
+  );
+  const ranked = [...candidateIds]
+    .map((nodeId) => {
+      const node = index.nodesById.get(nodeId)!;
+      const label = index.labelTokensById.get(nodeId)!;
+      const searchable = index.searchableTokensById.get(nodeId)!;
+      const matches = query.filter((token) => searchable.has(token)).length;
+      const score =
+        matches * 10 +
+        query.filter((token) => label.has(token)).length * 8;
+      return { node, score, index: index.nodeOrderById.get(nodeId)! };
     })
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
@@ -182,15 +256,27 @@ export function searchChatKnowledge(
     .map(({ node }) => node);
 
   const selected = new Set(ranked.map((node) => node.id));
-  for (const edge of graph.graph.edges) {
-    if (selected.has(edge.source)) selected.add(edge.target);
-    if (selected.has(edge.target)) selected.add(edge.source);
-    if (selected.size >= 20) break;
+  const queue = [...selected];
+  while (queue.length > 0 && selected.size < 20) {
+    const nodeId = queue.shift()!;
+    for (const neighborId of index.neighborsById.get(nodeId) ?? []) {
+      if (selected.has(neighborId)) continue;
+      selected.add(neighborId);
+      queue.push(neighborId);
+      if (selected.size >= 20) break;
+    }
   }
-  const facts = graph.graph.nodes.filter((node) => selected.has(node.id)).slice(0, 20);
+  const facts = [...selected]
+    .map((nodeId) => index.nodesById.get(nodeId)!)
+    .slice(0, 20);
   const byId = new Map(facts.map((node) => [node.id, node]));
-  const relationships = graph.graph.edges
+  const relationships = index.graph.graph.edges
     .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
+    .sort((left, right) =>
+      left.source.localeCompare(right.source) ||
+      left.target.localeCompare(right.target) ||
+      left.relation.localeCompare(right.relation)
+    )
     .slice(0, 30)
     .map((edge) => ({
       ...edge,
@@ -202,10 +288,12 @@ export function searchChatKnowledge(
     ...relationships.flatMap((edge) => edge.sourceIds),
   ]);
   return {
-    summary: graph.summary,
+    summary: index.graph.summary,
     facts,
     relationships,
-    sources: graph.sources.filter((source) => sourceIds.has(source.id)).slice(0, 20),
-    gaps: graph.gaps.slice(0, 10),
+    sources: index.graph.sources
+      .filter((source) => sourceIds.has(source.id))
+      .slice(0, 20),
+    gaps: index.graph.gaps.slice(0, 10),
   };
 }
