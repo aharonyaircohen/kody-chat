@@ -535,45 +535,27 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
-  // One generated Knowledge System bundle per consumer repository. Large
-  // Graphify artifacts live in Convex file storage; this row owns their
-  // tenant boundary, provenance, and replacement lifecycle.
-  knowledgeGraphs: defineTable({
+  // Declarative, workflow-published Chat tools. Kody maps handlerKind to
+  // trusted runtime code; workflows can publish data but never executable code.
+  chatTools: defineTable({
     tenantId: v.string(),
-    graphStorageId: v.id("_storage"),
-    reportStorageId: v.optional(v.id("_storage")),
-    htmlStorageId: v.optional(v.id("_storage")),
+    toolId: v.string(),
+    name: v.string(),
+    title: v.string(),
+    description: v.string(),
+    handlerKind: v.literal("knowledge_graph_search"),
+    dataStorageId: v.id("_storage"),
+    dataSchemaVersion: v.number(),
+    sourceWorkflow: v.string(),
     generatedAt: v.string(),
-    sourceRevision: v.optional(v.string()),
     nodeCount: v.number(),
     edgeCount: v.number(),
-    schemaVersion: v.number(),
-    domains: v.optional(
-      v.array(
-        v.object({
-          domain: v.union(
-            v.literal("company"),
-            v.literal("business"),
-            v.literal("data"),
-            v.literal("technology"),
-            v.literal("work"),
-            v.literal("agency"),
-          ),
-          graphStorageId: v.id("_storage"),
-          generatedAt: v.string(),
-          sourceRevision: v.optional(v.string()),
-          nodeCount: v.number(),
-          edgeCount: v.number(),
-          status: v.union(
-            v.literal("ready"),
-            v.literal("stale"),
-            v.literal("unavailable"),
-          ),
-        }),
-      ),
-    ),
+    enabled: v.boolean(),
     updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId"]),
+  })
+    .index("by_tenant", ["tenantId"])
+    .index("by_tenant_tool", ["tenantId", "toolId"])
+    .index("by_tenant_enabled", ["tenantId", "enabled"]),
 
   userState: defineTable({
     tenantId: v.string(),

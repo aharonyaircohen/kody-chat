@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Pure Knowledge System domain model and query composition.",
+  "description": "Evidence-backed knowledge data and bounded search for Kody Chat.",
   "type": "module",
   "files": [
     "dist"

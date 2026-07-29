@@ -79,31 +79,38 @@ describe("importExport", () => {
     expect(await t.query(api.importExport.exportTable, { table: "repoDocs" })).toHaveLength(2)
   })
 
-  it("upserts a tenant-singleton table by tenantId alone", async () => {
+  it("upserts Chat tools by repository and tool id", async () => {
     const t = setup()
-    const graphStorageId = await t.run(async (ctx) =>
+    const dataStorageId = await t.run(async (ctx) =>
       ctx.storage.store(new Blob(['{"nodes":[],"edges":[]}'], { type: "application/json" })),
     )
     const base = {
       tenantId: REPO,
-      graphStorageId,
+      toolId: "company-understanding",
+      name: "search_company_knowledge",
+      title: "Company knowledge",
+      description: "Search company knowledge",
+      handlerKind: "knowledge_graph_search",
+      dataStorageId,
+      dataSchemaVersion: 1,
+      sourceWorkflow: "build-chat-knowledge-graph",
       generatedAt: NOW,
       nodeCount: 0,
       edgeCount: 0,
-      schemaVersion: 1,
+      enabled: false,
       updatedAt: NOW,
     }
 
-    await t.mutation(api.importExport.importChunk, { table: "knowledgeGraphs", docs: [base] })
+    await t.mutation(api.importExport.importChunk, { table: "chatTools", docs: [base] })
     const second = await t.mutation(api.importExport.importChunk, {
-      table: "knowledgeGraphs",
+      table: "chatTools",
       docs: [{ ...base, nodeCount: 3 }],
     })
 
     expect(second).toEqual({ inserted: 0, updated: 1 })
     expect(
       await t.query(api.importExport.exportTable, {
-        table: "knowledgeGraphs",
+        table: "chatTools",
         tenantId: REPO,
       }),
     ).toEqual([{ ...base, nodeCount: 3 }])

@@ -134,10 +134,9 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_source",
   },
   {
-    table: "knowledgeGraphs",
-    naturalKey: [],
-    upsertIndex: "by_tenant",
-    tenantSingleton: true,
+    table: "chatTools",
+    naturalKey: ["toolId"],
+    upsertIndex: "by_tenant_tool",
   },
   { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
   {

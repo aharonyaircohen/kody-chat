@@ -21,7 +21,6 @@ const sections: readonly SettingsNavSection[] = [
   {
     title: "Knowledge",
     items: [
-      item("/knowledge-system", "Knowledge System"),
       item("/docs", "Docs"),
       item("/context", "Context"),
       item("/file-spaces", "Manage Spaces"),
@@ -47,7 +46,6 @@ describe("sidebar navigation extensions", () => {
         .find((section) => section.title === "Knowledge")
         ?.items.map((navItem) => navItem.href),
     ).toEqual([
-      "/knowledge-system",
       "/docs",
       "/file-spaces/notes",
       "/file-spaces/handbook",

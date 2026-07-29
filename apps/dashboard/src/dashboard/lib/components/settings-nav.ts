@@ -249,13 +249,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Knowledge",
     items: [
       {
-        href: "/knowledge-system",
-        label: "Knowledge System",
-        icon: Network,
-        description: "Explore this repository's connected knowledge graph.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
         href: "/docs",
         label: "Docs",
         icon: FileText,
@@ -404,6 +397,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Layers,
         description: "Simple executable folders.",
         tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
+        href: "/chat-tools",
+        label: "Chat Tools",
+        icon: Bot,
+        description: "Manage workflow-published tools available to Kody Chat.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
     ],
   },
@@ -635,6 +635,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
       navItemForHref("/capabilities"),
+      navItemForHref("/chat-tools"),
     ],
   },
   {

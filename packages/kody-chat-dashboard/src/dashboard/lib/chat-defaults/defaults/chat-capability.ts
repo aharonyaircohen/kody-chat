@@ -129,7 +129,6 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "read_report",
     "publish_report",
     // ── Repository knowledge (repo-gated, read-only) ───────────────────────
-    "query_knowledge_system",
     // ── Memory (repo-gated) ────────────────────────────────────────────────
     "remember",
     "recall",

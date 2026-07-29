@@ -21,8 +21,10 @@ import {
 } from "../../../src/dashboard/lib/chat-defaults/defaults";
 
 describe("chat-defaults bundle", () => {
-  it("makes repository knowledge available to normal Kody Chat", () => {
-    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("query_knowledge_system");
+  it("does not hardcode workflow-published tools in the default bundle", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
+      "search_company_knowledge",
+    );
   });
 
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
@@ -84,9 +86,9 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("requires Knowledge System context for cross-system questions", () => {
+  it("requires enabled dynamic knowledge tools for cross-system questions", () => {
     expect(CRITICAL_REMINDERS_MD).toContain(
-      "`query_knowledge_system` before separate source tools",
+      "enabled `search_*` tool",
     );
   });
 
@@ -186,7 +188,6 @@ describe("chat-defaults bundle", () => {
       "preview_act",
       "show_view",
       "final_answer",
-      "query_knowledge_system",
     ])
       toolKeys.add(name);
     for (const name of [
