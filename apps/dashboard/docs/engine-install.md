@@ -22,21 +22,15 @@ auth headers):
 4. **Writes `KODY_TOKEN`** as a compatibility secret when the caller's PAT
    can manage Actions secrets. It is optional: the engine falls back through
    PAT, GitHub App credentials, and finally GitHub's built-in token.
-5. **Makes repo vault secrets available to workflows.** Reads
-   `backend vault record`, decrypts it with the dashboard's
-   `KODY_MASTER_KEY`, and writes each entry as a repo Actions secret.
-   This keeps older env-based engine paths working. Newer engine scripts that
-   need repo-owned secrets, such as QA auth, read the encrypted vault directly
-   at runtime when `KODY_MASTER_KEY` and `KODY_TOKEN` are available.
-   - Names matching `GITHUB_*` or `ACTIONS_*` are skipped (GitHub
-     reserves them).
-   - Invalid names (anything not matching `^[A-Z_][A-Z0-9_]*$`) are
-     skipped.
+5. **Keeps user secrets in Kody's encrypted vault.** The workflow uses its
+   short-lived GitHub OIDC identity to request only the secrets declared by
+   the running capability. `KODY_MASTER_KEY` remains on the Dashboard server;
+   it is never copied to the repository or runner.
 6. **Registers the dashboard webhook** at
    `<dashboard-base>/api/webhooks/github` so push-based cache
    invalidation works.
 
-Secret writes, vault mirroring, and webhook registration are **soft-fail**:
+The compatibility token write and webhook registration are **soft-fail**:
 their failures appear in `nextSteps` and `summary` without undoing the
 workflow/config install.
 
@@ -61,7 +55,7 @@ that the workflow, model, credentials, and dashboard event path work together.
 
 In the connected repo's dashboard chat, send `/init` by itself. The command is
 idempotent: it creates or updates the workflow and config, refreshes compatible
-repo secrets, and refreshes the webhook without replacing unrelated
+Kody authentication, and refreshes the webhook without replacing unrelated
 `kody.config.json` settings.
 
 Read the full `/init` summary and complete every item under `nextSteps`.
@@ -84,11 +78,11 @@ Body:    { "force"?: boolean }
 with at least:
 
 - `repo` (contents:write — to commit the workflow file)
-- `repo:secrets:write` (optional, to set the compatibility `KODY_TOKEN` and mirror the vault)
+- `repo:secrets:write` (optional, to set the compatibility `KODY_TOKEN`)
 - `admin:repo_hook` (for the webhook step)
 
 If `repo:secrets:write` is missing, the workflow still lands and can use the
-built-in GitHub token. Vault mirroring will be skipped.
+built-in GitHub token. User vault secrets never require this permission.
 
 ## Outputs
 
@@ -97,7 +91,7 @@ built-in GitHub token. Vault mirroring will be skipped.
   ok: true,
   workflow:        { action: 'created' | 'updated' | 'unchanged', ... },
   kodyTokenSecret: { ok: boolean, name: 'KODY_TOKEN', error? },
-  vaultMirror:     { ok: boolean, written: string[], failed: Array<{name, error}>, error? },
+  runtimeSecrets:  { source: 'kody-vault', authentication: 'github-oidc' },
   webhook:         { ok: boolean, created?, hookId?, error? },
   nextSteps:       string[],   // user-facing follow-ups
   summary:         string      // one-line human summary
@@ -110,22 +104,21 @@ Re-run `/init` (or POST with `force: true`) whenever:
 
 - The `kody.yml` template changes upstream (new engine version with
   workflow tweaks).
-- You add or update a secret used by an older env-based engine path —
-  re-running re-syncs the latest vault values to the consumer repo's Actions
-  secrets. Vault-first paths such as QA auth read the current vault at runtime.
 - The PAT is rotated and the previous `KODY_TOKEN` is no longer valid.
 
 ## Vault runtime access
 
 The engine runs inside the consumer repo's GitHub Actions runner. GitHub OIDC
 identifies the repo to Kody's backend, so consumer repos do not need a database
-key. `LOGIN_PASSWORD` also does not need a separate Actions secret. Mirrored
-Actions secrets remain a compatibility path for older engine code.
+key or mirrored user secrets. The Dashboard verifies that the OIDC token was
+issued for that repository's `.github/workflows/kody.yml`, decrypts the
+repository-scoped vault, and returns only the requested secret.
 
 ## Files
 
 - `app/api/kody/engine/install/route.ts` — HTTP entry point.
 - `src/dashboard/lib/engine/install.ts` — `installEngine()`.
-- `src/dashboard/lib/vault/store.ts` — `readVault()` for the mirror step.
+- `app/api/kody/engine/secret/route.ts` — OIDC-authenticated runtime access.
+- `src/dashboard/lib/backend/github-actions-identity.ts` — workflow identity verification.
 - `src/dashboard/lib/webhooks/register.ts` — `ensureWebhook()`.
 - `templates/kody.yml` (in `@kody-ade/kody-engine`) — workflow template.

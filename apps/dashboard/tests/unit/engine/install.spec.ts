@@ -14,12 +14,18 @@ const convex = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
 }));
+const vault = vi.hoisted(() => ({
+  read: vi.fn(),
+}));
 
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
     query = convex.query;
     mutation = convex.mutation;
   },
+}));
+vi.mock("@kody-ade/base/vault/store", () => ({
+  readVault: vault.read,
 }));
 
 import { _resetConvexClient } from "@kody-ade/base/backend/convex";
@@ -64,11 +70,17 @@ beforeEach(() => {
   process.env.CONVEX_URL = "https://example.convex.cloud";
   invalidateVariablesCache("example", "my-repo");
   convex.query.mockResolvedValue(null); // no variables doc by default
+  vault.read.mockResolvedValue({
+    doc: { version: 1, secrets: {} },
+    sha: null,
+  });
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(KODY_WORKFLOW, { status: 200, statusText: "OK" }),
-    ),
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(KODY_WORKFLOW, { status: 200, statusText: "OK" }),
+      ),
   );
 });
 
@@ -137,6 +149,35 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("installEngine", () => {
+  it("keeps user vault secrets out of GitHub Actions", async () => {
+    vault.read.mockResolvedValue({
+      doc: {
+        version: 1,
+        secrets: {
+          OPENAI_API_KEY: {
+            value: "vault-only-value",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      },
+      sha: null,
+    });
+    const octokit = createMockOctokit();
+
+    const result = await installEngine({
+      octokit,
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(octokit.rest.actions.getRepoPublicKey).toHaveBeenCalledTimes(1);
+    expect(vault.read).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("vaultMirror");
+  });
+
   describe("kody.config.json creation", () => {
     it("creates kody.config.json at the repo root after the workflow", async () => {
       const octokit = createMockOctokit();
