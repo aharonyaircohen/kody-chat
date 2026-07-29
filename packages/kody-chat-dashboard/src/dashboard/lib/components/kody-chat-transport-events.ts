@@ -305,10 +305,13 @@ export function createTransportTurnHandler(
             ) {
               return;
             }
-            // Unlike the others, the view attaches to the in-flight
-            // bubble immediately and supersedes streamed text.
+            // The view attaches immediately as another ordered message part.
+            // Renderer-only replies replace draft text; a view after committed
+            // text appends without erasing what the user already read.
             state.pendingView = directive.payload;
-            state.textBuf = "";
+            if (directive.presentation === "replace") {
+              state.textBuf = "";
+            }
             setMessages((prev) => {
               const copy = [...prev];
               let idx = copy.findIndex(

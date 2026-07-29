@@ -21,6 +21,10 @@ import {
 } from "../../../src/dashboard/lib/chat-defaults/defaults";
 
 describe("chat-defaults bundle", () => {
+  it("makes repository knowledge available to normal Kody Chat", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("query_knowledge_system");
+  });
+
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
     const capabilityPath = "legacy/capabilities/kody-chat/profile.json";
@@ -78,6 +82,12 @@ describe("chat-defaults bundle", () => {
     for (const p of phrases) {
       expect(DEFAULT_IDENTITY_MD).toContain(p);
     }
+  });
+
+  it("requires Knowledge System context for cross-system questions", () => {
+    expect(CRITICAL_REMINDERS_MD).toContain(
+      "`query_knowledge_system` before separate source tools",
+    );
   });
 
   it("agentIdentity does not force a question on tiny factual replies", () => {
@@ -176,6 +186,7 @@ describe("chat-defaults bundle", () => {
       "preview_act",
       "show_view",
       "final_answer",
+      "query_knowledge_system",
     ])
       toolKeys.add(name);
     for (const name of [

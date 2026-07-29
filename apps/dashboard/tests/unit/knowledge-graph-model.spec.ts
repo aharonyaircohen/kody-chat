@@ -1,127 +1,204 @@
 import { describe, expect, it } from "vitest";
 import {
-  findKnowledgeNodes,
-  getKnowledgeNodeRelations,
+  KNOWLEDGE_DOMAINS,
+  createKnowledgeNeighborhood,
+  filterKnowledgeGraphByDomain,
   parseKnowledgeGraph,
-} from "@dashboard/features/knowledge-system/model/knowledge-graph";
-import {
-  classifyKnowledgeNode,
-  createKnowledgeAreaMap,
-  getKnowledgeAreas,
-} from "@dashboard/features/knowledge-system/model/knowledge-graph-projections";
+  validateKnowledgeGraph,
+} from "../../src/dashboard/features/knowledge-system/model/knowledge-graph";
 
-const rawGraph = {
-  nodes: [
-    {
-      id: "repo:acme/widgets",
-      label: "acme/widgets",
-      type: "repository",
-      domain: "project",
-    },
-    {
-      id: "goal:ship",
-      label: "Ship safely",
-      type: "goal",
-      domain: "business",
-    },
-    {
-      id: "agent:kody",
-      label: "Kody",
-      type: "agent",
-      domain: "agency",
-    },
-    {
-      id: "issue:7",
-      label: "Broken release",
-      type: "issue",
-      domain: "work",
-    },
-    {
-      id: "report:7",
-      label: "Release report",
-      type: "report",
-      domain: "quality",
-    },
-    {
-      id: "raw:function",
-      label: "renderGraph()",
-      source_file: "src/render.ts",
-    },
-  ],
-  edges: [
-    {
-      source: "repo:acme/widgets",
-      target: "goal:ship",
-      relation: "has-goal",
-    },
-    { source: "agent:kody", target: "issue:7", relation: "works-on" },
-    { source: "issue:7", target: "report:7", relation: "produced" },
-    { source: "raw:function", target: "agent:kody", relation: "calls" },
-  ],
-};
-
-describe("knowledge graph model", () => {
-  it("keeps only meaningful typed entities and valid relations", () => {
-    const graph = parseKnowledgeGraph(rawGraph);
-
-    expect(graph.nodes).toHaveLength(5);
-    expect(graph.edges).toHaveLength(3);
-  });
-
-  it("creates one overall graph from real entities and real relations", () => {
-    const map = createKnowledgeAreaMap(
-      parseKnowledgeGraph(rawGraph),
-      "overall",
-    );
-
-    expect(map.nodes).toHaveLength(5);
-    expect(map.nodes.every((node) => node.kind === "entity")).toBe(true);
-    expect(map.edges).toHaveLength(3);
-    expect(map.edges.every((edge) => edge.kind === "relation")).toBe(true);
-  });
-
-  it("offers semantic domain views without a redundant project view", () => {
-    const graph = parseKnowledgeGraph(rawGraph);
-
-    expect(getKnowledgeAreas(graph)).toEqual([
-      "purpose",
-      "product",
+describe("Knowledge System graph contract", () => {
+  it("uses the six agreed logical domains", () => {
+    expect(KNOWLEDGE_DOMAINS).toEqual([
+      "company",
+      "business",
+      "data",
+      "technology",
       "work",
       "agency",
-      "evidence",
     ]);
-    expect(classifyKnowledgeNode(graph.nodes[0]!)).toBe("product");
   });
 
-  it("keeps direct context in a focused view", () => {
-    const map = createKnowledgeAreaMap(parseKnowledgeGraph(rawGraph), "work");
+  it("parses v2 provenance and cross-domain relationships", () => {
+    const graph = parseKnowledgeGraph({
+      schemaVersion: 2,
+      generatedAt: "2026-07-28T10:00:00.000Z",
+      nodes: [
+        {
+          id: "business:subscription",
+          label: "Subscription",
+          type: "business_entity",
+          domain: "business",
+          sources: [
+            {
+              kind: "cms",
+              id: "cms/config.json#subscriptions",
+              observedAt: "2026-07-28T09:00:00.000Z",
+            },
+          ],
+        },
+        {
+          id: "data:mongodb:subscriptions",
+          label: "subscriptions",
+          type: "collection",
+          domain: "data",
+          sources: [
+            {
+              kind: "cms",
+              id: "cms/config.json#subscriptions",
+              observedAt: "2026-07-28T09:00:00.000Z",
+            },
+          ],
+        },
+      ],
+      edges: [
+        {
+          source: "business:subscription",
+          target: "data:mongodb:subscriptions",
+          relation: "stored-in",
+          sources: [
+            {
+              kind: "cms",
+              id: "cms/config.json#subscriptions",
+              observedAt: "2026-07-28T09:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    });
 
-    expect(map.nodes.map((node) => node.id)).toEqual([
-      "issue:7",
-      "agent:kody",
-      "report:7",
-    ]);
-    expect(map.edges).toHaveLength(2);
+    expect(graph.schemaVersion).toBe(2);
+    expect(graph.nodes[0]?.sources?.[0]?.kind).toBe("cms");
+    expect(graph.edges[0]).toMatchObject({
+      relation: "stored-in",
+      source: "business:subscription",
+      target: "data:mongodb:subscriptions",
+    });
+    expect(validateKnowledgeGraph(graph)).toEqual([]);
   });
 
-  it("searches entities and explains their relations", () => {
-    const graph = parseKnowledgeGraph(rawGraph);
+  it("normalizes the existing graph domains without breaking old bundles", () => {
+    const graph = parseKnowledgeGraph({
+      nodes: [
+        {
+          id: "repo:acme/widgets",
+          label: "acme/widgets",
+          type: "repository",
+          domain: "project",
+        },
+        {
+          id: "run:1",
+          label: "Run",
+          type: "run",
+          domain: "execution",
+        },
+      ],
+      edges: [
+        {
+          source: "repo:acme/widgets",
+          target: "run:1",
+          relation: "has-run",
+        },
+      ],
+    });
 
-    expect(findKnowledgeNodes(graph, "release").map((node) => node.id)).toEqual([
-      "issue:7",
-      "report:7",
+    expect(graph.nodes.map((node) => node.domain)).toEqual([
+      "technology",
+      "agency",
     ]);
-    expect(getKnowledgeNodeRelations(graph, "issue:7")).toEqual([
-      {
-        direction: "incoming",
-        relation: "works-on",
-        node: expect.objectContaining({ id: "agent:kody" }),
-      },
-      {
-        direction: "outgoing",
-        relation: "produced",
-        node: expect.objectContaining({ id: "report:7" }),
-      },
+  });
+
+  it("reports duplicate identities, dangling links, and missing v2 provenance", () => {
+    const issues = validateKnowledgeGraph({
+      schemaVersion: 2,
+      nodes: [
+        {
+          id: "business:customer",
+          label: "Customer",
+          type: "business_entity",
+          domain: "business",
+        },
+        {
+          id: "business:customer",
+          label: "Duplicate customer",
+          type: "business_entity",
+          domain: "business",
+        },
+      ],
+      edges: [
+        {
+          source: "business:customer",
+          target: "data:missing",
+          relation: "stored-in",
+        },
+      ],
+    });
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "duplicate-node" }),
+        expect.objectContaining({ code: "dangling-edge" }),
+        expect.objectContaining({ code: "missing-provenance" }),
+      ]),
+    );
+  });
+
+  it("provides domain views and bounded cross-domain neighborhoods", () => {
+    const graph = parseKnowledgeGraph({
+      schemaVersion: 2,
+      nodes: [
+        {
+          id: "business:subscription",
+          label: "Subscription",
+          type: "business_entity",
+          domain: "business",
+        },
+        {
+          id: "data:subscriptions",
+          label: "subscriptions",
+          type: "collection",
+          domain: "data",
+        },
+        {
+          id: "technology:billing",
+          label: "billing-service",
+          type: "service",
+          domain: "technology",
+        },
+      ],
+      edges: [
+        {
+          source: "business:subscription",
+          target: "data:subscriptions",
+          relation: "stored-in",
+        },
+        {
+          source: "data:subscriptions",
+          target: "technology:billing",
+          relation: "used-by",
+        },
+      ],
+    });
+
+    const business = filterKnowledgeGraphByDomain(graph, "business");
+    const neighborhood = createKnowledgeNeighborhood(
+      graph,
+      "business:subscription",
+      { depth: 2, limit: 10 },
+    );
+
+    expect(business.nodes.map((node) => node.id)).toEqual([
+      "business:subscription",
+      "data:subscriptions",
     ]);
+    expect(business.edges).toEqual([
+      expect.objectContaining({ relation: "stored-in" }),
+    ]);
+    expect(neighborhood.nodes.map((node) => node.id)).toEqual([
+      "business:subscription",
+      "data:subscriptions",
+      "technology:billing",
+    ]);
+    expect(neighborhood.edges).toHaveLength(2);
   });
 });

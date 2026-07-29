@@ -428,6 +428,10 @@ test.describe("Kody chat renderer output", () => {
         },
         body: sseBody([
           {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
             type: "text-delta",
             delta: leakedQuestion,
           },
@@ -471,6 +475,73 @@ test.describe("Kody chat renderer output", () => {
 
     await expect(page.getByText("Peek at CHANGELOG.md first?")).toBeVisible();
     await expect(page.getByText(leakedQuestion)).toHaveCount(0);
+  });
+
+  test("keeps streamed answer text when a renderer follows it", async ({
+    page,
+  }) => {
+    const committedText = "I found two safe ways to continue.";
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
+            type: "tool-input-start",
+            toolCallId: "tool-final-before-view",
+            toolName: "final_answer",
+          },
+          {
+            type: "tool-input-delta",
+            toolCallId: "tool-final-before-view",
+            inputTextDelta: `{"content":"${committedText}"}`,
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-final-before-view",
+            toolName: "final_answer",
+            input: { content: committedText },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-final-before-view",
+            output: { content: committedText },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-view-after-text",
+            toolName: "show_view",
+            input: {
+              purpose: "approval-card",
+              data: { title: "Choose how to continue" },
+            },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-view-after-text",
+            output: renderedApprovalView({
+              title: "Choose how to continue",
+              body: "Select the next step.",
+            }),
+          },
+        ]),
+      });
+    });
+    await openChat(page);
+
+    await sendChatMessage(page, "show the explanation and choices");
+
+    await expect(page.getByText(committedText)).toBeVisible();
+    await expect(page.getByText("Choose how to continue")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
   });
 
   test("plain streamed text is rendered without client-side renderer guessing", async ({

@@ -1,27 +1,23 @@
-import type {
-  KnowledgeDomain,
-  KnowledgeEdge,
-  KnowledgeGraph,
-  KnowledgeNode,
+import {
+  KNOWLEDGE_DOMAINS,
+  type KnowledgeDomain,
+  type KnowledgeEdge,
+  type KnowledgeGraph,
+  type KnowledgeNode,
 } from "./knowledge-graph";
 
-export const KNOWLEDGE_AREAS = [
-  "purpose",
-  "product",
-  "work",
-  "agency",
-  "evidence",
-] as const;
+export const KNOWLEDGE_AREAS = KNOWLEDGE_DOMAINS;
 
-export type KnowledgeArea = (typeof KNOWLEDGE_AREAS)[number];
+export type KnowledgeArea = KnowledgeDomain;
 export type KnowledgeView = "overall" | KnowledgeArea;
 
 export const KNOWLEDGE_AREA_LABELS: Record<KnowledgeArea, string> = {
-  purpose: "Purpose",
-  product: "Product",
+  company: "Company",
+  business: "Business",
+  data: "Data",
+  technology: "Technology",
   work: "Work",
   agency: "Agency",
-  evidence: "Evidence",
 };
 
 export type KnowledgeMapNode = KnowledgeNode & {
@@ -44,68 +40,12 @@ export type KnowledgeMap = {
   edges: KnowledgeMapEdge[];
 };
 
-const FOCUSED_AREA_LIMIT = 60;
-const FOCUSED_CONTEXT_LIMIT = 20;
-
-const TYPE_AREAS: Partial<Record<string, KnowledgeArea>> = {
-  intent: "purpose",
-  goal: "purpose",
-  objective: "purpose",
-  priority: "purpose",
-  outcome: "purpose",
-  repository: "product",
-  product: "product",
-  feature: "product",
-  journey: "product",
-  user_journey: "product",
-  code_area: "product",
-  document: "product",
-  doc: "product",
-  note: "product",
-  context: "product",
-  memory: "product",
-  task: "work",
-  todo: "work",
-  issue: "work",
-  pull_request: "work",
-  pr: "work",
-  finding: "work",
-  approval: "work",
-  agent: "agency",
-  operation: "agency",
-  loop: "agency",
-  workflow: "agency",
-  capability: "agency",
-  implementation: "agency",
-  trigger: "agency",
-  policy: "agency",
-  constraint: "agency",
-  run: "evidence",
-  evidence: "evidence",
-  artifact: "evidence",
-  report: "evidence",
-  check: "evidence",
-  test: "evidence",
-  failure: "evidence",
-  decision: "evidence",
-  qa: "evidence",
-};
-
-const DOMAIN_AREAS: Record<KnowledgeDomain, KnowledgeArea> = {
-  project: "product",
-  business: "purpose",
-  agency: "agency",
-  execution: "agency",
-  work: "work",
-  quality: "evidence",
-  knowledge: "product",
-  technical: "product",
-  other: "product",
-};
+const FOCUSED_AREA_LIMIT = 18;
+const FOCUSED_CONTEXT_LIMIT = 8;
+const RESULT_LIMIT = 12;
 
 export function classifyKnowledgeNode(node: KnowledgeNode): KnowledgeArea {
-  const type = node.type.toLocaleLowerCase().replaceAll("-", "_");
-  return TYPE_AREAS[type] ?? DOMAIN_AREAS[node.domain];
+  return node.domain;
 }
 
 export function getKnowledgeAreas(graph: KnowledgeGraph): KnowledgeArea[] {
@@ -117,11 +57,10 @@ export function createKnowledgeAreaMap(
   graph: KnowledgeGraph,
   view: KnowledgeView,
 ): KnowledgeMap {
+  if (view === "overall") return createOverallLayerMap(graph);
+
   const degrees = getDegrees(graph.edges);
-  const nodes =
-    view === "overall"
-      ? graph.nodes
-      : selectFocusedNodes(graph, view, degrees);
+  const nodes = selectFocusedNodes(graph, view, degrees);
   const selectedIds = new Set(nodes.map((node) => node.id));
 
   return {
@@ -145,6 +84,103 @@ export function createKnowledgeAreaMap(
         kind: "relation",
       })),
   };
+}
+
+function createOverallLayerMap(graph: KnowledgeGraph): KnowledgeMap {
+  if (
+    graph.nodes.length === KNOWLEDGE_AREAS.length &&
+    graph.nodes.every((node) => node.type === "knowledge_domain")
+  ) {
+    return {
+      nodes: graph.nodes.map((node) => {
+        const entityCount =
+          typeof node.properties?.entityCount === "number"
+            ? node.properties.entityCount
+            : 0;
+        return {
+          ...node,
+          displayLabel: `${KNOWLEDGE_AREA_LABELS[node.domain]}\n${entityCount.toLocaleString()} entities`,
+          count: entityCount,
+          area: node.domain,
+          kind: "entity",
+        };
+      }),
+      edges: graph.edges.map((edge, index) => ({
+        id: `layer:${index}:${edge.source}:${edge.target}`,
+        source: edge.source,
+        target: edge.target,
+        label: `${
+          typeof edge.properties?.relationCount === "number"
+            ? edge.properties.relationCount
+            : 0
+        } relations`,
+        kind: "relation",
+      })),
+    };
+  }
+
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const counts = new Map(
+    KNOWLEDGE_AREAS.map((domain) => [
+      domain,
+      graph.nodes.filter((node) => node.domain === domain).length,
+    ]),
+  );
+  const relations = new Map<
+    string,
+    { source: KnowledgeArea; target: KnowledgeArea; count: number }
+  >();
+
+  for (const edge of graph.edges) {
+    const source = nodeById.get(edge.source)?.domain;
+    const target = nodeById.get(edge.target)?.domain;
+    if (!source || !target || source === target) continue;
+    const [first, second] = [source, target].sort() as [
+      KnowledgeArea,
+      KnowledgeArea,
+    ];
+    const key = `${first}:${second}`;
+    const existing = relations.get(key);
+    if (existing) existing.count += 1;
+    else relations.set(key, { source: first, target: second, count: 1 });
+  }
+
+  return {
+    nodes: KNOWLEDGE_AREAS.map((domain) => ({
+      id: `domain:${domain}`,
+      label: KNOWLEDGE_AREA_LABELS[domain],
+      displayLabel: `${KNOWLEDGE_AREA_LABELS[domain]}\n${(counts.get(domain) ?? 0).toLocaleString()} entities`,
+      type: "knowledge_domain",
+      domain,
+      area: domain,
+      count: counts.get(domain) ?? 0,
+      kind: "entity",
+    })),
+    edges: [...relations.values()].map((relation) => ({
+      id: `layer:${relation.source}:${relation.target}`,
+      source: `domain:${relation.source}`,
+      target: `domain:${relation.target}`,
+      label: `${relation.count} relations`,
+      kind: "relation",
+    })),
+  };
+}
+
+export function selectKnowledgeResults(
+  graph: KnowledgeGraph,
+  options: { domain: KnowledgeView; query: string },
+): KnowledgeNode[] {
+  const query = options.query.trim().toLocaleLowerCase();
+  const degrees = getDegrees(graph.edges);
+  const candidates = graph.nodes.filter(
+    (node) =>
+      (options.domain === "overall" || node.domain === options.domain) &&
+      (!query ||
+        node.label.toLocaleLowerCase().includes(query) ||
+        node.type.toLocaleLowerCase().includes(query) ||
+        node.description?.toLocaleLowerCase().includes(query)),
+  );
+  return rankNodes(candidates, degrees).slice(0, RESULT_LIMIT);
 }
 
 function selectFocusedNodes(

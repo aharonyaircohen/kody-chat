@@ -102,11 +102,12 @@ import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
 import { createGuidedFlowTools } from "../tools/guided-flow-tools";
 import {
+  CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   CHAT_OUTPUT_TOOL_NAMES,
+  EXCLUSIVE_TOOL_OUTPUT_MODE,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
   isFinalAnswerOutput,
-  isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
@@ -131,6 +132,7 @@ import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
 import { createModelTools } from "../tools/models-tools";
 import { createReportTools } from "../tools/reports-tools";
+import { createKnowledgeSystemTools } from "../tools/knowledge-system-tools";
 import { createWebhookTools } from "../tools/webhooks-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
@@ -1195,6 +1197,11 @@ async function handleKodyDirectPost(
         actorLogin: verifiedActorLogin,
       }),
       ...createReportTools({ owner: repo.owner, repo: repo.repo }),
+      ...createKnowledgeSystemTools({
+        req,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
       ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
       ...createCompanyTools({
         octokit,
@@ -1690,13 +1697,6 @@ This turn includes an image from the user. For questions about what is visible i
                         : ("required" as const),
                   };
                 }
-                const finalAnswerNeedsView = steps.some((step) =>
-                  step.toolResults.some(
-                    (result) =>
-                      result.toolName === FINAL_ANSWER_TOOL &&
-                      isFinalAnswerRequiresViewOutput(result.output),
-                  ),
-                );
                 const hasPreRenderToolResult = steps.some((step) =>
                   step.toolResults.some(
                     (result) =>
@@ -1721,7 +1721,6 @@ This turn includes an image from the user. For questions about what is visible i
                   requireViewOutput,
                   allowPreRenderTools:
                     shouldAllowPreRenderTools && !hasPreRenderToolResult,
-                  finalAnswerNeedsView,
                 });
                 return {
                   activeTools: stepActiveTools,
@@ -1903,6 +1902,15 @@ This turn includes an image from the user. For questions about what is visible i
           type: "data-tools-index",
           data: toolDescriptionByName,
         });
+        if (providerCapabilities.supportsRequiredToolChoice !== false) {
+          // Required tool choice makes raw provider prose non-final. Tell the
+          // transport to expose only the semantic final_answer/show_view
+          // result, so a renderer can never erase text the user already saw.
+          writer.write({
+            type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
+            data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
+          });
+        }
         if (failedToolFamilies.length > 0) {
           // Visible warning line — without it a fabricated "saved!" reply
           // is indistinguishable from a real one for the user.

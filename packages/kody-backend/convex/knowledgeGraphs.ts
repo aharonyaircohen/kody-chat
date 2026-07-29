@@ -5,6 +5,35 @@ import { v } from "convex/values";
 const MAX_GRAPH_BYTES = 64 * 1024 * 1024;
 const MAX_REPORT_BYTES = 16 * 1024 * 1024;
 const MAX_HTML_BYTES = 64 * 1024 * 1024;
+const KNOWLEDGE_DOMAINS = [
+  "company",
+  "business",
+  "data",
+  "technology",
+  "work",
+  "agency",
+] as const;
+
+const domainValidator = v.object({
+  domain: v.union(
+    v.literal("company"),
+    v.literal("business"),
+    v.literal("data"),
+    v.literal("technology"),
+    v.literal("work"),
+    v.literal("agency"),
+  ),
+  graphStorageId: v.id("_storage"),
+  generatedAt: v.string(),
+  sourceRevision: v.optional(v.string()),
+  nodeCount: v.number(),
+  edgeCount: v.number(),
+  status: v.union(
+    v.literal("ready"),
+    v.literal("stale"),
+    v.literal("unavailable"),
+  ),
+});
 
 function assertCount(name: string, value: number): void {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -43,7 +72,7 @@ export const get = query({
       .unique();
     if (!bundle) return null;
 
-    const [graphUrl, reportUrl, htmlUrl] = await Promise.all([
+    const [graphUrl, reportUrl, htmlUrl, domains] = await Promise.all([
       ctx.storage.getUrl(bundle.graphStorageId),
       bundle.reportStorageId
         ? ctx.storage.getUrl(bundle.reportStorageId)
@@ -51,10 +80,16 @@ export const get = query({
       bundle.htmlStorageId
         ? ctx.storage.getUrl(bundle.htmlStorageId)
         : Promise.resolve(null),
+      Promise.all(
+        (bundle.domains ?? []).map(async (domain) => ({
+          ...domain,
+          graphUrl: await ctx.storage.getUrl(domain.graphStorageId),
+        })),
+      ),
     ]);
     if (!graphUrl) return null;
 
-    return { ...bundle, graphUrl, reportUrl, htmlUrl };
+    return { ...bundle, graphUrl, reportUrl, htmlUrl, domains };
   },
 });
 
@@ -74,6 +109,7 @@ export const publish = mutation({
     nodeCount: v.number(),
     edgeCount: v.number(),
     schemaVersion: v.number(),
+    domains: v.optional(v.array(domainValidator)),
   },
   handler: async (ctx, args) => {
     assertCount("nodeCount", args.nodeCount);
@@ -83,6 +119,16 @@ export const publish = mutation({
     }
     if (!Number.isFinite(Date.parse(args.generatedAt))) {
       throw new Error("generatedAt must be an ISO date");
+    }
+    if (args.schemaVersion >= 2) {
+      const domains = new Set(args.domains?.map((domain) => domain.domain));
+      if (
+        args.domains?.length !== KNOWLEDGE_DOMAINS.length ||
+        domains.size !== KNOWLEDGE_DOMAINS.length ||
+        KNOWLEDGE_DOMAINS.some((domain) => !domains.has(domain))
+      ) {
+        throw new Error("Knowledge System v2 requires six unique domains");
+      }
     }
 
     await requireStoredFile(
@@ -105,6 +151,19 @@ export const publish = mutation({
         args.htmlStorageId,
         "Knowledge visualization",
         MAX_HTML_BYTES,
+      );
+    }
+    for (const domain of args.domains ?? []) {
+      assertCount(`${domain.domain} nodeCount`, domain.nodeCount);
+      assertCount(`${domain.domain} edgeCount`, domain.edgeCount);
+      if (!Number.isFinite(Date.parse(domain.generatedAt))) {
+        throw new Error(`${domain.domain} generatedAt must be an ISO date`);
+      }
+      await requireStoredFile(
+        ctx,
+        domain.graphStorageId,
+        `${domain.domain} knowledge graph`,
+        MAX_GRAPH_BYTES,
       );
     }
 
@@ -132,12 +191,14 @@ export const publish = mutation({
       args.graphStorageId,
       ...(args.reportStorageId ? [args.reportStorageId] : []),
       ...(args.htmlStorageId ? [args.htmlStorageId] : []),
+      ...(args.domains ?? []).map((domain) => domain.graphStorageId),
     ]);
     if (existing) {
       const oldFiles = [
         existing.graphStorageId,
         existing.reportStorageId,
         existing.htmlStorageId,
+        ...(existing.domains ?? []).map((domain) => domain.graphStorageId),
       ].filter((file): file is Id<"_storage"> => Boolean(file));
       for (const file of oldFiles) {
         if (!retained.has(file) && (await ctx.db.system.get(file))) {

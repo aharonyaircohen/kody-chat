@@ -166,12 +166,15 @@ export async function deleteAgentFile(slug: string): Promise<void> {
   });
 }
 
-export async function listResolvedAgentFiles(): Promise<AgentFile[]> {
+export async function listResolvedAgentFiles(
+  options: { activeStoreSlugs?: Set<string> } = {},
+): Promise<AgentFile[]> {
   const octokit = getOctokit();
   const local = await listAgentFiles();
   const store = await listStoreAgentFiles(
     octokit,
     new Set(local.map((agent) => agent.slug)),
+    options.activeStoreSlugs,
   );
   return mergeAssetsBySlug(local, store);
 }
@@ -192,6 +195,7 @@ export async function readResolvedAgentFile(
 export async function listStoreAgentFiles(
   octokit: Octokit,
   localSlugs: Set<string> = new Set(),
+  activeStoreSlugs?: Set<string>,
 ): Promise<AgentFile[]> {
   const slugs = await listCompanyStoreMarkdownAssetSlugs(
     octokit,
@@ -201,6 +205,7 @@ export async function listStoreAgentFiles(
   const agents = await Promise.all(
     slugs
       .filter((slug) => !localSlugs.has(slug))
+      .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
       .map((slug) => readStoreAgentFile(slug, octokit)),
   );
   return agents.filter((agent): agent is AgentFile => agent !== null);

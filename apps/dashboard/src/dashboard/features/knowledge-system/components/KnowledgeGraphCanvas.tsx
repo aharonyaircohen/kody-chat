@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   DataSet,
   Network,
@@ -14,11 +16,12 @@ import type {
 } from "../model/knowledge-graph-projections";
 
 const AREA_COLORS: Record<KnowledgeArea, string> = {
-  purpose: "#f59e0b",
-  product: "#38bdf8",
+  company: "#f59e0b",
+  business: "#38bdf8",
+  data: "#22c55e",
+  technology: "#06b6d4",
   work: "#fb7185",
   agency: "#a78bfa",
-  evidence: "#34d399",
 };
 
 const NODE_FONT = {
@@ -29,22 +32,39 @@ const NODE_FONT = {
   strokeWidth: 5,
 };
 
-function toNode(node: KnowledgeMap["nodes"][number]): Node {
+const DOMAIN_POSITIONS: Record<KnowledgeArea, { x: number; y: number }> = {
+  company: { x: -190, y: -110 },
+  business: { x: 0, y: -165 },
+  data: { x: 190, y: -110 },
+  technology: { x: 190, y: 110 },
+  work: { x: 0, y: 165 },
+  agency: { x: -190, y: 110 },
+};
+
+function toNode(
+  node: KnowledgeMap["nodes"][number],
+  showLabel: boolean,
+): Node {
   const color = AREA_COLORS[node.area];
+  const isDomain = node.type === "knowledge_domain";
+  const position = isDomain ? DOMAIN_POSITIONS[node.area] : undefined;
   return {
     id: node.id,
-    label: "",
+    label: showLabel ? node.displayLabel : "",
     shape: "dot",
-    size: Math.min(18, 7 + Math.sqrt(node.count) * 2.5),
+    size: isDomain ? 30 : Math.min(18, 7 + Math.sqrt(node.count) * 2.5),
+    x: position?.x,
+    y: position?.y,
+    physics: !isDomain,
     color: {
       background: color,
       border: "#e2e8f0",
       highlight: { background: color, border: "#ffffff" },
       hover: { background: color, border: "#ffffff" },
     },
-    borderWidth: 0.5,
+    borderWidth: isDomain ? 2 : 0.5,
     borderWidthSelected: 2,
-    font: NODE_FONT,
+    font: isDomain ? { ...NODE_FONT, size: 16 } : NODE_FONT,
     title: `${node.label} · ${node.type.replaceAll("_", " ").replaceAll("-", " ")}`,
   };
 }
@@ -104,7 +124,7 @@ const NETWORK_OPTIONS: Options = {
     },
     maxVelocity: 30,
     minVelocity: 0.35,
-    stabilization: false,
+    stabilization: { enabled: true, iterations: 300, fit: true },
     timestep: 0.45,
   },
 };
@@ -131,12 +151,20 @@ export function KnowledgeGraphCanvas({
     const container = containerRef.current;
     if (!container) return;
 
-    const nodes = new DataSet<Node>(map.nodes.map(toNode));
+    const showLabels = map.nodes.length <= 30;
+    const isDomainOverview = map.nodes.every(
+      (node) => node.type === "knowledge_domain",
+    );
+    const nodes = new DataSet<Node>(
+      map.nodes.map((node) => toNode(node, showLabels)),
+    );
     const edges = new DataSet<Edge>(map.edges.map(toEdge));
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    const options: Options = reduceMotion
+    const options: Options = isDomainOverview
+      ? { ...NETWORK_OPTIONS, physics: { enabled: false } }
+      : reduceMotion
       ? {
           ...NETWORK_OPTIONS,
           physics: {
@@ -148,6 +176,11 @@ export function KnowledgeGraphCanvas({
     const network = new Network(container, { nodes, edges }, options);
     networkRef.current = network;
     nodesRef.current = nodes;
+    labelsVisibleRef.current = showLabels;
+
+    const fitFrame = requestAnimationFrame(() =>
+      requestAnimationFrame(() => network.fit({ animation: false })),
+    );
 
     const updateLabels = (visible: boolean, hoverId?: string) => {
       labelsVisibleRef.current = visible;
@@ -155,6 +188,7 @@ export function KnowledgeGraphCanvas({
         mapRef.current.nodes.map((node) => ({
           id: node.id,
           label:
+            showLabels ||
             visible ||
             node.id === hoverId ||
             node.id === selectedIdRef.current
@@ -171,9 +205,8 @@ export function KnowledgeGraphCanvas({
           : { duration: 350, easingFunction: "easeInOutQuad" },
       });
     });
-    network.on("zoom", ({ scale }) => {
-      const visible = scale >= 1.15;
-      if (visible !== labelsVisibleRef.current) updateLabels(visible);
+    network.on("zoom", () => {
+      if (labelsVisibleRef.current) updateLabels(false);
     });
     network.on("hoverNode", ({ node }) => {
       if (!labelsVisibleRef.current) updateLabels(false, String(node));
@@ -186,10 +219,14 @@ export function KnowledgeGraphCanvas({
       if (id !== undefined) onNodeSelect?.(String(id));
     });
 
-    const observer = new ResizeObserver(() => network.redraw());
+    const observer = new ResizeObserver(() => {
+      network.redraw();
+      if (isDomainOverview) network.fit({ animation: false });
+    });
     observer.observe(container);
 
     return () => {
+      cancelAnimationFrame(fitFrame);
       observer.disconnect();
       network.destroy();
       networkRef.current = null;
@@ -217,18 +254,68 @@ export function KnowledgeGraphCanvas({
     }
 
     network.selectNodes([selectedId]);
-    network.focus(selectedId, {
-      scale: Math.max(network.getScale(), 1.15),
-      animation: { duration: 300, easingFunction: "easeInOutQuad" },
+    network.once("stabilized", () => {
+      network.focus(selectedId, {
+        scale: Math.max(network.getScale(), 1.15),
+        animation: { duration: 300, easingFunction: "easeInOutQuad" },
+      });
     });
   }, [map, selectedId]);
 
+  const zoom = useCallback((factor: number) => {
+    const network = networkRef.current;
+    if (!network) return;
+    network.moveTo({
+      scale: Math.min(2.5, Math.max(0.35, network.getScale() * factor)),
+      animation: { duration: 180, easingFunction: "easeInOutQuad" },
+    });
+  }, []);
+  const fit = useCallback(() => {
+    networkRef.current?.fit({
+      animation: { duration: 220, easingFunction: "easeInOutQuad" },
+    });
+  }, []);
+
   return (
-    <div
-      ref={containerRef}
-      data-testid="knowledge-graph-canvas"
-      aria-label="Interactive knowledge graph"
-      className="h-full min-h-[500px] w-full bg-slate-950"
-    />
+    <div className="relative h-full min-h-[440px] w-full">
+      <div
+        ref={containerRef}
+        data-testid="knowledge-graph-canvas"
+        aria-label="Interactive knowledge graph"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(14,116,144,0.14),rgba(2,6,23,0.98)_68%)]"
+      />
+      <div className="absolute bottom-3 right-3 z-10 flex gap-1 rounded-md border border-white/10 bg-slate-950/85 p-1 backdrop-blur">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0"
+          aria-label="Zoom in"
+          onClick={() => zoom(1.25)}
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0"
+          aria-label="Zoom out"
+          onClick={() => zoom(0.8)}
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 px-0"
+          aria-label="Fit graph"
+          onClick={fit}
+        >
+          <Maximize2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 }

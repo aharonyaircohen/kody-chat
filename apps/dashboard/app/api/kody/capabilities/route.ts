@@ -20,9 +20,12 @@ import {
 import {
   setGitHubContext,
   clearGitHubContext,
+  getOctokit,
 } from "@dashboard/lib/github-client";
 import { isValidSlug } from "@dashboard/lib/capabilities";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -49,7 +52,17 @@ export async function GET(req: NextRequest) {
         { error: "repository_context_required" },
         { status: 400, headers: NO_STORE_HEADERS },
       );
-    const projected = await listCapabilityFiles();
+    const octokit = getOctokit();
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const activeStoreSlugs = await resolveInstalledCapabilitySlugs(
+      octokit,
+      config,
+    );
+    const projected = await listCapabilityFiles({ activeStoreSlugs });
     return NextResponse.json(
       { capabilities: projected },
       { headers: NO_STORE_HEADERS },

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   getRequestAuth: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  getOctokit: vi.fn(() => ({ rest: {} })),
   listResolvedAgentFiles: vi.fn(),
   readAgentFile: vi.fn(),
   writeAgentFile: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("@kody-ade/base/auth", () => ({
 vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
+  getOctokit: h.getOctokit,
 }));
 
 vi.mock("@kody-ade/agency/agent-files", () => ({
@@ -46,7 +48,17 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
-import { POST } from "../../app/api/kody/agents/route";
+import { GET, POST } from "../../app/api/kody/agents/route";
+
+function listRequest() {
+  return new NextRequest("https://dash.test/api/kody/agents", {
+    headers: {
+      "x-kody-token": "ghp_test-token",
+      "x-kody-owner": "acme",
+      "x-kody-repo": "widgets",
+    },
+  });
+}
 
 function request(body: Record<string, unknown>) {
   return new NextRequest("https://dash.test/api/kody/agents", {
@@ -60,6 +72,69 @@ function request(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
 }
+
+describe("GET /api/kody/agents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.requireKodyAuth.mockResolvedValue(null);
+    h.getRequestAuth.mockReturnValue({
+      token: "ghp_test-token",
+      owner: "acme",
+      repo: "widgets",
+      storeRepoUrl: "https://github.com/acme/kody-store",
+      storeRef: "stable",
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: { activeAgents: ["store-on"] } },
+      sha: "config-sha",
+    });
+    h.listResolvedAgentFiles.mockResolvedValue([
+      { slug: "local-one", source: "local" },
+      { slug: "store-on", source: "store" },
+    ]);
+  });
+
+  it("lists local agents and active Store agents only", async () => {
+    const res = await GET(listRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.agent.map((entry: { slug: string }) => entry.slug)).toEqual([
+      "local-one",
+      "store-on",
+    ]);
+    expect(h.getEngineConfig).toHaveBeenCalledWith(
+      { rest: {} },
+      "acme",
+      "widgets",
+    );
+    expect(h.listResolvedAgentFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(["store-on"]),
+    });
+  });
+
+  it("does not expose Store agents in a new repository", async () => {
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: {} },
+      sha: null,
+    });
+    h.listResolvedAgentFiles.mockImplementation(
+      async (options?: { activeStoreSlugs?: Set<string> }) =>
+        options?.activeStoreSlugs?.has("store-on")
+          ? [{ slug: "store-on", source: "store" }]
+          : [],
+    );
+
+    const res = await GET(listRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.agent).toEqual([]);
+    expect(h.listResolvedAgentFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(),
+    });
+  });
+});
 
 describe("POST /api/kody/agents", () => {
   beforeEach(() => {

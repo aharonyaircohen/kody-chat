@@ -157,6 +157,282 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("does not expose provider draft text before an exclusive rendered-view output", async () => {
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "Continue?", variant: "title" },
+          {
+            type: "button",
+            label: "Approve",
+            action: {
+              id: "approve",
+              label: "Approve",
+              response: "approve",
+            },
+          },
+        ],
+      },
+      data: {},
+    };
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "text-delta",
+            delta: "Want me to continue?",
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "view-1",
+            toolName: "show_view",
+            input: {},
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "view-1",
+            output: renderedView,
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).not.toContainEqual({
+      type: "token",
+      text: "Want me to continue?",
+    });
+    expect(sink.events).toContainEqual({
+      type: "directive",
+      directive: {
+        kind: "rendered-view",
+        payload: renderedView,
+        presentation: "replace",
+      },
+    });
+  });
+
+  it("commits final_answer text after hiding provider draft text in exclusive mode", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({ type: "text-delta", delta: "draft..." }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-1",
+            toolName: "final_answer",
+            input: { content: "Final answer." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-1",
+            output: { content: "Final answer." },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "text-replace", text: "Final answer." },
+      { type: "done" },
+    ]);
+  });
+
+  it("streams final_answer content after the output tool commits the turn to text", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-start",
+            toolCallId: "final-stream",
+            toolName: "final_answer",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: '{"content":"Hello',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: " streamed",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: ' world."}',
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-stream",
+            toolName: "final_answer",
+            input: { content: "Hello streamed world." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-stream",
+            output: { content: "Hello streamed world." },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "Hello" },
+      { type: "token", text: " streamed" },
+      { type: "token", text: " world." },
+      { type: "text-replace", text: "Hello streamed world." },
+      { type: "done" },
+    ]);
+  });
+
+  it("marks a renderer after committed text as an appended message part", async () => {
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-after-text",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [{ type: "text", value: "Choose an option" }],
+      },
+      data: {},
+    };
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-before-view",
+            toolName: "final_answer",
+            input: { content: "Here is the context." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-before-view",
+            output: { content: "Here is the context." },
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "view-after-text",
+            toolName: "show_view",
+            input: {},
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "view-after-text",
+            output: renderedView,
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toContainEqual({
+      type: "directive",
+      directive: {
+        kind: "rendered-view",
+        payload: renderedView,
+        presentation: "append",
+      },
+    });
+  });
+
+  it("decodes split JSON escapes without duplicating streamed final_answer text", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-start",
+            toolCallId: "final-escaped",
+            toolName: "final_answer",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: '{"content":"Line 1\\',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: 'n\\"quoted\\" \\u26',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: '3a"}',
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-escaped",
+            toolName: "final_answer",
+            input: { content: 'Line 1\n"quoted" ☺' },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-escaped",
+            output: { content: 'Line 1\n"quoted" ☺' },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "Line 1" },
+      { type: "token", text: '\n"quoted" ' },
+      { type: "token", text: "☺" },
+      { type: "text-replace", text: 'Line 1\n"quoted" ☺' },
+      { type: "done" },
+    ]);
+  });
+
   it("emits an error tool-result (with the tool name) for `{ error }` outputs — no directives", async () => {
     const { restore } = installScriptedFetch([
       () =>

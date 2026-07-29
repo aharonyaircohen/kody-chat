@@ -15,7 +15,7 @@ import {
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { setGitHubContext, clearGitHubContext } from "../github";
+import { setGitHubContext, clearGitHubContext, getOctokit } from "../github";
 import {
   listResolvedAgentFiles,
   writeAgentFile,
@@ -51,8 +51,15 @@ export async function GET(req: NextRequest) {
         { agent: [], error: "repository_context_required" },
         { status: 400, headers: NO_STORE_HEADERS },
       );
+    const octokit = getOctokit();
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const activeStoreSlugs = new Set(config.company?.activeAgents ?? []);
     return NextResponse.json(
-      { agent: await listResolvedAgentFiles() },
+      { agent: await listResolvedAgentFiles({ activeStoreSlugs }) },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {

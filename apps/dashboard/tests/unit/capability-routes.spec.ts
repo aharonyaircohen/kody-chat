@@ -59,6 +59,7 @@ vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
+  getOctokit: h.getOctokit,
 }));
 
 vi.mock("@kody-ade/agency/capabilities", () => ({
@@ -185,7 +186,43 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.listCapabilityFiles).toHaveBeenCalled();
+    expect(h.getEngineConfig).toHaveBeenCalledWith(
+      { rest: {} },
+      "acme",
+      "widgets",
+    );
+    expect(h.resolveInstalledCapabilitySlugs).toHaveBeenCalledWith(
+      { rest: {} },
+      expect.objectContaining({
+        company: { activeCapabilities: ["store-on"] },
+      }),
+    );
+    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(["store-on"]),
+    });
+  });
+
+  it("does not expose Store capabilities in a new repository", async () => {
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: {} },
+      sha: null,
+    });
+    h.resolveInstalledCapabilitySlugs.mockResolvedValue(new Set());
+    h.listCapabilityFiles.mockImplementation(
+      async (options?: { activeStoreSlugs?: Set<string> }) =>
+        options?.activeStoreSlugs?.has("store-on")
+          ? [{ slug: "store-on", source: "store" }]
+          : [],
+    );
+
+    const res = await GET(request("https://dash.test/api/kody/capabilities"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.capabilities).toEqual([]);
+    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(),
+    });
   });
 });
 

@@ -548,6 +548,30 @@ export default defineSchema({
     nodeCount: v.number(),
     edgeCount: v.number(),
     schemaVersion: v.number(),
+    domains: v.optional(
+      v.array(
+        v.object({
+          domain: v.union(
+            v.literal("company"),
+            v.literal("business"),
+            v.literal("data"),
+            v.literal("technology"),
+            v.literal("work"),
+            v.literal("agency"),
+          ),
+          graphStorageId: v.id("_storage"),
+          generatedAt: v.string(),
+          sourceRevision: v.optional(v.string()),
+          nodeCount: v.number(),
+          edgeCount: v.number(),
+          status: v.union(
+            v.literal("ready"),
+            v.literal("stale"),
+            v.literal("unavailable"),
+          ),
+        }),
+      ),
+    ),
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId"]),
 

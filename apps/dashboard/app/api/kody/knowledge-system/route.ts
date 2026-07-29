@@ -32,6 +32,31 @@ const publishSchema = z.object({
   nodeCount: z.number().int().nonnegative().max(10_000_000),
   edgeCount: z.number().int().nonnegative().max(30_000_000),
   schemaVersion: z.number().int().positive().max(100),
+  domains: z
+    .array(
+      z.object({
+        domain: z.enum([
+          "company",
+          "business",
+          "data",
+          "technology",
+          "work",
+          "agency",
+        ]),
+        graphStorageId: z
+          .string()
+          .min(8)
+          .max(128)
+          .regex(/^[A-Za-z0-9_-]+$/),
+        generatedAt: z.string().datetime(),
+        sourceRevision: z.string().trim().min(1).max(200).optional(),
+        nodeCount: z.number().int().nonnegative().max(10_000_000),
+        edgeCount: z.number().int().nonnegative().max(30_000_000),
+        status: z.enum(["ready", "stale", "unavailable"]),
+      }),
+    )
+    .max(6)
+    .optional(),
 });
 
 function tenantIdFor(access: { auth: { owner: string; repo: string } }) {
@@ -89,6 +114,10 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
         graphStorageId: parsed.data.graphStorageId as never,
         reportStorageId: parsed.data.reportStorageId as never,
         htmlStorageId: parsed.data.htmlStorageId as never,
+        domains: parsed.data.domains?.map((domain) => ({
+          ...domain,
+          graphStorageId: domain.graphStorageId as never,
+        })),
       },
     );
     return NextResponse.json({ ok: true, bundleId });

@@ -5,10 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { createUiTools } from "../../../app/api/kody/chat/tools/ui-tools";
-import {
-  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
-  FINAL_ANSWER_TOOL,
-} from "../../../src/dashboard/lib/chat-output-tools";
+import { FINAL_ANSWER_TOOL } from "../../../src/dashboard/lib/chat-output-tools";
 import { DASHBOARD_NAVIGATE_DIRECTIVE } from "../../../src/dashboard/lib/chat-ui-actions";
 import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
@@ -128,7 +125,7 @@ describe("ui tools", () => {
     });
   });
 
-  it("rejects plain final answers that should be rendered as user choices", async () => {
+  it("does not reclassify committed final text into a rendered view", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],
     }) as Record<string, unknown>;
@@ -142,7 +139,8 @@ describe("ui tools", () => {
           "Want me to file this as a bug issue in the repo so a dev can pick it up, or should I draft the small code change here?",
       }),
     ).resolves.toEqual({
-      error: FINAL_ANSWER_REQUIRES_VIEW_ERROR,
+      content:
+        "Want me to file this as a bug issue in the repo so a dev can pick it up, or should I draft the small code change here?",
     });
   });
 

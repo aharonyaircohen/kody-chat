@@ -182,4 +182,93 @@ describe("knowledgeGraphs", () => {
 
     expect(uploadUrl).toMatch(/^https?:\/\//);
   });
+
+  it("publishes six independently generated domain artifacts as one v2 release", async () => {
+    const t = setup();
+    const graphStorageId = await store(
+      t,
+      '{"schemaVersion":2,"nodes":[],"edges":[]}',
+      "application/json",
+    );
+    const domainNames = [
+      "company",
+      "business",
+      "data",
+      "technology",
+      "work",
+      "agency",
+    ] as const;
+    const domainFiles = await Promise.all(
+      domainNames.map((domain) =>
+        store(
+          t,
+          JSON.stringify({ schemaVersion: 2, domain, nodes: [], edges: [] }),
+          "application/json",
+        ),
+      ),
+    );
+
+    await t.mutation(knowledgeGraphs.publish as never, {
+      tenantId: TENANT,
+      graphStorageId,
+      generatedAt: NOW,
+      nodeCount: 0,
+      edgeCount: 0,
+      schemaVersion: 2,
+      domains: domainNames.map((domain, index) => ({
+        domain,
+        graphStorageId: domainFiles[index],
+        generatedAt: NOW,
+        nodeCount: 0,
+        edgeCount: 0,
+        status: "ready",
+      })),
+    });
+
+    const stored = (await t.query(knowledgeGraphs.get as never, {
+      tenantId: TENANT,
+    })) as {
+      domains: Array<{ domain: string; graphUrl: string; status: string }>;
+    };
+
+    expect(stored.domains.map((domain) => domain.domain)).toEqual(domainNames);
+    expect(stored.domains.every((domain) => domain.graphUrl.startsWith("http"))).toBe(
+      true,
+    );
+    expect(stored.domains.every((domain) => domain.status === "ready")).toBe(true);
+  });
+
+  it("rejects incomplete and duplicate v2 domain releases", async () => {
+    const t = setup();
+    const graphStorageId = await store(
+      t,
+      '{"schemaVersion":2,"nodes":[],"edges":[]}',
+      "application/json",
+    );
+    const domainGraph = await store(
+      t,
+      '{"schemaVersion":2,"nodes":[],"edges":[]}',
+      "application/json",
+    );
+    const domain = {
+      domain: "business",
+      graphStorageId: domainGraph,
+      generatedAt: NOW,
+      nodeCount: 0,
+      edgeCount: 0,
+      status: "ready",
+    };
+
+    await expect(
+      t.mutation(knowledgeGraphs.publish as never, {
+        tenantId: TENANT,
+        graphStorageId,
+        generatedAt: NOW,
+        nodeCount: 0,
+        edgeCount: 0,
+        schemaVersion: 2,
+        domains: [domain, domain],
+      }),
+    ).rejects.toThrow(/six unique domains/i);
+  });
 });

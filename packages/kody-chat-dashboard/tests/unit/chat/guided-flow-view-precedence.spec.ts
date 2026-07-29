@@ -86,7 +86,11 @@ function runTurn(directives: RenderedViewDirective[]) {
   for (const payload of directives) {
     handler.handleEvent({
       type: "directive",
-      directive: { kind: "rendered-view", payload },
+      directive: {
+        kind: "rendered-view",
+        payload,
+        presentation: "replace",
+      },
     });
   }
   return { messages, state: handler.state };

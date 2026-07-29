@@ -25,10 +25,11 @@ describe("Knowledge System page contract", () => {
     expect(page).not.toContain("ReactFlow");
     expect(page).not.toContain("<iframe");
     expect(page).not.toContain("bundle.htmlUrl");
-    expect(page).toContain("bundle.graphUrl");
+    expect(page).not.toContain("fetch(data.bundle.graphUrl");
+    expect(page).toContain('"/api/kody/knowledge-system/query"');
     expect(page).toContain("parseKnowledgeGraph");
-    expect(page).toContain("<KnowledgeGraph");
-    expect(page).toContain("Last updated");
+    expect(page).toContain("<KnowledgeExplorer");
+    expect(page).toContain("domains={bundle.domains");
     expect(page).not.toContain("Refresh graph");
     expect(page).not.toContain(
       "/api/kody/agency-loops/knowledge-system-refresh/run",
@@ -39,6 +40,19 @@ describe("Knowledge System page contract", () => {
     expect(page).toContain(
       "A graph will appear here after it is published for this repository.",
     );
+
+    const explorer = readFileSync(
+      "src/dashboard/features/knowledge-system/components/KnowledgeExplorer.tsx",
+      "utf8",
+    );
+    expect(explorer).toContain("<PageShell");
+    expect(explorer).not.toContain("MasterDetailShell");
+    expect(explorer).toContain("KNOWLEDGE_DOMAINS");
+    expect(explorer).toContain("Source evidence");
+    expect(explorer).toContain("KnowledgeGraphCanvas");
+    expect(explorer).toContain("All layers");
+    expect(explorer).not.toContain("KnowledgeDomainOverview");
+    expect(explorer).not.toContain("<ul");
 
     const canvas = readFileSync(
       "src/dashboard/features/knowledge-system/components/KnowledgeGraphCanvas.tsx",

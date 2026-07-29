@@ -29,22 +29,8 @@ describe("chat output tools", () => {
         ],
         requireViewOutput: false,
         allowPreRenderTools: false,
-        finalAnswerNeedsView: false,
       }),
     ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "fetch_url", "list_reports"]);
-  });
-
-  it("keeps final_answer callable after an interactive final answer is rejected", () => {
-    // The show_view nudge is one-shot: the model may retry final_answer
-    // instead of being forced to fabricate a placeholder view.
-    expect(
-      selectChatOutputActiveTools({
-        toolNames: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "list_reports"],
-        requireViewOutput: false,
-        allowPreRenderTools: false,
-        finalAnswerNeedsView: true,
-      }),
-    ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]);
   });
 
   it("pins show_view by name when a step is locked to it (regression: MiniMax ignores generic required and ends with prose)", () => {
@@ -70,7 +56,10 @@ describe("chat output tools", () => {
     };
 
     expect(
-      selectChatOutputToolChoice([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL], capabilities),
+      selectChatOutputToolChoice(
+        [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
+        capabilities,
+      ),
     ).toBe("auto");
     expect(selectChatOutputToolChoice([SHOW_VIEW_TOOL], capabilities)).toBe(
       "auto",
@@ -83,7 +72,6 @@ describe("chat output tools", () => {
         toolNames: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "list_reports"],
         requireViewOutput: true,
         allowPreRenderTools: true,
-        finalAnswerNeedsView: false,
       }),
     ).toEqual([SHOW_VIEW_TOOL, "list_reports"]);
   });

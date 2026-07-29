@@ -107,6 +107,51 @@ describe("/api/kody/knowledge-system", () => {
     );
   });
 
+  it("publishes a complete six-domain v2 release", async () => {
+    backend.mutation.mockResolvedValue("bundle-id");
+    const domains = [
+      "company",
+      "business",
+      "data",
+      "technology",
+      "work",
+      "agency",
+    ].map((domain, index) => ({
+      domain,
+      graphStorageId: `kg${index}12345678901234567890123456789`,
+      generatedAt: "2026-07-28T10:00:00.000Z",
+      nodeCount: index,
+      edgeCount: index,
+      status: "ready",
+    }));
+
+    const response = await PUT(
+      new NextRequest("http://localhost/api/kody/knowledge-system", {
+        method: "PUT",
+        body: JSON.stringify({
+          graphStorageId: "kg012345678901234567890123456789",
+          generatedAt: "2026-07-28T10:00:00.000Z",
+          nodeCount: 15,
+          edgeCount: 9,
+          schemaVersion: 2,
+          domains,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        schemaVersion: 2,
+        domains: expect.arrayContaining([
+          expect.objectContaining({ domain: "data", status: "ready" }),
+        ]),
+      }),
+    );
+  });
+
   it("requires verified read and write access", async () => {
     auth.verifyRepoReadAccess.mockResolvedValueOnce(
       NextResponse.json({ error: "unauthorized" }, { status: 401 }),
