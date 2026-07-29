@@ -146,42 +146,42 @@ describe("writeReportRun", () => {
   it("saves a timestamped run via reports.save scoped to the tenant", async () => {
     convex.mutation.mockResolvedValue("doc-id");
     const result = await writeReportRun({
-      slug: "meeting-notes",
-      title: "Meeting — roadmap sync (2026-07-20)",
+      slug: "weekly-review",
+      title: "Weekly review — roadmap (2026-07-20)",
       body: "## Decisions\n\n- Ship it.\n",
       generatedAt: "2026-07-20T12:34:56.789Z",
     });
     expect(result).toEqual({
       runId: "2026-07-20T12-34-56Z",
-      path: "reports/meeting-notes/runs/2026-07-20T12-34-56Z.md",
+      path: "reports/weekly-review/runs/2026-07-20T12-34-56Z.md",
     });
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("reports:save");
     expect(args).toMatchObject({
       tenantId: "acme/widgets",
-      slug: "meeting-notes",
+      slug: "weekly-review",
       runId: "2026-07-20T12-34-56Z",
-      title: "Meeting — roadmap sync (2026-07-20)",
+      title: "Weekly review — roadmap (2026-07-20)",
       updatedAt: "2026-07-20T12:34:56.789Z",
     });
     expect(args.body).toContain("generatedAt: 2026-07-20T12:34:56.789Z");
-    expect(args.body).toContain("# Meeting — roadmap sync (2026-07-20)");
+    expect(args.body).toContain("# Weekly review — roadmap (2026-07-20)");
     expect(args.body).toContain("- Ship it.");
   });
 
   it("round-trips through the read model as a run family", async () => {
     convex.mutation.mockResolvedValue("doc-id");
     const { runId } = await writeReportRun({
-      slug: "meeting-notes",
-      title: "Meeting — standup",
+      slug: "weekly-review",
+      title: "Weekly review — standup",
       body: "Notes.\n",
       generatedAt: "2026-07-20T09:00:00.000Z",
     });
     const [, saved] = convex.mutation.mock.calls[0]!;
     convex.query.mockResolvedValue([saved]);
-    const report = await readReportFile("meeting-notes");
+    const report = await readReportFile("weekly-review");
     expect(report?.runId).toBe(runId);
-    expect(report?.title).toBe("Meeting — standup");
+    expect(report?.title).toBe("Weekly review — standup");
     expect(report?.body).toBe("Notes.\n");
   });
 

@@ -59,7 +59,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
       description:
         `Publish a markdown report run in ${repoRef} (backend reports/). ` +
         `Appends a timestamped run under the given report family slug ` +
-        `(e.g. "meeting-notes") so it shows on the Reports page.`,
+        `(e.g. "weekly-review") so it shows on the Reports page.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         title: z.string().min(1).max(200),

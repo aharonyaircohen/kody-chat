@@ -95,21 +95,20 @@ Migrate the SearchBar component from React to Vue.
 These live in Store under `backend repo documents (commands)`. Dashboard keeps matching fallback
 built-ins for cold-start and unavailable-Store cases.
 
-| Slug          | What it does                                               |
-| ------------- | ---------------------------------------------------------- |
-| `/capability` | Draft a scheduled capability folder.                       |
-| `/analyze`    | Analyze whatever you're viewing: issue, PR, run, or check. |
-| `/briefing`   | Summarize current work that needs attention.               |
-| `/explain`    | Explain topic in codebase.                                 |
-| `/factory`    | Create an agent-factory backend PR for model definitions.  |
-| `/goal`       | Draft new goal.                                            |
+| Slug          | What it does                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/capability` | Draft a scheduled capability folder.                                                                                          |
+| `/analyze`    | Analyze whatever you're viewing: issue, PR, run, or check.                                                                    |
+| `/briefing`   | Summarize current work that needs attention.                                                                                  |
+| `/explain`    | Explain topic in codebase.                                                                                                    |
+| `/factory`    | Create an agent-factory backend PR for model definitions.                                                                     |
+| `/goal`       | Draft new goal.                                                                                                               |
 | `/init`       | Verify/repair setup by installing Kody in the connected repo. See [setup verification](./engine-install.md#verify-the-setup). |
-| `/issue`      | Research, draft, create issue, then offer to run Kody.     |
-| `/meeting-summary` | Summarize pasted meeting notes into a saved report.   |
-| `/mission`    | Draft a mission task group.                                |
-| `/plan`       | Plan change without writing code yet.                      |
-| `/research`   | Investigate topic; summary only, no edits.                 |
-| `/review`     | Review your uncommitted changes.                           |
+| `/issue`      | Research, draft, create issue, then offer to run Kody.                                                                        |
+| `/mission`    | Draft a mission task group.                                                                                                   |
+| `/plan`       | Plan change without writing code yet.                                                                                         |
+| `/research`   | Investigate topic; summary only, no edits.                                                                                    |
+| `/review`     | Review your uncommitted changes.                                                                                              |
 
 Fork any of them to customize the wording for your repo.
 

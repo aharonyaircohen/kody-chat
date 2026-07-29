@@ -139,7 +139,22 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ collections: [] }),
+      body: JSON.stringify({
+        cms: {
+          configured: true,
+          collections: [
+            { name: "posts", label: "Posts" },
+            { name: "users", label: "Users" },
+          ],
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/kody/file-spaces", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ spaces: [] }),
     }),
   );
   await page.route("**/api/kody/chat/conversations**", (route) => {
@@ -246,6 +261,19 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     .toContainEqual({
       favoriteHrefs: [],
     });
+
+  await navigation
+    .getByRole("button", { name: "Content", exact: true })
+    .click();
+  await expect(
+    navigation.getByRole("link", { name: "Entries", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Posts", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    navigation.getByRole("link", { name: "Users", exact: true }),
+  ).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
