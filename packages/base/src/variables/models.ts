@@ -222,7 +222,7 @@ export type EngineRuntimeModelConfig = {
   baseURL?: string;
   /** Model id exactly as the provider expects it on the wire. */
   modelName: string;
-  /** Env var name holding this model's API key inside ALL_SECRETS. */
+  /** Kody vault key exposed only to the selected Engine model process. */
   apiKeyEnvVar: string;
 };
 

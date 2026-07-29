@@ -10,7 +10,10 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { AGENTS, type AgentConfig } from "../../../../../src/dashboard/lib/agents";
+import {
+  AGENTS,
+  type AgentConfig,
+} from "../../../../../src/dashboard/lib/agents";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   HOME_NAV_ITEM,
@@ -35,15 +38,15 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
       "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
-- Each connected repo has its own encrypted backend blob at \`secrets.enc\`.
+- Each connected repo has its own encrypted Convex document at \`secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
-  \`KODY_MASTER_KEY\` env var and committed back to the repo.
+  \`KODY_MASTER_KEY\` env var before storage.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),
   which falls through to \`process.env\` when the vault is missing.
 - Bootstrap with \`pnpm vault:init\` to print a fresh key, then paste it into the
   Vercel env. Losing the key means re-entering every secret.
-- Engine workflows (\`kody.yml\`) are unchanged — they still read from GitHub
-  Actions secrets. The vault is dashboard-runtime only.`,
+- Engine workflows authenticate to Dashboard with GitHub OIDC and request only
+  the secret names needed by the selected capability and model.`,
   },
   {
     id: "webhooks",
@@ -165,7 +168,7 @@ agentIdentity after a gap-analysis conversation.`,
     id: "memory",
     name: "Persistent Memory System",
     summary:
-      'Typed personal and repository memory with relevant retrieval and revision history.',
+      "Typed personal and repository memory with relevant retrieval and revision history.",
     details: `Kody stores typed memory in Convex.
 
 - Scopes: personal user memory and shared repository memory.
