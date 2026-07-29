@@ -52,7 +52,6 @@ export function MarkdownViewer({ content, title }: MarkdownViewerProps) {
         <MarkdownPreview
           {...autoDirProps}
           content={content}
-          variant="compact"
           className={cn("text-start", rtlAwareMarkdownClassName)}
         />
       </div>

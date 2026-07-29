@@ -315,10 +315,7 @@ export function EditTaskDialog({
                   rtlAwareMarkdownClassName,
                 )}
               >
-                <MarkdownPreview
-                  content={body || "*No description*"}
-                  variant="compact"
-                />
+                <MarkdownPreview content={body || "*No description*"} />
               </div>
             ) : (
               <Textarea

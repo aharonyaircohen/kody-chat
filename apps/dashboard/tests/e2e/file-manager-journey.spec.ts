@@ -991,6 +991,13 @@ test.describe("repository file manager", () => {
     await expect(
       page.getByText("Updated notes", { exact: true }),
     ).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .getByText("Updated notes", { exact: true })
+          .evaluate((element) => getComputedStyle(element).fontSize),
+      )
+      .toBe("16px");
     await page.getByRole("button", { name: "Edit mode" }).click();
     await expect(editor).toHaveValue("Updated notes\n");
 

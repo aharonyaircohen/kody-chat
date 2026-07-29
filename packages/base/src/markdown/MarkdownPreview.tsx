@@ -35,7 +35,6 @@ interface MarkdownPreviewProps {
   className?: string;
   dir?: React.HTMLAttributes<HTMLDivElement>["dir"];
   style?: React.CSSProperties;
-  variant?: "document" | "compact";
 }
 
 const calloutStyles: Record<
@@ -387,7 +386,6 @@ export function MarkdownPreview({
   className,
   dir,
   style,
-  variant = "document",
 }: MarkdownPreviewProps) {
   return (
     <div
@@ -395,8 +393,6 @@ export function MarkdownPreview({
       style={style}
       className={cn(
         "prose prose-base max-w-none dark:prose-invert",
-        variant === "compact" &&
-          "text-body-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:my-2",
         "prose-h1:text-heading-xl prose-h2:text-heading-lg prose-h3:text-heading-md prose-h4:text-heading-sm",
         "prose-headings:text-foreground",
         "prose-p:leading-relaxed",

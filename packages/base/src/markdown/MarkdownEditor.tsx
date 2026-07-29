@@ -209,7 +209,7 @@ export function MarkdownEditor({
         rtlAwareMarkdownClassName,
       )}
     >
-      <MarkdownPreview content={value || emptyPreview} variant="compact" />
+      <MarkdownPreview content={value || emptyPreview} />
     </div>
   );
 

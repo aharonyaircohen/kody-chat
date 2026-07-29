@@ -1120,7 +1120,6 @@ function TodoListDetail({
                       <MarkdownPreview
                         {...autoDirProps}
                         content={list.description}
-                        variant="compact"
                         className={cn(
                           "max-w-3xl text-start text-sm prose-headings:my-1 prose-headings:text-base prose-p:my-1 prose-ul:my-1 prose-ol:my-1",
                           rtlAwareMarkdownClassName,
@@ -1598,7 +1597,6 @@ function TodoItemCard({
       <MarkdownPreview
         {...autoDirProps}
         content={item.body}
-        variant="compact"
         className={cn(
           "border-t border-border/70 pt-3 text-start",
           rtlAwareMarkdownClassName,

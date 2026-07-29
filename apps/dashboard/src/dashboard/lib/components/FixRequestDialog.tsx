@@ -113,7 +113,6 @@ export function FixRequestDialog({
                 <MarkdownPreview
                   content={description}
                   dir="auto"
-                  variant="compact"
                   className={cn("text-start", rtlAwareMarkdownClassName)}
                 />
               ) : (

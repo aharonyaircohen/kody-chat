@@ -582,7 +582,7 @@ function StaffDetail({
           {/* Description card inside the hero when present */}
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-              <MarkdownPreview content={member.body} variant="compact" />
+              <MarkdownPreview content={member.body} />
             </div>
           ) : null}
         </div>

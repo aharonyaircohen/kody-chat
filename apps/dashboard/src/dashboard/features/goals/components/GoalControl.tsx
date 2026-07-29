@@ -517,7 +517,7 @@ function GoalDetail({
 
           {/* Description */}
           {goal.description?.trim() ? (
-            <MarkdownPreview content={goal.description} variant="compact" />
+            <MarkdownPreview content={goal.description} />
           ) : null}
         </div>
       </div>

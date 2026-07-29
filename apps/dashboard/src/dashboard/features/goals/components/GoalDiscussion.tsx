@@ -206,12 +206,7 @@ function DiscussionCommentItem({
         </a>
       </div>
 
-      <MarkdownPreview
-        content={comment.body}
-        dir="auto"
-        variant="compact"
-        className="text-sm"
-      />
+      <MarkdownPreview content={comment.body} dir="auto" className="text-sm" />
     </div>
   );
 }
@@ -443,7 +438,6 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
             <MarkdownPreview
               content={body || "*Nothing to preview*"}
               dir="auto"
-              variant="compact"
             />
           </div>
         ) : (

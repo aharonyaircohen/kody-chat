@@ -102,7 +102,6 @@ function MessageMarkdown({
     <MarkdownPreview
       dir="auto"
       content={body}
-      variant="compact"
       className={cn(
         "text-[15px] leading-relaxed break-words",
         onPrimary &&
@@ -494,7 +493,6 @@ function MessageComposer({
           <MarkdownPreview
             content={body || "*Nothing to preview*"}
             dir="auto"
-            variant="compact"
           />
         </div>
       ) : null}

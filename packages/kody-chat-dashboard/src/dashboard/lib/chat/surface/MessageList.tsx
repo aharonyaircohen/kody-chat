@@ -389,7 +389,6 @@ export function MessageList({
                           content={softFormatUserMessageForDisplay(msg.content)}
                           dir={messageDirection}
                           style={messageTextDirectionStyle}
-                          variant="compact"
                           className={`chat-message-text text-start prose-base break-words prose-invert ${rtlAwareMarkdownClassName} prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                         />
                       )}

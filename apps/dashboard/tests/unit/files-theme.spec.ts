@@ -65,6 +65,38 @@ describe("file workspace themes", () => {
     expect(source).not.toContain("Close");
   });
 
+  it("uses one shared document typography for Markdown", () => {
+    const editorSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FileEditor.tsx",
+      ),
+      "utf8",
+    );
+    const markdownEditorSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../packages/base/src/markdown/MarkdownEditor.tsx",
+      ),
+      "utf8",
+    );
+    const markdownPreviewSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../packages/base/src/markdown/MarkdownPreview.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(markdownPreviewSource).toContain(
+      '"prose prose-base max-w-none dark:prose-invert"',
+    );
+    expect(markdownPreviewSource).not.toContain("MarkdownPreviewVariant");
+    expect(markdownPreviewSource).not.toContain('variant === "compact"');
+    expect(markdownEditorSource).not.toContain("previewVariant");
+    expect(editorSource).toContain("<MarkdownEditor");
+  });
+
   it("recovers local drafts and always leaves a file-panel restore control", () => {
     const editorSource = readFileSync(
       resolve(

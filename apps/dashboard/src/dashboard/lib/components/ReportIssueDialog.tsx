@@ -111,7 +111,6 @@ export function ReportIssueDialog({
                 <MarkdownPreview
                   content={notes}
                   dir="auto"
-                  variant="compact"
                   className={cn("text-start", rtlAwareMarkdownClassName)}
                 />
               ) : (
