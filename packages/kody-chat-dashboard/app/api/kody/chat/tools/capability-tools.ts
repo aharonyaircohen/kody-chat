@@ -28,6 +28,7 @@ function files(input: {
   contract: {
     execution: "agent" | "script";
     secrets?: string[];
+    timeoutMs?: number;
     input: Record<string, unknown>;
     output: Record<string, unknown>;
   };
@@ -89,6 +90,7 @@ export function createCapabilityTools(ctx: Ctx) {
             secrets: z
               .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
               .optional(),
+            timeoutMs: z.number().int().min(1_000).max(21_600_000).optional(),
             input: z.record(z.string(), z.unknown()),
             output: z.record(z.string(), z.unknown()),
           })

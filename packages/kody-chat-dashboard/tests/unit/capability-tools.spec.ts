@@ -87,6 +87,7 @@ describe("Convex capability chat tools", () => {
         contract: {
           execution: "script",
           secrets: ["DEPLOY_TOKEN"],
+          timeoutMs: 1_800_000,
           input: {},
           output: {},
         },
@@ -110,6 +111,11 @@ describe("Convex capability chat tools", () => {
         "contract.json"
       ],
     ).toContain('"secrets":');
+    expect(
+      capabilityFiles.writeCapabilityFolderFiles.mock.calls.at(-1)?.[0].files[
+        "contract.json"
+      ],
+    ).toContain('"timeoutMs": 1800000');
   });
 
   it("deletes and dispatches backend capabilities", async () => {

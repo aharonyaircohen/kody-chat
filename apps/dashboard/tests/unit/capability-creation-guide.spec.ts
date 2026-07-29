@@ -20,6 +20,7 @@ describe("capability creation guide wiring", () => {
     expect(CAPABILITY_GUIDE).toContain('"script"');
     expect(CAPABILITY_GUIDE).toContain('"agent"');
     expect(CAPABILITY_GUIDE).toContain("`secrets`");
+    expect(CAPABILITY_GUIDE).toContain("`timeoutMs`");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
     expect(CAPABILITY_GUIDE).not.toContain("Implementation");
   });

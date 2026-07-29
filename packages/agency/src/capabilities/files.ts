@@ -354,6 +354,7 @@ export function assertSimpleCapabilityFolder(
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
   secrets?: string[];
+  timeoutMs?: number;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
 } {
@@ -394,10 +395,30 @@ function parseCapabilityContract(raw: string): {
       'contract.json secrets are supported only when execution is "script"',
     );
   }
+  const timeoutMs =
+    value.timeoutMs === undefined
+      ? undefined
+      : typeof value.timeoutMs === "number" &&
+          Number.isInteger(value.timeoutMs) &&
+          value.timeoutMs >= 1_000 &&
+          value.timeoutMs <= 6 * 60 * 60 * 1_000
+        ? value.timeoutMs
+        : null;
+  if (timeoutMs === null) {
+    throw new Error(
+      "contract.json timeoutMs must be an integer from 1000 to 21600000",
+    );
+  }
+  if (timeoutMs !== undefined && value.execution !== "script") {
+    throw new Error(
+      'contract.json timeoutMs is supported only when execution is "script"',
+    );
+  }
   const unsupported = Object.keys(value).filter(
     (key) =>
       key !== "execution" &&
       key !== "secrets" &&
+      key !== "timeoutMs" &&
       key !== "input" &&
       key !== "output",
   );
@@ -409,6 +430,7 @@ function parseCapabilityContract(raw: string): {
   return {
     ...(value.execution ? { execution: value.execution } : {}),
     ...(secrets ? { secrets } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     input: value.input as Record<string, unknown>,
     output: value.output as Record<string, unknown>,
   };

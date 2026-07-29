@@ -148,12 +148,25 @@ describe("simple capability folders", () => {
         "contract.json": JSON.stringify({
           execution: "script",
           secrets: ["VERCEL_ACCESS_TOKEN"],
+          timeoutMs: 1_800_000,
           input: {},
           output: {},
         }),
         "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
       }),
     ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          timeoutMs: 999,
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/timeoutMs/i);
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
