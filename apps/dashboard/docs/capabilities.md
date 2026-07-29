@@ -12,7 +12,8 @@ capabilities/<slug>/
 
 - `instructions.md` explains the work.
 - `contract.json` declares `execution: "agent" | "script"`, one JSON input,
-  and one JSON output.
+  one JSON output, and—only for trusted scripts—an optional exact `secrets`
+  allowlist.
 - `skills/` contains optional reusable instruction files.
 - `tools/` contains optional executable or tool configuration files.
 

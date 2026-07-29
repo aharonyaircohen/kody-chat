@@ -353,6 +353,7 @@ export function assertSimpleCapabilityFolder(
 
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
+  secrets?: string[];
   input: Record<string, unknown>;
   output: Record<string, unknown>;
 } {
@@ -373,8 +374,32 @@ function parseCapabilityContract(raw: string): {
   ) {
     throw new Error('contract.json execution must be "agent" or "script"');
   }
+  const secrets =
+    value.secrets === undefined
+      ? undefined
+      : Array.isArray(value.secrets) &&
+          value.secrets.every(
+            (name) =>
+              typeof name === "string" && /^[A-Z][A-Z0-9_]*$/.test(name),
+          )
+        ? [...new Set(value.secrets as string[])]
+        : null;
+  if (secrets === null) {
+    throw new Error(
+      "contract.json secrets must contain valid environment variable names",
+    );
+  }
+  if (secrets && value.execution !== "script") {
+    throw new Error(
+      'contract.json secrets are supported only when execution is "script"',
+    );
+  }
   const unsupported = Object.keys(value).filter(
-    (key) => key !== "execution" && key !== "input" && key !== "output",
+    (key) =>
+      key !== "execution" &&
+      key !== "secrets" &&
+      key !== "input" &&
+      key !== "output",
   );
   if (unsupported.length > 0) {
     throw new Error(
@@ -383,6 +408,7 @@ function parseCapabilityContract(raw: string): {
   }
   return {
     ...(value.execution ? { execution: value.execution } : {}),
+    ...(secrets ? { secrets } : {}),
     input: value.input as Record<string, unknown>,
     output: value.output as Record<string, unknown>,
   };

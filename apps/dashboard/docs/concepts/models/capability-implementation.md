@@ -10,7 +10,8 @@ Status: **Current Dashboard and generic Engine loader**
 - Owner: `packages/agency/src/capabilities/files.ts`
 
 The file contract permits only `instructions.md`, `contract.json`, `skills/**`,
-and `tools/**`. `contract.json` selects `execution: "agent" | "script"`;
+and `tools/**`. `contract.json` selects `execution: "agent" | "script"` and
+script-backed Capabilities may declare an exact `secrets` allowlist;
 script-backed Capabilities use the fixed `tools/run.sh` entrypoint.
 The shared File Manager edits the folder through Capability-owned configuration;
 the File Manager remains domain-agnostic.

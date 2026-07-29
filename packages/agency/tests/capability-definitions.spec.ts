@@ -147,12 +147,36 @@ describe("simple capability folders", () => {
         ...FILES,
         "contract.json": JSON.stringify({
           execution: "script",
+          secrets: ["VERCEL_ACCESS_TOKEN"],
           input: {},
           output: {},
         }),
         "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
       }),
     ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          secrets: ["bad-secret"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/secrets/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          secrets: ["VERCEL_ACCESS_TOKEN"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/script/i);
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,

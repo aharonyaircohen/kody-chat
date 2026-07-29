@@ -84,7 +84,12 @@ describe("Convex capability chat tools", () => {
       {
         slug: "greet-script",
         instructions: "say hello deterministically",
-        contract: { execution: "script", input: {}, output: {} },
+        contract: {
+          execution: "script",
+          secrets: ["DEPLOY_TOKEN"],
+          input: {},
+          output: {},
+        },
         tools: [{ path: "run.sh", content: "#!/bin/sh\nprintf '{}'\n" }],
         skills: [],
       },
@@ -100,6 +105,11 @@ describe("Convex capability chat tools", () => {
         }),
       }),
     );
+    expect(
+      capabilityFiles.writeCapabilityFolderFiles.mock.calls.at(-1)?.[0].files[
+        "contract.json"
+      ],
+    ).toContain('"secrets":');
   });
 
   it("deletes and dispatches backend capabilities", async () => {

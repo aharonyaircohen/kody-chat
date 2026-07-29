@@ -27,6 +27,7 @@ function files(input: {
   instructions: string;
   contract: {
     execution: "agent" | "script";
+    secrets?: string[];
     input: Record<string, unknown>;
     output: Record<string, unknown>;
   };
@@ -55,7 +56,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh; instructions explain the work.',
+          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh and may declare the exact secret names granted to that trusted process.',
       }),
     }),
 
@@ -85,6 +86,9 @@ export function createCapabilityTools(ctx: Ctx) {
         contract: z
           .object({
             execution: z.enum(["agent", "script"]).default("agent"),
+            secrets: z
+              .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
+              .optional(),
             input: z.record(z.string(), z.unknown()),
             output: z.record(z.string(), z.unknown()),
           })
