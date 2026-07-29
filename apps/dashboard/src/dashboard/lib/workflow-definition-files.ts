@@ -118,6 +118,7 @@ export async function readCompanyStoreWorkflowDefinitionFile(
     updatedAt: workflow.updatedAt,
     source: "store",
     readOnly: true,
+    runnable: true,
     htmlUrl: buildCompanyStoreHtmlUrl("workflows", id),
   };
 }

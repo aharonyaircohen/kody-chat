@@ -23,6 +23,13 @@ const WORKFLOW_EDITOR_SOURCE = readFileSync(
   ),
   "utf8",
 );
+const WORKFLOW_FILES_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/workflow-definition-files.ts",
+  ),
+  "utf8",
+);
 
 describe("WorkflowsManager run button", () => {
   it("uses the workflow-definition run hook", () => {
@@ -38,6 +45,9 @@ describe("WorkflowsManager run button", () => {
   it("only enables immediate run for runnable workflow records", () => {
     expect(SOURCE).toMatch(/workflow\.runnable === true/);
     expect(SOURCE).toMatch(/disabled=\{!runnable \|\| runPending\}/);
+    expect(WORKFLOW_FILES_SOURCE).toMatch(
+      /source: "store",[\s\S]*?readOnly: true,[\s\S]*?runnable: true/,
+    );
   });
 
   it("uses the visible trust-level control before running workflows", () => {
