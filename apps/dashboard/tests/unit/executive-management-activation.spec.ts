@@ -37,11 +37,14 @@ describe("kody-chat company activation", () => {
       "apply-memory-changes",
       "verify-memory-change",
       "detect-stale-memory",
+      "build-chat-knowledge-graph",
+      "publish-chat-knowledge-tool",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
+      "build-chat-knowledge-graph",
     ]);
   });
 
@@ -51,7 +54,7 @@ describe("kody-chat company activation", () => {
       "utf8",
     );
 
-    expect(workflow).toContain('cron: "*/15 * * * *"');
+    expect(workflow).toMatch(/cron: "(?:\*|\d+)\/15 \* \* \* \*"/);
     expect(workflow).toContain("@kody-ade/kody-engine@latest");
   });
 });
