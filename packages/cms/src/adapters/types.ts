@@ -7,7 +7,7 @@ import type {
   CmsRuntimeConfig,
 } from "../types";
 import type { Octokit } from "@octokit/rest";
-import type { CmsStorageTransport } from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "../storage-transport";
 
 export class CmsAdapterError extends Error {
   readonly code: string;

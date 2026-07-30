@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { CmsStorageTransport } from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "../storage-transport";
 import {
   CmsConfigError,
   getCollectionIdField,

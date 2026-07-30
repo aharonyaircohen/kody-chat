@@ -40,4 +40,18 @@ describe("CMS package boundary", () => {
     expect(source).not.toContain("globalThis");
     expect(source).not.toContain("Symbol.for");
   });
+
+  it("owns its storage transport contract", () => {
+    const cmsSource = sourceFiles(join(packageRoot, "src"))
+      .map((path) => readFileSync(path, "utf8"))
+      .join("\n");
+    const baseStorageIndex = readFileSync(
+      resolve(packageRoot, "../base/src/storage/index.ts"),
+      "utf8",
+    );
+
+    expect(cmsSource).not.toContain("@kody-ade/base/storage");
+    expect(baseStorageIndex).not.toContain("CmsStorageTransport");
+    expect(baseStorageIndex).not.toContain("createCmsStorageTransport");
+  });
 });

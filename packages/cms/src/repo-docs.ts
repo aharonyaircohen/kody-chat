@@ -2,7 +2,7 @@ import "server-only";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { CmsStorageTransport } from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "./storage-transport";
 
 export type CmsFilesDoc = { files: Record<string, string> };
 export type CmsWriteFile = { path: string; content: string };
