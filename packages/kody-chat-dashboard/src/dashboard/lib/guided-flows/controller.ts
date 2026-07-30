@@ -4,17 +4,30 @@ export interface GuidedFlowTransitionMap {
   readonly [actionId: string]: string;
 }
 
-export interface GuidedFlowStepDefinition {
+interface GuidedFlowStepBase {
   readonly id: string;
   readonly title: string;
   readonly explanation: string;
-  readonly rendererSlug: string;
-  readonly rendererData?: Readonly<Record<string, unknown>>;
   readonly authoringGoal?: string;
   readonly routeId?: string;
   readonly transitions?: GuidedFlowTransitionMap;
+}
+
+export interface GuidedFlowViewStepDefinition extends GuidedFlowStepBase {
+  readonly type?: "view";
+  readonly rendererSlug: string;
+  readonly rendererData?: Readonly<Record<string, unknown>>;
   readonly allowedActions?: readonly string[];
 }
+
+export interface GuidedFlowNestedStepDefinition extends GuidedFlowStepBase {
+  readonly type: "flow";
+  readonly flowId: string;
+  readonly flowVersion: number;
+}
+
+export type GuidedFlowStepDefinition =
+  GuidedFlowViewStepDefinition | GuidedFlowNestedStepDefinition;
 
 export interface GuidedFlowDefinition {
   readonly id: string;
@@ -22,6 +35,14 @@ export interface GuidedFlowDefinition {
   readonly title: string;
   readonly steps: readonly GuidedFlowStepDefinition[];
   readonly completionRouteId?: string;
+}
+
+export interface GuidedFlowFrame {
+  readonly flowId: string;
+  readonly flowVersion: number;
+  readonly currentStepId: string;
+  readonly data: Readonly<Record<string, unknown>>;
+  readonly history: readonly string[];
 }
 
 export interface GuidedFlowInstance {
@@ -33,7 +54,9 @@ export interface GuidedFlowInstance {
   readonly status: GuidedFlowStatus;
   readonly revision: number;
   readonly data: Readonly<Record<string, unknown>>;
+  readonly output: Readonly<Record<string, unknown>>;
   readonly history: readonly string[];
+  readonly stack: readonly GuidedFlowFrame[];
 }
 
 export interface GuidedFlowSubmit {
@@ -112,7 +135,9 @@ export function createGuidedFlowInstance(
     status: "active",
     revision: 0,
     data: {},
+    output: {},
     history: [],
+    stack: [],
   };
 }
 
@@ -127,16 +152,21 @@ export function advanceGuidedFlow(
     throw new Error("GuidedFlow actionId is required");
 
   const step = findStep(definition, instance.currentStepId);
-  if (step.allowedActions && !step.allowedActions.includes(submit.actionId)) {
+  if (
+    !isNestedGuidedFlowStep(step) &&
+    step.allowedActions &&
+    !step.allowedActions.includes(submit.actionId)
+  ) {
     throw new Error(
       `Unknown action "${submit.actionId}" from step "${step.id}"`,
     );
   }
   const nextStepId = step.transitions?.[submit.actionId];
+  const result = sanitizeResult(submit.result);
   const nextData = {
     ...instance.data,
     actionId: submit.actionId,
-    ...sanitizeResult(submit.result),
+    ...result,
   };
 
   if (!step.transitions || Object.keys(step.transitions).length === 0) {
@@ -145,6 +175,7 @@ export function advanceGuidedFlow(
       status: "completed",
       revision: instance.revision + 1,
       data: nextData,
+      output: result,
     };
   }
 
@@ -192,4 +223,10 @@ export function cancelGuidedFlow(
     status: "cancelled",
     revision: instance.revision + 1,
   };
+}
+
+export function isNestedGuidedFlowStep(
+  step: GuidedFlowStepDefinition,
+): step is GuidedFlowNestedStepDefinition {
+  return step.type === "flow";
 }

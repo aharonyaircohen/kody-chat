@@ -1,10 +1,13 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
   getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "alice" } })),
+  verifyRepoWriteAccess: vi.fn<
+    () => Promise<{ actorLogin: string } | NextResponse>
+  >(async () => ({ actorLogin: "alice" })),
 }));
 
 const store = vi.hoisted(() => ({
@@ -45,7 +48,6 @@ vi.mock("@kody-ade/backend/client", () => ({
       if (operation === "listDefinitions") {
         return store.definitions.map((definition) => ({
           tenantId: args.tenantId,
-          actorId: args.actorId,
           flowId: definition.id,
           version: definition.version ?? 1,
           archived: definition.archived,
@@ -195,6 +197,190 @@ describe("GuidedFlow route", () => {
         expect.objectContaining({ id: "review-a-release" }),
       ]),
     );
+  });
+
+  it("requires repository write access to change shared definitions", async () => {
+    auth.verifyRepoWriteAccess.mockResolvedValueOnce(
+      NextResponse.json({ error: "write_permission_required" }, { status: 403 }),
+    );
+
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Protected flow",
+          steps: [
+            {
+              title: "Protected step",
+              explanation: "Only repository writers may publish this.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(store.definitions).toEqual([]);
+  });
+
+  it("runs a nested flow and resumes the parent with the child result", async () => {
+    const child = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Addition exercise",
+          steps: [
+            {
+              title: "Choose the answer",
+              explanation: "What is two plus two?",
+              rendererSlug: "selection-list",
+            },
+          ],
+        },
+      }),
+    );
+    expect(child.status).toBe(201);
+
+    const parent = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Addition guide",
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the guide.",
+              rendererSlug: "approval-card",
+            },
+            {
+              type: "flow",
+              title: "Exercise",
+              explanation: "Complete the exercise.",
+              flowId: "addition-exercise",
+              flowVersion: 1,
+            },
+            {
+              title: "Summary",
+              explanation: "Review the result.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    expect(parent.status).toBe(201);
+
+    const started = await POST(
+      request({ action: "start", flowId: "addition-guide" }),
+    );
+    const startedPayload = await started.json();
+    const instanceId = startedPayload.instance.instanceId as string;
+    expect(startedPayload).toMatchObject({
+      instance: {
+        flowId: "addition-guide",
+        currentStepId: "step-1",
+        revision: 0,
+      },
+    });
+
+    const childStep = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "nested-intro",
+      }),
+    );
+    expect(childStep.status).toBe(200);
+    expect(await childStep.json()).toMatchObject({
+      instance: {
+        instanceId,
+        flowId: "addition-exercise",
+        currentStepId: "step-1",
+        revision: 1,
+        stack: [
+          {
+            flowId: "addition-guide",
+            currentStepId: "step-2",
+          },
+        ],
+      },
+      flow: { id: "addition-exercise" },
+    });
+    expect(store.rows[0]).toMatchObject({
+      flowId: "addition-exercise",
+      stack: [{ flowId: "addition-guide" }],
+    });
+
+    const resumed = await POST(
+      request({ action: "start", flowId: "addition-guide" }),
+    );
+    expect(resumed.status).toBe(200);
+    expect(await resumed.json()).toMatchObject({
+      instance: { instanceId, flowId: "addition-exercise" },
+    });
+    expect(store.rows).toHaveLength(1);
+
+    const summary = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 1,
+        actionId: "continue",
+        result: { answer: "four" },
+        mutationId: "nested-answer",
+      }),
+    );
+    expect(summary.status).toBe(200);
+    expect(await summary.json()).toMatchObject({
+      instance: {
+        instanceId,
+        flowId: "addition-guide",
+        currentStepId: "step-3",
+        revision: 2,
+        stack: [],
+        data: {
+          flowResults: {
+            "step-2": {
+              flowId: "addition-exercise",
+              status: "completed",
+              output: { answer: "four" },
+            },
+          },
+        },
+      },
+      flow: { id: "addition-guide" },
+    });
+  });
+
+  it("rejects a nested flow definition that references itself", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Recursive flow",
+          steps: [
+            {
+              type: "flow",
+              title: "Again",
+              explanation: "Run this flow again.",
+              flowId: "recursive-flow",
+              flowVersion: 1,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "recursive_flow",
+    });
+    expect(store.definitions).toEqual([]);
   });
 
   it("ignores malformed stored definitions without hiding valid ones", async () => {

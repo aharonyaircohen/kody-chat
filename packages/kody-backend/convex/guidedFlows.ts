@@ -16,7 +16,19 @@ const flowStateArgs = {
   ),
   revision: v.number(),
   data: v.any(),
+  output: v.optional(v.any()),
   history: v.array(v.string()),
+  stack: v.optional(
+    v.array(
+      v.object({
+        flowId: v.string(),
+        flowVersion: v.number(),
+        currentStepId: v.string(),
+        data: v.any(),
+        history: v.array(v.string()),
+      }),
+    ),
+  ),
   updatedAt: v.string(),
 };
 
@@ -90,13 +102,19 @@ export const upsert = mutation({
         status: args.status,
         revision: args.revision,
         data: args.data,
+        output: args.output ?? existing.output ?? {},
         history: args.history,
+        stack: args.stack ?? existing.stack ?? [],
         updatedAt: args.updatedAt,
       });
       return existing._id;
     }
 
-    return await ctx.db.insert("guidedFlowInstances", args);
+    return await ctx.db.insert("guidedFlowInstances", {
+      ...args,
+      output: args.output ?? {},
+      stack: args.stack ?? [],
+    });
   },
 });
 
@@ -106,6 +124,8 @@ export const update = mutation({
     actorId: v.string(),
     instanceId: v.string(),
     expectedRevision: v.number(),
+    flowId: v.optional(v.string()),
+    flowVersion: v.optional(v.number()),
     currentStepId: v.string(),
     status: v.union(
       v.literal("active"),
@@ -114,7 +134,19 @@ export const update = mutation({
     ),
     revision: v.number(),
     data: v.any(),
+    output: v.optional(v.any()),
     history: v.array(v.string()),
+    stack: v.optional(
+      v.array(
+        v.object({
+          flowId: v.string(),
+          flowVersion: v.number(),
+          currentStepId: v.string(),
+          data: v.any(),
+          history: v.array(v.string()),
+        }),
+      ),
+    ),
     updatedAt: v.string(),
     mutationId: v.string(),
   },
@@ -139,11 +171,15 @@ export const update = mutation({
     }
 
     await ctx.db.patch(existing._id, {
+      flowId: args.flowId ?? existing.flowId,
+      flowVersion: args.flowVersion ?? existing.flowVersion,
       currentStepId: args.currentStepId,
       status: args.status,
       revision: args.revision,
       data: args.data,
+      output: args.output ?? existing.output ?? {},
       history: args.history,
+      stack: args.stack ?? existing.stack ?? [],
       updatedAt: args.updatedAt,
       mutationId: args.mutationId,
     });
@@ -201,7 +237,6 @@ export const listCompletions = query({
 export const saveDefinition = mutation({
   args: {
     tenantId: v.string(),
-    actorId: v.string(),
     flowId: v.string(),
     mode: v.union(
       v.literal("create"),
@@ -217,7 +252,6 @@ export const saveDefinition = mutation({
       .withIndex("by_flow", (q) =>
         q
           .eq("tenantId", args.tenantId)
-          .eq("actorId", args.actorId)
           .eq("flowId", args.flowId),
       )
       .order("desc")
@@ -232,7 +266,6 @@ export const saveDefinition = mutation({
     const version = (latest?.version ?? 0) + 1;
     await ctx.db.insert("guidedFlowDefinitions", {
       tenantId: args.tenantId,
-      actorId: args.actorId,
       flowId: args.flowId,
       version,
       ...(args.mode === "archive" ? { archived: true } : {}),
@@ -243,14 +276,12 @@ export const saveDefinition = mutation({
   },
 });
 
-/** Every stored definition version for an actor (includes archived rows). */
+/** Every repository-owned definition version (includes archived rows). */
 export const listDefinitions = query({
-  args: { tenantId: v.string(), actorId: v.string() },
-  handler: async (ctx, { tenantId, actorId }) =>
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) =>
     await ctx.db
       .query("guidedFlowDefinitions")
-      .withIndex("by_actor", (q) =>
-        q.eq("tenantId", tenantId).eq("actorId", actorId),
-      )
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect(),
 });

@@ -1,15 +1,28 @@
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
-import type {
-  GuidedFlowDefinition,
-  GuidedFlowStepDefinition,
+import {
+  isNestedGuidedFlowStep,
+  type GuidedFlowDefinition,
+  type GuidedFlowViewStepDefinition,
 } from "./controller";
 
-export interface GuidedFlowDraftStep {
+export interface GuidedFlowDraftViewStep {
+  type?: "view";
   title: string;
   explanation: string;
   rendererSlug: string;
   rendererData?: Record<string, unknown>;
 }
+
+export interface GuidedFlowDraftNestedStep {
+  type: "flow";
+  title: string;
+  explanation: string;
+  flowId: string;
+  flowVersion: number;
+}
+
+export type GuidedFlowDraftStep =
+  GuidedFlowDraftViewStep | GuidedFlowDraftNestedStep;
 
 export interface GuidedFlowDraft {
   title: string;
@@ -40,14 +53,21 @@ export function validateGuidedFlowDraft(
   if (
     draft.steps.some((step) => !step.title.trim() || !step.explanation.trim())
   ) {
-    return { steps: "Complete every step and choose a supported renderer." };
+    return { steps: "Complete every step." };
   }
   if (
-    !draft.steps.every((step) =>
-      listAuthoringRendererSlugs().includes(step.rendererSlug),
-    )
+    !draft.steps.every((step) => {
+      if (step.type === "flow") {
+        return (
+          Boolean(step.flowId.trim()) &&
+          Number.isInteger(step.flowVersion) &&
+          step.flowVersion > 0
+        );
+      }
+      return listAuthoringRendererSlugs().includes(step.rendererSlug);
+    })
   ) {
-    return { steps: "Choose a supported renderer for every step." };
+    return { steps: "Choose a valid renderer or nested flow for every step." };
   }
   return {};
 }
@@ -161,6 +181,7 @@ export function migrateLegacyGuidedFlowDefinition(
   return {
     ...definition,
     steps: definition.steps.map((step) => {
+      if (isNestedGuidedFlowStep(step)) return step;
       if (
         step.rendererSlug !== "multi-select-list" ||
         !step.allowedActions?.includes("continue")
@@ -189,10 +210,10 @@ export function migrateLegacyGuidedFlowDefinition(
 }
 
 function rendererDataFor(
-  step: GuidedFlowDraftStep,
+  step: GuidedFlowDraftViewStep,
   nextStepId?: string,
 ): Pick<
-  GuidedFlowStepDefinition,
+  GuidedFlowViewStepDefinition,
   "rendererData" | "transitions" | "allowedActions"
 > {
   const body = step.explanation.trim();
@@ -274,6 +295,17 @@ export function buildGuidedFlowDefinition(
   const steps = draft.steps.map((step, index) => {
     const nextStepId =
       index < draft.steps.length - 1 ? `step-${index + 2}` : undefined;
+    if (step.type === "flow") {
+      return {
+        id: `step-${index + 1}`,
+        type: "flow" as const,
+        title: step.title.trim(),
+        explanation: step.explanation.trim(),
+        flowId: step.flowId.trim(),
+        flowVersion: step.flowVersion,
+        ...(nextStepId ? { transitions: { complete: nextStepId } } : {}),
+      };
+    }
     return {
       id: `step-${index + 1}`,
       title: step.title.trim(),

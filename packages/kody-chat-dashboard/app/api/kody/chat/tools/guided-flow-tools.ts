@@ -5,17 +5,25 @@ import { z } from "zod";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
-  createGuidedFlowInstance,
-  type GuidedFlowInstance,
+  isNestedGuidedFlowStep,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import { rootGuidedFlowId } from "@kody-ade/kody-chat-dashboard/guided-flows/composition";
+import { guidedFlowDefinitionForReference } from "@kody-ade/kody-chat-dashboard/guided-flows/definitions";
+import {
+  guidedFlowInstanceFromRow,
+  guidedFlowInstanceWriteFields,
+  type GuidedFlowStoredInstance,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/persistence";
 import {
   buildGuidedFlowView,
   getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import { startGuidedFlowRuntime } from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
 import {
   latestAvailableGuidedFlowDefinitions,
   parseGuidedFlowDefinitionRows,
+  type StoredGuidedFlowDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { readViewRendererDefinitionFile } from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
@@ -28,48 +36,17 @@ interface GuidedFlowToolContext {
   actorId: string;
 }
 
-type GuidedFlowRow = {
-  instanceId: string;
-  instanceKey?: string;
-  flowId: string;
-  flowVersion: number;
-  currentStepId: string;
-  status: "active" | "completed" | "cancelled";
-  revision: number;
-  data: unknown;
-  history: string[];
-};
-
-function toInstance(row: GuidedFlowRow): GuidedFlowInstance {
-  return {
-    instanceId: row.instanceId,
-    ...(row.instanceKey ? { instanceKey: row.instanceKey } : {}),
-    flowId: row.flowId,
-    flowVersion: row.flowVersion,
-    currentStepId: row.currentStepId,
-    status: row.status,
-    revision: row.revision,
-    data:
-      row.data && typeof row.data === "object" && !Array.isArray(row.data)
-        ? (row.data as Record<string, unknown>)
-        : {},
-    history: row.history,
-  };
-}
+type GuidedFlowRow = GuidedFlowStoredInstance;
 
 /** Custom flows live in userState — the same source the guided-flows route uses. */
-async function customGuidedFlowDefinition(
+async function customGuidedFlowDefinitions(
   client: ReturnType<typeof createBackendClient>,
   ctx: GuidedFlowToolContext,
-  flowId: string,
-): Promise<GuidedFlowDefinition | undefined> {
+): Promise<StoredGuidedFlowDefinition[]> {
   const rows = await client.query(backendApi.guidedFlows.listDefinitions, {
     tenantId: ctx.tenantId,
-    actorId: ctx.actorId,
   });
-  return latestAvailableGuidedFlowDefinitions(
-    parseGuidedFlowDefinitionRows(rows),
-  ).find((definition) => definition.id === flowId);
+  return parseGuidedFlowDefinitionRows(rows);
 }
 
 /** Non-builtin renderers a definition needs, from the tenant renderer store. */
@@ -83,7 +60,9 @@ async function customRenderersFor(
   const slugs = [
     ...new Set(
       definition.steps
-        .map((step) => step.rendererSlug)
+        .flatMap((step) =>
+          isNestedGuidedFlowStep(step) ? [] : [step.rendererSlug],
+        )
         .filter((slug) => !getBuiltinViewRendererDefinition(slug)),
     ),
   ];
@@ -115,9 +94,15 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
         instanceKey,
       }): Promise<RenderedViewDirective | { error: string }> => {
         const client = createBackendClient();
+        const customDefinitions = await customGuidedFlowDefinitions(
+          client,
+          ctx,
+        );
         const definition =
           getGuidedFlowDefinition(flowId) ??
-          (await customGuidedFlowDefinition(client, ctx, flowId));
+          latestAvailableGuidedFlowDefinitions(customDefinitions).find(
+            (candidate) => candidate.id === flowId,
+          );
         if (!definition) return { error: `Unknown GuidedFlow "${flowId}"` };
 
         const active = (await client.query(backendApi.guidedFlows.listActive, {
@@ -126,40 +111,46 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
         })) as GuidedFlowRow[];
         const existing = active.find(
           (row) =>
-            row.flowId === flowId &&
+            rootGuidedFlowId(guidedFlowInstanceFromRow(row)) === flowId &&
             (row.instanceKey ?? "") === (instanceKey ?? ""),
         );
         if (existing) {
+          const existingDefinition = guidedFlowDefinitionForReference(
+            existing.flowId,
+            existing.flowVersion,
+            customDefinitions,
+          );
+          if (!existingDefinition) {
+            return { error: "GuidedFlow definition is unavailable" };
+          }
           return buildGuidedFlowView(
-            definition,
-            toInstance(existing),
-            await customRenderersFor(ctx.tenantId, definition),
+            existingDefinition,
+            guidedFlowInstanceFromRow(existing),
+            await customRenderersFor(ctx.tenantId, existingDefinition),
           );
         }
 
-        const instance = createGuidedFlowInstance(
+        const entered = startGuidedFlowRuntime({
           definition,
-          randomUUID(),
+          instanceId: randomUUID(),
           instanceKey,
-        );
+          resolveDefinition: (nestedFlowId, nestedFlowVersion) =>
+            guidedFlowDefinitionForReference(
+              nestedFlowId,
+              nestedFlowVersion,
+              customDefinitions,
+            ),
+        });
         await client.mutation(backendApi.guidedFlows.upsert, {
           tenantId: ctx.tenantId,
           actorId: ctx.actorId,
-          instanceId: instance.instanceId,
-          instanceKey,
-          flowId: instance.flowId,
-          flowVersion: instance.flowVersion,
-          currentStepId: instance.currentStepId,
-          status: instance.status,
-          revision: instance.revision,
-          data: instance.data,
-          history: [...instance.history],
+          ...guidedFlowInstanceWriteFields(entered.instance),
           updatedAt: new Date().toISOString(),
         });
         return buildGuidedFlowView(
-          definition,
-          instance,
-          await customRenderersFor(ctx.tenantId, definition),
+          entered.definition,
+          entered.instance,
+          await customRenderersFor(ctx.tenantId, entered.definition),
         );
       },
     }),

@@ -6,6 +6,11 @@ import {
   goBackGuidedFlow,
   type GuidedFlowDefinition,
 } from "../../src/dashboard/lib/guided-flows/controller";
+import {
+  enterNestedGuidedFlow,
+  GuidedFlowCompositionError,
+  resumeParentGuidedFlow,
+} from "../../src/dashboard/lib/guided-flows/composition";
 
 const DEFINITION: GuidedFlowDefinition = {
   id: "example-flow",
@@ -119,5 +124,166 @@ describe("guided flow controller", () => {
     });
     expect(completed.data).toMatchObject({ note: "kept" });
     expect(completed.data).not.toHaveProperty("password");
+  });
+
+  it("enters a child flow while preserving the parent state", () => {
+    const parent: GuidedFlowDefinition = {
+      id: "parent",
+      version: 1,
+      title: "Parent",
+      steps: [
+        {
+          id: "child",
+          type: "flow",
+          title: "Run child",
+          explanation: "Complete the child flow.",
+          flowId: "child",
+          flowVersion: 1,
+          transitions: { complete: "summary" },
+        },
+        {
+          id: "summary",
+          title: "Summary",
+          explanation: "Done.",
+          rendererSlug: "approval-card",
+        },
+      ],
+    };
+    const child: GuidedFlowDefinition = {
+      id: "child",
+      version: 1,
+      title: "Child",
+      steps: [
+        {
+          id: "answer",
+          title: "Answer",
+          explanation: "Choose.",
+          rendererSlug: "selection-list",
+        },
+      ],
+    };
+
+    const nested = enterNestedGuidedFlow(
+      parent,
+      createGuidedFlowInstance(parent, "instance-1"),
+      child,
+    );
+
+    expect(nested).toMatchObject({
+      instanceId: "instance-1",
+      flowId: "child",
+      flowVersion: 1,
+      currentStepId: "answer",
+      revision: 0,
+      stack: [
+        {
+          flowId: "parent",
+          flowVersion: 1,
+          currentStepId: "child",
+        },
+      ],
+    });
+  });
+
+  it("returns a completed child result to the waiting parent", () => {
+    const parent: GuidedFlowDefinition = {
+      id: "parent",
+      version: 1,
+      title: "Parent",
+      steps: [
+        {
+          id: "child",
+          type: "flow",
+          title: "Run child",
+          explanation: "Complete the child flow.",
+          flowId: "child",
+          flowVersion: 1,
+          transitions: { complete: "summary" },
+        },
+        {
+          id: "summary",
+          title: "Summary",
+          explanation: "Done.",
+          rendererSlug: "approval-card",
+        },
+      ],
+    };
+    const child: GuidedFlowDefinition = {
+      id: "child",
+      version: 1,
+      title: "Child",
+      steps: [
+        {
+          id: "answer",
+          title: "Answer",
+          explanation: "Choose.",
+          rendererSlug: "selection-list",
+          allowedActions: ["submit"],
+        },
+      ],
+    };
+    const nested = enterNestedGuidedFlow(
+      parent,
+      createGuidedFlowInstance(parent, "instance-1"),
+      child,
+    );
+    const completedChild = advanceGuidedFlow(child, nested, {
+      actionId: "submit",
+      result: { answer: "four" },
+    });
+
+    const resumed = resumeParentGuidedFlow(parent, completedChild);
+
+    expect(resumed).toMatchObject({
+      flowId: "parent",
+      flowVersion: 1,
+      currentStepId: "summary",
+      status: "active",
+      revision: 1,
+      stack: [],
+      data: {
+        flowResults: {
+          child: {
+            flowId: "child",
+            flowVersion: 1,
+            status: "completed",
+            output: { answer: "four" },
+          },
+        },
+      },
+      history: ["child"],
+    });
+  });
+
+  it("rejects recursive nesting", () => {
+    const recursive: GuidedFlowDefinition = {
+      id: "recursive",
+      version: 1,
+      title: "Recursive",
+      steps: [
+        {
+          id: "again",
+          type: "flow",
+          title: "Again",
+          explanation: "Run itself.",
+          flowId: "recursive",
+          flowVersion: 1,
+        },
+      ],
+    };
+
+    try {
+      enterNestedGuidedFlow(
+        recursive,
+        createGuidedFlowInstance(recursive, "instance-1"),
+        recursive,
+      );
+      throw new Error("Expected recursive nesting to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(GuidedFlowCompositionError);
+      expect((error as GuidedFlowCompositionError).code).toBe(
+        "recursive_flow",
+      );
+    }
   });
 });

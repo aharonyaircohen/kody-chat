@@ -1,9 +1,5 @@
-import type {
-  GuidedFlowDefinition,
-  GuidedFlowInstance,
-  GuidedFlowStepDefinition,
-} from "./controller";
-import { getGuidedFlowStep } from "./controller";
+import type { GuidedFlowDefinition, GuidedFlowInstance } from "./controller";
+import { getGuidedFlowStep, isNestedGuidedFlowStep } from "./controller";
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { buildRenderedViewDirective } from "../view-renderers/template";
 import type { RenderedViewDirective } from "../chat-ui-actions";
@@ -96,13 +92,16 @@ export function buildGuidedFlowView(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
   customRenderers?: Readonly<
-    Record<string, import("../view-renderers/definition").ViewRendererDefinition>
+    Record<
+      string,
+      import("../view-renderers/definition").ViewRendererDefinition
+    >
   >,
 ): RenderedViewDirective {
-  const step: GuidedFlowStepDefinition = getGuidedFlowStep(
-    definition,
-    instance,
-  );
+  const step = getGuidedFlowStep(definition, instance);
+  if (isNestedGuidedFlowStep(step)) {
+    throw new Error(`Nested GuidedFlow step "${step.id}" is not renderable`);
+  }
   const renderer =
     customRenderers?.[step.rendererSlug] ??
     getBuiltinViewRendererDefinition(step.rendererSlug);

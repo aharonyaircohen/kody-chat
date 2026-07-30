@@ -24,7 +24,10 @@ import {
   type GuidedFlowDraftStep,
 } from "../guided-flows/authoring";
 import { listGuidedFlowDefinitions } from "../guided-flows/registry";
-import type { GuidedFlowDefinition } from "../guided-flows/controller";
+import {
+  isNestedGuidedFlowStep,
+  type GuidedFlowDefinition,
+} from "../guided-flows/controller";
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { buildRenderedViewDirective } from "../view-renderers/template";
 import { RenderedViewCard } from "../chat/surface/RenderedViewCard";
@@ -72,16 +75,26 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
   return {
     title: definition.title,
     completionRouteId: definition.completionRouteId ?? "",
-    steps: definition.steps.map((step) => ({
-      title: step.title ?? definition.title,
-      explanation:
-        step.explanation ??
-        (typeof step.rendererData?.body === "string"
-          ? step.rendererData.body
-          : "Explain what the user should do next."),
-      rendererSlug: step.rendererSlug,
-      rendererData: step.rendererData,
-    })),
+    steps: definition.steps.map((step) =>
+      isNestedGuidedFlowStep(step)
+        ? {
+            type: "flow",
+            title: step.title,
+            explanation: step.explanation,
+            flowId: step.flowId,
+            flowVersion: step.flowVersion,
+          }
+        : {
+            title: step.title ?? definition.title,
+            explanation:
+              step.explanation ??
+              (typeof step.rendererData?.body === "string"
+                ? step.rendererData.body
+                : "Explain what the user should do next."),
+            rendererSlug: step.rendererSlug,
+            rendererData: step.rendererData,
+          },
+    ),
   };
 }
 
@@ -101,10 +114,11 @@ function previewForDraft(
       })),
     });
     const step = definition.steps[selectedStepIndex] ?? definition.steps[0];
+    if (!step || isNestedGuidedFlowStep(step)) return null;
     const renderer = step
       ? getBuiltinViewRendererDefinition(step.rendererSlug)
       : null;
-    if (!step || !renderer) return null;
+    if (!renderer) return null;
     return buildRenderedViewDirective({
       id: `guided-flow-preview-${selectedStepIndex}`,
       definition: renderer,
@@ -136,11 +150,14 @@ function FlowBuilder({
   const [error, setError] = useState<string | null>(null);
   const readOnly = mode === "view";
 
-  function updateStep(index: number, update: Partial<GuidedFlowDraftStep>) {
+  function updateStep(
+    index: number,
+    update: (step: GuidedFlowDraftStep) => GuidedFlowDraftStep,
+  ) {
     setDraft((current) => ({
       ...current,
       steps: current.steps.map((step, stepIndex) =>
-        stepIndex === index ? { ...step, ...update } : step,
+        stepIndex === index ? update(step) : step,
       ),
     }));
   }
@@ -357,21 +374,93 @@ function FlowBuilder({
                             value={step.title}
                             disabled={readOnly}
                             onChange={(event) =>
-                              updateStep(index, {
+                              updateStep(index, (current) => ({
+                                ...current,
                                 title: event.target.value,
-                              })
+                              }))
                             }
                           />
                           <select
-                            aria-label={`Step ${index + 1} renderer`}
+                            aria-label={`Step ${index + 1} type`}
                             className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                            value={step.type === "flow" ? "flow" : "view"}
+                            disabled={readOnly}
+                            onChange={(event) => {
+                              updateStep(index, (current) =>
+                                event.target.value === "flow"
+                                  ? {
+                                      type: "flow",
+                                      title: current.title,
+                                      explanation: current.explanation,
+                                      flowId: "",
+                                      flowVersion: 1,
+                                    }
+                                  : {
+                                      title: current.title,
+                                      explanation: current.explanation,
+                                      rendererSlug: "guided-form",
+                                    },
+                              );
+                            }}
+                          >
+                            <option value="view">View</option>
+                            <option value="flow">Nested flow</option>
+                          </select>
+                        </div>
+                        {step.type === "flow" ? (
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <input
+                              aria-label={`Step ${index + 1} flow ID`}
+                              placeholder="Flow ID"
+                              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                              value={step.flowId}
+                              disabled={readOnly}
+                              onChange={(event) =>
+                                updateStep(index, (current) =>
+                                  current.type === "flow"
+                                    ? {
+                                        ...current,
+                                        flowId: event.target.value,
+                                      }
+                                    : current,
+                                )
+                              }
+                            />
+                            <input
+                              aria-label={`Step ${index + 1} flow version`}
+                              type="number"
+                              min={1}
+                              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                              value={step.flowVersion}
+                              disabled={readOnly}
+                              onChange={(event) =>
+                                updateStep(index, (current) =>
+                                  current.type === "flow"
+                                    ? {
+                                        ...current,
+                                        flowVersion: Number(event.target.value),
+                                      }
+                                    : current,
+                                )
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <select
+                            aria-label={`Step ${index + 1} renderer`}
+                            className="mt-3 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
                             value={step.rendererSlug}
                             disabled={readOnly}
                             onChange={(event) => {
-                              updateStep(index, {
-                                rendererSlug: event.target.value,
-                                rendererData: undefined,
-                              });
+                              updateStep(index, (current) =>
+                                current.type === "flow"
+                                  ? current
+                                  : {
+                                      ...current,
+                                      rendererSlug: event.target.value,
+                                      rendererData: undefined,
+                                    },
+                              );
                             }}
                           >
                             {listAuthoringRendererSlugs().map((slug) => (
@@ -380,7 +469,7 @@ function FlowBuilder({
                               </option>
                             ))}
                           </select>
-                        </div>
+                        )}
                       </section>
                       <section className="border-t border-white/10 pt-5">
                         <textarea
@@ -390,9 +479,10 @@ function FlowBuilder({
                           value={step.explanation}
                           disabled={readOnly}
                           onChange={(event) =>
-                            updateStep(index, {
+                            updateStep(index, (current) => ({
+                              ...current,
                               explanation: event.target.value,
-                            })
+                            }))
                           }
                         />
                       </section>
@@ -400,25 +490,25 @@ function FlowBuilder({
                   </section>
                 </div>
                 <aside
-                    aria-label={`Live preview ${index + 1}`}
-                    className="h-fit self-start border-t border-white/10 pt-5 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
+                  aria-label={`Live preview ${index + 1}`}
+                  className="h-fit self-start border-t border-white/10 pt-5 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
+                >
+                  <div
+                    aria-label={`Preview step ${index + 1}`}
+                    className="rounded-xl bg-black/25 p-3"
                   >
-                    <div
-                      aria-label={`Preview step ${index + 1}`}
-                      className="rounded-xl bg-black/25 p-3"
-                    >
-                      {stepPreview ? (
-                        <RenderedViewCard
-                          view={stepPreview}
-                          disabled
-                          onAction={() => undefined}
-                        />
-                      ) : (
-                        <p className="py-8 text-center text-sm text-white/50">
-                          Preview will appear here.
-                        </p>
-                      )}
-                    </div>
+                    {stepPreview ? (
+                      <RenderedViewCard
+                        view={stepPreview}
+                        disabled
+                        onAction={() => undefined}
+                      />
+                    ) : (
+                      <p className="py-8 text-center text-sm text-white/50">
+                        Preview will appear here.
+                      </p>
+                    )}
+                  </div>
                 </aside>
               </article>
             );

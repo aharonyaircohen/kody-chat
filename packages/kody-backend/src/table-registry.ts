@@ -38,7 +38,7 @@ export const TABLES: readonly TableDef[] = [
   },
   {
     table: "guidedFlowDefinitions",
-    naturalKey: ["actorId", "flowId", "version"],
+    naturalKey: ["flowId", "version"],
     upsertIndex: "by_flow",
   },
   {

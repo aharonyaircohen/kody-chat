@@ -1,3 +1,24 @@
+export type GuidedFlowCompositionErrorCode =
+  | "child_not_completed"
+  | "nested_definition_mismatch"
+  | "nested_flow_unavailable"
+  | "nesting_depth_exceeded"
+  | "parent_definition_mismatch"
+  | "parent_flow_unavailable"
+  | "parent_not_waiting"
+  | "recursive_flow"
+  | "step_not_nested";
+
+export class GuidedFlowCompositionError extends Error {
+  constructor(
+    readonly code: GuidedFlowCompositionErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GuidedFlowCompositionError";
+  }
+}
+
 const GUIDED_FLOW_ERROR_MESSAGES: Record<string, string> = {
   invalid_guided_flow_input:
     "Please complete the current step before continuing.",
@@ -17,6 +38,12 @@ const GUIDED_FLOW_ERROR_MESSAGES: Record<string, string> = {
     "The repository service is temporarily busy. Please try again shortly.",
   guided_flow_completion_failed:
     "The workflow could not be created yet. Your Guided Flow is still open; please try again.",
+  nested_flow_unavailable:
+    "A required Guided Flow is unavailable. Ask its owner to publish the referenced version.",
+  recursive_flow:
+    "This Guided Flow contains a recursive reference and cannot be started.",
+  nesting_depth_exceeded:
+    "This Guided Flow contains too many active nested flows.",
 };
 
 export function guidedFlowActionErrorMessage(errorCode?: string): string {

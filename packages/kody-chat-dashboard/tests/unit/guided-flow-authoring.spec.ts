@@ -6,6 +6,22 @@ import {
   validateGuidedFlowDraft,
   type GuidedFlowDraft,
 } from "../../src/dashboard/lib/guided-flows/authoring";
+import {
+  isNestedGuidedFlowStep,
+  type GuidedFlowDefinition,
+  type GuidedFlowViewStepDefinition,
+} from "../../src/dashboard/lib/guided-flows/controller";
+
+function viewStep(
+  definition: GuidedFlowDefinition,
+  index: number,
+): GuidedFlowViewStepDefinition {
+  const step = definition.steps[index];
+  if (!step || isNestedGuidedFlowStep(step)) {
+    throw new Error(`Expected view step ${index + 1}`);
+  }
+  return step;
+}
 
 const validDraft: GuidedFlowDraft = {
   title: "Review a release",
@@ -59,7 +75,7 @@ describe("guided flow authoring", () => {
       ],
     });
 
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       actions: [
         { id: "confirm", label: "Confirm" },
         { id: "decline", label: "Decline" },
@@ -80,7 +96,7 @@ describe("guided flow authoring", () => {
         },
       ],
     });
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       fields: expect.arrayContaining([
         expect.objectContaining({ name: "clientId" }),
         expect.objectContaining({ name: "clientSecret" }),
@@ -154,7 +170,7 @@ describe("guided flow authoring", () => {
       ],
     });
 
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       items: [
         { id: "staging", label: "Staging" },
         { id: "production", label: "Production" },
@@ -204,8 +220,16 @@ describe("guided flow authoring", () => {
     expect(
       validateGuidedFlowDraft({
         ...validDraft,
-        steps: [{ ...validDraft.steps[0], rendererSlug: "unknown" }],
+        steps: [
+          {
+            title: "Unknown",
+            explanation: "Unknown.",
+            rendererSlug: "unknown",
+          },
+        ],
       }),
-    ).toEqual({ steps: "Choose a supported renderer for every step." });
+    ).toEqual({
+      steps: "Choose a valid renderer or nested flow for every step.",
+    });
   });
 });

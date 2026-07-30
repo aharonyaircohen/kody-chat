@@ -77,6 +77,56 @@ describe("guidedFlows", () => {
     ).rejects.toThrow("revision");
   });
 
+  it("stores the active nested flow and its paused parent stack", async () => {
+    const t = setup();
+    await t.mutation(api.guidedFlows.upsert, START);
+
+    await t.mutation(api.guidedFlows.update, {
+      tenantId: TENANT,
+      actorId: ACTOR,
+      instanceId: START.instanceId,
+      expectedRevision: 0,
+      flowId: "child-flow",
+      flowVersion: 2,
+      currentStepId: "child-step",
+      status: "active",
+      revision: 1,
+      data: {},
+      output: { answer: "four" },
+      history: [],
+      stack: [
+        {
+          flowId: START.flowId,
+          flowVersion: START.flowVersion,
+          currentStepId: START.currentStepId,
+          data: START.data,
+          history: START.history,
+        },
+      ],
+      updatedAt: NOW,
+      mutationId: "nested-1",
+    });
+
+    expect(
+      await t.query(api.guidedFlows.get, {
+        tenantId: TENANT,
+        actorId: ACTOR,
+        instanceId: START.instanceId,
+      }),
+    ).toMatchObject({
+      flowId: "child-flow",
+      flowVersion: 2,
+      currentStepId: "child-step",
+      output: { answer: "four" },
+      stack: [
+        {
+          flowId: START.flowId,
+          currentStepId: START.currentStepId,
+        },
+      ],
+    });
+  });
+
   it("returns the stored record for a repeated mutation id", async () => {
     const t = setup();
     await t.mutation(api.guidedFlows.upsert, START);
@@ -146,11 +196,10 @@ describe("guidedFlows", () => {
     });
   });
 
-  it("versions custom definitions atomically with create/update/archive modes", async () => {
+  it("versions repository definitions once per tenant", async () => {
     const t = setup();
     const base = {
       tenantId: TENANT,
-      actorId: ACTOR,
       flowId: "lesson-1",
       definition: { id: "lesson-1", title: "Lesson", steps: [] },
       updatedAt: NOW,
@@ -189,13 +238,12 @@ describe("guidedFlows", () => {
 
     const rows = await t.query(api.guidedFlows.listDefinitions, {
       tenantId: TENANT,
-      actorId: ACTOR,
     });
     expect(rows).toHaveLength(4);
+    expect(rows.every((row) => row.actorId === undefined)).toBe(true);
     expect(
       await t.query(api.guidedFlows.listDefinitions, {
         tenantId: "other/tenant",
-        actorId: ACTOR,
       }),
     ).toHaveLength(0);
   });

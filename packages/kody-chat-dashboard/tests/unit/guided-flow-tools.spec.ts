@@ -95,7 +95,7 @@ describe("guided_flow_start chat tool", () => {
     expect(result.guidedFlow?.instanceId).toBeTruthy();
   });
 
-  it("starts a custom flow stored for the tenant and actor", async () => {
+  it("starts a custom flow published for the repository", async () => {
     backend.userState["guided-flow-definitions"] = [CUSTOM_DEFINITION];
     const tools = createGuidedFlowTools({
       tenantId: "acme/widgets",
@@ -109,6 +109,56 @@ describe("guided_flow_start chat tool", () => {
     expect(result.guidedFlow?.stepId).toBe("step-1");
     expect(backend.rows).toHaveLength(1);
     expect(backend.rows[0]).toMatchObject({ flowId: "custom-lesson" });
+  });
+
+  it("starts at the active child when a flow begins with a nested flow", async () => {
+    backend.userState["guided-flow-definitions"] = [
+      {
+        id: "parent-flow",
+        version: 1,
+        title: "Parent flow",
+        steps: [
+          {
+            id: "child",
+            type: "flow",
+            title: "Run child",
+            explanation: "Complete the child flow.",
+            flowId: "child-flow",
+            flowVersion: 1,
+          },
+        ],
+      },
+      {
+        id: "child-flow",
+        version: 1,
+        title: "Child flow",
+        steps: [
+          {
+            id: "answer",
+            title: "Answer",
+            explanation: "Choose an answer.",
+            rendererSlug: "selection-list",
+          },
+        ],
+      },
+    ];
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+    });
+
+    const result = (await tools.guided_flow_start.execute!(
+      { flowId: "parent-flow" },
+      {} as never,
+    )) as { guidedFlow?: { stepId: string }; error?: string };
+
+    expect(result.error).toBeUndefined();
+    expect(result.guidedFlow?.stepId).toBe("answer");
+    expect(backend.rows).toHaveLength(1);
+    expect(backend.rows[0]).toMatchObject({
+      flowId: "child-flow",
+      stack: [{ flowId: "parent-flow", currentStepId: "child" }],
+    });
   });
 
   it("ignores archived custom flows and unknown ids", async () => {

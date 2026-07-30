@@ -67,19 +67,23 @@ test("provides step editing controls, preview, and validation", async ({
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
-  await page.getByRole("button", { name: "Add Guided Flow" }).click();
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
 
   await expect(page.getByLabel("Preview step 1")).toBeVisible();
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
     const stepCardBox = await page.getByLabel("Step 1: New step").boundingBox();
-    const previewCardBox = await page.getByLabel("Preview step 1").boundingBox();
+    const previewCardBox = await page
+      .getByLabel("Preview step 1")
+      .boundingBox();
     const previewBox = await page.getByLabel("Live preview 1").boundingBox();
     expect(stepCardBox).not.toBeNull();
     expect(previewCardBox).not.toBeNull();
     expect(previewBox).not.toBeNull();
-    expect(
-      Math.abs((previewBox?.y ?? 0) - (stepCardBox?.y ?? 0)),
-    ).toBeLessThan(24);
+    expect(Math.abs((previewBox?.y ?? 0) - (stepCardBox?.y ?? 0))).toBeLessThan(
+      24,
+    );
     expect(
       Math.abs((previewCardBox?.y ?? 0) - (stepCardBox?.y ?? 0)),
     ).toBeLessThan(24);
@@ -166,7 +170,9 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
-  await page.getByRole("button", { name: "Add Guided Flow" }).click();
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
   await page.getByRole("button", { name: "+ Add step" }).click();
   await page.getByLabel("Flow name").fill("Review a release");
   await page.getByLabel("Step 1 title").fill("Confirm the release");
@@ -183,6 +189,69 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   expect(posts).toContainEqual({
     action: "create-definition",
     draft: expect.objectContaining({ title: "Review a release" }),
+  });
+});
+
+test("creates a GuidedFlow that calls another flow", async ({ page }) => {
+  const posts: unknown[] = [];
+  await page.route("**/api/kody/guided-flows**", async (route) => {
+    if (route.request().method() === "GET") {
+      await json(route, { definitions: [] });
+      return;
+    }
+    posts.push(route.request().postDataJSON());
+    await json(
+      route,
+      {
+        definition: {
+          id: "parent-flow",
+          version: 1,
+          title: "Parent flow",
+          steps: [
+            {
+              id: "step-1",
+              type: "flow",
+              title: "Run child",
+              explanation: "Complete the child flow.",
+              flowId: "child-flow",
+              flowVersion: 2,
+            },
+          ],
+        },
+      },
+      201,
+    );
+  });
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
+  await page.getByLabel("Flow name").fill("Parent flow");
+  await page.getByLabel("Step 1 title").fill("Run child");
+  await page.getByLabel("Step 1 instructions").fill("Complete the child flow.");
+  await page.getByLabel("Step 1 type").selectOption("flow");
+  await page.getByLabel("Step 1 flow ID").fill("child-flow");
+  await page.getByLabel("Step 1 flow version").fill("2");
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
+
+  await expect(page.getByText("Parent flow", { exact: true })).toBeVisible();
+  expect(posts).toContainEqual({
+    action: "create-definition",
+    draft: {
+      title: "Parent flow",
+      completionRouteId: "",
+      steps: [
+        {
+          type: "flow",
+          title: "Run child",
+          explanation: "Complete the child flow.",
+          flowId: "child-flow",
+          flowVersion: 2,
+        },
+      ],
+    },
   });
 });
 

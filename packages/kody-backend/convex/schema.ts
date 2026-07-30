@@ -113,7 +113,19 @@ export default defineSchema({
     status: guidedFlowStatusValidator,
     revision: v.number(),
     data: v.any(),
+    output: v.optional(v.any()),
     history: v.array(v.string()),
+    stack: v.optional(
+      v.array(
+        v.object({
+          flowId: v.string(),
+          flowVersion: v.number(),
+          currentStepId: v.string(),
+          data: v.any(),
+          history: v.array(v.string()),
+        }),
+      ),
+    ),
     updatedAt: v.string(),
     mutationId: v.optional(v.string()),
   })
@@ -137,15 +149,17 @@ export default defineSchema({
   // userState "guided-flow-definitions" blob array.
   guidedFlowDefinitions: defineTable({
     tenantId: v.string(),
-    actorId: v.string(),
+    // Legacy rows may still have actorId; all new definitions are shared by
+    // the repository tenant and omit it.
+    actorId: v.optional(v.string()),
     flowId: v.string(),
     version: v.number(),
     archived: v.optional(v.boolean()),
     definition: v.any(),
     updatedAt: v.string(),
   })
-    .index("by_flow", ["tenantId", "actorId", "flowId", "version"])
-    .index("by_actor", ["tenantId", "actorId"]),
+    .index("by_flow", ["tenantId", "flowId", "version"])
+    .index("by_tenant", ["tenantId"]),
 
   // Append-only ledger of finished guided flows — one row per completed
   // instance, the per-user progress record (e.g. lesson completions).
