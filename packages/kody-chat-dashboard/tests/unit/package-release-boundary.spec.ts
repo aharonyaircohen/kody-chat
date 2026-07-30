@@ -97,6 +97,8 @@ describe("external package boundary", () => {
       ".",
       "./react",
       "./core",
+      "./knowledge",
+      "./model-catalog",
       "./styles.css",
     ]);
   });

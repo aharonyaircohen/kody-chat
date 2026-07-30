@@ -250,6 +250,46 @@ export const grantApproval = mutation({
   },
 });
 
+export const consumeApproval = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    approvalId: v.string(),
+    scopeKind,
+    scopeId: v.string(),
+    action: v.string(),
+    approvedBy: v.string(),
+    dispatchKey: v.string(),
+    consumedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const approval = await ctx.db
+      .query("agencyApprovals")
+      .withIndex("by_approval_id", (q) =>
+        q.eq("tenantId", args.tenantId).eq("approvalId", args.approvalId),
+      )
+      .unique();
+    if (
+      !approval ||
+      approval.status !== "available" ||
+      approval.scopeKind !== args.scopeKind ||
+      approval.scopeId !== args.scopeId ||
+      approval.action !== args.action ||
+      approval.approvedBy !== args.approvedBy ||
+      (approval.expiresAt !== undefined &&
+        Date.parse(approval.expiresAt) <= Date.parse(args.consumedAt))
+    ) {
+      return false;
+    }
+    await ctx.db.patch(approval._id, {
+      status: "consumed",
+      consumedAt: args.consumedAt,
+      dispatchKey: args.dispatchKey,
+    });
+    return true;
+  },
+});
+
 export const listApprovals = query({
   args: {
     serviceKey: v.optional(v.string()),

@@ -8,12 +8,23 @@
 
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { z } from "zod";
+import {
+  validateWorkflowInputSchema,
+  type WorkflowInputSchema,
+} from "./workflow-input-schema";
+
+export {
+  validateWorkflowInput,
+  validateWorkflowInputSchema,
+} from "./workflow-input-schema";
 
 export interface WorkflowDefinition {
   name: string;
   /** One Agent runs every step. Direct Capability runs use Kody. */
   agent: string;
   capabilities: string[];
+  /** JSON Schema describing the external input accepted by this Workflow. */
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
   runWithoutApproval?: boolean;
@@ -77,6 +88,7 @@ export interface CreateWorkflowDefinitionInput {
   name: string;
   agent?: string;
   capabilities: string[];
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
   runWithoutApproval?: boolean;
@@ -86,6 +98,7 @@ export interface UpdateWorkflowDefinitionInput {
   name?: string;
   agent?: string;
   capabilities?: string[];
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
   runWithoutApproval?: boolean;
@@ -285,12 +298,20 @@ export function normalizeWorkflowDefinition(
     typeof raw.updatedAt === "string" && raw.updatedAt.trim()
       ? raw.updatedAt
       : createdAt;
+  const inputSchema =
+    raw.inputSchema &&
+    typeof raw.inputSchema === "object" &&
+    !Array.isArray(raw.inputSchema) &&
+    isJsonValue(raw.inputSchema)
+      ? (raw.inputSchema as Record<string, unknown>)
+      : undefined;
 
   if (!name || capabilities.length === 0) return null;
   return {
     name,
     agent,
     capabilities,
+    ...(inputSchema ? { inputSchema } : {}),
     ...(startAt && WORKFLOW_ID_PATTERN.test(startAt) ? { startAt } : {}),
     ...(steps.length > 0 ? { steps } : {}),
     ...(raw.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
@@ -310,6 +331,7 @@ export function buildWorkflowDefinition(
       ? (input.agent ?? "kody").trim().toLowerCase()
       : "kody",
     capabilities: normalizeWorkflowCapabilities(input.capabilities),
+    ...(input.inputSchema ? { inputSchema: input.inputSchema } : {}),
     ...(input.startAt ? { startAt: input.startAt } : {}),
     ...(input.steps && input.steps.length > 0 ? { steps: input.steps } : {}),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
@@ -327,6 +349,7 @@ export function mergeWorkflowDefinition(
       name: input.name ?? existing.name,
       agent: input.agent ?? existing.agent,
       capabilities: input.capabilities ?? existing.capabilities,
+      inputSchema: input.inputSchema ?? existing.inputSchema,
       startAt: input.startAt ?? existing.startAt,
       steps: input.steps ?? existing.steps,
       runWithoutApproval:
@@ -345,7 +368,9 @@ export function validateWorkflowDefinition(
   workflow: WorkflowDefinition,
   options: WorkflowValidationOptions = {},
 ): WorkflowValidationIssue[] {
-  const issues: WorkflowValidationIssue[] = [];
+  const issues: WorkflowValidationIssue[] = [
+    ...validateWorkflowInputSchema(workflow.inputSchema),
+  ];
   const steps = workflow.steps ?? [];
   if (steps.length === 0) return issues;
   if (steps.length > 100)

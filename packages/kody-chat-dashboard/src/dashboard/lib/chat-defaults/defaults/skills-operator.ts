@@ -40,3 +40,9 @@ export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
   title: "create-workflow",
   body: `A workflow is one validated ordered run of existing capabilities. Research the request and current capabilities first, show the proposed graph and handoffs, then create an approved issue and call \`run_workflow_creator\`. Never write workflow files from chat and never call the creator on the first turn.`,
 };
+
+export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {
+  slug: "run-workflow",
+  title: "run-workflow",
+  body: `Use \`list_workflows\` to discover active workflows, then \`read_workflow\` to verify the selected definition. Select by the workflow's declared purpose, steps, capabilities, and \`inputSchema\`—not by a hardcoded phrase. Ask at most one question only when a required input is missing; never invent missing input. Call \`run_workflow\` with the selected ID and exact input. If it returns an approval card, stop and let the user choose. After the user clicks Approve, call \`run_workflow\` again with the exact same ID and input. Approval is server-verified and is never a model-generated argument. Do not hardcode workflow IDs, duplicate workflow logic in Chat, or create an issue unless the selected workflow requires one.`,
+};

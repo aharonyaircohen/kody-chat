@@ -18,9 +18,13 @@ function dependencies(
 ): WorkflowExecutionDependencies {
   return {
     createRequestId: () => "run-memory-1",
+    now: () => "2026-07-27T12:00:00.000Z",
     loadWorkflow: vi.fn(async () => ({ workflow })),
-    validateWorkflow: vi.fn(() => []),
-    authorize: vi.fn(async () => true),
+    validateDefinition: vi.fn(() => []),
+    validateInput: vi.fn(() => []),
+    requiresApproval: vi.fn(async () => false),
+    consumeApproval: vi.fn(async () => true),
+    actionFor: vi.fn(() => "run:input"),
     dispatch: vi.fn(async (request) => ({
       requestId: request.requestId,
       acceptedAt: "2026-07-27T12:00:00.000Z",
@@ -37,6 +41,8 @@ describe("startWorkflow", () => {
       {
         workflowId: "learn-from-runs",
         source: "dashboard",
+        actor: "github:42",
+        input: { issue: 42 },
       },
       deps,
     );
@@ -46,6 +52,7 @@ describe("startWorkflow", () => {
       target: { type: "workflow", id: "learn-from-runs" },
       intent: "run",
       source: "dashboard",
+      input: { issue: 42 },
     });
     expect(result).toEqual({
       kind: "accepted",
@@ -62,7 +69,9 @@ describe("startWorkflow", () => {
       {
         workflowId: "learn-from-runs",
         source: "dashboard",
+        actor: "github:42",
         requestId: "run-existing",
+        resume: true,
       },
       deps,
     );
@@ -70,6 +79,7 @@ describe("startWorkflow", () => {
     expect(deps.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: "run-existing" }),
     );
+    expect(deps.validateInput).not.toHaveBeenCalled();
   });
 
   it("does not dispatch missing or invalid workflows", async () => {
@@ -77,7 +87,7 @@ describe("startWorkflow", () => {
       loadWorkflow: vi.fn(async () => null),
     });
     const invalid = dependencies({
-      validateWorkflow: vi.fn(() => [
+      validateDefinition: vi.fn(() => [
         {
           code: "bad_graph",
           message: "Workflow graph is invalid",
@@ -88,13 +98,13 @@ describe("startWorkflow", () => {
 
     await expect(
       startWorkflow(
-        { workflowId: "missing", source: "dashboard" },
+        { workflowId: "missing", source: "dashboard", actor: "github:42" },
         missing,
       ),
     ).resolves.toEqual({ kind: "not-found" });
     await expect(
       startWorkflow(
-        { workflowId: "broken", source: "dashboard" },
+        { workflowId: "broken", source: "dashboard", actor: "github:42" },
         invalid,
       ),
     ).resolves.toEqual({
@@ -111,9 +121,9 @@ describe("startWorkflow", () => {
     expect(invalid.dispatch).not.toHaveBeenCalled();
   });
 
-  it("does not dispatch when explicit approval is required", async () => {
+  it("does not dispatch without a server approval when one is required", async () => {
     const deps = dependencies({
-      authorize: vi.fn(async () => false),
+      requiresApproval: vi.fn(async () => true),
     });
 
     await expect(
@@ -121,7 +131,54 @@ describe("startWorkflow", () => {
         {
           workflowId: "learn-from-runs",
           source: "dashboard",
-          approved: false,
+          actor: "github:42",
+        },
+        deps,
+      ),
+    ).resolves.toEqual({ kind: "approval-required" });
+    expect(deps.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("atomically consumes a matching approval before dispatch", async () => {
+    const deps = dependencies({
+      requiresApproval: vi.fn(async () => true),
+    });
+
+    await startWorkflow(
+      {
+        workflowId: "learn-from-runs",
+        source: "dashboard",
+        actor: "github:42",
+        approvalId: "approval-1",
+        input: { issue: 42 },
+      },
+      deps,
+    );
+
+    expect(deps.consumeApproval).toHaveBeenCalledWith({
+      approvalId: "approval-1",
+      workflowId: "learn-from-runs",
+      action: "run:input",
+      actor: "github:42",
+      dispatchKey: "run-memory-1",
+      consumedAt: "2026-07-27T12:00:00.000Z",
+    });
+    expect(deps.dispatch).toHaveBeenCalledOnce();
+  });
+
+  it("does not dispatch a missing, expired, mismatched, or replayed approval", async () => {
+    const deps = dependencies({
+      requiresApproval: vi.fn(async () => true),
+      consumeApproval: vi.fn(async () => false),
+    });
+
+    await expect(
+      startWorkflow(
+        {
+          workflowId: "learn-from-runs",
+          source: "dashboard",
+          actor: "github:42",
+          approvalId: "approval-replayed",
         },
         deps,
       ),

@@ -12,22 +12,22 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import type { ServerProviderConfig } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   listServerProviderInventory,
   listServerProviderMachines,
   rowsForServerProviderApp,
-  ServerProviderInventory,
-  ServerProviderMachineRow,
-} from "@kody-ade/fly/infrastructure/server-machines";
+  type ServerProviderConfig,
+  type ServerProviderInventory,
+  type ServerProviderMachineRow,
+} from "../infrastructure/server-machines";
 import {
   applySavedBrainMachineToInventory,
   emptyServerProviderInventory,
   refreshServerProviderInventoryCounts,
   resolveSavedBrainServiceForRequest,
   type SavedBrainServiceForRequest,
-} from "@kody-ade/fly/infrastructure/server-brain";
-import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+} from "../infrastructure/server-brain";
+import type { ServerProviderContext } from "../infrastructure/server-context";
 
 export interface TerminalInventoryRequestTarget {
   brainRequested?: boolean;

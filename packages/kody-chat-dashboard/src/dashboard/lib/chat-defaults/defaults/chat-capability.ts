@@ -71,6 +71,10 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "run_workflow_creator",
     "read_capability_creation_guide",
     "create_or_update_capability",
+    // ── Workflow discovery and execution (repo-gated) ─────────────────────
+    "list_workflows",
+    "read_workflow",
+    "run_workflow",
     // ── Agent admin (actor-gated) ──────────────────────────────────────────
     "list_agents",
     "read_agent",
@@ -152,6 +156,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "create-capability",
     "create-agent",
     "create-workflow",
+    "run-workflow",
     "vibe",
     "memory",
   ],

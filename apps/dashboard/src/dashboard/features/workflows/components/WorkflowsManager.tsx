@@ -34,6 +34,7 @@ import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
+  useApproveWorkflowRun,
   useRunWorkflowDefinition,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
@@ -48,6 +49,7 @@ import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import { TrustLevelControl } from "@dashboard/lib/components/TrustLevelControl";
 import { WorkflowEditorDialog } from "@dashboard/features/workflows/components/WorkflowEditorDialog";
 import { WorkflowGraphCanvas } from "@dashboard/features/workflows/components/WorkflowGraphCanvas";
+import { WorkflowRunDialog } from "@dashboard/features/workflows/components/WorkflowRunDialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 
 const BASE_PATH = "/workflows";
@@ -90,8 +92,13 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useState<WorkflowDefinitionRecord | null>(null);
   const [deletingWorkflow, setDeletingWorkflow] =
     useState<WorkflowDefinitionRecord | null>(null);
-  const [approvalWorkflow, setApprovalWorkflow] =
+  const [runWorkflowDialog, setRunWorkflowDialog] =
     useState<WorkflowDefinitionRecord | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<{
+    workflow: WorkflowDefinitionRecord;
+    input: Record<string, unknown>;
+    token: string;
+  } | null>(null);
   const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
   const {
@@ -108,6 +115,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const runWorkflow = useRunWorkflowDefinition();
+  const approveWorkflow = useApproveWorkflowRun();
   const trust = useTrust();
 
   const filtered = useMemo(
@@ -204,15 +212,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               trustPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
-                if (selectedTrustLevel === "approval-required") {
-                  setApprovalWorkflow(selectedWorkflow);
-                  return;
-                }
-                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
-                setActiveRunIds((current) => ({
-                  ...current,
-                  [selectedWorkflow.id]: run.runId,
-                }));
+                setRunWorkflowDialog(selectedWorkflow);
               }}
               onResume={async (currentRunId) => {
                 const run = await runWorkflow.mutateAsync({
@@ -220,17 +220,14 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                   mode: "resume",
                   runId: currentRunId,
                 });
+                if (run.kind !== "accepted") return;
                 setActiveRunIds((current) => ({
                   ...current,
                   [selectedWorkflow.id]: run.runId,
                 }));
               }}
               onRetry={async () => {
-                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
-                setActiveRunIds((current) => ({
-                  ...current,
-                  [selectedWorkflow.id]: run.runId,
-                }));
+                setRunWorkflowDialog(selectedWorkflow);
               }}
               runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
@@ -304,20 +301,59 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           selectWorkflow(created.id);
         }}
       />
+      <WorkflowRunDialog
+        workflow={runWorkflowDialog}
+        pending={runWorkflow.isPending}
+        onClose={() => setRunWorkflowDialog(null)}
+        onSubmit={async (input) => {
+          if (!runWorkflowDialog) return;
+          const workflow = runWorkflowDialog;
+          const result = await runWorkflow.mutateAsync({
+            id: workflow.id,
+            input,
+          });
+          setRunWorkflowDialog(null);
+          if (result.kind === "approval-required") {
+            setPendingApproval({
+              workflow,
+              input,
+              token: result.approvalToken,
+            });
+            return;
+          }
+          setActiveRunIds((current) => ({
+            ...current,
+            [workflow.id]: result.runId,
+          }));
+        }}
+      />
       <ConfirmDialog
-        open={!!approvalWorkflow}
-        title={`Run ${approvalWorkflow?.workflow.name ?? "workflow"}?`}
+        open={!!pendingApproval}
+        title={`Run ${pendingApproval?.workflow.workflow.name ?? "workflow"}?`}
         description="This workflow requires your approval before Kody Engine can start it."
         confirmLabel="Approve and run"
-        onClose={() => setApprovalWorkflow(null)}
+        onClose={() => setPendingApproval(null)}
         onConfirm={() => {
-          if (!approvalWorkflow) return;
-          void runWorkflow
-            .mutateAsync({ id: approvalWorkflow.id, approved: true })
+          if (!pendingApproval) return;
+          const approval = pendingApproval;
+          void approveWorkflow
+            .mutateAsync({
+              id: approval.workflow.id,
+              approvalToken: approval.token,
+              input: approval.input,
+            })
+            .then((approvalId) =>
+              runWorkflow.mutateAsync({
+                id: approval.workflow.id,
+                approvalId,
+                input: approval.input,
+              }),
+            )
             .then((run) => {
+              if (run.kind !== "accepted") return;
               setActiveRunIds((current) => ({
                 ...current,
-                [approvalWorkflow.id]: run.runId,
+                [approval.workflow.id]: run.runId,
               }));
             });
         }}

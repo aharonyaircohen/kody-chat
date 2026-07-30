@@ -12,11 +12,11 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolveServerProviderContext } from "../infrastructure/server-context";
 import {
   startTerminalSession,
   TerminalSessionError,
-} from "../session-connect";
+} from "../terminal/session-connect";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

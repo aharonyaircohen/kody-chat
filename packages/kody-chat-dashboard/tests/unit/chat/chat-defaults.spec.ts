@@ -130,6 +130,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
+      "app/api/kody/chat/tools/workflow-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
@@ -213,6 +214,28 @@ describe("chat-defaults bundle", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
   });
 
+  it("discovers and runs workflows without hardcoded workflow routing", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toEqual(
+      expect.arrayContaining([
+        "list_workflows",
+        "read_workflow",
+        "run_workflow",
+      ]),
+    );
+    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
+      "run_documentation_agency",
+    );
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("list_workflows");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("read_workflow");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("run_workflow");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain(
+      "Do not hardcode workflow IDs",
+    );
+    expect(CRITICAL_REMINDERS_MD).not.toContain(
+      "Create a complete usage guide for this AI agency",
+    );
+  });
+
   it("documents show_view as spec-based rendering with strict validation", () => {
     const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
     expect(uiTools).toContain("Render an interactive UI card");
@@ -271,7 +294,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 9 skills — including create-workflow", () => {
+  it("exposes 10 skills — including generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -280,6 +303,7 @@ describe("chat-defaults bundle", () => {
       "diagnose-pr",
       "memory",
       "report-advise",
+      "run-workflow",
       "todo-planner",
       "vibe",
     ]);

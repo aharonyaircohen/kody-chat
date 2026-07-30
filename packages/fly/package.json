@@ -15,6 +15,7 @@
     "./plugin/previews/*": "./src/plugin/previews/*.ts",
     "./plugin/runners/*": "./src/plugin/runners/*.ts",
     "./plugin/terminal/*": "./src/plugin/terminal/*.ts",
+    "./terminal/*": "./src/terminal/*.ts",
     "./routes/*": "./src/routes/*.ts"
   },
   "scripts": {
@@ -25,6 +26,7 @@
   "dependencies": {
     "@kody-ade/base": "workspace:*",
     "@kody-ade/engine-contracts": "workspace:*",
+    "@kody-ade/terminal": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "zod": "^4.3.5"
   },

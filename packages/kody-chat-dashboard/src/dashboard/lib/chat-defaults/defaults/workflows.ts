@@ -26,6 +26,7 @@ Skills:
 - create-capability — research -> gap-closing -> show profile/instructions -> call create_or_update_capability.
 - create-agent — research -> gap-closing -> show body -> call create_kody_agent.
 - create-workflow — research -> gap-closing -> show the workflow graph -> call run_workflow_creator for the approved issue.
+- run-workflow — discover, inspect, approve, and run any active workflow through the shared Engine boundary.
 
 Hard rules: research before asking; never call create_* / report_bug on the first turn. Show title + body once approved, then call the tool. additionalContext must end with Research notes.`,
 };

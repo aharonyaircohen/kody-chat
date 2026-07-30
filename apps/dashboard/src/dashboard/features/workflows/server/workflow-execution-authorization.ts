@@ -6,10 +6,9 @@ import {
   trustSubjectKey,
 } from "@dashboard/lib/cto/trust-state";
 
-export async function authorizeWorkflowExecution(
+export async function workflowRequiresApproval(
   workflowId: string,
   workflow: WorkflowDefinition,
-  explicitlyApproved: boolean,
 ): Promise<boolean> {
   const trust = await readTrust();
   const subject = trustSubjectKey("workflow", workflowId);
@@ -17,7 +16,7 @@ export async function authorizeWorkflowExecution(
     trust.subjects[subject],
     workflow.runWithoutApproval === true,
   );
-  return level !== "approval-required" || explicitlyApproved;
+  return level === "approval-required";
 }
 
 export async function authorizeLoopExecution(

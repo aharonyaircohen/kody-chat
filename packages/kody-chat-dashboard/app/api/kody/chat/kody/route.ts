@@ -93,6 +93,8 @@ import { createTaskTools } from "../tools/task-tools";
 import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
+import { createWorkflowTools } from "../tools/workflow-tools";
+import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -1110,6 +1112,14 @@ async function handleKodyDirectPost(
     });
     dynamicChatTools = await loadDynamicChatTools(repo.owner, repo.repo);
     dynamicChatToolNames = Object.keys(dynamicChatTools);
+    const workflowApi = createWorkflowApiClient({
+      request: repoScopedReq,
+      approval: {
+        owner: repo.owner,
+        repo: repo.repo,
+        latestUserText,
+      },
+    });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -1154,6 +1164,13 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+      }),
+      ...createWorkflowTools({
+        owner: repo.owner,
+        repo: repo.repo,
+        listWorkflows: () => workflowApi.list(),
+        readWorkflow: (workflowId) => workflowApi.read(workflowId),
+        runWorkflow: (command) => workflowApi.run(command),
       }),
       // Dashboard-management tools: let chat manage every dashboard feature
       // (config files, settings, infra) the same way the pages do. Reads use

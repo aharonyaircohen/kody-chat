@@ -111,6 +111,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/workflow-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
@@ -253,7 +254,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 9 skills — including create-workflow", () => {
+  it("exposes 10 skills — including generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -262,6 +263,7 @@ describe("chat-defaults bundle", () => {
       "diagnose-pr",
       "memory",
       "report-advise",
+      "run-workflow",
       "todo-planner",
       "vibe",
     ]);

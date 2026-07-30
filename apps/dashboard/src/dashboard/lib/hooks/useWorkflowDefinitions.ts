@@ -149,19 +149,14 @@ export function useDeleteWorkflowDefinition() {
 
 export function useRunWorkflowDefinition() {
   return useMutation<
-    {
-      ok: boolean;
-      execution: "kody-engine";
-      workflow: string;
-      runId: string;
-      acceptedAt: string;
-    },
+    Awaited<ReturnType<typeof kodyApi.workflowDefinitions.run>>,
     Error,
     string | {
       id: string;
       mode?: "resume";
       runId?: string;
-      approved?: boolean;
+      approvalId?: string;
+      input?: Record<string, unknown>;
     }
   >({
     mutationFn: (input) => typeof input === "string"
@@ -169,9 +164,11 @@ export function useRunWorkflowDefinition() {
       : kodyApi.workflowDefinitions.run(input.id, {
           mode: input.mode,
           runId: input.runId,
-          approved: input.approved,
+          approvalId: input.approvalId,
+          input: input.input,
         }),
     onSuccess: (data) => {
+      if (data.kind !== "accepted") return;
       toast.success("Workflow started", {
         description: `Run ${data.runId} accepted by Kody Engine.`,
       });
@@ -181,6 +178,21 @@ export function useRunWorkflowDefinition() {
         description: error.message,
       });
     },
+  });
+}
+
+export function useApproveWorkflowRun() {
+  return useMutation<
+    string,
+    Error,
+    {
+      id: string;
+      approvalToken: string;
+      input: Record<string, unknown>;
+    }
+  >({
+    mutationFn: ({ id, approvalToken, input }) =>
+      kodyApi.workflowDefinitions.approveRun(id, approvalToken, input),
   });
 }
 

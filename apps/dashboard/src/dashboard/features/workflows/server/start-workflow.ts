@@ -10,23 +10,39 @@ import type {
 
 export interface WorkflowExecutionDependencies {
   createRequestId(): string;
+  now(): string;
   loadWorkflow(
     workflowId: string,
   ): Promise<{ workflow: WorkflowDefinition } | null>;
-  validateWorkflow(workflow: WorkflowDefinition): WorkflowValidationIssue[];
-  authorize(
+  validateDefinition(workflow: WorkflowDefinition): WorkflowValidationIssue[];
+  validateInput(
+    schema: WorkflowDefinition["inputSchema"],
+    input: Record<string, unknown>,
+  ): WorkflowValidationIssue[];
+  requiresApproval(
     workflowId: string,
     workflow: WorkflowDefinition,
-    explicitlyApproved: boolean,
   ): Promise<boolean>;
+  consumeApproval(input: {
+    approvalId: string;
+    workflowId: string;
+    action: string;
+    actor: string;
+    dispatchKey: string;
+    consumedAt: string;
+  }): Promise<boolean>;
+  actionFor(input: Record<string, unknown>): string;
   dispatch(request: EngineExecutionRequest): Promise<EngineExecutionReceipt>;
 }
 
 export interface StartWorkflowCommand {
   workflowId: string;
   source: EngineExecutionSource;
+  actor: string;
   requestId?: string;
-  approved?: boolean;
+  resume?: boolean;
+  approvalId?: string;
+  input?: Record<string, unknown>;
 }
 
 export type StartWorkflowResult =
@@ -47,21 +63,38 @@ export async function startWorkflow(
   const loaded = await dependencies.loadWorkflow(command.workflowId);
   if (!loaded) return { kind: "not-found" };
 
-  const issues = dependencies.validateWorkflow(loaded.workflow);
+  const issues = [
+    ...dependencies.validateDefinition(loaded.workflow),
+    ...(command.resume
+      ? []
+      : dependencies.validateInput(
+          loaded.workflow.inputSchema,
+          command.input ?? {},
+        )),
+  ];
   if (issues.length > 0) return { kind: "invalid", issues };
-  const authorized = await dependencies.authorize(
-    command.workflowId,
-    loaded.workflow,
-    command.approved === true,
-  );
-  if (!authorized) return { kind: "approval-required" };
-
   const requestId = command.requestId ?? dependencies.createRequestId();
+  if (
+    await dependencies.requiresApproval(command.workflowId, loaded.workflow)
+  ) {
+    if (!command.approvalId) return { kind: "approval-required" };
+    const consumed = await dependencies.consumeApproval({
+      approvalId: command.approvalId,
+      workflowId: command.workflowId,
+      action: dependencies.actionFor(command.input ?? {}),
+      actor: command.actor,
+      dispatchKey: requestId,
+      consumedAt: dependencies.now(),
+    });
+    if (!consumed) return { kind: "approval-required" };
+  }
+
   const receipt = await dependencies.dispatch({
     requestId,
     target: { type: "workflow", id: command.workflowId },
     intent: "run",
     source: command.source,
+    ...(command.input ? { input: command.input } : {}),
   });
 
   return {
