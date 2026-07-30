@@ -37,10 +37,6 @@
       "types": "./dist/knowledge.d.ts",
       "import": "./dist/knowledge.js"
     },
-    "./model-catalog": {
-      "types": "./dist/model-catalog.d.ts",
-      "import": "./dist/model-catalog.js"
-    },
     "./styles.css": "./styles.css"
   },
   "peerDependencies": {

@@ -76,6 +76,10 @@ const stateRepo = vi.hoisted(() => ({
   deleteStateFile: vi.fn(async (_input: unknown): Promise<void> => undefined),
 }));
 vi.mock("@kody-ade/cms/repo-docs", () => ({
+  runWithCmsRepoDocsStore: <T>(
+    _store: unknown,
+    callback: () => T,
+  ): T => callback(),
   readCmsFile: async (owner: string, repo: string, filePath: string) =>
     stateRepo.readStateText({}, owner, repo, filePath),
   readRepoDocFile: (...args: unknown[]) => stateRepo.readStateText(...args),

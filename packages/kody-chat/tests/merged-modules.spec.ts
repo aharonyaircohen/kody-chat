@@ -5,10 +5,6 @@ import {
   parseChatKnowledgeGraph,
   searchChatKnowledge,
 } from "../src/knowledge";
-import {
-  composeChatModelCatalog,
-  KODY_OPENROUTER_FREE_CHAT_MODEL,
-} from "../src/model-catalog";
 
 describe("Kody Chat owned modules", () => {
   it("owns bounded knowledge retrieval", () => {
@@ -47,13 +43,5 @@ describe("Kody Chat owned modules", () => {
 
     expect(result.facts.map((fact) => fact.id)).toEqual(["kody-chat"]);
     expect(result.sources.map((source) => source.id)).toEqual(["repo"]);
-  });
-
-  it("owns the built-in model catalog", () => {
-    expect(
-      composeChatModelCatalog([], KODY_OPENROUTER_FREE_CHAT_MODEL),
-    ).toEqual([
-      expect.objectContaining({ id: "openrouter/free", default: true }),
-    ]);
   });
 });

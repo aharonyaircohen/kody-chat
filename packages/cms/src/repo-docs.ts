@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
 export type CmsFilesDoc = { files: Record<string, string> };
@@ -20,18 +22,20 @@ export interface CmsRepoDocsStore {
   ): Promise<string>;
 }
 
-const STORE_KEY = Symbol.for("kody.cms.repoDocsStore");
-type StoreGlobal = { [STORE_KEY]?: CmsRepoDocsStore };
+const requestStore = new AsyncLocalStorage<CmsRepoDocsStore>();
 
-export function setCmsRepoDocsStore(store: CmsRepoDocsStore): void {
-  (globalThis as StoreGlobal)[STORE_KEY] = store;
+export function runWithCmsRepoDocsStore<T>(
+  store: CmsRepoDocsStore,
+  callback: () => T,
+): T {
+  return requestStore.run(store, callback);
 }
 
 function cmsRepoDocsStore(): CmsRepoDocsStore {
-  const store = (globalThis as StoreGlobal)[STORE_KEY];
+  const store = requestStore.getStore();
   if (!store) {
     throw new Error(
-      "CMS repository storage is not registered by the application host.",
+      "CMS repository storage was not provided for this request.",
     );
   }
   return store;
@@ -97,31 +101,39 @@ export function createCmsRepoDocsTransport(
   owner: string,
   repo: string,
 ): CmsStorageTransport {
+  const store = cmsRepoDocsStore();
+  const withinStore = <T>(callback: () => T): T =>
+    runWithCmsRepoDocsStore(store, callback);
+
   return {
     async listFiles(dirPath) {
-      const record = await load(owner, repo);
+      const record = await withinStore(() => load(owner, repo));
       const prefix = dirPath ? `${dirPath.replace(/\/+$/, "")}/` : "";
       return Object.keys(record?.doc.files ?? {}).filter((path) =>
         path.startsWith(prefix),
       );
     },
     async readFile(path) {
-      const file = await readCmsFile(owner, repo, path);
+      const file = await withinStore(() => readCmsFile(owner, repo, path));
       if (!file) {
         throw Object.assign(new Error("not a file"), { status: 404 });
       }
       return file.content;
     },
     async writeFile(path, content) {
-      const current = await load(owner, repo);
-      await writeCmsFiles(owner, repo, [{ path, content }], current?.updatedAt);
+      const current = await withinStore(() => load(owner, repo));
+      await withinStore(() =>
+        writeCmsFiles(owner, repo, [{ path, content }], current?.updatedAt),
+      );
     },
     async deleteFile(path) {
-      const current = await load(owner, repo);
+      const current = await withinStore(() => load(owner, repo));
       if (!current?.doc.files[path]) {
         throw Object.assign(new Error("not a file"), { status: 404 });
       }
-      await deleteCmsFile(owner, repo, path, current.updatedAt);
+      await withinStore(() =>
+        deleteCmsFile(owner, repo, path, current.updatedAt),
+      );
     },
   };
 }

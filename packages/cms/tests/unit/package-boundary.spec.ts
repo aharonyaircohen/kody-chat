@@ -28,4 +28,16 @@ describe("CMS package boundary", () => {
     expect(manifest.dependencies).not.toHaveProperty("@kody-ade/backend");
     expect(imports).not.toContain("@kody-ade/backend");
   });
+
+  it("receives repository storage per request instead of through global startup state", () => {
+    const source = readFileSync(
+      join(packageRoot, "src", "repo-docs.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("runWithCmsRepoDocsStore");
+    expect(source).toContain("AsyncLocalStorage");
+    expect(source).not.toContain("globalThis");
+    expect(source).not.toContain("Symbol.for");
+  });
 });

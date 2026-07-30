@@ -3,7 +3,7 @@ import "server-only";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
-  setCmsRepoDocsStore,
+  runWithCmsRepoDocsStore,
   type CmsFilesDoc,
   type CmsRepoDocsRecord,
   type CmsRepoDocsStore,
@@ -61,6 +61,6 @@ export function createBackendCmsRepoDocsStore(): CmsRepoDocsStore {
   };
 }
 
-export function registerDashboardCmsRepoDocsStore(): void {
-  setCmsRepoDocsStore(createBackendCmsRepoDocsStore());
+export function withDashboardCmsRepoDocsStore<T>(callback: () => T): T {
+  return runWithCmsRepoDocsStore(createBackendCmsRepoDocsStore(), callback);
 }

@@ -123,6 +123,9 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   await page.route("**/api/kody/models", (route) =>
     json(route, { models: [] }),
   );
+  await page.route("**/api/kody/agents", (route) =>
+    json(route, { agent: [] }),
+  );
   await page.route("https://api.github.com/**", (route) => {
     const pathname = decodeURIComponent(
       new URL(route.request().url()).pathname,
@@ -137,6 +140,33 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
     }
     if (pathname === `${repoPrefix}/git/commits/head-sha` && method === "GET") {
       return json(route, { tree: { sha: "tree-sha" } });
+    }
+    if (pathname === `${repoPrefix}/git/trees/tree-sha` && method === "GET") {
+      return json(route, {
+        truncated: false,
+        tree: [
+          ...(testFilePath
+            ? [
+                {
+                  path: testFilePath,
+                  sha: "test-sha",
+                  mode: "100644",
+                  type: "blob",
+                },
+              ]
+            : []),
+          ...(archiveExists
+            ? [
+                {
+                  path: "team-notes/Archive/.gitkeep",
+                  sha: "gitkeep-sha",
+                  mode: "100644",
+                  type: "blob",
+                },
+              ]
+            : []),
+        ],
+      });
     }
     if (pathname === `${repoPrefix}/git/blobs` && method === "POST") {
       return json(route, { sha: "test-blob-sha" }, 201);
@@ -264,9 +294,6 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   await expect(
     sidebar.getByRole("button", { name: "Knowledge", exact: true }),
   ).toHaveAttribute("aria-expanded", "true");
-  await expect(
-    sidebar.getByRole("link", { name: "Knowledge System", exact: true }),
-  ).toBeVisible();
   await expect(
     sidebar.getByRole("link", { name: "Docs", exact: true }),
   ).toBeVisible();

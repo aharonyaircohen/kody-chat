@@ -258,6 +258,26 @@ export function MemoryFilesPage({
     [repositoryScope, router],
   );
 
+  const handleSavedMemory = useCallback(
+    (savedMemory: Readonly<Memory>) => {
+      queryClient.setQueryData<readonly Readonly<Memory>[]>(
+        queryKey,
+        (current = []) => {
+          const existingIndex = current.findIndex(
+            (memory) => memory.id === savedMemory.id,
+          );
+          if (existingIndex < 0) return [...current, savedMemory];
+          return current.map((memory, index) =>
+            index === existingIndex ? savedMemory : memory,
+          );
+        },
+      );
+      routeToMemory(savedMemory);
+      void invalidate();
+    },
+    [invalidate, queryClient, queryKey, routeToMemory],
+  );
+
   return (
     <AuthGuard>
       <DashboardFilesPage
@@ -276,8 +296,7 @@ export function MemoryFilesPage({
         onOpenChange={setCreating}
         onSaved={(memory) => {
           setCreating(false);
-          void invalidate();
-          routeToMemory(memory);
+          handleSavedMemory(memory);
         }}
       />
       <MemoryFormDialog
@@ -288,8 +307,7 @@ export function MemoryFilesPage({
         memory={editing}
         onSaved={(memory) => {
           setEditing(null);
-          void invalidate();
-          routeToMemory(memory);
+          handleSavedMemory(memory);
         }}
       />
       <MemorySearchDialog

@@ -10,7 +10,7 @@ vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({ query, mutation }),
 }));
 
-import { createBackendCmsRepoDocsStore } from "../../src/dashboard/lib/backend/cms-repo-docs-store";
+import { createBackendCmsRepoDocsStore } from "@kody-ade/kody-chat-dashboard/cms-backend-store";
 
 describe("Dashboard CMS Backend adapter", () => {
   beforeEach(() => {

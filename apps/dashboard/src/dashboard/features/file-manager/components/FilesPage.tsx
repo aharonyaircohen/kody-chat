@@ -203,6 +203,7 @@ export function FilesPage({
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const openRequestRef = useRef(0);
   const openedInitialPathRef = useRef<string | null>(null);
+  const previousInitialPathRef = useRef<string | null>(null);
   const dragDepthRef = useRef(0);
   const deletedPathsRef = useRef<Set<string>>(new Set());
 
@@ -418,6 +419,8 @@ export function FilesPage({
     const initialOpenKey = `${activeTransport.cacheKey ?? "workspace"}:${initialRepoPath}`;
 
     if (!initialRepoPath) {
+      if (previousInitialPathRef.current === initialRepoPath) return;
+      previousInitialPathRef.current = initialRepoPath;
       openedInitialPathRef.current = initialOpenKey;
       setSelectedPath(null);
       setSelectedFile(null);
@@ -425,6 +428,7 @@ export function FilesPage({
       return;
     }
 
+    previousInitialPathRef.current = initialRepoPath;
     if (openedInitialPathRef.current === initialOpenKey) return;
     openedInitialPathRef.current = initialOpenKey;
     void openRepoPath(initialRepoPath, { updateRoute: false });

@@ -393,7 +393,6 @@ export function useConversationSessions(
           ),
           createdAt: message.timestamp,
         });
-        setPersistenceError(null);
       } catch (error) {
         setPersistenceError(
           error instanceof Error ? error.message : "Conversation save failed",

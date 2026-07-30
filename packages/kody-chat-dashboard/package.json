@@ -29,6 +29,7 @@
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",
     "./kody-chat-live-session": "./src/dashboard/lib/kody-chat-live-session.ts",
     "./chat-output-tools": "./src/dashboard/lib/chat-output-tools.ts",
+    "./cms-backend-store": "./src/dashboard/lib/backend/cms-repo-docs-store.ts",
     "./chat-types": "./src/dashboard/lib/chat-types.ts",
     "./chat-defaults": "./src/dashboard/lib/chat-defaults/index.ts",
     "./chat-defaults/defaults": "./src/dashboard/lib/chat-defaults/defaults/index.ts",
