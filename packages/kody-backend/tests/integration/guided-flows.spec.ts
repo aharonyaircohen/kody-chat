@@ -10,6 +10,7 @@ const START = {
   tenantId: TENANT,
   actorId: ACTOR,
   instanceId: "flow-instance-1",
+  instanceKey: "lesson",
   flowId: "create-workflow",
   flowVersion: 1,
   currentStepId: "choose-capability",
@@ -50,6 +51,7 @@ describe("guidedFlows", () => {
       tenantId: TENANT,
       actorId: ACTOR,
       instanceId: START.instanceId,
+      instanceKey: START.instanceKey,
       expectedRevision: 0,
       currentStepId: "review",
       status: "active",
@@ -117,6 +119,7 @@ describe("guidedFlows", () => {
       flowId: "child-flow",
       flowVersion: 2,
       currentStepId: "child-step",
+      instanceKey: START.instanceKey,
       output: { answer: "four" },
       stack: [
         {

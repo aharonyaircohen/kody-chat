@@ -123,6 +123,7 @@ export const update = mutation({
     tenantId: v.string(),
     actorId: v.string(),
     instanceId: v.string(),
+    instanceKey: v.optional(v.string()),
     expectedRevision: v.number(),
     flowId: v.optional(v.string()),
     flowVersion: v.optional(v.number()),
@@ -173,6 +174,7 @@ export const update = mutation({
     await ctx.db.patch(existing._id, {
       flowId: args.flowId ?? existing.flowId,
       flowVersion: args.flowVersion ?? existing.flowVersion,
+      instanceKey: args.instanceKey ?? existing.instanceKey,
       currentStepId: args.currentStepId,
       status: args.status,
       revision: args.revision,
