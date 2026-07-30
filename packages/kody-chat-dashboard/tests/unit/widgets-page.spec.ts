@@ -18,9 +18,9 @@ describe("widgets management page", () => {
     expect(existsSync("src/dashboard/lib/pages/widgets.tsx")).toBe(true);
     expect(existsSync("app/api/kody/widgets/route.ts")).toBe(true);
     expect(existsSync("app/api/kody/widgets/[slug]/route.ts")).toBe(true);
-    expect(
-      existsSync("src/dashboard/lib/components/WidgetsManager.tsx"),
-    ).toBe(true);
+    expect(existsSync("src/dashboard/lib/components/WidgetsManager.tsx")).toBe(
+      true,
+    );
 
     const exports = JSON.parse(readFileSync("package.json", "utf8")) as {
       exports: Record<string, string>;
@@ -29,10 +29,7 @@ describe("widgets management page", () => {
       "./app/api/kody/widgets/route.ts",
     );
 
-    const nav = readFileSync(
-    "src/dashboard/lib/feature-catalog.ts",
-      "utf8",
-    );
+    const nav = readFileSync("src/dashboard/lib/feature-catalog.ts", "utf8");
     expect(nav).toContain('href: "/views/widgets"');
     expect(nav).toContain('label: "Widgets"');
 
@@ -42,6 +39,10 @@ describe("widgets management page", () => {
     );
     expect(manager).toContain("<MasterDetailShell");
     expect(manager).toContain("Upload widget");
+    expect(manager).toContain("Play in Chat");
+    expect(manager).toContain("requestWidgetOpen");
+    expect(manager).not.toContain("widgetChatHref");
+    expect(manager).not.toContain("next/link");
     expect(manager).toContain("Choose file");
     expect(manager).toContain("Commit SHA (optional)");
     expect(manager).toContain("No widgets yet");

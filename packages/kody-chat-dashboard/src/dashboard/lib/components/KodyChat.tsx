@@ -96,6 +96,14 @@ import {
 import { buildGuidedFlowStatusView } from "../guided-flows/registry";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
+import {
+  buildWidgetPreviewView,
+  consumeWidgetOpenRequest,
+  isWidgetPreviewView,
+  isWidgetOpenRequest,
+  WIDGET_OPEN_EVENT,
+  type WidgetOpenRequest,
+} from "../widgets/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
@@ -1050,6 +1058,50 @@ export function KodyChat({
     },
     [sessionHook],
   );
+
+  useEffect(() => {
+    if (!sessionHook.hydrated || lockedAgentSlug) return;
+    if (!activeChatSessionId) {
+      ensureChatSession();
+      return;
+    }
+
+    const openWidget = (request: WidgetOpenRequest) => {
+      const view = buildWidgetPreviewView(
+        request.widgetSlug,
+        `widget-preview:${request.widgetSlug}:${crypto.randomUUID()}`,
+      );
+      if (!view) return;
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content: "Widget opened.",
+          timestamp: new Date().toISOString(),
+          view,
+        },
+      ]);
+    };
+    const handleWidgetOpen = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isWidgetOpenRequest(detail)) return;
+      consumeWidgetOpenRequest();
+      openWidget(detail);
+    };
+
+    window.addEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
+    const pendingRequest = consumeWidgetOpenRequest();
+    if (pendingRequest) openWidget(pendingRequest);
+    return () =>
+      window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
+  }, [
+    activeChatSessionId,
+    ensureChatSession,
+    lockedAgentSlug,
+    sessionHook.hydrated,
+    setMessages,
+  ]);
+
   const activeLoading = messages.some((m) => m.isLoading);
   const { compactionStatus, setCompactionStatus } = useCompactionStatus(
     sessionHook.activeSession?.id,
@@ -1557,6 +1609,10 @@ export function KodyChat({
         })();
         return;
       }
+
+      // Direct widget play is self-contained: the widget owns its replies and
+      // completion must not start an unrelated model turn.
+      if (isWidgetPreviewView(view)) return;
 
       const resultPayload = JSON.stringify({
         kind: "view_result",

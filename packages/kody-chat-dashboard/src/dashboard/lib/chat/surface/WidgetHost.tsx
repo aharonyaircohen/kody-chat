@@ -19,6 +19,7 @@ import {
   createWidgetCmsClient,
   normalizeWidgetReply,
   resolveWidgetMount,
+  resolveWidgetPreviewData,
   type WidgetMountProps,
 } from "./widget-host";
 
@@ -35,12 +36,14 @@ type WidgetHostStatus = "loading" | "ready" | "error";
 export function WidgetHost({
   slug,
   data,
+  preview = false,
   disabled,
   onComplete,
   onReply,
 }: {
   slug: string;
   data: unknown;
+  preview?: boolean;
   disabled: boolean;
   onComplete: WidgetMountProps["complete"];
   onReply: WidgetMountProps["reply"];
@@ -88,7 +91,7 @@ export function WidgetHost({
           return;
         }
         const result = mount(element, {
-          data,
+          data: preview ? resolveWidgetPreviewData(module) : data,
           theme: resolvedTheme,
           cms: createWidgetCmsClient(cmsAuthHeaders),
           reply: (message) => {
@@ -120,7 +123,7 @@ export function WidgetHost({
       }
       element.replaceChildren();
     };
-  }, [slug, data, owner, repo, token, resolvedTheme, cmsAuthHeaders]);
+  }, [slug, data, preview, owner, repo, token, resolvedTheme, cmsAuthHeaders]);
 
   if (status === "error") {
     return (

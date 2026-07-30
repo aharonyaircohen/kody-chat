@@ -311,6 +311,7 @@ export function RenderedViewCard({
           key={key}
           slug={node.widget}
           data={node.data}
+          preview={node.preview}
           disabled={disabled}
           onReply={(message) => onReply?.(message)}
           onComplete={(actionId, result) =>

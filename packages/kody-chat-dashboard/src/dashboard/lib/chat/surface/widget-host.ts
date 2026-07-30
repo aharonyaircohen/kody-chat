@@ -182,3 +182,9 @@ export function resolveWidgetMount(module: unknown): WidgetMount | null {
   const mount = (module as { default?: unknown }).default;
   return typeof mount === "function" ? (mount as WidgetMount) : null;
 }
+
+/** Optional widget-owned input used only by Kody's direct preview launcher. */
+export function resolveWidgetPreviewData(module: unknown): unknown {
+  if (!module || typeof module !== "object") return undefined;
+  return (module as { previewData?: unknown }).previewData;
+}

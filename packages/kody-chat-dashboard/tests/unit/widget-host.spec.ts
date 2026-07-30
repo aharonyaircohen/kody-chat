@@ -14,6 +14,7 @@ import {
   createWidgetCmsClient,
   normalizeWidgetReply,
   resolveWidgetMount,
+  resolveWidgetPreviewData,
 } from "../../src/dashboard/lib/chat/surface/widget-host";
 
 describe("buildWidgetBundleUrl", () => {
@@ -52,6 +53,18 @@ describe("resolveWidgetMount", () => {
     expect(resolveWidgetMount({})).toBeNull();
     expect(resolveWidgetMount({ default: "nope" })).toBeNull();
     expect(resolveWidgetMount({ mount: () => undefined })).toBeNull();
+  });
+});
+
+describe("resolveWidgetPreviewData", () => {
+  it("returns widget-owned preview data without interpreting it", () => {
+    const previewData = { prompt: "What is 2 + 2?" };
+    expect(resolveWidgetPreviewData({ previewData })).toBe(previewData);
+  });
+
+  it("returns undefined when the widget has no preview data", () => {
+    expect(resolveWidgetPreviewData(null)).toBeUndefined();
+    expect(resolveWidgetPreviewData({})).toBeUndefined();
   });
 });
 

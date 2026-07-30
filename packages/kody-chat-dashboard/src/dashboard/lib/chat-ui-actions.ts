@@ -161,6 +161,8 @@ export type RenderedViewUiNode =
       type: "widget";
       widget: string;
       data?: unknown;
+      /** Use the widget bundle's optional previewData export. */
+      preview?: boolean;
     };
 
 export interface RenderedViewDirective {

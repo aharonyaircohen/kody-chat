@@ -12,7 +12,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Blocks, Loader2, Upload } from "lucide-react";
+import { Blocks, Loader2, Play, Upload } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
@@ -29,6 +29,7 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import { requestWidgetOpen } from "../widgets/chat-launch";
 
 const WIDGET_SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -298,6 +299,16 @@ function WidgetDetail({ widget }: { widget: WidgetRow }) {
             {formatUpdatedAt(widget.updatedAt)}
           </p>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          className="shrink-0 gap-1.5"
+          aria-label={`Play ${widget.slug} in Chat`}
+          onClick={() => requestWidgetOpen(widget.slug)}
+        >
+          <Play className="h-4 w-4" />
+          Play in Chat
+        </Button>
       </div>
 
       <div className="px-4 py-5 md:px-6">
@@ -324,9 +335,9 @@ function WidgetDetail({ widget }: { widget: WidgetRow }) {
           </dl>
         </div>
         <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-          Uploading a new bundle for this slug publishes the next version;
-          chat surfaces pick it up on their next load. Earlier versions stay
-          in the backend store for rollback.
+          Uploading a new bundle for this slug publishes the next version; chat
+          surfaces pick it up on their next load. Earlier versions stay in the
+          backend store for rollback.
         </p>
       </div>
     </div>
@@ -365,8 +376,7 @@ function WidgetUploadDialog({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const slugValid = WIDGET_SLUG_RE.test(slug.trim());
-  const bundleValid =
-    bundle.length > 0 && bundle.length <= MAX_BUNDLE_CHARS;
+  const bundleValid = bundle.length > 0 && bundle.length <= MAX_BUNDLE_CHARS;
   const isValid = slugValid && bundleValid;
 
   async function readBundleFile(file: File) {
@@ -394,8 +404,8 @@ function WidgetUploadDialog({
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle>Upload widget</DialogTitle>
           <DialogDescription>
-            Publish a precompiled JS bundle as the next version of a widget
-            slug for this repo.
+            Publish a precompiled JS bundle as the next version of a widget slug
+            for this repo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 px-5 py-4">
