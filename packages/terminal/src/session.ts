@@ -3,14 +3,14 @@
  * @domain terminal
  * @pattern terminal-session-policy
  *
- * Pure helpers for deciding which provider machines may expose a browser terminal
+ * Pure helpers for deciding which Fly machines may expose a browser terminal
  * and for building the dashboard-managed bridge websocket URL.
  */
 import type {
   ServerProviderFeature,
   ServerProviderInventory,
   ServerProviderMachineRow,
-} from "@kody-ade/base/infrastructure/server-machine-model";
+} from "@kody-ade/fly/infrastructure/server-machines";
 
 export type TerminalTargetError =
   "machine_not_found" | "machine_not_terminal_capable" | "machine_not_running";

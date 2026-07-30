@@ -14,19 +14,19 @@ import { requireKodyAuth } from "@kody-ade/base/auth";
 import {
   serverProviderConfigFromContext,
   resolveServerProviderContext,
-} from "../infrastructure/server-context";
-import { findServerProviderTerminalBridge } from "../infrastructure/server-terminal";
-import {
-  resolveBrainTerminalTargetInput,
-  resolveTerminalTargetMachine,
-  terminalBridgeSessionIdForTarget,
-} from "@kody-ade/terminal/session";
-import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
+} from "@kody-ade/fly/infrastructure/server-context";
+import { findServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
   terminalFlyConfigForMachine,
-} from "../terminal/server-inventory";
+} from "../server-inventory";
+import {
+  resolveBrainTerminalTargetInput,
+  resolveTerminalTargetMachine,
+  terminalBridgeSessionIdForTarget,
+} from "../session";
+import { mintTerminalBridgeToken } from "../terminal-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

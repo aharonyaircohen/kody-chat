@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain chat
  * @pattern model-catalog
- * @ai-summary Built-in model catalog contract owned by Kody Chat.
+ * @ai-summary Shared built-in model catalog contract used by Kody hosts.
  */
 
 export interface ChatModelCatalogEntry {

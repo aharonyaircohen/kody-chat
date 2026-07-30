@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@kody-ade/backend": "workspace:^",
     "@kody-ade/base": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "ai": "^6.0.97",

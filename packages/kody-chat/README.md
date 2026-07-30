@@ -79,5 +79,5 @@ application endpoints. Provider secrets, administrative database clients,
 privileged tool implementations, and authorization decisions must stay on the
 host server.
 
-Public imports are `@kody-ade/kody-chat`, `/react`, `/core`, `/knowledge`,
-`/model-catalog`, and `/styles.css`. All other paths are private.
+Public imports are `@kody-ade/kody-chat`, `/react`, `/core`, and `/styles.css`.
+All other paths are private.

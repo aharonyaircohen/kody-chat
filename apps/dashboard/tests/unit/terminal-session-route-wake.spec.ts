@@ -10,11 +10,11 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../../../packages/fly/src/routes/terminal-session.ts"),
+  resolve(__dirname, "../../../../packages/terminal/src/routes/terminal-session.ts"),
   "utf8",
 );
 const USE_CASE_SOURCE = readFileSync(
-  resolve(__dirname, "../../../../packages/fly/src/terminal/session-connect.ts"),
+  resolve(__dirname, "../../../../packages/terminal/src/session-connect.ts"),
   "utf8",
 );
 

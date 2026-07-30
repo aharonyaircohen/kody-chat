@@ -1,4 +1,3 @@
-/** Evidence-backed, bounded knowledge retrieval owned by Kody Chat. */
 export type ChatKnowledgeNode = {
   id: string;
   type: string;

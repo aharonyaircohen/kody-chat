@@ -3,7 +3,7 @@ import {
   buildChatKnowledgeIndex,
   parseChatKnowledgeGraph,
   searchChatKnowledge,
-} from "../src/knowledge";
+} from "../src/chat-knowledge";
 
 const graph = parseChatKnowledgeGraph({
   schemaVersion: 1,

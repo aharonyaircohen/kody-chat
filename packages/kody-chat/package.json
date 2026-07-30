@@ -16,8 +16,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "pnpm build",
-    "test": "vitest run",
-    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "exports": {
@@ -33,14 +31,6 @@
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js"
     },
-    "./knowledge": {
-      "types": "./dist/knowledge.d.ts",
-      "import": "./dist/knowledge.js"
-    },
-    "./model-catalog": {
-      "types": "./dist/model-catalog.d.ts",
-      "import": "./dist/model-catalog.js"
-    },
     "./styles.css": "./styles.css"
   },
   "peerDependencies": {
@@ -52,8 +42,7 @@
     "@types/react-dom": "^19.2.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "typescript": "5.9.3",
-    "vitest": "4.0.16"
+    "typescript": "5.9.3"
   },
   "repository": {
     "type": "git",

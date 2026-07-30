@@ -28,7 +28,7 @@ describe("Brain bounded context architecture", () => {
       "../../packages/brain/src/image-management.ts",
       "../../packages/brain/src/image-apply-command.ts",
       "../../packages/brain/src/terminal-connect.ts",
-      "../../packages/fly/src/terminal/session-connect.ts",
+      "../../packages/terminal/src/session-connect.ts",
     ]) {
       expect(exists(path), path).toBe(true);
       expect(source(path), path).toContain("@fileType use-case");
@@ -63,7 +63,7 @@ describe("Brain bounded context architecture", () => {
     expect(source("../../packages/brain/src/routes/image-apply.ts")).toContain(
       "applyBrainImage(",
     );
-    expect(source("../../packages/fly/src/routes/terminal-session.ts")).toContain(
+    expect(source("../../packages/terminal/src/routes/terminal-session.ts")).toContain(
       "startTerminalSession(",
     );
   });

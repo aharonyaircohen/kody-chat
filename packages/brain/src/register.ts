@@ -7,7 +7,7 @@
  * hooks. Hosts call this from instrumentation.ts at server startup:
  * - @kody-ade/fly inventory gets the Brain service resolver (so the saved
  *   Brain machine overlays the server inventory).
- * - @kody-ade/fly gets the remote runtime connector (so
+ * - @kody-ade/terminal gets the remote runtime connector (so
  *   `target: "brain"` sessions resolve the running Brain machine, with
  *   image-drift warnings).
  *
@@ -16,7 +16,7 @@
  */
 import { setGitHubContext, clearGitHubContext } from "./github";
 import { setBrainServiceResolver } from "@kody-ade/fly/plugin/runners/brain-resolver-hook";
-import { setRemoteRuntimeConnector } from "@kody-ade/fly/terminal/remote-runtime-connector";
+import { setRemoteRuntimeConnector } from "@kody-ade/terminal/remote-runtime-connector";
 
 import { readBrainRuntimeView } from "./runtime-manager";
 import { resolveBrainService } from "./service-resolver";

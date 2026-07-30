@@ -9,7 +9,7 @@
 import {
   composeChatModelCatalog,
   KODY_OPENROUTER_FREE_CHAT_MODEL,
-} from "@kody-ade/kody-chat/model-catalog";
+} from "kody-chat-model-catalog";
 
 export { composeChatModelCatalog, KODY_OPENROUTER_FREE_CHAT_MODEL };
-export type { CatalogModel } from "@kody-ade/kody-chat/model-catalog";
+export type { CatalogModel } from "kody-chat-model-catalog";

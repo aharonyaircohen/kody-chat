@@ -11,11 +11,13 @@ import type { Octokit } from "@octokit/rest";
 
 const backendQueryMock = vi.hoisted(() => vi.fn());
 
+vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => ({ query: backendQueryMock }) }));
+vi.mock("@kody-ade/backend/api", () => ({ api: { repoDocs: { get: "repoDocs.get" } } }));
+
 import {
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
 } from "../../src/config";
-import { setCmsRepoDocsStore } from "../../src/repo-docs";
 
 const octokit = {} as Octokit;
 
@@ -41,10 +43,6 @@ describe("loadCmsConfigFromState resilience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invalidateCmsConfigCache();
-    setCmsRepoDocsStore({
-      load: async () => await backendQueryMock(),
-      save: async () => "unused",
-    });
   });
 
   it("retries a transient read failure and succeeds", async () => {

@@ -60,6 +60,7 @@
     "@kody-ade/fly": "workspace:*",
     "@kody-ade/kody-chat": "workspace:*",
     "@kody-ade/kody-chat-dashboard": "workspace:*",
+    "@kody-ade/knowledge": "workspace:*",
     "@kody-ade/memory": "workspace:*",
     "@kody-ade/terminal": "workspace:*",
     "@kody-ade/workspace": "workspace:*",

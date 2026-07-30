@@ -12,11 +12,6 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const [{ registerBrainHostHooks }, { registerDashboardCmsRepoDocsStore }] =
-    await Promise.all([
-      import("@kody-ade/brain/register"),
-      import("./src/dashboard/lib/backend/cms-repo-docs-store"),
-    ]);
+  const { registerBrainHostHooks } = await import("@kody-ade/brain/register");
   registerBrainHostHooks();
-  registerDashboardCmsRepoDocsStore();
 }

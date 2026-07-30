@@ -1,47 +1,37 @@
 import "server-only";
 
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
-export type CmsFilesDoc = { files: Record<string, string> };
+const KIND = "cms:files";
+
+type CmsFilesDoc = { files: Record<string, string> };
 export type CmsWriteFile = { path: string; content: string };
 
-export interface CmsRepoDocsRecord {
-  doc: CmsFilesDoc;
-  updatedAt: string;
-}
-
-export interface CmsRepoDocsStore {
-  load(owner: string, repo: string): Promise<CmsRepoDocsRecord | null>;
-  save(
-    owner: string,
-    repo: string,
-    doc: CmsFilesDoc,
-    expectedUpdatedAt?: string,
-  ): Promise<string>;
-}
-
-const STORE_KEY = Symbol.for("kody.cms.repoDocsStore");
-type StoreGlobal = { [STORE_KEY]?: CmsRepoDocsStore };
-
-export function setCmsRepoDocsStore(store: CmsRepoDocsStore): void {
-  (globalThis as StoreGlobal)[STORE_KEY] = store;
-}
-
-function cmsRepoDocsStore(): CmsRepoDocsStore {
-  const store = (globalThis as StoreGlobal)[STORE_KEY];
-  if (!store) {
-    throw new Error(
-      "CMS repository storage is not registered by the application host.",
-    );
-  }
-  return store;
+function tenantId(owner: string, repo: string): string {
+  return `${owner}/${repo}`;
 }
 
 async function load(
   owner: string,
   repo: string,
-): Promise<CmsRepoDocsRecord | null> {
-  return await cmsRepoDocsStore().load(owner, repo);
+): Promise<{ doc: CmsFilesDoc; updatedAt: string } | null> {
+  const record = await createBackendClient().query(api.repoDocs.get, {
+    tenantId: tenantId(owner, repo),
+    kind: KIND,
+  });
+  if (!record || !record.doc || typeof record.doc !== "object") return null;
+  const files = (record.doc as { files?: unknown }).files;
+  return {
+    doc: {
+      files:
+        files && typeof files === "object"
+          ? (files as Record<string, string>)
+          : {},
+    },
+    updatedAt: record.updatedAt,
+  };
 }
 
 export async function readCmsFile(
@@ -66,12 +56,15 @@ export async function writeCmsFiles(
   const current = await load(owner, repo);
   const next = { ...(current?.doc.files ?? {}) };
   for (const file of files) next[file.path] = file.content;
-  return await cmsRepoDocsStore().save(
-    owner,
-    repo,
-    { files: next },
-    expectedUpdatedAt,
-  );
+  const updatedAt = new Date().toISOString();
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: tenantId(owner, repo),
+    kind: KIND,
+    doc: { files: next },
+    updatedAt,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+  });
+  return updatedAt;
 }
 
 export async function deleteCmsFile(
@@ -85,12 +78,15 @@ export async function deleteCmsFile(
     return current?.updatedAt ?? new Date().toISOString();
   const next = { ...current.doc.files };
   delete next[path];
-  return await cmsRepoDocsStore().save(
-    owner,
-    repo,
-    { files: next },
-    expectedUpdatedAt,
-  );
+  const updatedAt = new Date().toISOString();
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: tenantId(owner, repo),
+    kind: KIND,
+    doc: { files: next },
+    updatedAt,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+  });
+  return updatedAt;
 }
 
 export function createCmsRepoDocsTransport(

@@ -1,0 +1,19 @@
+{
+  "name": "kody-chat-model-catalog",
+  "version": "0.1.1",
+  "license": "MIT",
+  "description": "Shared built-in chat model catalog contract for Kody applications",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aharonyaircohen/kody-chat.git"
+  },
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
