@@ -94,6 +94,7 @@ import {
 } from "../guided-flows/events";
 import { buildGuidedFlowStatusView } from "../guided-flows/registry";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
+import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
@@ -925,7 +926,16 @@ export function KodyChat({
     const instanceKey = params.get("instanceKey") ?? undefined;
     if (!flowId && !guidedFlowInstanceId) return;
 
-    window.history.replaceState({}, "", window.location.pathname);
+    const locationAfterLaunch = locationAfterGuidedFlowLaunch(
+      window.location.pathname,
+      window.location.search,
+    );
+    if (
+      locationAfterLaunch !==
+      `${window.location.pathname}${window.location.search}`
+    ) {
+      window.history.replaceState({}, "", locationAfterLaunch);
+    }
     let cancelled = false;
     const request = guidedFlowInstanceId
       ? fetch(
