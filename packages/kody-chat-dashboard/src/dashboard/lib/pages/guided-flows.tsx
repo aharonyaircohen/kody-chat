@@ -2,7 +2,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
   ChevronDown,
   ChevronUp,
@@ -45,7 +44,7 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { PageShell } from "../components/PageShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { guidedFlowChatHref } from "../guided-flows/chat-launch";
+import { requestGuidedFlowStart } from "../guided-flows/events";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
 
@@ -716,17 +715,14 @@ function GuidedFlowsManager() {
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {auth ? (
-                        <Button asChild size="sm">
-                          <Link
-                            href={guidedFlowChatHref(auth, option.id)}
-                            aria-label={`Start ${option.title} in Chat`}
-                          >
-                            <Play className="mr-1.5 h-4 w-4" />
-                            Start in Chat
-                          </Link>
-                        </Button>
-                      ) : null}
+                      <Button
+                        size="sm"
+                        aria-label={`Start ${option.title} in Chat`}
+                        onClick={() => requestGuidedFlowStart(option.id)}
+                      >
+                        <Play className="mr-1.5 h-4 w-4" />
+                        Start in Chat
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

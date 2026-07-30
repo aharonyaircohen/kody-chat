@@ -35,6 +35,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "@kody-ade/kody-chat-dashboard/components/KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat-dashboard/components/ChatShell";
+import { GUIDED_FLOW_OPEN_EVENT } from "@kody-ade/kody-chat-dashboard/guided-flows/events";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 import { DASHBOARD_NAV_ITEM } from "./settings-nav";
@@ -445,6 +446,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     }
     setMobileOpenPersist(true);
   }, [auth, setMobileOpenPersist]);
+
+  useEffect(() => {
+    const openChatForGuidedFlow = () => openMobileChat();
+    window.addEventListener(GUIDED_FLOW_OPEN_EVENT, openChatForGuidedFlow);
+    return () =>
+      window.removeEventListener(GUIDED_FLOW_OPEN_EVENT, openChatForGuidedFlow);
+  }, [openMobileChat]);
 
   useEffect(() => {
     if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);

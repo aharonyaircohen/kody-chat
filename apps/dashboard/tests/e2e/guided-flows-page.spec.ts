@@ -31,8 +31,40 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("shows only GuidedFlow templates", async ({ page }) => {
-  await page.route("**/api/kody/guided-flows**", (route) =>
-    json(route, {
+  let startedFlowId: string | null = null;
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { flowId?: string };
+      startedFlowId = body.flowId ?? null;
+      return json(route, {
+        instance: { status: "active" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "guided-flow-test-instance-0",
+          rendererSlug: "approval-card",
+          rendererName: "Approval card",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "test-instance",
+            stepId: "confirm",
+            revision: 0,
+          },
+          ui: {
+            type: "stack",
+            children: [
+              {
+                type: "text",
+                value: "Test flow started in Chat",
+                variant: "title",
+              },
+            ],
+          },
+          data: { title: "Test flow started in Chat" },
+        },
+      });
+    }
+    return json(route, {
       definitions: [
         {
           id: "create-workflow",
@@ -40,8 +72,8 @@ test("shows only GuidedFlow templates", async ({ page }) => {
           steps: [{ rendererSlug: "guided-form" }],
         },
       ],
-    }),
-  );
+    });
+  });
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
@@ -55,14 +87,16 @@ test("shows only GuidedFlow templates", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "History", exact: true }),
   ).toHaveCount(0);
-  const startInChat = page.getByRole("link", {
+  const startInChat = page.getByRole("button", {
     name: "Start Create a workflow in Chat",
   });
   await expect(startInChat).toBeVisible();
-  await expect(startInChat).toHaveAttribute(
-    "href",
-    "/repo/acme/widgets/chat?guidedFlow=create-workflow",
+  await startInChat.click();
+  await expect.poll(() => startedFlowId).toBe("create-workflow");
+  await expect(page).toHaveURL(
+    "/repo/acme/widgets/guided-flows",
   );
+  await expect(page.getByText("Test flow started in Chat")).toBeVisible();
 });
 
 test("provides step editing controls, preview, and validation", async ({

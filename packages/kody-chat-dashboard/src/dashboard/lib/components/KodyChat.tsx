@@ -89,6 +89,7 @@ import { isRenderedViewDirective } from "../chat-ui-actions";
 import {
   consumeGuidedFlowOpenRequest,
   GUIDED_FLOW_OPEN_EVENT,
+  isGuidedFlowOpenRequest,
   requestGuidedFlowOpen,
   type GuidedFlowOpenRequest,
 } from "../guided-flows/events";
@@ -215,52 +216,63 @@ export function KodyChat({
   // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const openGuidedFlow = (request: {
-      instanceId: string;
-      message: "started" | "resumed";
-    }) => {
-      const { instanceId, message } = request;
+    const openGuidedFlow = (request: GuidedFlowOpenRequest) => {
+      const response =
+        "flowId" in request
+          ? fetch("/api/kody/guided-flows", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+              body: JSON.stringify({
+                action: "start",
+                flowId: request.flowId,
+                ...(request.instanceKey
+                  ? { instanceKey: request.instanceKey }
+                  : {}),
+              }),
+            })
+          : fetch(
+              `/api/kody/guided-flows?instanceId=${encodeURIComponent(request.instanceId)}`,
+              { headers: authHeaders() },
+            );
 
-      void fetch(
-        `/api/kody/guided-flows?instanceId=${encodeURIComponent(instanceId)}`,
-        { headers: authHeaders() },
-      )
+      void response
         .then(async (response) => {
           if (!response.ok) return null;
-          return (await response.json()) as { flow?: { view?: unknown } };
+          return (await response.json()) as {
+            view?: unknown;
+            flow?: { view?: unknown };
+          };
         })
         .then((payload) => {
-          const view = payload?.flow?.view;
+          const view = payload?.flow?.view ?? payload?.view;
           if (!isRenderedViewDirective(view)) return;
-          persistGuidedFlowMessageRef.current(
-            activeGuidedFlowSessionIdRef.current,
-            {
-              role: "assistant",
-              content:
-                message === "started"
-                  ? "GuidedFlow started. Follow the steps below."
-                  : "GuidedFlow resumed. Continue where you stopped.",
-              timestamp: new Date().toISOString(),
-              view,
-            },
-          );
+          const message: Message = {
+            role: "assistant",
+            content:
+              request.message === "started"
+                ? "GuidedFlow started. Follow the steps below."
+                : "GuidedFlow resumed. Continue where you stopped.",
+            timestamp: new Date().toISOString(),
+            view,
+          };
+          const sessionId = activeGuidedFlowSessionIdRef.current;
+          if (sessionId) {
+            persistGuidedFlowMessageRef.current(sessionId, message);
+          } else {
+            pendingGuidedFlowMessageRef.current = message;
+          }
         })
         .catch(() => undefined);
     };
 
     const handleGuidedFlowOpen = (event: Event) => {
-      const detail = (event as CustomEvent<Partial<GuidedFlowOpenRequest>>)
-        .detail;
-      if (
-        typeof detail?.instanceId !== "string" ||
-        (detail.message !== "started" && detail.message !== "resumed")
-      )
-        return;
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isGuidedFlowOpenRequest(detail)) return;
       consumeGuidedFlowOpenRequest();
-      openGuidedFlow({
-        instanceId: detail.instanceId,
-        message: detail.message,
-      });
+      openGuidedFlow(detail);
     };
 
     window.addEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
@@ -331,6 +343,7 @@ export function KodyChat({
   const persistGuidedFlowMessageRef = useRef<
     (sessionId: string | null, message: Message) => void
   >(() => undefined);
+  const pendingGuidedFlowMessageRef = useRef<Message | null>(null);
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
@@ -824,6 +837,15 @@ export function KodyChat({
   const ensureChatSession = sessionHook.createSession;
   const activeChatSessionId = sessionHook.activeSession?.id;
   activeGuidedFlowSessionIdRef.current = activeChatSessionId ?? null;
+
+  useEffect(() => {
+    if (!activeChatSessionId || !pendingGuidedFlowMessageRef.current) return;
+    persistGuidedFlowMessageRef.current(
+      activeChatSessionId,
+      pendingGuidedFlowMessageRef.current,
+    );
+    pendingGuidedFlowMessageRef.current = null;
+  }, [activeChatSessionId]);
 
   const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
     sessionId: string | null;
