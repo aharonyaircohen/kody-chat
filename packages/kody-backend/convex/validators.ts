@@ -34,6 +34,8 @@ export const workflowDefinitionValidator = v.object({
   name: v.string(),
   agent: v.string(),
   capabilities: v.optional(v.array(v.string())),
+  // JSON Schema is an open, nested document validated at the Workflow boundary.
+  inputSchema: v.optional(v.any()),
   startAt: v.optional(v.string()),
   steps: v.optional(v.array(workflowStepValidator)),
   runWithoutApproval: v.optional(v.boolean()),
