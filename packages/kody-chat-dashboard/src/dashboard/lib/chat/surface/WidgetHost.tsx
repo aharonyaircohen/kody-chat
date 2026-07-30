@@ -5,17 +5,19 @@
  * @ai-summary Mounts a tenant-published widget bundle inside a rendered
  *   view: dynamic-imports `/api/kody/widgets/<slug>` (auth via query params
  *   from the existing auth context) and calls the module's default export
- *   `mount(element, props)` with the v1 contract (data, theme, complete).
+ *   with data, theme, scoped CMS operations, reply, and complete.
  *   Shows a graceful "widget unavailable" box when loading or mounting
  *   fails. No tenant code ever runs on the server — browser-only.
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "../../auth-context";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildAuthHeaders, useAuth } from "../../auth-context";
 import { useTheme } from "../../../providers/Theme";
 import {
   buildWidgetBundleUrl,
+  createWidgetCmsClient,
+  normalizeWidgetReply,
   resolveWidgetMount,
   type WidgetMountProps,
 } from "./widget-host";
@@ -24,10 +26,9 @@ import {
  * Indirect dynamic import so bundlers (webpack/turbopack) leave the
  * runtime-only URL alone instead of trying to resolve it at build time.
  */
-const importWidgetModule = new Function(
-  "url",
-  "return import(url);",
-) as (url: string) => Promise<unknown>;
+const importWidgetModule = new Function("url", "return import(url);") as (
+  url: string,
+) => Promise<unknown>;
 
 type WidgetHostStatus = "loading" | "ready" | "error";
 
@@ -36,11 +37,13 @@ export function WidgetHost({
   data,
   disabled,
   onComplete,
+  onReply,
 }: {
   slug: string;
   data: unknown;
   disabled: boolean;
   onComplete: WidgetMountProps["complete"];
+  onReply: WidgetMountProps["reply"];
 }) {
   const { auth } = useAuth();
   const { theme } = useTheme();
@@ -51,12 +54,15 @@ export function WidgetHost({
   // card's current disabled state without remounting the bundle.
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const onReplyRef = useRef(onReply);
+  onReplyRef.current = onReply;
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
 
   const owner = auth?.owner;
   const repo = auth?.repo;
   const token = auth?.token;
+  const cmsAuthHeaders = useMemo(() => buildAuthHeaders(auth), [auth]);
   const resolvedTheme: "dark" | "light" = theme === "light" ? "light" : "dark";
 
   useEffect(() => {
@@ -84,6 +90,12 @@ export function WidgetHost({
         const result = mount(element, {
           data,
           theme: resolvedTheme,
+          cms: createWidgetCmsClient(cmsAuthHeaders),
+          reply: (message) => {
+            if (disabledRef.current) return;
+            const normalized = normalizeWidgetReply(message);
+            if (normalized) onReplyRef.current(normalized);
+          },
           complete: (actionId, actionResult) => {
             if (disabledRef.current) return;
             onCompleteRef.current(actionId, actionResult);
@@ -108,7 +120,7 @@ export function WidgetHost({
       }
       element.replaceChildren();
     };
-  }, [slug, data, owner, repo, token, resolvedTheme]);
+  }, [slug, data, owner, repo, token, resolvedTheme, cmsAuthHeaders]);
 
   if (status === "error") {
     return (

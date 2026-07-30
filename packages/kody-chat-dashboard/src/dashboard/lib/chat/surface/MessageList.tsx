@@ -79,6 +79,8 @@ interface MessageListProps {
     view: RenderedViewDirective,
     action: RenderedViewAction,
   ) => void;
+  /** Adds widget-owned feedback without consuming the rendered view. */
+  onRenderedViewReply: (view: RenderedViewDirective, message: string) => void;
   /** Mode-specific empty-transcript content, shown when no messages exist. */
   emptyState: ReactNode;
   /** Mounted terminal surfaces, rendered inside the scroll container. */
@@ -98,6 +100,25 @@ export function messageJustifyClass(
   return alignRight ? "justify-end" : "justify-start";
 }
 
+export function isRenderedViewMessageActive(
+  messages: readonly Message[],
+  messageIndex: number,
+  usedViewIds: ReadonlySet<string>,
+): boolean {
+  const message = messages[messageIndex];
+  if (
+    !message?.view ||
+    !isRenderedViewDirective(message.view) ||
+    usedViewIds.has(message.view.id)
+  ) {
+    return false;
+  }
+
+  return messages
+    .slice(messageIndex + 1)
+    .every((later) => later.role === "assistant" && !later.view);
+}
+
 export function MessageList({
   chatMode,
   messages,
@@ -109,6 +130,7 @@ export function MessageList({
   toolCalls,
   usedViewIds,
   onRenderedViewAction,
+  onRenderedViewReply,
   emptyState,
   terminalSurfaces,
   roleLayout = "dashboard",
@@ -352,13 +374,22 @@ export function MessageList({
                                 view={msg.view}
                                 disabled={
                                   !!msg.isLoading ||
-                                  i !== messages.length - 1 ||
-                                  usedViewIds.has(msg.view.id)
+                                  !isRenderedViewMessageActive(
+                                    messages,
+                                    i,
+                                    usedViewIds,
+                                  )
                                 }
                                 onAction={(action) =>
                                   onRenderedViewAction(
                                     msg.view as RenderedViewDirective,
                                     action,
+                                  )
+                                }
+                                onReply={(message) =>
+                                  onRenderedViewReply(
+                                    msg.view as RenderedViewDirective,
+                                    message,
                                   )
                                 }
                               />

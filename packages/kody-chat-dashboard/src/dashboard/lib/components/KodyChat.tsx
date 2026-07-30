@@ -1555,6 +1555,21 @@ export function KodyChat({
     [runDashboardNavigateFromDirective, sendText, setMessages, usedViewIds],
   );
 
+  const handleRenderedViewReply = useCallback(
+    (view: RenderedViewDirective, content: string) => {
+      if (usedViewIds.has(view.id)) return;
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    },
+    [setMessages, usedViewIds],
+  );
+
   // Planner auto-kickoff. The "Plan with chat" button is the user's consent
   // to start; landing them on a blank prompt and asking them to type "go" is
   // a wasted click. We fire Pass 1 automatically on first render of a fresh
@@ -2047,6 +2062,7 @@ export function KodyChat({
             toolCalls={toolCalls}
             usedViewIds={usedViewIds}
             onRenderedViewAction={handleRenderedViewAction}
+            onRenderedViewReply={handleRenderedViewReply}
             roleLayout={messageRoleLayout}
             agentHandoffs={sessionHook.activeSession?.agentHandoffs}
             emptyState={

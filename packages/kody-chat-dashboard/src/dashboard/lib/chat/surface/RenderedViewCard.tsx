@@ -95,10 +95,12 @@ export function RenderedViewCard({
   view,
   disabled,
   onAction,
+  onReply,
 }: {
   view: RenderedViewDirective;
   disabled: boolean;
   onAction: (action: RenderedViewAction) => void;
+  onReply?: (message: string) => void;
 }) {
   const ui = getRenderedViewUi(view);
   const [formValues, setFormValues] = useState<
@@ -310,6 +312,7 @@ export function RenderedViewCard({
           slug={node.widget}
           data={node.data}
           disabled={disabled}
+          onReply={(message) => onReply?.(message)}
           onComplete={(actionId, result) =>
             // Exactly a button click: same tracking + onAction path, so
             // guided-flow steps advance and chat replies are sent as usual.
@@ -342,7 +345,10 @@ export function RenderedViewCard({
   return (
     <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
       {validationError ? (
-        <div role="alert" className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+        <div
+          role="alert"
+          className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200"
+        >
           {validationError}
         </div>
       ) : null}
