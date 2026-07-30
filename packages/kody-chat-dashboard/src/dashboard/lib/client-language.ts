@@ -38,12 +38,6 @@ export const CLIENT_LANGUAGE_STRING_KEYS = [
   "chat.client.dir",
   "chat.client.signOut",
   "chat.client.welcome",
-  "chat.client.auth.misconfigured",
-  "chat.client.auth.adminHint",
-  "chat.client.auth.denied",
-  "chat.client.auth.switchAccount",
-  "chat.client.auth.signIn",
-  "chat.client.auth.continueWith",
 ] as const;
 
 export type ClientLanguageStringKey =
@@ -60,12 +54,6 @@ export const CLIENT_LANGUAGE_STRING_LABELS: Record<
   "chat.client.dir": 'Text direction: "rtl" or "ltr" (empty = auto by locale)',
   "chat.client.signOut": "Sign out button",
   "chat.client.welcome": "Welcome message (empty = chat default)",
-  "chat.client.auth.misconfigured": "Sign-in not configured notice",
-  "chat.client.auth.adminHint": "Admin setup hint",
-  "chat.client.auth.denied": "Access denied ({email} available)",
-  "chat.client.auth.switchAccount": "Switch account button",
-  "chat.client.auth.signIn": "Sign-in prompt",
-  "chat.client.auth.continueWith": "Provider button ({provider} available)",
 };
 
 /** Built-in English defaults. `chat.client.welcome` is intentionally empty:
@@ -80,14 +68,6 @@ export const EN_CLIENT_LANGUAGE: ClientLanguage = {
     "chat.client.dir": "",
     "chat.client.signOut": "Sign out",
     "chat.client.welcome": "",
-    "chat.client.auth.misconfigured":
-      "This space requires sign-in, but sign-in isn't set up yet. Please contact whoever manages this space.",
-    "chat.client.auth.adminHint":
-      "Admin: add the provider's client ID on the Variables page (e.g. GOOGLE_CLIENT_ID) and its secret on the Secrets page (e.g. GOOGLE_CLIENT_SECRET) to enable sign-in.",
-    "chat.client.auth.denied": "{email} does not have access to this space.",
-    "chat.client.auth.switchAccount": "Switch account",
-    "chat.client.auth.signIn": "Sign in to continue.",
-    "chat.client.auth.continueWith": "Continue with {provider}",
   },
 };
 

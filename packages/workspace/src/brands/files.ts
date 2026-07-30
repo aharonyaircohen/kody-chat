@@ -17,13 +17,13 @@ import {
   getConvexClient,
   tenantIdFor,
 } from "@kody-ade/base/backend/convex";
-import { getOwner, getRepo } from "../github";
 import {
+  normalizeClientBrandAccess,
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
+  type ClientBrandAccess,
   type ClientBrand,
 } from "@kody-ade/base/client-brand";
-import { normalizeClientBrandAuth } from "@kody-ade/base/client-auth/allowlist";
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface BrandFile extends ClientBrand {
@@ -31,6 +31,11 @@ export interface BrandFile extends ClientBrand {
   sha: string;
   updatedAt: string;
   htmlUrl: string;
+}
+
+export interface BrandScope {
+  owner: string;
+  repo: string;
 }
 
 const BRAND_KIND_PREFIX = "brand:";
@@ -48,6 +53,12 @@ const brandFileSchema = z.object({
   welcomeText: z.string().trim().max(1000).optional(),
   modelId: z.string().trim().min(1).max(160).optional(),
   agentSlug: z.string().trim().min(1).max(80).optional(),
+  access: z
+    .object({
+      mode: z.enum(["public", "delegated"]),
+    })
+    .optional(),
+  // Read-only migration input. New writes use `access`.
   auth: z
     .object({
       required: z.boolean().optional(),
@@ -66,8 +77,8 @@ interface BrandDocRecord {
   updatedAt: string;
 }
 
-function tenantId(): string {
-  return tenantIdFor(getOwner(), getRepo());
+function tenantId(scope: BrandScope): string {
+  return tenantIdFor(scope.owner, scope.repo);
 }
 
 function brandKind(slug: string): string {
@@ -124,10 +135,7 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
     ...(input.agentSlug?.trim()
       ? { agentSlug: normalizeAgentSlug(input.agentSlug) }
       : {}),
-    ...(() => {
-      const auth = normalizeClientBrandAuth(input.auth);
-      return auth ? { auth } : {};
-    })(),
+    access: normalizeClientBrandAccess(input.access, input.auth),
   } satisfies ClientBrand;
 }
 
@@ -149,10 +157,12 @@ function recordToBrandFile(record: BrandDocRecord): BrandFile | null {
   }
 }
 
-export async function listDeletedBrandSlugs(): Promise<Set<string>> {
+export async function listDeletedBrandSlugs(
+  scope: BrandScope,
+): Promise<Set<string>> {
   const records = (await getConvexClient().query(
     backendApi.repoDocs.listByPrefix,
-    { tenantId: tenantId(), prefix: DISABLED_KIND_PREFIX },
+    { tenantId: tenantId(scope), prefix: DISABLED_KIND_PREFIX },
   )) as BrandDocRecord[];
   const slugs = records
     .map((record) =>
@@ -162,24 +172,27 @@ export async function listDeletedBrandSlugs(): Promise<Set<string>> {
   return new Set(slugs);
 }
 
-export async function isBrandDeleted(slug: string): Promise<boolean> {
+export async function isBrandDeleted(
+  scope: BrandScope,
+  slug: string,
+): Promise<boolean> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return false;
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
-    tenantId: tenantId(),
+    tenantId: tenantId(scope),
     kind: disabledKind(normalized),
   })) as BrandDocRecord | null;
   return record !== null;
 }
 
 /** One indexed Convex query for all brands (was N GitHub reads). */
-export async function listBrandFiles(): Promise<BrandFile[]> {
+export async function listBrandFiles(scope: BrandScope): Promise<BrandFile[]> {
   const [records, deletedSlugs] = await Promise.all([
     getConvexClient().query(backendApi.repoDocs.listByPrefix, {
-      tenantId: tenantId(),
+      tenantId: tenantId(scope),
       prefix: BRAND_KIND_PREFIX,
     }) as Promise<BrandDocRecord[]>,
-    listDeletedBrandSlugs(),
+    listDeletedBrandSlugs(scope),
   ]);
   return records
     .map(recordToBrandFile)
@@ -188,11 +201,14 @@ export async function listBrandFiles(): Promise<BrandFile[]> {
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export async function readBrandFile(slug: string): Promise<BrandFile | null> {
+export async function readBrandFile(
+  scope: BrandScope,
+  slug: string,
+): Promise<BrandFile | null> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return null;
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
-    tenantId: tenantId(),
+    tenantId: tenantId(scope),
     kind: brandKind(normalized),
   })) as BrandDocRecord | null;
   if (!record) return null;
@@ -200,11 +216,12 @@ export async function readBrandFile(slug: string): Promise<BrandFile | null> {
 }
 
 export async function findBrandFileFromList(
+  scope: BrandScope,
   slug: string,
 ): Promise<BrandFile | null> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return null;
-  const brands = await listBrandFiles();
+  const brands = await listBrandFiles(scope);
   return brands.find((brand) => brand.slug === normalized) ?? null;
 }
 
@@ -216,15 +233,11 @@ export interface WriteBrandOptions {
   welcomeText?: string;
   modelId?: string;
   agentSlug?: string;
-  auth?: {
-    required?: boolean;
-    providers?: string[];
-    allowedEmails?: string[];
-    allowedDomains?: string[];
-  };
+  access?: ClientBrandAccess;
 }
 
 export async function writeBrandFile(
+  scope: BrandScope,
   opts: WriteBrandOptions,
 ): Promise<BrandFile> {
   const brand = normalizeBrandInput({
@@ -235,20 +248,16 @@ export async function writeBrandFile(
     welcomeText: opts.welcomeText,
     modelId: opts.modelId,
     agentSlug: opts.agentSlug,
-    auth: opts.auth,
+    access: opts.access,
   });
   const updatedAt = new Date().toISOString();
   const client = getConvexClient();
-  await client.mutation(backendApi.repoDocs.save, {
-    tenantId: tenantId(),
-    kind: brandKind(brand.slug),
+  await client.mutation(backendApi.repoDocs.saveAndRemove, {
+    tenantId: tenantId(scope),
+    saveKind: brandKind(brand.slug),
     doc: brand,
     updatedAt,
-  });
-  // Writing a brand re-enables it.
-  await client.mutation(backendApi.repoDocs.remove, {
-    tenantId: tenantId(),
-    kind: disabledKind(brand.slug),
+    removeKind: disabledKind(brand.slug),
   });
   return {
     ...brand,
@@ -259,22 +268,51 @@ export async function writeBrandFile(
   };
 }
 
-export async function deleteBrandFile(slug: string): Promise<void> {
+export async function deleteBrandFile(
+  scope: BrandScope,
+  slug: string,
+): Promise<void> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return;
   await getConvexClient().mutation(backendApi.repoDocs.remove, {
-    tenantId: tenantId(),
+    tenantId: tenantId(scope),
     kind: brandKind(normalized),
   });
 }
 
-export async function disableBrand(slug: string): Promise<void> {
+export async function disableBrand(
+  scope: BrandScope,
+  slug: string,
+): Promise<void> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return;
   await getConvexClient().mutation(backendApi.repoDocs.save, {
-    tenantId: tenantId(),
+    tenantId: tenantId(scope),
     kind: disabledKind(normalized),
     doc: { slug: normalized },
     updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function removeBrand(
+  scope: BrandScope,
+  slug: string,
+  options: { disableFallback: boolean },
+): Promise<void> {
+  const normalized = normalizeClientBrandSlug(slug);
+  if (!isValidBrandSlug(normalized)) return;
+  const updatedAt = new Date().toISOString();
+  await getConvexClient().mutation(backendApi.repoDocs.removeAndMaybeSave, {
+    tenantId: tenantId(scope),
+    removeKind: brandKind(normalized),
+    ...(options.disableFallback
+      ? {
+          save: {
+            kind: disabledKind(normalized),
+            doc: { slug: normalized },
+            updatedAt,
+          },
+        }
+      : {}),
   });
 }

@@ -17,15 +17,7 @@ export interface BuiltinFeature {
   setupHref?: string;
 }
 
-export const BUILTIN_FEATURES: readonly BuiltinFeature[] = [
-  {
-    slug: "client-signin",
-    title: "Client sign-in",
-    description:
-      "Require Google/GitHub (and more) sign-in on client brand pages, with per-brand access lists. Install, then run the setup wizard to add provider credentials.",
-    setupHref: "/setup/client-signin",
-  },
-];
+export const BUILTIN_FEATURES: readonly BuiltinFeature[] = [];
 
 export function getBuiltinFeature(slug: string): BuiltinFeature | null {
   return BUILTIN_FEATURES.find((feature) => feature.slug === slug) ?? null;

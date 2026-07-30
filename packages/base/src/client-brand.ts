@@ -7,7 +7,7 @@
  *   client surface host.
  */
 import { slugifyTitle } from "@kody-ade/base/slug";
-import type { ClientBrandAuth } from "./client-auth/allowlist";
+export type ClientBrandAccess = { mode: "public" } | { mode: "delegated" };
 
 export interface ClientBrand {
   slug: string;
@@ -23,8 +23,8 @@ export interface ClientBrand {
   modelId?: string;
   /** Optional agency agent identity slug from `agents/<slug>.md`. */
   agentSlug?: string;
-  /** Optional sign-in policy for the client surface (Google via Auth.js). */
-  auth?: ClientBrandAuth;
+  /** How the client surface receives identity. Public is always explicit. */
+  access: ClientBrandAccess;
 }
 
 export interface ClientBrandResolveContext {
@@ -42,6 +42,7 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
     slug: "kody",
     name: "Kody",
     accent: "#0f766e",
+    access: { mode: "public" },
   },
   // RTL reference brand (Step 5.5): same Kody surface, Hebrew locale.
   // Pinned by the RTL e2e in tests/e2e/client-chat-surface.spec.ts.
@@ -50,6 +51,7 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
     name: "Kody",
     accent: "#0f766e",
     locale: "he",
+    access: { mode: "public" },
   },
   // Theming reference brand (Step 6): distinct name + accent, pinned by the
   // branding-plugin e2e in tests/e2e/client-chat-surface.spec.ts.
@@ -57,6 +59,7 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
     slug: "acme",
     name: "Acme",
     accent: "#7c3aed",
+    access: { mode: "public" },
   },
 };
 
@@ -78,6 +81,30 @@ export function normalizeClientBrandSlug(input: string): string {
   return slugifyTitle(input, { allowUnderscore: false, fallback: "kody" });
 }
 
+/**
+ * Normalize the persisted access contract. The legacy auth input is accepted
+ * only while stored brand records are migrated; callers always receive the
+ * new provider-agnostic model.
+ */
+export function normalizeClientBrandAccess(
+  input: unknown,
+  legacyAuth?: unknown,
+): ClientBrandAccess {
+  if (input && typeof input === "object") {
+    const mode = (input as Record<string, unknown>).mode;
+    if (mode === "delegated") return { mode: "delegated" };
+    if (mode === "public") return { mode: "public" };
+  }
+  if (
+    legacyAuth &&
+    typeof legacyAuth === "object" &&
+    (legacyAuth as Record<string, unknown>).required === true
+  ) {
+    return { mode: "delegated" };
+  }
+  return { mode: "public" };
+}
+
 function titleFromSlug(slug: string): string {
   return slug
     .split("-")
@@ -92,6 +119,7 @@ export function getClientBrand(slug: string): ClientBrand {
     slug: normalized,
     name: titleFromSlug(normalized),
     accent: "#0f766e",
+    access: { mode: "public" } as const,
   };
 
   return { ...base, locale: normalizeClientBrandLocale(base.locale) };

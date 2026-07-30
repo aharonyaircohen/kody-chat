@@ -42,13 +42,14 @@ async function cachedValue(
 ): Promise<string | null> {
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.value;
-  let value: string | null;
-  try {
-    value = await resolve();
-  } catch {
-    value = null;
+  const value = await resolve();
+  // Missing state can be created at any moment and transient backend failures
+  // must stay distinguishable from absence. Cache only confirmed values.
+  if (value !== null) {
+    cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+  } else {
+    cache.delete(key);
   }
-  cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
   return value;
 }
 
@@ -61,9 +62,9 @@ export async function resolveVaultGithubToken(
   const key = `secret:${owner}/${repo}/${secretName}`.toLowerCase();
   return await cachedValue(key, async () => {
     if (!isVaultConfigured()) return null;
-    const raw = (await readRepoDoc(owner, repo, VAULT_PATH)) as
-      | { ciphertext?: unknown }
-      | null;
+    const raw = (await readRepoDoc(owner, repo, VAULT_PATH)) as {
+      ciphertext?: unknown;
+    } | null;
     if (typeof raw?.ciphertext !== "string" || !raw.ciphertext.trim()) {
       return null;
     }
@@ -81,9 +82,11 @@ export async function resolvePublicStateVariable(
 ): Promise<string | null> {
   const key = `variable:${owner}/${repo}/${name}`.toLowerCase();
   return await cachedValue(key, async () => {
-    const doc = (await readRepoDoc(owner, repo, VARIABLES_KIND)) as
-      | VariablesDoc
-      | null;
+    const doc = (await readRepoDoc(
+      owner,
+      repo,
+      VARIABLES_KIND,
+    )) as VariablesDoc | null;
     const value = doc?.variables?.[name]?.value;
     return typeof value === "string" && value.trim() ? value : null;
   });

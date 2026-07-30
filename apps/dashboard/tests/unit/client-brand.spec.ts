@@ -91,7 +91,7 @@ describe("client brand config", () => {
   });
 
   it("resolves repo-defined brands before fallback brands", async () => {
-    h.findBrandFileFromList.mockResolvedValue({
+    h.readBrandFile.mockResolvedValue({
       slug: "acme",
       name: "Acme Support",
       accent: "#2563eb",
@@ -103,9 +103,12 @@ describe("client brand config", () => {
       sha: "sha",
       updatedAt: "",
       htmlUrl: "",
+      access: { mode: "public" },
     });
 
-    await expect(resolveClientBrand("acme")).resolves.toMatchObject({
+    await expect(
+      resolveClientBrand("acme", { owner: "acme", repo: "widgets" }),
+    ).resolves.toMatchObject({
       slug: "acme",
       name: "Acme Support",
       accent: "#2563eb",
@@ -114,11 +117,14 @@ describe("client brand config", () => {
       modelId: "sonnet-4",
       agentSlug: "qa-agent",
     });
-    expect(h.readBrandFile).not.toHaveBeenCalled();
+    expect(h.readBrandFile).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
+      "acme",
+    );
   });
 
   it("uses the provided repo context when resolving public route brands", async () => {
-    h.findBrandFileFromList.mockResolvedValue({
+    h.readBrandFile.mockResolvedValue({
       slug: "aguy",
       name: "A Guy",
       accent: "#2563eb",
@@ -127,6 +133,7 @@ describe("client brand config", () => {
       sha: "sha",
       updatedAt: "",
       htmlUrl: "",
+      access: { mode: "public" },
     });
 
     await expect(
@@ -142,14 +149,10 @@ describe("client brand config", () => {
       accent: "#2563eb",
     });
 
-    expect(h.setGitHubContext).toHaveBeenCalledWith(
-      "A-Guy-educ",
-      "A-Guy-Web",
-      undefined,
-      "https://github.com/A-Guy-educ/backend-store",
-      "backend-store",
+    expect(h.readBrandFile).toHaveBeenCalledWith(
+      { owner: "A-Guy-educ", repo: "A-Guy-Web" },
+      "aguy",
     );
-    expect(h.clearGitHubContext).toHaveBeenCalled();
   });
 
   it("keeps built-in fallback when no repo brand exists", async () => {
@@ -168,7 +171,9 @@ describe("client brand config", () => {
     h.isBrandDeleted.mockResolvedValue(true);
     h.findBrandFileFromList.mockResolvedValue(null);
 
-    await expect(resolveClientBrand("acme")).resolves.toBeNull();
+    await expect(
+      resolveClientBrand("acme", { owner: "acme", repo: "widgets" }),
+    ).resolves.toBeNull();
     expect(h.findBrandFileFromList).not.toHaveBeenCalled();
     expect(h.readBrandFile).not.toHaveBeenCalled();
   });
@@ -180,16 +185,11 @@ describe("client brand config", () => {
     expect(h.readBrandFile).not.toHaveBeenCalled();
   });
 
-  it("keeps built-in fallback when repo brand lookup is unavailable", async () => {
-    h.findBrandFileFromList.mockRejectedValue(
-      new Error("missing repo context"),
-    );
+  it("fails closed when repo brand lookup is unavailable", async () => {
+    h.readBrandFile.mockRejectedValue(new Error("Convex unavailable"));
 
-    await expect(resolveClientBrand("kody-he")).resolves.toMatchObject({
-      slug: "kody-he",
-      name: "Kody",
-      locale: "he",
-    });
-    expect(h.readBrandFile).not.toHaveBeenCalled();
+    await expect(
+      resolveClientBrand("kody-he", { owner: "acme", repo: "widgets" }),
+    ).rejects.toThrow("Convex unavailable");
   });
 });

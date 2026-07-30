@@ -32,10 +32,12 @@ import {
   listBrandFiles,
   listDeletedBrandSlugs,
   readBrandFile,
+  removeBrand,
   writeBrandFile,
 } from "../../src/brands/files";
 
 const TENANT = "acme/widgets";
+const SCOPE = { owner: "acme", repo: "widgets" };
 
 function brandRecord(slug: string, doc: Record<string, unknown>) {
   return { kind: `brand:${slug}`, doc, updatedAt: "2026-07-01T00:00:00.000Z" };
@@ -70,7 +72,7 @@ describe("brand files (convex)", () => {
       }),
     ]);
 
-    await expect(listBrandFiles()).resolves.toEqual([
+    await expect(listBrandFiles(SCOPE)).resolves.toEqual([
       expect.objectContaining({
         slug: "list-brand",
         name: "List Brand",
@@ -92,7 +94,7 @@ describe("brand files (convex)", () => {
       brandRecord("good", { slug: "good", name: "Good", accent: "#2563eb" }),
     ]);
 
-    const brands = await listBrandFiles();
+    const brands = await listBrandFiles(SCOPE);
     expect(brands.map((b) => b.slug)).toEqual(["good"]);
   });
 
@@ -102,8 +104,10 @@ describe("brand files (convex)", () => {
       [{ kind: "brand-disabled:acme", doc: { slug: "acme" }, updatedAt: "t" }],
     );
 
-    await expect(listBrandFiles()).resolves.toEqual([]);
-    await expect(listDeletedBrandSlugs()).resolves.toEqual(new Set(["acme"]));
+    await expect(listBrandFiles(SCOPE)).resolves.toEqual([]);
+    await expect(listDeletedBrandSlugs(SCOPE)).resolves.toEqual(
+      new Set(["acme"]),
+    );
   });
 
   it("reads a single brand via repoDocs.get", async () => {
@@ -111,7 +115,7 @@ describe("brand files (convex)", () => {
       brandRecord("solo", { slug: "solo", name: "Solo", accent: "#2563eb" }),
     );
 
-    const brand = await readBrandFile("solo");
+    const brand = await readBrandFile(SCOPE, "solo");
     expect(brand?.slug).toBe("solo");
     const [ref, args] = convex.query.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:get");
@@ -120,13 +124,15 @@ describe("brand files (convex)", () => {
 
   it("returns null for a missing or invalid-slug brand", async () => {
     convex.query.mockResolvedValue(null);
-    expect(await readBrandFile("missing")).toBeNull();
-    expect(await readBrandFile("__nope__")).toBeNull();
+    expect(await readBrandFile(SCOPE, "missing")).toBeNull();
+    expect(await readBrandFile(SCOPE, "__nope__")).toBeNull();
   });
 
   it("finds a brand from the list without extra reads", async () => {
     mockPrefixQueries([]);
-    await expect(findBrandFileFromList("random-one")).resolves.toBeNull();
+    await expect(
+      findBrandFileFromList(SCOPE, "random-one"),
+    ).resolves.toBeNull();
     // Only listByPrefix calls — never a per-slug get.
     for (const [ref] of convex.query.mock.calls) {
       expect(getFunctionName(ref)).toBe("repoDocs:listByPrefix");
@@ -136,7 +142,7 @@ describe("brand files (convex)", () => {
   it("writes a normalized brand and clears its disabled marker", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    const written = await writeBrandFile({
+    const written = await writeBrandFile(SCOPE, {
       slug: " Write Brand ",
       name: " Write Brand ",
       accent: "#2563EB",
@@ -157,23 +163,19 @@ describe("brand files (convex)", () => {
     });
 
     const [saveRef, saveArgs] = convex.mutation.mock.calls[0]!;
-    expect(getFunctionName(saveRef)).toBe("repoDocs:save");
+    expect(getFunctionName(saveRef)).toBe("repoDocs:saveAndRemove");
     expect(saveArgs).toMatchObject({
       tenantId: TENANT,
-      kind: "brand:write-brand",
+      saveKind: "brand:write-brand",
       doc: expect.objectContaining({ slug: "write-brand", accent: "#2563eb" }),
+      removeKind: "brand-disabled:write-brand",
     });
-    const [removeRef, removeArgs] = convex.mutation.mock.calls[1]!;
-    expect(getFunctionName(removeRef)).toBe("repoDocs:remove");
-    expect(removeArgs).toEqual({
-      tenantId: TENANT,
-      kind: "brand-disabled:write-brand",
-    });
+    expect(convex.mutation).toHaveBeenCalledTimes(1);
   });
 
   it("rejects invalid brand input on write", async () => {
     await expect(
-      writeBrandFile({
+      writeBrandFile(SCOPE, {
         slug: "bad",
         name: "Bad",
         accent: "blue",
@@ -185,7 +187,7 @@ describe("brand files (convex)", () => {
   it("deletes a brand via repoDocs.remove", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    await deleteBrandFile("deletebrand");
+    await deleteBrandFile(SCOPE, "deletebrand");
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:remove");
@@ -195,7 +197,7 @@ describe("brand files (convex)", () => {
   it("writes a disabled marker for a deleted fallback brand", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    await disableBrand("Acme");
+    await disableBrand(SCOPE, "Acme");
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:save");
@@ -206,14 +208,32 @@ describe("brand files (convex)", () => {
     });
   });
 
+  it("atomically removes a brand and disables its fallback", async () => {
+    convex.mutation.mockResolvedValue(null);
+
+    await removeBrand(SCOPE, "Acme", { disableFallback: true });
+
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:removeAndMaybeSave");
+    expect(args).toMatchObject({
+      tenantId: TENANT,
+      removeKind: "brand:acme",
+      save: {
+        kind: "brand-disabled:acme",
+        doc: { slug: "acme" },
+      },
+    });
+    expect(convex.mutation).toHaveBeenCalledTimes(1);
+  });
+
   it("isBrandDeleted checks the marker doc directly", async () => {
     convex.query.mockResolvedValue({
       kind: "brand-disabled:acme",
       doc: { slug: "acme" },
       updatedAt: "t",
     });
-    expect(await isBrandDeleted("acme")).toBe(true);
+    expect(await isBrandDeleted(SCOPE, "acme")).toBe(true);
     convex.query.mockResolvedValue(null);
-    expect(await isBrandDeleted("other")).toBe(false);
+    expect(await isBrandDeleted(SCOPE, "other")).toBe(false);
   });
 });

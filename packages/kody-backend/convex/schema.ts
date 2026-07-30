@@ -549,6 +549,23 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
+  // One-time delegated Brand Chat launch assertions. Expired rows are removed
+  // opportunistically by the consume mutation so replay protection works
+  // across every server instance without an unbounded ledger.
+  clientLaunchNonces: defineTable({
+    tenantId: v.string(),
+    tokenId: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["tenantId", "tokenId"])
+    .index("by_expiry", ["expiresAt"]),
+
+  clientLaunchRateLimits: defineTable({
+    key: v.string(),
+    windowStartedAt: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
+
   userState: defineTable({
     tenantId: v.string(),
     namespace: v.string(),

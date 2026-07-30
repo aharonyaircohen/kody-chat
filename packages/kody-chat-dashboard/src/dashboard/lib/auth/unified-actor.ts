@@ -3,27 +3,26 @@
  * @domain auth
  * @pattern unified-actor
  * @ai-summary Resolves "who is this request from" across the two auth
- *   systems: dashboard operators (header PAT) and brand client users
- *   (NextAuth session). Returns a stable userId (`operator:<login>` /
- *   `client:<email>`) plus the brand context — the identity used by
+ *   systems: dashboard operators (header PAT) and delegated brand users
+ *   (internal client session). Returns a stable userId plus the brand context
+ *   — the identity used by
  *   system events and user-state. Never trusts client-claimed identity:
- *   operator login comes from headers set alongside the PAT, client email
- *   from the signed session cookie.
+ *   operator login comes from headers set alongside the PAT, while delegated
+ *   identity comes from the signed client-session cookie.
  */
 import "server-only";
 import type { NextRequest } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
-import { auth as clientAuth } from "../client-auth/auth";
 import {
-  CLIENT_BRAND_REPO_COOKIE,
-  parseClientBrandRepoCookie,
-} from "../client-brand-repo-cookie";
+  CLIENT_SESSION_COOKIE,
+  verifyClientSession,
+} from "../client-session/session";
 import type { SystemEventBrand } from "@kody-ade/base/events/types";
 
 export type UnifiedActorKind = "operator" | "client";
 
 export interface UnifiedActor {
-  /** Stable id: `operator:<login>` or `client:<email>`. */
+  /** Stable id: `operator:<login>` or `client:<external-subject>`. */
   userId: string;
   kind: UnifiedActorKind;
   brand: SystemEventBrand | null;
@@ -48,20 +47,14 @@ export async function resolveUnifiedActor(
     };
   }
 
-  try {
-    const session = await clientAuth();
-    const email = session?.user?.email?.trim().toLowerCase();
-    if (!email) return null;
-    const brand = parseClientBrandRepoCookie(
-      req.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
-    );
-    return {
-      userId: `client:${email}`,
-      kind: "client",
-      brand,
-      token: null,
-    };
-  } catch {
-    return null;
-  }
+  const session = await verifyClientSession(
+    req.cookies.get(CLIENT_SESSION_COOKIE)?.value,
+  );
+  if (!session) return null;
+  return {
+    userId: `client:${session.identity.subject}`,
+    kind: "client",
+    brand: { owner: session.owner, repo: session.repo },
+    token: null,
+  };
 }
