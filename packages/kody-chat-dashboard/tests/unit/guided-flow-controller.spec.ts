@@ -73,6 +73,42 @@ describe("guided flow controller", () => {
     ).toThrow("Unknown transition");
   });
 
+  it("completes on an allowed action that has no continuing transition", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "branching-exercise",
+      version: 1,
+      title: "Branching exercise",
+      steps: [
+        {
+          id: "question",
+          title: "Question",
+          explanation: "Choose an answer.",
+          rendererSlug: "question-select",
+          allowedActions: ["correct", "incorrect"],
+          transitions: { incorrect: "hint" },
+        },
+        {
+          id: "hint",
+          title: "Hint",
+          explanation: "Try again.",
+          rendererSlug: "approval-card",
+          transitions: { retry: "question" },
+        },
+      ],
+    };
+
+    expect(
+      advanceGuidedFlow(
+        definition,
+        createGuidedFlowInstance(definition, "instance-1"),
+        { actionId: "correct", result: { selectedOptionId: "four" } },
+      ),
+    ).toMatchObject({
+      status: "completed",
+      output: { selectedOptionId: "four" },
+    });
+  });
+
   it("supports back and increments the revision", () => {
     const instance = advanceGuidedFlow(
       DEFINITION,
@@ -252,6 +288,53 @@ describe("guided flow controller", () => {
         },
       },
       history: ["child"],
+    });
+  });
+
+  it("completes a parent whose nested step has no next transition", () => {
+    const parent: GuidedFlowDefinition = {
+      id: "lesson",
+      version: 1,
+      title: "Lesson",
+      steps: [
+        {
+          id: "exercise",
+          type: "flow",
+          title: "Exercise",
+          explanation: "Complete the exercise.",
+          flowId: "exercise",
+          flowVersion: 1,
+        },
+      ],
+    };
+    const child: GuidedFlowDefinition = {
+      id: "exercise",
+      version: 1,
+      title: "Exercise",
+      steps: [
+        {
+          id: "question",
+          title: "Question",
+          explanation: "Choose.",
+          rendererSlug: "question-select",
+          allowedActions: ["correct"],
+        },
+      ],
+    };
+    const nested = enterNestedGuidedFlow(
+      parent,
+      createGuidedFlowInstance(parent, "instance-1"),
+      child,
+    );
+    const completedChild = advanceGuidedFlow(child, nested, {
+      actionId: "correct",
+      result: { selectedOptionId: "four" },
+    });
+
+    expect(resumeParentGuidedFlow(parent, completedChild)).toMatchObject({
+      flowId: "lesson",
+      status: "completed",
+      stack: [],
     });
   });
 

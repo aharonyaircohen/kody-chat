@@ -169,7 +169,13 @@ export function advanceGuidedFlow(
     ...result,
   };
 
-  if (!step.transitions || Object.keys(step.transitions).length === 0) {
+  if (
+    !step.transitions ||
+    Object.keys(step.transitions).length === 0 ||
+    (!nextStepId &&
+      !isNestedGuidedFlowStep(step) &&
+      step.allowedActions?.includes(submit.actionId))
+  ) {
     return {
       ...instance,
       status: "completed",

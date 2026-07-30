@@ -35,6 +35,7 @@ const RendererDataFieldSchema = z.object({
       "selection",
       "fields",
       "input",
+      "json",
       "value",
     ])
     .optional(),

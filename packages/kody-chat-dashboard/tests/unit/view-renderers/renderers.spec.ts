@@ -294,6 +294,35 @@ describe("view renderer definitions", () => {
     ]);
   });
 
+  it("preserves explicit JSON data for a widget", () => {
+    const renderer: ViewRendererDefinition = {
+      slug: "question-select",
+      name: "Question",
+      purpose: "question-select",
+      type: "layout",
+      data: {
+        question: { type: "json" },
+      },
+      ui: {
+        type: "widget",
+        widget: "question-select",
+        data: "$question",
+      },
+    };
+    const question = {
+      title: "Quick check",
+      prompt: "What is 2 + 2?",
+      options: [
+        { id: "three", label: "3" },
+        { id: "four", label: "4", correct: true },
+      ],
+    };
+
+    expect(normalizeViewRendererData(renderer, { question })).toEqual({
+      question,
+    });
+  });
+
   it("normalizes selectable records from read/list tools", () => {
     const data = normalizeViewRendererData(choiceRenderer, {
       title: "Choose reports",

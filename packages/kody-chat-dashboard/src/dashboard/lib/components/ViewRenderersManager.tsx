@@ -66,6 +66,7 @@ interface RendererRow {
         | "selection"
         | "fields"
         | "input"
+        | "json"
         | "value";
       optional?: boolean;
     }

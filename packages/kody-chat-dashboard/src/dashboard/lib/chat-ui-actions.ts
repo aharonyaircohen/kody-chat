@@ -84,13 +84,36 @@ export interface RenderedViewAction {
   result?: Record<string, unknown>;
 }
 
-export type RenderedViewDataValue =
+export type RenderedViewJsonValue =
   | string
   | number
   | boolean
   | null
+  | RenderedViewJsonValue[]
+  | { [key: string]: RenderedViewJsonValue };
+
+export type RenderedViewDataValue =
+  | RenderedViewJsonValue
   | RenderedViewAction[]
   | Array<Record<string, string | boolean>>;
+
+export function isRenderedViewJsonValue(
+  value: unknown,
+): value is RenderedViewJsonValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    (Array.isArray(value) && value.every(isRenderedViewJsonValue)) ||
+    (!!value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.values(value as Record<string, unknown>).every(
+        isRenderedViewJsonValue,
+      ))
+  );
+}
 
 export type RenderedViewUiNode =
   | {
@@ -209,10 +232,7 @@ function isRenderedViewDataValue(
   value: unknown,
 ): value is RenderedViewDataValue {
   return (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
+    isRenderedViewJsonValue(value) ||
     (Array.isArray(value) &&
       value.every(
         (item) =>

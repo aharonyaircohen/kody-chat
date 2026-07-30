@@ -10,6 +10,7 @@
  */
 import { z } from "zod";
 import {
+  isRenderedViewJsonValue,
   RENDER_VIEW_DIRECTIVE,
   type RenderedViewAction,
   type RenderedViewDataValue,
@@ -237,7 +238,14 @@ function cloneDefaultValue(
   value: RenderedViewDataValue,
 ): RenderedViewDataValue {
   if (Array.isArray(value)) {
-    return value.map((item) => ({ ...item })) as RenderedViewDataValue;
+    return value.map((item) =>
+      item && typeof item === "object"
+        ? ({ ...item } as Record<string, unknown>)
+        : item,
+    ) as RenderedViewDataValue;
+  }
+  if (value && typeof value === "object") {
+    return { ...value };
   }
   return value;
 }
@@ -449,6 +457,12 @@ function normalizeRendererFieldValue({
   bind: string;
   value: unknown;
 }): RenderedViewDataValue {
+  if (definition.data?.[bind]?.type === "json") {
+    if (!isRenderedViewJsonValue(value)) {
+      throw new Error(`Invalid renderer data for "${bind}": expected JSON`);
+    }
+    return value as RenderedViewDataValue;
+  }
   if ((definition.data?.[bind]?.type ?? "value") === "fields") {
     const fields = normalizeRendererFields(value);
     if (!fields) {
