@@ -55,7 +55,14 @@ test("shows only GuidedFlow templates", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "History", exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
+  const startInChat = page.getByRole("link", {
+    name: "Start Create a workflow in Chat",
+  });
+  await expect(startInChat).toBeVisible();
+  await expect(startInChat).toHaveAttribute(
+    "href",
+    "/repo/acme/widgets/chat?guidedFlow=create-workflow",
+  );
 });
 
 test("provides step editing controls, preview, and validation", async ({

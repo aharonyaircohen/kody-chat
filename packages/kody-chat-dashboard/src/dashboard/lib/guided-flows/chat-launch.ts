@@ -1,3 +1,12 @@
+import { repoScopedHref, type RepoRef } from "@kody-ade/base/routes";
+
+export function guidedFlowChatHref(ref: RepoRef, flowId: string): string {
+  return repoScopedHref(
+    ref,
+    `/chat?guidedFlow=${encodeURIComponent(flowId)}`,
+  );
+}
+
 export function locationAfterGuidedFlowLaunch(
   pathname: string,
   search: string,
