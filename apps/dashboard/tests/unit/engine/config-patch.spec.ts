@@ -90,7 +90,7 @@ describe("getEngineConfig", () => {
     const { octokit } = octokitWithConfig({
       github: { owner: "o", repo: "r" },
       execution: {
-        capabilityBindings: { "build-graph": "graphify" },
+        capabilityBindings: { "build-report": "pdf-renderer" },
       },
     });
 
@@ -99,7 +99,7 @@ describe("getEngineConfig", () => {
     });
 
     expect(config.execution?.capabilityBindings).toEqual({
-      "build-graph": "graphify",
+      "build-report": "pdf-renderer",
     });
   });
 });
@@ -113,14 +113,14 @@ describe("writeConfigPatch — Capability bindings", () => {
 
     await writeConfigPatch(octokit, "o", "r", {
       capabilityBindings: {
-        "build-graph": "graphify",
+        "build-report": "pdf-renderer",
         "Bad Capability": "ignored",
       },
     });
 
     expect(lastWritten().execution).toEqual({
       transport: "github-actions",
-      capabilityBindings: { "build-graph": "graphify" },
+      capabilityBindings: { "build-report": "pdf-renderer" },
     });
   });
 });

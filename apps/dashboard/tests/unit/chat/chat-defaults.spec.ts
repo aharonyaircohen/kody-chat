@@ -132,7 +132,6 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/feature-tools.ts",
       "app/api/kody/chat/tools/ui-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/guided-flow-tools.ts",
-      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/dynamic-chat-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/fetch-url.ts",
     ];
     // Two registries: tools declared inline as `tool({` in a file

@@ -18,7 +18,6 @@ import type * as capabilityState from "../capabilityState.js";
 import type * as catalog from "../catalog.js";
 import type * as channelsSeen from "../channelsSeen.js";
 import type * as chatEvents from "../chatEvents.js";
-import type * as chatTools from "../chatTools.js";
 import type * as conversationTurns from "../conversationTurns.js";
 import type * as conversationValidators from "../conversationValidators.js";
 import type * as conversations from "../conversations.js";
@@ -68,7 +67,6 @@ declare const fullApi: ApiFromModules<{
   catalog: typeof catalog;
   channelsSeen: typeof channelsSeen;
   chatEvents: typeof chatEvents;
-  chatTools: typeof chatTools;
   conversationTurns: typeof conversationTurns;
   conversationValidators: typeof conversationValidators;
   conversations: typeof conversations;

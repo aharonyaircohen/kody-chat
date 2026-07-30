@@ -120,7 +120,6 @@ describe("settings navigation", () => {
       "/agent-loops",
       "/workflows",
       "/capabilities",
-      "/chat-tools",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
       "/store-catalog",
@@ -157,7 +156,6 @@ describe("settings navigation", () => {
       "/agent-loops",
       "/workflows",
       "/capabilities",
-      "/chat-tools",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
       "/store-catalog",

@@ -2,9 +2,9 @@
 
 ## Implementation status
 
-The approved graph-system pilot is complete in production. The shared domain
+The approved agency-model pilot is complete in production. The shared domain
 contracts, persistence adapters, dispatcher, runtime safeguards, Store-owned
-graph workflow, Dashboard views, consumer migration, and golden end-to-end
+workflow, Dashboard views, consumer migration, and golden end-to-end
 journey are implemented and verified.
 
 Event, webhook, and condition Triggers remain later rollout phases as stated in
@@ -29,15 +29,14 @@ Any execution -> Run
 Decision and control
 Agent + Policy + Constraints + Scope
 
-Knowledge
+Outputs
 Run -> Facts + Evidence + Artifacts
-Those outputs -> Knowledge Graph
 ```
 
 The arrows show responsibility and data flow, not storage ownership. A Loop
 wakes its target; it is not an execution step. A Run may record a Workflow or
-Capability execution. Policy is inherited from Intent, and the Knowledge Graph
-is always a derived view rather than a source of truth.
+Capability execution. Policy is inherited from Intent, and run outputs remain
+evidence rather than a separate source of truth.
 
 ## Target model
 
@@ -125,12 +124,7 @@ Do not introduce permanent dual-writing.
 - Remove capability roles that represent orchestration.
 - Make workflows the only owner of steps, conditions, retries, and loops.
 - Validate typed capability inputs and outputs.
-- Migrate the graph system first:
-  - reusable extraction capabilities;
-  - one composition workflow;
-  - one Knowledge System refresh loop.
-
-Deliverable: the graph system proves that the new boundary works.
+Deliverable: one production workflow proves that the new boundary works.
 
 ## Phase 4: Objective, Goal, Loop, and Trigger
 
@@ -255,8 +249,7 @@ Then:
 - Give each dispatch a correlation id.
 - Preserve the chain from Trigger to Loop, Goal, Workflow, Capability, Agent,
   Run, facts, evidence, and artifacts.
-- Expose the chain to the Dashboard and Knowledge Graph without making the
-  graph the source of truth.
+- Expose the chain to the Dashboard without creating another source of truth.
 
 Deliverable: every execution is reproducible, policy-checked, idempotent,
 traceable, and linked to valid immutable Definitions.
@@ -267,7 +260,6 @@ traceable, and linked to valid immutable Definitions.
 - Make Workflow the visible place for execution design.
 - Make Operation the visible ownership view.
 - Show inherited Intent policy without copying it.
-- Update the Knowledge System graph for the new relationships.
 - Clearly label legacy records during migration.
 
 ## Phase 8: Data migration
@@ -296,7 +288,6 @@ Loop triggers
 -> Workflow runs
 -> Capability produces evidence
 -> Goal and Loop state update
--> Knowledge Graph refreshes
 -> Dashboard shows the connected result
 ```
 

@@ -97,7 +97,6 @@ describe("external package boundary", () => {
       ".",
       "./react",
       "./core",
-      "./knowledge",
       "./styles.css",
     ]);
     expect(existsSync(resolve(releaseRoot, "src/model-catalog.ts"))).toBe(false);

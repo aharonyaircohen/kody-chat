@@ -36,15 +36,12 @@
       "decide-memory-change",
       "apply-memory-changes",
       "verify-memory-change",
-      "detect-stale-memory",
-      "build-chat-knowledge-graph",
-      "publish-chat-knowledge-tool"
+      "detect-stale-memory"
     ],
     "activeWorkflows": [
       "ci-repair",
       "learn-from-runs",
-      "maintain-memory-quality",
-      "build-chat-knowledge-graph"
+      "maintain-memory-quality"
     ]
   },
   "access": {

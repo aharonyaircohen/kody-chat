@@ -133,11 +133,6 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["sourceRunId"],
     upsertIndex: "by_source",
   },
-  {
-    table: "chatTools",
-    naturalKey: ["toolId"],
-    upsertIndex: "by_tenant_tool",
-  },
   { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
   {
     table: "intentDecisions",
@@ -203,27 +198,3 @@ export const IMPORTABLE_TABLES: readonly string[] = TABLES.map(
 export const REPO_SCOPED_TABLES: readonly string[] = TABLES.filter(
   (entry) => !entry.global,
 ).map((entry) => entry.table);
-
-/** Repository data that may be exported to the Knowledge Graph builder. */
-export const KNOWLEDGE_GRAPH_TABLES: readonly string[] = [
-  "definitionHeads",
-  "definitionVersions",
-  "catalog",
-  "workflows",
-  "workflowRuns",
-  "userJourneys",
-  "userJourneyVersions",
-  "userJourneyRuns",
-  "reports",
-  "agents",
-  "macros",
-  "agencyRecords",
-  "taskState",
-  "capabilityState",
-  "dailyLogs",
-  "agencyRuns",
-  "runEvents",
-  "manifests",
-  "inboxEntries",
-  "repoDocs",
-];

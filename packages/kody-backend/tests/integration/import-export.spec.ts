@@ -79,43 +79,6 @@ describe("importExport", () => {
     expect(await t.query(api.importExport.exportTable, { table: "repoDocs" })).toHaveLength(2)
   })
 
-  it("upserts Chat tools by repository and tool id", async () => {
-    const t = setup()
-    const dataStorageId = await t.run(async (ctx) =>
-      ctx.storage.store(new Blob(['{"nodes":[],"edges":[]}'], { type: "application/json" })),
-    )
-    const base = {
-      tenantId: REPO,
-      toolId: "company-understanding",
-      name: "search_company_knowledge",
-      title: "Company knowledge",
-      description: "Search company knowledge",
-      handlerKind: "knowledge_graph_search",
-      dataStorageId,
-      dataSchemaVersion: 1,
-      sourceWorkflow: "build-chat-knowledge-graph",
-      generatedAt: NOW,
-      nodeCount: 0,
-      edgeCount: 0,
-      enabled: false,
-      updatedAt: NOW,
-    }
-
-    await t.mutation(api.importExport.importChunk, { table: "chatTools", docs: [base] })
-    const second = await t.mutation(api.importExport.importChunk, {
-      table: "chatTools",
-      docs: [{ ...base, nodeCount: 3 }],
-    })
-
-    expect(second).toEqual({ inserted: 0, updated: 1 })
-    expect(
-      await t.query(api.importExport.exportTable, {
-        table: "chatTools",
-        tenantId: REPO,
-      }),
-    ).toEqual([{ ...base, nodeCount: 3 }])
-  })
-
   it("upserts global tables by their natural key (eventLog, unindexed fallback)", async () => {
     const t = setup()
     const doc = { entryId: "e1", runId: "r", event: "tick", payload: { n: 1 }, emittedAt: NOW }

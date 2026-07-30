@@ -398,13 +398,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Simple executable folders.",
         tint: "text-amber-300 bg-amber-500/10",
       },
-      {
-        href: "/chat-tools",
-        label: "Chat Tools",
-        icon: Bot,
-        description: "Manage workflow-published tools available to Kody Chat.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
     ],
   },
   {
@@ -635,7 +628,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
       navItemForHref("/capabilities"),
-      navItemForHref("/chat-tools"),
     ],
   },
   {

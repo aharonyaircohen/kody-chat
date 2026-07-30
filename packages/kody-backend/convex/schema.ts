@@ -549,28 +549,6 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
-  // Declarative, workflow-published Chat tools. Kody maps handlerKind to
-  // trusted runtime code; workflows can publish data but never executable code.
-  chatTools: defineTable({
-    tenantId: v.string(),
-    toolId: v.string(),
-    name: v.string(),
-    title: v.string(),
-    description: v.string(),
-    handlerKind: v.literal("knowledge_graph_search"),
-    dataStorageId: v.id("_storage"),
-    dataSchemaVersion: v.number(),
-    sourceWorkflow: v.string(),
-    generatedAt: v.string(),
-    nodeCount: v.number(),
-    edgeCount: v.number(),
-    enabled: v.boolean(),
-    updatedAt: v.string(),
-  })
-    .index("by_tenant", ["tenantId"])
-    .index("by_tenant_tool", ["tenantId", "toolId"])
-    .index("by_tenant_enabled", ["tenantId", "enabled"]),
-
   userState: defineTable({
     tenantId: v.string(),
     namespace: v.string(),

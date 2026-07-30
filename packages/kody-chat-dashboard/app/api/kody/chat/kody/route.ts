@@ -134,7 +134,6 @@ import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
 import { createModelTools } from "../tools/models-tools";
 import { createReportTools } from "../tools/reports-tools";
-import { loadDynamicChatTools } from "../tools/dynamic-chat-tools";
 import { createWebhookTools } from "../tools/webhooks-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
@@ -1097,8 +1096,6 @@ async function handleKodyDirectPost(
     });
   let uiToolSet = createUiTools({ requireInteractiveAction });
   let extraTools: Record<string, unknown> = {};
-  let dynamicChatToolNames: string[] = [];
-  let dynamicChatTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
     if (verifiedActorGithubId === null) {
       throw new Error("Verified actor is required for repository chat tools");
@@ -1110,8 +1107,6 @@ async function handleKodyDirectPost(
       viewRendererDefinitions,
       requireInteractiveAction,
     });
-    dynamicChatTools = await loadDynamicChatTools(repo.owner, repo.repo);
-    dynamicChatToolNames = Object.keys(dynamicChatTools);
     const workflowApi = createWorkflowApiClient({
       request: repoScopedReq,
       approval: {
@@ -1341,23 +1336,12 @@ async function handleKodyDirectPost(
           })
         : {}),
     };
-    for (const name of dynamicChatToolNames) {
-      if (Object.prototype.hasOwnProperty.call(extraTools, name)) {
-        throw new Error(`Dynamic Chat tool name collides with a built-in: ${name}`);
-      }
-    }
-    extraTools = { ...extraTools, ...dynamicChatTools };
   }
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
     ...uiToolSet,
   };
-  for (const name of dynamicChatToolNames) {
-    if (Object.prototype.hasOwnProperty.call(baseTools, name)) {
-      throw new Error(`Dynamic Chat tool name collides with a core tool: ${name}`);
-    }
-  }
   // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
   // starters from this endpoint, and strips issue-creation tools in vibe mode
   // once a task is scoped so the model can't file a duplicate.
@@ -1373,11 +1357,7 @@ async function handleKodyDirectPost(
   const bundleFilteredTools = filterToolsByAllowlist(
     mergedTools,
     chatBundle.capability.tools.length > 0
-      ? [
-          ...chatBundle.capability.tools,
-          ...capabilityToolNames,
-          ...dynamicChatToolNames,
-        ]
+      ? [...chatBundle.capability.tools, ...capabilityToolNames]
       : chatBundle.capability.tools,
   );
   // Client-surface scope hard-caps the result at the conservative surface

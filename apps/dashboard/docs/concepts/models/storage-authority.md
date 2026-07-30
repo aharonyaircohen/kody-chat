@@ -12,7 +12,7 @@ Status: **Current verified map**
 | Dashboard simple Loops                  | GitHub `.kody-engine/definitions/loops`             |
 | Runs, events, approvals, dispatch state | Convex                                              |
 | Store assets                            | GitHub-backed Kody Store, read-only to the consumer |
-| UI projections and knowledge graph      | Derived                                             |
+| UI projections                          | Derived                                             |
 
 GitHub is allowed for repository content and Engine definitions. It is not
 allowed as a fallback, bootstrap, or dual-write target for runtime state.

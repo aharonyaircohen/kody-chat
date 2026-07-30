@@ -35,7 +35,6 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/capabilities",
   "/changelog",
   "/chat",
-  "/chat-tools",
   "/commands",
   "/company",
   "/company-intents",
@@ -150,7 +149,6 @@ export const routes = {
     repoSelectionPath(ref, "docs", path),
   repoReports: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "reports", slug),
-  repoChatTools: (ref: RepoRef) => repoSelectionPath(ref, "chat-tools"),
   repoTodos: (ref: RepoRef) => repoSelectionPath(ref, "todos"),
   repoTodoList: (ref: RepoRef, slug: string) =>
     repoSelectionPath(ref, "todos", slug),

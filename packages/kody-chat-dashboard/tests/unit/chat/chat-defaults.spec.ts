@@ -21,12 +21,6 @@ import {
 } from "../../../src/dashboard/lib/chat-defaults/defaults";
 
 describe("chat-defaults bundle", () => {
-  it("does not hardcode workflow-published tools in the default bundle", () => {
-    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
-      "search_company_knowledge",
-    );
-  });
-
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
     const capabilityPath = "legacy/capabilities/kody-chat/profile.json";
@@ -84,12 +78,6 @@ describe("chat-defaults bundle", () => {
     for (const p of phrases) {
       expect(DEFAULT_IDENTITY_MD).toContain(p);
     }
-  });
-
-  it("requires enabled dynamic knowledge tools for cross-system questions", () => {
-    expect(CRITICAL_REMINDERS_MD).toContain(
-      "enabled `search_*` tool",
-    );
   });
 
   it("agentIdentity does not force a question on tiny factual replies", () => {

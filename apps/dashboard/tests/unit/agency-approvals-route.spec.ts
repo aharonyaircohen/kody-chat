@@ -62,8 +62,8 @@ describe("agency approval route", () => {
     const response = await POST(
       request("POST", {
         scopeKind: "loop",
-        scopeId: "refresh-knowledge",
-        action: "workflow:refresh-knowledge-system",
+        scopeId: "daily-maintenance",
+        action: "workflow:maintain-system",
       }),
     );
 
