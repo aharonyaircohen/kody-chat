@@ -14,7 +14,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { consumeStoredAgencyApproval } from "@kody-ade/agency/backend/agency-approvals-store";
+import { consumeStoredAgencyApproval } from "@kody-ade/agency/agency-approvals";
 import {
   createWorkflowApprovalChallenge,
   workflowRunAction,

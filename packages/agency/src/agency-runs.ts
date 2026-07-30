@@ -6,6 +6,13 @@ import {
   type StoredAgencyRun,
 } from "./backend/agency-runs-store";
 
+export {
+  listStoredAgencyRuns,
+  listStoredRunEvents,
+  type StoredAgencyRun,
+  type StoredRunEvent,
+} from "./backend/agency-runs-store";
+
 export type AgencyRunKind = "loop" | "workflow" | "capability";
 export type AgencyRunOrigin = "manual" | "scheduled" | "event" | "local";
 export type AgencyRunStatus =

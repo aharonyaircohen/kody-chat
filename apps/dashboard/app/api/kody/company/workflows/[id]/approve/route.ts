@@ -6,7 +6,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { grantStoredAgencyApproval } from "@kody-ade/agency/backend/agency-approvals-store";
+import { grantStoredAgencyApproval } from "@kody-ade/agency/agency-approvals";
 import { verifyWorkflowApprovalChallenge } from "@kody-ade/agency/workflow-run-approval";
 import {
   clearGitHubContext,
