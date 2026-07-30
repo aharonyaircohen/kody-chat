@@ -7,7 +7,7 @@ import {
   type ChatKnowledgeIndex,
   parseChatKnowledgeGraph,
   searchChatKnowledge,
-} from "@kody-ade/knowledge";
+} from "@kody-ade/kody-chat/knowledge";
 
 type PublishedTool = {
   name: string;

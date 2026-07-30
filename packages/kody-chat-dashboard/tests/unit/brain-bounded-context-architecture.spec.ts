@@ -28,7 +28,7 @@ describe("Brain bounded context architecture", () => {
       "../brain/src/image-management.ts",
       "../brain/src/image-apply-command.ts",
       "../brain/src/terminal-connect.ts",
-      "../terminal/src/session-connect.ts",
+      "../fly/src/terminal/session-connect.ts",
     ]) {
       expect(exists(path), path).toBe(true);
       expect(source(path), path).toContain("@fileType use-case");
@@ -63,6 +63,6 @@ describe("Brain bounded context architecture", () => {
     expect(source("../brain/src/routes/image-apply.ts")).toContain(
       "applyBrainImage(",
     );
-    // Terminal routes live in the dashboard host, not kody-chat.
+    // Fly-backed terminal routes live in the Fly package, not Kody Chat.
   });
 });

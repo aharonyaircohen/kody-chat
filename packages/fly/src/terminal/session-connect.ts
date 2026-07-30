@@ -12,18 +12,32 @@ import type { NextRequest } from "next/server";
 
 import { logger } from "@kody-ade/base/logger";
 import {
+  buildTerminalWebSocketUrl,
+  isTerminalFeatureAllowed,
+  isTerminalMachineLive,
+  isTerminalMachineStartable,
+  isTerminalMachineTransitioning,
+  resolveTerminalTargetMachine,
+  selectTerminalTarget,
+  terminalActivityLimitForTarget,
+  terminalBridgeSessionIdForTarget,
+  type TerminalTargetInput,
+} from "@kody-ade/terminal/session";
+import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
+
+import {
   serverProviderHostname,
   startServerProviderMachine,
-} from "@kody-ade/fly/infrastructure/server-machines";
+} from "../infrastructure/server-machines";
 import {
   serverProviderConfigFromContext,
   type ServerProviderContext,
-} from "@kody-ade/fly/infrastructure/server-context";
+} from "../infrastructure/server-context";
 
 import {
   ensureServerProviderTerminalBridge,
   type ServerProviderTerminalBridgeInfo,
-} from "@kody-ade/fly/infrastructure/server-terminal";
+} from "../infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -33,19 +47,6 @@ import {
   getRemoteRuntimeConnector,
   type RemoteRuntimeWarning,
 } from "./remote-runtime-connector";
-import {
-  buildTerminalWebSocketUrl,
-  isTerminalFeatureAllowed,
-  isTerminalMachineLive,
-  isTerminalMachineStartable,
-  isTerminalMachineTransitioning,
-  resolveTerminalTargetMachine,
-  selectTerminalTarget,
-  terminalBridgeSessionIdForTarget,
-  terminalActivityLimitForTarget,
-  type TerminalTargetInput,
-} from "./session";
-import { mintTerminalBridgeToken } from "./terminal-token";
 
 export interface StartTerminalSessionData {
   target?: "brain";

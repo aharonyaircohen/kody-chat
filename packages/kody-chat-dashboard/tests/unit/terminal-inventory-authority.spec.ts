@@ -27,7 +27,7 @@ vi.mock("@kody-ade/fly/infrastructure/server-brain", () => ({
   refreshServerProviderInventoryCounts: (inventory: unknown) => inventory,
 }));
 
-import { loadTerminalInventoryAuthority } from "@kody-ade/terminal/server-inventory";
+import { loadTerminalInventoryAuthority } from "@kody-ade/fly/terminal/server-inventory";
 
 describe("terminal inventory authority", () => {
   it("refreshes a saved Brain machine instead of trusting its persisted state", async () => {
