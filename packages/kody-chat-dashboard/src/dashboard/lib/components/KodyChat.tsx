@@ -75,6 +75,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
 import { MessageList } from "../chat/surface/MessageList";
+import type { WidgetHostEvent } from "../chat/surface/widget-host";
 import { Composer } from "../chat/surface/Composer";
 import type { StaffMentionTrigger } from "../mentions/agent-mentions";
 import { EmptyState } from "../chat/surface/EmptyState";
@@ -1790,19 +1791,58 @@ export function KodyChat({
     ],
   );
 
-  const handleRenderedViewReply = useCallback(
-    (view: RenderedViewDirective, content: string) => {
+  const handleWidgetEvent = useCallback(
+    (view: RenderedViewDirective, event: WidgetHostEvent) => {
       if (usedViewIds.has(view.id)) return;
-      setMessages((previous) => [
-        ...previous,
-        {
-          role: "assistant",
-          content,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      if (event.type === "post-to-chat") {
+        setMessages((previous) => [
+          ...previous,
+          {
+            role: "assistant",
+            content: `**${view.rendererName} widget**\n\n${event.content}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+
+      if (event.type === "send-to-kody") {
+        if (activeLoading) return;
+        setMessages((previous) => [
+          ...previous,
+          {
+            role: "assistant",
+            content: `**${view.rendererName} widget asked Kody**\n\n${event.message}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        void sendText(
+          `The widget ${JSON.stringify(view.rendererSlug)} sent this message to Kody:\n\n${event.message}`,
+          [],
+          { hidden: true },
+        );
+        return;
+      }
+
+      const action: RenderedViewAction = {
+        id: event.actionId,
+        label: event.actionId,
+        response: event.actionId,
+        ...(event.data ? { result: event.data } : {}),
+      };
+      if (view.resultTarget === "guided-flow") {
+        handleRenderedViewAction(view, action);
+      } else {
+        setUsedViewIds((previous) => new Set(previous).add(view.id));
+      }
     },
-    [setMessages, usedViewIds],
+    [
+      activeLoading,
+      handleRenderedViewAction,
+      sendText,
+      setMessages,
+      usedViewIds,
+    ],
   );
 
   // Planner auto-kickoff. The "Plan with chat" button is the user's consent
@@ -2297,7 +2337,7 @@ export function KodyChat({
             toolCalls={toolCalls}
             usedViewIds={usedViewIds}
             onRenderedViewAction={handleRenderedViewAction}
-            onRenderedViewReply={handleRenderedViewReply}
+            onWidgetEvent={handleWidgetEvent}
             roleLayout={messageRoleLayout}
             agentHandoffs={sessionHook.activeSession?.agentHandoffs}
             emptyState={

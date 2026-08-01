@@ -17,15 +17,95 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-async function mockQuestionWidget(page: Page) {
-  await page.addInitScript(
-    (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
-    auth,
+function sseBody(events: unknown[]): string {
+  return (
+    [...events, { type: "finish" }]
+      .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+      .join("") + "data: [DONE]\n\n"
   );
+}
+
+function captureBrowserErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      !message.text().startsWith("Failed to load resource:")
+    ) {
+      errors.push(message.text());
+    }
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      errors.push(
+        `${response.request().method()} ${new URL(response.url()).pathname} (${response.status()})`,
+      );
+    }
+  });
+  return errors;
+}
+
+async function mockQuestionWidget(page: Page) {
+  await page.addInitScript((value) => {
+    window.localStorage.setItem("kody_auth", JSON.stringify(value));
+    window.localStorage.setItem(
+      "kody-default-chat-entry:acme/widgets",
+      "kody:widget-model",
+    );
+    window.localStorage.removeItem("kody-sessions-v3:acme/widgets");
+    window.localStorage.removeItem("kody-sessions-v3");
+  }, auth);
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
       authenticated: true,
       user: { login: "e2e-test", avatar_url: "", githubId: 1 },
+    }),
+  );
+  await page.route("**/api/kody/chat/conversations**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isCollection = pathname.endsWith("/conversations");
+    if (request.method() === "GET" && isCollection) {
+      return json(route, { conversations: [] });
+    }
+    return json(
+      route,
+      request.method() === "GET"
+        ? {
+            conversation: null,
+            entries: [],
+            checkpoints: [],
+            runtimeBindings: [],
+            attachments: [],
+          }
+        : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/commands**", (route) =>
+    json(route, { commands: [] }),
+  );
+  await page.route("**/api/kody/agents**", (route) =>
+    json(route, { agent: [] }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) =>
+    json(route, { flows: [] }),
+  );
+  await page.route("**/api/kody/models**", (route) =>
+    json(route, {
+      models: [
+        {
+          id: "widget-model",
+          provider: "example",
+          modelName: "widget-model",
+          label: "Widget Model",
+          apiKeySecret: "WIDGET_MODEL_KEY",
+          baseURL: "https://example.test/v1",
+          protocol: "openai",
+          enabled: true,
+        },
+      ],
     }),
   );
   await page.route("**/api/kody/widgets/question-select?**", (route) =>
@@ -50,14 +130,23 @@ async function mockQuestionWidget(page: Page) {
               button.textContent = option.label;
               button.onclick = () => {
                 if (!option.correct) {
-                  props.reply(question.hint);
+                  props.kody.postToChat({ content: question.hint });
                   return;
                 }
-                props.reply(question.solution);
-                props.complete("correct", { selectedOptionId: option.id });
+                props.kody.postToChat({ content: question.solution });
+                props.kody.submitResult({
+                  actionId: "correct",
+                  data: { selectedOptionId: option.id }
+                });
               };
               section.appendChild(button);
             }
+            const askButton = document.createElement("button");
+            askButton.textContent = "Ask Kody why";
+            askButton.onclick = () => props.kody.sendToKody({
+              message: question.explanationPrompt
+            });
+            section.appendChild(askButton);
             element.replaceChildren(section);
           });
           return () => {
@@ -76,6 +165,7 @@ async function mockQuestionWidget(page: Page) {
         prompt: "What is 3 + 4?",
         hint: "Count forward from three.",
         solution: "Correct — the answer is seven.",
+        explanationPrompt: "Explain why three plus four equals seven.",
         options: [
           { id: "six", label: "6" },
           { id: "seven", label: "7", correct: true },
@@ -124,7 +214,24 @@ function guidedWidgetView() {
 test("plays a tenant widget directly in Chat without starting a Guided Flow", async ({
   page,
 }) => {
+  const browserErrors = captureBrowserErrors(page);
   await mockQuestionWidget(page);
+  let modelTurns = 0;
+  let modelMessage = "";
+  await page.route("**/api/kody/chat/kody", (route) => {
+    modelTurns += 1;
+    const body = route.request().postDataJSON() as {
+      messages?: Array<{ content?: string }>;
+    };
+    modelMessage = body.messages?.at(-1)?.content ?? "";
+    return route.fulfill({
+      status: 200,
+      headers: { "content-type": "text/event-stream; charset=utf-8" },
+      body: sseBody([
+        { type: "text-delta", delta: "Three and four more make seven." },
+      ]),
+    });
+  });
   await page.goto("/repo/acme/widgets/views/widgets", {
     waitUntil: "domcontentloaded",
   });
@@ -141,22 +248,39 @@ test("plays a tenant widget directly in Chat without starting a Guided Flow", as
   const widget = page.getByRole("region", { name: "Widget-owned preview" });
   await expect(widget).toContainText("What is 3 + 4?");
   await widget.getByRole("button", { name: "6", exact: true }).click();
+  expect(browserErrors).toEqual([]);
   await expect(page.getByText("Count forward from three.")).toBeVisible();
   await expect(widget).toBeVisible();
+  const chat = page.locator('[aria-label="Kody chat"]').first();
+  const modelPicker = chat.locator('button[aria-label="Model"]').first();
+  await modelPicker.click();
+  await chat
+    .locator('[role="listbox"]:visible button[role="option"]')
+    .filter({ hasText: "Widget Model" })
+    .click();
+  await expect(modelPicker).toHaveAttribute("title", /Widget Model/);
+
+  await widget.getByRole("button", { name: "Ask Kody why" }).click();
+  await expect(page.getByText("Three and four more make seven.")).toBeVisible();
+  expect(modelTurns).toBe(1);
+  expect(modelMessage).toContain("Explain why three plus four equals seven.");
 
   await widget.getByRole("button", { name: "7", exact: true }).click();
   await expect(page.getByText("Correct — the answer is seven.")).toBeVisible();
   await expect(page).toHaveURL(
     "/repo/acme/widgets/views/widgets/question-select",
   );
+  expect(modelTurns).toBe(1);
   await expect(
     page.getByText("GuidedFlow started. Follow the steps below."),
   ).toHaveCount(0);
+  expect(browserErrors).toEqual([]);
 });
 
 test("mounts the same independent widget inside a Guided Flow", async ({
   page,
 }) => {
+  const browserErrors = captureBrowserErrors(page);
   await mockQuestionWidget(page);
   await page.route("**/api/kody/guided-flows", async (route) => {
     if (route.request().method() === "GET") {
@@ -192,4 +316,5 @@ test("mounts the same independent widget inside a Guided Flow", async ({
 
   await expect(page.getByText("Correct — the answer is seven.")).toBeVisible();
   await expect(page.getByText("GuidedFlow completed.")).toBeVisible();
+  expect(browserErrors).toEqual([]);
 });

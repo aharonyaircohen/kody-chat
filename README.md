@@ -61,6 +61,8 @@ pnpm dev:dashboard    # dashboard app (port 3333)
 
 - [UI design principles](docs/ui-design-principles.md) — guidance for keeping
   dashboard pages simple, clear, and easy to verify.
+- [Widget contract](docs/widget-contract.md) — the small mount, CMS, and Kody
+  interaction boundary for business-authored widgets.
 
 ## Migration status
 

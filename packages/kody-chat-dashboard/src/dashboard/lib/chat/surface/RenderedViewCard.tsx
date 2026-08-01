@@ -20,6 +20,7 @@ import {
   type RenderedViewUiNode,
 } from "../../chat-ui-actions";
 import { WidgetHost } from "./WidgetHost";
+import type { WidgetHostEvent } from "./widget-host";
 
 export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
   if (node.type === "checkbox") return true;
@@ -95,12 +96,12 @@ export function RenderedViewCard({
   view,
   disabled,
   onAction,
-  onReply,
+  onWidgetEvent,
 }: {
   view: RenderedViewDirective;
   disabled: boolean;
   onAction: (action: RenderedViewAction) => void;
-  onReply?: (message: string) => void;
+  onWidgetEvent?: (event: WidgetHostEvent) => void;
 }) {
   const ui = getRenderedViewUi(view);
   const [formValues, setFormValues] = useState<
@@ -314,17 +315,15 @@ export function RenderedViewCard({
           data={node.data}
           preview={node.preview}
           disabled={disabled}
-          onReply={(message) => onReply?.(message)}
-          onComplete={(actionId, result) =>
-            // Exactly a button click: same tracking + onAction path, so
-            // guided-flow steps advance and chat replies are sent as usual.
-            trackAction({
-              id: actionId,
-              label: actionId,
-              response: actionId,
-              ...(result ? { result } : {}),
-            })
-          }
+          onEvent={(event) => {
+            if (event.type === "submit-result") {
+              trackSystemEvent("ui.action.clicked", {
+                viewId: view.rendererSlug,
+                actionId: event.actionId,
+              });
+            }
+            onWidgetEvent?.(event);
+          }}
         />
       );
     }

@@ -56,6 +56,22 @@ describe("active rendered view", () => {
     );
   });
 
+  it("keeps the widget active when its Kody request is a hidden model turn", () => {
+    const messages: Message[] = [
+      viewMessage,
+      {
+        role: "user",
+        content: "Widget request for Kody",
+        hidden: true,
+      },
+      { role: "assistant", content: "Here is the requested explanation." },
+    ];
+
+    expect(isRenderedViewMessageActive(messages, 0, new Set<string>())).toBe(
+      true,
+    );
+  });
+
   it("disables the widget after completion or a later user turn", () => {
     expect(
       isRenderedViewMessageActive([viewMessage], 0, new Set(["question-view"])),

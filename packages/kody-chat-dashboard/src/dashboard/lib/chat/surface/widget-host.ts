@@ -3,7 +3,7 @@
  * @domain widgets
  * @pattern widget-host-contract
  * @ai-summary Pure helpers for the widget host: its mount contract, scoped CMS
- *   client, reply normalization, bundle-URL construction, and module-shape
+ *   client, Kody-action validation, bundle-URL construction, and module-shape
  *   validation. Kept free of React so unit tests run in node.
  */
 
@@ -18,6 +18,39 @@ export interface WidgetCmsClient {
   get: (collection: string, id: string) => Promise<CmsDocument>;
 }
 
+export interface WidgetPostToChatRequest {
+  content: string;
+}
+
+export interface WidgetSendToKodyRequest {
+  message: string;
+}
+
+export interface WidgetSubmitResultRequest {
+  actionId: string;
+  data?: Record<string, unknown>;
+}
+
+/** Kody-owned actions available to every mounted widget. */
+export interface WidgetKodyApi {
+  /** Adds widget-authored text to the current chat without starting an AI turn. */
+  postToChat: (request: WidgetPostToChatRequest) => void;
+  /** Sends a widget-authored message through the current Kody chat pipeline. */
+  sendToKody: (request: WidgetSendToKodyRequest) => void;
+  /** Reports a final interaction result to the widget's current host. */
+  submitResult: (request: WidgetSubmitResultRequest) => void;
+}
+
+/** Validated widget event forwarded unchanged to the owning chat surface. */
+export type WidgetHostEvent =
+  | { type: "post-to-chat"; content: string }
+  | { type: "send-to-kody"; message: string }
+  | {
+      type: "submit-result";
+      actionId: string;
+      data?: Record<string, unknown>;
+    };
+
 /** Props the host passes to a widget's `mount(element, props)`. */
 export interface WidgetMountProps {
   /** The `data` value from the widget view node — opaque to kody. */
@@ -25,13 +58,8 @@ export interface WidgetMountProps {
   theme: "dark" | "light";
   /** Repository-scoped access through Kody's existing CMS permission layer. */
   cms: WidgetCmsClient;
-  /** Adds assistant feedback without consuming the current view. */
-  reply: (message: string) => void;
-  /**
-   * Submits the widget's outcome to its current host. The widget does not know
-   * whether it was mounted by Chat, a GuidedFlow, or another compatible view.
-   */
-  complete: (actionId: string, result?: Record<string, unknown>) => void;
+  /** Kody interaction boundary; business behavior remains widget-owned. */
+  kody: WidgetKodyApi;
 }
 
 export type WidgetCleanup = (() => void) | void;
@@ -149,9 +177,41 @@ export function createWidgetCmsClient(
   };
 }
 
-export function normalizeWidgetReply(message: string): string | null {
-  const normalized = message.trim();
+export function normalizeWidgetTextRequest(
+  request: unknown,
+  field: "content" | "message",
+): string | null {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return null;
+  }
+  const value = (request as Record<string, unknown>)[field];
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
   return normalized || null;
+}
+
+export function normalizeWidgetSubmitResult(
+  request: unknown,
+): WidgetSubmitResultRequest | null {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    return null;
+  }
+  const value = request as Record<string, unknown>;
+  if (typeof value.actionId !== "string") return null;
+  const actionId = value.actionId.trim();
+  if (!actionId) return null;
+  if (
+    value.data !== undefined &&
+    (!value.data || typeof value.data !== "object" || Array.isArray(value.data))
+  ) {
+    return null;
+  }
+  return {
+    actionId,
+    ...(value.data !== undefined
+      ? { data: value.data as Record<string, unknown> }
+      : {}),
+  };
 }
 
 /**

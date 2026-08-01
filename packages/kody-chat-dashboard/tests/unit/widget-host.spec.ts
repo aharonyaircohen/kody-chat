@@ -1,6 +1,6 @@
 /**
  * Widget host pure helpers: bundle URL construction with query-param auth,
- * CMS access, reply normalization, and mount-contract module validation.
+ * CMS access, Kody-action validation, and mount-contract module validation.
  * The React component itself is
  * not rendered here (no DOM test environment in this repo — see
  * kody-chat-no-auto-dispatch.spec.ts).
@@ -12,7 +12,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildWidgetBundleUrl,
   createWidgetCmsClient,
-  normalizeWidgetReply,
+  normalizeWidgetSubmitResult,
+  normalizeWidgetTextRequest,
   resolveWidgetMount,
   resolveWidgetPreviewData,
 } from "../../src/dashboard/lib/chat/surface/widget-host";
@@ -145,9 +146,37 @@ describe("createWidgetCmsClient", () => {
   });
 });
 
-describe("normalizeWidgetReply", () => {
-  it("trims visible replies and rejects empty replies", () => {
-    expect(normalizeWidgetReply("  Try again.  ")).toBe("Try again.");
-    expect(normalizeWidgetReply(" \n ")).toBeNull();
+describe("normalizeWidgetTextRequest", () => {
+  it("trims the requested text field and rejects invalid requests", () => {
+    expect(
+      normalizeWidgetTextRequest({ content: "  Try again.  " }, "content"),
+    ).toBe("Try again.");
+    expect(
+      normalizeWidgetTextRequest({ content: " \n " }, "content"),
+    ).toBeNull();
+    expect(normalizeWidgetTextRequest({ content: 42 }, "content")).toBeNull();
+    expect(normalizeWidgetTextRequest(null, "content")).toBeNull();
+  });
+});
+
+describe("normalizeWidgetSubmitResult", () => {
+  it("accepts a non-empty action and opaque object data", () => {
+    expect(
+      normalizeWidgetSubmitResult({
+        actionId: "  correct  ",
+        data: { selectedOptionId: "seven" },
+      }),
+    ).toEqual({
+      actionId: "correct",
+      data: { selectedOptionId: "seven" },
+    });
+  });
+
+  it("rejects malformed completion requests", () => {
+    expect(normalizeWidgetSubmitResult({ actionId: " " })).toBeNull();
+    expect(
+      normalizeWidgetSubmitResult({ actionId: "correct", data: [] }),
+    ).toBeNull();
+    expect(normalizeWidgetSubmitResult(null)).toBeNull();
   });
 });

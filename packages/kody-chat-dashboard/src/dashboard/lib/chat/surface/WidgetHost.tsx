@@ -5,7 +5,7 @@
  * @ai-summary Mounts a tenant-published widget bundle inside a rendered
  *   view: dynamic-imports `/api/kody/widgets/<slug>` (auth via query params
  *   from the existing auth context) and calls the module's default export
- *   with data, theme, scoped CMS operations, reply, and complete.
+ *   with data, theme, scoped CMS operations, and the small Kody action API.
  *   Shows a graceful "widget unavailable" box when loading or mounting
  *   fails. No tenant code ever runs on the server — browser-only.
  */
@@ -17,10 +17,11 @@ import { useTheme } from "../../../providers/Theme";
 import {
   buildWidgetBundleUrl,
   createWidgetCmsClient,
-  normalizeWidgetReply,
+  normalizeWidgetSubmitResult,
+  normalizeWidgetTextRequest,
   resolveWidgetMount,
   resolveWidgetPreviewData,
-  type WidgetMountProps,
+  type WidgetHostEvent,
 } from "./widget-host";
 
 /**
@@ -39,16 +40,14 @@ export function WidgetHost({
   data,
   preview = false,
   disabled,
-  onComplete,
-  onReply,
+  onEvent,
 }: {
   slug: string;
   version?: number;
   data: unknown;
   preview?: boolean;
   disabled: boolean;
-  onComplete: WidgetMountProps["complete"];
-  onReply: WidgetMountProps["reply"];
+  onEvent: (event: WidgetHostEvent) => void;
 }) {
   const { auth } = useAuth();
   const { theme } = useTheme();
@@ -57,10 +56,8 @@ export function WidgetHost({
 
   // Latest-value refs so the mounted widget's `complete` respects the
   // card's current disabled state without remounting the bundle.
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
-  const onReplyRef = useRef(onReply);
-  onReplyRef.current = onReply;
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
 
@@ -98,14 +95,32 @@ export function WidgetHost({
           data: preview ? resolveWidgetPreviewData(module) : data,
           theme: resolvedTheme,
           cms: createWidgetCmsClient(cmsAuthHeaders),
-          reply: (message) => {
-            if (disabledRef.current) return;
-            const normalized = normalizeWidgetReply(message);
-            if (normalized) onReplyRef.current(normalized);
-          },
-          complete: (actionId, actionResult) => {
-            if (disabledRef.current) return;
-            onCompleteRef.current(actionId, actionResult);
+          kody: {
+            postToChat: (request) => {
+              if (disabledRef.current) return;
+              const content = normalizeWidgetTextRequest(request, "content");
+              if (content) {
+                onEventRef.current({ type: "post-to-chat", content });
+              }
+            },
+            sendToKody: (request) => {
+              if (disabledRef.current) return;
+              const message = normalizeWidgetTextRequest(request, "message");
+              if (message) {
+                onEventRef.current({ type: "send-to-kody", message });
+              }
+            },
+            submitResult: (request) => {
+              if (disabledRef.current) return;
+              const result = normalizeWidgetSubmitResult(request);
+              if (result) {
+                onEventRef.current({
+                  type: "submit-result",
+                  actionId: result.actionId,
+                  ...(result.data ? { data: result.data } : {}),
+                });
+              }
+            },
           },
         });
         if (typeof result === "function") cleanup = result;

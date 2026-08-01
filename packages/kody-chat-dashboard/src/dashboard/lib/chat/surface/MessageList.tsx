@@ -41,6 +41,7 @@ import {
   type RenderedViewDirective,
 } from "../../chat-ui-actions";
 import { RenderedViewCard } from "./RenderedViewCard";
+import type { WidgetHostEvent } from "./widget-host";
 import {
   resolveTextDirection,
   rtlAwareMarkdownClassName,
@@ -79,8 +80,8 @@ interface MessageListProps {
     view: RenderedViewDirective,
     action: RenderedViewAction,
   ) => void;
-  /** Adds widget-owned feedback without consuming the rendered view. */
-  onRenderedViewReply: (view: RenderedViewDirective, message: string) => void;
+  /** Forwards a validated widget event to the chat surface that owns it. */
+  onWidgetEvent: (view: RenderedViewDirective, event: WidgetHostEvent) => void;
   /** Mode-specific empty-transcript content, shown when no messages exist. */
   emptyState: ReactNode;
   /** Mounted terminal surfaces, rendered inside the scroll container. */
@@ -116,6 +117,7 @@ export function isRenderedViewMessageActive(
 
   return messages
     .slice(messageIndex + 1)
+    .filter((later) => !later.hidden)
     .every((later) => later.role === "assistant" && !later.view);
 }
 
@@ -130,7 +132,7 @@ export function MessageList({
   toolCalls,
   usedViewIds,
   onRenderedViewAction,
-  onRenderedViewReply,
+  onWidgetEvent,
   emptyState,
   terminalSurfaces,
   roleLayout = "dashboard",
@@ -386,10 +388,10 @@ export function MessageList({
                                     action,
                                   )
                                 }
-                                onReply={(message) =>
-                                  onRenderedViewReply(
+                                onWidgetEvent={(event) =>
+                                  onWidgetEvent(
                                     msg.view as RenderedViewDirective,
-                                    message,
+                                    event,
                                   )
                                 }
                               />
