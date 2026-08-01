@@ -145,6 +145,32 @@ describe("isRenderedViewDirective", () => {
     ).toBe(true);
   });
 
+  it("accepts a durable generic result and rejects malformed results", () => {
+    const completedView = {
+      action: RENDER_VIEW_DIRECTIVE,
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "question-select",
+      rendererName: "Question",
+      resultTarget: "chat",
+      ui: { type: "widget", widget: "question-select" },
+      data: {},
+      result: {
+        actionId: "correct",
+        data: { selectedOptionIds: ["option-1"] },
+        completedAt: "2026-08-01T12:00:00.000Z",
+      },
+    };
+
+    expect(isRenderedViewDirective(completedView)).toBe(true);
+    expect(
+      isRenderedViewDirective({
+        ...completedView,
+        result: { actionId: "correct" },
+      }),
+    ).toBe(false);
+  });
+
   it("rejects unknown renderer block types and unsafe result targets", () => {
     expect(
       isRenderedViewDirective({

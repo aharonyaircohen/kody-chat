@@ -185,6 +185,12 @@ export interface RenderedViewDirective {
   };
   ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
+  /** Durable completion state for an interactive view instance. */
+  result?: {
+    actionId: string;
+    data?: Record<string, unknown>;
+    completedAt: string;
+  };
 }
 
 export type ChatViewDirective = RenderedViewDirective;
@@ -341,6 +347,24 @@ export function isRenderedViewDirective(
       typeof (flow as Record<string, unknown>).instanceId !== "string" ||
       typeof (flow as Record<string, unknown>).stepId !== "string" ||
       typeof (flow as Record<string, unknown>).revision !== "number"
+    ) {
+      return false;
+    }
+  }
+  if (v.result !== undefined) {
+    const result = v.result;
+    if (
+      !result ||
+      typeof result !== "object" ||
+      typeof (result as Record<string, unknown>).actionId !== "string" ||
+      typeof (result as Record<string, unknown>).completedAt !== "string"
+    ) {
+      return false;
+    }
+    const resultData = (result as Record<string, unknown>).data;
+    if (
+      resultData !== undefined &&
+      (!resultData || typeof resultData !== "object" || Array.isArray(resultData))
     ) {
       return false;
     }

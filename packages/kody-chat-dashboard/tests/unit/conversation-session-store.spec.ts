@@ -156,4 +156,33 @@ describe("conversation session store", () => {
       }),
     ]);
   });
+
+  it("persists a completion result added to an existing rendered view", () => {
+    const message = {
+      id: "a1",
+      role: "assistant" as const,
+      text: "Widget opened.",
+      timestamp: "2026-07-20T10:00:00.000Z",
+      view: renderedView,
+    };
+    const completedView = {
+      ...renderedView,
+      result: {
+        actionId: "correct",
+        completedAt: "2026-08-01T12:00:00.000Z",
+      },
+    };
+
+    expect(
+      reconcileConversationMessages(
+        [message],
+        [{ ...message, view: completedView }],
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        kind: "update",
+        message: expect.objectContaining({ view: completedView }),
+      }),
+    ]);
+  });
 });

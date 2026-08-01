@@ -1830,6 +1830,23 @@ export function KodyChat({
       if (view.resultTarget === "guided-flow") {
         handleRenderedViewAction(view, action);
       } else {
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.view?.id === view.id
+              ? {
+                  ...message,
+                  view: {
+                    ...message.view,
+                    result: {
+                      actionId: event.actionId,
+                      ...(event.data ? { data: event.data } : {}),
+                      completedAt: new Date().toISOString(),
+                    },
+                  },
+                }
+              : message,
+          ),
+        );
         setUsedViewIds((previous) => new Set(previous).add(view.id));
       }
     },

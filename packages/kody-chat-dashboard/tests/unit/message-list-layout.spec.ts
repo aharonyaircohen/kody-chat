@@ -85,6 +85,27 @@ describe("active rendered view", () => {
     ).toBe(false);
   });
 
+  it("keeps a completed widget disabled after conversation hydration", () => {
+    const completedMessage: Message = {
+      ...viewMessage,
+      view: {
+        ...widgetView,
+        result: {
+          actionId: "correct",
+          completedAt: "2026-08-01T12:00:00.000Z",
+        },
+      },
+    };
+
+    expect(
+      isRenderedViewMessageActive(
+        [completedMessage],
+        0,
+        new Set<string>(),
+      ),
+    ).toBe(false);
+  });
+
   it("keeps only the latest unresolved view active", () => {
     const messages: Message[] = [
       viewMessage,

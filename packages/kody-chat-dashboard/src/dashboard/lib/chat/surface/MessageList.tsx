@@ -110,6 +110,7 @@ export function isRenderedViewMessageActive(
   if (
     !message?.view ||
     !isRenderedViewDirective(message.view) ||
+    message.view.result !== undefined ||
     usedViewIds.has(message.view.id)
   ) {
     return false;

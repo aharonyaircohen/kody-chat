@@ -165,11 +165,15 @@ export function WidgetHost({
     );
   }
   return (
-    <div data-widget-slug={slug}>
+    <div
+      data-widget-slug={slug}
+      aria-disabled={disabled || undefined}
+      className={disabled ? "pointer-events-none opacity-60" : undefined}
+    >
       {status === "loading" ? (
         <div className="text-xs text-muted-foreground">Loading widget…</div>
       ) : null}
-      <div ref={containerRef} />
+      <div ref={containerRef} inert={disabled || undefined} />
     </div>
   );
 }
