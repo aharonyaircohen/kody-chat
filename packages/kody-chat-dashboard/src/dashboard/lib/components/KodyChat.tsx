@@ -550,6 +550,7 @@ export function KodyChat({
     effectiveActorLogin !== null,
   );
   const createChatSession = sessionHook.createSession;
+  const setChatSessionMessages = sessionHook.setSessionMessages;
   createGuidedFlowSessionRef.current = createChatSession;
   activateGuidedFlowSessionRef.current = sessionHook.switchSession;
 
@@ -1149,7 +1150,7 @@ export function KodyChat({
       updater: Message[] | ((prev: Message[]) => Message[]),
       options?: { persist?: boolean },
     ) => {
-      sessionHook.setSessionMessages(
+      setChatSessionMessages(
         sessionId,
         (prevChat: ChatMessage[]) => {
           const newMessages =
@@ -1161,10 +1162,9 @@ export function KodyChat({
         options,
       );
     },
-    [sessionHook],
+    [setChatSessionMessages],
   );
   useEffect(() => {
-    if (!sessionHook.hydrated || lockedAgentSlug) return;
     const openWidget = (request: WidgetOpenRequest) => {
       const sessionId = request.conversationId ?? ensureChatSession();
       const view = buildWidgetPreviewView(
@@ -1196,8 +1196,6 @@ export function KodyChat({
       window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
   }, [
     ensureChatSession,
-    lockedAgentSlug,
-    sessionHook.hydrated,
     setMessagesForSession,
   ]);
   persistGuidedFlowMessageRef.current = (sessionId, message) => {
