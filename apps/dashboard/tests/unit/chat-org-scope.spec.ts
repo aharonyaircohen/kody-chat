@@ -57,7 +57,7 @@ describe("KodyChat org scope", () => {
 
   it("keeps org pages in global chat UI mode", () => {
     expect(KODY_CHAT_SOURCE).toMatch(
-      /const\s+isGlobalMode\s*=\s*!isTaskMode\s*&&\s*!isCapabilityMode\s*&&\s*!isPlannerMode;/,
+      /const\s+isGlobalMode\s*=\s*!isTaskMode\s*&&\s*!isCapabilityMode;/,
     );
     expect(KODY_CHAT_SOURCE).not.toMatch(/!selectedOrg && !isTaskMode/);
   });

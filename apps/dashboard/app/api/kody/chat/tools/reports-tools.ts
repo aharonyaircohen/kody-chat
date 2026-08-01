@@ -2,9 +2,9 @@
  * @fileType util
  * @domain reports
  * @pattern chat-tools
- * @ai-summary Chat tools for goal/loop report families in the configured
+ * @ai-summary Chat tools for report families in the configured
  *   Kody backend — list, read, and publish a timestamped run.
- *   Reports are the Dashboard-facing summaries produced after goals/loops apply evidence.
+ *   Reports are Dashboard-facing summaries produced by engine runs.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -19,7 +19,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
   return {
     list_reports: tool({
-      description: `List the goal/loop reports in ${repoRef} (backend reports/). Returns slug, title, and last-updated for each report.`,
+      description: `List reports in ${repoRef} (backend reports/). Returns slug, title, and last-updated for each report.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -41,7 +41,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
     }),
 
     read_report: tool({
-      description: `Read one goal/loop report from ${repoRef} in full.`,
+      description: `Read one report from ${repoRef} in full.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

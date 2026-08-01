@@ -5,7 +5,7 @@
  * @ai-summary Shared "is the repo able to host Discussions, and which
  *   category do we file under" probe. Auto-enables Discussions with the
  *   user's PAT when off. Used by the messaging-channels API (and mirrors
- *   the inline helper in the goal-discussion route).
+ *   inline route helpers).
  */
 import type { Octokit } from "@octokit/rest";
 import {

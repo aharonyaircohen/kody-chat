@@ -32,7 +32,7 @@ export const DEFAULT_WEBHOOK_EVENTS = [
   "push",
   "create",
   "delete",
-  // Goal-discussion threads — invalidates the goal-discussion cache so
+  // GitHub Discussion threads — invalidates the discussion cache so
   // comments posted on github.com show up in the dashboard immediately.
   "discussion",
   "discussion_comment",

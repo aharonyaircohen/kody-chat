@@ -41,11 +41,6 @@ export interface FilterBarProps {
   backlogCount: number;
   historyCount?: number;
   queueCount?: number;
-  /**
-   * When true, the Backlog toggle is disabled (goal-grouped view collapses
-   * the running/backlog distinction and shows every active task).
-   */
-  disableBacklog?: boolean;
   searchQuery?: string;
   onSearchChange?: (value: string) => void;
   sortField?: SortField;
@@ -67,19 +62,13 @@ export function ViewToggle({
   runningCount,
   backlogCount,
   historyCount,
-  disableBacklog = false,
 }: {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   runningCount: number;
   backlogCount: number;
   historyCount?: number;
-  disableBacklog?: boolean;
 }) {
-  // When backlog is disabled the running/backlog split is meaningless — the
-  // entire toggle is suppressed so the goal-grouped view's "all tasks" intent
-  // reads at a glance.
-  if (disableBacklog) return null;
   return (
     <div className="inline-flex items-center rounded-md bg-white/[0.04] p-0.5 gap-0.5">
       <Button
@@ -150,7 +139,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       runningCount,
       backlogCount,
       historyCount,
-      disableBacklog,
       searchQuery = "",
       onSearchChange,
       sortField = "updatedAt",
@@ -187,15 +175,13 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       // Inline cluster — the host (KodyHeader) owns the row chrome now that the
       // filter controls live in the merged top bar, not a standalone sub-row.
       <div className="flex items-center gap-3">
-        {/* View toggle — Running / Backlog. Hidden in goal-grouped view where
-          all tasks are shown together under their goal sections. */}
+        {/* View toggle — Running / Backlog. */}
         <ViewToggle
           viewMode={viewMode}
           onViewModeChange={onViewModeChange}
           runningCount={runningCount}
           backlogCount={backlogCount}
           historyCount={historyCount}
-          disableBacklog={disableBacklog}
         />
 
         {/* Search — collapses to an icon button until clicked or `/`. */}

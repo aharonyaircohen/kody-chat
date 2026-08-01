@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   try {
     const tenantId = `${headerAuth.owner}/${headerAuth.repo}`;
     const workflowMatch = path.match(
-      /^logs\/goals\/([^/]+)\/runs\/([^/]+?)(?:\.jsonl)?$/,
+      /^logs\/workflows\/([^/]+)\/runs\/([^/]+?)(?:\.jsonl)?$/,
     );
     if (workflowMatch) {
       const workflowId = workflowMatch[1]!;

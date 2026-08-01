@@ -35,7 +35,6 @@ describe("repo-scoped task link surfaces", () => {
       "ActivityPage.tsx",
       "HappeningNow.tsx",
       "InboxList.tsx",
-      "GoalControl.tsx",
     ]) {
       const source = componentSource(file);
       expect(source, file).toContain("repoScopedHref");

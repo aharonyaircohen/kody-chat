@@ -176,13 +176,13 @@ This is a Next.js App Router application with:
 - For a UI issue, check the actual route or rendered surface.
 - For a state issue, inspect the persisted state file or branch.
 - For a GitHub issue or PR problem, inspect the issue, PR, workflow run, comments, or state record directly.
-- For release-loop questions, persisted goal logs and state beat the workflow name or a green wrapper run.
+- For release-loop questions, persisted run logs and state beat the workflow name or a green wrapper run.
 - For preview questions, separate preview URL, preview comment, preview provider, and preview result.
 - A success toast or wrapper success only proves dispatch/request success; inspect child state for the real outcome.
 
 ## Kody Language
 
-- Use current words: `capability`, `capability call`, `workflow`, `goal`, `loop`, `agent`, and `targetWorkspace`.
+- Use current words: `capability`, `capability call`, `workflow`, `loop`, `agent`, and `targetWorkspace`.
 - Treat older model words as migration history unless the code being inspected still uses them.
 - A reusable capability does not own workspace.
 - A capability call owns `targetWorkspace`.

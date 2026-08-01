@@ -15,7 +15,6 @@ const kindSchema = z.enum([
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ]);
 const createSchema = z.object({

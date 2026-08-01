@@ -217,41 +217,10 @@ export type ChatContext =
     }
   | {
       /**
-       * Chat scoped to planning a single Goal. The agent decomposes the
-       * goal description into a task list (Pass 1, text-only) and, after
-       * user approval, creates GitHub issues attached to the goal via
-       * `create_task_for_goal` (Pass 2). See system-prompt's "Goal
-       * planning mode" block for the full workflow.
-       */
-      kind: "goal-planner";
-      goal: import("./integration-api").Goal;
-      /** Stable id for this planner chat session (for keyed message stores). */
-      sessionId: string;
-      /**
-       * Snapshot of tasks already attached to the goal — passed into the
-       * system prompt so the planner doesn't propose duplicates. Optional;
-       * caller may omit when no tasks exist yet.
-       */
-      existingTasks?: Array<{ number: number; title: string; state?: string }>;
-      /**
-       * Fired after the planner creates one or more tasks so the host page
-       * can refresh its task list. Optional.
-       */
-      onTasksCreated?: () => void;
-      /**
-       * Fired when the user wants to exit planner mode (e.g. clicks the X
-       * in the chat's "Planning" badge). The host should clear its
-       * `planningGoal` state so the chat falls back to its normal
-       * task/global context.
-       */
-      onExit?: () => void;
-    }
-  | {
-      /**
        * Chat scoped to a system report family surfaced on `/reports`.
        * The agent receives the report's title + body and is framed to
-       * advise whether the user should: (a) create an issue from this report,
-       * (b) attach it to a goal, or (c) take no action — sometimes a report
+       * advise whether the user should create an issue from this report or
+       * take no action — sometimes a report
        * is informational and needs no follow-up.
        */
       kind: "report";

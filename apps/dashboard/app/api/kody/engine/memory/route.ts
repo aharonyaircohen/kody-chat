@@ -13,7 +13,7 @@ export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 const memoryId = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,127}$/);
-const kind = z.enum(["preference", "fact", "decision", "goal", "reference"]);
+const kind = z.enum(["preference", "fact", "decision", "reference"]);
 const runId = z.string().trim().min(1).max(256);
 const contentFields = {
   title: z.string().trim().min(3).max(120),

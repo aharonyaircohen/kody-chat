@@ -118,24 +118,6 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "if I confirm — never dispatch automatically.",
   },
   {
-    slug: "goal",
-    description: "Create an AI Agency goal",
-    argumentHint: "<outcome>",
-    body:
-      'Create a new AI Agency goal for "$ARGUMENTS".\n\n' +
-      "Use the managed goal model: outcome, proof/evidence, route, facts, and blockers. " +
-      "Prefer managed-goal tools when available. Keep the first route simple.",
-  },
-  {
-    slug: "mission",
-    description: "Create a mission task group",
-    argumentHint: "<title>",
-    body:
-      'Create a new mission titled "$ARGUMENTS".\n\n' +
-      "A mission is the old task grouping under the task page: it collects concrete tasks toward one focused effort. " +
-      "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
-  },
-  {
     slug: "analyze",
     description: "Analyze the current issue/PR/run on this page",
     body:

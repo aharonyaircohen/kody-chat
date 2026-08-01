@@ -103,7 +103,6 @@ import {
 import type { TerminalIntentEffectPayload } from "../chat/plugins/terminal/intent-middleware";
 import type { ChatTerminalMode } from "../chat/plugins/terminal/types";
 import type { SlashExpansionEffectPayload } from "../chat/plugins/commands";
-import type { GoalDirectEffectPayload } from "../chat/plugins/goals";
 import {
   isDashboardNavigateDirective,
   isPreviewActDirective,
@@ -387,11 +386,6 @@ export interface SendTextDeps {
     Extract<ChatContext, { kind: "capability" }>["capability"] | null;
   selectedOrg: Extract<ChatContext, { kind: "org" }> | null;
   selectedReport: Extract<ChatContext, { kind: "report" }>["report"] | null;
-  isPlannerMode: boolean;
-  plannerGoal: Extract<ChatContext, { kind: "goal-planner" }>["goal"] | null;
-  plannerExistingTasks:
-    Extract<ChatContext, { kind: "goal-planner" }>["existingTasks"] | undefined;
-  onPlannerTasksCreated: (() => void) | undefined;
   onIssueCreated: KodyChatProps["onIssueCreated"];
   onRenderedViewInvalidate?: never;
   vibeMode: KodyChatProps["vibeMode"];
@@ -492,10 +486,6 @@ async function runSendTextInner(
     selectedCapability,
     selectedOrg,
     selectedReport,
-    isPlannerMode,
-    plannerGoal,
-    plannerExistingTasks,
-    onPlannerTasksCreated,
     onIssueCreated,
     vibeMode,
     context,
@@ -1231,20 +1221,6 @@ async function runSendTextInner(
                 },
               }
             : {}),
-          ...(isPlannerMode && plannerGoal
-            ? {
-                goalPlanner: true,
-                goal: {
-                  id: plannerGoal.id,
-                  name: plannerGoal.name,
-                  description: plannerGoal.description,
-                  dueDate: plannerGoal.dueDate,
-                  ...(plannerExistingTasks
-                    ? { existingTasks: plannerExistingTasks }
-                    : {}),
-                },
-              }
-            : {}),
         },
       } satisfies KodyDirectTurnConfig;
       await runChatTurn({
@@ -1365,18 +1341,6 @@ async function runSendTextInner(
         isDashboardNavigateDirective(pendingDashboardNavigate)
       ) {
         runDashboardNavigateFromDirective(pendingDashboardNavigate);
-      }
-      // Planner mode: a Pass 2 turn typically creates one or more issues
-      // via `create_task_for_goal`. We can't observe per-tool results
-      // from this stream protocol cheaply, so fire the host callback on
-      // every successful planner completion. The host (GoalControl)
-      // invalidates `useKodyTasks`; the cache layer dedups the cost.
-      if (isPlannerMode && onPlannerTasksCreated) {
-        try {
-          onPlannerTasksCreated();
-        } catch {
-          // Host callback errors should never break the chat.
-        }
       }
       // Issue-creation navigation: the unified chat thread does NOT
       // migrate per-issue. The conversation that created the issue
@@ -1644,8 +1608,6 @@ export interface SendMessageDeps {
   contextChips: Array<{ id: string; label: string; context: string }>;
   isKodyWaiting: boolean;
   selectedTask: KodyTask | null;
-  plannerGoal: Extract<ChatContext, { kind: "goal-planner" }>["goal"] | null;
-  onDirectToGoal: KodyChatProps["onDirectToGoal"];
   // Composer state writers
   setInput: (value: string) => void;
   setContextChips: (chips: SendMessageDeps["contextChips"]) => void;
@@ -1660,10 +1622,8 @@ export interface SendMessageDeps {
   handlePluginHostEffect: MiddlewareContext["dispatchHostEffect"];
   pendingTerminalIntentRef: MutableRefObject<TerminalIntentEffectPayload | null>;
   pendingSlashExpansionRef: MutableRefObject<SlashExpansionEffectPayload | null>;
-  pendingGoalDirectRef: MutableRefObject<GoalDirectEffectPayload | null>;
   consumePendingTerminalIntent: () => TerminalIntentEffectPayload | null;
   consumePendingSlashExpansion: () => SlashExpansionEffectPayload | null;
-  consumePendingGoalDirect: () => GoalDirectEffectPayload | null;
   // Terminal + preview
   sendInputToTerminal: () => void;
   sendKodyTerminalPayloadToTerminal: (payload: string) => boolean;
@@ -1680,8 +1640,6 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
     contextChips,
     isKodyWaiting,
     selectedTask,
-    plannerGoal,
-    onDirectToGoal,
     setInput,
     setContextChips,
     setAttachments,
@@ -1694,10 +1652,8 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
     handlePluginHostEffect,
     pendingTerminalIntentRef,
     pendingSlashExpansionRef,
-    pendingGoalDirectRef,
     consumePendingTerminalIntent,
     consumePendingSlashExpansion,
-    consumePendingGoalDirect,
     sendInputToTerminal,
     sendKodyTerminalPayloadToTerminal,
     previewActChainRef,
@@ -1776,10 +1732,8 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
     return;
   }
 
-  // Plugin send-middleware chain (Step 4). The goals plugin's
-  // goal-mention middleware (order 50, Step 5d) CONSUMES a message that
-  // mentions a known goal (`#<n>` / `goal:<n>`); the terminal plugin's
-  // terminal-intent middleware (order 100, Step 5a) rewrites
+  // Plugin send-middleware chain (Step 4). The terminal plugin's
+  // terminal-intent middleware rewrites
   // `/terminal <x>` to the Kody terminal prompt; the commands plugin's
   // slash-expansion middleware (order 200, Step 5b) expands
   // `/review` / `/explain foo` into the command body with $ARGUMENTS
@@ -1792,29 +1746,11 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
   // that consumes the message stops the send.
   pendingTerminalIntentRef.current = null;
   pendingSlashExpansionRef.current = null;
-  pendingGoalDirectRef.current = null;
   const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
     host: pluginHost,
     dispatchHostEffect: handlePluginHostEffect,
   });
   if (middlewareOutcome.consumedBy) {
-    // "Direct chat to a goal by id": re-scope this chat to the mentioned
-    // goal's planner and keep the rest of the message in the composer
-    // for the user to send into the now-goal-scoped thread. Consuming
-    // the mention on its own Enter keeps it race-free (the scope swap
-    // drives a re-render before anything is sent). A mention of the
-    // goal we're already in just strips the token (the `!==` guard
-    // skips a redundant re-scope).
-    const goalDirect = consumePendingGoalDirect();
-    if (goalDirect) {
-      if (goalDirect.goalId !== plannerGoal?.id) {
-        onDirectToGoal?.(goalDirect.goalId);
-      }
-      setInput(goalDirect.rest);
-      setSlashMenuOpen(false);
-      setSlashSelectedIndex(0);
-      return;
-    }
     setInput("");
     setSlashMenuOpen(false);
     setAgentMentionTrigger(null);

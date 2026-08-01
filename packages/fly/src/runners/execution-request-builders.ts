@@ -29,18 +29,6 @@ export function issueExecutionRequest(
   };
 }
 
-export function goalExecutionRequest(
-  requestId: string,
-  goalId: string,
-): EngineExecutionRequest {
-  return {
-    requestId,
-    target: { type: "goal", id: goalId },
-    intent: "manage",
-    source: "dashboard",
-  };
-}
-
 export function withStoreTarget(
   request: EngineExecutionRequest,
   target: KodyStoreTarget | null | undefined,

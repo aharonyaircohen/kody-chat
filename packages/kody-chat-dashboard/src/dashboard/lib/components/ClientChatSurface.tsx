@@ -5,7 +5,7 @@
  * @ai-summary Public/client route shell: ChatSurface composition (Step 6).
  *   The brand becomes a branding plugin (theme capability); the surface
  *   registers ONLY branding + commands under a minimal grant, so the
- *   /client chunk never imports terminal/vibe/goals plugin code (M6
+ *   /client chunk never imports terminal/vibe plugin code (M6
  *   per-surface imports). Grants gate client-side composition only — not a
  *   security boundary (plan M6). KodyChat props stay the frozen trio
  *   (presentation / hideTerminalMode / railFullscreen).

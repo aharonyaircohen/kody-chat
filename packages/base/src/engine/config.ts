@@ -20,15 +20,6 @@ export interface KodyQuality {
   testUnit?: string;
 }
 
-export interface ActiveGoalConfigObject {
-  template: string;
-  every?: string;
-  idPrefix?: string;
-  facts?: Record<string, unknown>;
-}
-
-export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
-
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
@@ -78,7 +69,6 @@ export interface KodyConfig {
     activeAgents?: string[];
     activeCapabilities?: string[];
     activeCommands?: string[];
-    activeGoals?: ActiveGoalConfigEntry[];
     activeWorkflows?: string[];
     /** Dashboard-native features (engine ignores this list). */
     activeFeatures?: string[];
@@ -570,44 +560,6 @@ function cleanSlugList(raw: readonly unknown[]): string[] {
   return out;
 }
 
-function cleanActiveGoals(
-  raw: readonly ActiveGoalConfigEntry[],
-): ActiveGoalConfigEntry[] {
-  const seen = new Set<string>();
-  const out: ActiveGoalConfigEntry[] = [];
-  for (const entry of raw) {
-    if (typeof entry === "string") {
-      const slug = cleanSlug(entry);
-      if (!slug || seen.has(slug)) continue;
-      seen.add(slug);
-      out.push(slug);
-      continue;
-    }
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
-    const template = cleanSlug(entry.template);
-    if (!template || seen.has(template)) continue;
-    const cleaned: ActiveGoalConfigObject = { template };
-    if (
-      typeof entry.every === "string" &&
-      /^[1-9][0-9]*[mhdw]$/.test(entry.every.trim())
-    ) {
-      cleaned.every = entry.every.trim();
-    }
-    const idPrefix = cleanSlug(entry.idPrefix);
-    if (idPrefix) cleaned.idPrefix = idPrefix;
-    if (
-      entry.facts &&
-      typeof entry.facts === "object" &&
-      !Array.isArray(entry.facts)
-    ) {
-      cleaned.facts = entry.facts;
-    }
-    seen.add(template);
-    out.push(cleaned);
-  }
-  return out;
-}
-
 function companyRecordFrom(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" && !Array.isArray(raw)
     ? (raw as Record<string, unknown>)
@@ -620,10 +572,9 @@ function setCompanyField(
     | "activeAgents"
     | "activeCapabilities"
     | "activeCommands"
-    | "activeGoals"
     | "activeWorkflows"
     | "activeFeatures",
-  value: string[] | ActiveGoalConfigEntry[],
+  value: string[],
 ): void {
   const prevCompany = companyRecordFrom(next.company);
   if (value.length > 0) {
@@ -685,7 +636,6 @@ export interface ConfigPatch {
   activeAgents?: string[] | null;
   activeCapabilities?: string[] | null;
   activeCommands?: string[] | null;
-  activeGoals?: ActiveGoalConfigEntry[] | null;
   activeWorkflows?: string[] | null;
   activeFeatures?: string[] | null;
   defaultBranch?: string | null;
@@ -780,13 +730,6 @@ export async function writeConfigPatch(
           ? cleanSlugList(patch.activeCommands)
           : [];
         setCompanyField(next, "activeCommands", list);
-      }
-
-      if (patch.activeGoals !== undefined) {
-        const list = patch.activeGoals
-          ? cleanActiveGoals(patch.activeGoals)
-          : [];
-        setCompanyField(next, "activeGoals", list);
       }
 
       if (patch.activeWorkflows !== undefined) {

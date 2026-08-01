@@ -62,7 +62,7 @@ type MessagesUpdater = Message[] | ((prev: Message[]) => Message[]);
 export interface UseLiveRunnerOptions {
   /** The currently selected agent — drives the Fly vs GHA start route. */
   selectedAgentId: AgentId;
-  /** Host chat context (task / capability / goal-planner / …). */
+  /** Host chat context (task / capability / report / …). */
   context: ChatContext | null | undefined;
   vibeMode?: boolean;
   /** Task id when the chat is scoped to a task (drives the scoped SSE). */

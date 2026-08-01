@@ -4,7 +4,7 @@
  * @pattern attachments-api
  * @ai-summary Uploads a comment attachment to the tenant backend and returns
  *   authenticated Dashboard markdown to embed in a comment body.
- *   Shared by every GitHub-backed composer (issues, PRs, goal discussions).
+ *   Shared by every GitHub-backed composer (issues, PRs, discussions).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

@@ -79,7 +79,7 @@ describe("POST /api/kody/engine/memory", () => {
         title: "Use typed memory",
         summary: "The repository uses typed memory.",
         body: "Keep durable repository decisions in typed memory.",
-        runId: "goal:ci-health:source-run-1",
+        runId: "workflow:ci-health:source-run-1",
         reason: "A completed run proved this repository decision.",
       }),
     );
@@ -101,7 +101,9 @@ describe("POST /api/kody/engine/memory", () => {
         summary: "The repository uses typed memory.",
         body: "Keep durable repository decisions in typed memory.",
       },
-      evidence: [{ source: "engine-run", id: "goal:ci-health:source-run-1" }],
+      evidence: [
+        { source: "engine-run", id: "workflow:ci-health:source-run-1" },
+      ],
       reason: "A completed run proved this repository decision.",
     });
   });

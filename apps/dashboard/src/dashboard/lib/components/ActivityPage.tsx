@@ -1027,7 +1027,7 @@ function LogView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         Dashboard actions (capability runs/edits, task actions, vault writes,
-        agent/prompt/goal changes) attributed to the verified GitHub user who
+        agent/prompt changes) attributed to the verified GitHub user who
         made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
         {150} kept) and merged with this instance&apos;s in-memory ring —
         survives redeploys and is shared across instances.

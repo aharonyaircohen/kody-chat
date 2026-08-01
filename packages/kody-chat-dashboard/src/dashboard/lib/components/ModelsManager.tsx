@@ -744,7 +744,7 @@ function ModelEditor({
                   className="font-mono text-xs"
                 />
                 <p className="text-[11px] text-white/40 mt-1">
-                  Per-turn tool-call rounds. Blank → 10 (30 in goal-planner).
+                  Per-turn tool-call rounds. Blank → 10.
                   Raise for models that need long research chains.
                 </p>
               </div>

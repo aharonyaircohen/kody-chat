@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern messages-hooks
  * @ai-summary React Query hooks for the team messaging feature. Channels =
- *   `#`-titled GitHub Discussions; threads reuse the goal-discussion comment
+ *   `#`-titled GitHub Discussions; threads reuse the discussion comment
  *   feed. Polling cadence stays >=15s per the GitHub rate-limit rules.
  */
 "use client";
@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kodyApi,
-  type GoalDiscussionComment,
+  type DiscussionComment,
   type MessageChannel,
   type MessageChannelsPayload,
   type MessageThreadPayload,
@@ -127,7 +127,7 @@ export function usePostChannelMessage(
   actorLogin?: string,
 ) {
   const queryClient = useQueryClient();
-  return useMutation<GoalDiscussionComment, Error, string>({
+  return useMutation<DiscussionComment, Error, string>({
     mutationFn: (body) =>
       kodyApi.messages.postMessage(channelNumber, body, actorLogin),
     onSuccess: (created) => {

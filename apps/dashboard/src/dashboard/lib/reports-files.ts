@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain kody
  * @pattern reports-files
- * @ai-summary Read-only access to goal/loop reports in the Convex backend
+ * @ai-summary Read-only access to report families in the Convex backend
  *   (reports.list, tenant-scoped by owner/repo). Docs hold the raw markdown
  *   body; flat docs (no runId) are legacy single reports, docs with runId
  *   form append-only report families.

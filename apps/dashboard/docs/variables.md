@@ -165,7 +165,7 @@ per repo.
 Two keys, both in the engine's preflight scripts:
 
 - `QA_URL` — the QA agent's browse target. It's the last fallback in
-  `resolveQaUrl`, after `--url`, a goal's latest Vercel deployment, and
+  `resolveQaUrl`, after `--url`, the latest Vercel deployment, and
   `$PREVIEW_URL`.
 - `LOGIN_USER` — the test-account username. `loadQaContext` pairs it
   with the `LOGIN_PASSWORD` _secret_ (from the vault) to build the

@@ -10,7 +10,7 @@ the engine's model is set on /models. The page is repo-scoped — whatever
 applies, applies to everyone working in the connected repo.
 
 `kody.config.json` lives on the repo's **default branch**, not `Kody backend`.
-The engine's machine-written state (jobs, activity, goals) commits to the
+The engine's machine-written state (jobs and activity) commits to the
 `Kody backend` branch, but config is human-authored and read off `main`. Every
 read and write here goes through the GitHub Contents API with no `ref`, so it
 always targets the default branch.
@@ -159,7 +159,7 @@ override map).
 **Where does `kody.config.json` live — `main` or `Kody backend`?**
 
 The default branch (`main`). Config is human-authored; only machine-written
-state (jobs, activity, goals) goes to `Kody backend`. Reads and writes here use
+state (jobs and activity) goes to `Kody backend`. Reads and writes here use
 the Contents API with no `ref`, which always targets the default branch.
 
 **I picked a model on /models but the engine still runs the old one.**

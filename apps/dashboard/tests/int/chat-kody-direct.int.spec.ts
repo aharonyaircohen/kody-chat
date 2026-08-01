@@ -211,7 +211,7 @@ describe("POST /api/kody/chat/kody", () => {
 
   it("base kody prompt tells the model to read injected context blocks before answering", async () => {
     // Regression: model used to ignore ## Current task / Current capability /
-    // Current page / Goals / Remembered context blocks and answer as if it
+    // Current page / Remembered context blocks and answer as if it
     // were a fresh session. Hard rule #2 now explicitly grounds answers
     // in those blocks. Prompt lives in the chat-defaults bundle agentIdentity.
     const { loadChatDefaults } =
@@ -223,7 +223,6 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toContain("## Current capability");
     expect(prompt).toContain("## Current report");
     expect(prompt).toContain("## Current page");
-    expect(prompt).toContain("## Goals");
     expect(prompt).toContain("## Remembered context");
   });
 
@@ -355,7 +354,7 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("DEFAULT_MAX_STEPS is 100 (optimized for deep analysis)", () => {
-    // Regression: cap used to be 10 (default) / 30 (goal-planner). The
+    // Regression: the cap used to vary by context. The
     // prompt's "no fixed budget" rule needs a generous ceiling to mean
     // anything. 100 covers real research loops; maxDuration still bounds
     // wall-clock.

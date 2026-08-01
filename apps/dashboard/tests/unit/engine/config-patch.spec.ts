@@ -63,29 +63,6 @@ function octokitWithConfig(config: unknown) {
 }
 
 describe("getEngineConfig", () => {
-  it("preserves active Store goal references", async () => {
-    const { octokit } = octokitWithConfig({
-      defaultImplementation: "run",
-      github: { owner: "o", repo: "r" },
-      company: {
-        activeAgents: ["cto"],
-        activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
-      },
-    });
-
-    const { config } = await getEngineConfig(
-      octokit,
-      "o",
-      "company-active-goals",
-      { force: true },
-    );
-
-    expect(config.company?.activeGoals).toEqual([
-      "web-release",
-      { template: "weekly-check", every: "1w" },
-    ]);
-  });
-
   it("preserves repository Capability bindings", async () => {
     const { octokit } = octokitWithConfig({
       github: { owner: "o", repo: "r" },
@@ -200,15 +177,6 @@ describe("writeConfigPatch — store activation", () => {
       activeAgents: ["cto", "cto", "qa"],
       activeCapabilities: ["run", "run", "fix-ci"],
       activeWorkflows: ["release-readiness", "release-readiness"],
-      activeGoals: [
-        "web-release",
-        {
-          template: "weekly-check",
-          every: "1w",
-          idPrefix: "weekly",
-          facts: { issue: 123 },
-        },
-      ],
     });
 
     const written = lastWritten();
@@ -217,15 +185,6 @@ describe("writeConfigPatch — store activation", () => {
       activeAgents: ["cto", "qa"],
       activeCapabilities: ["run", "fix-ci"],
       activeWorkflows: ["release-readiness"],
-      activeGoals: [
-        "web-release",
-        {
-          template: "weekly-check",
-          every: "1w",
-          idPrefix: "weekly",
-          facts: { issue: 123 },
-        },
-      ],
     });
     expect(written[".kody"]).toBeUndefined();
   });
@@ -239,7 +198,6 @@ describe("writeConfigPatch — store activation", () => {
         activeAgents: ["cto"],
         activeCapabilities: ["run"],
         activeWorkflows: ["release-readiness"],
-        activeGoals: ["web-release"],
       },
     });
 
@@ -247,7 +205,6 @@ describe("writeConfigPatch — store activation", () => {
       activeAgents: null,
       activeCapabilities: null,
       activeWorkflows: null,
-      activeGoals: null,
     });
 
     const written = lastWritten();

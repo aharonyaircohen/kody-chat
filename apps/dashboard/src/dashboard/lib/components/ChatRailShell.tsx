@@ -51,11 +51,9 @@ import { useAuth } from "../auth-context";
 import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat-dashboard/auth-context";
 import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat-dashboard/theme";
 import { useTheme } from "../../providers/Theme";
-import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
 import { trace } from "@kody-ade/kody-chat-dashboard/platform";
-import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import {
   legacyRepoRedirectPath,
@@ -71,7 +69,6 @@ import { routeOwnsAppHeader } from "./header-ownership";
 import { terminalChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands";
 import { vibeChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/vibe";
-import { goalsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 // Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
 // tasks-pilot recipe (panels-only manifests; routes unchanged, so the
@@ -144,8 +141,7 @@ import {
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
 // rail + mobile sheet) register the same set under the default FULL_GRANT.
 // Order matches the pre-Step-6 built-in registration order: terminal,
-// commands, vibe, goals (goals last — both mounts always pass
-// `onDirectToGoal`, so the pre-move conditional was always true here).
+// commands, then vibe.
 const ADMIN_CHAT_PLUGINS = [
   // Live transport (Convex chatEvents subscription) — inert without
   // NEXT_PUBLIC_CONVEX_URL; the live runner then keeps interval polling.
@@ -153,7 +149,6 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: terminalChatPlugin },
   { plugin: commandsChatPlugin },
   { plugin: vibeChatPlugin },
-  { plugin: goalsChatPlugin },
   // Tasks page-plugin (phase 2 step 3 pilot) — contributes the "tasks"
   // panel view the flipped layout renders in place of the raw /tasks route
   // children. Inert with the chat-first toggle off.
@@ -342,34 +337,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       // localStorage unavailable (private mode) — non-fatal.
     }
   }, []);
-
-  // Goals power the "direct chat to a goal by id" flow: a user types the
-  // goal's `#<discussionNumber>` (or `goal:<n>`) in the composer and the
-  // chat re-scopes to that goal's planner. The rail owns this (not the
-  // dashboard page) so it works from any route — chat is always mounted
-  // here. We pass the live goals straight down; the parser resolves the
-  // number/slug to a canonical id.
-  const shouldPollChatGoals =
-    !publicRoute && shouldPollChatGoalsForRoute(pathname);
-  const { data: goalsData } = useGoals({ enabled: shouldPollChatGoals });
-  const goals = useMemo(() => goalsData ?? [], [goalsData]);
-  const directToGoal = useCallback(
-    (goalId: string) => {
-      const goal = goals.find((g) => g.id === goalId);
-      if (!goal) return;
-      const sessionId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `planner-${Date.now()}`;
-      setScope({
-        kind: "goal-planner",
-        goal,
-        sessionId,
-        onExit: () => setScope(null),
-      });
-    },
-    [goals],
-  );
 
   // Rail width + drag-to-resize moved into the shared ChatShell.
   // "Expanded chat" is the /chat route — a real page, not a cross-page
@@ -602,8 +569,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       vibeMode={isVibeRoute}
       onIssueCreated={dispatchIssueCreated}
       onIssueReportReady={setIssueReporter}
-      knownGoals={goals}
-      onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
       previewContext={previewContext}
@@ -669,8 +634,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                         lockedAgentId={lockedAgentId}
                         vibeMode={isVibeRoute}
                         onIssueCreated={dispatchIssueCreated}
-                        knownGoals={goals}
-                        onDirectToGoal={directToGoal}
                         composerInjection={composerInjection}
                         attachmentInjection={attachmentInjection}
                         previewContext={previewContext}

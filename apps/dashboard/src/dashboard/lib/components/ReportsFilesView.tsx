@@ -4,14 +4,14 @@
  * @pattern reports-files-view
  * @ai-summary Reports rendered through the generic file-manager workspace:
  *   a read-only transport maps report families to folders and runs to
- *   markdown files, and report actions (Plan goal / Create issue) plug
+ *   markdown files, and report actions plug
  *   into the workspace header. Storage stays in the Convex reports API —
  *   this is a browsing surface, not a new store.
  */
 "use client";
 
 import { useMemo, useState } from "react";
-import { Target, CircleDot } from "lucide-react";
+import { CircleDot } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import {
   type FileEntry,
@@ -22,7 +22,6 @@ import { AuthGuard } from "../auth-guard";
 import { useReports } from "../hooks/useReports";
 import { reportsApi, type Report } from "../api/reports";
 import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
-import { CreateGoalDialog } from "@dashboard/features/goals/components/GoalControl";
 
 function reportSourceMarkdown(report: Report): string {
   return `> Generated from report \`${report.slug}\` (${report.updatedAt}).`;
@@ -60,7 +59,6 @@ export function ReportsFilesView({
 }) {
   const { data: reports = [] } = useReports();
   const [issueFromReport, setIssueFromReport] = useState<Report | null>(null);
-  const [goalFromReport, setGoalFromReport] = useState<Report | null>(null);
 
   const transport = useMemo<FilesTransport>(() => {
     const bySlug = new Map(reports.map((report) => [report.slug, report]));
@@ -135,16 +133,6 @@ export function ReportsFilesView({
               type="button"
               variant="ghost"
               size="icon"
-              title="Plan goal from this report"
-              aria-label="Plan goal from this report"
-              onClick={() => setGoalFromReport(report)}
-            >
-              <Target className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
               title="Create issue from this report"
               aria-label="Create issue from this report"
               onClick={() => setIssueFromReport(report)}
@@ -187,21 +175,6 @@ export function ReportsFilesView({
         onCreated={() => setIssueFromReport(null)}
       />
 
-      <CreateGoalDialog
-        open={!!goalFromReport}
-        onClose={() => setGoalFromReport(null)}
-        initial={
-          goalFromReport
-            ? {
-                name: goalFromReport.title,
-                description:
-                  `${reportSourceMarkdown(goalFromReport)}\n\n` +
-                  `---\n\n${goalFromReport.body}`,
-              }
-            : undefined
-        }
-        onCreated={() => setGoalFromReport(null)}
-      />
     </AuthGuard>
   );
 }

@@ -4,7 +4,6 @@ export type CatalogCategory =
   | "config"
   | "capability"
   | "agent"
-  | "goal-template"
   | "workflow-template"
   | "capability-workflow";
 

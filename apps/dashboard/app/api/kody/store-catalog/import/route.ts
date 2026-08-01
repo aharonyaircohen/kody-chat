@@ -320,6 +320,13 @@ async function activate(
   const workflow = await assertExists(octokit, kind, slug);
   if (kind === "loop") {
     const storeLoop = workflow as StoreLoop;
+    await activate(
+      octokit,
+      owner,
+      repo,
+      storeLoop.loop.target.kind,
+      storeLoop.loop.target.id,
+    );
     const existing = await readRepositoryLoop(octokit, owner, repo, slug);
     if (existing) return { imported: false, status: "already_local" as const };
     await saveRepositoryLoop(

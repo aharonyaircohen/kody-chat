@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern useDefaultBranchCI
  * @ai-summary Polls the connected repo's default-branch CI roll-up for the
- *   dashboard banner. 30s cadence matches the goals/notifications poll —
+ *   dashboard banner. 30s cadence matches the notifications poll —
  *   well within the ≥15s rule from CLAUDE.md, and the server-side cache
  *   collapses concurrent calls.
  */

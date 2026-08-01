@@ -20,7 +20,7 @@ issues, CI — but stops being a database.
 | ---------------------------------- | ---------------------------------------- |
 | Repos, branches, code              | Workflow definitions and runs            |
 | PRs and issues the engine works on | Chat sessions, turns, events             |
-| Commits, reviews, CI runs          | Intents, goals, agents, reports          |
+| Commits, reviews, CI runs          | Intents, agents, reports                 |
 |                                    | Config docs, macros, view renderers      |
 |                                    | User state, notification prefs, inbox    |
 |                                    | Engine action state + event log (global) |

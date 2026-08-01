@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern reports-api
- * @ai-summary Reports API — GET lists goal/loop report families in the
+ * @ai-summary Reports API — GET lists report families in the
  *   configured Kody backend. Read-only: reports are produced by the engine,
  *   not edited from the dashboard.
  */

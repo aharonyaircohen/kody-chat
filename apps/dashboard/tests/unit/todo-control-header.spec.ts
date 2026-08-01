@@ -108,7 +108,6 @@ describe("todo list header", () => {
     expect(TODO_CONTROL_SOURCE).toContain("stateBadges.map");
     expect(TODO_CONTROL_SOURCE).not.toContain("function TodoStatePanel");
     expect(TODO_CONTROL_SOURCE).not.toContain('label: "Last decision"');
-    expect(TODO_CONTROL_SOURCE).not.toContain("scheduleState?.lastGoalTickAt");
   });
 
   it("defaults the list-type filter to lists without an all button", () => {
@@ -117,12 +116,12 @@ describe("todo list header", () => {
     )?.[0];
 
     expect(listFilterBlock).toBeTruthy();
-    expect(listFilterBlock).toContain('["list", "goal", "loop"]');
+    expect(listFilterBlock).toContain('["list", "loop"]');
     expect(listFilterBlock).not.toContain('"all"');
     expect(TODO_CONTROL_SOURCE).toContain("TODO_LIST_FILTER_STORAGE_KEY");
     expect(TODO_CONTROL_SOURCE).toContain("usePersistedState<TodoListFilter>");
     expect(TODO_CONTROL_SOURCE).toContain(
-      "grid grid-cols-3 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1",
+      "grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1",
     );
   });
 

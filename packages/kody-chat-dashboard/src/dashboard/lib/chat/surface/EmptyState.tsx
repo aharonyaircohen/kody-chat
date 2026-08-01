@@ -22,8 +22,6 @@ interface EmptyStateProps {
   selectedTask: KodyTask | null;
   isCapabilityMode: boolean;
   selectedCapability: { slug: string } | null;
-  isPlannerMode: boolean;
-  plannerGoal: { name: string } | null;
 }
 
 export function EmptyState({
@@ -33,8 +31,6 @@ export function EmptyState({
   selectedTask,
   isCapabilityMode,
   selectedCapability,
-  isPlannerMode,
-  plannerGoal,
 }: EmptyStateProps) {
   return (
     <div className="text-center text-muted-foreground text-base py-8">
@@ -91,18 +87,6 @@ export function EmptyState({
           <p className="text-sm mt-1 max-w-sm mx-auto">
             Ask anything about this capability&apos;s intent, scope, or rules.
             Each capability has its own thread.
-          </p>
-        </>
-      ) : isPlannerMode && plannerGoal ? (
-        <>
-          <p className="font-medium text-foreground">
-            Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
-          </p>
-          <p className="text-sm mt-1 max-w-md mx-auto">
-            Say <span className="font-mono">&quot;plan it&quot;</span> (or paste
-            extra context first). I&apos;ll propose a task list, you approve,
-            then I&apos;ll deepen each spec and create the issues attached to
-            this goal.
           </p>
         </>
       ) : welcome !== undefined ? (

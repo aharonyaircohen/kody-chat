@@ -14,7 +14,6 @@ export const append = mutation({
   args: {
     tenantId: v.string(),
     runId: v.string(),
-    goalId: v.optional(v.string()),
     event: v.any(),
     time: v.string(),
     idempotencyKey: v.optional(v.string()),

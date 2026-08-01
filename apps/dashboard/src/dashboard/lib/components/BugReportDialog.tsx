@@ -41,7 +41,7 @@ interface BugReportDialogProps {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
-  /** Additional labels to apply on submission (e.g. ["goal:<id>"]). */
+  /** Additional labels to apply on submission. */
   presetLabels?: string[];
 }
 

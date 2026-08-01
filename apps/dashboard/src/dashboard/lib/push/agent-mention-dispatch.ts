@@ -4,7 +4,7 @@
  * @pattern agent-mention-dispatch
  * @ai-summary Server-only sibling of `dispatchMentionPushes`. Turns any
  *   GitHub-backed comment that @mentions an agentIdentity into a one-shot
- *   `agent-ask` tick — so `@cto` works the same in messages, goals,
+ *   `agent-ask` tick — so `@cto` works the same in messages,
  *   tasks, previews, PR/issue comments, and reviews, from one place. The
  *   agent's reply is posted back into the exact thread it was
  *   mentioned in. Never throws; logs and swallows so the webhook still ACKs.

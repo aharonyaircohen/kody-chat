@@ -6,7 +6,7 @@
  * label when the host pins an agent), thinking-level control, remote dev
  * status dot, the icon-only window action buttons (fullscreen, collapse,
  * close), and the context bar with conversation actions (task / capability /
- * planner / global session title). Extracted verbatim from
+ * global session title). Extracted verbatim from
  * KodyChat (Step 3); selection + session state stays with the host, which
  * wires behavior through callbacks.
  */
@@ -104,10 +104,6 @@ interface HeaderControlsProps {
   /** Context bar: capability scope. */
   isCapabilityMode: boolean;
   selectedCapability: { slug: string; title?: string } | null;
-  /** Context bar: goal-planner scope. */
-  isPlannerMode: boolean;
-  plannerGoal: { name: string } | null;
-  onPlannerExit?: () => void;
   /** Active session title for the global-context row. */
   activeSessionTitle?: string;
 }
@@ -154,9 +150,6 @@ export function HeaderControls({
   selectedTask,
   isCapabilityMode,
   selectedCapability,
-  isPlannerMode,
-  plannerGoal,
-  onPlannerExit,
   activeSessionTitle,
 }: HeaderControlsProps) {
   const [agencyAgentMenuOpen, setAgencyAgentMenuOpen] = useState(false);
@@ -774,7 +767,7 @@ export function HeaderControls({
         </div>
       </div>
 
-      {/* Title line: task, capability, planner, or global */}
+      {/* Title line: task, capability, or global */}
       {showContextBar ? (
         <div
           data-testid="chat-context-bar"
@@ -808,27 +801,6 @@ export function HeaderControls({
                     {selectedCapability.title}
                   </span>
                   {messageCountBadge}
-                </div>
-              ) : isPlannerMode && plannerGoal ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-                    Planning
-                  </span>
-                  <span className="truncate text-muted-foreground flex-1 min-w-0">
-                    {plannerGoal.name}
-                  </span>
-                  {messageCountBadge}
-                  {onPlannerExit ? (
-                    <button
-                      type="button"
-                      onClick={onPlannerExit}
-                      className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                      aria-label="Stop planning this goal"
-                      title="Stop planning"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  ) : null}
                 </div>
               ) : (
                 (() => {

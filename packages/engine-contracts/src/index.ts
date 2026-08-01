@@ -2,7 +2,6 @@ export const ENGINE_EXECUTION_REQUEST_ENV = "KODY_RUN_REQUEST_JSON";
 
 export type EngineExecutionTarget =
   | { type: "chat"; id: string }
-  | { type: "goal"; id: string }
   | { type: "issue"; id: number }
   | { type: "workflow"; id: string }
   | { type: "loop"; id: string };
@@ -41,7 +40,6 @@ const SOURCES = new Set<EngineExecutionSource>([
 ]);
 const TARGET_TYPES = new Set<EngineExecutionTarget["type"]>([
   "chat",
-  "goal",
   "issue",
   "workflow",
   "loop",

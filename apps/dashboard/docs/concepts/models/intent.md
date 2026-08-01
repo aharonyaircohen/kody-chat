@@ -11,7 +11,7 @@ An Intent has:
 
 - a stable filename/slug;
 - a Markdown body;
-- no status, priority, owner, Operation, Goal, Workflow, or execution fields.
+- no status, priority, owner, Workflow, or execution fields.
 
 Every Intent applies by default. An Intent does not execute work directly.
 

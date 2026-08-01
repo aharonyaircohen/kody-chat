@@ -21,7 +21,6 @@ describe("DashboardHome layout", () => {
 
     expect(source).not.toContain("function DashboardHeader");
     expect(source).not.toContain("TriageStrip");
-    expect(source).not.toContain("AgentGoals / agentLoops");
     expect(source).not.toContain("Team channels");
     expect(source).not.toContain("Open board");
     expect(source).not.toContain("Updated {updated}");

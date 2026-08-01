@@ -28,7 +28,6 @@ import {
   type LucideIcon,
   Plus,
   RefreshCw,
-  Target,
 } from "lucide-react";
 
 import { Card } from "@kody-ade/base/ui/card";
@@ -47,7 +46,6 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
 import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
-import { CreateGoalDialog } from "@dashboard/features/goals/components/GoalControl";
 import { RepoManager } from "./RepoManager";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { cn } from "../utils";
@@ -575,7 +573,6 @@ function FailingCard({
 function LatestReports() {
   const { data, isLoading } = useReports();
   const [issueFromReport, setIssueFromReport] = useState<Report | null>(null);
-  const [goalFromReport, setGoalFromReport] = useState<Report | null>(null);
   const reports = [...(data ?? [])]
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     .slice(0, 3);
@@ -609,16 +606,6 @@ function LatestReports() {
               <div className="flex items-center gap-1 shrink-0">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-8 gap-1 px-2.5 text-body-xs"
-                  onClick={() => setGoalFromReport(r)}
-                  title="Plan a new mission from this report"
-                >
-                  <Target className="w-3 h-3 text-emerald-400" />
-                  Plan mission
-                </Button>
-                <Button
-                  size="sm"
                   className="h-8 gap-1 bg-sky-600 px-2.5 text-body-xs text-white hover:bg-sky-700"
                   onClick={() => setIssueFromReport(r)}
                   title="Create a GitHub issue from this report"
@@ -647,21 +634,6 @@ function LatestReports() {
             : undefined
         }
         onCreated={() => setIssueFromReport(null)}
-      />
-      <CreateGoalDialog
-        open={!!goalFromReport}
-        onClose={() => setGoalFromReport(null)}
-        initial={
-          goalFromReport
-            ? {
-                name: goalFromReport.title,
-                description:
-                  `${sourceReportMarkdown(goalFromReport)}\n\n` +
-                  `---\n\n${goalFromReport.body}`,
-              }
-            : undefined
-        }
-        onCreated={() => setGoalFromReport(null)}
       />
     </section>
   );

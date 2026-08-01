@@ -29,15 +29,6 @@ export interface CapabilityContext {
   labels?: string[];
 }
 
-export interface GoalContext {
-  id: string;
-  name: string;
-  description?: string;
-  dueDate?: string;
-  /** Existing tasks already attached to the goal (so we don't propose duplicates). */
-  existingTasks?: Array<{ number: number; title: string; state?: string }>;
-}
-
 export interface ReportContext {
   slug: string;
   title: string;
@@ -92,8 +83,6 @@ export function buildSystemPrompt(
   task: TaskContext | undefined,
   opts?: {
     capability?: CapabilityContext;
-    goalPlanner?: boolean;
-    goal?: GoalContext;
     report?: ReportContext;
     org?: OrgContext;
     /**
@@ -258,18 +247,6 @@ Use the following rules when choosing how to act within the allowed constraints.
 ${opts.policies.trim()}`);
   }
   if (repo) {
-    sections.push(
-      `## Goals and missions
-
-Kody has two separate planning surfaces. Keep the words distinct.
-
-1. **Goal** means the managed AI Agency outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.
-2. **Mission** means the older task grouping on the task page. Missions are stored in the legacy goal manifest, surfaced as GitHub Discussions referenced by **#<number>**, and still use \`goal:<id>\` labels for task membership. Use \`list_goals\` / \`get_goal\` when the user says mission or references one of those discussion numbers. Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change mission task membership.
-
-\`/goal\` should create a managed AI Agency goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
-
-For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, and one capability is enough for a first goal.`,
-    );
     if (opts?.memoryContext && opts.memoryContext.trim().length > 0) {
       sections.push(
         `## Remembered context
@@ -309,73 +286,6 @@ ${truncateMemoryContext(opts.memoryContext.trim())}`,
     );
     sections.push(lines.join("\n"));
   }
-  if (opts?.goalPlanner && opts?.goal) {
-    const g = opts.goal;
-    const lines: string[] = ["## Mission planning mode"];
-    lines.push(
-      `You are planning the mission **${g.name}** (id: \`${g.id}\`). Your job is to turn ` +
-        "the mission description below into a set of concrete, well-specced GitHub issues " +
-        `attached to this mission (label \`goal:${g.id}\`). Do not act on any other mission, goal, ` +
-        "or topic — if the user asks you something off-topic, redirect to this mission.",
-    );
-    if (g.dueDate) lines.push(`Due date: ${g.dueDate}.`);
-    if (g.description?.trim()) {
-      const desc =
-        g.description.length > 4000
-          ? `${g.description.slice(0, 4000)}…`
-          : g.description;
-      lines.push(`\n### Goal description\n\n${desc}`);
-    } else {
-      lines.push(
-        "\n### Mission description\n\n_The mission has no description yet._ Ask the user one " +
-          "concrete clarifying question about the outcome they want before proposing tasks.",
-      );
-    }
-    if (g.existingTasks && g.existingTasks.length > 0) {
-      lines.push("\n### Tasks already attached to this mission\n");
-      for (const t of g.existingTasks) {
-        lines.push(`- #${t.number} (${t.state ?? "open"}) — ${t.title}`);
-      }
-      lines.push(
-        "\nDo not propose duplicates of these. Cover only the gaps between the mission " +
-          "description and the tasks above.",
-      );
-    }
-    lines.push(`
-### Workflow — two passes, one chat session
-
-**Pass 1 — Research, then decompose.** Before listing tasks, *look at the codebase*. The mission description tells you the desired outcome; the codebase tells you what already exists and where the gaps are. A proposal made without research is a guess.
-
-Required steps for Pass 1:
-
-1. **Research first (3–6 tool calls, no more).** Use \`github_search_code\` for the most relevant feature keywords from the mission description. Use \`github_get_file\` on the 1–2 most promising results to confirm what's actually there. Use \`github_list_issues\` if the mission mentions known bugs or in-flight work. Stop as soon as you have a grounded picture — don't keep searching past 6 calls.
-2. **Inline research summary.** Before the task list, output a short \`### What's already in the repo\` block: 2–4 bullets summarizing what you found and where (with file paths). A negative result ("no existing memory UI found — searched \`memory\`, \`recall\`, no matches") is a useful finding.
-3. **Then output the task list.** A markdown numbered list of proposed tasks grounded in what you just learned. For each task: a short title, a one-sentence summary that *references the file(s) it will touch*, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep it tight: only the next 3–8 tasks. Partial-but-correct beats complete-but-hallucinated.
-
-End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then, if an available renderer rule matches this approval choice, call \`show_view\` with that rule's \`purpose\` and matching \`data\` keys, then stop. The rendered view is only UI; do not call \`create_task_for_goal\` until the next user turn approves.
-
-If your research turned up nothing relevant (the mission is greenfield in this codebase), say so explicitly — "Searched for X, Y, Z; no existing code matches. Treating this as greenfield." — and propose tasks accordingly.
-
-**Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
-
-1. Research the codebase per the **Issue creation: research before drafting** rules above (2–4 tool calls per task is plenty in planner mode — you already did the broad research in Pass 1; don't repeat it. Just confirm the specific files and symbols this one task will touch). Include a Research notes block in \`additionalContext\`.
-2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links, **and the required Research notes block**). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the mission description signals urgency.
-3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
-
-If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied (you may skip re-running broad research if the codebase facts haven't changed).
-
-### Hard rules
-
-- **Clarifying questions are rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, and only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Do not ask about wording, naming, priority, file choice, labels, or other details runner can infer from code. If there is no blocking question, ask only for approval.
-- **Research before approval.** Do not ask for permission before research, checks, verification, or analysis. Those are pre-approved. Ask for approval only before creating task issues or any other state-changing action.
-- Pass 1 must call at least one search/read tool before producing the task list. A list with no \`### What's already in the repo\` block is malformed.
-- Do not call \`create_task_for_goal\` until the user explicitly approves.
-- Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
-- Never modify the mission description, never delete or relabel existing tasks, never close anything.
-- The Kody pipeline is NOT auto-triggered. After an issue exists, if the user explicitly asks to run, execute, build, ship, implement, or otherwise confirms that Kody should do the work, call \`kody_run_issue\` for that issue. Do not tell the user to post \`@kody\` manually when the tool is available.
-`);
-    sections.push(lines.join("\n"));
-  }
   if (opts?.report) {
     const r = opts.report;
     const lines: string[] = ["## Current report"];
@@ -391,8 +301,7 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
 When the user asks what to do with this report, recommend one of three paths and say which fits:
 
 1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules above. Reference specific line items from the report body.
-2. **Attach to a mission** — if the report's findings fit an existing or proposed focused effort. Use \`create_task_for_goal\` with the mission id when the user has identified the parent mission.
-3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
+2. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
 
 Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
     sections.push(lines.join("\n"));

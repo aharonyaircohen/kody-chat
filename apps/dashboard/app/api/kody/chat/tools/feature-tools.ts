@@ -123,16 +123,16 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
 - \`profile.json\` stores execution settings, tools, skills, and scripts.
 - \`capability.md\` stores the human-readable instructions and restrictions.
 
-Intent owns why. Goal owns what should become true. Loop owns when to check.
-Agent owns who acts. Capability owns what can be run.
+Intent owns why. Loop owns when to check. Agent owns who acts. Capability owns
+what can be run.
 
 Format (must match existing capabilities in backend \`capabilities/\`):
 - \`profile.json\` metadata
 - \`capability.md\` with clear instructions
 - \`## Restrictions\`
 
-The capability defines the run contract. Ownership, schedule, goals, and loops
-stay outside the capability.
+The capability defines the run contract. Ownership, schedule, and loops stay
+outside the capability.
 
 Do not put metadata or raw state keys in \`capability.md\`. Runtime state stays
 engine-owned.

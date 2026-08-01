@@ -88,7 +88,7 @@ describe.skipIf(!RUN_LIVE)("live provider adapter tool loops", () => {
               return {
                 project: "A-Guy-Web",
                 blockerCode: "B7",
-                activeGoals: 2,
+                activeTasks: 2,
               };
             },
           }),

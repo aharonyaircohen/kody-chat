@@ -32,7 +32,7 @@ const sourceFile = (file: string) =>
   );
 
 const directRepoOwnedLinkHref =
-  /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
+  /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
 
 describe("repo-scoped panel route surfaces", () => {
   it("keeps file-backed guidance pages on their route-owned workspaces", () => {

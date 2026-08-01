@@ -31,7 +31,7 @@ interface LoopDefinition {
 - Workflow owns orchestration.
 - Capability owns reusable behavior.
 - Run owns execution history.
-- Loop does not belong to an Operation and does not contain a Goal.
+- Loop does not belong to or contain another planning aggregate.
 
 ## Current support
 

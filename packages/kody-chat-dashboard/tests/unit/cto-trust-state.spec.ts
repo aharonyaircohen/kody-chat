@@ -126,7 +126,7 @@ describe("operator overrides", () => {
   });
 
   it("sets the three visible subject trust levels directly", () => {
-    const subject = trustSubjectKey("goal", "web-release");
+    const subject = trustSubjectKey("loop", "weekly-check");
     const canRun = applySubjectTrustLevel(
       EMPTY_TRUST_MANIFEST,
       subject,

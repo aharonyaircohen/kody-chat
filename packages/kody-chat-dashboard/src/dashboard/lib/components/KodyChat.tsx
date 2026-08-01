@@ -32,10 +32,6 @@ import {
   useSlashCommands,
   type SlashExpansionEffectPayload,
 } from "../chat/plugins/commands";
-import {
-  readGoalDirectEffect,
-  type GoalDirectEffectPayload,
-} from "../chat/plugins/goals";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
@@ -157,8 +153,6 @@ export function KodyChat({
   vibeMode,
   onIssueCreated,
   onIssueReportReady,
-  knownGoals,
-  onDirectToGoal,
   composerInjection,
   attachmentInjection,
   previewContext,
@@ -189,24 +183,13 @@ export function KodyChat({
     context?.kind === "task" ? context.task : null;
   const selectedCapability =
     context?.kind === "capability" ? context.capability : null;
-  // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
-  // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
-  const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
-  const plannerSessionId =
-    context?.kind === "goal-planner" ? context.sessionId : null;
-  const plannerExistingTasks =
-    context?.kind === "goal-planner" ? context.existingTasks : undefined;
-  const onPlannerTasksCreated =
-    context?.kind === "goal-planner" ? context.onTasksCreated : undefined;
-  const onPlannerExit =
-    context?.kind === "goal-planner" ? context.onExit : undefined;
   // Report mode: chat scoped to a markdown report on /reports. The agent
-  // is framed to advise: create issue, attach to a goal, or no action.
+  // is framed to advise: create an issue or take no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
 
-  // Per-scope (task / capability / planner / global) scope blocks flow through
+  // Per-scope (task / capability / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
-  // capability / ## Goal planning mode / ## Current report). The thread itself is
+  // capability / ## Current report). The thread itself is
   // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
@@ -405,9 +388,8 @@ export function KodyChat({
   // useState initializer, never re-registered on re-render.
   // KodyChat owns ONLY the registration mechanics; the HOST surface passes
   // its plugin list (Step 6 / M6 — per-surface imports, so /client sheds
-  // admin plugin code): ChatRailShell registers terminal + commands + vibe
-  // + goals on both of its mounts, GoalControl's planner dialog registers
-  // terminal + commands + vibe (it never routes goals), ClientChatSurface
+  // admin plugin code): ChatRailShell registers terminal + commands + vibe,
+  // ClientChatSurface
   // registers branding + commands under its minimal grant. Registration
   // order = array order (theme/slot merge order); middleware ordering is
   // registry-sorted by `order` regardless.
@@ -447,18 +429,6 @@ export function KodyChat({
       pendingSlashExpansionRef.current = null;
       return expansion;
     }, []);
-  // Goal-direct hand-off (Step 5d): same synchronous ref pattern — the
-  // goals plugin's mention middleware CONSUMES the message and dispatches
-  // this effect during runSendMiddleware; sendMessage's consumed branch
-  // reads it and runs the existing onDirectToGoal path (scope swap + rest
-  // of the message back into the composer).
-  const pendingGoalDirectRef = useRef<GoalDirectEffectPayload | null>(null);
-  const consumePendingGoalDirect =
-    useCallback((): GoalDirectEffectPayload | null => {
-      const goalDirect = pendingGoalDirectRef.current;
-      pendingGoalDirectRef.current = null;
-      return goalDirect;
-    }, []);
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
@@ -471,11 +441,6 @@ export function KodyChat({
     const slashExpansion = readSlashExpansionEffect(effect);
     if (slashExpansion) {
       pendingSlashExpansionRef.current = slashExpansion;
-      return;
-    }
-    const goalDirect = readGoalDirectEffect(effect);
-    if (goalDirect) {
-      pendingGoalDirectRef.current = goalDirect;
       return;
     }
     switch (effect.kind) {
@@ -587,12 +552,11 @@ export function KodyChat({
   // Read-only host snapshot handed to slot components and send middleware.
   // Minimal by design (plan H2 host-context channel) — grows per plugin
   // need, not speculatively. `slashCommands` feeds the commands plugin's
-  // slash-expansion middleware (Step 5b); `knownGoals` feeds the goals
-  // plugin's mention middleware (Step 5d): the manifests are static pure
-  // data, so the async-loaded lists travel via host context.
+  // slash-expansion middleware (Step 5b). Manifests are static pure data,
+  // so async-loaded lists travel via host context.
   const pluginHost = useMemo(
-    () => ({ pathname, agentId: selectedAgentId, slashCommands, knownGoals }),
-    [pathname, selectedAgentId, slashCommands, knownGoals],
+    () => ({ pathname, agentId: selectedAgentId, slashCommands }),
+    [pathname, selectedAgentId, slashCommands],
   );
   const brainAbortRef = useRef<AbortController | null>(null);
   const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
@@ -877,14 +841,13 @@ export function KodyChat({
   );
 
   // Mode discriminator. Used to drive per-turn system-prompt scope blocks
-  // (## Current task / ## Current capability / ## Goal planning mode / ## Current
+  // (## Current task / ## Current capability / ## Current
   // report) and the context bar in the chat header. The thread itself is
   // the unified global store — these flags do NOT change which messages
   // render or which store receives writes.
   const isTaskMode = !!selectedTask;
   const isCapabilityMode = !!selectedCapability;
-  const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode = !isTaskMode && !isCapabilityMode && !isPlannerMode;
+  const isGlobalMode = !isTaskMode && !isCapabilityMode;
 
   useEffect(() => {
     if (autoOpenSessionSidebar && railFullscreen && isGlobalMode) {
@@ -894,7 +857,7 @@ export function KodyChat({
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
-  // (task, capability, planner, report) flows through the per-turn system
+  // (task, capability, report) flows through the per-turn system
   // prompt, not a separate message store.
   const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
@@ -1329,10 +1292,6 @@ export function KodyChat({
       reportItem("Task pipeline", selectedTask?.pipeline?.state),
       reportItem("Capability", selectedCapability?.slug),
       reportItem("Report", selectedReport?.slug),
-      reportItem(
-        "Goal",
-        plannerGoal ? `${plannerGoal.id}: ${plannerGoal.name}` : null,
-      ),
       reportItem("Org", selectedOrg?.org),
     ]);
 
@@ -1359,7 +1318,6 @@ export function KodyChat({
     liveState.errorMessage,
     messages,
     pathname,
-    plannerGoal,
     selectedCapability,
     selectedModelId,
     selectedOrg,
@@ -1380,14 +1338,14 @@ export function KodyChat({
   }, [onIssueReportReady, openIssueReport]);
 
   // Unified thread: the canonical conversation store owns the
-  // message list. Per-page scope (task / capability / planner / report) flows
+  // message list. Per-page scope (task / capability / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
 
   const executeClearHistory = () => {
     // Unified thread: the global session store owns the messages. Clearing
     // is just `clearActiveSession()` regardless of scope (task / capability /
-    // planner / report); the per-scope system-prompt blocks keep their
+    // report); the per-scope system-prompt blocks keep their
     // context on the next turn.
     sessionHook.clearActiveSession();
 
@@ -1549,10 +1507,6 @@ export function KodyChat({
           selectedCapability,
           selectedOrg,
           selectedReport,
-          isPlannerMode,
-          plannerGoal,
-          plannerExistingTasks,
-          onPlannerTasksCreated,
           onIssueCreated,
           vibeMode,
           context,
@@ -1595,10 +1549,6 @@ export function KodyChat({
       selectedTask,
       selectedCapability,
       capabilitySlug,
-      isPlannerMode,
-      plannerGoal,
-      plannerExistingTasks,
-      onPlannerTasksCreated,
       setMessagesForSession,
       messages,
       repoAgentSlugs,
@@ -1859,37 +1809,6 @@ export function KodyChat({
     ],
   );
 
-  // Planner auto-kickoff. The "Plan with chat" button is the user's consent
-  // to start; landing them on a blank prompt and asking them to type "go" is
-  // a wasted click. We fire Pass 1 automatically on first render of a fresh
-  // planner session. Guarded by a ref keyed on sessionId so re-renders,
-  // mode toggles, and the "New conversation" button can't re-trigger. The
-  // session's message count comes from the global store now (unified thread).
-  const plannerAutoKickedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isPlannerMode || !plannerSessionId || !plannerGoal) return;
-    if (plannerAutoKickedRef.current === plannerSessionId) return;
-    if (sessionHook.messages.length > 0) {
-      plannerAutoKickedRef.current = plannerSessionId;
-      return;
-    }
-    plannerAutoKickedRef.current = plannerSessionId;
-    // Defer one microtask so the chat's setMessages plumbing has committed
-    // for this session before sendText reads/writes it.
-    void Promise.resolve().then(() => {
-      sendText(
-        `Plan tasks for the goal "${plannerGoal.name}". Run Pass 1 now: ` +
-          "output the proposed task list (3–8 tasks), then wait for my approval.",
-      );
-    });
-  }, [
-    isPlannerMode,
-    plannerSessionId,
-    plannerGoal,
-    sessionHook.messages.length,
-    sendText,
-  ]);
-
   // Generic switch-agent auto-kickoff. The switch handler stashes an
   // optional kickoff string in `pendingKickoff`; we wait here for the new
   // runner agent AND matching task scope to both land before firing.
@@ -1939,8 +1858,6 @@ export function KodyChat({
       contextChips,
       isKodyWaiting,
       selectedTask,
-      plannerGoal,
-      onDirectToGoal,
       setInput,
       setContextChips,
       setAttachments,
@@ -1953,10 +1870,8 @@ export function KodyChat({
       handlePluginHostEffect,
       pendingTerminalIntentRef,
       pendingSlashExpansionRef,
-      pendingGoalDirectRef,
       consumePendingTerminalIntent,
       consumePendingSlashExpansion,
-      consumePendingGoalDirect,
       sendInputToTerminal,
       sendKodyTerminalPayloadToTerminal,
       previewActChainRef,
@@ -2322,9 +2237,6 @@ export function KodyChat({
           selectedTask={selectedTask}
           isCapabilityMode={isCapabilityMode}
           selectedCapability={selectedCapability}
-          isPlannerMode={isPlannerMode}
-          plannerGoal={plannerGoal}
-          onPlannerExit={onPlannerExit}
           activeSessionTitle={sessionHook.activeSession?.title}
         />
       }
@@ -2365,8 +2277,6 @@ export function KodyChat({
                 selectedTask={selectedTask}
                 isCapabilityMode={isCapabilityMode}
                 selectedCapability={selectedCapability}
-                isPlannerMode={isPlannerMode}
-                plannerGoal={plannerGoal}
               />
             }
             terminalSurfaces={terminalSurfaces}

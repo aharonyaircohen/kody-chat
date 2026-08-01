@@ -148,7 +148,7 @@ const ChatModelConfigSchema = z.object({
    * run different models. */
   engineDefault: z.boolean().optional(),
   /** Override the chat route's per-turn tool-round cap. Unset → use the
-   * route default (10 normally, 30 in goal-planner mode). Set higher to
+   * route default (10). Set higher to
    * let a model run a longer research chain; the function-level
    * `maxDuration` (300s) still bounds wall-clock time regardless. */
   maxSteps: z.number().int().min(1).max(500).optional(),

@@ -33,7 +33,7 @@ built-ins are fallback only. Dropping `backend repo documents (commands)review.m
 overrides Store or fallback `/review`. Use **Edit** on a shared command to seed
 same-slug repo file from the shared command's current contents.
 
-Store commands follow the same Dashboard ownership model as Store goals and
+Store commands follow the same Dashboard ownership model as Store assets and
 loops: importing from Store writes an explicit `company.activeCommands` entry in
 `kody.config.json`, and removing it from the repo clears that active reference
 without deleting the Store asset.
@@ -102,7 +102,6 @@ built-ins for cold-start and unavailable-Store cases.
 | `/briefing`   | Summarize current work that needs attention.                                                                                  |
 | `/explain`    | Explain topic in codebase.                                                                                                    |
 | `/factory`    | Create an agent-factory backend PR for model definitions.                                                                     |
-| `/goal`       | Draft new goal.                                                                                                               |
 | `/init`       | Verify/repair setup by installing Kody in the connected repo. See [setup verification](./engine-install.md#verify-the-setup). |
 | `/issue`      | Research, draft, create issue, then offer to run Kody.                                                                        |
 | `/mission`    | Draft a mission task group.                                                                                                   |

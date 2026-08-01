@@ -59,7 +59,7 @@ Typed reports additionally use:
 - `reportType`: an extensible lowercase slug such as `finding`, `learning`, or
   a custom future type. Unknown types use the generic report renderer.
 - `reportTypeVersion`: a positive schema version for that type.
-- `producer.model`: the Goal, Loop, or Workflow that owns the report.
+- `producer.model`: the Loop or Workflow that owns the report.
 - `producer.capability`: the Capability whose result supplied the evidence.
 
 Legacy reports without `reportType` remain `general` reports. Legacy and
@@ -109,11 +109,11 @@ its implementation owns what operations it can perform.
 
 This keeps the loop simple:
 
-1. A Loop or Goal runs its Workflow.
+1. A Loop runs its Workflow.
 2. A Capability returns its result and evidence.
 3. The Workflow asks the engine to publish a timestamped typed report run.
 4. Operator reads the report or selects a type filter.
-5. Operator uses a suggested action, creates a task/goal, dispatches a job, or
+5. Operator uses a suggested action, creates a task, dispatches a job, or
    does nothing.
 
 ## Validation

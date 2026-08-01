@@ -125,7 +125,6 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/webhooks-tools.ts",
       "app/api/kody/chat/tools/inbox-tools.ts",
       "app/api/kody/chat/tools/release-tools.ts",
-      "app/api/kody/chat/tools/planner-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/memory-tools.ts",
       "app/api/kody/chat/tools/macros-tools.ts",
       "app/api/kody/chat/tools/remote-tools.ts",
@@ -344,7 +343,7 @@ describe("composeChatPrompt", () => {
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
-    // Goals / missions namespace block.
+    // Todo namespace block.
     expect(prompt).toContain("## Todos");
     // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");

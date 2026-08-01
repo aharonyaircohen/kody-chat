@@ -330,11 +330,11 @@ describe("memory domain", () => {
     const memory = createMemory({
       id: "memory-1",
       scope: { kind: "user", userId: "user-1" },
-      kind: "goal",
+      kind: "reference",
       content: {
-        title: "Temporary goal",
+        title: "Temporary reference",
         summary: "Ship the first memory release.",
-        body: "This goal expires after the release.",
+        body: "This reference expires after the release.",
       },
       currentRevisionId: "revision-1",
       status: "active",
@@ -346,7 +346,7 @@ describe("memory domain", () => {
       id: "revision-1",
       memoryId: "memory-1",
       previousRevisionId: "revision-0",
-      kind: "goal",
+      kind: "reference",
       content: memory.content,
       evidence: [
         {

@@ -115,7 +115,7 @@ export const TODOS_NAV_ITEM: SettingsNavItem = {
   href: "/todos",
   label: "Todos",
   icon: CheckCircle2,
-  description: "Visible worklists for regular tasks, goals, and loops.",
+  description: "Visible worklists for regular tasks and loops.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 

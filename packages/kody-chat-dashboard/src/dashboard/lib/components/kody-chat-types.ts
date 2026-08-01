@@ -10,7 +10,6 @@
 
 import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
-import type { GoalRef } from "../chat/plugins/goals";
 import type { ChatViewDirective } from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
@@ -205,18 +204,6 @@ export interface KodyChatProps {
    */
   onIssueReportReady?: (report: (() => void) | null) => void;
   /**
-   * Goals the user can "direct chat to" by typing the goal's
-   * `#<discussionNumber>` (or `goal:<n>`) in the composer. Supplied by
-   * ChatRailShell from the live goals list.
-   */
-  knownGoals?: GoalRef[];
-  /**
-   * Re-scope the chat to the given goal's planner. Fired when the user
-   * mentions a known `goal:<id>` token; the host (ChatRailShell) builds
-   * the `goal-planner` ChatContext and pushes it back down via `context`.
-   */
-  onDirectToGoal?: (goalId: string) => void;
-  /**
    * A context chip to attach to the composer when `id` changes. Used by the
    * preview element picker: `label` shows as a removable pill above the input
    * (e.g. `<button#submit>`), `context` is the full block appended to the
@@ -256,8 +243,7 @@ export interface KodyChatProps {
    * when the mount's registry is created. Since Step 6 (M6) the HOST owns
    * the full list — KodyChat registers no built-ins of its own, so each
    * surface bundles only the plugins it imports (ChatRailShell: terminal +
-   * commands + vibe + goals; GoalControl planner: terminal + commands +
-   * vibe; ClientChatSurface: branding + commands). Default: no plugins —
+   * commands + vibe; ClientChatSurface: branding + commands). Default: no plugins —
    * the surface renders exactly as before the platform existed.
    */
   plugins?: Array<{ plugin: ChatPlugin }>;

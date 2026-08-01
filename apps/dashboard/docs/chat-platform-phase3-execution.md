@@ -8,7 +8,7 @@ pixel-invisible to the user throughout.
 
 ## Step 1 — Visual parity for the flip (~1 commit)
 
-Goal: toggle ON renders pixel-identically to toggle OFF.
+Target: toggle ON renders pixel-identically to toggle OFF.
 
 - [ChatRailShell.tsx](../src/dashboard/lib/components/ChatRailShell.tsx) —
   rework the `flipActive` branches:

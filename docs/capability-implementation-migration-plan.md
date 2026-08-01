@@ -14,7 +14,7 @@ The Agency has seven user-facing concepts:
 6. Loops — a trigger plus one Workflow or Capability target.
 7. Runs — immutable execution history, including the Agent used.
 
-Intent, Operation, Goal, and Implementation are not product models. They have
+The older planning and implementation records are not product models. They have
 no page, API, storage collection, or lifecycle.
 
 ## Capability folder
@@ -72,7 +72,7 @@ mutable lifecycle.
 
 ## Migration rules
 
-- Existing Goal records become Todos.
+- Existing planning records become Todos.
 - Existing Intent text becomes the Agency overview intent.
 - Existing Operations are removed after their useful labels are copied into
   Todo text where needed.

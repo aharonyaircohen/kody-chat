@@ -41,7 +41,6 @@ import {
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { HIDDEN_TASK_LABEL } from "@kody-ade/base/constants";
-import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@kody-ade/base/branches";
 import { matchWorkflowRunsForTask } from "@dashboard/lib/workflow-matching";
@@ -92,7 +91,6 @@ const actionSchema = z.object({
 
 function isDashboardManagedLabel(label: string): boolean {
   return (
-    label.startsWith(GOAL_LABEL_PREFIX) ||
     label === HIDDEN_TASK_LABEL ||
     label.startsWith("kody:")
   );
@@ -528,11 +526,7 @@ export async function POST(
         }
         // GitHub's addLabels endpoint 422s on unknown labels — auto-create
         // dashboard-managed labels defensively so first use always succeeds.
-        if (
-          label.startsWith(GOAL_LABEL_PREFIX) ||
-          label === HIDDEN_TASK_LABEL ||
-          label.startsWith("kody:")
-        ) {
+        if (label === HIDDEN_TASK_LABEL || label.startsWith("kody:")) {
           try {
             await ensureLabel(
               label,

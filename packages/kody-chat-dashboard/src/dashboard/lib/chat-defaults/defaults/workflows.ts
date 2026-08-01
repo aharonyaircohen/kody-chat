@@ -48,7 +48,7 @@ export const DEFAULT_WORKFLOW_KODY_MEM: ChatWorkflowEntry = {
   body: `Persistent memory management. Use when the user asks Kody to remember, correct, recall, list, or forget durable context.
 
 Skills:
-- memory — use relevant Convex retrieval plus recall / recall_search / list_memories. Triggers include an explicit memory command, correction, recall, inventory, or forget request. Kinds: preference, fact, decision, goal, reference. Use update_memory for corrections and never create duplicates.`,
+- memory — use relevant Convex retrieval plus recall / recall_search / list_memories. Triggers include an explicit memory command, correction, recall, inventory, or forget request. Kinds: preference, fact, decision, reference. Use update_memory for corrections and never create duplicates.`,
 };
 
 export const DEFAULT_WORKFLOWS = [

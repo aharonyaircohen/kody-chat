@@ -11,7 +11,7 @@ The `/workflows` page creates, edits, validates, runs, and deletes local
 definitions.
 
 Workflow does not own a schedule, Capability instructions, runtime state,
-Operation, Goal, or technical Engine implementation profile.
+another planning aggregate or technical Engine implementation profile.
 
 See [`concepts/models/workflow.md`](concepts/models/workflow.md) for the exact
 contract and

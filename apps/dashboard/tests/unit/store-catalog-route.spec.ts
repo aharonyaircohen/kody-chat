@@ -9,8 +9,6 @@ describe("simple Store catalog", () => {
       '"agent" | "workflow" | "capability" | "loop" | "command" | "feature"',
     );
     expect(source).not.toContain('"implementation"');
-    expect(source).not.toContain('"goal"');
-    expect(source).not.toContain("managedGoal");
     expect(source).toContain("listStoreCatalogSlugs");
   });
 

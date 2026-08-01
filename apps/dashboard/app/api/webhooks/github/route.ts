@@ -408,7 +408,7 @@ function dispatch(event: string, payload: unknown): DispatchResult {
 
     case "discussion":
     case "discussion_comment":
-      // New comment on a goal-backing discussion → wipe both the comment
+      // New Discussion comment → wipe both the comment
       // cache and the meta cache (the discussion event payload doesn't carry
       // the discussion number, and the meta is cheap to refetch).
       invalidateDiscussionCache();
@@ -514,7 +514,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     });
     // @agent mentions → one-shot agent-ask tick, reply back in-thread.
-    // Same GitHub-backed surfaces as mention push (messages, goals, tasks,
+    // Same GitHub-backed surfaces as mention push (messages, tasks,
     // previews, PR/issue comments, reviews) — one hook covers them all.
     await dispatchAgentMentions(eventType, obj).catch((err: unknown) => {
       logger.error(

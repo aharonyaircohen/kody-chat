@@ -27,7 +27,6 @@ import type * as dailyLogs from "../dailyLogs.js";
 import type * as definitionProposals from "../definitionProposals.js";
 import type * as definitions from "../definitions.js";
 import type * as eventLog from "../eventLog.js";
-import type * as goals from "../goals.js";
 import type * as guidedFlows from "../guidedFlows.js";
 import type * as importExport from "../importExport.js";
 import type * as inbox from "../inbox.js";
@@ -78,7 +77,6 @@ declare const fullApi: ApiFromModules<{
   definitionProposals: typeof definitionProposals;
   definitions: typeof definitions;
   eventLog: typeof eventLog;
-  goals: typeof goals;
   guidedFlows: typeof guidedFlows;
   importExport: typeof importExport;
   inbox: typeof inbox;

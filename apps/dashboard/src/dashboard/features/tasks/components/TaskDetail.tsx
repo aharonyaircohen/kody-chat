@@ -33,9 +33,6 @@ import { CommentList } from "@dashboard/lib/components/CommentList";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { IssueAttachmentButton } from "@dashboard/lib/components/IssueAttachmentButton";
 import { AssigneePicker, type AssigneeChangeEvent } from "@dashboard/lib/components/AssigneePicker";
-import { GoalPicker } from "@dashboard/features/goals/components/GoalPicker";
-import { useGoals } from "@dashboard/lib/hooks/useGoals";
-import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { autoDirProps, rtlAwareMarkdownClassName } from "@dashboard/lib/text-direction";
 import { KodyPhaseChip, KodyFlowChip } from "@dashboard/lib/components/KodyLabelChips";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
@@ -78,7 +75,6 @@ import {
   Copy,
   ListPlus,
   ListMinus,
-  Flag,
   History,
 } from "lucide-react";
 import { useAuth } from "@dashboard/lib/auth-context";
@@ -815,10 +811,6 @@ export function TaskDetail({
     },
   });
 
-  // Goal manifest — hook must run on every render, above the `!task` early
-  // return, otherwise React throws rules-of-hooks.
-  const { data: goals = [] } = useGoals();
-
   const fullDetails: FullTaskDetails | null = (() => {
     if (!details?.task || !task) return null;
     return {
@@ -1064,19 +1056,6 @@ export function TaskDetail({
       )}
     </>
   );
-
-  // Goals attached to this task (matched against the manifest pulled above)
-  const attachedGoalIds = task.labels
-    .filter((l) => l.startsWith(GOAL_LABEL_PREFIX))
-    .map((l) => l.slice(GOAL_LABEL_PREFIX.length));
-  const attachedGoals = goals.filter((g) => attachedGoalIds.includes(g.id));
-
-  const handleGoalsChange = () => {
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.taskDetails(task.issueNumber),
-    });
-    refetch();
-  };
 
   // --- Assignee handler (shared between desktop & mobile) ---
   const handleAssigneeChange = (event: AssigneeChangeEvent) => {
@@ -1483,50 +1462,14 @@ export function TaskDetail({
               );
             })}
 
-          {/* Goals — attached via `goal:<id>` labels, rendered from the manifest */}
-          <div className="space-y-2">
-            <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
-              Goals
-            </h4>
-            <div className="rounded-lg p-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
-              {attachedGoals.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {attachedGoals.map((goal) => (
-                    <span
-                      key={goal.id}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
-                    >
-                      <Flag className="w-3 h-3" />
-                      {goal.name}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">
-                  No goals attached.
-                </p>
-              )}
-              <GoalPicker
-                issueNumber={task.issueNumber}
-                currentLabels={task.labels}
-                onChange={handleGoalsChange}
-                fullWidth
-                triggerLabel={
-                  attachedGoals.length > 0 ? "Manage goals" : "Attach to a goal"
-                }
-              />
-            </div>
-          </div>
-
-          {/* Labels — hide kody:* / kody-flow:* (shown as chips), priority:*
-              (shown as its own block), and goal:* (shown in the Goals block) */}
+          {/* Labels — hide kody:* / kody-flow:* and priority:* because those
+              values have dedicated status blocks. */}
           {(() => {
             const rest = task.labels.filter(
               (l) =>
                 !l.startsWith("kody:") &&
                 !l.startsWith("kody-flow:") &&
-                !l.startsWith("priority:") &&
-                !l.startsWith(GOAL_LABEL_PREFIX),
+                !l.startsWith("priority:"),
             );
             return (
               <div className="space-y-2">
@@ -1736,8 +1679,7 @@ export function TaskDetail({
               const rest = task.labels.filter(
                 (l) =>
                   !l.startsWith("kody:") &&
-                  !l.startsWith("kody-flow:") &&
-                  !l.startsWith(GOAL_LABEL_PREFIX),
+                  !l.startsWith("kody-flow:"),
               );
               if (rest.length === 0) return null;
               return (
@@ -1754,43 +1696,6 @@ export function TaskDetail({
                 </div>
               );
             })()}
-
-            {/* Goals (mobile) */}
-            <div className="space-y-2">
-              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Goals
-              </h4>
-              <div className="rounded-lg p-3 bg-white/[0.03] border border-white/[0.06] space-y-2">
-                {attachedGoals.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {attachedGoals.map((goal) => (
-                      <span
-                        key={goal.id}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20"
-                      >
-                        <Flag className="w-3 h-3" />
-                        {goal.name}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No goals attached.
-                  </p>
-                )}
-                <GoalPicker
-                  issueNumber={task.issueNumber}
-                  currentLabels={task.labels}
-                  onChange={handleGoalsChange}
-                  fullWidth
-                  triggerLabel={
-                    attachedGoals.length > 0
-                      ? "Manage goals"
-                      : "Attach to a goal"
-                  }
-                />
-              </div>
-            </div>
 
             {/* Assignee picker */}
             <AssigneePicker

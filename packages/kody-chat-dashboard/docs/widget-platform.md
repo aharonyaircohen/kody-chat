@@ -64,7 +64,7 @@ in the contract is invisible to the widget — sandboxing (iframe +
   the commit sha) which is what the runtime serves — fast, rate-limit-free,
   instant rollback. Runtime never fetches from GitHub.
 
-## Non-goals
+## Out of scope
 
 - No tenant code runs on kody's server. Ever — widgets are browser-only.
 - No business-domain concepts in kody (lessons, exercises, etc. remain

@@ -22,7 +22,6 @@ const memoryKind = z.enum([
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ]);
 const memoryScope = z.enum(["user", "repository"]);

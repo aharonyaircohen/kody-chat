@@ -12,7 +12,6 @@ describe("simple Store activation", () => {
       '"agent" | "capability" | "workflow" | "loop" | "command" | "feature"',
     );
     expect(source).not.toContain('"implementation"');
-    expect(source).not.toContain('"goal"');
     expect(source).toContain("readStoreLoop");
   });
 
@@ -20,6 +19,12 @@ describe("simple Store activation", () => {
     expect(source).toContain("workflowDefinition.capabilities");
     expect(source).toContain("workflowDefinition.agent");
     expect(source).toContain("activeWorkflowBlockers");
+  });
+
+  it("activating a Loop activates its target before writing the Loop", () => {
+    expect(source).toMatch(
+      /if \(kind === "loop"\)[\s\S]*await activate\([\s\S]*storeLoop\.loop\.target\.kind[\s\S]*storeLoop\.loop\.target\.id[\s\S]*await saveRepositoryLoop/,
+    );
   });
 
   it("projects every Store config change into the Dashboard read model", () => {

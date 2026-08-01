@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern mention-roster
  * @ai-summary Single source of truth for the `@`-mention autocomplete
- *   list, shared by every composer (channels, goals, and any future
+ *   list, shared by every composer (channels and any future
  *   surface). Merges repo collaborators with the agent roster so
  *   agent identities like `@cto` are offered everywhere — not just in Messages.
  *   Agents are tagged `isStaff` so the UI can badge them; an agent

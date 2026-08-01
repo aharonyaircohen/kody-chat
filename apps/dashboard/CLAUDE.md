@@ -213,7 +213,7 @@ Three layers, merged at runtime:
 
 - **Repo commands** live at `backend repo documents (commands)<slug>.md` (frontmatter: `description`, `argument-hint`; body template). Repo wins on slug collision.
 - **Store commands** live at `backend repo documents (commands)<slug>.md` in the configured company store and provide shared defaults such as `/factory`.
-- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/goal`, `/analyze`, `/capability`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
+- **Built-ins** ship in [src/dashboard/lib/commands/builtins.ts](src/dashboard/lib/commands/builtins.ts) (`/plan`, `/research`, `/review`, `/explain`, `/issue`, `/analyze`, `/capability`, `/init`). `/research`, `/plan`, `/issue` follow research-first flow enforced by kody-live system prompt; `/issue` ends opt-in `kody_run_issue` handoff.
 
 Drop `backend repo documents (commands).disable-builtins` to suppress every built-in for the repo.
 

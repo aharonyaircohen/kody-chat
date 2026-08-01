@@ -14,7 +14,7 @@ describe("domain responsibility boundaries", () => {
     );
     expect(pkg.dependencies).toBeUndefined();
     expect(source).not.toMatch(
-      /IntentDefinition|OperationDefinition|GoalDefinition|ImplementationDefinition/,
+      /IntentDefinition|OperationDefinition|ImplementationDefinition/,
     );
     expect(source).not.toMatch(
       /from ["'](?:convex|next|@octokit|@kody-ade\/backend)/,

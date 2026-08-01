@@ -22,7 +22,7 @@ Everything described below has been observed running on at least one private rep
 - [x] Scheduled "capabilities" that run on a cadence (hourly, daily, weekly) and produce committed reports.
 - [x] Code review on opened pull requests, posting structured feedback as comments.
 - [x] Multi-step workflows that chain capability steps (e.g. classify → implement → test → open PR) inside a single run.
-- [x] Cross-repository coordination via the Director: a goal opened in one repo dispatching work into another.
+- [x] Cross-repository coordination via the Director: work opened in one repo dispatching into another.
 - [x] Mention-driven inbox routing: `@kody`, `@<agent-slug>`, and operator mentions reach the right handler.
 - [x] Web Push notifications to the operator's installed PWA when their attention is required.
 - [x] Secrets vault: per-repo encrypted secrets read at runtime without leaking into logs or workflow YAML.

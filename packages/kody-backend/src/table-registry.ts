@@ -169,7 +169,6 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["intentId", "seq"],
     upsertIndex: "by_intent",
   },
-  { table: "goals", naturalKey: ["goalId"], upsertIndex: "by_tenant" },
   {
     table: "notificationPrefs",
     naturalKey: ["login"],

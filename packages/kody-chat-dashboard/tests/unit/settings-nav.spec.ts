@@ -93,7 +93,6 @@ describe("settings navigation", () => {
       "/capabilities",
     ]);
     expect(navLabelForPath("/operations")).toBeNull();
-    expect(navLabelForPath("/agent-goals")).toBeNull();
     expect(navLabelForPath("/company-intents")).toBeNull();
   });
 

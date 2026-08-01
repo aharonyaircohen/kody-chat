@@ -63,7 +63,7 @@ export const activityApi = {
 
 // ============ Agency Runs API ============
 
-/** Kody-native run monitor for AI Agency goals, loops, and workflows. */
+/** Kody-native run monitor for loops and workflows. */
 export const agencyRunsApi = {
   list: async (
     limit = 50,

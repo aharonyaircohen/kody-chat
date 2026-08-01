@@ -13,7 +13,6 @@ type CatalogKind =
   | "agent"
   | "capability"
   | "implementation"
-  | "agentGoal"
   | "agentLoop"
   | "workflow"
   | "command";
@@ -90,13 +89,6 @@ const catalogSeeds: CatalogItem[] = [
     workflowSteps: ["reproduce", "plan", "run", "review", "fix"],
     htmlUrl: null,
     agent: "kody",
-  },
-  {
-    slug: "weekly-quality",
-    title: "Weekly Quality",
-    description: "Maintains quality goals.",
-    kind: "agentGoal",
-    htmlUrl: null,
   },
   {
     slug: "daily-triage",
@@ -399,7 +391,6 @@ test.describe("Store Catalog add", () => {
       { kind: "agent", slug: "atlas-agent" },
       { kind: "capability", slug: "release-watch" },
       { kind: "capability", slug: "bug-flow" },
-      { kind: "agentGoal", slug: "weekly-quality" },
       { kind: "agentLoop", slug: "daily-triage" },
       { kind: "workflow", slug: "release-workflow" },
       { kind: "command", slug: "factory" },

@@ -94,10 +94,10 @@ describe("memory duplicate matching", () => {
 
     expect(
       findDuplicateMemory([decision], {
-        kind: "goal",
+        kind: "reference",
         content: {
           title: "Ship typed memory",
-          summary: "The repository goal is to ship typed memory.",
+          summary: "The repository objective is to ship typed memory.",
           body: "Ship typed memory proof by 2030-01-02.",
         },
       }),

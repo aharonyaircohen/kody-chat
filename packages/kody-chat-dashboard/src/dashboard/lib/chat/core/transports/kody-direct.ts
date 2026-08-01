@@ -44,7 +44,7 @@ export interface KodyDirectTurnConfig {
   endpoint: string;
   /**
    * The full request body (messages, task, agentId, voiceMode, vibeMode,
-   * model, reasoningEffort, org/capability/report/goal context, …).
+   * model, reasoningEffort, org/capability/report context, …).
    * Assembled by the surface — it owns that state.
    */
   body: Readonly<Record<string, unknown>>;

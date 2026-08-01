@@ -18,7 +18,6 @@ export * from "./api/context";
 export * from "./api/todos";
 export * from "./api/memory";
 export * from "./api/reports";
-export * from "./api/goals";
 export * from "./api/notifications";
 export * from "./api/changelog";
 export * from "./api/vibe";
@@ -40,7 +39,6 @@ import { contextApi } from "./api/context";
 import { todosApi } from "./api/todos";
 import { memoryApi } from "./api/memory";
 import { reportsApi } from "./api/reports";
-import { goalsApi } from "./api/goals";
 import { notificationsApi } from "./api/notifications";
 import { changelogApi } from "./api/changelog";
 import { vibeApi } from "./api/vibe";
@@ -71,7 +69,6 @@ export const kodyApi = {
   memory: memoryApi,
   company: companyApi,
   reports: reportsApi,
-  goals: goalsApi,
   messages: messagesApi,
   notifications: notificationsApi,
   changelog: changelogApi,

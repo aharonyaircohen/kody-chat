@@ -4,7 +4,6 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 const kind = v.union(
   v.literal("agent"),
   v.literal("capability"),
-  v.literal("goal"),
   v.literal("implementation"),
   v.literal("asset"),
 );

@@ -16,7 +16,6 @@ export type StoreAssetKind =
   | "workflows"
   | "loops"
   | "commands"
-  | "goals"
   | "shared"
   | "agent"
   | "agents";
@@ -26,7 +25,6 @@ type StoreManifestKind =
   | "workflows"
   | "loops"
   | "commands"
-  | "goals"
   | "shared"
   | "agent";
 export type AssetSource = "local" | "store";
@@ -244,8 +242,6 @@ function defaultStoreAssetRoot(kind: StoreAssetKind): string {
     case "agents":
     case "agent":
       return "agents";
-    case "goals":
-      return "goals/templates";
     default:
       return kind;
   }

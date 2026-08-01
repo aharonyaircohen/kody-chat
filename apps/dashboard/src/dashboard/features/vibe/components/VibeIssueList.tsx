@@ -5,8 +5,7 @@
  * @ai-summary Compact selectable list of open tasks for the Vibe page.
  *   Lighter than TaskList — no actions, no DnD, no inline editing. Tasks are
  *   sorted by updatedAt desc; selecting a row bubbles the issueNumber up so
- *   the parent can swap chat scope + preview iframe. Each row shows a
- *   per-goal colored dot + chip when the task has a `goal:<id>` label.
+ *   the parent can swap chat scope + preview iframe.
  */
 "use client";
 
@@ -27,8 +26,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
-import { useGoals } from "@dashboard/lib/hooks/useGoals";
-import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { autoDirProps } from "@dashboard/lib/text-direction";
 import type { ColumnId } from "@kody-ade/base/constants";
 
@@ -89,73 +86,6 @@ interface VibeIssueListProps {
   isLoading: boolean;
 }
 
-// Deterministic palette — hash(goalId) % length picks a stable color per
-// goal. Each entry pairs a saturated dot with a softer translucent chip so
-// the chip reads as "tinted" rather than "solid color block". Classes are
-// listed as literals so Tailwind's JIT picks them up.
-const GOAL_PALETTE = [
-  {
-    dot: "bg-emerald-400",
-    chip: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/20",
-    border: "border-emerald-400",
-  },
-  {
-    dot: "bg-sky-400",
-    chip: "bg-sky-500/10 text-sky-300 ring-sky-500/20",
-    border: "border-sky-400",
-  },
-  {
-    dot: "bg-violet-400",
-    chip: "bg-violet-500/10 text-violet-300 ring-violet-500/20",
-    border: "border-violet-400",
-  },
-  {
-    dot: "bg-amber-400",
-    chip: "bg-amber-500/10 text-amber-300 ring-amber-500/20",
-    border: "border-amber-400",
-  },
-  {
-    dot: "bg-rose-400",
-    chip: "bg-rose-500/10 text-rose-300 ring-rose-500/20",
-    border: "border-rose-400",
-  },
-  {
-    dot: "bg-cyan-400",
-    chip: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/20",
-    border: "border-cyan-400",
-  },
-  {
-    dot: "bg-lime-400",
-    chip: "bg-lime-500/10 text-lime-300 ring-lime-500/20",
-    border: "border-lime-400",
-  },
-  {
-    dot: "bg-fuchsia-400",
-    chip: "bg-fuchsia-500/10 text-fuchsia-300 ring-fuchsia-500/20",
-    border: "border-fuchsia-400",
-  },
-  {
-    dot: "bg-orange-400",
-    chip: "bg-orange-500/10 text-orange-300 ring-orange-500/20",
-    border: "border-orange-400",
-  },
-  {
-    dot: "bg-indigo-400",
-    chip: "bg-indigo-500/10 text-indigo-300 ring-indigo-500/20",
-    border: "border-indigo-400",
-  },
-] as const;
-
-function hashGoalId(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function goalColor(id: string) {
-  return GOAL_PALETTE[hashGoalId(id) % GOAL_PALETTE.length];
-}
-
 export function VibeIssueList({
   tasks,
   selectedIssueNumber,
@@ -164,13 +94,6 @@ export function VibeIssueList({
   isLoading,
 }: VibeIssueListProps) {
   const [query, setQuery] = useState("");
-  const { data: goals = [] } = useGoals();
-
-  const goalNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of goals) map.set(g.id, g.name);
-    return map;
-  }, [goals]);
 
   // Only open issues — once merged/closed the row vanishes by design.
   // Sort by updatedAt desc so the freshest work surfaces.
@@ -267,22 +190,6 @@ export function VibeIssueList({
           const isSelected = task.issueNumber === selectedIssueNumber;
           const hasPR = !!task.associatedPR;
 
-          // First resolvable goal label → chip. Multiple goals are rare;
-          // keep the row tight by showing just the first known one.
-          let goalId: string | null = null;
-          let goalName: string | null = null;
-          for (const label of task.labels) {
-            if (!label.startsWith(GOAL_LABEL_PREFIX)) continue;
-            const id = label.slice(GOAL_LABEL_PREFIX.length);
-            const name = goalNameById.get(id);
-            if (name) {
-              goalId = id;
-              goalName = name;
-              break;
-            }
-          }
-          const color = goalId ? goalColor(goalId) : null;
-
           return (
             <li key={task.id}>
               <div
@@ -297,7 +204,7 @@ export function VibeIssueList({
                 }}
                 className={cn(
                   "group w-full text-left pl-3 pr-3 py-2.5 border-l-[3px] transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20",
-                  color ? color.border : "border-transparent",
+                  "border-transparent",
                   // Strong selected state so the active preview is
                   // unmistakable now that the redundant "Preview #N"
                   // label has been removed from the toolbar.
@@ -311,7 +218,6 @@ export function VibeIssueList({
                         COLUMN_ROW_BG[task.column].hover,
                       ),
                 )}
-                title={goalName ? `Goal: ${goalName}` : undefined}
               >
                 {/* Title row — full width, wraps; line-clamp-3 as a sanity bound */}
                 <div

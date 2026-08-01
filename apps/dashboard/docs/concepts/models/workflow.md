@@ -45,7 +45,7 @@ interface WorkflowDefinition {
 4. Backward edges have a finite `maxIterations`.
 5. Every saved step is reachable and at least one terminal step is reachable.
 6. Capability input is one JSON-compatible value.
-7. Workflow does not own Operation, Goal, or a separate Implementation.
+7. Workflow does not own another planning aggregate or a separate Implementation.
 
 The separate `WorkflowDefinition` in the simplified agency-domain package is
 not the mounted Dashboard workflow contract.

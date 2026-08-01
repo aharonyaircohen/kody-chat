@@ -321,7 +321,6 @@ export default defineSchema({
   runEvents: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    goalId: v.optional(v.string()),
     seq: v.number(),
     event: v.any(),
     time: v.string(),
@@ -462,13 +461,6 @@ export default defineSchema({
     .index("by_intent", ["tenantId", "intentId", "seq"])
     .index("by_idempotency", ["tenantId", "intentId", "idempotencyKey"]),
 
-  goals: defineTable({
-    tenantId: v.string(),
-    goalId: v.string(),
-    state: v.any(),
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "goalId"]),
-
   agencyDispatches: defineTable({
     tenantId: v.string(),
     idempotencyKey: v.string(),
@@ -551,7 +543,6 @@ export default defineSchema({
       v.literal("config"),
       v.literal("capability"),
       v.literal("agent"),
-      v.literal("goal-template"),
       v.literal("workflow-template"),
       v.literal("capability-workflow"),
     ),
@@ -567,7 +558,6 @@ export default defineSchema({
     kind: v.union(
       v.literal("agent"),
       v.literal("capability"),
-      v.literal("goal"),
       v.literal("implementation"),
       v.literal("asset"),
     ),
@@ -583,7 +573,6 @@ export default defineSchema({
     kind: v.union(
       v.literal("agent"),
       v.literal("capability"),
-      v.literal("goal"),
       v.literal("implementation"),
       v.literal("asset"),
     ),

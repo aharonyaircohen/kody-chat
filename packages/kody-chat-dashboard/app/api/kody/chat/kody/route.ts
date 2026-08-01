@@ -73,7 +73,6 @@ import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat-dashboard/co
 import {
   buildSystemPrompt,
   formatUserInstructionsPromptSection,
-  type GoalContext,
   type CapabilityContext,
   type TaskContext,
   type OrgContext,
@@ -95,7 +94,6 @@ import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
-import { createPlannerTools } from "../tools/planner-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
 import { applyVibeToolPolicy } from "./vibe-tool-policy";
@@ -623,13 +621,6 @@ async function handleKodyDirectPost(
     actorLogin?: string;
     /** Current capability context — scopes the chat to a specific capability folder. */
     capability?: CapabilityContext;
-    /**
-     * When true, append the mission-planning block to the system prompt and
-     * wire the planner tools (`create_task_for_goal`). `goal` must be set.
-     */
-    goalPlanner?: boolean;
-    /** The goal this planner session is scoped to. */
-    goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string; path?: string };
     /** Org workspace scope from /org/:org. */
@@ -850,7 +841,6 @@ async function handleKodyDirectPost(
       );
     }
   }
-  const goalPlannerActive = body.goalPlanner === true && !!body.goal;
   ensureTriggerStateWriter();
   const eventUserId = verifiedActorLogin
     ? `operator:${verifiedActorLogin.toLowerCase()}`
@@ -1266,19 +1256,6 @@ async function handleKodyDirectPost(
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
       }),
-      ...(goalPlannerActive && body.goal
-        ? createPlannerTools({
-            octokit,
-            owner: repo.owner,
-            repo: repo.repo,
-            actorLogin: verifiedActorLogin,
-            goalId: body.goal.id,
-            previewContext:
-              typeof body.previewContext === "string"
-                ? body.previewContext
-                : null,
-          })
-        : {}),
     };
     // Pipeline tools currently use github-client's module-level context
     // (already set above for the memory index loader) — they do *not* take
@@ -1543,8 +1520,6 @@ async function handleKodyDirectPost(
     body.task,
     {
       capability: body.capability,
-      goalPlanner: goalPlannerActive,
-      goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
       org: body.org,
       currentPage: body.currentPage,

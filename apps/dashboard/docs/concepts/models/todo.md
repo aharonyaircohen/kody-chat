@@ -14,7 +14,7 @@ has an id, title, optional body and assignee, completion state, and timestamps.
 1. Todo represents finite work, not repeated automation.
 2. Todo completion is explicit operator/runtime state.
 3. Todo does not replace Workflow execution history.
-4. Todo does not imply an Engine Goal.
+4. Todo does not imply an Engine execution definition.
 5. Todo storage is repository-scoped runtime state in Convex.
 
 The small `Todo` interface currently present in `packages/agency-domain` is not

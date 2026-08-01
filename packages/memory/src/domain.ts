@@ -1,5 +1,5 @@
 export type MemoryKind =
-  "preference" | "fact" | "decision" | "goal" | "reference";
+  "preference" | "fact" | "decision" | "reference";
 
 export type MemoryStatus = "active" | "superseded" | "expired";
 
@@ -29,7 +29,6 @@ export type EvidenceSource =
   | "user-input"
   | "conversation"
   | "message"
-  | "goal"
   | "pull-request"
   | "document"
   | "engine-run";
@@ -72,7 +71,6 @@ const MEMORY_KINDS: readonly MemoryKind[] = [
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ];
 const MEMORY_STATUSES: readonly MemoryStatus[] = [
@@ -84,7 +82,6 @@ const EVIDENCE_SOURCES: readonly EvidenceSource[] = [
   "user-input",
   "conversation",
   "message",
-  "goal",
   "pull-request",
   "document",
   "engine-run",

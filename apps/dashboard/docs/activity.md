@@ -27,7 +27,7 @@ follow-up, not what a current page does — see [Attribution](#attribution-the-m
 
 | Piece                    | What it is                                                                                                                              | Where                                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **Log** tab              | Dashboard actions a verified human took (capability runs/edits, task actions, vault writes, agent/prompt/goal changes), newest-first.   | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
+| **Log** tab              | Dashboard actions a verified human took (capability runs/edits, task actions, vault writes, agent/prompt changes), newest-first.   | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
 | **Auto** tab             | AI Agency Activity — named, attributed engine actions (which agent ran which capability, why, and the outcome). Engine-authored.        | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
 | **Runs** tab             | kody.yml workflow-run health: queue depth, flood detector, median duration, plus the `@kody` action joined from each run's issue label. | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)           |
 | **Feed** tab             | One row per chat/run **session**, grouped from the engine's per-session event files; expand for the raw event payloads.                 | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                   |
@@ -82,7 +82,7 @@ window before the `after()` write lands — de-duped by id, newest-first. It
 falls back to in-memory only when there's no repo context, so the tab never
 hard-fails.
 
-`recordAudit` is called from task actions, capability CRUD + runs, goals, vault
+`recordAudit` is called from task actions, capability CRUD + runs, vault
 secrets, implementations, agent, and chat-command writes (see the `AuditSpec` shape
 for the `action` / `resource` / `capability` / `agent` / `outcome` fields).
 

@@ -4,7 +4,7 @@
  * @pattern notifications-api
  * @ai-summary Notifications API — GET lists rules from the manifest issue;
  *   POST creates a new rule (creating the manifest issue on first use).
- *   Mirrors the goals API pattern: writes go through
+ *   Writes go through
  *   `mutateNotificationsManifest` for per-repo CAS.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
