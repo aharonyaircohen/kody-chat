@@ -355,6 +355,7 @@ function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
   secrets?: string[];
   timeoutMs?: number;
+  requiredSubagents?: string[];
   input: Record<string, unknown>;
   output: Record<string, unknown>;
 } {
@@ -414,11 +415,33 @@ function parseCapabilityContract(raw: string): {
       'contract.json timeoutMs is supported only when execution is "script"',
     );
   }
+  const requiredSubagents =
+    value.requiredSubagents === undefined
+      ? undefined
+      : Array.isArray(value.requiredSubagents) &&
+          value.requiredSubagents.length > 0 &&
+          value.requiredSubagents.every(
+            (name) =>
+              typeof name === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(name),
+          )
+        ? [...new Set(value.requiredSubagents as string[])]
+        : null;
+  if (requiredSubagents === null) {
+    throw new Error(
+      "contract.json requiredSubagents must contain valid specialist names",
+    );
+  }
+  if (requiredSubagents && value.execution !== "agent") {
+    throw new Error(
+      'contract.json requiredSubagents are supported only when execution is "agent"',
+    );
+  }
   const unsupported = Object.keys(value).filter(
     (key) =>
       key !== "execution" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
+      key !== "requiredSubagents" &&
       key !== "input" &&
       key !== "output",
   );
@@ -431,6 +454,7 @@ function parseCapabilityContract(raw: string): {
     ...(value.execution ? { execution: value.execution } : {}),
     ...(secrets ? { secrets } : {}),
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(requiredSubagents ? { requiredSubagents } : {}),
     input: value.input as Record<string, unknown>,
     output: value.output as Record<string, unknown>,
   };

@@ -212,4 +212,41 @@ describe("simple capability folders", () => {
       }),
     ).toThrow(/execution/i);
   });
+
+  it("accepts required specialists only for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requiredSubagents: ["documentation-researcher"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requiredSubagents: ["Documentation Researcher"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/requiredSubagents/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          requiredSubagents: ["documentation-researcher"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/agent/i);
+  });
 });
