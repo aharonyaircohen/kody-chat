@@ -373,6 +373,122 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.locator("textarea").first()).toBeEditable();
   });
 
+  test("deleting a new conversation waits for its save and keeps the existing session", async ({
+    page,
+  }) => {
+    const now = "2026-08-01T12:00:00.000Z";
+    let releaseCreate: (() => void) | undefined;
+    let createStarted = false;
+    const deletedConversationIds: string[] = [];
+
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const method = request.method();
+
+      if (method === "GET" && url.pathname.endsWith("/conversations")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversations: [
+              {
+                conversationId: "running-conversation",
+                title: "Existing running session",
+                createdAt: now,
+                updatedAt: now,
+                pinned: false,
+              },
+            ],
+          }),
+        });
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        url.pathname.endsWith("/conversations/running-conversation")
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversation: {
+              conversationId: "running-conversation",
+              title: "Existing running session",
+              pinned: false,
+              activeAgent: { slug: "kody", title: "Kody" },
+              runtime: { kind: "direct", modelId: "gpt-x" },
+              createdAt: now,
+              updatedAt: now,
+            },
+            entries: [],
+            checkpoints: [],
+          }),
+        });
+        return;
+      }
+
+      if (method === "POST" && url.pathname.endsWith("/conversations")) {
+        createStarted = true;
+        await new Promise<void>((resolve) => {
+          releaseCreate = resolve;
+        });
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+        return;
+      }
+
+      if (method === "DELETE") {
+        deletedConversationIds.push(url.pathname.split("/").at(-1) ?? "");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const sidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sidebar).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByText("Existing running session")).toBeVisible();
+
+    await sidebar.getByRole("button", { name: "New conversation" }).click();
+    await expect.poll(() => createStarted).toBe(true);
+
+    const newSession = sidebar
+      .locator("li")
+      .filter({ hasText: "New conversation" });
+    await expect(newSession).toHaveCount(1);
+    await newSession
+      .getByRole("button", { name: "Delete conversation" })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Delete conversation?" })
+      .getByRole("button", { name: "Delete" })
+      .click();
+
+    await page.waitForTimeout(100);
+    expect(deletedConversationIds).toEqual([]);
+    expect(releaseCreate).toBeDefined();
+    releaseCreate?.();
+
+    await expect.poll(() => deletedConversationIds.length).toBe(1);
+    expect(deletedConversationIds[0]).not.toBe("running-conversation");
+    await expect(sidebar.getByText("Existing running session")).toBeVisible();
+  });
+
   test("ChatRailApi composer injection renders a removable context chip", async ({
     page,
   }) => {

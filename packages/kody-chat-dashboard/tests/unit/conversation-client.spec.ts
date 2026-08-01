@@ -94,6 +94,40 @@ describe("ConversationClient", () => {
     await second;
   });
 
+  it("waits for a new conversation to finish saving before deleting it", async () => {
+    const releases: Array<() => void> = [];
+    fetcher.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          releases.push(() =>
+            resolve(new Response(JSON.stringify({ ok: true }))),
+          );
+        }),
+    );
+
+    const created = client.create({ conversationId: "new-conversation" });
+    const deleted = client.remove("new-conversation");
+
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/kody/chat/conversations",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    releases[0]();
+    await created;
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/kody/chat/conversations/new-conversation",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+
+    releases[1]();
+    await deleted;
+  });
+
   it("surfaces a failed persistence request", async () => {
     fetcher.mockResolvedValue(
       new Response(JSON.stringify({ error: "failed" }), { status: 500 }),
