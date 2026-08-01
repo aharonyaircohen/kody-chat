@@ -12,7 +12,7 @@ import { test, expect, type Page } from "@playwright/test";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_REPO =
   process.env.E2E_GITHUB_REPO ??
-  "https://github.com/aharonyaircohen/Kody-Dashboard";
+  "https://github.com/aharonyaircohen/kody-chat";
 
 async function loadWithoutAuth(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/tasks`);

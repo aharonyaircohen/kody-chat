@@ -32,7 +32,7 @@ on:
         type: string
         default: ""
       sessionId:
-        description: "Chat session ID (chat mode, from Kody-Dashboard)"
+        description: "Chat session ID (chat mode, from Kody Dashboard)"
         type: string
         default: ""
       message:

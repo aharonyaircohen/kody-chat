@@ -33,7 +33,7 @@ export async function POST(
   const headerAuth = getRequestAuth(req);
   const owner =
     headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
-  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "kody-chat";
   const octokit = await getUserOctokit(req);
 
   const state = await getActionState(runId, { owner, repo, octokit });

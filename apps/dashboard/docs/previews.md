@@ -301,7 +301,7 @@ packages/fly/builder/
 ## Deploying the builder image
 
 ```bash
-# From repo root (Kody-Dashboard)
+# From the kody-chat repo root
 pnpm builder:publish
 ```
 

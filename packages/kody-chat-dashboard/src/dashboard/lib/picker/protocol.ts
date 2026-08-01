@@ -17,7 +17,7 @@ export const PICKER_FIREFOX_DOWNLOAD_PATH =
   "/kody-preview-inspector-firefox.zip";
 /** User-facing install/setup guide. */
 export const PICKER_DOCS_URL =
-  "https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/docs/element-picker.md";
+  "https://github.com/aharonyaircohen/kody-chat/blob/main/apps/dashboard/docs/element-picker.md";
 /** One-line Chrome/Chromium install hint shown on download. */
 export const PICKER_INSTALL_HINT =
   "Picker downloading. Unzip it, open chrome://extensions, turn on Developer mode, click Load unpacked, pick the folder, then reload this tab.";

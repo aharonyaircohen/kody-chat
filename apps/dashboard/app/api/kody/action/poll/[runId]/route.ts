@@ -45,7 +45,7 @@ export async function GET(
   const headerAuth = getRequestAuth(req);
   const owner =
     headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
-  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "kody-chat";
 
   const result = await pollInstruction(runId, runId, { owner, repo });
 

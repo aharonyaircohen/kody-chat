@@ -106,7 +106,7 @@ Copy this into `~/.codex/AGENTS.md`.
 
 ## Kody Dashboard Project Instructions
 
-Copy this into `/Users/aguy/projects/Kody-Dashboard/AGENTS.md` or the equivalent repo root on the new machine.
+Copy this into `/Users/aguy/projects/kody-chat/AGENTS.md` or the equivalent repo root on the new machine.
 
 ```md
 # Kody Dashboard - Agent Reference
@@ -235,7 +235,7 @@ When I describe a problem, first find the system boundary and the simplest corre
 On the new machine:
 
 1. Install Codex.
-2. Clone `Kody-Dashboard`.
+2. Clone `kody-chat`.
 3. Create or update `~/.codex/AGENTS.md` from the global section above.
 4. Create or update the repo `AGENTS.md` from the project section above.
 5. Start Codex from the repo root.

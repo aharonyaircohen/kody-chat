@@ -57,7 +57,7 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
   return {
     owner: (GITHUB_OWNER ?? "aharonyaircohen").trim(),
-    repo: (GITHUB_REPO ?? "Kody-Dashboard").trim(),
+    repo: (GITHUB_REPO ?? "kody-chat").trim(),
   };
 }
 

@@ -15,7 +15,7 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO =
   process.env.E2E_GITHUB_REPO ??
-  "https://github.com/aharonyaircohen/Kody-Dashboard";
+  "https://github.com/aharonyaircohen/kody-chat";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
@@ -23,7 +23,7 @@ function parseRepo(url: string): { owner: string; repo: string } {
     const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
     return { owner: parts[0] ?? "", repo: parts[1] ?? "" };
   } catch {
-    return { owner: "aharonyaircohen", repo: "Kody-Dashboard" };
+    return { owner: "aharonyaircohen", repo: "kody-chat" };
   }
 }
 
