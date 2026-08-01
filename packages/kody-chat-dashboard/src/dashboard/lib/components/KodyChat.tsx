@@ -98,6 +98,7 @@ import {
   consumeWidgetOpenRequest,
   isWidgetPreviewView,
   isWidgetOpenRequest,
+  setActiveWidgetConversationId,
   WIDGET_OPEN_EVENT,
   type WidgetOpenRequest,
 } from "../widgets/chat-launch";
@@ -899,6 +900,9 @@ export function KodyChat({
   const ensureChatSession = sessionHook.createSession;
   const activeChatSessionId = sessionHook.activeSession?.id;
   activeGuidedFlowSessionIdRef.current = activeChatSessionId ?? null;
+  useEffect(() => {
+    setActiveWidgetConversationId(activeChatSessionId ?? null);
+  }, [activeChatSessionId]);
 
   useEffect(() => {
     if (!activeChatSessionId || !pendingGuidedFlowMessageRef.current) return;
@@ -1139,20 +1143,36 @@ export function KodyChat({
     },
     [sessionHook],
   );
+  const setMessagesForSession = useCallback(
+    (
+      sessionId: string,
+      updater: Message[] | ((prev: Message[]) => Message[]),
+      options?: { persist?: boolean },
+    ) => {
+      sessionHook.setSessionMessages(
+        sessionId,
+        (prevChat: ChatMessage[]) => {
+          const newMessages =
+            typeof updater === "function"
+              ? updater(prevChat.map(chatToMessage))
+              : updater;
+          return newMessages.map(messageToChat);
+        },
+        options,
+      );
+    },
+    [sessionHook],
+  );
   useEffect(() => {
     if (!sessionHook.hydrated || lockedAgentSlug) return;
-    if (!activeChatSessionId) {
-      ensureChatSession();
-      return;
-    }
-
     const openWidget = (request: WidgetOpenRequest) => {
+      const sessionId = request.conversationId ?? ensureChatSession();
       const view = buildWidgetPreviewView(
         request.widgetSlug,
         `widget-preview:${request.widgetSlug}:${crypto.randomUUID()}`,
       );
       if (!view) return;
-      setMessages((previous) => [
+      setMessagesForSession(sessionId, (previous) => [
         ...previous,
         {
           role: "assistant",
@@ -1175,32 +1195,11 @@ export function KodyChat({
     return () =>
       window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
   }, [
-    activeChatSessionId,
     ensureChatSession,
     lockedAgentSlug,
     sessionHook.hydrated,
-    setMessages,
+    setMessagesForSession,
   ]);
-  const setMessagesForSession = useCallback(
-    (
-      sessionId: string,
-      updater: Message[] | ((prev: Message[]) => Message[]),
-      options?: { persist?: boolean },
-    ) => {
-      sessionHook.setSessionMessages(
-        sessionId,
-        (prevChat: ChatMessage[]) => {
-          const newMessages =
-            typeof updater === "function"
-              ? updater(prevChat.map(chatToMessage))
-              : updater;
-          return newMessages.map(messageToChat);
-        },
-        options,
-      );
-    },
-    [sessionHook],
-  );
   persistGuidedFlowMessageRef.current = (sessionId, message) => {
     if (!sessionId) return;
     const viewKey = message.view
@@ -2210,10 +2209,11 @@ export function KodyChat({
           activeSessionId={sessionHook.activeSession?.id || null}
           modeBySessionId={vibeMode ? undefined : terminalModeBySessionId}
           onSwitchSession={(id) => {
+            setActiveWidgetConversationId(id);
             sessionHook.switchSession(id);
           }}
           onCreateSession={() => {
-            sessionHook.createSession();
+            setActiveWidgetConversationId(sessionHook.createSession());
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
@@ -2288,7 +2288,9 @@ export function KodyChat({
             // fine for the very first session but surprises users who
             // expect a "new chat" to start where the last one left off.
             const seed = currentEntry?.key;
-            sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+            setActiveWidgetConversationId(
+              sessionHook.createSession(seed ? { agentKey: seed } : undefined),
+            );
             setToolCalls([]);
           }}
           activeLoading={activeLoading}

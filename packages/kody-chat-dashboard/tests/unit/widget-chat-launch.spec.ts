@@ -8,6 +8,18 @@ import {
 describe("isWidgetOpenRequest", () => {
   it("accepts only valid widget slugs", () => {
     expect(isWidgetOpenRequest({ widgetSlug: "question-select" })).toBe(true);
+    expect(
+      isWidgetOpenRequest({
+        widgetSlug: "question-select",
+        conversationId: "conversation-1",
+      }),
+    ).toBe(true);
+    expect(
+      isWidgetOpenRequest({
+        widgetSlug: "question-select",
+        conversationId: "",
+      }),
+    ).toBe(false);
     expect(isWidgetOpenRequest({ widgetSlug: "../secret" })).toBe(false);
     expect(isWidgetOpenRequest({ widgetSlug: "" })).toBe(false);
     expect(isWidgetOpenRequest(null)).toBe(false);

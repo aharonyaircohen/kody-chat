@@ -277,6 +277,41 @@ test("plays a tenant widget directly in Chat without starting a Guided Flow", as
   expect(browserErrors).toEqual([]);
 });
 
+test("plays a widget in the newly opened conversation", async ({ page }) => {
+  const browserErrors = captureBrowserErrors(page);
+  await mockQuestionWidget(page);
+  await page.goto("/repo/acme/widgets/views/widgets", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.getByRole("button", { name: /question-select/ }).click();
+
+  const play = page.getByRole("button", {
+    name: "Play Question Select in Chat",
+  });
+  const widget = page.getByRole("region", { name: "Widget-owned preview" });
+
+  await play.click();
+  await expect(widget).toBeVisible();
+
+  await page.evaluate(() => {
+    const newConversation = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="New conversation"]',
+    );
+    if (!newConversation) {
+      throw new Error("Widget launch controls are unavailable");
+    }
+    newConversation.click();
+    const playWidget = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Play Question Select in Chat"]',
+    );
+    if (!playWidget) throw new Error("Widget launch control is unavailable");
+    playWidget.click();
+  });
+
+  await expect(widget).toBeVisible();
+  expect(browserErrors).toEqual([]);
+});
+
 test("mounts the same independent widget inside a Guided Flow", async ({
   page,
 }) => {
