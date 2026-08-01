@@ -88,6 +88,7 @@ async function mockQuestionWidget(page: Page) {
       widgets: [
         {
           tenantId: "acme/widgets",
+          name: "Question Select",
           slug: "question-select",
           version: 4,
           bundleSize: 1_024,
@@ -128,9 +129,12 @@ test("plays a tenant widget directly in Chat without starting a Guided Flow", as
     waitUntil: "domcontentloaded",
   });
   await page.getByRole("button", { name: /question-select/ }).click();
+  await expect(page).toHaveURL(
+    "/repo/acme/widgets/views/widgets/question-select",
+  );
 
   const play = page.getByRole("button", {
-    name: "Play question-select in Chat",
+    name: "Play Question Select in Chat",
   });
   await play.click();
 
@@ -138,13 +142,13 @@ test("plays a tenant widget directly in Chat without starting a Guided Flow", as
   await expect(widget).toContainText("What is 3 + 4?");
   await widget.getByRole("button", { name: "6", exact: true }).click();
   await expect(page.getByText("Count forward from three.")).toBeVisible();
-  await expect(
-    widget,
-  ).toBeVisible();
+  await expect(widget).toBeVisible();
 
   await widget.getByRole("button", { name: "7", exact: true }).click();
   await expect(page.getByText("Correct — the answer is seven.")).toBeVisible();
-  await expect(page).toHaveURL("/repo/acme/widgets/views/widgets");
+  await expect(page).toHaveURL(
+    "/repo/acme/widgets/views/widgets/question-select",
+  );
   await expect(
     page.getByText("GuidedFlow started. Follow the steps below."),
   ).toHaveCount(0);

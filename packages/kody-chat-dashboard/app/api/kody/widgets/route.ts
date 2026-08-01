@@ -14,6 +14,11 @@ import { z } from "zod";
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
+import {
+  normalizeWidgetName,
+  widgetNameFromSlug,
+  widgetSlugFromName,
+} from "../../../../src/dashboard/lib/widgets/identity";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,23 +30,30 @@ const MAX_BUNDLE_CHARS = 900_000;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
-const publishSchema = z.object({
-  slug: z
-    .string()
-    .trim()
-    .regex(WIDGET_SLUG_RE, "Slug must be lowercase letters, digits, - or _."),
-  bundle: z
-    .string()
-    .min(1, "Bundle is empty.")
-    .max(
-      MAX_BUNDLE_CHARS,
-      `Bundle exceeds ${MAX_BUNDLE_CHARS} characters (backend document limit).`,
-    ),
-  commitSha: z.string().trim().max(64).optional(),
-});
+const publishSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    slug: z
+      .string()
+      .trim()
+      .regex(WIDGET_SLUG_RE, "Slug must be lowercase letters, digits, - or _.")
+      .optional(),
+    bundle: z
+      .string()
+      .min(1, "Bundle is empty.")
+      .max(
+        MAX_BUNDLE_CHARS,
+        `Bundle exceeds ${MAX_BUNDLE_CHARS} characters (backend document limit).`,
+      ),
+    commitSha: z.string().trim().max(64).optional(),
+  })
+  .refine((input) => input.name || input.slug, {
+    message: "Widget name is required.",
+  });
 
 interface WidgetListRow {
   tenantId: string;
+  name?: string;
   slug: string;
   version: number;
   bundleSize: number;
@@ -65,10 +77,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const widgets = (await createBackendClient().query(backendApi.widgets.list, {
-      tenantId: `${auth.owner}/${auth.repo}`,
-    })) as WidgetListRow[];
-    return json({ widgets });
+    const widgets = (await createBackendClient().query(
+      backendApi.widgets.list,
+      {
+        tenantId: `${auth.owner}/${auth.repo}`,
+      },
+    )) as WidgetListRow[];
+    return json({
+      widgets: widgets.map((widget) => ({
+        ...widget,
+        name: widget.name || widgetNameFromSlug(widget.slug),
+      })),
+    });
   } catch (error) {
     console.error("[Widgets] list failed", error);
     return json({ error: "widgets_unavailable" }, { status: 500 });
@@ -95,17 +115,31 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const name = normalizeWidgetName(
+      input.name ?? widgetNameFromSlug(input.slug ?? ""),
+    );
+    const slug = input.name ? widgetSlugFromName(name) : (input.slug ?? "");
+    if (!name || !WIDGET_SLUG_RE.test(slug)) {
+      return json(
+        {
+          error: "invalid_widget",
+          message: "Widget name must produce a valid slug.",
+        },
+        { status: 400 },
+      );
+    }
     const version = (await createBackendClient().mutation(
       backendApi.widgets.publish,
       {
         tenantId: `${auth.owner}/${auth.repo}`,
-        slug: input.slug,
+        name,
+        slug,
         bundle: input.bundle,
         ...(input.commitSha ? { commitSha: input.commitSha } : {}),
         updatedAt: new Date().toISOString(),
       },
     )) as number;
-    return json({ slug: input.slug, version });
+    return json({ name, slug, version });
   } catch (error) {
     console.error("[Widgets] publish failed", error);
     return json({ error: "widget_publish_failed" }, { status: 500 });

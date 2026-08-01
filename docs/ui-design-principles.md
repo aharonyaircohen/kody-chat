@@ -78,6 +78,25 @@ gap and obtain explicit user approval before implementing a bespoke structure.
 - Before adding a control, ask whether the result already happens automatically.
 - Do not repeat the same information in a header, field label, helper text, and preview.
 
+## Give routable surfaces stable slugs
+
+- Every dashboard page must have a human-readable title and a stable route
+  slug. Every durable item with its own detail route must have a human-readable
+  name and stable item slug.
+- Use the name for visible titles and accessible labels. Use the slug for
+  routing, chat context, automation, and durable references.
+- On master-detail pages, keep the collection at `/page-slug` and route a
+  selected item as `/page-slug/item-slug`; selection must be reflected in the
+  URL, not only held in component state.
+- A modal is transient and does not need a slug. Give it an accessible title;
+  add a stable identifier only when a verified deep-linking or automation
+  contract requires one.
+- Ask users for the name and derive new slugs with the shared
+  `@kody-ade/base/slug` helper. Do not add a second manual slug input unless an
+  external identifier must be preserved.
+- Treat a persisted slug as immutable identity. Renaming the visible name must
+  not silently change existing routes or references.
+
 ## Create hierarchy with structure
 
 - Use page title, section grouping, spacing, and alignment before decoration.

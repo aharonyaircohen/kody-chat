@@ -10,6 +10,7 @@ describe("widgets", () => {
     const t = setup();
     const base = {
       tenantId: TENANT,
+      name: "Exercise Player",
       slug: "exercise-player",
       bundle: "export default {}",
       updatedAt: NOW,
@@ -28,6 +29,7 @@ describe("widgets", () => {
       slug: "exercise-player",
     });
     expect(latest).toMatchObject({
+      name: "Exercise Player",
       version: 2,
       bundle: "export default {v:2}",
       commitSha: "abc123",
@@ -41,7 +43,11 @@ describe("widgets", () => {
 
     const listed = await t.query(api.widgets.list, { tenantId: TENANT });
     expect(listed).toEqual([
-      expect.objectContaining({ slug: "exercise-player", version: 2 }),
+      expect.objectContaining({
+        name: "Exercise Player",
+        slug: "exercise-player",
+        version: 2,
+      }),
     ]);
   });
 });

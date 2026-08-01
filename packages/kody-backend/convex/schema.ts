@@ -137,6 +137,7 @@ export default defineSchema({
   // per published version; latest non-null wins.
   widgets: defineTable({
     tenantId: v.string(),
+    name: v.optional(v.string()),
     slug: v.string(),
     version: v.number(),
     bundle: v.string(),

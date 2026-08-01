@@ -5,6 +5,7 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 export const publish = mutation({
   args: {
     tenantId: v.string(),
+    name: v.optional(v.string()),
     slug: v.string(),
     bundle: v.string(),
     commitSha: v.optional(v.string()),

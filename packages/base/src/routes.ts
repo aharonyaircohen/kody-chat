@@ -68,6 +68,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/todos",
   "/variables",
   "/vibe",
+  "/views",
   "/workflows",
 ] as const;
 
