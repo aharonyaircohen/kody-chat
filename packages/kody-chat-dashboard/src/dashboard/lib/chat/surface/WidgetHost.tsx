@@ -35,6 +35,7 @@ type WidgetHostStatus = "loading" | "ready" | "error";
 
 export function WidgetHost({
   slug,
+  version,
   data,
   preview = false,
   disabled,
@@ -42,6 +43,7 @@ export function WidgetHost({
   onReply,
 }: {
   slug: string;
+  version?: number;
   data: unknown;
   preview?: boolean;
   disabled: boolean;
@@ -78,7 +80,9 @@ export function WidgetHost({
     let cancelled = false;
     let cleanup: (() => void) | undefined;
     setStatus("loading");
-    importWidgetModule(buildWidgetBundleUrl(slug, { owner, repo, token }))
+    importWidgetModule(
+      buildWidgetBundleUrl(slug, { owner, repo, token }, version),
+    )
       .then((module) => {
         if (cancelled) return;
         const mount = resolveWidgetMount(module);
@@ -123,7 +127,17 @@ export function WidgetHost({
       }
       element.replaceChildren();
     };
-  }, [slug, data, preview, owner, repo, token, resolvedTheme, cmsAuthHeaders]);
+  }, [
+    slug,
+    version,
+    data,
+    preview,
+    owner,
+    repo,
+    token,
+    resolvedTheme,
+    cmsAuthHeaders,
+  ]);
 
   if (status === "error") {
     return (

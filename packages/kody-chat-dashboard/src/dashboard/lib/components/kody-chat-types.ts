@@ -8,15 +8,12 @@
  *   tool names the in-process chat path watches for.
  */
 
-import type {
-  AttachmentRef,
-  ChatContext,
-  ChatMessage,
-} from "../chat-types";
+import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
 import type { GoalRef } from "../chat/plugins/goals";
 import type { ChatViewDirective } from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
+import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 
 export interface Message {
   id?: string;
@@ -126,6 +123,12 @@ export interface Attachment {
 }
 
 export interface KodyChatProps {
+  /** One shell-owned flow command. Only the persistent chat mount receives it. */
+  guidedFlowRequest?: {
+    id: string;
+    request: GuidedFlowOpenRequest;
+  } | null;
+  onGuidedFlowRequestHandled?: (requestId: string) => void;
   /**
    * What this chat is "about". Today only task-scoped chat is supported;
    * the discriminated union leaves room for other kinds (e.g. capability

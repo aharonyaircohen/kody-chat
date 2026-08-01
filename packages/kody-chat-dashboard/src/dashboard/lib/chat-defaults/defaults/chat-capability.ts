@@ -52,6 +52,8 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     // ── User-managed view renderers
     "show_view",
     "guided_flow_start",
+    "guided_flow_context",
+    "guided_flow_read",
     // ── Kody admin (actor-gated) ───────────────────────────────────────────
     "switch_agent",
     "dashboard_navigate",

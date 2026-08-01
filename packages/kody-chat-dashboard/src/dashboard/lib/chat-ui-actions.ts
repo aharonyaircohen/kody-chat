@@ -160,6 +160,8 @@ export type RenderedViewUiNode =
        */
       type: "widget";
       widget: string;
+      /** Exact published widget bundle version. */
+      version?: number;
       data?: unknown;
       /** Use the widget bundle's optional previewData export. */
       preview?: boolean;

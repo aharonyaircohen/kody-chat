@@ -37,9 +37,24 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_completion",
   },
   {
+    table: "guidedFlowSubmissions",
+    naturalKey: ["actorId", "instanceId", "revision"],
+    upsertIndex: "by_instance_revision",
+  },
+  {
+    table: "guidedFlowBindings",
+    naturalKey: ["actorId", "conversationId"],
+    upsertIndex: "by_conversation",
+  },
+  {
     table: "guidedFlowDefinitions",
     naturalKey: ["flowId", "version"],
     upsertIndex: "by_flow",
+  },
+  {
+    table: "guidedFlowEffects",
+    naturalKey: ["actorId", "effectId"],
+    upsertIndex: "by_effect",
   },
   {
     table: "userJourneys",
@@ -108,7 +123,11 @@ export const TABLES: readonly TableDef[] = [
   },
   { table: "reports", naturalKey: ["slug", "runId"], upsertIndex: "by_slug" },
   { table: "agents", naturalKey: ["slug"], upsertIndex: "by_tenant" },
-  { table: "viewRenderers", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  {
+    table: "viewRenderers",
+    naturalKey: ["slug", "version"],
+    upsertIndex: "by_renderer",
+  },
   {
     table: "widgets",
     naturalKey: ["slug", "version"],

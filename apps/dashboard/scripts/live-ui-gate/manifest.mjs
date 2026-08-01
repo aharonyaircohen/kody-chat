@@ -49,6 +49,12 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     title: "creates, completes, persists, and cleans up a real custom flow",
   },
   {
+    id: "guided-flows-real-chat-context",
+    file: "tests/e2e/guided-flows-real.e2e.spec.ts",
+    title:
+      "uses real Chat to read the current Guided Flow step and submitted answer",
+  },
+  {
     id: "vibe-real-execution",
     file: "tests/e2e/vibe-live-full-flow.spec.ts",
     title: "rename welcome text → approve → runner pushes the real diff",

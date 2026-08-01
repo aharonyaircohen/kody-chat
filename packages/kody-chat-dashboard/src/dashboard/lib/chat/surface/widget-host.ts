@@ -28,10 +28,8 @@ export interface WidgetMountProps {
   /** Adds assistant feedback without consuming the current view. */
   reply: (message: string) => void;
   /**
-   * Submits the widget's outcome exactly like a rendered-view button click:
-   * the card's onAction path receives `{ id: actionId, label: actionId,
-   * response: actionId, result }`, so the host can consume the view and
-   * advance its GuidedFlow step.
+   * Submits the widget's outcome to its current host. The widget does not know
+   * whether it was mounted by Chat, a GuidedFlow, or another compatible view.
    */
   complete: (actionId: string, result?: Record<string, unknown>) => void;
 }
@@ -164,12 +162,14 @@ export function normalizeWidgetReply(message: string): string | null {
 export function buildWidgetBundleUrl(
   slug: string,
   auth: WidgetBundleAuth,
+  version?: number,
 ): string {
   const query = new URLSearchParams({
     owner: auth.owner,
     repo: auth.repo,
     token: auth.token,
   });
+  if (version !== undefined) query.set("version", String(version));
   return `/api/kody/widgets/${encodeURIComponent(slug)}?${query.toString()}`;
 }
 

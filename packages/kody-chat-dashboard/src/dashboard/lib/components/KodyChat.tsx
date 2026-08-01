@@ -12,7 +12,7 @@ import {
   type ChatHostEffect,
 } from "../chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
-import { useAuth } from "../auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "@kody-ade/base/types";
 // Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
@@ -86,14 +86,8 @@ import type {
   PreviewActDirective,
 } from "../chat-ui-actions";
 import { isRenderedViewDirective } from "../chat-ui-actions";
-import {
-  consumeGuidedFlowOpenRequest,
-  GUIDED_FLOW_OPEN_EVENT,
-  isGuidedFlowOpenRequest,
-  requestGuidedFlowOpen,
-  type GuidedFlowOpenRequest,
-} from "../guided-flows/events";
-import { buildGuidedFlowStatusView } from "../guided-flows/registry";
+import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
+import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
 import {
@@ -137,6 +131,8 @@ function compactReportItems(
 }
 
 export function KodyChat({
+  guidedFlowRequest,
+  onGuidedFlowRequestHandled,
   context,
   actorLogin,
   onClose,
@@ -223,72 +219,117 @@ export function KodyChat({
   // Add a picker selection as a chip. Keyed by id so a re-render with the same
   // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    const openGuidedFlow = (request: GuidedFlowOpenRequest) => {
-      const response =
+  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
+    sessionId: string | null;
+    message: Message;
+  } | null>(null);
+  const createGuidedFlowSessionRef = useRef<() => string>(() => "");
+  const activateGuidedFlowSessionRef = useRef<(sessionId: string) => void>(
+    () => undefined,
+  );
+  const openGuidedFlow = useCallback(
+    async (request: GuidedFlowOpenRequest): Promise<boolean> => {
+      const requestKey =
         "flowId" in request
-          ? fetch("/api/kody/guided-flows", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...authHeaders(),
-              },
-              body: JSON.stringify({
-                action: "start",
-                flowId: request.flowId,
-                ...(request.instanceKey
-                  ? { instanceKey: request.instanceKey }
-                  : {}),
-              }),
-            })
-          : fetch(
-              `/api/kody/guided-flows?instanceId=${encodeURIComponent(request.instanceId)}`,
-              { headers: authHeaders() },
-            );
-
-      void response
-        .then(async (response) => {
-          if (!response.ok) return null;
-          return (await response.json()) as {
+          ? `flow:${request.flowId}:${request.instanceKey ?? ""}`
+          : `instance:${request.instanceId}`;
+      if (guidedFlowOpenInFlightRef.current.has(requestKey)) return false;
+      guidedFlowOpenInFlightRef.current.add(requestKey);
+      try {
+        const conversationId =
+          activeGuidedFlowSessionIdRef.current ??
+          createGuidedFlowSessionRef.current();
+        activeGuidedFlowSessionIdRef.current = conversationId;
+        const response =
+          "flowId" in request
+            ? await fetch("/api/kody/guided-flows", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...authHeaders(),
+                },
+                body: JSON.stringify({
+                  action: "start",
+                  flowId: request.flowId,
+                  conversationId,
+                  ...(request.instanceKey
+                    ? { instanceKey: request.instanceKey }
+                    : {}),
+                }),
+              })
+            : await fetch("/api/kody/guided-flows", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...authHeaders(),
+                },
+                body: JSON.stringify({
+                  action: "bind",
+                  instanceId: request.instanceId,
+                  conversationId,
+                }),
+              });
+        const payload = (await response.json().catch(() => null)) as {
+          error?: unknown;
+          view?: unknown;
+          compatibility?: { status?: unknown; code?: unknown };
+          flow?: {
             view?: unknown;
-            flow?: { view?: unknown };
+            compatibility?: { status?: unknown; code?: unknown };
           };
-        })
-        .then((payload) => {
-          const view = payload?.flow?.view ?? payload?.view;
-          if (!isRenderedViewDirective(view)) return;
-          const message: Message = {
-            role: "assistant",
-            content:
-              request.message === "started"
-                ? "GuidedFlow started. Follow the steps below."
-                : "GuidedFlow resumed. Continue where you stopped.",
-            timestamp: new Date().toISOString(),
-            view,
-          };
-          const sessionId = activeGuidedFlowSessionIdRef.current;
-          if (sessionId) {
-            persistGuidedFlowMessageRef.current(sessionId, message);
-          } else {
-            pendingGuidedFlowMessageRef.current = message;
-          }
-        })
-        .catch(() => undefined);
-    };
+        } | null;
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : "guided_flow_action_failed",
+          );
+        }
+        const flowPayload = payload?.flow ?? payload;
+        if (flowPayload?.compatibility?.status === "incompatible") {
+          throw new Error(
+            typeof flowPayload.compatibility.code === "string"
+              ? flowPayload.compatibility.code
+              : "renderer_contract_invalid",
+          );
+        }
+        const view = flowPayload?.view;
+        if (!isRenderedViewDirective(view)) {
+          throw new Error("renderer_contract_invalid");
+        }
+        const message: Message = {
+          role: "assistant",
+          content:
+            request.message === "started"
+              ? "GuidedFlow started. Follow the steps below."
+              : "GuidedFlow resumed. Continue where you stopped.",
+          timestamp: new Date().toISOString(),
+          view,
+        };
+        activateGuidedFlowSessionRef.current(conversationId);
+        setResumedGuidedFlowMessage({ sessionId: conversationId, message });
+        persistGuidedFlowMessageRef.current(conversationId, message);
+        return true;
+      } catch (error) {
+        toast.error(
+          guidedFlowActionErrorMessage(
+            error instanceof Error ? error.message : undefined,
+          ),
+        );
+        return false;
+      } finally {
+        guidedFlowOpenInFlightRef.current.delete(requestKey);
+      }
+    },
+    [],
+  );
 
-    const handleGuidedFlowOpen = (event: Event) => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (!isGuidedFlowOpenRequest(detail)) return;
-      consumeGuidedFlowOpenRequest();
-      openGuidedFlow(detail);
-    };
-
-    window.addEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
-    const pendingRequest = consumeGuidedFlowOpenRequest();
-    if (pendingRequest) openGuidedFlow(pendingRequest);
-    return () =>
-      window.removeEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
-  }, []);
+  useEffect(() => {
+    if (!guidedFlowRequest) return;
+    void openGuidedFlow(guidedFlowRequest.request).finally(() => {
+      onGuidedFlowRequestHandled?.(guidedFlowRequest.id);
+    });
+  }, [guidedFlowRequest, onGuidedFlowRequestHandled, openGuidedFlow]);
 
   useEffect(() => {
     if (
@@ -347,6 +388,7 @@ export function KodyChat({
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
   const activeGuidedFlowSessionIdRef = useRef<string | null>(null);
+  const guidedFlowOpenInFlightRef = useRef<Set<string>>(new Set());
   const persistedGuidedFlowViewKeysRef = useRef<Set<string>>(new Set());
   const persistGuidedFlowMessageRef = useRef<
     (sessionId: string | null, message: Message) => void
@@ -486,9 +528,16 @@ export function KodyChat({
     useState<
       import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope
     >(desiredSessionScope);
+  const directHeadersKey = JSON.stringify(kodyDirectHeaders ?? {});
   const conversationRequestHeaders = useMemo(
-    () => ({ ...(auth ? authHeaders() : {}), ...kodyDirectHeaders }),
-    [auth, kodyDirectHeaders],
+    () => ({
+      ...buildAuthHeaders(auth),
+      ...kodyDirectHeaders,
+    }),
+    // Keep the conversation client stable when the auth provider recreates an
+    // equivalent object; replacing it rehydrates the session store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auth?.owner, auth?.repo, auth?.token, auth?.user.login, directHeadersKey],
   );
   const sessionHook = useConversationSessions(
     sessionStoreScope,
@@ -497,6 +546,8 @@ export function KodyChat({
     effectiveActorLogin !== null,
   );
   const createChatSession = sessionHook.createSession;
+  createGuidedFlowSessionRef.current = createChatSession;
+  activateGuidedFlowSessionRef.current = sessionHook.switchSession;
 
   // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected
   // agent/model state, dropdown entries, default resolution, family snap,
@@ -855,16 +906,15 @@ export function KodyChat({
     pendingGuidedFlowMessageRef.current = null;
   }, [activeChatSessionId]);
 
-  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
-    sessionId: string | null;
-    message: Message;
-  } | null>(null);
-
   useEffect(() => {
     if (!sessionHook.hydrated) return;
     const activeSessionId = activeChatSessionId;
     if (lockedAgentSlug || messages.length > 0) {
-      setResumedGuidedFlowMessage(null);
+      setResumedGuidedFlowMessage((current) =>
+        current?.message.view?.rendererSlug === "guided-flow-status"
+          ? null
+          : current,
+      );
       return;
     }
     if (!activeSessionId) {
@@ -887,7 +937,16 @@ export function KodyChat({
         return (await response.json()) as {
           flows?: Array<{
             view?: unknown;
-            instance?: { instanceId?: unknown };
+            compatibility?: {
+              status?: unknown;
+              code?: unknown;
+              message?: unknown;
+            };
+            instance?: {
+              instanceId?: unknown;
+              revision?: unknown;
+              status?: unknown;
+            };
             flow?: {
               title?: unknown;
               stepIndex?: unknown;
@@ -898,34 +957,75 @@ export function KodyChat({
       })
       .then((payload) => {
         if (cancelled) return;
-        const activeFlow = payload?.flows?.find(
-          (flow) => flow.view && flow.instance && flow.flow,
-        );
-        const view = activeFlow?.view;
-        if (!isRenderedViewDirective(view)) return;
-        const instance = activeFlow?.instance;
-        const flow = activeFlow?.flow;
-        if (
-          typeof instance?.instanceId !== "string" ||
-          typeof flow?.title !== "string" ||
-          typeof flow.stepIndex !== "number" ||
-          typeof flow.stepCount !== "number"
-        )
-          return;
-        setResumedGuidedFlowMessage({
-          sessionId: activeSessionId,
-          message: {
-            role: "assistant",
-            content: "",
-            timestamp: new Date().toISOString(),
-            view: buildGuidedFlowStatusView({
-              instanceId: instance.instanceId,
-              sessionId: activeSessionId,
-              title: flow.title,
-              stepIndex: flow.stepIndex,
-              stepCount: flow.stepCount,
-            }),
-          },
+        const flows = (payload?.flows ?? []).flatMap((candidate) => {
+          const instance = candidate.instance;
+          const flow = candidate.flow;
+          if (
+            typeof instance?.instanceId !== "string" ||
+            typeof instance.revision !== "number" ||
+            instance.status !== "active" ||
+            typeof flow?.title !== "string" ||
+            typeof flow.stepIndex !== "number" ||
+            typeof flow.stepCount !== "number"
+          ) {
+            return [];
+          }
+          const compatibility =
+            candidate.compatibility?.status === "incompatible" &&
+            typeof candidate.compatibility.code === "string" &&
+            typeof candidate.compatibility.message === "string"
+              ? {
+                  status: "incompatible" as const,
+                  code: candidate.compatibility.code as
+                    | "step_unavailable"
+                    | "renderer_unavailable"
+                    | "renderer_version_unpinned"
+                    | "renderer_version_mismatch"
+                    | "renderer_data_invalid",
+                  message: candidate.compatibility.message,
+                }
+              : candidate.compatibility?.status === "compatible" ||
+                  isRenderedViewDirective(candidate.view)
+                ? ({ status: "compatible" } as const)
+                : null;
+          return compatibility
+            ? [
+                {
+                  instance: {
+                    instanceId: instance.instanceId,
+                    revision: instance.revision,
+                    status: "active" as const,
+                  },
+                  flow: {
+                    title: flow.title,
+                    stepIndex: flow.stepIndex,
+                    stepCount: flow.stepCount,
+                  },
+                  compatibility,
+                },
+              ]
+            : [];
+        });
+        if (flows.length === 0) return;
+        setResumedGuidedFlowMessage((current) => {
+          if (
+            current?.sessionId === activeSessionId &&
+            current.message.view?.rendererSlug !== "guided-flow-status"
+          ) {
+            return current;
+          }
+          return {
+            sessionId: activeSessionId,
+            message: {
+              role: "assistant",
+              content: "",
+              timestamp: new Date().toISOString(),
+              view: buildGuidedFlowResumeView({
+                sessionId: activeSessionId,
+                flows,
+              }),
+            },
+          };
         });
       })
       .catch(() => {
@@ -1011,9 +1111,16 @@ export function KodyChat({
     sessionHook.hydrated,
   ]);
 
+  const resumedGuidedFlowMessageIsPersisted =
+    resumedGuidedFlowMessage?.message.view !== undefined &&
+    messages.some(
+      (message) =>
+        message.view?.id === resumedGuidedFlowMessage.message.view?.id,
+    );
   const displayMessages =
     resumedGuidedFlowMessage !== null &&
-    resumedGuidedFlowMessage.sessionId === activeChatSessionId
+    resumedGuidedFlowMessage.sessionId === activeChatSessionId &&
+    !resumedGuidedFlowMessageIsPersisted
       ? [...messages, resumedGuidedFlowMessage.message]
       : messages;
 
@@ -1029,36 +1136,6 @@ export function KodyChat({
     },
     [sessionHook],
   );
-  persistGuidedFlowMessageRef.current = (sessionId, message) => {
-    if (!sessionId) return;
-    const viewKey = message.view
-      ? `${sessionId}:${message.view.id}`
-      : `${sessionId}:${message.timestamp}`;
-    if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
-    persistedGuidedFlowViewKeysRef.current.add(viewKey);
-    setMessages((prev) => [...prev, message]);
-  };
-  const setMessagesForSession = useCallback(
-    (
-      sessionId: string,
-      updater: Message[] | ((prev: Message[]) => Message[]),
-      options?: { persist?: boolean },
-    ) => {
-      sessionHook.setSessionMessages(
-        sessionId,
-        (prevChat: ChatMessage[]) => {
-          const newMessages =
-            typeof updater === "function"
-              ? updater(prevChat.map(chatToMessage))
-              : updater;
-          return newMessages.map(messageToChat);
-        },
-        options,
-      );
-    },
-    [sessionHook],
-  );
-
   useEffect(() => {
     if (!sessionHook.hydrated || lockedAgentSlug) return;
     if (!activeChatSessionId) {
@@ -1101,7 +1178,35 @@ export function KodyChat({
     sessionHook.hydrated,
     setMessages,
   ]);
-
+  const setMessagesForSession = useCallback(
+    (
+      sessionId: string,
+      updater: Message[] | ((prev: Message[]) => Message[]),
+      options?: { persist?: boolean },
+    ) => {
+      sessionHook.setSessionMessages(
+        sessionId,
+        (prevChat: ChatMessage[]) => {
+          const newMessages =
+            typeof updater === "function"
+              ? updater(prevChat.map(chatToMessage))
+              : updater;
+          return newMessages.map(messageToChat);
+        },
+        options,
+      );
+    },
+    [sessionHook],
+  );
+  persistGuidedFlowMessageRef.current = (sessionId, message) => {
+    if (!sessionId) return;
+    const viewKey = message.view
+      ? `${sessionId}:${message.view.id}`
+      : `${sessionId}:${message.timestamp}`;
+    if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
+    persistedGuidedFlowViewKeysRef.current.add(viewKey);
+    setMessagesForSession(sessionId, (previous) => [...previous, message]);
+  };
   const activeLoading = messages.some((m) => m.isLoading);
   const { compactionStatus, setCompactionStatus } = useCompactionStatus(
     sessionHook.activeSession?.id,
@@ -1517,22 +1622,67 @@ export function KodyChat({
 
   const handleRenderedViewAction = useCallback(
     (view: RenderedViewDirective, action: RenderedViewAction) => {
+      if (view.rendererSlug === "guided-flow-status") {
+        if (action.id === "resume") {
+          const instanceId = action.result?.instanceId ?? view.data.instanceId;
+          if (typeof instanceId === "string" && instanceId.trim()) {
+            void openGuidedFlow({ instanceId, message: "resumed" }).then(
+              (opened) => {
+                if (opened) setResumedGuidedFlowMessage(null);
+              },
+            );
+          }
+        } else if (action.id === "cancel") {
+          const instanceId = action.result?.instanceId;
+          const expectedRevision = action.result?.expectedRevision;
+          if (
+            typeof instanceId === "string" &&
+            typeof expectedRevision === "number"
+          ) {
+            void fetch("/api/kody/guided-flows", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+              body: JSON.stringify({
+                action: "cancel",
+                instanceId,
+                expectedRevision,
+                mutationId: `${view.id}:cancel:${instanceId}`,
+              }),
+            })
+              .then(async (response) => {
+                const payload = (await response.json().catch(() => null)) as {
+                  error?: unknown;
+                } | null;
+                if (!response.ok) {
+                  throw new Error(
+                    typeof payload?.error === "string"
+                      ? payload.error
+                      : "guided_flow_action_failed",
+                  );
+                }
+                setResumedGuidedFlowMessage(null);
+              })
+              .catch((error) => {
+                toast.error(
+                  guidedFlowActionErrorMessage(
+                    error instanceof Error ? error.message : undefined,
+                  ),
+                );
+              });
+          }
+        }
+        return;
+      }
+
       if (usedViewIds.has(view.id)) return;
       setUsedViewIds((prev) => {
         const next = new Set(prev);
         next.add(view.id);
         return next;
       });
-
-      if (view.rendererSlug === "guided-flow-status") {
-        if (action.id === "resume") {
-          const instanceId = view.data.instanceId;
-          if (typeof instanceId === "string" && instanceId.trim()) {
-            requestGuidedFlowOpen(instanceId);
-          }
-        }
-        return;
-      }
 
       if (view.resultTarget === "guided-flow" && view.guidedFlow) {
         void (async () => {
@@ -1630,7 +1780,13 @@ export function KodyChat({
         },
       );
     },
-    [runDashboardNavigateFromDirective, sendText, setMessages, usedViewIds],
+    [
+      openGuidedFlow,
+      runDashboardNavigateFromDirective,
+      sendText,
+      setMessages,
+      usedViewIds,
+    ],
   );
 
   const handleRenderedViewReply = useCallback(

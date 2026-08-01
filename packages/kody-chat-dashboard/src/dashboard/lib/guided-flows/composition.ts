@@ -20,7 +20,7 @@ function frameFor(instance: GuidedFlowInstance): GuidedFlowFrame {
     flowVersion: instance.flowVersion,
     currentStepId: instance.currentStepId,
     data: instance.data,
-    history: instance.history,
+    backStack: instance.backStack,
   };
 }
 

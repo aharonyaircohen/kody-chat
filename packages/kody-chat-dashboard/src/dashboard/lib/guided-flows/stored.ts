@@ -37,6 +37,7 @@ const storedGuidedFlowStepSchema = z.union([
     ...storedStepBaseSchema,
     type: z.literal("view").optional(),
     rendererSlug: z.string().trim().min(1).max(80),
+    rendererVersion: z.number().int().positive().optional(),
     rendererData: z.record(z.string(), z.unknown()).optional(),
     allowedActions: z.array(z.string().trim().min(1).max(80)).optional(),
   }),

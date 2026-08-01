@@ -1,0 +1,74 @@
+import { describe, expect, it } from "vitest";
+
+import { buildGuidedFlowResumeView } from "../../src/dashboard/lib/guided-flows/resume";
+
+describe("GuidedFlow resume presentation", () => {
+  it("offers every compatible active flow instead of silently choosing one", () => {
+    const view = buildGuidedFlowResumeView({
+      sessionId: "chat-1",
+      flows: [
+        {
+          instance: {
+            instanceId: "lesson-1",
+            revision: 3,
+            status: "active",
+          },
+          flow: { title: "Power basics", stepIndex: 2, stepCount: 6 },
+          compatibility: { status: "compatible" },
+        },
+        {
+          instance: {
+            instanceId: "exercise-1",
+            revision: 1,
+            status: "active",
+          },
+          flow: { title: "Addition exercise", stepIndex: 0, stepCount: 2 },
+          compatibility: { status: "compatible" },
+        },
+      ],
+    });
+
+    expect(view.data.actions).toMatchObject([
+      {
+        id: "resume",
+        label: "Power basics · Step 3 of 6",
+        result: { instanceId: "lesson-1" },
+      },
+      {
+        id: "resume",
+        label: "Addition exercise · Step 1 of 2",
+        result: { instanceId: "exercise-1" },
+      },
+    ]);
+  });
+
+  it("makes incompatible progress explicit and removable", () => {
+    const view = buildGuidedFlowResumeView({
+      sessionId: "chat-1",
+      flows: [
+        {
+          instance: {
+            instanceId: "old-demo",
+            revision: 4,
+            status: "active",
+          },
+          flow: { title: "Old demo", stepIndex: 0, stepCount: 1 },
+          compatibility: {
+            status: "incompatible",
+            code: "renderer_version_unpinned",
+            message: "Renderer was not versioned.",
+          },
+        },
+      ],
+    });
+
+    expect(view.data.title).toBe("A saved flow can no longer be opened.");
+    expect(view.data.actions).toMatchObject([
+      {
+        id: "cancel",
+        label: "Remove unavailable flow: Old demo",
+        result: { instanceId: "old-demo", expectedRevision: 4 },
+      },
+    ]);
+  });
+});

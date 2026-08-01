@@ -44,7 +44,7 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { PageShell } from "../components/PageShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { requestGuidedFlowStart } from "../guided-flows/events";
+import { useGuidedFlowChat } from "../guided-flows/chat-controller";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
 
@@ -94,6 +94,7 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
                 ? step.rendererData.body
                 : "Explain what the user should do next."),
             rendererSlug: step.rendererSlug,
+            rendererVersion: step.rendererVersion,
             rendererData: step.rendererData,
           },
     ),
@@ -553,6 +554,7 @@ function FlowBuilder({
 }
 
 function GuidedFlowsManager() {
+  const { startFlow } = useGuidedFlowChat();
   const { auth } = useAuth();
   const [definitions, setDefinitions] = useState<FlowDefinition[]>(
     BUILTIN_START_OPTIONS,
@@ -718,7 +720,7 @@ function GuidedFlowsManager() {
                       <Button
                         size="sm"
                         aria-label={`Start ${option.title} in Chat`}
-                        onClick={() => requestGuidedFlowStart(option.id)}
+                        onClick={() => startFlow(option.id)}
                       >
                         <Play className="mr-1.5 h-4 w-4" />
                         Start in Chat

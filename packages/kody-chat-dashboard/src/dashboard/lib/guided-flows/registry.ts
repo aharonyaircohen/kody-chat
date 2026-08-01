@@ -3,6 +3,7 @@ import { getGuidedFlowStep, isNestedGuidedFlowStep } from "./controller";
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { buildRenderedViewDirective } from "../view-renderers/template";
 import type { RenderedViewDirective } from "../chat-ui-actions";
+import { assertGuidedFlowCompatible } from "./compatibility";
 
 export const CREATE_WORKFLOW_FLOW_ID = "create-workflow";
 
@@ -98,11 +99,19 @@ export function buildGuidedFlowView(
     >
   >,
 ): RenderedViewDirective {
+  assertGuidedFlowCompatible({
+    definition,
+    instance,
+    renderers: customRenderers,
+  });
   const step = getGuidedFlowStep(definition, instance);
   if (isNestedGuidedFlowStep(step)) {
     throw new Error(`Nested GuidedFlow step "${step.id}" is not renderable`);
   }
   const renderer =
+    (step.rendererVersion !== undefined
+      ? customRenderers?.[`${step.rendererSlug}@${step.rendererVersion}`]
+      : undefined) ??
     customRenderers?.[step.rendererSlug] ??
     getBuiltinViewRendererDefinition(step.rendererSlug);
   if (!renderer) {
@@ -124,7 +133,7 @@ export function buildGuidedFlowView(
     ...view,
     resultTarget: "guided-flow",
     ui:
-      instance.history.length > 0
+      instance.backStack.length > 0
         ? {
             type: "stack",
             children: [

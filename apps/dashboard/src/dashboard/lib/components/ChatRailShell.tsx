@@ -35,7 +35,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "@kody-ade/kody-chat-dashboard/components/KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat-dashboard/components/ChatShell";
-import { GUIDED_FLOW_OPEN_EVENT } from "@kody-ade/kody-chat-dashboard/guided-flows/events";
+import {
+  GuidedFlowChatProvider,
+  useGuidedFlowChat,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/chat-controller";
 import { WIDGET_OPEN_EVENT } from "@kody-ade/kody-chat-dashboard/widgets/chat-launch";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
@@ -314,7 +317,8 @@ function isPublicRoute(pathname: string | null): boolean {
   );
 }
 
-export function ChatRailShell({ children }: { children: ReactNode }) {
+function ChatRailShellInner({ children }: { children: ReactNode }) {
+  const guidedFlowChat = useGuidedFlowChat();
   const pathname = usePathname();
   const publicRoute = isPublicRoute(pathname);
   const hostAuth = useAuth();
@@ -450,22 +454,18 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const openChatForInteractiveContent = () => openMobileChat();
-    window.addEventListener(
-      GUIDED_FLOW_OPEN_EVENT,
-      openChatForInteractiveContent,
-    );
     window.addEventListener(WIDGET_OPEN_EVENT, openChatForInteractiveContent);
     return () => {
-      window.removeEventListener(
-        GUIDED_FLOW_OPEN_EVENT,
-        openChatForInteractiveContent,
-      );
       window.removeEventListener(
         WIDGET_OPEN_EVENT,
         openChatForInteractiveContent,
       );
     };
   }, [openMobileChat]);
+
+  useEffect(() => {
+    if (guidedFlowChat.pending) openMobileChat();
+  }, [guidedFlowChat.pending, openMobileChat]);
 
   useEffect(() => {
     if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);
@@ -594,6 +594,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
 
   const chatPane = auth ? (
     <KodyChat
+      guidedFlowRequest={guidedFlowChat.pending}
+      onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
       context={scope}
       actorLogin={githubUser?.login}
       lockedAgentId={lockedAgentId}
@@ -688,5 +690,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
         </KodyThemeBridgeProvider>
       </KodyAuthBridgeProvider>
     </ChatRailContext.Provider>
+  );
+}
+
+export function ChatRailShell({ children }: { children: ReactNode }) {
+  return (
+    <GuidedFlowChatProvider>
+      <ChatRailShellInner>{children}</ChatRailShellInner>
+    </GuidedFlowChatProvider>
   );
 }

@@ -44,7 +44,7 @@ describe("guided flow controller", () => {
       status: "active",
       revision: 0,
       data: {},
-      history: [],
+      backStack: [],
     });
   });
 
@@ -60,8 +60,16 @@ describe("guided flow controller", () => {
       currentStepId: "finish",
       status: "active",
       revision: 1,
-      data: { choice: "workflow" },
-      history: ["start"],
+      data: {
+        choice: "workflow",
+        stepResults: {
+          "example-flow@1/start": {
+            actionId: "continue",
+            result: { choice: "workflow" },
+          },
+        },
+      },
+      backStack: ["start"],
     });
   });
 
@@ -119,7 +127,7 @@ describe("guided flow controller", () => {
     expect(goBackGuidedFlow(DEFINITION, instance)).toMatchObject({
       currentStepId: "start",
       revision: 2,
-      history: [],
+      backStack: [],
       status: "active",
     });
   });
@@ -287,7 +295,7 @@ describe("guided flow controller", () => {
           },
         },
       },
-      history: ["child"],
+      backStack: ["child"],
     });
   });
 
@@ -364,9 +372,7 @@ describe("guided flow controller", () => {
       throw new Error("Expected recursive nesting to fail");
     } catch (error) {
       expect(error).toBeInstanceOf(GuidedFlowCompositionError);
-      expect((error as GuidedFlowCompositionError).code).toBe(
-        "recursive_flow",
-      );
+      expect((error as GuidedFlowCompositionError).code).toBe("recursive_flow");
     }
   });
 });

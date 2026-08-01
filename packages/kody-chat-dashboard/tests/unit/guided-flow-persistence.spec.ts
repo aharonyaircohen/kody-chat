@@ -37,14 +37,14 @@ describe("guided flow persistence mapping", () => {
       revision: 3,
       data: {},
       output: { answer: "four" },
-      history: [],
+      backStack: [],
       stack: [
         {
           flowId: "parent",
           flowVersion: 1,
           currentStepId: "exercise",
           data: {},
-          history: ["intro"],
+          backStack: ["intro"],
         },
       ],
     });

@@ -37,7 +37,16 @@ const GUIDED_FLOW_ERROR_MESSAGES: Record<string, string> = {
   guided_flow_rate_limited:
     "The repository service is temporarily busy. Please try again shortly.",
   guided_flow_completion_failed:
-    "The workflow could not be created yet. Your Guided Flow is still open; please try again.",
+    "The requested action could not finish yet. Your progress is saved; please try again.",
+  renderer_version_unpinned:
+    "This saved flow uses an old unversioned renderer and cannot be resumed safely.",
+  renderer_version_mismatch:
+    "The exact renderer version required by this flow is unavailable.",
+  renderer_data_invalid:
+    "This flow's saved question data no longer matches its renderer.",
+  renderer_unavailable: "The renderer required by this flow is unavailable.",
+  renderer_contract_invalid:
+    "This flow cannot be opened because its renderer contract is invalid.",
   nested_flow_unavailable:
     "A required Guided Flow is unavailable. Ask its owner to publish the referenced version.",
   recursive_flow:

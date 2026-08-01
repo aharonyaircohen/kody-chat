@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -10,16 +9,8 @@ import {
 } from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import {
-  isNestedGuidedFlowStep,
-  type GuidedFlowDefinition,
-  type GuidedFlowInstance,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
-import {
-  GuidedFlowCompositionError,
-  rootGuidedFlowId,
-  validateGuidedFlowComposition,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/composition";
+import { type GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import { GuidedFlowCompositionError } from "@kody-ade/kody-chat-dashboard/guided-flows/composition";
 import {
   guidedFlowDefinitionForInstance,
   guidedFlowDefinitionForReference,
@@ -29,29 +20,27 @@ import {
   guidedFlowInstanceWriteFields,
   type GuidedFlowStoredInstance,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/persistence";
+import { runGuidedFlowAction } from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
+import type { StoredGuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
+import { sanitizeGuidedFlowData } from "@kody-ade/kody-chat-dashboard/guided-flows/safe-data";
 import {
-  runGuidedFlowAction,
-  startGuidedFlowRuntime,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
+  availableGuidedFlowDefinitions,
+  loadGuidedFlowRenderers,
+  loadStoredGuidedFlowDefinitions,
+} from "./catalog";
 import {
-  buildGuidedFlowView,
-  getGuidedFlowDefinition,
-  listGuidedFlowDefinitions,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+  bindExistingGuidedFlow,
+  startOrResumeGuidedFlow,
+} from "./runtime-service";
 import {
-  buildGuidedFlowDefinition,
-  type GuidedFlowDraft,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
+  GuidedFlowCompletionError,
+  processGuidedFlowCompletionEffects,
+} from "./completion-effects";
+import { presentGuidedFlow } from "./presenter";
 import {
-  latestAvailableGuidedFlowDefinitions,
-  latestStoredGuidedFlowDefinitions,
-  parseGuidedFlowDefinitionRows,
-  type StoredGuidedFlowDefinition,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
-import { resolveDashboardNavigationTarget } from "../../../../src/dashboard/lib/dashboard-navigation";
-import { getBuiltinViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/builtin";
-import { readViewRendererDefinitionFile } from "../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
-import type { ViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/definition";
+  archiveGuidedFlowDefinition,
+  saveGuidedFlowDefinition,
+} from "./definition-service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -69,6 +58,13 @@ const startSchema = z.object({
   flowId: z.string().trim().min(1).max(80),
   instanceKey: z.string().trim().min(1).max(128).optional(),
   actorLogin: z.string().trim().min(1).max(200).optional(),
+  conversationId: z.string().trim().min(1).max(128).optional(),
+});
+
+const bindSchema = z.object({
+  action: z.literal("bind"),
+  instanceId: z.string().trim().min(1).max(128),
+  conversationId: z.string().trim().min(1).max(128),
 });
 
 const definitionDraftViewStepSchema = z.object({
@@ -76,6 +72,7 @@ const definitionDraftViewStepSchema = z.object({
   title: z.string().trim().min(1).max(160),
   explanation: z.string().trim().min(1).max(1_000),
   rendererSlug: z.string().trim().min(1).max(80),
+  rendererVersion: z.number().int().positive().optional(),
   rendererGoal: z.string().trim().max(1_000).optional(),
   rendererData: z.record(z.string(), z.unknown()).optional(),
 });
@@ -132,42 +129,6 @@ type GuidedFlowRow = GuidedFlowStoredInstance & {
   mutationId?: string;
 };
 
-class GuidedFlowCompletionError extends Error {
-  constructor(
-    readonly code:
-      | "guided_flow_workflow_exists"
-      | "guided_flow_invalid_workflow"
-      | "guided_flow_auth_failed"
-      | "guided_flow_rate_limited"
-      | "guided_flow_completion_failed",
-    readonly status: number,
-  ) {
-    super(code);
-  }
-}
-
-function completionErrorFor(
-  errorCode: string | undefined,
-  status: number,
-): GuidedFlowCompletionError {
-  if (errorCode === "workflow_exists") {
-    return new GuidedFlowCompletionError("guided_flow_workflow_exists", 409);
-  }
-  if (errorCode === "invalid_workflow" || errorCode === "invalid_body") {
-    return new GuidedFlowCompletionError("guided_flow_invalid_workflow", 400);
-  }
-  if (errorCode === "github_token_expired") {
-    return new GuidedFlowCompletionError("guided_flow_auth_failed", 401);
-  }
-  if (errorCode === "rate_limited") {
-    return new GuidedFlowCompletionError("guided_flow_rate_limited", 429);
-  }
-  return new GuidedFlowCompletionError(
-    "guided_flow_completion_failed",
-    status >= 400 && status < 500 ? status : 502,
-  );
-}
-
 function json(data: unknown, init?: ResponseInit): NextResponse {
   return NextResponse.json(data, {
     ...init,
@@ -194,179 +155,6 @@ function definitionForRow(
   return guidedFlowDefinitionForInstance(row, customDefinitions);
 }
 
-async function customDefinitionsFor(
-  client: ReturnType<typeof getConvexClient>,
-  tenantId: string,
-): Promise<StoredGuidedFlowDefinition[]> {
-  const rows = await client.query(backendApi.guidedFlows.listDefinitions, {
-    tenantId,
-  });
-  return parseGuidedFlowDefinitionRows(rows);
-}
-
-const latestStoredDefinitions = latestStoredGuidedFlowDefinitions;
-const latestAvailableCustomDefinitions = latestAvailableGuidedFlowDefinitions;
-
-function latestStoredDefinition(
-  definitions: readonly StoredGuidedFlowDefinition[],
-  flowId: string,
-): StoredGuidedFlowDefinition | undefined {
-  return latestStoredDefinitions(definitions).find(
-    (definition) => definition.id === flowId,
-  );
-}
-
-/**
- * Custom (non-builtin) renderers referenced by a definition's steps, loaded
- * from the tenant's view-renderer store so flows can display them.
- */
-async function customRenderersFor(
-  owner: string,
-  repo: string,
-  definitions: readonly GuidedFlowDefinition[],
-): Promise<Record<string, ViewRendererDefinition>> {
-  const slugs = [
-    ...new Set(
-      definitions
-        .flatMap((definition) => definition.steps)
-        .flatMap((step) =>
-          isNestedGuidedFlowStep(step) ? [] : [step.rendererSlug],
-        )
-        .filter((slug) => !getBuiltinViewRendererDefinition(slug)),
-    ),
-  ];
-  const out: Record<string, ViewRendererDefinition> = {};
-  for (const slug of slugs) {
-    const file = await readViewRendererDefinitionFile({ owner, repo, slug });
-    if (file) out[slug] = file.definition;
-  }
-  return out;
-}
-
-function navigationForCompletion(definition: GuidedFlowDefinition) {
-  if (!definition.completionRouteId) return undefined;
-  const resolved = resolveDashboardNavigationTarget({
-    routeId: definition.completionRouteId,
-    reason: `Open ${definition.title} results`,
-  });
-  if ("error" in resolved) return undefined;
-  return {
-    action: "dashboard_navigate" as const,
-    ...resolved,
-  };
-}
-
-function hasValidCompletionRoute(definition: GuidedFlowDefinition): boolean {
-  if (!definition.completionRouteId) return true;
-  return !(
-    "error" in
-    resolveDashboardNavigationTarget({
-      routeId: definition.completionRouteId,
-      reason: `Open ${definition.title} results`,
-    })
-  );
-}
-
-function responseFor(
-  definition: GuidedFlowDefinition,
-  instance: GuidedFlowInstance,
-  customRenderers?: Readonly<Record<string, ViewRendererDefinition>>,
-) {
-  return {
-    instance,
-    flow: {
-      id: definition.id,
-      title: definition.title,
-      stepIndex: Math.max(
-        0,
-        definition.steps.findIndex(
-          (step) => step.id === instance.currentStepId,
-        ),
-      ),
-      stepCount: definition.steps.length,
-    },
-    ...(instance.status === "active"
-      ? { view: buildGuidedFlowView(definition, instance, customRenderers) }
-      : { navigation: navigationForCompletion(definition) }),
-  };
-}
-
-async function completeGuidedFlowEffect(
-  req: NextRequest,
-  definition: GuidedFlowDefinition,
-  instance: GuidedFlowInstance,
-  actor: string,
-) {
-  if (definition.id !== "create-workflow") return undefined;
-
-  const input = z
-    .object({
-      workflowName: z.string().trim().min(1).max(160),
-      capabilitySlug: z
-        .string()
-        .trim()
-        .regex(/^[a-z0-9][a-z0-9_-]{0,79}$/),
-      actionId: z.literal("approve"),
-    })
-    .safeParse(instance.data);
-  if (!input.success) {
-    throw new GuidedFlowCompletionError("guided_flow_invalid_workflow", 400);
-  }
-
-  const headers = new Headers(req.headers);
-  headers.set("content-type", "application/json");
-  headers.delete("content-length");
-  const response = await fetch(
-    new URL("/api/kody/company/workflows", req.url),
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        name: input.data.workflowName,
-        capabilities: [input.data.capabilitySlug],
-        actorLogin: actor,
-      }),
-    },
-  );
-  const payload = (await response.json().catch(() => ({}))) as {
-    workflow?: unknown;
-    message?: string;
-    error?: string;
-  };
-  if (!response.ok) {
-    throw completionErrorFor(payload.error, response.status);
-  }
-  return payload.workflow;
-}
-
-/**
- * Best-effort append-only ledger of finished flows — one row per completed
- * instance in guidedFlowCompletions, idempotent by instanceId. A write
- * failure must never undo an already-persisted completion, so errors are
- * logged and swallowed.
- */
-async function recordGuidedFlowCompletion(
-  client: ReturnType<typeof getConvexClient>,
-  tenantId: string,
-  actor: string,
-  definition: GuidedFlowDefinition,
-  instance: GuidedFlowInstance,
-): Promise<void> {
-  try {
-    await client.mutation(backendApi.guidedFlows.recordCompletion, {
-      tenantId,
-      actorId: actor,
-      instanceId: instance.instanceId,
-      flowId: definition.id,
-      flowVersion: definition.version,
-      completedAt: new Date().toISOString(),
-      data: instance.data,
-    });
-  } catch (error) {
-    console.error("[GuidedFlows] completion record failed", error);
-  }
-}
-
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -376,16 +164,13 @@ export async function GET(req: NextRequest) {
   if (actor instanceof NextResponse) return actor;
 
   try {
-    const customDefinitions = await customDefinitionsFor(
+    const customDefinitions = await loadStoredGuidedFlowDefinitions(
       getConvexClient(),
       tenantIdFor(auth.owner, auth.repo),
     );
     if (new URL(req.url).searchParams.get("view") === "templates") {
       return json({
-        definitions: [
-          ...listGuidedFlowDefinitions(),
-          ...latestAvailableCustomDefinitions(customDefinitions),
-        ],
+        definitions: availableGuidedFlowDefinitions(customDefinitions),
       });
     }
     const instanceId = new URL(req.url).searchParams.get("instanceId");
@@ -399,10 +184,12 @@ export async function GET(req: NextRequest) {
         return json({ error: "guided_flow_not_found" }, { status: 404 });
       const definition = definitionForRow(row, customDefinitions);
       return json({
-        flow: responseFor(
+        flow: presentGuidedFlow(
           definition,
           guidedFlowInstanceFromRow(row),
-          await customRenderersFor(auth.owner, auth.repo, [definition]),
+          await loadGuidedFlowRenderers(tenantIdFor(auth.owner, auth.repo), [
+            definition,
+          ]),
         ),
       });
     }
@@ -411,9 +198,8 @@ export async function GET(req: NextRequest) {
       tenantId: tenantIdFor(auth.owner, auth.repo),
       actorId: actor,
     })) as GuidedFlowRow[];
-    const listRenderers = await customRenderersFor(
-      auth.owner,
-      auth.repo,
+    const listRenderers = await loadGuidedFlowRenderers(
+      tenantIdFor(auth.owner, auth.repo),
       rows.flatMap((row) => {
         try {
           return [definitionForRow(row, customDefinitions)];
@@ -426,7 +212,7 @@ export async function GET(req: NextRequest) {
       try {
         const definition = definitionForRow(row, customDefinitions);
         return [
-          responseFor(
+          presentGuidedFlow(
             definition,
             guidedFlowInstanceFromRow(row),
             listRenderers,
@@ -438,10 +224,7 @@ export async function GET(req: NextRequest) {
     });
     return json({
       flows,
-      definitions: [
-        ...listGuidedFlowDefinitions(),
-        ...latestAvailableCustomDefinitions(customDefinitions),
-      ],
+      definitions: availableGuidedFlowDefinitions(customDefinitions),
     });
   } catch (error) {
     console.error("[GuidedFlows] list failed", error);
@@ -470,13 +253,15 @@ export async function POST(req: NextRequest) {
   const parsed =
     action === "start"
       ? startSchema.safeParse(body)
-      : action === "create-definition"
-        ? createDefinitionSchema.safeParse(body)
-        : action === "update-definition"
-          ? updateDefinitionSchema.safeParse(body)
-          : action === "delete-definition"
-            ? deleteDefinitionSchema.safeParse(body)
-            : changeSchema.safeParse(body);
+      : action === "bind"
+        ? bindSchema.safeParse(body)
+        : action === "create-definition"
+          ? createDefinitionSchema.safeParse(body)
+          : action === "update-definition"
+            ? updateDefinitionSchema.safeParse(body)
+            : action === "delete-definition"
+              ? deleteDefinitionSchema.safeParse(body)
+              : changeSchema.safeParse(body);
   if (!parsed.success) {
     return json(
       { error: "validation_error", details: parsed.error.issues },
@@ -506,156 +291,66 @@ export async function POST(req: NextRequest) {
       parsed.data.action === "update-definition"
     ) {
       const input = parsed.data;
-      const flowId =
-        input.action === "update-definition" ? input.flowId : undefined;
-      const customDefinitions = await customDefinitionsFor(client, tenantId);
-      const nextVersion =
-        (flowId
-          ? latestStoredDefinition(customDefinitions, flowId)?.version
-          : 0) ?? 0;
-      const draft = input.draft as GuidedFlowDraft;
-      const candidateDefinition = buildGuidedFlowDefinition(
-        draft,
-        flowId,
-        nextVersion + 1,
-      );
-      if (!hasValidCompletionRoute(candidateDefinition)) {
-        return json({ error: "invalid_completion_route" }, { status: 400 });
-      }
-      try {
-        validateGuidedFlowComposition(candidateDefinition, [
-          ...listGuidedFlowDefinitions(),
-          ...customDefinitions,
-        ]);
-      } catch (error) {
-        if (error instanceof GuidedFlowCompositionError) {
-          return json({ error: error.code }, { status: 400 });
-        }
-        throw error;
-      }
-      if (
-        flowId &&
-        listGuidedFlowDefinitions().some((candidate) => candidate.id === flowId)
-      ) {
-        return json(
-          { error: "builtin_guided_flow_read_only" },
-          { status: 403 },
-        );
-      }
-      if (
-        listGuidedFlowDefinitions().some(
-          (candidate) => candidate.id === candidateDefinition.id,
-        )
-      ) {
-        return json({ error: "guided_flow_already_exists" }, { status: 409 });
-      }
-      // Version bump and existence checks run atomically in the backend.
-      const version = (await client.mutation(
-        backendApi.guidedFlows.saveDefinition,
-        {
-          tenantId,
-          flowId: candidateDefinition.id,
-          mode:
-            flowId && candidateDefinition.id === flowId ? "update" : "create",
-          definition: candidateDefinition,
-          updatedAt: new Date().toISOString(),
-        },
-      )) as number;
-      const definition = { ...candidateDefinition, version };
-      return json({ definition }, { status: flowId ? 200 : 201 });
+      const result = await saveGuidedFlowDefinition(client, {
+        tenantId,
+        mode: input.action === "update-definition" ? "update" : "create",
+        ...(input.action === "update-definition"
+          ? { flowId: input.flowId }
+          : {}),
+        draft: input.draft,
+      });
+      return result.ok
+        ? json({ definition: result.definition }, { status: result.status })
+        : json({ error: result.error }, { status: result.status });
     }
 
     if (parsed.data.action === "delete-definition") {
       const input = parsed.data as z.infer<typeof deleteDefinitionSchema>;
-      if (
-        listGuidedFlowDefinitions().some(
-          (candidate) => candidate.id === input.flowId,
-        )
-      ) {
-        return json(
-          { error: "builtin_guided_flow_read_only" },
-          { status: 403 },
-        );
-      }
-      const definitions = await customDefinitionsFor(client, tenantId);
-      const latestDefinition = latestStoredDefinition(
-        definitions,
-        input.flowId,
-      );
-      if (!latestDefinition || latestDefinition.archived) {
-        return json({ error: "guided_flow_not_found" }, { status: 404 });
-      }
-      await client.mutation(backendApi.guidedFlows.saveDefinition, {
+      const result = await archiveGuidedFlowDefinition(client, {
         tenantId,
         flowId: input.flowId,
-        mode: "archive",
-        definition: latestDefinition,
-        updatedAt: new Date().toISOString(),
       });
-      return json({ deleted: input.flowId });
+      return result.ok
+        ? json({ deleted: input.flowId })
+        : json({ error: result.error }, { status: result.status });
     }
 
     if (parsed.data.action === "start") {
       const start = parsed.data as z.infer<typeof startSchema>;
-      const customDefinitions = await customDefinitionsFor(client, tenantId);
-      const definition =
-        getGuidedFlowDefinition(start.flowId) ??
-        latestAvailableCustomDefinitions(customDefinitions).find(
-          (candidate) => candidate.id === start.flowId,
-        );
-      if (!definition)
-        return json({ error: "unknown_guided_flow" }, { status: 404 });
-      const active = (await client.query(backendApi.guidedFlows.listActive, {
+      const selected = await startOrResumeGuidedFlow(client, {
         tenantId,
         actorId: actor,
-      })) as GuidedFlowRow[];
-      const existing = active.find((row) => {
-        const instance = guidedFlowInstanceFromRow(row);
-        return (
-          rootGuidedFlowId(instance) === definition.id &&
-          (row.instanceKey ?? "") === (start.instanceKey ?? "")
-        );
-      });
-      if (existing) {
-        const existingDefinition = definitionForRow(
-          existing,
-          customDefinitions,
-        );
-        return json(
-          responseFor(
-            existingDefinition,
-            guidedFlowInstanceFromRow(existing),
-            await customRenderersFor(auth.owner, auth.repo, [
-              existingDefinition,
-            ]),
-          ),
-        );
-      }
-
-      const entered = startGuidedFlowRuntime({
-        definition,
-        instanceId: randomUUID(),
+        flowId: start.flowId,
         instanceKey: start.instanceKey,
-        resolveDefinition: (flowId, flowVersion) =>
-          guidedFlowDefinitionForReference(
-            flowId,
-            flowVersion,
-            customDefinitions,
-          ),
+        conversationId: start.conversationId,
       });
-      await client.mutation(backendApi.guidedFlows.upsert, {
+      if (!selected)
+        return json({ error: "unknown_guided_flow" }, { status: 404 });
+      return json(
+        presentGuidedFlow(
+          selected.definition,
+          selected.instance,
+          await loadGuidedFlowRenderers(tenantId, [selected.definition]),
+        ),
+        { status: selected.created ? 201 : 200 },
+      );
+    }
+
+    if (parsed.data.action === "bind") {
+      const selected = await bindExistingGuidedFlow(client, {
         tenantId,
         actorId: actor,
-        ...guidedFlowInstanceWriteFields(entered.instance),
-        updatedAt: new Date().toISOString(),
+        conversationId: parsed.data.conversationId,
+        instanceId: parsed.data.instanceId,
       });
+      if (!selected)
+        return json({ error: "guided_flow_not_found" }, { status: 404 });
       return json(
-        responseFor(
-          entered.definition,
-          entered.instance,
-          await customRenderersFor(auth.owner, auth.repo, [entered.definition]),
+        presentGuidedFlow(
+          selected.definition,
+          selected.instance,
+          await loadGuidedFlowRenderers(tenantId, [selected.definition]),
         ),
-        { status: 201 },
       );
     }
 
@@ -666,17 +361,30 @@ export async function POST(req: NextRequest) {
     })) as GuidedFlowRow | null;
     if (!instanceRow)
       return json({ error: "guided_flow_not_found" }, { status: 404 });
-    const customDefinitions = await customDefinitionsFor(client, tenantId);
+    const customDefinitions = await loadStoredGuidedFlowDefinitions(
+      client,
+      tenantId,
+    );
     let definition = definitionForRow(instanceRow, customDefinitions);
     const current = guidedFlowInstanceFromRow(instanceRow);
     if (instanceRow.mutationId === parsed.data.mutationId) {
-      return json(
-        responseFor(
+      const effectResult = await processGuidedFlowCompletionEffects(
+        req,
+        client,
+        {
+          tenantId,
+          actorId: actor,
+          instanceId: current.instanceId,
+        },
+      );
+      return json({
+        ...presentGuidedFlow(
           definition,
           current,
-          await customRenderersFor(auth.owner, auth.repo, [definition]),
+          await loadGuidedFlowRenderers(tenantId, [definition]),
         ),
-      );
+        ...effectResult,
+      });
     }
     if (current.revision !== parsed.data.expectedRevision) {
       return json({ error: "revision_conflict" }, { status: 409 });
@@ -687,26 +395,11 @@ export async function POST(req: NextRequest) {
     ) {
       return json({ error: "step_conflict" }, { status: 409 });
     }
-    if (
-      parsed.data.action === "submit" &&
-      definition.id === "create-workflow"
-    ) {
-      const result = z
-        .object({
-          workflowName: z.string().trim().min(1).max(160),
-          capabilitySlug: z
-            .string()
-            .trim()
-            .regex(/^[a-z0-9][a-z0-9_-]{0,79}$/),
-        })
-        .safeParse(parsed.data.result);
-      if (!result.success && current.currentStepId === "choose-capability") {
-        return json(
-          { error: "invalid_guided_flow_input", details: result.error.issues },
-          { status: 400 },
-        );
-      }
-    }
+    const submittedFlow = {
+      flowId: definition.id,
+      flowVersion: definition.version,
+      stepId: current.currentStepId,
+    };
     const runtime = runGuidedFlowAction({
       definition,
       instance: current,
@@ -722,16 +415,6 @@ export async function POST(req: NextRequest) {
     });
     definition = runtime.definition;
     const next = runtime.instance;
-    let workflow: unknown;
-    for (const completed of runtime.completed) {
-      workflow =
-        (await completeGuidedFlowEffect(
-          req,
-          completed.definition,
-          completed.instance,
-          actor,
-        )) ?? workflow;
-    }
 
     if (
       JSON.stringify({
@@ -743,6 +426,7 @@ export async function POST(req: NextRequest) {
       return json({ error: "guided_flow_data_too_large" }, { status: 413 });
     }
 
+    const completedAt = new Date().toISOString();
     await client.mutation(backendApi.guidedFlows.update, {
       tenantId,
       actorId: actor,
@@ -750,23 +434,40 @@ export async function POST(req: NextRequest) {
       ...guidedFlowInstanceWriteFields(next),
       updatedAt: new Date().toISOString(),
       mutationId: parsed.data.mutationId,
+      ...(parsed.data.action === "submit"
+        ? {
+            submission: {
+              ...submittedFlow,
+              actionId: parsed.data.actionId ?? "",
+              result: sanitizeGuidedFlowData(parsed.data.result),
+              submittedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
+      ...(runtime.completed.length > 0
+        ? {
+            completions: runtime.completed.map((completed) => ({
+              effectId: `${next.instanceId}:${completed.definition.id}@${completed.definition.version}:${completed.instance.revision}`,
+              flowId: completed.definition.id,
+              flowVersion: completed.definition.version,
+              completedAt,
+              data: completed.instance.data,
+            })),
+          }
+        : {}),
     });
-    if (next.status === "completed") {
-      await recordGuidedFlowCompletion(
-        client,
-        tenantId,
-        actor,
-        definition,
-        next,
-      );
-    }
+    const effectResult = await processGuidedFlowCompletionEffects(req, client, {
+      tenantId,
+      actorId: actor,
+      instanceId: next.instanceId,
+    });
     return json({
-      ...responseFor(
+      ...presentGuidedFlow(
         definition,
         next,
-        await customRenderersFor(auth.owner, auth.repo, [definition]),
+        await loadGuidedFlowRenderers(tenantId, [definition]),
       ),
-      ...(workflow ? { workflow } : {}),
+      ...effectResult,
     });
   } catch (error) {
     if (error instanceof GuidedFlowCompletionError) {

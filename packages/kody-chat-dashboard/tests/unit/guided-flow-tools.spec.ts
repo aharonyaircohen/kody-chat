@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 const backend = vi.hoisted(() => ({
   userState: {} as Record<string, unknown>,
   rows: [] as Array<Record<string, unknown>>,
+  bindings: [] as Array<Record<string, unknown>>,
+  submissions: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@kody-ade/backend/api", () => ({
   api: {
     guidedFlows: {
       listActive: "guidedFlows.listActive",
+      startOrResume: "guidedFlows.startOrResume",
       upsert: "guidedFlows.upsert",
       listDefinitions: "guidedFlows.listDefinitions",
+      get: "guidedFlows.get",
+      getConversationBinding: "guidedFlows.getConversationBinding",
+      bindConversation: "guidedFlows.bindConversation",
+      listSubmissions: "guidedFlows.listSubmissions",
+    },
+    viewRenderers: {
+      list: "viewRenderers.list",
+      getVersion: "viewRenderers.getVersion",
     },
     userState: { get: "userState.get" },
   },
@@ -33,13 +45,57 @@ vi.mock("@kody-ade/backend/client", () => ({
             }))
           : [];
       }
+      if (
+        operation === "viewRenderers.list" ||
+        operation === "viewRenderers.getVersion"
+      ) {
+        return operation === "viewRenderers.list" ? [] : null;
+      }
       if (operation === "guidedFlows.listActive") {
         return backend.rows.filter((row) => row.status === "active");
+      }
+      if (operation === "guidedFlows.get") {
+        return (
+          backend.rows.find(
+            (row) =>
+              row.instanceId === args.instanceId &&
+              row.actorId === args.actorId &&
+              row.tenantId === args.tenantId,
+          ) ?? null
+        );
+      }
+      if (operation === "guidedFlows.getConversationBinding") {
+        return (
+          backend.bindings.find(
+            (row) =>
+              row.conversationId === args.conversationId &&
+              row.actorId === args.actorId &&
+              row.tenantId === args.tenantId,
+          ) ?? null
+        );
+      }
+      if (operation === "guidedFlows.listSubmissions") {
+        return backend.submissions
+          .filter(
+            (row) =>
+              row.instanceId === args.instanceId &&
+              row.actorId === args.actorId &&
+              row.tenantId === args.tenantId,
+          )
+          .slice(0, Number(args.limit));
       }
       return null;
     },
     mutation: async (operation: string, args: Record<string, unknown>) => {
+      if (operation === "guidedFlows.startOrResume") {
+        const row = { ...args };
+        backend.rows.push(row);
+        return { created: true, instance: row };
+      }
       if (operation === "guidedFlows.upsert") backend.rows.push({ ...args });
+      if (operation === "guidedFlows.bindConversation") {
+        backend.bindings.push({ ...args });
+      }
     },
   }),
 }));
@@ -80,7 +136,83 @@ describe("guided_flow_start chat tool", () => {
   beforeEach(() => {
     backend.userState = {};
     backend.rows = [];
+    backend.bindings = [];
+    backend.submissions = [];
     vi.clearAllMocks();
+  });
+
+  it("publishes section as a required top-level field for model tool calls", () => {
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-1",
+    });
+    const schema = z.toJSONSchema(
+      (
+        tools.guided_flow_read as unknown as {
+          inputSchema: z.ZodType;
+        }
+      ).inputSchema,
+    );
+
+    expect(schema).toMatchObject({
+      type: "object",
+      required: ["section"],
+      properties: {
+        section: {
+          enum: ["current", "outline", "step", "data", "history"],
+        },
+      },
+    });
+  });
+
+  it("returns the bound current step and bounded recent history in one context read", async () => {
+    backend.userState["guided-flow-definitions"] = [CUSTOM_DEFINITION];
+    backend.rows.push({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      instanceId: "instance-1",
+      flowId: "custom-lesson",
+      flowVersion: 1,
+      currentStepId: "step-1",
+      status: "active",
+      revision: 2,
+      data: {},
+      history: [],
+      stack: [],
+    });
+    backend.bindings.push({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-1",
+      instanceId: "instance-1",
+    });
+    backend.submissions.push({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      instanceId: "instance-1",
+      revision: 1,
+      stepId: "intro",
+      actionId: "confirm",
+      result: { confirmed: true },
+    });
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-1",
+    });
+
+    expect(
+      await tools.guided_flow_context.execute!({}, {} as never),
+    ).toMatchObject({
+      current: {
+        instance: { instanceId: "instance-1", currentStepId: "step-1" },
+        currentStep: { id: "step-1", title: "Question" },
+      },
+      recentHistory: {
+        items: [{ stepId: "intro", actionId: "confirm" }],
+      },
+    });
   });
 
   it("starts a built-in flow", async () => {
@@ -100,6 +232,7 @@ describe("guided_flow_start chat tool", () => {
     const tools = createGuidedFlowTools({
       tenantId: "acme/widgets",
       actorId: "alice",
+      conversationId: "conversation-1",
     });
     const result = (await tools.guided_flow_start.execute!(
       { flowId: "custom-lesson" },
@@ -109,6 +242,130 @@ describe("guided_flow_start chat tool", () => {
     expect(result.guidedFlow?.stepId).toBe("step-1");
     expect(backend.rows).toHaveLength(1);
     expect(backend.rows[0]).toMatchObject({ flowId: "custom-lesson" });
+    expect(backend.bindings[0]).toMatchObject({
+      conversationId: "conversation-1",
+      instanceId: backend.rows[0]?.instanceId,
+    });
+  });
+
+  it("does not persist a flow whose renderer is unavailable", async () => {
+    backend.userState["guided-flow-definitions"] = [
+      {
+        id: "broken-flow",
+        version: 1,
+        title: "Broken flow",
+        steps: [
+          {
+            id: "step-1",
+            title: "Unavailable",
+            explanation: "This renderer does not exist.",
+            rendererSlug: "missing-renderer",
+            rendererVersion: 1,
+          },
+        ],
+      },
+    ];
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+    });
+
+    await expect(
+      tools.guided_flow_start.execute!({ flowId: "broken-flow" }, {} as never),
+    ).rejects.toThrow("renderer_unavailable");
+    expect(backend.rows).toHaveLength(0);
+  });
+
+  it("reads only the flow bound to the current conversation", async () => {
+    backend.userState["guided-flow-definitions"] = [CUSTOM_DEFINITION];
+    backend.rows = [
+      {
+        tenantId: "acme/widgets",
+        actorId: "alice",
+        instanceId: "instance-1",
+        flowId: "custom-lesson",
+        flowVersion: 1,
+        currentStepId: "step-1",
+        status: "active",
+        revision: 2,
+        data: { attempt: 2 },
+        output: {},
+        history: [],
+        stack: [],
+      },
+    ];
+    backend.bindings = [
+      {
+        tenantId: "acme/widgets",
+        actorId: "alice",
+        conversationId: "conversation-1",
+        instanceId: "instance-1",
+      },
+    ];
+    backend.submissions = [
+      {
+        tenantId: "acme/widgets",
+        actorId: "alice",
+        instanceId: "instance-1",
+        revision: 2,
+        flowId: "custom-lesson",
+        flowVersion: 1,
+        stepId: "step-1",
+        actionId: "opt-2",
+        result: { selected: "Wrong" },
+        submittedAt: "2026-07-30T00:00:00.000Z",
+      },
+    ];
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-1",
+    });
+
+    const current = await tools.guided_flow_read.execute!(
+      { section: "current" },
+      {} as never,
+    );
+    expect(current).toMatchObject({
+      instance: {
+        instanceId: "instance-1",
+        currentStepId: "step-1",
+        revision: 2,
+      },
+      currentStep: { id: "step-1", title: "Question" },
+    });
+    expect((current as { instance: unknown }).instance).not.toHaveProperty(
+      "data",
+    );
+    expect(current).not.toHaveProperty("definition");
+
+    const history = await tools.guided_flow_read.execute!(
+      { section: "history", limit: 20 },
+      {} as never,
+    );
+    expect(history).toMatchObject({
+      items: [
+        {
+          stepId: "step-1",
+          actionId: "opt-2",
+          result: { selected: "Wrong" },
+        },
+      ],
+    });
+  });
+
+  it("cannot read an unbound conversation", async () => {
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-without-flow",
+    });
+    expect(
+      await tools.guided_flow_read.execute!(
+        { section: "current" },
+        {} as never,
+      ),
+    ).toEqual({ error: "no_guided_flow_bound" });
   });
 
   it("starts at the active child when a flow begins with a nested flow", async () => {

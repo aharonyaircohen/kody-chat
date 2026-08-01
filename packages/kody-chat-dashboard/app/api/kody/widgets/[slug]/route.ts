@@ -97,10 +97,27 @@ export async function GET(
   }
 
   try {
-    const row = (await createBackendClient().query(backendApi.widgets.latest, {
-      tenantId: tenantIdFor(auth),
-      slug,
-    })) as WidgetRow | null;
+    const requestedVersion = Number(
+      new URL(req.url).searchParams.get("version") ?? "",
+    );
+    if (
+      new URL(req.url).searchParams.has("version") &&
+      (!Number.isInteger(requestedVersion) || requestedVersion < 1)
+    ) {
+      return json({ error: "invalid_widget_version" }, { status: 400 });
+    }
+    const client = createBackendClient();
+    const row =
+      Number.isInteger(requestedVersion) && requestedVersion > 0
+        ? ((await client.query(backendApi.widgets.getVersion, {
+            tenantId: tenantIdFor(auth),
+            slug,
+            version: requestedVersion,
+          })) as WidgetRow | null)
+        : ((await client.query(backendApi.widgets.latest, {
+            tenantId: tenantIdFor(auth),
+            slug,
+          })) as WidgetRow | null);
     if (!row) {
       return json({ error: "widget_not_found" }, { status: 404 });
     }

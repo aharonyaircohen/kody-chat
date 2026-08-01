@@ -1,76 +1,20 @@
-import { randomUUID } from "node:crypto";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
-import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
-  isNestedGuidedFlowStep,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
-import { rootGuidedFlowId } from "@kody-ade/kody-chat-dashboard/guided-flows/composition";
-import { guidedFlowDefinitionForReference } from "@kody-ade/kody-chat-dashboard/guided-flows/definitions";
-import {
-  guidedFlowInstanceFromRow,
-  guidedFlowInstanceWriteFields,
-  type GuidedFlowStoredInstance,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/persistence";
-import {
   buildGuidedFlowView,
-  getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
-import { startGuidedFlowRuntime } from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
-import {
-  latestAvailableGuidedFlowDefinitions,
-  parseGuidedFlowDefinitionRows,
-  type StoredGuidedFlowDefinition,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
-import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
-import { readViewRendererDefinitionFile } from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
-import type { ViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/definition";
-import type { GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import { loadGuidedFlowRenderers } from "../../guided-flows/catalog";
+import { ConvexGuidedFlowReader } from "../../guided-flows/reader";
+import { startOrResumeGuidedFlow } from "../../guided-flows/runtime-service";
 import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 
 interface GuidedFlowToolContext {
   tenantId: string;
   actorId: string;
-}
-
-type GuidedFlowRow = GuidedFlowStoredInstance;
-
-/** Custom flows live in userState — the same source the guided-flows route uses. */
-async function customGuidedFlowDefinitions(
-  client: ReturnType<typeof createBackendClient>,
-  ctx: GuidedFlowToolContext,
-): Promise<StoredGuidedFlowDefinition[]> {
-  const rows = await client.query(backendApi.guidedFlows.listDefinitions, {
-    tenantId: ctx.tenantId,
-  });
-  return parseGuidedFlowDefinitionRows(rows);
-}
-
-/** Non-builtin renderers a definition needs, from the tenant renderer store. */
-async function customRenderersFor(
-  tenantId: string,
-  definition: GuidedFlowDefinition,
-): Promise<Record<string, ViewRendererDefinition>> {
-  const [owner, repo] = tenantId.split("/");
-  const out: Record<string, ViewRendererDefinition> = {};
-  if (!owner || !repo) return out;
-  const slugs = [
-    ...new Set(
-      definition.steps
-        .flatMap((step) =>
-          isNestedGuidedFlowStep(step) ? [] : [step.rendererSlug],
-        )
-        .filter((slug) => !getBuiltinViewRendererDefinition(slug)),
-    ),
-  ];
-  for (const slug of slugs) {
-    const file = await readViewRendererDefinitionFile({ owner, repo, slug });
-    if (file) out[slug] = file.definition;
-  }
-  return out;
+  conversationId?: string;
 }
 
 export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
@@ -94,64 +38,121 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
         instanceKey,
       }): Promise<RenderedViewDirective | { error: string }> => {
         const client = createBackendClient();
-        const customDefinitions = await customGuidedFlowDefinitions(
-          client,
-          ctx,
-        );
-        const definition =
-          getGuidedFlowDefinition(flowId) ??
-          latestAvailableGuidedFlowDefinitions(customDefinitions).find(
-            (candidate) => candidate.id === flowId,
-          );
-        if (!definition) return { error: `Unknown GuidedFlow "${flowId}"` };
-
-        const active = (await client.query(backendApi.guidedFlows.listActive, {
+        const selected = await startOrResumeGuidedFlow(client, {
           tenantId: ctx.tenantId,
           actorId: ctx.actorId,
-        })) as GuidedFlowRow[];
-        const existing = active.find(
-          (row) =>
-            rootGuidedFlowId(guidedFlowInstanceFromRow(row)) === flowId &&
-            (row.instanceKey ?? "") === (instanceKey ?? ""),
-        );
-        if (existing) {
-          const existingDefinition = guidedFlowDefinitionForReference(
-            existing.flowId,
-            existing.flowVersion,
-            customDefinitions,
-          );
-          if (!existingDefinition) {
-            return { error: "GuidedFlow definition is unavailable" };
-          }
-          return buildGuidedFlowView(
-            existingDefinition,
-            guidedFlowInstanceFromRow(existing),
-            await customRenderersFor(ctx.tenantId, existingDefinition),
-          );
-        }
-
-        const entered = startGuidedFlowRuntime({
-          definition,
-          instanceId: randomUUID(),
+          flowId,
           instanceKey,
-          resolveDefinition: (nestedFlowId, nestedFlowVersion) =>
-            guidedFlowDefinitionForReference(
-              nestedFlowId,
-              nestedFlowVersion,
-              customDefinitions,
-            ),
+          conversationId: ctx.conversationId,
         });
-        await client.mutation(backendApi.guidedFlows.upsert, {
+        if (!selected) return { error: `Unknown GuidedFlow "${flowId}"` };
+        return buildGuidedFlowView(
+          selected.definition,
+          selected.instance,
+          await loadGuidedFlowRenderers(ctx.tenantId, [selected.definition]),
+        );
+      },
+    }),
+    guided_flow_context: tool({
+      description:
+        "Read the exact GuidedFlow context bound to this conversation. " +
+        "Call this with no arguments whenever the user asks about their " +
+        "current flow, current step, or previous answers. Returns only the " +
+        "current step and the 20 most recent submissions. This tool is read-only.",
+      inputSchema: z.object({}),
+      execute: async (): Promise<unknown> => {
+        if (!ctx.conversationId) return { error: "no_conversation_context" };
+        const reader = new ConvexGuidedFlowReader({
           tenantId: ctx.tenantId,
           actorId: ctx.actorId,
-          ...guidedFlowInstanceWriteFields(entered.instance),
-          updatedAt: new Date().toISOString(),
+          conversationId: ctx.conversationId,
         });
-        return buildGuidedFlowView(
-          entered.definition,
-          entered.instance,
-          await customRenderersFor(ctx.tenantId, entered.definition),
-        );
+        const current = await reader.getCurrent();
+        if (!current) return { error: "no_guided_flow_bound" };
+        return {
+          current: {
+            instance: {
+              instanceId: current.instance.instanceId,
+              flowId: current.instance.flowId,
+              flowVersion: current.instance.flowVersion,
+              currentStepId: current.instance.currentStepId,
+              status: current.instance.status,
+              revision: current.instance.revision,
+            },
+            currentStep: current.currentStep,
+            path: current.path.map((frame) => ({
+              flowId: frame.flowId,
+              flowVersion: frame.flowVersion,
+              currentStepId: frame.currentStepId,
+            })),
+          },
+          recentHistory: await reader.getHistory({ limit: 20 }),
+        };
+      },
+    }),
+    guided_flow_read: tool({
+      description:
+        "Read the GuidedFlow bound to this conversation. Use this to inspect " +
+        "the current step, the complete flow outline, collected data, or " +
+        "paginated user submissions before answering questions about the flow. " +
+        "This tool is read-only and cannot access an arbitrary instance.",
+      inputSchema: z.object({
+        section: z.enum(["current", "outline", "step", "data", "history"]),
+        flowId: z.string().trim().min(1).max(80).optional(),
+        flowVersion: z.number().int().positive().optional(),
+        stepId: z.string().trim().min(1).max(80).optional(),
+        keys: z.array(z.string().trim().min(1).max(120)).max(50).optional(),
+        beforeRevision: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      execute: async (input): Promise<unknown> => {
+        if (!ctx.conversationId) return { error: "no_conversation_context" };
+        const reader = new ConvexGuidedFlowReader({
+          tenantId: ctx.tenantId,
+          actorId: ctx.actorId,
+          conversationId: ctx.conversationId,
+        });
+        const current = await reader.getCurrent();
+        if (!current) return { error: "no_guided_flow_bound" };
+        switch (input.section) {
+          case "current":
+            return {
+              instance: {
+                instanceId: current.instance.instanceId,
+                flowId: current.instance.flowId,
+                flowVersion: current.instance.flowVersion,
+                currentStepId: current.instance.currentStepId,
+                status: current.instance.status,
+                revision: current.instance.revision,
+              },
+              currentStep: current.currentStep,
+              path: current.path.map((frame) => ({
+                flowId: frame.flowId,
+                flowVersion: frame.flowVersion,
+                currentStepId: frame.currentStepId,
+              })),
+            };
+          case "outline":
+            return { definitions: await reader.getOutline() };
+          case "step": {
+            if (!input.flowId || !input.flowVersion || !input.stepId) {
+              return {
+                error:
+                  "flowId, flowVersion, and stepId are required for section=step",
+              };
+            }
+            const step = await reader.getStep({
+              flowId: input.flowId,
+              flowVersion: input.flowVersion,
+              stepId: input.stepId,
+            });
+            return step ?? { error: "guided_flow_step_not_found" };
+          }
+          case "data":
+            return { data: await reader.getData(input.keys) };
+          case "history":
+            return await reader.getHistory(input);
+        }
       },
     }),
   };

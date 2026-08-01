@@ -1,4 +1,5 @@
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
+import { VIEW_RENDERER_SLUG_RE } from "../view-renderers/definition";
 import {
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
@@ -10,6 +11,7 @@ export interface GuidedFlowDraftViewStep {
   title: string;
   explanation: string;
   rendererSlug: string;
+  rendererVersion?: number;
   rendererData?: Record<string, unknown>;
 }
 
@@ -64,7 +66,11 @@ export function validateGuidedFlowDraft(
           step.flowVersion > 0
         );
       }
-      return listAuthoringRendererSlugs().includes(step.rendererSlug);
+      return (
+        VIEW_RENDERER_SLUG_RE.test(step.rendererSlug) &&
+        (step.rendererVersion === undefined ||
+          (Number.isInteger(step.rendererVersion) && step.rendererVersion > 0))
+      );
     })
   ) {
     return { steps: "Choose a valid renderer or nested flow for every step." };
@@ -311,6 +317,9 @@ export function buildGuidedFlowDefinition(
       title: step.title.trim(),
       explanation: step.explanation.trim(),
       rendererSlug: step.rendererSlug,
+      ...(step.rendererVersion
+        ? { rendererVersion: step.rendererVersion }
+        : {}),
       ...rendererDataFor(step, nextStepId),
     };
   });

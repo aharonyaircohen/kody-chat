@@ -16,6 +16,8 @@ interface GuidedFlowStepBase {
 export interface GuidedFlowViewStepDefinition extends GuidedFlowStepBase {
   readonly type?: "view";
   readonly rendererSlug: string;
+  /** Exact renderer contract version. Legacy built-ins may omit this. */
+  readonly rendererVersion?: number;
   readonly rendererData?: Readonly<Record<string, unknown>>;
   readonly allowedActions?: readonly string[];
 }
@@ -42,7 +44,7 @@ export interface GuidedFlowFrame {
   readonly flowVersion: number;
   readonly currentStepId: string;
   readonly data: Readonly<Record<string, unknown>>;
-  readonly history: readonly string[];
+  readonly backStack: readonly string[];
 }
 
 export interface GuidedFlowInstance {
@@ -55,31 +57,13 @@ export interface GuidedFlowInstance {
   readonly revision: number;
   readonly data: Readonly<Record<string, unknown>>;
   readonly output: Readonly<Record<string, unknown>>;
-  readonly history: readonly string[];
+  readonly backStack: readonly string[];
   readonly stack: readonly GuidedFlowFrame[];
 }
 
 export interface GuidedFlowSubmit {
   readonly actionId: string;
   readonly result?: Readonly<Record<string, unknown>>;
-}
-
-const SENSITIVE_DATA_KEY = /(password|secret|token|api.?key|private.?key)/i;
-
-function sanitizeResultValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sanitizeResultValue);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, nested]) =>
-      SENSITIVE_DATA_KEY.test(key) ? [] : [[key, sanitizeResultValue(nested)]],
-    ),
-  );
-}
-
-function sanitizeResult(
-  result: Readonly<Record<string, unknown>> | undefined,
-): Record<string, unknown> {
-  return (sanitizeResultValue(result ?? {}) as Record<string, unknown>) ?? {};
 }
 
 function findStep(
@@ -136,7 +120,7 @@ export function createGuidedFlowInstance(
     revision: 0,
     data: {},
     output: {},
-    history: [],
+    backStack: [],
     stack: [],
   };
 }
@@ -162,11 +146,25 @@ export function advanceGuidedFlow(
     );
   }
   const nextStepId = step.transitions?.[submit.actionId];
-  const result = sanitizeResult(submit.result);
+  const result = sanitizeGuidedFlowData(submit.result);
+  const stepResultKey = `${definition.id}@${definition.version}/${step.id}`;
+  const existingStepResults =
+    instance.data.stepResults &&
+    typeof instance.data.stepResults === "object" &&
+    !Array.isArray(instance.data.stepResults)
+      ? (instance.data.stepResults as Readonly<Record<string, unknown>>)
+      : {};
   const nextData = {
     ...instance.data,
-    actionId: submit.actionId,
     ...result,
+    actionId: submit.actionId,
+    stepResults: {
+      ...existingStepResults,
+      [stepResultKey]: {
+        actionId: submit.actionId,
+        result,
+      },
+    },
   };
 
   if (
@@ -197,7 +195,7 @@ export function advanceGuidedFlow(
     currentStepId: nextStepId,
     revision: instance.revision + 1,
     data: nextData,
-    history: [...instance.history, step.id],
+    backStack: [...instance.backStack, step.id],
   };
 }
 
@@ -207,7 +205,7 @@ export function goBackGuidedFlow(
 ): GuidedFlowInstance {
   assertActive(instance);
   assertDefinitionMatches(definition, instance);
-  const previousStepId = instance.history.at(-1);
+  const previousStepId = instance.backStack.at(-1);
   if (!previousStepId)
     throw new Error("GuidedFlow is already at its first step");
   findStep(definition, previousStepId);
@@ -216,7 +214,7 @@ export function goBackGuidedFlow(
     ...instance,
     currentStepId: previousStepId,
     revision: instance.revision + 1,
-    history: instance.history.slice(0, -1),
+    backStack: instance.backStack.slice(0, -1),
   };
 }
 
@@ -236,3 +234,4 @@ export function isNestedGuidedFlowStep(
 ): step is GuidedFlowNestedStepDefinition {
   return step.type === "flow";
 }
+import { sanitizeGuidedFlowData } from "./safe-data";

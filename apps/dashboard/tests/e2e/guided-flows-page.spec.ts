@@ -30,12 +30,52 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("shows only GuidedFlow templates", async ({ page }) => {
+test("starts a GuidedFlow in Chat and keeps its conversation binding when the user asks a question", async ({
+  page,
+}) => {
   let startedFlowId: string | null = null;
+  let boundConversationId: string | null = null;
+  let chatConversationId: string | null = null;
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      request.method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/chat/kody", (route) => {
+    const body = route.request().postDataJSON() as {
+      conversationId?: string;
+    };
+    chatConversationId = body.conversationId ?? null;
+    return route.fulfill({
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      body:
+        'data: {"type":"text-delta","delta":"You are on the confirmation step."}\n\n' +
+        'data: {"type":"finish"}\n\n' +
+        "data: [DONE]\n\n",
+    });
+  });
   await page.route("**/api/kody/guided-flows**", (route) => {
     if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON() as { flowId?: string };
+      const body = route.request().postDataJSON() as {
+        flowId?: string;
+        conversationId?: string;
+      };
       startedFlowId = body.flowId ?? null;
+      boundConversationId = body.conversationId ?? null;
       return json(route, {
         instance: { status: "active" },
         view: {
@@ -93,10 +133,262 @@ test("shows only GuidedFlow templates", async ({ page }) => {
   await expect(startInChat).toBeVisible();
   await startInChat.click();
   await expect.poll(() => startedFlowId).toBe("create-workflow");
-  await expect(page).toHaveURL(
-    "/repo/acme/widgets/guided-flows",
-  );
+  await expect.poll(() => boundConversationId).toBeTruthy();
+  await expect(page).toHaveURL("/repo/acme/widgets/guided-flows");
   await expect(page.getByText("Test flow started in Chat")).toBeVisible();
+
+  const input = page.locator('[aria-label="Kody chat"] textarea').first();
+  await expect(input).toBeEditable();
+  await input.fill("Where am I in this lesson?");
+  await page
+    .locator('[aria-label="Kody chat"]')
+    .getByRole("button", { name: "Send message" })
+    .click();
+
+  await expect(
+    page.getByText("You are on the confirmation step."),
+  ).toBeVisible();
+  await expect.poll(() => chatConversationId).toBe(boundConversationId);
+});
+
+test("resumes an unfinished GuidedFlow once and shows the step without reloading", async ({
+  page,
+}) => {
+  let bindAttempts = 0;
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      request.method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "POST") {
+      bindAttempts += 1;
+      if (bindAttempts === 1) {
+        return json(route, { error: "temporarily unavailable" }, 503);
+      }
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        instanceId?: string;
+        conversationId?: string;
+      };
+      expect(body).toMatchObject({
+        action: "bind",
+        instanceId: "unfinished-instance",
+      });
+      expect(body.conversationId).toBeTruthy();
+      return json(route, {
+        instance: { status: "active" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "unfinished-instance-step-1",
+          rendererSlug: "selection-list",
+          rendererName: "Selection list",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "unfinished-instance",
+            stepId: "question",
+            revision: 1,
+          },
+          ui: {
+            type: "stack",
+            children: [
+              {
+                type: "text",
+                value: "What is 2 + 2?",
+                variant: "title",
+              },
+            ],
+          },
+          data: { title: "What is 2 + 2?" },
+        },
+      });
+    }
+    return json(route, {
+      definitions: [
+        {
+          id: "addition-exercise",
+          title: "Addition exercise",
+          steps: [{ rendererSlug: "selection-list" }],
+        },
+      ],
+      flows: [
+        {
+          instance: {
+            instanceId: "unfinished-instance",
+            revision: 1,
+            status: "active",
+          },
+          compatibility: { status: "compatible" },
+          flow: {
+            title: "Addition exercise",
+            stepIndex: 0,
+            stepCount: 2,
+          },
+          view: {
+            action: "render_view",
+            view: "renderer",
+            id: "unfinished-instance-step-1",
+            rendererSlug: "selection-list",
+            rendererName: "Selection list",
+            resultTarget: "guided-flow",
+            guidedFlow: {
+              instanceId: "unfinished-instance",
+              stepId: "question",
+              revision: 1,
+            },
+            ui: {
+              type: "stack",
+              children: [
+                {
+                  type: "text",
+                  value: "What is 2 + 2?",
+                  variant: "title",
+                },
+              ],
+            },
+            data: { title: "What is 2 + 2?" },
+          },
+        },
+      ],
+    });
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  const resume = page.getByRole("button", {
+    name: "Resume flow",
+    exact: true,
+  });
+  await expect(resume).toBeVisible();
+
+  await resume.click();
+  await expect(page.getByText("What is 2 + 2?", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(resume).toBeEnabled();
+
+  await resume.click();
+  await expect(page.getByText("What is 2 + 2?", { exact: true })).toBeVisible();
+  await expect(page.getByText("What is 2 + 2?", { exact: true })).toHaveCount(
+    1,
+  );
+  await expect.poll(() => bindAttempts).toBe(2);
+});
+
+test("lets the user choose between multiple active GuidedFlows", async ({
+  page,
+}) => {
+  let boundInstanceId = "";
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      request.method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as {
+        instanceId?: string;
+      };
+      boundInstanceId = body.instanceId ?? "";
+      return json(route, {
+        instance: { status: "active" },
+        compatibility: { status: "compatible" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: `${boundInstanceId}-view`,
+          rendererSlug: "selection-list",
+          rendererName: "Selection list",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: boundInstanceId,
+            stepId: "question",
+            revision: 1,
+          },
+          ui: {
+            type: "stack",
+            children: [
+              {
+                type: "text",
+                value:
+                  boundInstanceId === "lesson-instance"
+                    ? "Lesson question"
+                    : "Exercise question",
+                variant: "title",
+              },
+            ],
+          },
+          data: {},
+        },
+      });
+    }
+    return json(route, {
+      definitions: [],
+      flows: [
+        {
+          instance: {
+            instanceId: "lesson-instance",
+            revision: 3,
+            status: "active",
+          },
+          flow: { title: "Power basics", stepIndex: 2, stepCount: 6 },
+          compatibility: { status: "compatible" },
+          view: {},
+        },
+        {
+          instance: {
+            instanceId: "exercise-instance",
+            revision: 1,
+            status: "active",
+          },
+          flow: { title: "Addition exercise", stepIndex: 0, stepCount: 2 },
+          compatibility: { status: "compatible" },
+          view: {},
+        },
+      ],
+    });
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(
+    page.getByRole("button", { name: "Power basics · Step 3 of 6" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Addition exercise · Step 1 of 2" })
+    .click();
+
+  await expect(page.getByText("Exercise question")).toBeVisible();
+  expect(boundInstanceId).toBe("exercise-instance");
 });
 
 test("provides step editing controls, preview, and validation", async ({

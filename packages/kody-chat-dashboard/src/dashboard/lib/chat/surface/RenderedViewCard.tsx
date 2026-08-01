@@ -310,6 +310,7 @@ export function RenderedViewCard({
         <WidgetHost
           key={key}
           slug={node.widget}
+          version={node.version}
           data={node.data}
           preview={node.preview}
           disabled={disabled}

@@ -30,9 +30,22 @@ export const latest = query({
   handler: async (ctx, { tenantId, slug }) =>
     await ctx.db
       .query("widgets")
-      .withIndex("by_widget", (q) => q.eq("tenantId", tenantId).eq("slug", slug))
+      .withIndex("by_widget", (q) =>
+        q.eq("tenantId", tenantId).eq("slug", slug),
+      )
       .order("desc")
       .first(),
+});
+
+export const getVersion = query({
+  args: { tenantId: v.string(), slug: v.string(), version: v.number() },
+  handler: async (ctx, { tenantId, slug, version }) =>
+    await ctx.db
+      .query("widgets")
+      .withIndex("by_widget", (q) =>
+        q.eq("tenantId", tenantId).eq("slug", slug).eq("version", version),
+      )
+      .unique(),
 });
 
 /** Latest version per slug for a tenant. */

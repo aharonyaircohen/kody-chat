@@ -17,6 +17,7 @@ import {
   VIEW_RENDERER_SLUG_RE,
   parseViewRendererDefinition,
   serializeViewRendererDefinition,
+  viewRendererDefinitionVersion,
   type ViewRendererDefinition,
 } from "./definition";
 import {
@@ -63,12 +64,16 @@ export interface ViewRendererPromptContext {
 
 interface ViewRendererDoc {
   slug: string;
+  version?: number;
   definition: unknown;
 }
 
 function fileFromDoc(doc: ViewRendererDoc): ViewRendererDefinitionFile {
   return {
-    definition: parseViewRendererDefinition(JSON.stringify(doc.definition)),
+    definition: {
+      ...parseViewRendererDefinition(JSON.stringify(doc.definition)),
+      version: doc.version ?? 1,
+    },
     source: "repo",
     sha: "",
     htmlUrl: "",
@@ -178,14 +183,21 @@ export async function writeViewRendererDefinitionFile({
   const validated = JSON.parse(
     serializeViewRendererDefinition(definition),
   ) as ViewRendererDefinition;
-  await getConvexClient().mutation(backendApi.viewRenderers.save, {
-    tenantId: tenantIdFor(owner, repo),
-    slug: definition.slug,
-    definition: validated,
-    updatedAt: new Date().toISOString(),
-  });
+  const savedVersion = await getConvexClient().mutation(
+    backendApi.viewRenderers.save,
+    {
+      tenantId: tenantIdFor(owner, repo),
+      slug: definition.slug,
+      definition: validated,
+      updatedAt: new Date().toISOString(),
+    },
+  );
+  const version =
+    typeof savedVersion === "number"
+      ? savedVersion
+      : viewRendererDefinitionVersion(validated);
   return {
-    definition: validated,
+    definition: { ...validated, version },
     source: "repo",
     sha: "",
     htmlUrl: "",

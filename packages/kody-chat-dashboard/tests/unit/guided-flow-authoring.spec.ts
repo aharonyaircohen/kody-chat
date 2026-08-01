@@ -216,7 +216,19 @@ describe("guided flow authoring", () => {
     });
   });
 
-  it("rejects unsupported renderer slugs", () => {
+  it("accepts custom renderer slugs and rejects malformed slugs", () => {
+    expect(
+      validateGuidedFlowDraft({
+        ...validDraft,
+        steps: [
+          {
+            title: "Custom",
+            explanation: "Custom.",
+            rendererSlug: "my-custom-renderer",
+          },
+        ],
+      }),
+    ).toEqual({});
     expect(
       validateGuidedFlowDraft({
         ...validDraft,
@@ -224,7 +236,7 @@ describe("guided flow authoring", () => {
           {
             title: "Unknown",
             explanation: "Unknown.",
-            rendererSlug: "unknown",
+            rendererSlug: "not a valid slug",
           },
         ],
       }),

@@ -103,6 +103,8 @@ import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
 import { createGuidedFlowTools } from "../tools/guided-flow-tools";
+import { ConvexGuidedFlowReader } from "../../guided-flows/reader";
+import { buildGuidedFlowTurnContext } from "../guided-flow-context";
 import {
   CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   CHAT_OUTPUT_TOOL_NAMES,
@@ -826,6 +828,28 @@ async function handleKodyDirectPost(
           },
         }
       : null;
+  if (
+    repo &&
+    verifiedActorLogin &&
+    typeof body.conversationId === "string" &&
+    body.conversationId.trim()
+  ) {
+    try {
+      const guidedFlowContext = await buildGuidedFlowTurnContext(
+        new ConvexGuidedFlowReader({
+          tenantId: `${repo.owner}/${repo.repo}`,
+          actorId: verifiedActorLogin,
+          conversationId: body.conversationId.trim(),
+        }),
+      );
+      if (guidedFlowContext) turnSystemInstructions.push(guidedFlowContext);
+    } catch (error) {
+      traceWarn(
+        { err: error, conversationId: body.conversationId },
+        "guided-flow context unavailable",
+      );
+    }
+  }
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
   ensureTriggerStateWriter();
   const eventUserId = verifiedActorLogin
@@ -1272,6 +1296,10 @@ async function handleKodyDirectPost(
       ? createGuidedFlowTools({
           tenantId: `${repo.owner}/${repo.repo}`,
           actorId: verifiedActorLogin,
+          ...(typeof body.conversationId === "string" &&
+          body.conversationId.trim()
+            ? { conversationId: body.conversationId.trim() }
+            : {}),
         })
       : {}),
   };

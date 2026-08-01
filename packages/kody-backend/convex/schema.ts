@@ -107,6 +107,8 @@ export default defineSchema({
     actorId: v.string(),
     instanceId: v.string(),
     instanceKey: v.optional(v.string()),
+    rootFlowId: v.optional(v.string()),
+    activeKey: v.optional(v.string()),
     flowId: v.string(),
     flowVersion: v.number(),
     currentStepId: v.string(),
@@ -130,7 +132,44 @@ export default defineSchema({
     mutationId: v.optional(v.string()),
   })
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
-    .index("by_actor_status", ["tenantId", "actorId", "status"]),
+    .index("by_actor_status", ["tenantId", "actorId", "status"])
+    .index("by_active_key", ["tenantId", "actorId", "activeKey", "status"]),
+
+  guidedFlowSubmissions: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    revision: v.number(),
+    mutationId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    stepId: v.string(),
+    actionId: v.string(),
+    result: v.any(),
+    submittedAt: v.string(),
+  })
+    .index("by_instance_revision", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "revision",
+    ])
+    .index("by_instance_mutation", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "mutationId",
+    ]),
+
+  guidedFlowBindings: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    conversationId: v.string(),
+    instanceId: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_conversation", ["tenantId", "actorId", "conversationId"])
+    .index("by_instance", ["tenantId", "actorId", "instanceId"]),
 
   // Tenant widget bundles — precompiled browser components published from
   // the tenant repo (source/review in GitHub, serving copy here). One row
@@ -176,6 +215,35 @@ export default defineSchema({
     .index("by_completion", ["tenantId", "actorId", "instanceId"])
     .index("by_actor", ["tenantId", "actorId", "completedAt"])
     .index("by_flow", ["tenantId", "flowId", "completedAt"]),
+
+  // Durable consumer work emitted by a committed flow transition. Generic
+  // GuidedFlow state is saved first; consumer adapters claim these effects
+  // afterward and mark them complete idempotently.
+  guidedFlowEffects: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    effectId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    data: v.any(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_effect", ["tenantId", "actorId", "effectId"])
+    .index("by_instance_status", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "status",
+    ]),
 
   userJourneys: defineTable({
     tenantId: v.string(),
@@ -531,9 +599,14 @@ export default defineSchema({
   viewRenderers: defineTable({
     tenantId: v.string(),
     slug: v.string(),
+    // Optional only so pre-versioning rows remain readable during migration.
+    version: v.optional(v.number()),
+    archived: v.optional(v.boolean()),
     definition: v.any(),
     updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "slug"]),
+  })
+    .index("by_tenant", ["tenantId", "slug"])
+    .index("by_renderer", ["tenantId", "slug", "version"]),
 
   macros: defineTable({
     tenantId: v.string(),

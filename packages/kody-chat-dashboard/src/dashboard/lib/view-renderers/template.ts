@@ -20,6 +20,7 @@ import {
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   RendererActionDefaultSchema,
+  type RendererValueSchema,
   type RendererUiTemplateNode,
   type ViewRendererDefinition,
 } from "./definition";
@@ -228,6 +229,7 @@ function resolveRendererUiTemplate(
     return {
       type: "widget",
       widget: template.widget,
+      ...(template.version ? { version: template.version } : {}),
       ...(data !== undefined ? { data } : {}),
     };
   }
@@ -291,6 +293,7 @@ function normalizeRendererAction(
       label: value.label,
       response: value.response,
       ...(value.variant ? { variant: value.variant } : {}),
+      ...(value.result ? { result: value.result } : {}),
     };
   }
   const label = value.trim();
@@ -457,6 +460,11 @@ function normalizeRendererFieldValue({
   bind: string;
   value: unknown;
 }): RenderedViewDataValue {
+  const valueSchema = definition.data?.[bind]?.valueSchema;
+  if (valueSchema) {
+    const issue = rendererValueSchemaIssue(value, valueSchema, bind);
+    if (issue) throw new Error(`Invalid renderer data for "${bind}": ${issue}`);
+  }
   if (definition.data?.[bind]?.type === "json") {
     if (!isRenderedViewJsonValue(value)) {
       throw new Error(`Invalid renderer data for "${bind}": expected JSON`);
@@ -492,7 +500,19 @@ export function normalizeViewRendererData(
 ): Record<string, RenderedViewDataValue> {
   const normalized: Record<string, RenderedViewDataValue> = {};
   for (const bind of rendererDataKeySet(definition)) {
-    if (!Object.prototype.hasOwnProperty.call(data, bind)) continue;
+    if (!Object.prototype.hasOwnProperty.call(data, bind)) {
+      const field = definition.data?.[bind];
+      if (
+        field?.valueSchema &&
+        !field?.optional &&
+        !Object.prototype.hasOwnProperty.call(definition.defaults ?? {}, bind)
+      ) {
+        throw new Error(
+          `Invalid renderer data for "${bind}": value is required`,
+        );
+      }
+      continue;
+    }
     const value = data[bind];
     if (value === undefined) continue;
     normalized[bind] = normalizeRendererFieldValue({
@@ -502,4 +522,73 @@ export function normalizeViewRendererData(
     });
   }
   return normalized;
+}
+
+function rendererValueSchemaIssue(
+  value: unknown,
+  schema: RendererValueSchema,
+  path: string,
+): string | null {
+  if (schema.kind === "string") {
+    if (typeof value !== "string") return `${path} must be a string`;
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      return `${path} is too short`;
+    }
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) {
+      return `${path} is too long`;
+    }
+    return null;
+  }
+  if (schema.kind === "number") {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return `${path} must be a number`;
+    }
+    return schema.integer && !Number.isInteger(value)
+      ? `${path} must be an integer`
+      : null;
+  }
+  if (schema.kind === "boolean") {
+    return typeof value === "boolean" ? null : `${path} must be a boolean`;
+  }
+  if (schema.kind === "array") {
+    if (!Array.isArray(value)) return `${path} must be an array`;
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      return `${path} has too few items`;
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      return `${path} has too many items`;
+    }
+    for (const [index, item] of value.entries()) {
+      const issue = rendererValueSchemaIssue(
+        item,
+        schema.items,
+        `${path}[${index}]`,
+      );
+      if (issue) return issue;
+    }
+    return null;
+  }
+  if (!isRecord(value)) return `${path} must be an object`;
+  const properties = schema.properties ?? {};
+  for (const required of schema.required ?? []) {
+    if (!Object.prototype.hasOwnProperty.call(value, required)) {
+      return `${path}.${required} is required`;
+    }
+  }
+  if (schema.additionalProperties === false) {
+    const unknownKey = Object.keys(value).find(
+      (key) => !Object.prototype.hasOwnProperty.call(properties, key),
+    );
+    if (unknownKey) return `${path}.${unknownKey} is not allowed`;
+  }
+  for (const [key, childSchema] of Object.entries(properties)) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+    const issue = rendererValueSchemaIssue(
+      value[key],
+      childSchema,
+      `${path}.${key}`,
+    );
+    if (issue) return issue;
+  }
+  return null;
 }

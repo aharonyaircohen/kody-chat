@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isGuidedFlowOpenRequest } from "../../src/dashboard/lib/guided-flows/events";
+import {
+  guidedFlowChatReducer,
+  initialGuidedFlowChatState,
+  isGuidedFlowOpenRequest,
+} from "../../src/dashboard/lib/guided-flows/chat-controller";
 
 describe("GuidedFlow open requests", () => {
   it("accepts a definition start request", () => {
@@ -23,5 +27,34 @@ describe("GuidedFlow open requests", () => {
 
   it("rejects incomplete requests", () => {
     expect(isGuidedFlowOpenRequest({ message: "started" })).toBe(false);
+  });
+
+  it("keeps one explicit request until its owner acknowledges it", () => {
+    const requested = guidedFlowChatReducer(initialGuidedFlowChatState, {
+      type: "request",
+      requestId: "request-1",
+      request: {
+        instanceId: "instance-1",
+        message: "resumed",
+      },
+    });
+
+    expect(
+      requested.pending && "instanceId" in requested.pending.request
+        ? requested.pending.request.instanceId
+        : null,
+    ).toBe("instance-1");
+    expect(
+      guidedFlowChatReducer(requested, {
+        type: "acknowledge",
+        requestId: "not-the-owner",
+      }),
+    ).toBe(requested);
+    expect(
+      guidedFlowChatReducer(requested, {
+        type: "acknowledge",
+        requestId: requested.pending?.id ?? "",
+      }),
+    ).toEqual(initialGuidedFlowChatState);
   });
 });

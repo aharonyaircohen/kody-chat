@@ -236,28 +236,22 @@ Branding stays theme-only: name, accent, locale, and optional welcome text.
 - Storage/API: [src/dashboard/lib/brands/files.ts](src/dashboard/lib/brands/files.ts), [app/api/kody/brands/route.ts](app/api/kody/brands/route.ts), [app/api/kody/brands/[slug]/route.ts](app/api/kody/brands/[slug]/route.ts)
 - UI: [app/(chat-rail)/brands/page.tsx](<app/(chat-rail)/brands/page.tsx>), [src/dashboard/lib/components/BrandsManager.tsx](src/dashboard/lib/components/BrandsManager.tsx)
 
-#### Client brand sign-in (load-bearing invariants)
+#### Client brand access (load-bearing invariants)
 
-Gated `/client/<slug>` pages auto-redirect to the brand's OAuth provider.
-Three past outages, three rules:
+Brand Chat never owns provider login. Brands declare explicit `public` or
+`delegated` access. Dashboard and external host applications convert their
+verified users into the same scoped, HttpOnly Brand Chat session.
 
-1. **Brand lookup must not depend on the dashboard's browser cookie.**
-   Client visitors never carry `kody_client_brand_repo` (and it tracks the
-   admin's last-visited repo). `KODY_CLIENT_BRAND_REPO` env is the fallback
-   repo for public brand + credential resolution — keep it wired in both
-   [page.tsx](app/client/[brandSlug]/page.tsx) and
-   [auth.ts](src/dashboard/lib/client-auth/auth.ts).
-2. **Never do unauthenticated GitHub reads on the sign-in path.** The
-   bootstrap reads (`kody.config.json`, `variables.json`, `secrets.enc`)
-   authenticate with server `GITHUB_TOKEN` via `withServerToken` in
-   [vault/bootstrap.ts](src/dashboard/lib/vault/bootstrap.ts). Anonymous
-   reads share Vercel's 60-req/hr per-IP budget; when drained, providers
-   resolve to zero and sign-in renders an **empty page** with no error.
-3. **Don't call Auth.js `signIn` conditionally during page render and
-   assume failure is visible** — a provider list that resolves empty
-   produces a blank page, not an error. Page-level `resolveConfiguredProviders`
-   and the NextAuth config in auth.ts must resolve credentials the same
-   way (same repo context, same token) or they disagree silently.
+1. Repository-qualified brand lookup failures must fail closed; they never
+   become public fallback brands.
+2. Dashboard launch verifies the PAT owner before creating a Chat session.
+3. External launch verifies issuer, audience, tenant, brand, expiry, and a
+   one-time token id.
+4. Every delegated session is bound to the exact `owner/repo/brand`.
+5. Brand state and replay protection are Convex-owned and receive tenant scope
+   explicitly.
+
+Full contract: [docs/brand-chat-access.md](docs/brand-chat-access.md).
 
 Important: Claude Code's `` !`shell` `` injection is **not** supported.
 That's a CLI preprocessing feature (it shells out before the message is

@@ -38,7 +38,7 @@ function frameFromStored(frame: GuidedFlowStoredFrame): GuidedFlowFrame {
     flowVersion: frame.flowVersion,
     currentStepId: frame.currentStepId,
     data: record(frame.data),
-    history: frame.history,
+    backStack: frame.history,
   };
 }
 
@@ -55,7 +55,7 @@ export function guidedFlowInstanceFromRow(
     revision: row.revision,
     data: record(row.data),
     output: record(row.output),
-    history: row.history,
+    backStack: row.history,
     stack: (row.stack ?? []).map(frameFromStored),
   };
 }
@@ -76,10 +76,13 @@ export function guidedFlowInstanceWriteFields(
     revision: instance.revision,
     data: instance.data,
     output: instance.output,
-    history: [...instance.history],
+    history: [...instance.backStack],
     stack: instance.stack.map((frame) => ({
-      ...frame,
-      history: [...frame.history],
+      flowId: frame.flowId,
+      flowVersion: frame.flowVersion,
+      currentStepId: frame.currentStepId,
+      data: frame.data,
+      history: [...frame.backStack],
     })),
   };
 }

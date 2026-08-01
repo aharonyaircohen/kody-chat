@@ -16,6 +16,9 @@ const store = vi.hoisted(() => ({
   userState: {} as Record<string, unknown>,
   failUserStateSaves: [] as string[],
   completions: [] as Array<Record<string, unknown>>,
+  bindings: [] as Array<Record<string, unknown>>,
+  submissions: [] as Array<Record<string, unknown>>,
+  effects: [] as Array<Record<string, unknown>>,
   failCompletionWrites: false,
 }));
 
@@ -27,10 +30,15 @@ vi.mock("@kody-ade/backend/api", () => ({
       listActive: "listActive",
       list: "list",
       upsert: "upsert",
+      startOrResume: "startOrResume",
       update: "update",
       recordCompletion: "recordCompletion",
       saveDefinition: "saveDefinition",
       listDefinitions: "listDefinitions",
+      bindConversation: "bindConversation",
+      listPendingEffects: "listPendingEffects",
+      beginEffect: "beginEffect",
+      markEffect: "markEffect",
     },
     userState: {
       get: "userState.get",
@@ -67,6 +75,17 @@ vi.mock("@kody-ade/backend/client", () => ({
           (row) =>
             row.tenantId === args.tenantId && row.actorId === args.actorId,
         );
+      }
+      if (operation === "listPendingEffects") {
+        return store.effects
+          .filter(
+            (effect) =>
+              effect.tenantId === args.tenantId &&
+              effect.actorId === args.actorId &&
+              effect.instanceId === args.instanceId &&
+              effect.status !== "completed",
+          )
+          .map((effect) => ({ ...effect }));
       }
       return (
         store.rows.find(
@@ -122,10 +141,92 @@ vi.mock("@kody-ade/backend/client", () => ({
         store.rows.push({ ...args });
         return;
       }
+      if (operation === "startOrResume") {
+        const existing = store.rows.find(
+          (row) =>
+            row.tenantId === args.tenantId &&
+            row.actorId === args.actorId &&
+            row.status === "active" &&
+            (row.rootFlowId ?? row.flowId) === args.rootFlowId &&
+            (row.instanceKey ?? "") === (args.instanceKey ?? ""),
+        );
+        if (existing) return { created: false, instance: existing };
+        const instance = { ...args };
+        store.rows.push(instance);
+        return { created: true, instance };
+      }
+      if (operation === "bindConversation") {
+        store.bindings.push({ ...args });
+        return;
+      }
+      if (operation === "markEffect") {
+        const effect = store.effects.find(
+          (candidate) => candidate.effectId === args.effectId,
+        );
+        if (effect) Object.assign(effect, args);
+        return;
+      }
+      if (operation === "beginEffect") {
+        const effect = store.effects.find(
+          (candidate) => candidate.effectId === args.effectId,
+        );
+        if (effect) {
+          effect.attempts = Number(effect.attempts ?? 0) + 1;
+        }
+        return;
+      }
+      if (
+        operation === "update" &&
+        args.completions &&
+        store.failCompletionWrites
+      ) {
+        throw new Error("completions unavailable");
+      }
       const row = store.rows.find(
         (candidate) => candidate.instanceId === args.instanceId,
       );
       if (row) Object.assign(row, args);
+      if (operation === "update" && args.submission) {
+        store.submissions.push({
+          tenantId: args.tenantId,
+          actorId: args.actorId,
+          instanceId: args.instanceId,
+          revision: args.revision,
+          mutationId: args.mutationId,
+          ...(args.submission as Record<string, unknown>),
+        });
+      }
+      if (operation === "update" && Array.isArray(args.completions)) {
+        for (const completion of args.completions) {
+          const value = completion as Record<string, unknown>;
+          if (
+            !store.completions.some(
+              (candidate) => candidate.instanceId === args.instanceId,
+            )
+          ) {
+            store.completions.push({
+              tenantId: args.tenantId,
+              actorId: args.actorId,
+              instanceId: args.instanceId,
+              ...value,
+            });
+          }
+          if (
+            !store.effects.some(
+              (candidate) => candidate.effectId === value.effectId,
+            )
+          ) {
+            store.effects.push({
+              tenantId: args.tenantId,
+              actorId: args.actorId,
+              instanceId: args.instanceId,
+              ...value,
+              status: "pending",
+              attempts: 0,
+            });
+          }
+        }
+      }
     },
   }),
 }));
@@ -151,13 +252,20 @@ describe("GuidedFlow route", () => {
     store.userState = {};
     store.failUserStateSaves = [];
     store.completions = [];
+    store.bindings = [];
+    store.submissions = [];
+    store.effects = [];
     store.failCompletionWrites = false;
     vi.clearAllMocks();
   });
 
   it("starts and lists an active flow for the authenticated actor", async () => {
     const response = await POST(
-      request({ action: "start", flowId: "create-workflow" }),
+      request({
+        action: "start",
+        flowId: "create-workflow",
+        conversationId: "conversation-1",
+      }),
     );
     expect(response.status).toBe(201);
     expect((await response.json()).view.guidedFlow.revision).toBe(0);
@@ -165,6 +273,41 @@ describe("GuidedFlow route", () => {
     const listed = await GET(request());
     expect(listed.status).toBe(200);
     expect((await listed.json()).flows).toHaveLength(1);
+    expect(store.bindings).toEqual([
+      expect.objectContaining({
+        actorId: "alice",
+        conversationId: "conversation-1",
+        instanceId: store.rows[0]?.instanceId,
+      }),
+    ]);
+  });
+
+  it("binds an existing instance without changing its progress", async () => {
+    const started = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const instance = (await started.json()).instance as {
+      instanceId: string;
+      revision: number;
+    };
+
+    const response = await POST(
+      request({
+        action: "bind",
+        instanceId: instance.instanceId,
+        conversationId: "conversation-2",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).instance).toMatchObject({
+      instanceId: instance.instanceId,
+      revision: instance.revision,
+    });
+    expect(store.bindings.at(-1)).toMatchObject({
+      conversationId: "conversation-2",
+      instanceId: instance.instanceId,
+    });
   });
 
   it("creates and persists a custom renderer-backed flow definition", async () => {
@@ -201,7 +344,10 @@ describe("GuidedFlow route", () => {
 
   it("requires repository write access to change shared definitions", async () => {
     auth.verifyRepoWriteAccess.mockResolvedValueOnce(
-      NextResponse.json({ error: "write_permission_required" }, { status: 403 }),
+      NextResponse.json(
+        { error: "write_permission_required" },
+        { status: 403 },
+      ),
     );
 
     const response = await POST(
@@ -331,7 +477,7 @@ describe("GuidedFlow route", () => {
         stepId: "step-1",
         expectedRevision: 1,
         actionId: "continue",
-        result: { answer: "four" },
+        result: { answer: "four", apiToken: "must-not-be-stored" },
         mutationId: "nested-answer",
       }),
     );
@@ -355,6 +501,15 @@ describe("GuidedFlow route", () => {
       },
       flow: { id: "addition-guide" },
     });
+    expect(store.submissions.at(-1)).toMatchObject({
+      instanceId,
+      revision: 2,
+      flowId: "addition-exercise",
+      stepId: "step-1",
+      actionId: "continue",
+      result: { answer: "four" },
+    });
+    expect(store.submissions.at(-1)?.result).not.toHaveProperty("apiToken");
   });
 
   it("rejects a nested flow definition that references itself", async () => {
@@ -751,7 +906,7 @@ describe("GuidedFlow route", () => {
     }
   });
 
-  it("keeps the flow active and returns a safe code when workflow creation is rejected", async () => {
+  it("keeps a failed consumer effect retryable after the flow is committed", async () => {
     const started = await POST(
       request({ action: "start", flowId: "create-workflow" }),
     );
@@ -772,14 +927,15 @@ describe("GuidedFlow route", () => {
       }),
     );
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: "workflow_exists",
-          message: "Workflow already exists.",
-        }),
-        { status: 409, headers: { "content-type": "application/json" } },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "workflow_exists",
+            message: "Workflow already exists.",
+          }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
     );
     const rejected = await POST(
       request({
@@ -802,7 +958,20 @@ describe("GuidedFlow route", () => {
         { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
       ),
     );
-    expect((await current.json()).flow.instance.status).toBe("active");
+    expect((await current.json()).flow.instance.status).toBe("completed");
+    expect(store.effects).toMatchObject([{ status: "failed", attempts: 1 }]);
+    const retried = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "review",
+        expectedRevision: 1,
+        actionId: "approve",
+        mutationId: "m-rejected-approve",
+      }),
+    );
+    expect(retried.status).toBe(200);
+    expect(store.effects).toMatchObject([{ status: "completed", attempts: 2 }]);
   });
 
   it("records a completion ledger entry when any flow completes", async () => {
@@ -852,7 +1021,7 @@ describe("GuidedFlow route", () => {
     ]);
   });
 
-  it("still completes the flow when the completion ledger write fails", async () => {
+  it("does not commit a completion without its durable ledger and effect", async () => {
     store.failCompletionWrites = true;
     store.definitions = [
       {
@@ -886,10 +1055,13 @@ describe("GuidedFlow route", () => {
       }),
     );
 
-    expect(completed.status).toBe(200);
-    expect(await completed.json()).toMatchObject({
-      instance: { status: "completed" },
+    expect(completed.status).toBe(500);
+    expect(await completed.json()).toEqual({
+      error: "guided_flow_action_failed",
     });
+    expect(
+      store.rows.find((row) => row.instanceId === instanceId),
+    ).toMatchObject({ status: "active", revision: 0 });
   });
 
   it("does not accept oversized request bodies", async () => {
