@@ -78,6 +78,13 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
       boundConversationId = body.conversationId ?? null;
       return json(route, {
         instance: { status: "active" },
+        flow: {
+          id: "addition-exercise",
+          title: "Addition exercise",
+          stepIndex: 0,
+          stepCount: 2,
+        },
+        compatibility: { status: "compatible" },
         view: {
           action: "render_view",
           view: "renderer",
@@ -191,6 +198,13 @@ test("resumes an unfinished GuidedFlow once and shows the step without reloading
       expect(body.conversationId).toBeTruthy();
       return json(route, {
         instance: { status: "active" },
+        flow: {
+          id: "addition-exercise",
+          title: "Addition exercise",
+          stepIndex: 0,
+          stepCount: 2,
+        },
+        compatibility: { status: "compatible" },
         view: {
           action: "render_view",
           view: "renderer",

@@ -90,6 +90,7 @@ import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
+import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
 import {
   buildWidgetPreviewView,
   consumeWidgetOpenRequest,
@@ -285,15 +286,15 @@ export function KodyChat({
               : "guided_flow_action_failed",
           );
         }
-        const flowPayload = payload?.flow ?? payload;
-        if (flowPayload?.compatibility?.status === "incompatible") {
+        const flowPayload = readGuidedFlowOpenPayload(payload);
+        if (flowPayload.compatibility?.status === "incompatible") {
           throw new Error(
             typeof flowPayload.compatibility.code === "string"
               ? flowPayload.compatibility.code
               : "renderer_contract_invalid",
           );
         }
-        const view = flowPayload?.view;
+        const view = flowPayload.view;
         if (!isRenderedViewDirective(view)) {
           throw new Error("renderer_contract_invalid");
         }
