@@ -15,6 +15,7 @@ export type StoreAssetKind =
   | "implementations"
   | "workflows"
   | "loops"
+  | "solutions"
   | "commands"
   | "shared"
   | "agent"
@@ -24,6 +25,7 @@ type StoreManifestKind =
   | "implementations"
   | "workflows"
   | "loops"
+  | "solutions"
   | "commands"
   | "shared"
   | "agent";

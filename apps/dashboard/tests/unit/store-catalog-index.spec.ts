@@ -17,6 +17,7 @@ describe("Store catalog index", () => {
                   commands: "commands",
                   workflows: "workflows",
                   loops: "loops",
+                  solutions: "solutions",
                 },
               }),
             ).toString("base64"),
@@ -43,7 +44,8 @@ describe("Store catalog index", () => {
       commands: ["sample"],
       workflows: ["sample"],
       loops: ["sample"],
+      solutions: ["sample"],
     });
-    expect(getContent).toHaveBeenCalledTimes(6);
+    expect(getContent).toHaveBeenCalledTimes(7);
   });
 });

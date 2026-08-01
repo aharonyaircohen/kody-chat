@@ -14,22 +14,28 @@ describe("simple Store catalog", () => {
 
   it("derives Agent and Capability uninstall blockers from active Workflows", () => {
     expect(source).toContain("workflowBlockers");
-    expect(source).toContain("item.workflow.agent === agent");
+    expect(source).toContain("item.agent === agent");
   });
 
-  it("lists lightweight Store entries without opening every asset", () => {
+  it("loads dependency definitions through the shared Solution catalog", () => {
     expect(source).toContain("listStoreCatalogSlugs");
     expect(source).not.toContain("listStoreCapabilityFiles");
     expect(source).not.toContain("listStoreAgentFiles");
     expect(source).not.toContain("listStoreCommandFiles");
     expect(source).not.toContain("listCompanyStoreWorkflowDefinitionFiles");
     expect(source).not.toContain("listStoreLoops");
-    expect(source).toContain(".filter((slug) => active.workflow.has(slug))");
+    expect(source).toContain("loadStoreSolutionCatalog");
   });
 
   it("uses the authenticated repository token for Store reads", () => {
     expect(source).toMatch(
       /setGitHubContext\(\s*auth\.owner,\s*auth\.repo,\s*auth\.token,/,
     );
+  });
+
+  it("returns installable Solutions with their resolved trees", () => {
+    expect(source).toContain("listStoreSolutions");
+    expect(source).toContain("resolveStoreSolutionTree");
+    expect(source).toContain("solutions");
   });
 });

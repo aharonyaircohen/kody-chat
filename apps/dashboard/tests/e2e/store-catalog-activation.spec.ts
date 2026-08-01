@@ -10,28 +10,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type CatalogKind =
-  | "agent"
-  | "capability"
-  | "implementation"
-  | "agentLoop"
-  | "workflow"
-  | "command";
+  "agent" | "capability" | "loop" | "workflow" | "command" | "solution";
 
 interface CatalogItem {
   slug: string;
   title: string;
   description: string;
   kind: CatalogKind;
-  isWorkflow?: boolean;
-  workflowSteps?: string[];
   htmlUrl: string | null;
-  action?: string | null;
-  agent?: string | null;
-  schedule?: string | null;
-  capabilityId?: string | null;
-  compatibleCapabilityRevision?: string | null;
-  implementationType?: "agent" | "script" | null;
-  selection?: "repository" | "automatic" | "available";
   installed?: boolean;
   uninstallBlockedBy?: Array<{
     kind: CatalogKind;
@@ -67,36 +53,20 @@ const catalogSeeds: CatalogItem[] = [
     description: "Keeps release work moving.",
     kind: "capability",
     htmlUrl: null,
-    agent: "atlas-agent",
-  },
-  {
-    slug: "release-watch-agent",
-    title: "Release Watch Agent",
-    description: "Runs the Release Watch Capability.",
-    kind: "implementation",
-    htmlUrl: null,
-    capabilityId: "release-watch",
-    compatibleCapabilityRevision: "revision-1",
-    implementationType: "agent",
-    selection: "available",
   },
   {
     slug: "bug-flow",
     title: "Bug Flow",
     description: "Reproduces, plans, implements, reviews, and fixes feedback.",
-    kind: "capability",
-    isWorkflow: true,
-    workflowSteps: ["reproduce", "plan", "run", "review", "fix"],
+    kind: "workflow",
     htmlUrl: null,
-    agent: "kody",
   },
   {
     slug: "daily-triage",
     title: "Daily Triage",
     description: "Repeats triage on a schedule.",
-    kind: "agentLoop",
+    kind: "loop",
     htmlUrl: null,
-    schedule: "1d",
   },
   {
     slug: "release-workflow",
@@ -114,6 +84,43 @@ const catalogSeeds: CatalogItem[] = [
   },
 ];
 
+const solutionSeeds = [
+  {
+    slug: "web-release",
+    title: "Web Release",
+    description: "Validate, merge, and deploy web releases.",
+    kind: "solution" as const,
+    htmlUrl: "https://github.com/acme/store/tree/main/solutions/web-release",
+    installed: false,
+    status: "available" as const,
+    tree: [
+      {
+        kind: "loop" as const,
+        slug: "daily-web-release-loop",
+        title: "Daily Web Release Loop",
+        installed: false,
+        children: [
+          {
+            kind: "workflow" as const,
+            slug: "web-release",
+            title: "Web Release Workflow",
+            installed: false,
+            children: [
+              {
+                kind: "capability" as const,
+                slug: "release-prepare",
+                title: "Release Prepare",
+                installed: false,
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];
+
 async function seedAuth(page: Page): Promise<void> {
   await page.addInitScript((value) => {
     window.localStorage.setItem("kody_auth", JSON.stringify(value));
@@ -127,6 +134,7 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
+        solutions: solutionSeeds,
         items: catalogSeeds,
       }),
     });
@@ -154,9 +162,9 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   return imports;
 }
 
-async function mockStoreCatalogWithInstallState(page: Page): Promise<
-  Array<{ method: string; kind: CatalogKind; slug: string }>
-> {
+async function mockStoreCatalogWithInstallState(
+  page: Page,
+): Promise<Array<{ method: string; kind: CatalogKind; slug: string }>> {
   const requests: Array<{ method: string; kind: CatalogKind; slug: string }> =
     [];
   const items = catalogSeeds.map((item) => ({
@@ -180,7 +188,7 @@ async function mockStoreCatalogWithInstallState(page: Page): Promise<
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ solutions: solutionSeeds, items }),
     });
   });
 
@@ -245,10 +253,28 @@ async function mockIdentity(page: Page): Promise<void> {
 async function openStoreCatalog(page: Page): Promise<void> {
   await seedAuth(page);
   await mockIdentity(page);
+  await page.goto("/store-catalog?filter=all", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(
+    page.getByRole("heading", { name: "Store Catalog" }),
+  ).toBeVisible({ timeout: 10_000 });
+}
+
+async function openStoreSolutions(page: Page): Promise<void> {
+  await seedAuth(page);
+  await mockIdentity(page);
   await page.goto("/store-catalog", { waitUntil: "domcontentloaded" });
   await expect(
     page.getByRole("heading", { name: "Store Catalog" }),
   ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByRole("heading", { name: "Start with a complete Solution" }),
+  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Solutions" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Browse components" }),
+  ).toBeVisible();
 }
 
 async function closeCatalogModal(page: Page): Promise<void> {
@@ -279,7 +305,58 @@ async function addCatalogItem(
   await expect(button).toContainText("Install");
 }
 
-test.describe("Store Catalog add", () => {
+test.describe("Store", () => {
+  test("keeps Solutions inside Catalog with full dependency details", async ({
+    page,
+  }) => {
+    const imports = await mockStoreCatalog(page);
+    await openStoreSolutions(page);
+
+    await page.getByTestId("store-solution-row-web-release").click();
+    await expect(page).toHaveURL(/\/store-catalog\/solution\/web-release$/);
+
+    await expect(
+      page.getByRole("heading", { name: "Web Release" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Complete setup", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Daily Web Release Loop")).toBeVisible();
+    await expect(page.getByText("Release Prepare")).toBeVisible();
+
+    await page.getByTestId("store-catalog-import-solution-web-release").click();
+    expect(imports).toContainEqual({ kind: "solution", slug: "web-release" });
+  });
+
+  test("keeps Solutions out of the All components view", async ({ page }) => {
+    await mockStoreCatalog(page);
+    await openStoreCatalog(page);
+
+    await expect(
+      page.getByTestId("store-solution-row-web-release"),
+    ).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  });
+
+  test("opens component browsing from the Store homepage", async ({ page }) => {
+    await mockStoreCatalog(page);
+    await openStoreSolutions(page);
+
+    await page.getByRole("button", { name: "Browse components" }).click();
+
+    await expect(page).toHaveURL(/\/store-catalog\?filter=all$/);
+    await expect(
+      page.getByRole("heading", { name: "Browse components" }),
+    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "All" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      page.getByRole("button", { name: "Back to Solutions" }),
+    ).toBeVisible();
+  });
+
   test("keeps a non-All filter selected from an item route", async ({
     page,
   }, testInfo) => {
@@ -327,26 +404,25 @@ test.describe("Store Catalog add", () => {
     ).toContainText("Install");
   });
 
-  test("shows richer selected item data in the modal", async ({ page }) => {
+  test("shows selected item data in the modal", async ({ page }) => {
     await mockStoreCatalog(page);
     await openStoreCatalog(page);
 
-    await page.getByTestId("store-catalog-row-capability-bug-flow").click();
+    await page.getByTestId("store-catalog-row-workflow-bug-flow").click();
 
     const dialog = page.getByRole("dialog");
     await expect(
       dialog.getByRole("heading", { name: "Bug Flow" }),
     ).toBeVisible();
-    await expect(dialog.getByText("Workflow steps")).toBeVisible();
-    await expect(dialog.getByText("reproduce")).toBeVisible();
-    await expect(dialog.getByText("review")).toBeVisible();
-    await expect(dialog.getByText("Agent")).toBeVisible();
-    await expect(dialog.getByText("kody")).toBeVisible();
-    await expect(dialog.getByText("Step count")).toBeVisible();
-    await expect(dialog.getByText("5")).toBeVisible();
+    await expect(dialog.getByText("Summary")).toBeVisible();
+    await expect(
+      dialog.getByText(
+        "Reproduces, plans, implements, reviews, and fixes feedback.",
+      ),
+    ).toBeVisible();
   });
 
-  test("shows workflow capabilities under the Workflows filter", async ({
+  test("shows workflow items under the Workflows filter", async ({
     page,
   }, testInfo) => {
     test.skip(
@@ -362,7 +438,7 @@ test.describe("Store Catalog add", () => {
 
     await expect(workflowsTab).toHaveAttribute("aria-selected", "true");
     await expect(
-      page.getByTestId("store-catalog-row-capability-bug-flow"),
+      page.getByTestId("store-catalog-row-workflow-bug-flow"),
     ).toBeVisible();
     await expect(
       page.getByTestId("store-catalog-row-capability-release-watch"),
@@ -374,7 +450,7 @@ test.describe("Store Catalog add", () => {
       page.getByTestId("store-catalog-row-capability-release-watch"),
     ).toBeVisible();
     await expect(
-      page.getByTestId("store-catalog-row-capability-bug-flow"),
+      page.getByTestId("store-catalog-row-workflow-bug-flow"),
     ).toHaveCount(0);
   });
 
@@ -390,8 +466,8 @@ test.describe("Store Catalog add", () => {
     expect(imports).toEqual([
       { kind: "agent", slug: "atlas-agent" },
       { kind: "capability", slug: "release-watch" },
-      { kind: "capability", slug: "bug-flow" },
-      { kind: "agentLoop", slug: "daily-triage" },
+      { kind: "workflow", slug: "bug-flow" },
+      { kind: "loop", slug: "daily-triage" },
       { kind: "workflow", slug: "release-workflow" },
       { kind: "command", slug: "factory" },
     ]);
@@ -437,7 +513,8 @@ test.describe("Store Catalog add", () => {
     });
 
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText("Required by Release Workflow.");
+    await expect(dialog.getByText("Required by")).toBeVisible();
+    await expect(dialog.getByText("Release Workflow")).toBeVisible();
     const button = page.getByTestId(
       "store-catalog-import-capability-release-watch",
     );

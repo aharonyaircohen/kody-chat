@@ -8,9 +8,17 @@ const source = readFileSync(
 
 describe("simple Store activation", () => {
   it("activates only current Store asset kinds", () => {
-    expect(source).toContain(
-      '"agent" | "capability" | "workflow" | "loop" | "command" | "feature"',
-    );
+    for (const kind of [
+      "agent",
+      "capability",
+      "workflow",
+      "loop",
+      "command",
+      "feature",
+      "solution",
+    ]) {
+      expect(source).toContain(`"${kind}"`);
+    }
     expect(source).not.toContain('"implementation"');
     expect(source).toContain("readStoreLoop");
   });
@@ -40,5 +48,14 @@ describe("simple Store activation", () => {
     expect(source).toContain("publishStoreExecutionDefinitions");
     expect(source).toContain("backendApi.definitions.publish");
     expect(source).toContain("backendApi.definitions.retire");
+  });
+
+  it("preflights and installs every Solution entry point", () => {
+    expect(source).toContain('"solution"');
+    expect(source).toContain("readStoreSolution");
+    expect(source).toContain("resolveStoreSolutionTree");
+    expect(source).toMatch(
+      /kind === "solution"[\s\S]*solution\.entrypoints[\s\S]*await activate/,
+    );
   });
 });

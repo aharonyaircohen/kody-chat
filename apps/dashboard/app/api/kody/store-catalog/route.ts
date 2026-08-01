@@ -13,9 +13,15 @@ import {
   buildCompanyStoreBlobUrl,
 } from "@kody-ade/base/company-store/assets";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { readCompanyStoreWorkflowDefinitionFile } from "@dashboard/lib/workflow-definition-files";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 import { listStoreCatalogSlugs } from "@dashboard/lib/store-catalog-index";
+import {
+  listStoreSolutions,
+  loadStoreSolutionCatalog,
+  resolveStoreSolutionTree,
+  type StoreSolutionNode,
+  type StoreSolutionStatus,
+} from "@dashboard/lib/store-solutions";
 import {
   clearGitHubContext,
   getOctokit,
@@ -42,6 +48,17 @@ type CatalogItem = {
     slug: string;
     title?: string;
   }>;
+};
+
+type CatalogSolution = {
+  slug: string;
+  title: string;
+  description: string;
+  kind: "solution";
+  htmlUrl: string;
+  installed: boolean;
+  status: StoreSolutionStatus;
+  tree: StoreSolutionNode[];
 };
 
 function titleFromSlug(slug: string): string {
@@ -89,23 +106,48 @@ export async function GET(req: NextRequest) {
       commands,
       workflows: workflowSlugs,
       loops,
+      solutions: solutionSlugs,
     } = await listStoreCatalogSlugs(octokit);
-    const activeWorkflows = (
-      await Promise.all(
-        workflowSlugs
-          .filter((slug) => active.workflow.has(slug))
-          .map((slug) => readCompanyStoreWorkflowDefinitionFile(slug, octokit)),
-      )
-    ).filter((workflow) => workflow !== null);
+    const [solutionRecords, solutionCatalog] = await Promise.all([
+      listStoreSolutions(octokit, solutionSlugs),
+      loadStoreSolutionCatalog(octokit, {
+        agents,
+        capabilities,
+        workflows: workflowSlugs,
+        loops,
+      }),
+    ]);
+    const activeWorkflows = [...solutionCatalog.workflows.values()].filter(
+      (workflow) => active.workflow.has(workflow.id),
+    );
 
     const workflowBlockers = (agent: string) =>
       activeWorkflows
-        .filter((item) => item.workflow.agent === agent)
+        .filter((item) => item.agent === agent)
         .map((item) => ({
           kind: "workflow" as const,
           slug: item.id,
-          title: item.workflow.name || item.id,
+          title: item.name || item.id,
         }));
+
+    const solutions: CatalogSolution[] = solutionRecords.map((solution) => {
+      const resolved = resolveStoreSolutionTree(solution, solutionCatalog, {
+        agents: active.agent,
+        capabilities: active.capability,
+        workflows: active.workflow,
+        loops: active.loop,
+      });
+      return {
+        slug: solution.id,
+        title: solution.name,
+        description: solution.description,
+        kind: "solution",
+        htmlUrl: solution.htmlUrl,
+        installed: resolved.status === "installed",
+        status: resolved.status,
+        tree: resolved.tree,
+      };
+    });
 
     const items: CatalogItem[] = [
       ...capabilities.map((slug) => ({
@@ -167,6 +209,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
+        solutions,
         items: items.sort((left, right) =>
           `${left.kind}:${left.slug}`.localeCompare(
             `${right.kind}:${right.slug}`,

@@ -13,19 +13,22 @@ export interface StoreCatalogSlugs {
   commands: string[];
   workflows: string[];
   loops: string[];
+  solutions: string[];
 }
 
 export async function listStoreCatalogSlugs(
   octokit: Octokit,
 ): Promise<StoreCatalogSlugs> {
-  const [capabilities, agents, commands, workflows, loops] = await Promise.all([
-    listCompanyStoreAssetSlugs(octokit, "capabilities", isCatalogSlug),
-    listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isCatalogSlug),
-    listCompanyStoreMarkdownAssetSlugs(octokit, "commands", isCatalogSlug),
-    listCompanyStoreAssetSlugs(octokit, "workflows", isCatalogSlug),
-    listCompanyStoreAssetSlugs(octokit, "loops", isCatalogSlug),
-  ]);
-  return { capabilities, agents, commands, workflows, loops };
+  const [capabilities, agents, commands, workflows, loops, solutions] =
+    await Promise.all([
+      listCompanyStoreAssetSlugs(octokit, "capabilities", isCatalogSlug),
+      listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isCatalogSlug),
+      listCompanyStoreMarkdownAssetSlugs(octokit, "commands", isCatalogSlug),
+      listCompanyStoreAssetSlugs(octokit, "workflows", isCatalogSlug),
+      listCompanyStoreAssetSlugs(octokit, "loops", isCatalogSlug),
+      listCompanyStoreAssetSlugs(octokit, "solutions", isCatalogSlug),
+    ]);
+  return { capabilities, agents, commands, workflows, loops, solutions };
 }
 
 function isCatalogSlug(slug: string): boolean {

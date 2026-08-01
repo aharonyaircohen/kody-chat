@@ -31,6 +31,7 @@ import { createBackendClient } from "@kody-ade/backend/client";
 import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
 import { readCompanyStoreCapabilityFolderFiles } from "@dashboard/lib/capabilities";
 import { getBuiltinFeature } from "@dashboard/lib/features/catalog";
+import { listStoreCatalogSlugs } from "@dashboard/lib/store-catalog-index";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -41,6 +42,11 @@ import {
 } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
+import {
+  loadStoreSolutionCatalog,
+  readStoreSolution,
+  resolveStoreSolutionTree,
+} from "@dashboard/lib/store-solutions";
 import { saveProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 import { publishStoreExecutionDefinitions } from "@dashboard/lib/store-definition-activation";
 import {
@@ -53,13 +59,27 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type ImportKind =
-  "agent" | "capability" | "workflow" | "loop" | "command" | "feature";
+  | "agent"
+  | "capability"
+  | "workflow"
+  | "loop"
+  | "command"
+  | "feature"
+  | "solution";
 type ActiveField =
   | "activeAgents"
   | "activeCapabilities"
   | "activeWorkflows"
   | "activeCommands"
   | "activeFeatures";
+type ActivateResult = {
+  imported: boolean;
+  status: "imported" | "already_local";
+};
+type DeactivateResult = {
+  removed: boolean;
+  status: "removed" | "already_missing";
+};
 
 const requestSchema = z.object({
   kind: z.enum([
@@ -69,11 +89,15 @@ const requestSchema = z.object({
     "loop",
     "command",
     "feature",
+    "solution",
   ]),
   slug: z.string().min(1).max(128),
 });
 
-const fieldByKind: Record<Exclude<ImportKind, "loop">, ActiveField> = {
+const fieldByKind: Record<
+  Exclude<ImportKind, "loop" | "solution">,
+  ActiveField
+> = {
   agent: "activeAgents",
   capability: "activeCapabilities",
   workflow: "activeWorkflows",
@@ -85,6 +109,24 @@ function validSlug(kind: ImportKind, slug: string): boolean {
   return kind === "workflow"
     ? isWorkflowDefinitionId(slug)
     : /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
+}
+
+async function resolvedStoreSolution(octokit: Octokit, slug: string) {
+  const solution = await readStoreSolution(octokit, slug);
+  if (!solution) {
+    throw Object.assign(new Error("Store Solution not found."), {
+      status: 404,
+    });
+  }
+  const catalogSlugs = await listStoreCatalogSlugs(octokit);
+  const catalog = await loadStoreSolutionCatalog(octokit, catalogSlugs);
+  resolveStoreSolutionTree(solution, catalog, {
+    agents: new Set(),
+    capabilities: new Set(),
+    workflows: new Set(),
+    loops: new Set(),
+  });
+  return solution;
 }
 
 function append(current: string[] | undefined, values: string[]): string[] {
@@ -316,7 +358,21 @@ async function activate(
   repo: string,
   kind: ImportKind,
   slug: string,
-) {
+): Promise<ActivateResult> {
+  if (kind === "solution") {
+    const solution = await resolvedStoreSolution(octokit, slug);
+    const results = [];
+    for (const entrypoint of solution.entrypoints) {
+      results.push(
+        await activate(octokit, owner, repo, entrypoint.kind, entrypoint.id),
+      );
+    }
+    const imported = results.some((result) => result.imported);
+    return {
+      imported,
+      status: imported ? ("imported" as const) : ("already_local" as const),
+    };
+  }
   const workflow = await assertExists(octokit, kind, slug);
   if (kind === "loop") {
     const storeLoop = workflow as StoreLoop;
@@ -421,7 +477,21 @@ async function deactivate(
   repo: string,
   kind: ImportKind,
   slug: string,
-) {
+): Promise<DeactivateResult> {
+  if (kind === "solution") {
+    const solution = await resolvedStoreSolution(octokit, slug);
+    const results = [];
+    for (const entrypoint of [...solution.entrypoints].reverse()) {
+      results.push(
+        await deactivate(octokit, owner, repo, entrypoint.kind, entrypoint.id),
+      );
+    }
+    const removed = results.some((result) => result.removed);
+    return {
+      removed,
+      status: removed ? ("removed" as const) : ("already_missing" as const),
+    };
+  }
   const { config, sha } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
@@ -544,7 +614,12 @@ async function handle(req: NextRequest, remove: boolean) {
     return NextResponse.json({
       kind,
       slug,
-      path: kind === "loop" ? "loops" : `company.${fieldByKind[kind]}`,
+      path:
+        kind === "solution"
+          ? "solution.entrypoints"
+          : kind === "loop"
+            ? "loops"
+            : `company.${fieldByKind[kind]}`,
       ...result,
     });
   } catch (error) {

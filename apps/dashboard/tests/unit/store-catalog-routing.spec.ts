@@ -17,12 +17,21 @@ describe("store catalog routing", () => {
     ).toBe("/store-catalog/capability/bug?filter=workflow&q=bug+flow");
   });
 
-  it("omits query params for the default catalog view", () => {
+  it("omits query params for the default Solutions view", () => {
     expect(
-      storeCatalogPathWithViewState("/store-catalog/agent/kody", {
-        kind: "all",
+      storeCatalogPathWithViewState("/store-catalog/solution/web-release", {
+        kind: "solution",
         search: " ",
       }),
-    ).toBe("/store-catalog/agent/kody");
+    ).toBe("/store-catalog/solution/web-release");
+  });
+
+  it("keeps All explicit because Solutions is the default view", () => {
+    expect(
+      storeCatalogPathWithViewState("/store-catalog", {
+        kind: "all",
+        search: "",
+      }),
+    ).toBe("/store-catalog?filter=all");
   });
 });
