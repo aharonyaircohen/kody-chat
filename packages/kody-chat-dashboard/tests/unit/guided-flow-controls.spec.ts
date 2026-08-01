@@ -29,13 +29,13 @@ function definition(controls?: readonly ["back"]): GuidedFlowDefinition {
         rendererSlug: "approval-card",
         rendererData: {
           title: "Introduction",
-          body: "Start here.",
           actions: [
             { id: "continue", label: "Continue", response: "continue" },
           ],
         },
-        allowedActions: ["continue"],
-        transitions: { continue: "finish" },
+        actions: [
+          { id: "continue", target: { type: "step", stepId: "finish" } },
+        ],
       },
       {
         id: "finish",
@@ -44,12 +44,11 @@ function definition(controls?: readonly ["back"]): GuidedFlowDefinition {
         rendererSlug: "approval-card",
         rendererData: {
           title: "Finish",
-          body: "Finish here.",
           actions: [
             { id: "complete", label: "Complete", response: "complete" },
           ],
         },
-        allowedActions: ["complete"],
+        actions: [{ id: "complete", target: { type: "complete" } }],
       },
     ],
   };

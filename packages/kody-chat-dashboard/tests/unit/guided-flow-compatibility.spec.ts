@@ -51,6 +51,7 @@ function definition(
         rendererSlug: "question-select",
         ...(rendererVersion ? { rendererVersion } : {}),
         rendererData: { question },
+        actions: [{ id: "submit", target: { type: "complete" } }],
       },
     ],
   };

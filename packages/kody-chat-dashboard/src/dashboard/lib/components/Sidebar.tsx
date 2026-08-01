@@ -210,11 +210,12 @@ function SidebarContent({
 
   const firstMatch = filteredSections[0]?.items[0];
 
-  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       setQuery("");
     } else if (e.key === "Enter" && firstMatch) {
       e.preventDefault();
+      e.currentTarget.blur();
       router.push(scopedHref(firstMatch.href));
       setQuery("");
       onNavigate?.();

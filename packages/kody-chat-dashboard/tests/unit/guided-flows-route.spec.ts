@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
-  getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
+  getRequestAuth: vi.fn((): { owner: string; repo: string } | null => ({
+    owner: "acme",
+    repo: "widgets",
+  })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "alice" } })),
   verifyRepoWriteAccess: vi.fn<
     () => Promise<{ actorLogin: string } | NextResponse>
@@ -233,12 +236,18 @@ vi.mock("@kody-ade/backend/client", () => ({
 
 import { GET, POST } from "../../app/api/kody/guided-flows/route";
 
-function request(body?: unknown): NextRequest {
+function request(
+  body?: unknown,
+  options: { readonly cookie?: string; readonly includeRepo?: boolean } = {},
+): NextRequest {
+  const includeRepo = options.includeRepo ?? true;
   return new NextRequest("https://dash.test/api/kody/guided-flows", {
     method: body === undefined ? "GET" : "POST",
     headers: {
-      "x-kody-owner": "acme",
-      "x-kody-repo": "widgets",
+      ...(includeRepo
+        ? { "x-kody-owner": "acme", "x-kody-repo": "widgets" }
+        : {}),
+      ...(options.cookie ? { cookie: options.cookie } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -257,6 +266,10 @@ describe("GuidedFlow route", () => {
     store.effects = [];
     store.failCompletionWrites = false;
     vi.clearAllMocks();
+    auth.requireKodyAuth.mockResolvedValue(null);
+    auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
+    auth.verifyActorLogin.mockResolvedValue({ identity: { login: "alice" } });
+    auth.verifyRepoWriteAccess.mockResolvedValue({ actorLogin: "alice" });
   });
 
   it("starts and lists an active flow for the authenticated actor", async () => {
@@ -280,6 +293,90 @@ describe("GuidedFlow route", () => {
         instanceId: store.rows[0]?.instanceId,
       }),
     ]);
+  });
+
+  it("starts onboarding in a private bootstrap scope without a repository", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const response = await POST(
+      request(
+        {
+          action: "start",
+          flowId: "onboarding",
+          conversationId: "bootstrap-conversation",
+        },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    expect(response.headers.get("set-cookie")).toMatch(
+      /kody_guided_flow_bootstrap=.*HttpOnly.*SameSite=Lax/i,
+    );
+    expect(store.rows).toEqual([
+      expect.objectContaining({
+        tenantId: expect.stringMatching(/^bootstrap\//),
+        actorId: expect.stringMatching(/^bootstrap:/),
+        rootFlowId: "onboarding",
+      }),
+    ]);
+    expect(auth.verifyActorLogin).not.toHaveBeenCalled();
+  });
+
+  it("does not allow other GuidedFlows to start anonymously", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const response = await POST(
+      request(
+        { action: "start", flowId: "create-workflow" },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "repository_required" });
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it("continues a bootstrap onboarding instance after a repository connects", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+    const started = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+    const cookie = started.headers.get("set-cookie")?.split(";")[0];
+    const instance = (await started.json()).instance as {
+      instanceId: string;
+      revision: number;
+    };
+
+    auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
+    const response = await POST(
+      request(
+        {
+          action: "submit",
+          instanceId: instance.instanceId,
+          stepId: "welcome",
+          actionId: "next",
+          expectedRevision: instance.revision,
+          mutationId: "bootstrap-next",
+        },
+        { cookie },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).instance).toMatchObject({
+      instanceId: instance.instanceId,
+      currentStepId: "create-github-pat",
+      revision: 1,
+    });
+    expect(store.rows[0]).toMatchObject({
+      tenantId: expect.stringMatching(/^bootstrap\//),
+      actorId: expect.stringMatching(/^bootstrap:/),
+    });
   });
 
   it("binds an existing instance without changing its progress", async () => {
@@ -705,6 +802,56 @@ describe("GuidedFlow route", () => {
       error: "invalid_completion_route",
     });
     expect(store.definitions).toEqual([]);
+  });
+
+  it("saves a valid page owned by an authored step", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Configure a secret",
+          steps: [
+            {
+              title: "Add the secret",
+              explanation: "Complete this task on the Secrets page.",
+              routeId: "secrets",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      definition: {
+        steps: [{ routeId: "secrets" }],
+      },
+    });
+  });
+
+  it("rejects an unknown active-step page before saving a definition", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Broken step destination",
+          steps: [
+            {
+              title: "Open nowhere",
+              explanation: "This page does not exist.",
+              routeId: "definitely-not-a-dashboard-route",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "invalid_step_route",
+    });
   });
 
   it("completes a legacy flow even when its optional navigation is invalid", async () => {

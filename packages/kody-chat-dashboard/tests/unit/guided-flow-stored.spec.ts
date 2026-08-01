@@ -61,6 +61,33 @@ describe("stored guided flow definitions", () => {
     ).toEqual([]);
   });
 
+  it("rejects an action that targets an unknown step", () => {
+    const repositoryDefinition = definition("Repository");
+    expect(
+      parseGuidedFlowDefinitionRows([
+        {
+          flowId: "shared-flow",
+          version: 1,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          definition: {
+            ...repositoryDefinition,
+            steps: [
+              {
+                ...repositoryDefinition.steps[0],
+                actions: [
+                  {
+                    id: "next",
+                    target: { type: "step", stepId: "missing" },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("prefers a repository-owned row over a legacy actor row", () => {
     expect(
       parseGuidedFlowDefinitionRows([

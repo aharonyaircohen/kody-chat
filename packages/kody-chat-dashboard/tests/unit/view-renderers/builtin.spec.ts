@@ -36,6 +36,18 @@ describe("builtin view renderers", () => {
     expect(getBuiltinViewRendererDefinition("nope")).toBeNull();
   });
 
+  it("renders approval supporting content as Markdown", () => {
+    const approval = getBuiltinViewRendererDefinition("approval-card");
+
+    expect(approval?.data?.body).toMatchObject({ type: "markdown" });
+    expect(approval?.ui).toMatchObject({
+      type: "stack",
+      children: expect.arrayContaining([
+        expect.objectContaining({ type: "markdown", value: "$body" }),
+      ]),
+    });
+  });
+
   it("built-ins compile into catalog view components", () => {
     const catalog = buildChatViewCatalog([
       ...BUILTIN_VIEW_RENDERER_DEFINITIONS,

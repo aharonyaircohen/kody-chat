@@ -53,6 +53,7 @@ describe("GuidedFlow Chat turn context", () => {
               title: "Question",
               explanation: "Choose one.",
               rendererSlug: "selection-list",
+              actions: [{ id: "submit", target: { type: "complete" } }],
             },
           ],
         },
@@ -61,6 +62,7 @@ describe("GuidedFlow Chat turn context", () => {
           title: "Question",
           explanation: "Choose one.",
           rendererSlug: "selection-list",
+          actions: [{ id: "submit", target: { type: "complete" } }],
         },
         path: [
           {

@@ -22,14 +22,14 @@ const DEFINITION: GuidedFlowDefinition = {
       title: "Start",
       explanation: "Choose where to begin.",
       rendererSlug: "selection-list",
-      transitions: { continue: "finish" },
+      actions: [{ id: "continue", target: { type: "step", stepId: "finish" } }],
     },
     {
       id: "finish",
       title: "Finish",
       explanation: "Review the result.",
       rendererSlug: "approval-card",
-      allowedActions: ["approve"],
+      actions: [{ id: "approve", target: { type: "complete" } }],
     },
   ],
 };
@@ -78,7 +78,7 @@ describe("guided flow controller", () => {
 
     expect(() =>
       advanceGuidedFlow(DEFINITION, instance, { actionId: "unknown" }),
-    ).toThrow("Unknown transition");
+    ).toThrow("Unknown action");
   });
 
   it("completes on an allowed action that has no continuing transition", () => {
@@ -92,15 +92,19 @@ describe("guided flow controller", () => {
           title: "Question",
           explanation: "Choose an answer.",
           rendererSlug: "question-select",
-          allowedActions: ["correct", "incorrect"],
-          transitions: { incorrect: "hint" },
+          actions: [
+            { id: "correct", target: { type: "complete" } },
+            { id: "incorrect", target: { type: "step", stepId: "hint" } },
+          ],
         },
         {
           id: "hint",
           title: "Hint",
           explanation: "Try again.",
           rendererSlug: "approval-card",
-          transitions: { retry: "question" },
+          actions: [
+            { id: "retry", target: { type: "step", stepId: "question" } },
+          ],
         },
       ],
     };
@@ -183,13 +187,16 @@ describe("guided flow controller", () => {
           explanation: "Complete the child flow.",
           flowId: "child",
           flowVersion: 1,
-          transitions: { complete: "summary" },
+          actions: [
+            { id: "complete", target: { type: "step", stepId: "summary" } },
+          ],
         },
         {
           id: "summary",
           title: "Summary",
           explanation: "Done.",
           rendererSlug: "approval-card",
+          actions: [{ id: "finish", target: { type: "complete" } }],
         },
       ],
     };
@@ -203,6 +210,7 @@ describe("guided flow controller", () => {
           title: "Answer",
           explanation: "Choose.",
           rendererSlug: "selection-list",
+          actions: [{ id: "submit", target: { type: "complete" } }],
         },
       ],
     };
@@ -242,13 +250,16 @@ describe("guided flow controller", () => {
           explanation: "Complete the child flow.",
           flowId: "child",
           flowVersion: 1,
-          transitions: { complete: "summary" },
+          actions: [
+            { id: "complete", target: { type: "step", stepId: "summary" } },
+          ],
         },
         {
           id: "summary",
           title: "Summary",
           explanation: "Done.",
           rendererSlug: "approval-card",
+          actions: [{ id: "finish", target: { type: "complete" } }],
         },
       ],
     };
@@ -262,7 +273,7 @@ describe("guided flow controller", () => {
           title: "Answer",
           explanation: "Choose.",
           rendererSlug: "selection-list",
-          allowedActions: ["submit"],
+          actions: [{ id: "submit", target: { type: "complete" } }],
         },
       ],
     };
@@ -312,6 +323,7 @@ describe("guided flow controller", () => {
           explanation: "Complete the exercise.",
           flowId: "exercise",
           flowVersion: 1,
+          actions: [{ id: "complete", target: { type: "complete" } }],
         },
       ],
     };
@@ -325,7 +337,7 @@ describe("guided flow controller", () => {
           title: "Question",
           explanation: "Choose.",
           rendererSlug: "question-select",
-          allowedActions: ["correct"],
+          actions: [{ id: "correct", target: { type: "complete" } }],
         },
       ],
     };
@@ -359,6 +371,7 @@ describe("guided flow controller", () => {
           explanation: "Run itself.",
           flowId: "recursive",
           flowVersion: 1,
+          actions: [{ id: "complete", target: { type: "complete" } }],
         },
       ],
     };

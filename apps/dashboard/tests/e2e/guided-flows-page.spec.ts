@@ -158,6 +158,226 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
   await expect.poll(() => chatConversationId).toBe(boundConversationId);
 });
 
+test("runs onboarding manually and lets the user advance after completing each page", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === "mobile-chrome",
+    "The existing mobile GuidedFlow launch renders in the hidden desktop chat instance.",
+  );
+  const view = ({
+    id,
+    stepId,
+    revision,
+    title,
+    actionId,
+    actionLabel,
+    body = "Complete the task, then return to Chat.",
+  }: {
+    id: string;
+    stepId: string;
+    revision: number;
+    title: string;
+    actionId: string;
+    actionLabel: string;
+    body?: string;
+  }) => ({
+    action: "render_view",
+    view: "renderer",
+    id,
+    rendererSlug: "approval-card",
+    rendererName: "Approval card",
+    resultTarget: "guided-flow",
+    guidedFlow: {
+      instanceId: "onboarding-instance",
+      stepId,
+      revision,
+    },
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: title, variant: "title" },
+        { type: "markdown", value: body },
+        {
+          type: "row",
+          children: [
+            {
+              type: "button",
+              label: actionLabel,
+              action: {
+                id: actionId,
+                label: actionLabel,
+                response: actionId,
+                variant: "primary",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    data: { title },
+  });
+
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const isCollection = new URL(route.request().url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      route.request().method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      route.request().method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "openrouter/free", label: "OpenRouter Free", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/orgs/**/repos", (route) =>
+    json(route, { organizations: ["acme"], repositories: [] }),
+  );
+  await page.route("**/api/kody/secrets", (route) =>
+    json(route, { secrets: [] }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "GET") {
+      return json(route, {
+        definitions: [
+          {
+            id: "onboarding",
+            title: "Get started with Kody",
+            steps: [{ rendererSlug: "approval-card" }],
+          },
+        ],
+        flows: [],
+      });
+    }
+
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      stepId?: string;
+    };
+    if (body.action === "start") {
+      return json(
+        route,
+        {
+          instance: { status: "active" },
+          compatibility: { status: "compatible" },
+          view: view({
+            id: "onboarding-welcome-0",
+            stepId: "welcome",
+            revision: 0,
+            title: "Welcome to Kody",
+            actionId: "next",
+            actionLabel: "Get started",
+            body: "Create a GitHub PAT, connect a repository, then add `OPENROUTER_API_KEY`.\n\n- Complete each task in order.\n- Return to Chat and select **Next**.",
+          }),
+        },
+        201,
+      );
+    }
+    if (body.stepId === "welcome") {
+      return json(route, {
+        instance: { status: "active" },
+        compatibility: { status: "compatible" },
+        view: view({
+          id: "onboarding-pat-1",
+          stepId: "create-github-pat",
+          revision: 1,
+          title: "Create your GitHub PAT",
+          actionId: "next",
+          actionLabel: "Next",
+          body: "**On GitHub:**\n\n1. [Create a personal access token](https://github.com/settings/tokens/new).\n2. Grant `repo`, `workflow`, and `admin:repo_hook`.\n3. Copy the token for the next step.",
+        }),
+      });
+    }
+    if (body.stepId === "create-github-pat") {
+      return json(route, {
+        instance: { status: "active" },
+        compatibility: { status: "compatible" },
+        view: view({
+          id: "onboarding-repository-2",
+          stepId: "connect-repository",
+          revision: 2,
+          title: "Connect your first repository",
+          actionId: "next",
+          actionLabel: "Next",
+          body: "Enter the repository URL, paste your PAT, and select **Connect repository**.",
+        }),
+        navigation: {
+          action: "dashboard_navigate",
+          routeId: "org",
+          href: "/org",
+          label: "Org",
+          reason: "Open Connect a repository",
+        },
+      });
+    }
+    return json(route, {
+      instance: { status: "active" },
+      compatibility: { status: "compatible" },
+      view: view({
+        id: "onboarding-openrouter-3",
+        stepId: "add-openrouter-key",
+        revision: 3,
+        title: "Activate built-in Chat",
+        actionId: "next",
+        actionLabel: "Next",
+      }),
+      navigation: {
+        action: "dashboard_navigate",
+        routeId: "secrets",
+        href: "/secrets",
+        label: "Secrets",
+        reason: "Open Add your OpenRouter key",
+      },
+    });
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("button", { name: "Start Get started with Kody in Chat" })
+    .click();
+  const markdownCode = page.getByText("OPENROUTER_API_KEY", { exact: true });
+  await expect(markdownCode).toBeVisible();
+  await expect(markdownCode).toHaveJSProperty("tagName", "CODE");
+  const markdown = markdownCode.locator("xpath=ancestor::div[contains(@class, 'prose')][1]");
+  expect(
+    await markdown.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    ),
+  ).toBeGreaterThanOrEqual(16);
+  await expect(markdown.getByRole("list")).toBeVisible();
+  await page.getByRole("button", { name: "Get started", exact: true }).click();
+  const chat = page.locator('[aria-label="Kody chat"]');
+  await expect(
+    chat.getByRole("heading", { name: "Create your GitHub PAT" }),
+  ).toBeVisible();
+  await expect(
+    chat.getByRole("link", { name: "Create a personal access token" }),
+  ).toHaveAttribute("href", "https://github.com/settings/tokens/new");
+  await expect(page).toHaveURL("/repo/acme/widgets/guided-flows");
+  await chat.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page).toHaveURL("/org/acme");
+  await expect(
+    page.getByRole("heading", { name: "Attached repositories" }),
+  ).toBeVisible();
+
+  await page
+    .locator('[aria-label="Kody chat"]')
+    .getByRole("button", { name: "Next", exact: true })
+    .last()
+    .click();
+  await expect(page).toHaveURL("/repo/acme/widgets/secrets");
+  await expect(
+    page.getByText("Activate built-in Chat", { exact: true }),
+  ).toBeVisible();
+});
+
 test("resumes an unfinished GuidedFlow once and shows the step without reloading", async ({
   page,
 }) => {
@@ -535,6 +755,10 @@ test("provides step editing controls, preview, and validation", async ({
     .getByRole("button", { name: "Add Guided Flow", exact: true })
     .click();
 
+  const stepOneForm = page.getByLabel("Step form 1");
+  await expect(
+    stepOneForm.getByRole("button", { name: "Bold", exact: true }),
+  ).toBeVisible();
   await expect(page.getByLabel("Preview step 1")).toBeVisible();
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
     const alignmentOffset = async (label: string) => {
@@ -558,7 +782,17 @@ test("provides step editing controls, preview, and validation", async ({
     .selectOption("guided-form");
   await page
     .getByLabel("Step 1 instructions")
-    .fill("Ask for the client sign-in details");
+    .fill("**Ask** for the client sign-in details");
+  await stepOneForm
+    .getByRole("button", { name: "Preview", exact: true })
+    .click();
+  await expect(stepOneForm.getByText("Ask", { exact: true })).toHaveJSProperty(
+    "tagName",
+    "STRONG",
+  );
+  await stepOneForm
+    .getByRole("button", { name: "Write", exact: true })
+    .click();
   await expect(
     page.getByLabel("Preview step 1").getByLabel("Client ID"),
   ).toBeVisible();
@@ -647,6 +881,7 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   await page
     .getByLabel("Step 1 renderer", { exact: true })
     .selectOption("approval-card");
+  await page.getByLabel("Step 1 page").fill("secrets");
   await page.getByRole("button", { name: "Save Guided Flow" }).click();
   await expect(
     page.getByText("Review a release", { exact: true }),
@@ -656,6 +891,9 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
     draft: expect.objectContaining({
       title: "Review a release",
       controls: ["back"],
+      steps: expect.arrayContaining([
+        expect.objectContaining({ routeId: "secrets" }),
+      ]),
     }),
   });
 });
@@ -749,7 +987,13 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
           {
             id: "create-workflow",
             title: "Create a workflow",
-            steps: [{ rendererSlug: "guided-form" }],
+            steps: [
+              {
+                title: "Describe the workflow",
+                explanation: "Use **Markdown** instructions.",
+                rendererSlug: "guided-form",
+              },
+            ],
           },
           customDefinition,
         ],
@@ -790,10 +1034,13 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
   await expect(custom.getByRole("button", { name: "Edit" })).toBeVisible();
 
   await builtIn.getByRole("button", { name: "View" }).click();
+  const viewDialog = page.getByRole("dialog", { name: "View Guided Flow" });
+  await expect(viewDialog).toBeVisible();
+  await expect(viewDialog.getByLabel("Flow name")).toBeDisabled();
+  await expect(viewDialog.getByLabel("Step 1 instructions")).toHaveCount(0);
   await expect(
-    page.getByRole("dialog", { name: "View Guided Flow" }),
-  ).toBeVisible();
-  await expect(page.getByRole("dialog").getByLabel("Flow name")).toBeDisabled();
+    viewDialog.getByText("Markdown", { exact: true }).first(),
+  ).toHaveJSProperty("tagName", "STRONG");
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Close" })

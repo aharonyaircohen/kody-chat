@@ -11,10 +11,8 @@
  *   open on non-chat routes. Anything host-fed (composerInjection,
  *   attachmentInjection, previewContext) reaches BOTH instances.
  *
- *   The rail is hidden while `useAuth().loading` is true or when no
- *   credentials are stored, since the chat itself needs a PAT to function.
- *   In that state the dashboard's AuthGuard renders the RepoManager
- *   empty-state in place of the page. On mobile the desktop aside is
+ *   Chat is app-level and remains visible before a repository is connected;
+ *   repository context only enables repository-backed tools. On mobile the desktop aside is
  *   replaced by a panel that opens below the top header (no backdrop), so
  *   the header's hamburger stays reachable; it's opened from the header's
  *   chat button.
@@ -53,6 +51,7 @@ import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat-dashboard/theme";
 import { useTheme } from "../../providers/Theme";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { trace } from "@kody-ade/kody-chat-dashboard/platform";
 import type { ChatContext } from "../chat-types";
 import {
@@ -326,6 +325,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   // state) so opening chat survives a reload / navigation, not just the
   // in-memory session.
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   useEffect(() => {
     setMobileOpen(localStorage.getItem("kody:mobile-chat-open") === "1");
   }, []);
@@ -412,12 +412,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   useEffect(() => setHydrated(true), []);
 
   const openMobileChat = useCallback(() => {
-    if (!auth) {
-      setMobileOpenPersist(false);
-      return;
-    }
     setMobileOpenPersist(true);
-  }, [auth, setMobileOpenPersist]);
+  }, [setMobileOpenPersist]);
 
   useEffect(() => {
     const openChatForInteractiveContent = () => openMobileChat();
@@ -433,10 +429,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (guidedFlowChat.pending) openMobileChat();
   }, [guidedFlowChat.pending, openMobileChat]);
-
-  useEffect(() => {
-    if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);
-  }, [auth, loading, mobileOpen, setMobileOpenPersist]);
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -494,12 +486,9 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     [scope, openMobileChat, setOnIssueCreated],
   );
 
-  // Keep the rail visible even when the user has no credentials yet —
-  // the dashboard renders the RepoManager empty-state in its task pane
-  // and we want the chrome (header + chat aside) to stay intact so the
-  // user sees the full app shell from the first paint. The chat itself
-  // is swapped for a "connect a repo" placeholder below when `auth`
-  // is null, since `<KodyChat />` needs a PAT to be useful.
+  // Chat is app-level, so the shell remains available before repository
+  // setup. Repository credentials enrich Chat with repository-backed tools;
+  // they do not own its visibility or its bootstrap GuidedFlows.
   const showRail = hydrated && !loading && !publicRoute;
 
   if (!showRail) {
@@ -543,6 +532,14 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     !repoRouteBlocksPage &&
     (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
+  const bootstrapWelcome = auth ? undefined : (
+    <div className="space-y-2">
+      <p className="font-medium text-foreground">Welcome to Kody</p>
+      <p className="mx-auto max-w-sm text-sm">
+        Start onboarding from the welcome page and follow the guidance here.
+      </p>
+    </div>
+  );
   // Flipped layout only: if a registered plugin owns a panel for this
   // route, its view replaces the raw route children (step 3 pilot —
   // currently just /tasks). Auth-sync blocking states below still win.
@@ -559,12 +556,15 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       children
     );
 
-  const chatPane = auth ? (
+  const chatPane = (
     <KodyChat
-      guidedFlowRequest={guidedFlowChat.pending}
+      guidedFlowRequest={
+        isDesktop || isChatRoute ? guidedFlowChat.pending : null
+      }
       onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
       context={scope}
       actorLogin={githubUser?.login}
+      emptyStateWelcome={bootstrapWelcome}
       lockedAgentId={lockedAgentId}
       vibeMode={isVibeRoute}
       onIssueCreated={dispatchIssueCreated}
@@ -578,12 +578,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       onToggleFullscreen={toggleExpandedChat}
       railFullscreen={isChatRoute}
     />
-  ) : (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <p className="text-body-sm text-muted-foreground text-center leading-relaxed">
-        Connect a repository to start chatting with Kody.
-      </p>
-    </div>
   );
 
   return (
@@ -622,30 +616,27 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
               {mobileOpen &&
-                auth &&
+                !isDesktop &&
                 !isChatRoute &&
                 !currentRepoPath.startsWith("/messages") && (
                   <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
-                    {auth ? (
-                      <KodyChat
-                        context={scope}
-                        actorLogin={githubUser?.login}
-                        onClose={() => setMobileOpenPersist(false)}
-                        lockedAgentId={lockedAgentId}
-                        vibeMode={isVibeRoute}
-                        onIssueCreated={dispatchIssueCreated}
-                        composerInjection={composerInjection}
-                        attachmentInjection={attachmentInjection}
-                        previewContext={previewContext}
-                        plugins={ADMIN_CHAT_PLUGINS}
-                      />
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center p-6">
-                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                          Connect a repository to start chatting with Kody.
-                        </p>
-                      </div>
-                    )}
+                    <KodyChat
+                      guidedFlowRequest={
+                        !isDesktop ? guidedFlowChat.pending : null
+                      }
+                      onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
+                      context={scope}
+                      actorLogin={githubUser?.login}
+                      emptyStateWelcome={bootstrapWelcome}
+                      onClose={() => setMobileOpenPersist(false)}
+                      lockedAgentId={lockedAgentId}
+                      vibeMode={isVibeRoute}
+                      onIssueCreated={dispatchIssueCreated}
+                      composerInjection={composerInjection}
+                      attachmentInjection={attachmentInjection}
+                      previewContext={previewContext}
+                      plugins={ADMIN_CHAT_PLUGINS}
+                    />
                   </div>
                 )}
             </SettingsDrawerProvider>

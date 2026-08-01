@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { GuidedFlowDefinition } from "../../src/dashboard/lib/guided-flows/controller";
+import {
+  isNestedGuidedFlowStep,
+  type GuidedFlowDefinition,
+} from "../../src/dashboard/lib/guided-flows/controller";
 import {
   runGuidedFlowAction,
   startGuidedFlowRuntime,
@@ -17,7 +20,7 @@ const CHILD: GuidedFlowDefinition = {
       title: "Answer",
       explanation: "Choose.",
       rendererSlug: "selection-list",
-      allowedActions: ["submit"],
+      actions: [{ id: "submit", target: { type: "complete" } }],
     },
   ],
 };
@@ -34,13 +37,16 @@ const PARENT: GuidedFlowDefinition = {
       explanation: "Complete child.",
       flowId: CHILD.id,
       flowVersion: CHILD.version,
-      transitions: { complete: "summary" },
+      actions: [
+        { id: "complete", target: { type: "step", stepId: "summary" } },
+      ],
     },
     {
       id: "summary",
       title: "Summary",
       explanation: "Done.",
       rendererSlug: "approval-card",
+      actions: [{ id: "finish", target: { type: "complete" } }],
     },
   ],
 };
@@ -116,5 +122,56 @@ describe("guided flow runtime", () => {
         "nested_flow_unavailable",
       );
     }
+  });
+
+  it("cancels the whole flow when a nested action targets cancellation", () => {
+    const parentStep = PARENT.steps[0];
+    if (!parentStep || !isNestedGuidedFlowStep(parentStep)) {
+      throw new Error("Expected nested parent step");
+    }
+    const cancellableChild: GuidedFlowDefinition = {
+      ...CHILD,
+      steps: [
+        {
+          ...CHILD.steps[0],
+          actions: [{ id: "cancel", target: { type: "cancel" } }],
+        },
+      ],
+    };
+    const cancellableParent: GuidedFlowDefinition = {
+      ...PARENT,
+      steps: [
+        {
+          ...parentStep,
+          flowId: cancellableChild.id,
+          flowVersion: cancellableChild.version,
+        },
+        PARENT.steps[1],
+      ],
+    };
+    const resolveCancellable = (flowId: string, flowVersion: number) =>
+      [cancellableParent, cancellableChild].find(
+        (definition) =>
+          definition.id === flowId && definition.version === flowVersion,
+      ) ?? null;
+    const started = startGuidedFlowRuntime({
+      definition: cancellableParent,
+      instanceId: "instance-1",
+      resolveDefinition: resolveCancellable,
+    });
+
+    const result = runGuidedFlowAction({
+      definition: started.definition,
+      instance: started.instance,
+      action: "submit",
+      actionId: "cancel",
+      resolveDefinition: resolveCancellable,
+    });
+
+    expect(result.instance).toMatchObject({
+      flowId: "parent",
+      status: "cancelled",
+      stack: [],
+    });
   });
 });

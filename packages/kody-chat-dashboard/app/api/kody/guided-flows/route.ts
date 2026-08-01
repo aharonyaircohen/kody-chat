@@ -10,10 +10,8 @@ import {
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { type GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
-import {
-  GUIDED_FLOW_CONTROL_IDS,
-  hasUniqueGuidedFlowControls,
-} from "@kody-ade/kody-chat-dashboard/guided-flows/control-contract";
+import { GUIDED_FLOW_CONTROL_IDS } from "@kody-ade/kody-chat-dashboard/guided-flows/control-contract";
+import { guidedFlowDraftSchema } from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
 import {
   executeGuidedFlowControl,
   GuidedFlowControlError,
@@ -31,6 +29,7 @@ import {
 import { runGuidedFlowAction } from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
 import type { StoredGuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import { sanitizeGuidedFlowData } from "@kody-ade/kody-chat-dashboard/guided-flows/safe-data";
+import { ONBOARDING_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
   availableGuidedFlowDefinitions,
   loadGuidedFlowRenderers,
@@ -49,6 +48,12 @@ import {
   archiveGuidedFlowDefinition,
   saveGuidedFlowDefinition,
 } from "./definition-service";
+import {
+  createGuidedFlowBootstrapScope,
+  readGuidedFlowBootstrapScope,
+  setGuidedFlowBootstrapCookie,
+  type GuidedFlowBootstrapScope,
+} from "./bootstrap-scope";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -75,49 +80,15 @@ const bindSchema = z.object({
   conversationId: z.string().trim().min(1).max(128),
 });
 
-const definitionDraftViewStepSchema = z.object({
-  type: z.literal("view").optional(),
-  title: z.string().trim().min(1).max(160),
-  explanation: z.string().trim().min(1).max(1_000),
-  rendererSlug: z.string().trim().min(1).max(80),
-  rendererVersion: z.number().int().positive().optional(),
-  rendererGoal: z.string().trim().max(1_000).optional(),
-  rendererData: z.record(z.string(), z.unknown()).optional(),
-});
-
-const definitionDraftNestedStepSchema = z.object({
-  type: z.literal("flow"),
-  title: z.string().trim().min(1).max(160),
-  explanation: z.string().trim().min(1).max(1_000),
-  flowId: z.string().trim().min(1).max(80),
-  flowVersion: z.number().int().positive(),
-});
-
-const definitionDraftSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  completionRouteId: z.string().trim().max(80).optional(),
-  controls: z
-    .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
-    .max(8)
-    .refine(hasUniqueGuidedFlowControls)
-    .optional(),
-  steps: z
-    .array(
-      z.union([definitionDraftNestedStepSchema, definitionDraftViewStepSchema]),
-    )
-    .min(1)
-    .max(20),
-});
-
 const createDefinitionSchema = z.object({
   action: z.literal("create-definition"),
-  draft: definitionDraftSchema,
+  draft: guidedFlowDraftSchema,
 });
 
 const updateDefinitionSchema = z.object({
   action: z.literal("update-definition"),
   flowId: z.string().trim().min(1).max(80),
-  draft: definitionDraftSchema,
+  draft: guidedFlowDraftSchema,
 });
 
 const deleteDefinitionSchema = z.object({
@@ -143,6 +114,23 @@ type GuidedFlowRow = GuidedFlowStoredInstance & {
   mutationId?: string;
 };
 
+interface GuidedFlowRequestScope {
+  readonly tenantId: string;
+  readonly actorId: string;
+  readonly bootstrap?: GuidedFlowBootstrapScope;
+  readonly instanceRow?: GuidedFlowRow;
+}
+
+function requestScopeForBootstrap(
+  bootstrap: GuidedFlowBootstrapScope,
+): GuidedFlowRequestScope {
+  return {
+    tenantId: bootstrap.tenantId,
+    actorId: bootstrap.actorId,
+    bootstrap,
+  };
+}
+
 function json(data: unknown, init?: ResponseInit): NextResponse {
   return NextResponse.json(data, {
     ...init,
@@ -162,6 +150,46 @@ async function actorFor(req: NextRequest, actorLogin?: string) {
   return actor.identity.login;
 }
 
+async function repositoryScope(
+  req: NextRequest,
+  actorLogin?: string,
+): Promise<GuidedFlowRequestScope | NextResponse> {
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
+  const auth = requireRepo(req);
+  if (auth instanceof NextResponse) return auth;
+  const actor = await actorFor(req, actorLogin);
+  if (actor instanceof NextResponse) return actor;
+  return {
+    tenantId: tenantIdFor(auth.owner, auth.repo),
+    actorId: actor,
+  };
+}
+
+async function bootstrapScopeForInstance(
+  req: NextRequest,
+  instanceId: string,
+): Promise<GuidedFlowRequestScope | null> {
+  const bootstrap = readGuidedFlowBootstrapScope(req);
+  if (!bootstrap) return null;
+  const instanceRow = (await getConvexClient().query(
+    backendApi.guidedFlows.get,
+    {
+      tenantId: bootstrap.tenantId,
+      actorId: bootstrap.actorId,
+      instanceId,
+    },
+  )) as GuidedFlowRow | null;
+  return instanceRow
+    ? {
+        tenantId: bootstrap.tenantId,
+        actorId: bootstrap.actorId,
+        bootstrap,
+        instanceRow,
+      }
+    : null;
+}
+
 function definitionForRow(
   row: GuidedFlowRow,
   customDefinitions: readonly StoredGuidedFlowDefinition[] = [],
@@ -170,30 +198,43 @@ function definitionForRow(
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-  const auth = requireRepo(req);
-  if (auth instanceof NextResponse) return auth;
-  const actor = await actorFor(req);
-  if (actor instanceof NextResponse) return actor;
-
   try {
+    const url = new URL(req.url);
+    const instanceId = url.searchParams.get("instanceId");
+    const bootstrapScope = instanceId
+      ? await bootstrapScopeForInstance(req, instanceId)
+      : null;
+    const existingBootstrap = readGuidedFlowBootstrapScope(req);
+    const scope = bootstrapScope
+      ? bootstrapScope
+      : getRequestAuth(req)
+        ? await repositoryScope(req)
+        : existingBootstrap
+          ? requestScopeForBootstrap(existingBootstrap)
+          : null;
+    if (!scope) {
+      return json({ error: "repository_required" }, { status: 401 });
+    }
+    if (scope instanceof NextResponse) return scope;
+    const tenantId = scope.tenantId;
+    const actor = scope.actorId;
     const customDefinitions = await loadStoredGuidedFlowDefinitions(
       getConvexClient(),
-      tenantIdFor(auth.owner, auth.repo),
+      tenantId,
     );
-    if (new URL(req.url).searchParams.get("view") === "templates") {
+    if (url.searchParams.get("view") === "templates") {
       return json({
         definitions: availableGuidedFlowDefinitions(customDefinitions),
       });
     }
-    const instanceId = new URL(req.url).searchParams.get("instanceId");
     if (instanceId) {
-      const row = (await getConvexClient().query(backendApi.guidedFlows.get, {
-        tenantId: tenantIdFor(auth.owner, auth.repo),
-        actorId: actor,
-        instanceId,
-      })) as GuidedFlowRow | null;
+      const row =
+        scope.instanceRow ??
+        ((await getConvexClient().query(backendApi.guidedFlows.get, {
+          tenantId,
+          actorId: actor,
+          instanceId,
+        })) as GuidedFlowRow | null);
       if (!row)
         return json({ error: "guided_flow_not_found" }, { status: 404 });
       const definition = definitionForRow(row, customDefinitions);
@@ -201,19 +242,17 @@ export async function GET(req: NextRequest) {
         flow: presentGuidedFlow(
           definition,
           guidedFlowInstanceFromRow(row),
-          await loadGuidedFlowRenderers(tenantIdFor(auth.owner, auth.repo), [
-            definition,
-          ]),
+          await loadGuidedFlowRenderers(tenantId, [definition]),
         ),
       });
     }
 
     const rows = (await getConvexClient().query(backendApi.guidedFlows.list, {
-      tenantId: tenantIdFor(auth.owner, auth.repo),
+      tenantId,
       actorId: actor,
     })) as GuidedFlowRow[];
     const listRenderers = await loadGuidedFlowRenderers(
-      tenantIdFor(auth.owner, auth.repo),
+      tenantId,
       rows.flatMap((row) => {
         try {
           return [definitionForRow(row, customDefinitions)];
@@ -247,10 +286,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-  const auth = requireRepo(req);
-  if (auth instanceof NextResponse) return auth;
   const contentLength = Number(req.headers.get("content-length") ?? "0");
   if (contentLength > 100_000) {
     return json({ error: "request_too_large" }, { status: 413 });
@@ -287,19 +322,42 @@ export async function POST(req: NextRequest) {
     parsed.data.action === "create-definition" ||
     parsed.data.action === "update-definition" ||
     parsed.data.action === "delete-definition";
-  const actorResult = changesDefinition
-    ? await verifyRepoWriteAccess(req)
-    : await actorFor(
-        req,
-        parsed.data.action === "start" ? parsed.data.actorLogin : undefined,
-      );
-  if (actorResult instanceof NextResponse) return actorResult;
-  const actor =
-    typeof actorResult === "string" ? actorResult : actorResult.actorLogin;
-  const tenantId = tenantIdFor(auth.owner, auth.repo);
   const client = getConvexClient();
 
   try {
+    let scope: GuidedFlowRequestScope | NextResponse;
+    if (changesDefinition) {
+      const authError = await requireKodyAuth(req);
+      if (authError) return authError;
+      const auth = requireRepo(req);
+      if (auth instanceof NextResponse) return auth;
+      const verified = await verifyRepoWriteAccess(req);
+      if (verified instanceof NextResponse) return verified;
+      scope = {
+        tenantId: tenantIdFor(auth.owner, auth.repo),
+        actorId: verified.actorLogin,
+      };
+    } else if (parsed.data.action === "start") {
+      const auth = getRequestAuth(req);
+      if (auth) {
+        scope = await repositoryScope(req, parsed.data.actorLogin);
+      } else if (parsed.data.flowId === ONBOARDING_FLOW_ID) {
+        const bootstrap =
+          readGuidedFlowBootstrapScope(req) ?? createGuidedFlowBootstrapScope();
+        scope = requestScopeForBootstrap(bootstrap);
+      } else {
+        return json({ error: "repository_required" }, { status: 401 });
+      }
+    } else if ("instanceId" in parsed.data) {
+      scope =
+        (await bootstrapScopeForInstance(req, parsed.data.instanceId)) ??
+        (await repositoryScope(req));
+    } else {
+      return json({ error: "validation_error" }, { status: 400 });
+    }
+    if (scope instanceof NextResponse) return scope;
+    const { tenantId, actorId: actor } = scope;
+
     if (
       parsed.data.action === "create-definition" ||
       parsed.data.action === "update-definition"
@@ -340,7 +398,7 @@ export async function POST(req: NextRequest) {
       });
       if (!selected)
         return json({ error: "unknown_guided_flow" }, { status: 404 });
-      return json(
+      const response = json(
         presentGuidedFlow(
           selected.definition,
           selected.instance,
@@ -348,6 +406,10 @@ export async function POST(req: NextRequest) {
         ),
         { status: selected.created ? 201 : 200 },
       );
+      if (scope.bootstrap) {
+        setGuidedFlowBootstrapCookie(response, scope.bootstrap);
+      }
+      return response;
     }
 
     if (parsed.data.action === "bind") {
@@ -368,11 +430,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const instanceRow = (await client.query(backendApi.guidedFlows.get, {
-      tenantId,
-      actorId: actor,
-      instanceId: parsed.data.instanceId,
-    })) as GuidedFlowRow | null;
+    const instanceRow =
+      scope.instanceRow ??
+      ((await client.query(backendApi.guidedFlows.get, {
+        tenantId,
+        actorId: actor,
+        instanceId: parsed.data.instanceId,
+      })) as GuidedFlowRow | null);
     if (!instanceRow)
       return json({ error: "guided_flow_not_found" }, { status: 404 });
     const customDefinitions = await loadStoredGuidedFlowDefinitions(

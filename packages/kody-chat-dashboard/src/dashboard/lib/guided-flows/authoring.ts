@@ -1,41 +1,64 @@
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { VIEW_RENDERER_SLUG_RE } from "../view-renderers/definition";
 import {
-  isNestedGuidedFlowStep,
+  type GuidedFlowActionDefinition,
   type GuidedFlowDefinition,
+  type GuidedFlowNestedStepDefinition,
   type GuidedFlowViewStepDefinition,
 } from "./controller";
 import {
+  GUIDED_FLOW_CONTROL_IDS,
   hasUniqueGuidedFlowControls,
-  type GuidedFlowControlId,
 } from "./control-contract";
+import { z } from "zod";
 
-export interface GuidedFlowDraftViewStep {
-  type?: "view";
-  title: string;
-  explanation: string;
-  rendererSlug: string;
-  rendererVersion?: number;
-  rendererData?: Record<string, unknown>;
-}
+const guidedFlowDraftStepBaseSchema = {
+  title: z.string().trim().min(1).max(160),
+  explanation: z.string().trim().min(1).max(1_000),
+  routeId: z.string().trim().max(80).optional(),
+};
 
-export interface GuidedFlowDraftNestedStep {
-  type: "flow";
-  title: string;
-  explanation: string;
-  flowId: string;
-  flowVersion: number;
-}
+export const guidedFlowDraftViewStepSchema = z.object({
+  ...guidedFlowDraftStepBaseSchema,
+  type: z.literal("view").optional(),
+  rendererSlug: z.string().trim().min(1).max(80),
+  rendererVersion: z.number().int().positive().optional(),
+  rendererData: z.record(z.string(), z.unknown()).optional(),
+});
 
-export type GuidedFlowDraftStep =
-  GuidedFlowDraftViewStep | GuidedFlowDraftNestedStep;
+export const guidedFlowDraftNestedStepSchema = z.object({
+  ...guidedFlowDraftStepBaseSchema,
+  type: z.literal("flow"),
+  flowId: z.string().trim().min(1).max(80),
+  flowVersion: z.number().int().positive(),
+});
 
-export interface GuidedFlowDraft {
-  title: string;
-  completionRouteId?: string;
-  controls?: GuidedFlowControlId[];
-  steps: GuidedFlowDraftStep[];
-}
+export const guidedFlowDraftSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  completionRouteId: z.string().trim().max(80).optional(),
+  controls: z
+    .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
+    .max(8)
+    .refine(hasUniqueGuidedFlowControls)
+    .optional(),
+  steps: z
+    .array(
+      z.union([guidedFlowDraftNestedStepSchema, guidedFlowDraftViewStepSchema]),
+    )
+    .min(1)
+    .max(20),
+});
+
+export type GuidedFlowDraftViewStep = z.infer<
+  typeof guidedFlowDraftViewStepSchema
+>;
+export type GuidedFlowDraftNestedStep = z.infer<
+  typeof guidedFlowDraftNestedStepSchema
+>;
+export type GuidedFlowDraftStep = z.infer<
+  typeof guidedFlowDraftSchema
+>["steps"][number];
+export type GuidedFlowDraft = z.infer<typeof guidedFlowDraftSchema>;
 
 export type GuidedFlowDraftErrors = Partial<
   Record<"controls" | "title" | "steps", string>
@@ -102,7 +125,7 @@ function approvalActionsForGoal(
   nextStepId?: string,
 ): {
   actions: Array<Record<string, string>>;
-  transitions?: Record<string, string>;
+  flowActions: GuidedFlowActionDefinition[];
 } {
   const normalizedGoal = goal.toLowerCase();
   const candidates = [
@@ -132,13 +155,15 @@ function approvalActionsForGoal(
   }));
   return {
     actions,
-    ...(nextStepId
-      ? {
-          transitions: Object.fromEntries(
-            actions.map((action) => [action.id, nextStepId]),
-          ),
-        }
-      : {}),
+    flowActions: actions.map((action) => ({
+      id: action.id,
+      target:
+        action.id === "cancel"
+          ? { type: "cancel" as const }
+          : nextStepId
+            ? { type: "step" as const, stepId: nextStepId }
+            : { type: "complete" as const },
+    })),
   };
 }
 
@@ -191,35 +216,92 @@ export function deriveGuidedFlowRendererData(
   return {};
 }
 
+type LegacyGuidedFlowViewStepDefinition = Omit<
+  GuidedFlowViewStepDefinition,
+  "actions"
+> & {
+  readonly actions?: readonly GuidedFlowActionDefinition[];
+  readonly transitions?: Readonly<Record<string, string>>;
+  readonly allowedActions?: readonly string[];
+};
+
+type LegacyGuidedFlowNestedStepDefinition = Omit<
+  GuidedFlowNestedStepDefinition,
+  "actions"
+> & {
+  readonly actions?: readonly GuidedFlowActionDefinition[];
+  readonly transitions?: Readonly<Record<string, string>>;
+  readonly allowedActions?: readonly string[];
+};
+
+export type LegacyGuidedFlowDefinition = Omit<GuidedFlowDefinition, "steps"> & {
+  readonly steps: readonly (
+    LegacyGuidedFlowViewStepDefinition | LegacyGuidedFlowNestedStepDefinition
+  )[];
+};
+
+function inferredLegacyActionIds(
+  step:
+    LegacyGuidedFlowViewStepDefinition | LegacyGuidedFlowNestedStepDefinition,
+): readonly string[] {
+  if (step.allowedActions?.length) return step.allowedActions;
+  const transitionIds = Object.keys(step.transitions ?? {});
+  if (transitionIds.length) return transitionIds;
+  if (step.type === "flow") return ["complete"];
+  const rendererActions = step.rendererData?.actions;
+  if (Array.isArray(rendererActions)) {
+    const ids = rendererActions.flatMap((candidate) => {
+      if (!candidate || typeof candidate !== "object") return [];
+      const id = (candidate as { id?: unknown }).id;
+      return typeof id === "string" ? [id] : [];
+    });
+    if (ids.length) return ids;
+  }
+  if (
+    step.rendererSlug === "guided-form" ||
+    step.rendererSlug === "multi-select-list"
+  ) {
+    return ["submit"];
+  }
+  return ["continue"];
+}
+
 export function migrateLegacyGuidedFlowDefinition(
-  definition: GuidedFlowDefinition,
+  definition: LegacyGuidedFlowDefinition,
 ): GuidedFlowDefinition {
   return {
     ...definition,
     steps: definition.steps.map((step) => {
-      if (isNestedGuidedFlowStep(step)) return step;
-      if (
-        step.rendererSlug !== "multi-select-list" ||
-        !step.allowedActions?.includes("continue")
-      ) {
-        return step;
-      }
-
-      const transitions = step.transitions
-        ? Object.fromEntries(
-            Object.entries(step.transitions).map(([actionId, nextStepId]) => [
-              actionId === "continue" ? "submit" : actionId,
-              nextStepId,
-            ]),
-          )
-        : undefined;
-
+      const { allowedActions, transitions, ...canonicalStep } = step;
+      if (step.actions)
+        return canonicalStep as typeof canonicalStep & {
+          actions: readonly GuidedFlowActionDefinition[];
+        };
+      const actionIds = inferredLegacyActionIds(step).map((actionId) =>
+        step.type !== "flow" &&
+        step.rendererSlug === "multi-select-list" &&
+        actionId === "continue"
+          ? "submit"
+          : actionId,
+      );
       return {
-        ...step,
-        ...(transitions ? { transitions } : {}),
-        allowedActions: step.allowedActions.map((actionId) =>
-          actionId === "continue" ? "submit" : actionId,
-        ),
+        ...canonicalStep,
+        actions: actionIds.map((actionId) => {
+          const legacyActionId =
+            actionId === "submit" && allowedActions?.includes("continue")
+              ? "continue"
+              : actionId;
+          const nextStepId = transitions?.[legacyActionId];
+          return {
+            id: actionId,
+            target:
+              actionId === "cancel"
+                ? { type: "cancel" as const }
+                : nextStepId
+                  ? { type: "step" as const, stepId: nextStepId }
+                  : { type: "complete" as const },
+          };
+        }),
       };
     }),
   };
@@ -228,10 +310,7 @@ export function migrateLegacyGuidedFlowDefinition(
 function rendererDataFor(
   step: GuidedFlowDraftViewStep,
   nextStepId?: string,
-): Pick<
-  GuidedFlowViewStepDefinition,
-  "rendererData" | "transitions" | "allowedActions"
-> {
+): Pick<GuidedFlowViewStepDefinition, "rendererData" | "actions"> {
   const body = step.explanation.trim();
   const generatedData =
     step.rendererData ?? deriveGuidedFlowRendererData(step.rendererSlug, body);
@@ -241,11 +320,9 @@ function rendererDataFor(
       rendererData: {
         ...generatedData,
         title: step.title,
-        body,
         actions: approval.actions,
       },
-      ...(approval.transitions ? { transitions: approval.transitions } : {}),
-      allowedActions: approval.actions.map((action) => action.id),
+      actions: approval.flowActions,
     };
   }
 
@@ -254,11 +331,16 @@ function rendererDataFor(
       rendererData: {
         ...generatedData,
         title: step.title,
-        body,
         submitLabel: nextStepId ? "Continue" : "Finish",
       },
-      ...(nextStepId ? { transitions: { submit: nextStepId } } : {}),
-      allowedActions: ["submit"],
+      actions: [
+        {
+          id: "submit",
+          target: nextStepId
+            ? { type: "step", stepId: nextStepId }
+            : { type: "complete" },
+        },
+      ],
     };
   }
 
@@ -271,11 +353,16 @@ function rendererDataFor(
       rendererData: {
         ...generatedData,
         title: step.title,
-        body,
         items,
       },
-      ...(nextStepId ? { transitions: { submit: nextStepId } } : {}),
-      allowedActions: ["submit"],
+      actions: [
+        {
+          id: "submit",
+          target: nextStepId
+            ? { type: "step", stepId: nextStepId }
+            : { type: "complete" },
+        },
+      ],
     };
   }
 
@@ -288,11 +375,16 @@ function rendererDataFor(
     rendererData: {
       ...generatedData,
       title: step.title,
-      body,
       items,
     },
-    ...(nextStepId ? { transitions: { continue: nextStepId } } : {}),
-    allowedActions: ["continue"],
+    actions: [
+      {
+        id: "continue",
+        target: nextStepId
+          ? { type: "step", stepId: nextStepId }
+          : { type: "complete" },
+      },
+    ],
   };
 }
 
@@ -317,15 +409,24 @@ export function buildGuidedFlowDefinition(
         type: "flow" as const,
         title: step.title.trim(),
         explanation: step.explanation.trim(),
+        ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
         flowId: step.flowId.trim(),
         flowVersion: step.flowVersion,
-        ...(nextStepId ? { transitions: { complete: nextStepId } } : {}),
+        actions: [
+          {
+            id: "complete",
+            target: nextStepId
+              ? { type: "step" as const, stepId: nextStepId }
+              : { type: "complete" as const },
+          },
+        ],
       };
     }
     return {
       id: `step-${index + 1}`,
       title: step.title.trim(),
       explanation: step.explanation.trim(),
+      ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
       rendererSlug: step.rendererSlug,
       ...(step.rendererVersion
         ? { rendererVersion: step.rendererVersion }

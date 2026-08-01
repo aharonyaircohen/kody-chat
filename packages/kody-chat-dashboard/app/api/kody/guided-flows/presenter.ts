@@ -2,42 +2,35 @@ import type {
   GuidedFlowDefinition,
   GuidedFlowInstance,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import { getGuidedFlowStep } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import { evaluateGuidedFlowCompatibility } from "@kody-ade/kody-chat-dashboard/guided-flows/compatibility";
+import type { GuidedFlowCompatibility } from "@kody-ade/kody-chat-dashboard/guided-flows/compatibility";
 import { buildGuidedFlowView } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import type {
+  DashboardNavigateDirective,
+  RenderedViewDirective,
+} from "../../../../src/dashboard/lib/chat-ui-actions";
 import type { ViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/definition";
-import { resolveDashboardNavigationTarget } from "../../../../src/dashboard/lib/dashboard-navigation";
+import { navigationForCompletion, navigationForStep } from "./navigation";
 
-export function hasValidGuidedFlowCompletionRoute(
-  definition: GuidedFlowDefinition,
-): boolean {
-  if (!definition.completionRouteId) return true;
-  return !(
-    "error" in
-    resolveDashboardNavigationTarget({
-      routeId: definition.completionRouteId,
-      reason: `Open ${definition.title} results`,
-    })
-  );
-}
-
-function navigationForCompletion(definition: GuidedFlowDefinition) {
-  if (!definition.completionRouteId) return undefined;
-  const resolved = resolveDashboardNavigationTarget({
-    routeId: definition.completionRouteId,
-    reason: `Open ${definition.title} results`,
-  });
-  if ("error" in resolved) return undefined;
-  return {
-    action: "dashboard_navigate" as const,
-    ...resolved,
+export interface GuidedFlowPresentation {
+  instance: GuidedFlowInstance;
+  flow: {
+    id: string;
+    title: string;
+    stepIndex: number;
+    stepCount: number;
   };
+  compatibility: GuidedFlowCompatibility;
+  view?: RenderedViewDirective;
+  navigation?: DashboardNavigateDirective;
 }
 
 export function presentGuidedFlow(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
   renderers?: Readonly<Record<string, ViewRendererDefinition>>,
-) {
+): GuidedFlowPresentation {
   const compatibility =
     instance.status === "active"
       ? evaluateGuidedFlowCompatibility({
@@ -62,7 +55,12 @@ export function presentGuidedFlow(
     compatibility,
     ...(instance.status === "active"
       ? compatibility.status === "compatible"
-        ? { view: buildGuidedFlowView(definition, instance, renderers) }
+        ? {
+            view: buildGuidedFlowView(definition, instance, renderers),
+            navigation: navigationForStep(
+              getGuidedFlowStep(definition, instance),
+            ),
+          }
         : {}
       : { navigation: navigationForCompletion(definition) }),
   };

@@ -11,8 +11,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ??
-  "https://github.com/aharonyaircohen/kody-chat";
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/kody-chat";
 
 async function loadWithoutAuth(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/tasks`);
@@ -35,6 +34,86 @@ test.describe("Repository setup", () => {
     await expect(page.getByLabel(/personal access token/i)).toBeVisible();
     await expect(
       page.getByRole("button", { name: /connect repository/i }),
+    ).toBeVisible();
+  });
+
+  test("shows Chat and starts onboarding before a repository is connected", async ({
+    page,
+  }, testInfo) => {
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const isCollection = new URL(route.request().url()).pathname.endsWith(
+        "/conversations",
+      );
+      await route.fulfill({
+        status: route.request().method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          isCollection ? { conversations: [] } : { ok: true },
+        ),
+      });
+    });
+    await page.route("**/api/kody/models", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ models: [] }),
+      }),
+    );
+    await page.route("**/api/kody/guided-flows", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ flows: [], definitions: [] }),
+        });
+        return;
+      }
+      const body = route.request().postDataJSON() as { flowId?: string };
+      expect(body.flowId).toBe("onboarding");
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          instance: { instanceId: "onboarding-instance", status: "active" },
+          compatibility: { status: "compatible" },
+          view: {
+            action: "render_view",
+            view: "renderer",
+            id: "onboarding-welcome",
+            rendererSlug: "approval-card",
+            rendererName: "Approval card",
+            resultTarget: "guided-flow",
+            guidedFlow: {
+              instanceId: "onboarding-instance",
+              stepId: "welcome",
+              revision: 0,
+            },
+            ui: {
+              type: "stack",
+              children: [
+                {
+                  type: "text",
+                  value: "Welcome to Kody",
+                  variant: "title",
+                },
+              ],
+            },
+            data: { title: "Welcome to Kody" },
+          },
+        }),
+      });
+    });
+
+    await page.goto("/");
+
+    const visibleChat = page.locator('[aria-label="Kody chat"]:visible');
+    if (testInfo.project.name !== "mobile-chrome") {
+      await expect(visibleChat).toBeVisible();
+    }
+    await page.getByRole("button", { name: "Start onboarding" }).click();
+    await expect(visibleChat).toBeVisible();
+    await expect(
+      visibleChat.getByRole("heading", { name: "Welcome to Kody" }),
     ).toBeVisible();
   });
 

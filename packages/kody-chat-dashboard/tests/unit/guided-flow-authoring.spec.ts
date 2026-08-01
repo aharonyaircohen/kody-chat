@@ -105,6 +105,22 @@ describe("guided flow authoring", () => {
     });
   });
 
+  it("preserves the page owned by an authored step", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      steps: [
+        {
+          title: "Configure secrets",
+          explanation: "Add the required secret on its owning page.",
+          routeId: "secrets",
+          rendererSlug: "approval-card",
+        },
+      ],
+    });
+
+    expect(definition.steps[0]).toMatchObject({ routeId: "secrets" });
+  });
+
   it("builds a stable definition with generated ids and renderer data", () => {
     expect(buildGuidedFlowDefinition(validDraft, "review-release")).toEqual({
       id: "review-release",
@@ -120,7 +136,6 @@ describe("guided flow authoring", () => {
           rendererSlug: "approval-card",
           rendererData: {
             title: "Confirm the release",
-            body: "Check the release details before continuing.",
             actions: [
               {
                 id: "continue",
@@ -130,7 +145,7 @@ describe("guided flow authoring", () => {
               },
             ],
           },
-          allowedActions: ["continue"],
+          actions: [{ id: "continue", target: { type: "complete" } }],
         },
       ],
     });
@@ -168,7 +183,7 @@ describe("guided flow authoring", () => {
 
     expect(definition.steps[0]).toMatchObject({
       rendererSlug: "multi-select-list",
-      allowedActions: ["submit"],
+      actions: [{ id: "submit", target: { type: "complete" } }],
     });
   });
 
@@ -222,8 +237,7 @@ describe("guided flow authoring", () => {
     });
 
     expect(definition.steps[0]).toMatchObject({
-      transitions: { submit: "step-2" },
-      allowedActions: ["submit"],
+      actions: [{ id: "submit", target: { type: "step", stepId: "step-2" } }],
     });
   });
 

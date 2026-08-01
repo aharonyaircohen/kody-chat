@@ -4,6 +4,7 @@ import {
   getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import { validateGuidedFlowNavigation } from "../../app/api/kody/guided-flows/navigation";
 
 describe("guided flow registry", () => {
   it("supports exact versions while exposing only the latest version per flow", () => {
@@ -19,6 +20,92 @@ describe("guided flow registry", () => {
         (definition) => definition.id === "create-workflow",
       ),
     ).toEqual([latest]);
+  });
+
+  it("registers onboarding as a manually started renderer-guided flow", () => {
+    const onboarding = getGuidedFlowDefinition("onboarding");
+
+    expect(onboarding).toMatchObject({
+      id: "onboarding",
+      title: "Get started with Kody",
+      completionRouteId: "chat",
+      steps: [
+        {
+          id: "welcome",
+          rendererSlug: "approval-card",
+          rendererData: {
+            actions: expect.any(Array),
+          },
+          actions: [
+            {
+              id: "next",
+              target: {
+                type: "step",
+                stepId: "create-github-pat",
+              },
+            },
+          ],
+        },
+        {
+          id: "create-github-pat",
+          rendererSlug: "approval-card",
+          explanation: expect.stringMatching(
+            /personal access token[\s\S]*`repo`[\s\S]*`workflow`[\s\S]*`admin:repo_hook`/i,
+          ),
+          rendererData: {
+            actions: expect.any(Array),
+          },
+          actions: [
+            {
+              id: "next",
+              target: { type: "step", stepId: "connect-repository" },
+            },
+          ],
+        },
+        {
+          id: "connect-repository",
+          routeId: "org",
+          rendererSlug: "approval-card",
+          rendererData: {
+            actions: expect.any(Array),
+          },
+          actions: [
+            {
+              id: "next",
+              target: { type: "step", stepId: "add-openrouter-key" },
+            },
+          ],
+        },
+        {
+          id: "add-openrouter-key",
+          routeId: "secrets",
+          rendererSlug: "approval-card",
+          rendererData: {
+            actions: expect.any(Array),
+          },
+          actions: [{ id: "next", target: { type: "step", stepId: "ready" } }],
+        },
+        {
+          id: "ready",
+          rendererSlug: "approval-card",
+          rendererData: {
+            actions: expect.any(Array),
+          },
+          actions: [{ id: "finish", target: { type: "complete" } }],
+        },
+      ],
+    });
+    expect(
+      listGuidedFlowDefinitions().filter(
+        (definition) => definition.id === "onboarding",
+      ),
+    ).toEqual([onboarding]);
+  });
+
+  it("registers only built-in flows with valid dashboard destinations", () => {
+    expect(
+      listGuidedFlowDefinitions().map(validateGuidedFlowNavigation),
+    ).toEqual(listGuidedFlowDefinitions().map(() => null));
   });
 });
 

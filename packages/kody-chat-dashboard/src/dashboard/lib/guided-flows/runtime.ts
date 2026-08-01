@@ -64,12 +64,15 @@ export function runGuidedFlowAction({
   let next =
     action === "back"
       ? goBackGuidedFlow(definition, instance)
-      : action === "cancel" || actionId === "cancel"
+      : action === "cancel"
         ? cancelGuidedFlowTree(instance)
         : advanceGuidedFlow(definition, instance, {
             actionId: actionId ?? "",
             result,
           });
+  if (next.status === "cancelled" && next.stack.length > 0) {
+    next = cancelGuidedFlowTree(instance);
+  }
   const completed: GuidedFlowRuntimeState[] = [];
 
   if (action === "submit") {
@@ -93,11 +96,7 @@ export function runGuidedFlowAction({
   }
 
   if (next.status === "active") {
-    const entered = enterNestedGuidedFlows(
-      definition,
-      next,
-      resolveDefinition,
-    );
+    const entered = enterNestedGuidedFlows(definition, next, resolveDefinition);
     definition = entered.definition;
     next = entered.instance;
   }

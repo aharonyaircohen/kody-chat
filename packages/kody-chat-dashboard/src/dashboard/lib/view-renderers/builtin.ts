@@ -20,9 +20,9 @@ const BUILTIN_SOURCES: readonly string[] = [
     data: {
       title: { type: "text", description: "Card heading shown at the top." },
       body: {
-        type: "text",
+        type: "markdown",
         optional: true,
-        description: "Optional supporting text shown under the title.",
+        description: "Optional Markdown supporting content shown under the title.",
       },
       actions: {
         type: "actions",
@@ -51,7 +51,7 @@ const BUILTIN_SOURCES: readonly string[] = [
       type: "stack",
       children: [
         { type: "text", variant: "title", value: "$title" },
-        { type: "text", value: "$body" },
+        { type: "markdown", value: "$body" },
         {
           type: "row",
           for: "$actions",

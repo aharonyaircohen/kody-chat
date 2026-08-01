@@ -44,6 +44,7 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { PageShell } from "../components/PageShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { MarkdownEditor } from "../components/MarkdownEditor";
 import { useGuidedFlowChat } from "../guided-flows/chat-controller";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
@@ -95,6 +96,7 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
                 ? step.rendererData.body
                 : "Explain what the user should do next."),
             rendererSlug: step.rendererSlug,
+            routeId: step.routeId,
             rendererVersion: step.rendererVersion,
             rendererData: step.rendererData,
           },
@@ -418,12 +420,14 @@ function FlowBuilder({
                                       type: "flow",
                                       title: current.title,
                                       explanation: current.explanation,
+                                      routeId: current.routeId,
                                       flowId: "",
                                       flowVersion: 1,
                                     }
                                   : {
                                       title: current.title,
                                       explanation: current.explanation,
+                                      routeId: current.routeId,
                                       rendererSlug: "guided-form",
                                     },
                               );
@@ -496,20 +500,37 @@ function FlowBuilder({
                             ))}
                           </select>
                         )}
-                      </section>
-                      <section className="border-t border-white/10 pt-5">
-                        <textarea
-                          aria-label={`Step ${index + 1} instructions`}
-                          className="min-h-20 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
-                          placeholder="What should the user do?"
-                          value={step.explanation}
+                        <input
+                          aria-label={`Step ${index + 1} page`}
+                          placeholder="Dashboard page ID (optional)"
+                          className="mt-3 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                          value={step.routeId ?? ""}
                           disabled={readOnly}
                           onChange={(event) =>
                             updateStep(index, (current) => ({
                               ...current,
-                              explanation: event.target.value,
+                              routeId: event.target.value,
                             }))
                           }
+                        />
+                      </section>
+                      <section className="border-t border-white/10 pt-5">
+                        <MarkdownEditor
+                          value={step.explanation}
+                          onChange={(explanation) =>
+                            updateStep(index, (current) => ({
+                              ...current,
+                              explanation,
+                            }))
+                          }
+                          placeholder="What should the user do?"
+                          rows={6}
+                          disabled={readOnly}
+                          defaultMode={readOnly ? "preview" : "write"}
+                          showToolbar={!readOnly}
+                          showModeControls={!readOnly}
+                          emptyPreview="No instructions provided."
+                          textareaAriaLabel={`Step ${index + 1} instructions`}
                         />
                       </section>
                     </div>

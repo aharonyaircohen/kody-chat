@@ -15,10 +15,14 @@ import {
   type StoredGuidedFlowDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import {
+  GuidedFlowDefinitionError,
+  validateGuidedFlowDefinition,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/validation";
+import {
   loadGuidedFlowRenderers,
   loadStoredGuidedFlowDefinitions,
 } from "./catalog";
-import { hasValidGuidedFlowCompletionRoute } from "./presenter";
+import { validateGuidedFlowNavigation } from "./navigation";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -82,8 +86,17 @@ export async function saveGuidedFlowDefinition(
           : "renderer_contract_invalid",
     };
   }
-  if (!hasValidGuidedFlowCompletionRoute(candidate)) {
-    return { ok: false, status: 400, error: "invalid_completion_route" };
+  const navigationError = validateGuidedFlowNavigation(candidate);
+  if (navigationError) {
+    return { ok: false, status: 400, error: navigationError };
+  }
+  try {
+    validateGuidedFlowDefinition(candidate);
+  } catch (error) {
+    if (error instanceof GuidedFlowDefinitionError) {
+      return { ok: false, status: 400, error: error.code };
+    }
+    throw error;
   }
   try {
     validateGuidedFlowComposition(candidate, [

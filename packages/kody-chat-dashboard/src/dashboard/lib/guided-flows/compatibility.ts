@@ -10,6 +10,7 @@ import {
   type GuidedFlowDefinition,
   type GuidedFlowInstance,
 } from "./controller";
+import { guidedFlowRendererData } from "./render-data";
 
 export type GuidedFlowCompatibility =
   | { readonly status: "compatible" }
@@ -83,12 +84,7 @@ export function evaluateGuidedFlowCompatibility({
     };
   }
   try {
-    normalizeViewRendererData(renderer, {
-      ...(step.rendererData ?? {}),
-      ...(typeof step.rendererData?.body === "string"
-        ? { body: `${step.explanation}\n\n${step.rendererData.body}` }
-        : { body: step.explanation }),
-    });
+    normalizeViewRendererData(renderer, guidedFlowRendererData(step));
   } catch (error) {
     return {
       status: "incompatible",
@@ -138,12 +134,7 @@ export function pinGuidedFlowRendererVersions(
           `renderer_version_mismatch: ${step.rendererSlug}@${step.rendererVersion}`,
         );
       }
-      normalizeViewRendererData(renderer, {
-        ...(step.rendererData ?? {}),
-        ...(typeof step.rendererData?.body === "string"
-          ? { body: `${step.explanation}\n\n${step.rendererData.body}` }
-          : { body: step.explanation }),
-      });
+      normalizeViewRendererData(renderer, guidedFlowRendererData(step));
       return { ...step, rendererVersion };
     }),
   };

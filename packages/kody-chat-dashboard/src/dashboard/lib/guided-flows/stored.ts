@@ -14,6 +14,7 @@ import {
   GUIDED_FLOW_CONTROL_IDS,
   hasUniqueGuidedFlowControls,
 } from "./control-contract";
+import { validateGuidedFlowDefinition } from "./validation";
 
 export const GUIDED_FLOW_DEFINITIONS_NAMESPACE = "guided-flow-definitions";
 
@@ -28,6 +29,22 @@ const storedStepBaseSchema = {
   authoringGoal: z.string().trim().max(1_000).optional(),
   routeId: z.string().trim().max(80).optional(),
   transitions: z.record(z.string(), z.string()).optional(),
+  actions: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        target: z.discriminatedUnion("type", [
+          z.object({
+            type: z.literal("step"),
+            stepId: z.string().trim().min(1),
+          }),
+          z.object({ type: z.literal("complete") }),
+          z.object({ type: z.literal("cancel") }),
+        ]),
+      }),
+    )
+    .max(20)
+    .optional(),
 };
 
 const storedGuidedFlowStepSchema = z.union([
@@ -68,13 +85,14 @@ export function parseStoredGuidedFlowDefinitions(
   if (!Array.isArray(data)) return [];
   return data.flatMap((candidate) => {
     const parsed = storedGuidedFlowDefinitionSchema.safeParse(candidate);
-    return parsed.success
-      ? [
-          migrateLegacyGuidedFlowDefinition(
-            parsed.data as StoredGuidedFlowDefinition,
-          ),
-        ]
-      : [];
+    if (!parsed.success) return [];
+    try {
+      const definition = migrateLegacyGuidedFlowDefinition(parsed.data);
+      validateGuidedFlowDefinition(definition);
+      return [definition as StoredGuidedFlowDefinition];
+    } catch {
+      return [];
+    }
   });
 }
 
