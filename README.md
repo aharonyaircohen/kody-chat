@@ -16,7 +16,11 @@ apps.
 | `packages/terminal`  | `@kody-ade/terminal`  | Terminal: local PTY sessions, remote bridge protocol/tokens, checkpoints                                                                                            |
 | `packages/brain`     | `@kody-ade/brain`     | Brain runtime control plane + proxy (depends on terminal + fly)                                                                                                     |
 | `packages/agency`    | `@kody-ade/agency`    | Agency: runs, goals, capabilities, agent file stores, trust ledger                                                                                                  |
+| `packages/agency-domain` | `@kody-ade/agency-domain` | Pure AI Agency domain model with no infrastructure dependencies                                                                                                     |
 | `packages/cms`       | `@kody-ade/cms`       | CMS: adapters, model, schema, MCP surface, routes/tools                                                                                                             |
+| `packages/engine-contracts` | `@kody-ade/engine-contracts` | Provider-neutral request contracts shared by Kody clients and the Kody Engine                                                                                       |
+| `packages/kody-backend` | `@kody-ade/backend` | Convex backend: schema, functions, and import/export tooling                                                                                                        |
+| `packages/memory` | `@kody-ade/memory` | Pure Kody memory domain and application contracts                                                                                                                   |
 | `apps/dashboard`     | `kody-dashboard`      | Operations dashboard host app (Next.js) — being shrunk to a shell                                                                                                   |
 
 ## Dependency rules (lint-enforced by review; keep the DAG)
