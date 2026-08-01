@@ -132,7 +132,6 @@ export async function POST(req: NextRequest) {
       backendApi.widgets.publish,
       {
         tenantId: `${auth.owner}/${auth.repo}`,
-        name,
         slug,
         bundle: input.bundle,
         ...(input.commitSha ? { commitSha: input.commitSha } : {}),

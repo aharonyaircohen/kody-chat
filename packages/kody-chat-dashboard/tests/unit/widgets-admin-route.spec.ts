@@ -174,11 +174,11 @@ describe("POST /api/kody/widgets", () => {
     expect(store.mutations).toHaveLength(1);
     expect(store.mutations[0]).toMatchObject({
       tenantId: "acme/site",
-      name: "Question Select",
       slug: "question-select",
       bundle: "export{}",
       commitSha: "deadbeef",
     });
+    expect(store.mutations[0]).not.toHaveProperty("name");
     expect(typeof store.mutations[0].updatedAt).toBe("string");
   });
 
@@ -186,9 +186,9 @@ describe("POST /api/kody/widgets", () => {
     const res = await POST(postRequest({ slug: "quiz", bundle: "x" }));
     expect(res.status).toBe(200);
     expect(store.mutations[0]).toMatchObject({
-      name: "Quiz",
       slug: "quiz",
     });
+    expect(store.mutations[0]).not.toHaveProperty("name");
     expect(store.mutations[0]).not.toHaveProperty("commitSha");
   });
 
