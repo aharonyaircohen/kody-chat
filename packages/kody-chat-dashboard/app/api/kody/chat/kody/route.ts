@@ -1950,14 +1950,6 @@ This turn includes an image from the user. For questions about what is visible i
             data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
           });
         }
-        if (failedToolFamilies.length > 0) {
-          // Visible warning line — without it a fabricated "saved!" reply
-          // is indistinguishable from a real one for the user.
-          writer.write({
-            type: "error",
-            errorText: `Some tools failed to load this turn and are unavailable: ${failedToolFamilies.join(", ")}. Related actions cannot run right now.`,
-          });
-        }
         writer.merge(
           result.toUIMessageStream({
             sendReasoning: true,

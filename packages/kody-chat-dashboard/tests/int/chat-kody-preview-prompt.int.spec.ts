@@ -20,6 +20,7 @@ const createUIMessageStreamMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
+const createCmsToolsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("ai", () => ({
   tool: (definition: unknown) => definition,
@@ -105,7 +106,7 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
 }));
 
 vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
+  createCmsTools: createCmsToolsMock,
 }));
 
 function makeRequest(body: unknown): NextRequest {
@@ -177,6 +178,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     });
     createUIMessageStreamMock.mockImplementation((config: unknown) => config);
     loadInstructionsForPromptMock.mockResolvedValue(null);
+    createCmsToolsMock.mockResolvedValue({});
     createUIMessageStreamResponseMock.mockReturnValue(
       new Response("ok", { status: 200 }),
     );
@@ -234,6 +236,35 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
       data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
     });
+  });
+
+  it("keeps an optional CMS load failure out of the user-visible error stream", async () => {
+    createCmsToolsMock.mockRejectedValueOnce(new Error("GitHub unavailable"));
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "what is this project?" }],
+      }),
+    );
+
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await streamConfig.execute({ writer });
+
+    expect(writer.write).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+    expect(writer.merge).toHaveBeenCalledTimes(1);
+    expect(streamTextMock.mock.calls[0]?.[0]?.system).toContain(
+      "Tool families UNAVAILABLE this turn (their configuration failed to load): cms.",
+    );
   });
 
   it("sends preview make-page instructions in the actual model system prompt", async () => {
