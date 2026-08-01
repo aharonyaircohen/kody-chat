@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const OWNER = "file-manager-e2e";
 const REPO = "workspace";
@@ -148,6 +149,8 @@ async function installFileManagerHarness(
     },
     { owner: OWNER, repo: REPO },
   );
+
+  await mockDashboardShellRequests(page);
 
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {

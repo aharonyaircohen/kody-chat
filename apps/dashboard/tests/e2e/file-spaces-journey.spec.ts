@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const OWNER = "file-spaces-e2e";
 const REPO = "workspace";
@@ -79,6 +80,7 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   });
 
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/file-spaces**", async (route) => {
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as { title: string };
@@ -123,9 +125,7 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   await page.route("**/api/kody/models", (route) =>
     json(route, { models: [] }),
   );
-  await page.route("**/api/kody/agents", (route) =>
-    json(route, { agent: [] }),
-  );
+  await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
   await page.route("https://api.github.com/**", (route) => {
     const pathname = decodeURIComponent(
       new URL(route.request().url()).pathname,
@@ -217,14 +217,20 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
       method === "DELETE"
     ) {
       testFilePath = null;
-      return json(route, { content: null, commit: { sha: "delete-commit-sha" } });
+      return json(route, {
+        content: null,
+        commit: { sha: "delete-commit-sha" },
+      });
     }
     if (
       pathname.endsWith("/contents/team-notes/Archive/.gitkeep") &&
       method === "DELETE"
     ) {
       archiveExists = false;
-      return json(route, { content: null, commit: { sha: "delete-folder-commit-sha" } });
+      return json(route, {
+        content: null,
+        commit: { sha: "delete-folder-commit-sha" },
+      });
     }
     if (
       testFilePath !== null &&

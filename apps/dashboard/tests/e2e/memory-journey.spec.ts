@@ -5,6 +5,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 import type {
   Memory,
   MemoryRevision,
@@ -110,6 +111,7 @@ test("creates, revises, reviews, and deletes typed memory", async ({
   );
   page.on("dialog", (dialog) => void dialog.accept());
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
 
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
@@ -199,9 +201,7 @@ test("creates, revises, reviews, and deletes typed memory", async ({
       revisions: revisions.get(id),
     });
   });
-  await page.route("**/api/kody/agents", (route) =>
-    json(route, { agent: [] }),
-  );
+  await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
   for (const path of [
     "models",
     "commands",

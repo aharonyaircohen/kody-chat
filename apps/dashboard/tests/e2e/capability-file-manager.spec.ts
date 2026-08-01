@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
+
 const OWNER = "capability-e2e";
 const REPO = "workspace";
 const SLUG = "inspect";
@@ -41,6 +43,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
 
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
@@ -86,9 +89,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
   await page.route("**/api/kody/models", (route) =>
     json(route, { models: [] }),
   );
-  await page.route("**/api/kody/agents", (route) =>
-    json(route, { agent: [] }),
-  );
+  await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
   await page.route("**/api/kody/commands", (route) =>
     json(route, { commands: [] }),
   );

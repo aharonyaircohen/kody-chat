@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const OWNER = "guidance-e2e";
 const REPO = "workspace";
@@ -62,6 +63,7 @@ test("user creates, assigns, and deletes agent guidance", async ({ page }) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
 
   await page.route("**/api/kody/{constraints,policies}**", async (route) => {
     const url = new URL(route.request().url());
