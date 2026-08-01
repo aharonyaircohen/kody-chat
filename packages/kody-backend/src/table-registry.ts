@@ -136,6 +136,17 @@ export const TABLES: readonly TableDef[] = [
   { table: "macros", naturalKey: ["macroId"], upsertIndex: "by_tenant" },
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
   {
+    table: "clientLaunchNonces",
+    naturalKey: ["tokenId"],
+    upsertIndex: "by_token",
+  },
+  {
+    table: "clientLaunchRateLimits",
+    naturalKey: ["key"],
+    upsertIndex: "by_key",
+    global: true,
+  },
+  {
     table: "memories",
     naturalKey: ["memoryId"],
     upsertIndex: "by_memory",
