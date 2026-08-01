@@ -91,6 +91,7 @@ import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
 import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
+import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
 import {
   buildWidgetPreviewView,
   consumeWidgetOpenRequest,
@@ -1688,16 +1689,15 @@ export function KodyChat({
       if (view.resultTarget === "guided-flow" && view.guidedFlow) {
         void (async () => {
           try {
+            const guidedFlowChange = guidedFlowChangeForViewAction(action);
             const response = await fetch("/api/kody/guided-flows", {
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeaders() },
               body: JSON.stringify({
-                action: action.id === "back" ? "back" : "submit",
+                ...guidedFlowChange,
                 instanceId: view.guidedFlow?.instanceId,
                 stepId: view.guidedFlow?.stepId,
                 expectedRevision: view.guidedFlow?.revision,
-                ...(action.id === "back" ? {} : { actionId: action.id }),
-                ...(action.result ? { result: action.result } : {}),
                 mutationId: view.id,
               }),
             });

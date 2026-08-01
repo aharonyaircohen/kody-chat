@@ -10,6 +10,14 @@ import {
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { type GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import {
+  GUIDED_FLOW_CONTROL_IDS,
+  hasUniqueGuidedFlowControls,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/control-contract";
+import {
+  executeGuidedFlowControl,
+  GuidedFlowControlError,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/controls";
 import { GuidedFlowCompositionError } from "@kody-ade/kody-chat-dashboard/guided-flows/composition";
 import {
   guidedFlowDefinitionForInstance,
@@ -88,6 +96,11 @@ const definitionDraftNestedStepSchema = z.object({
 const definitionDraftSchema = z.object({
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
+  controls: z
+    .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
+    .max(8)
+    .refine(hasUniqueGuidedFlowControls)
+    .optional(),
   steps: z
     .array(
       z.union([definitionDraftNestedStepSchema, definitionDraftViewStepSchema]),
@@ -113,10 +126,11 @@ const deleteDefinitionSchema = z.object({
 });
 
 const changeSchema = z.object({
-  action: z.enum(["submit", "back", "cancel"]),
+  action: z.enum(["submit", "cancel", "control"]),
   instanceId: z.string().trim().min(1).max(128),
   stepId: z.string().trim().min(1).max(80).optional(),
   actionId: z.string().trim().min(1).max(80).optional(),
+  controlId: z.enum(GUIDED_FLOW_CONTROL_IDS).optional(),
   expectedRevision: z.number().int().nonnegative(),
   result: z.record(z.string(), z.unknown()).optional(),
   mutationId: z.string().trim().min(1).max(128),
@@ -400,19 +414,35 @@ export async function POST(req: NextRequest) {
       flowVersion: definition.version,
       stepId: current.currentStepId,
     };
-    const runtime = runGuidedFlowAction({
-      definition,
-      instance: current,
-      action: parsed.data.action,
-      actionId: parsed.data.actionId,
-      result: parsed.data.result,
-      resolveDefinition: (flowId, flowVersion) =>
-        guidedFlowDefinitionForReference(
-          flowId,
-          flowVersion,
-          customDefinitions,
-        ),
-    });
+    let runtime;
+    if (parsed.data.action === "control") {
+      if (!parsed.data.controlId) {
+        return json({ error: "validation_error" }, { status: 400 });
+      }
+      runtime = {
+        definition,
+        instance: executeGuidedFlowControl({
+          definition,
+          instance: current,
+          controlId: parsed.data.controlId,
+        }),
+        completed: [],
+      };
+    } else {
+      runtime = runGuidedFlowAction({
+        definition,
+        instance: current,
+        action: parsed.data.action,
+        actionId: parsed.data.actionId,
+        result: parsed.data.result,
+        resolveDefinition: (flowId, flowVersion) =>
+          guidedFlowDefinitionForReference(
+            flowId,
+            flowVersion,
+            customDefinitions,
+          ),
+      });
+    }
     definition = runtime.definition;
     const next = runtime.instance;
 
@@ -470,6 +500,9 @@ export async function POST(req: NextRequest) {
       ...effectResult,
     });
   } catch (error) {
+    if (error instanceof GuidedFlowControlError) {
+      return json({ error: error.code }, { status: 409 });
+    }
     if (error instanceof GuidedFlowCompletionError) {
       return json({ error: error.code }, { status: error.status });
     }

@@ -1,3 +1,5 @@
+import type { GuidedFlowControlId } from "./control-contract";
+
 export type GuidedFlowStatus = "active" | "completed" | "cancelled";
 
 export interface GuidedFlowTransitionMap {
@@ -37,6 +39,7 @@ export interface GuidedFlowDefinition {
   readonly title: string;
   readonly steps: readonly GuidedFlowStepDefinition[];
   readonly completionRouteId?: string;
+  readonly controls?: readonly GuidedFlowControlId[];
 }
 
 export interface GuidedFlowFrame {

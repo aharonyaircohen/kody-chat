@@ -40,6 +40,56 @@ describe("isDashboardNavigateDirective", () => {
 });
 
 describe("isRenderedViewDirective", () => {
+  it("accepts an opaque control dispatch without knowing its behavior", () => {
+    expect(
+      isRenderedViewDirective({
+        action: RENDER_VIEW_DIRECTIVE,
+        view: "renderer",
+        id: "guided-flow-view",
+        rendererSlug: "approval-card",
+        rendererName: "Approval card",
+        resultTarget: "guided-flow",
+        guidedFlow: { instanceId: "instance-1", stepId: "step-2", revision: 1 },
+        ui: {
+          type: "button",
+          label: "Back",
+          action: {
+            id: "guided-flow-control-back",
+            label: "Back",
+            response: "back",
+            dispatch: { type: "control", id: "back" },
+          },
+        },
+        data: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects malformed control dispatch metadata", () => {
+    expect(
+      isRenderedViewDirective({
+        action: RENDER_VIEW_DIRECTIVE,
+        view: "renderer",
+        id: "guided-flow-view",
+        rendererSlug: "approval-card",
+        rendererName: "Approval card",
+        resultTarget: "guided-flow",
+        guidedFlow: { instanceId: "instance-1", stepId: "step-2", revision: 1 },
+        ui: {
+          type: "button",
+          label: "Back",
+          action: {
+            id: "guided-flow-control-back",
+            label: "Back",
+            response: "back",
+            dispatch: { type: "control" },
+          },
+        },
+        data: {},
+      }),
+    ).toBe(false);
+  });
+
   it("accepts a generic renderer view directive", () => {
     expect(
       isRenderedViewDirective({

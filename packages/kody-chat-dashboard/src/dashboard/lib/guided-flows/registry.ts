@@ -4,6 +4,7 @@ import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { buildRenderedViewDirective } from "../view-renderers/template";
 import type { RenderedViewDirective } from "../chat-ui-actions";
 import { assertGuidedFlowCompatible } from "./compatibility";
+import { presentGuidedFlowControls } from "./controls";
 
 export const CREATE_WORKFLOW_FLOW_ID = "create-workflow";
 
@@ -12,6 +13,7 @@ const CREATE_WORKFLOW_FLOW: GuidedFlowDefinition = {
   version: 1,
   title: "Create a workflow",
   completionRouteId: "workflows",
+  controls: ["back"],
   steps: [
     {
       id: "choose-capability",
@@ -128,30 +130,20 @@ export function buildGuidedFlowView(
         : { body: step.explanation }),
     },
   });
+  const controls = presentGuidedFlowControls({ definition, instance });
 
   return {
     ...view,
     resultTarget: "guided-flow",
     ui:
-      instance.backStack.length > 0
+      controls.length > 0
         ? {
             type: "stack",
             children: [
               view.ui,
               {
                 type: "row",
-                children: [
-                  {
-                    type: "button",
-                    label: "Back",
-                    action: {
-                      id: "back",
-                      label: "Back",
-                      response: "back",
-                      variant: "secondary",
-                    },
-                  },
-                ],
+                children: controls,
               },
             ],
           }

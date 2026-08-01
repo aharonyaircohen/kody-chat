@@ -82,6 +82,10 @@ export interface RenderedViewAction {
   response: string;
   variant?: "primary" | "secondary" | "danger";
   result?: Record<string, unknown>;
+  dispatch?: {
+    type: "control";
+    id: string;
+  };
 }
 
 export type RenderedViewJsonValue =
@@ -224,11 +228,19 @@ function isRenderedViewAction(value: unknown): value is RenderedViewAction {
     v.variant === "primary" ||
     v.variant === "secondary" ||
     v.variant === "danger";
+  const validDispatch =
+    v.dispatch === undefined ||
+    (!!v.dispatch &&
+      typeof v.dispatch === "object" &&
+      !Array.isArray(v.dispatch) &&
+      (v.dispatch as Record<string, unknown>).type === "control" &&
+      typeof (v.dispatch as Record<string, unknown>).id === "string");
   return (
     typeof v.id === "string" &&
     typeof v.label === "string" &&
     typeof v.response === "string" &&
-    validVariant
+    validVariant &&
+    validDispatch
   );
 }
 

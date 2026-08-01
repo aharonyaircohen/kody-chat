@@ -304,6 +304,123 @@ test("resumes an unfinished GuidedFlow once and shows the step without reloading
   await expect.poll(() => bindAttempts).toBe(2);
 });
 
+test("dispatches an enabled Back control through the GuidedFlow API", async ({
+  page,
+}) => {
+  let controlRequest: Record<string, unknown> | null = null;
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      request.method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      if (body.action === "control") controlRequest = body;
+
+      const returnedToPreviousStep = body.action === "control";
+      return json(route, {
+        instance: { status: "active" },
+        flow: {
+          id: "review-release",
+          title: "Review release",
+          stepIndex: returnedToPreviousStep ? 0 : 1,
+          stepCount: 2,
+        },
+        compatibility: { status: "compatible" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: returnedToPreviousStep ? "review-step-1" : "review-step-2",
+          rendererSlug: "approval-card",
+          rendererName: "Approval card",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "review-instance",
+            stepId: returnedToPreviousStep ? "review" : "confirm",
+            revision: returnedToPreviousStep ? 4 : 3,
+          },
+          ui: returnedToPreviousStep
+            ? {
+                type: "text",
+                value: "Review the release details",
+                variant: "title",
+              }
+            : {
+                type: "stack",
+                children: [
+                  {
+                    type: "text",
+                    value: "Confirm the release",
+                    variant: "title",
+                  },
+                  {
+                    type: "button",
+                    label: "Back",
+                    action: {
+                      id: "guided-flow-control-back",
+                      label: "Back",
+                      response: "back",
+                      variant: "secondary",
+                      dispatch: { type: "control", id: "back" },
+                    },
+                  },
+                ],
+              },
+          data: {},
+        },
+      });
+    }
+
+    return json(route, {
+      definitions: [],
+      flows: [
+        {
+          instance: {
+            instanceId: "review-instance",
+            revision: 3,
+            status: "active",
+          },
+          compatibility: { status: "compatible" },
+          flow: { title: "Review release", stepIndex: 1, stepCount: 2 },
+          view: {},
+        },
+      ],
+    });
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.getByRole("button", { name: "Resume flow", exact: true }).click();
+  await expect(page.getByText("Confirm the release")).toBeVisible();
+
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+
+  await expect(page.getByText("Review the release details")).toBeVisible();
+  await expect
+    .poll(() => controlRequest)
+    .toMatchObject({
+      action: "control",
+      controlId: "back",
+      instanceId: "review-instance",
+      expectedRevision: 3,
+    });
+});
+
 test("lets the user choose between multiple active GuidedFlows", async ({
   page,
 }) => {
@@ -420,20 +537,20 @@ test("provides step editing controls, preview, and validation", async ({
 
   await expect(page.getByLabel("Preview step 1")).toBeVisible();
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
-    const stepCardBox = await page.getByLabel("Step 1: New step").boundingBox();
+    const alignmentOffset = async (label: string) => {
+      const stepCardBox = await page
+        .getByLabel("Step 1: New step")
+        .boundingBox();
+      const comparedBox = await page.getByLabel(label).boundingBox();
+      expect(stepCardBox).not.toBeNull();
+      expect(comparedBox).not.toBeNull();
+      return Math.abs((comparedBox?.y ?? 0) - (stepCardBox?.y ?? 0));
+    };
+    await expect.poll(() => alignmentOffset("Live preview 1")).toBeLessThan(24);
+    await expect.poll(() => alignmentOffset("Preview step 1")).toBeLessThan(24);
     const previewCardBox = await page
       .getByLabel("Preview step 1")
       .boundingBox();
-    const previewBox = await page.getByLabel("Live preview 1").boundingBox();
-    expect(stepCardBox).not.toBeNull();
-    expect(previewCardBox).not.toBeNull();
-    expect(previewBox).not.toBeNull();
-    expect(Math.abs((previewBox?.y ?? 0) - (stepCardBox?.y ?? 0))).toBeLessThan(
-      24,
-    );
-    expect(
-      Math.abs((previewCardBox?.y ?? 0) - (stepCardBox?.y ?? 0)),
-    ).toBeLessThan(24);
     expect(previewCardBox?.height ?? 999).toBeLessThan(260);
   }
   await page
@@ -522,6 +639,7 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
     .click();
   await page.getByRole("button", { name: "+ Add step" }).click();
   await page.getByLabel("Flow name").fill("Review a release");
+  await page.getByLabel("Enable Back control").check();
   await page.getByLabel("Step 1 title").fill("Confirm the release");
   await page
     .getByLabel("Step 1 instructions")
@@ -535,7 +653,10 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   ).toBeVisible();
   expect(posts).toContainEqual({
     action: "create-definition",
-    draft: expect.objectContaining({ title: "Review a release" }),
+    draft: expect.objectContaining({
+      title: "Review a release",
+      controls: ["back"],
+    }),
   });
 });
 
@@ -589,6 +710,7 @@ test("creates a GuidedFlow that calls another flow", async ({ page }) => {
     draft: {
       title: "Parent flow",
       completionRouteId: "",
+      controls: [],
       steps: [
         {
           type: "flow",

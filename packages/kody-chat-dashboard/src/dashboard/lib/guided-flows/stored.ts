@@ -10,6 +10,10 @@ import { z } from "zod";
 
 import type { GuidedFlowDefinition } from "./controller";
 import { migrateLegacyGuidedFlowDefinition } from "./authoring";
+import {
+  GUIDED_FLOW_CONTROL_IDS,
+  hasUniqueGuidedFlowControls,
+} from "./control-contract";
 
 export const GUIDED_FLOW_DEFINITIONS_NAMESPACE = "guided-flow-definitions";
 
@@ -48,6 +52,11 @@ export const storedGuidedFlowDefinitionSchema = z.object({
   version: z.number().int().positive(),
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
+  controls: z
+    .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
+    .max(8)
+    .refine(hasUniqueGuidedFlowControls)
+    .optional(),
   archived: z.boolean().optional(),
   steps: z.array(storedGuidedFlowStepSchema).min(1).max(20),
 });

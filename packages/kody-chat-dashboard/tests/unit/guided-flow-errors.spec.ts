@@ -24,4 +24,13 @@ describe("guided flow action errors", () => {
       "This workflow cannot be created with the selected capability. Check the capability and try again.",
     );
   });
+
+  it("explains rejected and unavailable controls", () => {
+    expect(guidedFlowActionErrorMessage("guided_flow_control_disabled")).toBe(
+      "This control is not enabled for this Guided Flow.",
+    );
+    expect(
+      guidedFlowActionErrorMessage("guided_flow_control_unavailable"),
+    ).toBe("This control is not available at the current step.");
+  });
 });

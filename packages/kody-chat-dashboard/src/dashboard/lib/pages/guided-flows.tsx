@@ -77,6 +77,7 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
   return {
     title: definition.title,
     completionRouteId: definition.completionRouteId ?? "",
+    controls: [...(definition.controls ?? [])],
     steps: definition.steps.map((step) =>
       isNestedGuidedFlowStep(step)
         ? {
@@ -147,7 +148,12 @@ function FlowBuilder({
   const [draft, setDraft] = useState<GuidedFlowDraft>({
     ...(definition
       ? draftFromDefinition(definition)
-      : { title: "", completionRouteId: "", steps: [newDraftStep()] }),
+      : {
+          title: "",
+          completionRouteId: "",
+          controls: [],
+          steps: [newDraftStep()],
+        }),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +298,23 @@ function FlowBuilder({
                 }))
               }
             />
+          </label>
+        </div>
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+          <label className="flex items-center gap-3 text-sm text-white/80">
+            <input
+              type="checkbox"
+              aria-label="Enable Back control"
+              checked={draft.controls?.includes("back") ?? false}
+              disabled={readOnly}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  controls: event.target.checked ? ["back"] : [],
+                }))
+              }
+            />
+            Allow users to return to the previous step
           </label>
         </div>
         <div className="mt-5 space-y-5">

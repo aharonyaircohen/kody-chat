@@ -38,6 +38,10 @@ const GUIDED_FLOW_ERROR_MESSAGES: Record<string, string> = {
     "The repository service is temporarily busy. Please try again shortly.",
   guided_flow_completion_failed:
     "The requested action could not finish yet. Your progress is saved; please try again.",
+  guided_flow_control_disabled:
+    "This control is not enabled for this Guided Flow.",
+  guided_flow_control_unavailable:
+    "This control is not available at the current step.",
   renderer_version_unpinned:
     "This saved flow uses an old unversioned renderer and cannot be resumed safely.",
   renderer_version_mismatch:

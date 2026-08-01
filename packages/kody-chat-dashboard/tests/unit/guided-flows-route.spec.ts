@@ -342,6 +342,123 @@ describe("GuidedFlow route", () => {
     );
   });
 
+  it("executes an enabled control and persists the returned flow state", async () => {
+    const created = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Back-enabled lesson",
+          controls: ["back"],
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the lesson.",
+              rendererSlug: "approval-card",
+            },
+            {
+              title: "Review",
+              explanation: "Review the lesson.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    expect(created.status).toBe(201);
+
+    const started = await POST(
+      request({ action: "start", flowId: "back-enabled-lesson" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    const advanced = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "advance-before-back",
+      }),
+    );
+    const advancedPayload = await advanced.json();
+    expect(advancedPayload.view.ui).toMatchObject({ type: "stack" });
+
+    const backed = await POST(
+      request({
+        action: "control",
+        controlId: "back",
+        instanceId,
+        expectedRevision: 1,
+        mutationId: "back-control",
+      }),
+    );
+
+    expect(backed.status).toBe(200);
+    expect((await backed.json()).instance).toMatchObject({
+      currentStepId: "step-1",
+      revision: 2,
+      backStack: [],
+    });
+    expect(store.rows[0]).toMatchObject({
+      currentStepId: "step-1",
+      revision: 2,
+    });
+  });
+
+  it("rejects a control that the stored flow did not enable", async () => {
+    await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Forward-only lesson",
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the lesson.",
+              rendererSlug: "approval-card",
+            },
+            {
+              title: "Review",
+              explanation: "Review the lesson.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    const started = await POST(
+      request({ action: "start", flowId: "forward-only-lesson" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "advance-forward-only",
+      }),
+    );
+
+    const response = await POST(
+      request({
+        action: "control",
+        controlId: "back",
+        instanceId,
+        expectedRevision: 1,
+        mutationId: "disabled-back-control",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("guided_flow_control_disabled");
+    expect(store.rows[0]).toMatchObject({
+      currentStepId: "step-2",
+      revision: 1,
+    });
+  });
+
   it("requires repository write access to change shared definitions", async () => {
     auth.verifyRepoWriteAccess.mockResolvedValueOnce(
       NextResponse.json(

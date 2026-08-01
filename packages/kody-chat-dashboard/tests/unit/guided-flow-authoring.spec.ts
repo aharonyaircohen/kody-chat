@@ -26,6 +26,7 @@ function viewStep(
 const validDraft: GuidedFlowDraft = {
   title: "Review a release",
   completionRouteId: "workflows",
+  controls: ["back"],
   steps: [
     {
       title: "Confirm the release",
@@ -110,6 +111,7 @@ describe("guided flow authoring", () => {
       version: 1,
       title: "Review a release",
       completionRouteId: "workflows",
+      controls: ["back"],
       steps: [
         {
           id: "step-1",
@@ -132,6 +134,24 @@ describe("guided flow authoring", () => {
         },
       ],
     });
+  });
+
+  it("omits controls when the author did not enable any", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      controls: [],
+    });
+
+    expect(definition).not.toHaveProperty("controls");
+  });
+
+  it("rejects duplicate controls", () => {
+    expect(
+      validateGuidedFlowDraft({
+        ...validDraft,
+        controls: ["back", "back"],
+      }),
+    ).toEqual({ controls: "Choose each control only once." });
   });
 
   it("uses the multi-select renderer's submit action for the final step", () => {

@@ -19,6 +19,48 @@ function definition(title: string) {
 }
 
 describe("stored guided flow definitions", () => {
+  it("preserves supported optional controls", () => {
+    expect(
+      parseGuidedFlowDefinitionRows([
+        {
+          flowId: "shared-flow",
+          version: 1,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          definition: { ...definition("Repository"), controls: ["back"] },
+        },
+      ]),
+    ).toEqual([expect.objectContaining({ controls: ["back"] })]);
+  });
+
+  it("rejects unknown controls at the storage boundary", () => {
+    expect(
+      parseGuidedFlowDefinitionRows([
+        {
+          flowId: "shared-flow",
+          version: 1,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          definition: { ...definition("Repository"), controls: ["delete-all"] },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("rejects duplicate controls at the storage boundary", () => {
+    expect(
+      parseGuidedFlowDefinitionRows([
+        {
+          flowId: "shared-flow",
+          version: 1,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          definition: {
+            ...definition("Repository"),
+            controls: ["back", "back"],
+          },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("prefers a repository-owned row over a legacy actor row", () => {
     expect(
       parseGuidedFlowDefinitionRows([

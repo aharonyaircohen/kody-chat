@@ -5,6 +5,10 @@ import {
   type GuidedFlowDefinition,
   type GuidedFlowViewStepDefinition,
 } from "./controller";
+import {
+  hasUniqueGuidedFlowControls,
+  type GuidedFlowControlId,
+} from "./control-contract";
 
 export interface GuidedFlowDraftViewStep {
   type?: "view";
@@ -29,10 +33,13 @@ export type GuidedFlowDraftStep =
 export interface GuidedFlowDraft {
   title: string;
   completionRouteId?: string;
+  controls?: GuidedFlowControlId[];
   steps: GuidedFlowDraftStep[];
 }
 
-export type GuidedFlowDraftErrors = Partial<Record<"title" | "steps", string>>;
+export type GuidedFlowDraftErrors = Partial<
+  Record<"controls" | "title" | "steps", string>
+>;
 
 const SUPPORTED_RENDERERS = [
   "approval-card",
@@ -52,6 +59,9 @@ export function validateGuidedFlowDraft(
 ): GuidedFlowDraftErrors {
   if (!draft.title.trim()) return { title: "Enter a flow name." };
   if (draft.steps.length === 0) return { steps: "Add at least one step." };
+  if (draft.controls && !hasUniqueGuidedFlowControls(draft.controls)) {
+    return { controls: "Choose each control only once." };
+  }
   if (
     draft.steps.some((step) => !step.title.trim() || !step.explanation.trim())
   ) {
@@ -330,6 +340,9 @@ export function buildGuidedFlowDefinition(
     title: draft.title.trim(),
     ...(draft.completionRouteId?.trim()
       ? { completionRouteId: draft.completionRouteId.trim() }
+      : {}),
+    ...(draft.controls && draft.controls.length > 0
+      ? { controls: [...draft.controls] }
       : {}),
     steps,
   };
