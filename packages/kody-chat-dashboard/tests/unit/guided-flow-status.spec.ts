@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildGuidedFlowStatusView,
   getGuidedFlowDefinition,
+  INITIALIZE_KODY_ENGINE_FLOW_ID,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import { isCommandGuidedFlowStep } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import { validateGuidedFlowNavigation } from "../../app/api/kody/guided-flows/navigation";
+import { availableGuidedFlowDefinitions } from "../../app/api/kody/guided-flows/catalog";
 
 describe("guided flow registry", () => {
   it("supports exact versions while exposing only the latest version per flow", () => {
@@ -100,6 +103,50 @@ describe("guided flow registry", () => {
         (definition) => definition.id === "onboarding",
       ),
     ).toEqual([onboarding]);
+  });
+
+  it("registers Init Engine as a built-in command-guided flow", () => {
+    const initEngine = getGuidedFlowDefinition(INITIALIZE_KODY_ENGINE_FLOW_ID);
+
+    expect(initEngine).toMatchObject({
+      id: "initialize-kody-engine",
+      title: "Initialize Kody Engine",
+      version: 1,
+      controls: ["back"],
+    });
+    const commandStep = initEngine?.steps.find(isCommandGuidedFlowStep);
+    expect(commandStep).toMatchObject({
+      type: "command",
+      command: "/init",
+      actions: [
+        { id: "run", target: { type: "stay" } },
+        { id: "continue", target: { type: "step", stepId: "review" } },
+      ],
+    });
+    expect(
+      listGuidedFlowDefinitions().filter(
+        (definition) => definition.id === INITIALIZE_KODY_ENGINE_FLOW_ID,
+      ),
+    ).toEqual([initEngine]);
+  });
+
+  it("keeps the built-in Init Engine definition authoritative over legacy stored copies", () => {
+    const builtIn = getGuidedFlowDefinition(INITIALIZE_KODY_ENGINE_FLOW_ID);
+    expect(builtIn).not.toBeNull();
+
+    const available = availableGuidedFlowDefinitions([
+      {
+        ...builtIn!,
+        version: 99,
+        title: "Legacy repository copy",
+      },
+    ]);
+
+    expect(
+      available.filter(
+        (definition) => definition.id === INITIALIZE_KODY_ENGINE_FLOW_ID,
+      ),
+    ).toEqual([builtIn]);
   });
 
   it("registers only built-in flows with valid dashboard destinations", () => {

@@ -6,7 +6,11 @@ for (const definition of BUILTIN_GUIDED_FLOW_DEFINITIONS) {
   validateGuidedFlowDefinition(definition);
 }
 
-export { CREATE_WORKFLOW_FLOW_ID, ONBOARDING_FLOW_ID } from "./builtins";
+export {
+  CREATE_WORKFLOW_FLOW_ID,
+  INITIALIZE_KODY_ENGINE_FLOW_ID,
+  ONBOARDING_FLOW_ID,
+} from "./builtins";
 export { buildGuidedFlowStatusView, buildGuidedFlowView } from "./presentation";
 
 export function getGuidedFlowDefinition(

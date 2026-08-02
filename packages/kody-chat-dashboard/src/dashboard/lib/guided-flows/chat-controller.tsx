@@ -23,6 +23,7 @@ export type GuidedFlowOpenRequest =
 export interface GuidedFlowChatState {
   readonly pending: {
     readonly id: string;
+    readonly destination: "current" | "chat";
     readonly request: GuidedFlowOpenRequest;
   } | null;
 }
@@ -31,6 +32,7 @@ type GuidedFlowChatAction =
   | {
       readonly type: "request";
       readonly requestId: string;
+      readonly destination?: "current" | "chat";
       readonly request: GuidedFlowOpenRequest;
     }
   | {
@@ -50,6 +52,7 @@ export function guidedFlowChatReducer(
     return {
       pending: {
         id: action.requestId,
+        destination: action.destination ?? "current",
         request: action.request,
       },
     };
@@ -75,6 +78,7 @@ export function isGuidedFlowOpenRequest(
 export interface GuidedFlowChatController {
   readonly pending: GuidedFlowChatState["pending"];
   readonly startFlow: (flowId: string, instanceKey?: string) => void;
+  readonly startFlowInChat: (flowId: string, instanceKey?: string) => void;
   readonly resumeFlow: (instanceId: string) => void;
   readonly acknowledge: (requestId: string) => void;
 }
@@ -92,13 +96,20 @@ export function GuidedFlowChatProvider({
     guidedFlowChatReducer,
     initialGuidedFlowChatState,
   );
-  const request = useCallback((next: GuidedFlowOpenRequest) => {
-    dispatch({
-      type: "request",
-      requestId: crypto.randomUUID(),
-      request: next,
-    });
-  }, []);
+  const request = useCallback(
+    (
+      next: GuidedFlowOpenRequest,
+      destination: "current" | "chat" = "current",
+    ) => {
+      dispatch({
+        type: "request",
+        requestId: crypto.randomUUID(),
+        destination,
+        request: next,
+      });
+    },
+    [],
+  );
   const startFlow = useCallback(
     (flowId: string, instanceKey?: string) =>
       request({
@@ -106,6 +117,18 @@ export function GuidedFlowChatProvider({
         ...(instanceKey ? { instanceKey } : {}),
         message: "started",
       }),
+    [request],
+  );
+  const startFlowInChat = useCallback(
+    (flowId: string, instanceKey?: string) =>
+      request(
+        {
+          flowId,
+          ...(instanceKey ? { instanceKey } : {}),
+          message: "started",
+        },
+        "chat",
+      ),
     [request],
   );
   const resumeFlow = useCallback(
@@ -120,10 +143,11 @@ export function GuidedFlowChatProvider({
     () => ({
       pending: state.pending,
       startFlow,
+      startFlowInChat,
       resumeFlow,
       acknowledge,
     }),
-    [acknowledge, resumeFlow, startFlow, state.pending],
+    [acknowledge, resumeFlow, startFlow, startFlowInChat, state.pending],
   );
   return (
     <GuidedFlowChatContext.Provider value={value}>

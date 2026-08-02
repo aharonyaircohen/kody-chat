@@ -33,9 +33,13 @@ export async function loadStoredGuidedFlowDefinitions(
 export function availableGuidedFlowDefinitions(
   stored: readonly StoredGuidedFlowDefinition[],
 ): GuidedFlowDefinition[] {
+  const builtIn = listGuidedFlowDefinitions();
+  const reservedIds = new Set(builtIn.map((definition) => definition.id));
   return [
-    ...listGuidedFlowDefinitions(),
-    ...latestAvailableGuidedFlowDefinitions(stored),
+    ...builtIn,
+    ...latestAvailableGuidedFlowDefinitions(stored).filter(
+      (definition) => !reservedIds.has(definition.id),
+    ),
   ];
 }
 

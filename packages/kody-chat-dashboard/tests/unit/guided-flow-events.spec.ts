@@ -57,4 +57,21 @@ describe("GuidedFlow open requests", () => {
       }),
     ).toEqual(initialGuidedFlowChatState);
   });
+
+  it("marks a request that must wait for the full Chat route", () => {
+    expect(
+      guidedFlowChatReducer(initialGuidedFlowChatState, {
+        type: "request",
+        requestId: "request-1",
+        destination: "chat",
+        request: {
+          flowId: "initialize-kody-engine",
+          message: "started",
+        },
+      }).pending,
+    ).toMatchObject({
+      destination: "chat",
+      request: { flowId: "initialize-kody-engine" },
+    });
+  });
 });

@@ -135,6 +135,7 @@ import {
   workflowsChatPlugin,
   WORKFLOWS_PANEL_ID,
 } from "../chat/plugins/workflows";
+import { EngineSetupNotice } from "@dashboard/features/engine-setup/components/EngineSetupNotice";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
@@ -427,8 +428,19 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   }, [openMobileChat]);
 
   useEffect(() => {
-    if (guidedFlowChat.pending) openMobileChat();
-  }, [guidedFlowChat.pending, openMobileChat]);
+    if (!guidedFlowChat.pending) return;
+    if (guidedFlowChat.pending.destination === "chat") {
+      if (currentRepoPath !== "/chat") router.push(scopedHref("/chat"));
+      return;
+    }
+    openMobileChat();
+  }, [
+    currentRepoPath,
+    guidedFlowChat.pending,
+    openMobileChat,
+    router,
+    scopedHref,
+  ]);
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -559,7 +571,10 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const chatPane = (
     <KodyChat
       guidedFlowRequest={
-        isDesktop || isChatRoute ? guidedFlowChat.pending : null
+        (isDesktop || isChatRoute) &&
+        !(guidedFlowChat.pending?.destination === "chat" && !isChatRoute)
+          ? guidedFlowChat.pending
+          : null
       }
       onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
       context={scope}
@@ -606,6 +621,9 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               >
                 {!pageOwnsHeader && <AppHeader />}
                 <div className="flex-1 min-h-0 flex flex-col">
+                  {auth && !repoRouteBlocksPage && !isChatRoute ? (
+                    <EngineSetupNotice />
+                  ) : null}
                   {pageContent}
                 </div>
               </ChatShell>
@@ -622,7 +640,10 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                   <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
                     <KodyChat
                       guidedFlowRequest={
-                        !isDesktop ? guidedFlowChat.pending : null
+                        !isDesktop &&
+                        guidedFlowChat.pending?.destination !== "chat"
+                          ? guidedFlowChat.pending
+                          : null
                       }
                       onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
                       context={scope}

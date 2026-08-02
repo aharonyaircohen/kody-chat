@@ -37,12 +37,13 @@ import {
   type ChatModel,
 } from "@kody-ade/base/variables/models";
 import { writeEngineModel } from "@kody-ade/base/engine/config";
+import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
 export const WORKFLOW_TEMPLATE_SOURCE =
   "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
-export const WORKFLOW_PATH = ".github/workflows/kody.yml";
+export const WORKFLOW_PATH = KODY_ENGINE_WORKFLOW_PATH;
 
 export interface InstallEngineInput {
   octokit: Octokit;
