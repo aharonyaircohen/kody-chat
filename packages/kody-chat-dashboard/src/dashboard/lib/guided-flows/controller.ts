@@ -1,5 +1,6 @@
 import type {
   GuidedFlowActionDefinition,
+  GuidedFlowCommandStepDefinition,
   GuidedFlowDefinition,
   GuidedFlowInstance,
   GuidedFlowNestedStepDefinition,
@@ -12,6 +13,7 @@ export type {
   GuidedFlowDefinition,
   GuidedFlowActionDefinition,
   GuidedFlowActionTarget,
+  GuidedFlowCommandStepDefinition,
   GuidedFlowFrame,
   GuidedFlowInstance,
   GuidedFlowNestedStepDefinition,
@@ -143,6 +145,13 @@ export function advanceGuidedFlow(
       data: nextData,
     };
   }
+  if (action.target.type === "stay") {
+    return {
+      ...instance,
+      revision: instance.revision + 1,
+      data: nextData,
+    };
+  }
   const nextStepId = action.target.stepId;
   findStep(definition, nextStepId);
 
@@ -189,4 +198,10 @@ export function isNestedGuidedFlowStep(
   step: GuidedFlowStepDefinition,
 ): step is GuidedFlowNestedStepDefinition {
   return step.type === "flow";
+}
+
+export function isCommandGuidedFlowStep(
+  step: GuidedFlowStepDefinition,
+): step is GuidedFlowCommandStepDefinition {
+  return step.type === "command";
 }

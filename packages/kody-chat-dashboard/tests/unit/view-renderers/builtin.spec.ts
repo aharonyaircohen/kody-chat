@@ -17,6 +17,7 @@ describe("builtin view renderers", () => {
     expect(BUILTIN_VIEW_RENDERER_DEFINITIONS.map((d) => d.slug).sort()).toEqual(
       [
         "approval-card",
+        "guided-flow-command",
         "guided-flow-status",
         "guided-form",
         "multi-select-list",
@@ -66,6 +67,9 @@ describe("builtin view renderers", () => {
     );
     expect(catalog.definitionComponents.get("GuidedFlowStatus")?.slug).toBe(
       "guided-flow-status",
+    );
+    expect(catalog.definitionComponents.get("GuidedFlowCommand")?.slug).toBe(
+      "guided-flow-command",
     );
   });
 });

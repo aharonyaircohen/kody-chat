@@ -34,7 +34,11 @@ import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
-import { trace, type createChatPluginRegistry } from "../chat/platform";
+import {
+  requestChatOperation,
+  trace,
+  type createChatPluginRegistry,
+} from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
@@ -1671,65 +1675,68 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
   previewActChainRef.current = 0;
   const typedInput = input.trim();
 
-  // Built-in `/init` — deterministic engine install. Bypasses the LLM
-  // entirely: hits the install endpoint, renders the result as a chat
-  // message. Anchored to the start so "//init" or text containing
-  // "/init" still passes through to normal handling.
-  if (/^\/init(\s|$)/.test(typedInput)) {
-    setInput("");
-    setSlashMenuOpen(false);
-    setSlashSelectedIndex(0);
-    const force = /\s--force(\s|$)/.test(typedInput);
-    const now = new Date().toISOString();
-    setMessages((prev) => [
-      ...prev,
-      { role: "user" as const, content: typedInput, timestamp: now },
-      {
-        role: "assistant" as const,
-        content: "⚙️ Installing the Kody engine in this repo…",
-        timestamp: now,
-      },
-    ]);
-    try {
-      const res = await fetch("/api/kody/engine/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ force }),
-      });
-      const data = await res.json().catch(() => ({}));
-      const content =
-        res.ok && data.ok
-          ? [
-              `✅ ${data.summary}`,
-              data.workflow?.htmlUrl
-                ? `\nWorkflow: ${data.workflow.htmlUrl}`
-                : "",
-              Array.isArray(data.nextSteps) && data.nextSteps.length
-                ? `\n**Next steps**\n${data.nextSteps.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}`
-                : "",
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : `❌ Install failed: ${data.error ?? data.message ?? res.statusText}`;
+  // Deterministic operations are resolved by the shared headless input
+  // dispatcher. Unknown slash inputs continue into prompt-shortcut expansion.
+  try {
+    const operation = typedInput.startsWith("/")
+      ? await requestChatOperation(typedInput, authHeaders())
+      : { handled: false as const };
+    if (operation.handled) {
+      const summary =
+        typeof operation.result.summary === "string"
+          ? operation.result.summary
+          : `${operation.command} completed.`;
+      const workflow = operation.result.workflow;
+      const workflowUrl =
+        workflow && typeof workflow === "object" && !Array.isArray(workflow)
+          ? (workflow as Readonly<Record<string, unknown>>).htmlUrl
+          : undefined;
+      const nextSteps = Array.isArray(operation.result.nextSteps)
+        ? operation.result.nextSteps.filter(
+            (step): step is string => typeof step === "string",
+          )
+        : [];
+      const content = [
+        `✅ ${summary}`,
+        typeof workflowUrl === "string" ? `\nWorkflow: ${workflowUrl}` : "",
+        nextSteps.length > 0
+          ? `\n**Next steps**\n${nextSteps
+              .map((step, index) => `${index + 1}. ${step}`)
+              .join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const now = new Date().toISOString();
+      setInput("");
+      setSlashMenuOpen(false);
+      setSlashSelectedIndex(0);
       setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant" as const,
-          content,
-          timestamp: new Date().toISOString(),
-        },
+        ...prev,
+        { role: "user" as const, content: typedInput, timestamp: now },
+        { role: "assistant" as const, content, timestamp: now },
       ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant" as const,
-          content: `❌ Install failed: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      return;
     }
-    return;
+  } catch (error) {
+    if (typedInput.startsWith("/")) {
+      const now = new Date().toISOString();
+      setInput("");
+      setSlashMenuOpen(false);
+      setSlashSelectedIndex(0);
+      setMessages((prev) => [
+        ...prev,
+        { role: "user" as const, content: typedInput, timestamp: now },
+        {
+          role: "assistant" as const,
+          content: `❌ Command failed: ${
+            error instanceof Error ? error.message : "chat_operation_failed"
+          }`,
+          timestamp: now,
+        },
+      ]);
+      return;
+    }
   }
 
   // Plugin send-middleware chain (Step 4). The terminal plugin's

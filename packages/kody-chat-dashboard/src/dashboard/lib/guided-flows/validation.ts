@@ -76,7 +76,7 @@ export function validateGuidedFlowDefinition(
       }
     }
 
-    if (step.type === "flow") continue;
+    if (step.type === "flow" || step.type === "command") continue;
     const presentedActionIds = rendererActionIds(step.rendererData?.actions);
     if (
       presentedActionIds &&

@@ -439,6 +439,90 @@ describe("GuidedFlow route", () => {
     );
   });
 
+  it("executes a command step before allowing manual continuation", async () => {
+    const created = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Initialize Kody",
+          steps: [
+            {
+              type: "command",
+              title: "Initialize Kody Engine",
+              explanation: "Run the standard initialization command.",
+              command: "/init",
+            },
+          ],
+        },
+      }),
+    );
+    expect(created.status).toBe(201);
+    const started = await POST(
+      request({ action: "start", flowId: "initialize-kody" }),
+    );
+    expect(started.status).toBe(201);
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    const premature = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "continue-before-run",
+      }),
+    );
+    expect(premature.status).toBe(409);
+    expect(await premature.json()).toEqual({ error: "command_not_completed" });
+
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        handled: true,
+        command: "/init",
+        result: { status: "completed", summary: "Engine ready" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const executed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 0,
+          actionId: "run",
+          mutationId: "run-init",
+        }),
+      );
+      expect(executed.status).toBe(200);
+      expect(await executed.json()).toMatchObject({
+        instance: { status: "active", revision: 1 },
+        view: {
+          rendererSlug: "guided-flow-command",
+          data: { status: "completed", summary: "Engine ready" },
+        },
+      });
+
+      const completed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 1,
+          actionId: "continue",
+          mutationId: "continue-after-run",
+        }),
+      );
+      expect(completed.status).toBe(200);
+      expect(await completed.json()).toMatchObject({
+        instance: { status: "completed", revision: 2 },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("executes an enabled control and persists the returned flow state", async () => {
     const created = await POST(
       request({

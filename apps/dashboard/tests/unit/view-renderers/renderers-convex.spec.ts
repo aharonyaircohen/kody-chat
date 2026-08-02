@@ -99,6 +99,7 @@ describe("view renderers convex store", () => {
 
     expect(file).toMatchObject({ source: "builtin" });
     expect(files.map((entry) => entry.definition.slug)).toEqual([
+      "guided-flow-command",
       "approval-card",
       "selection-list",
       "multi-select-list",
@@ -120,6 +121,7 @@ describe("view renderers convex store", () => {
 
     expect(files.map((file) => file.definition.slug)).toEqual([
       "decision-card",
+      "guided-flow-command",
       "approval-card",
       "selection-list",
       "multi-select-list",

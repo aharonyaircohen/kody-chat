@@ -40,6 +40,7 @@ const storedStepBaseSchema = {
           }),
           z.object({ type: z.literal("complete") }),
           z.object({ type: z.literal("cancel") }),
+          z.object({ type: z.literal("stay") }),
         ]),
       }),
     )
@@ -53,6 +54,16 @@ const storedGuidedFlowStepSchema = z.union([
     type: z.literal("flow"),
     flowId: z.string().trim().min(1).max(80),
     flowVersion: z.number().int().positive(),
+  }),
+  z.object({
+    ...storedStepBaseSchema,
+    type: z.literal("command"),
+    command: z
+      .string()
+      .trim()
+      .min(2)
+      .max(200)
+      .regex(/^\/[a-z][a-z0-9-]*(?:\s+[^\r\n]+)?$/i),
   }),
   z.object({
     ...storedStepBaseSchema,

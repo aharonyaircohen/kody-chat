@@ -4,8 +4,13 @@ import type { ViewRendererDefinition } from "../view-renderers/definition";
 import { buildRenderedViewDirective } from "../view-renderers/template";
 import { assertGuidedFlowCompatible } from "./compatibility";
 import type { GuidedFlowDefinition, GuidedFlowInstance } from "./controller";
-import { getGuidedFlowStep, isNestedGuidedFlowStep } from "./controller";
+import {
+  getGuidedFlowStep,
+  isCommandGuidedFlowStep,
+  isNestedGuidedFlowStep,
+} from "./controller";
 import { presentGuidedFlowControls } from "./controls";
+import { buildGuidedFlowCommandView } from "./command-presentation";
 import { guidedFlowRendererData } from "./render-data";
 
 export function buildGuidedFlowView(
@@ -21,6 +26,9 @@ export function buildGuidedFlowView(
   const step = getGuidedFlowStep(definition, instance);
   if (isNestedGuidedFlowStep(step)) {
     throw new Error(`Nested GuidedFlow step "${step.id}" is not renderable`);
+  }
+  if (isCommandGuidedFlowStep(step)) {
+    return buildGuidedFlowCommandView(definition, instance, step);
   }
   const renderer =
     (step.rendererVersion !== undefined

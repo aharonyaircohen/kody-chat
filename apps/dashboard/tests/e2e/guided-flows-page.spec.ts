@@ -809,6 +809,21 @@ test("provides step editing controls, preview, and validation", async ({
   await expect(
     page.getByLabel("Preview step 1").getByRole("button", { name: "Course 2" }),
   ).toBeVisible();
+  await page
+    .getByLabel("Step 1 type", { exact: true })
+    .selectOption("command");
+  await expect(page.getByLabel("Step 1 command", { exact: true })).toHaveValue(
+    "/init",
+  );
+  await page.getByLabel("Step 1 command", { exact: true }).fill("/init --force");
+  await expect(
+    page
+      .getByLabel("Preview step 1")
+      .getByRole("button", { name: "Run command" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Preview step 1")).toContainText(
+    "/init --force",
+  );
   await expect(
     page.getByRole("button", { name: "Move step 1 up" }),
   ).toBeDisabled();

@@ -2,6 +2,7 @@ import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { VIEW_RENDERER_SLUG_RE } from "../view-renderers/definition";
 import {
   type GuidedFlowActionDefinition,
+  type GuidedFlowCommandStepDefinition,
   type GuidedFlowDefinition,
   type GuidedFlowNestedStepDefinition,
   type GuidedFlowViewStepDefinition,
@@ -33,6 +34,14 @@ export const guidedFlowDraftNestedStepSchema = z.object({
   flowVersion: z.number().int().positive(),
 });
 
+const SLASH_COMMAND_RE = /^\/[a-z][a-z0-9-]*(?:\s+[^\r\n]+)?$/i;
+
+export const guidedFlowDraftCommandStepSchema = z.object({
+  ...guidedFlowDraftStepBaseSchema,
+  type: z.literal("command"),
+  command: z.string().trim().min(2).max(200).regex(SLASH_COMMAND_RE),
+});
+
 export const guidedFlowDraftSchema = z.object({
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
@@ -43,7 +52,11 @@ export const guidedFlowDraftSchema = z.object({
     .optional(),
   steps: z
     .array(
-      z.union([guidedFlowDraftNestedStepSchema, guidedFlowDraftViewStepSchema]),
+      z.union([
+        guidedFlowDraftNestedStepSchema,
+        guidedFlowDraftCommandStepSchema,
+        guidedFlowDraftViewStepSchema,
+      ]),
     )
     .min(1)
     .max(20),
@@ -54,6 +67,9 @@ export type GuidedFlowDraftViewStep = z.infer<
 >;
 export type GuidedFlowDraftNestedStep = z.infer<
   typeof guidedFlowDraftNestedStepSchema
+>;
+export type GuidedFlowDraftCommandStep = z.infer<
+  typeof guidedFlowDraftCommandStepSchema
 >;
 export type GuidedFlowDraftStep = z.infer<
   typeof guidedFlowDraftSchema
@@ -91,6 +107,13 @@ export function validateGuidedFlowDraft(
     return { steps: "Complete every step." };
   }
   if (
+    draft.steps.some(
+      (step) => step.type === "command" && !SLASH_COMMAND_RE.test(step.command),
+    )
+  ) {
+    return { steps: "Enter one valid slash command for every command step." };
+  }
+  if (
     !draft.steps.every((step) => {
       if (step.type === "flow") {
         return (
@@ -99,6 +122,7 @@ export function validateGuidedFlowDraft(
           step.flowVersion > 0
         );
       }
+      if (step.type === "command") return true;
       return (
         VIEW_RENDERER_SLUG_RE.test(step.rendererSlug) &&
         (step.rendererVersion === undefined ||
@@ -234,20 +258,34 @@ type LegacyGuidedFlowNestedStepDefinition = Omit<
   readonly allowedActions?: readonly string[];
 };
 
+type LegacyGuidedFlowCommandStepDefinition = Omit<
+  GuidedFlowCommandStepDefinition,
+  "actions"
+> & {
+  readonly actions?: readonly GuidedFlowActionDefinition[];
+  readonly transitions?: Readonly<Record<string, string>>;
+  readonly allowedActions?: readonly string[];
+};
+
 export type LegacyGuidedFlowDefinition = Omit<GuidedFlowDefinition, "steps"> & {
   readonly steps: readonly (
-    LegacyGuidedFlowViewStepDefinition | LegacyGuidedFlowNestedStepDefinition
+    | LegacyGuidedFlowViewStepDefinition
+    | LegacyGuidedFlowNestedStepDefinition
+    | LegacyGuidedFlowCommandStepDefinition
   )[];
 };
 
 function inferredLegacyActionIds(
   step:
-    LegacyGuidedFlowViewStepDefinition | LegacyGuidedFlowNestedStepDefinition,
+    | LegacyGuidedFlowViewStepDefinition
+    | LegacyGuidedFlowNestedStepDefinition
+    | LegacyGuidedFlowCommandStepDefinition,
 ): readonly string[] {
   if (step.allowedActions?.length) return step.allowedActions;
   const transitionIds = Object.keys(step.transitions ?? {});
   if (transitionIds.length) return transitionIds;
   if (step.type === "flow") return ["complete"];
+  if (step.type === "command") return ["run", "continue"];
   const rendererActions = step.rendererData?.actions;
   if (Array.isArray(rendererActions)) {
     const ids = rendererActions.flatMap((candidate) => {
@@ -279,6 +317,7 @@ export function migrateLegacyGuidedFlowDefinition(
         };
       const actionIds = inferredLegacyActionIds(step).map((actionId) =>
         step.type !== "flow" &&
+        step.type !== "command" &&
         step.rendererSlug === "multi-select-list" &&
         actionId === "continue"
           ? "submit"
@@ -415,6 +454,25 @@ export function buildGuidedFlowDefinition(
         actions: [
           {
             id: "complete",
+            target: nextStepId
+              ? { type: "step" as const, stepId: nextStepId }
+              : { type: "complete" as const },
+          },
+        ],
+      };
+    }
+    if (step.type === "command") {
+      return {
+        id: `step-${index + 1}`,
+        type: "command" as const,
+        title: step.title.trim(),
+        explanation: step.explanation.trim(),
+        ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
+        command: step.command.trim(),
+        actions: [
+          { id: "run", target: { type: "stay" as const } },
+          {
+            id: "continue",
             target: nextStepId
               ? { type: "step" as const, stepId: nextStepId }
               : { type: "complete" as const },

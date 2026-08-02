@@ -4,6 +4,7 @@ export type GuidedFlowStatus = "active" | "completed" | "cancelled";
 
 export type GuidedFlowActionTarget =
   | { readonly type: "step"; readonly stepId: string }
+  | { readonly type: "stay" }
   | { readonly type: "complete" }
   | { readonly type: "cancel" };
 
@@ -35,8 +36,15 @@ export interface GuidedFlowNestedStepDefinition extends GuidedFlowStepBase {
   readonly flowVersion: number;
 }
 
+export interface GuidedFlowCommandStepDefinition extends GuidedFlowStepBase {
+  readonly type: "command";
+  readonly command: string;
+}
+
 export type GuidedFlowStepDefinition =
-  GuidedFlowViewStepDefinition | GuidedFlowNestedStepDefinition;
+  | GuidedFlowViewStepDefinition
+  | GuidedFlowNestedStepDefinition
+  | GuidedFlowCommandStepDefinition;
 
 export interface GuidedFlowDefinition {
   readonly id: string;

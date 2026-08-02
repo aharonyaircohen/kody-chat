@@ -6,6 +6,7 @@ import {
 import { normalizeViewRendererData } from "../view-renderers/template";
 import {
   getGuidedFlowStep,
+  isCommandGuidedFlowStep,
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
   type GuidedFlowInstance,
@@ -51,6 +52,7 @@ export function evaluateGuidedFlowCompatibility({
       message: "The nested flow did not resolve to a visible step.",
     };
   }
+  if (isCommandGuidedFlowStep(step)) return { status: "compatible" };
 
   const customRenderer =
     (step.rendererVersion !== undefined
@@ -114,7 +116,9 @@ export function pinGuidedFlowRendererVersions(
   return {
     ...definition,
     steps: definition.steps.map((step) => {
-      if (isNestedGuidedFlowStep(step)) return step;
+      if (isNestedGuidedFlowStep(step) || isCommandGuidedFlowStep(step)) {
+        return step;
+      }
       const customRenderer =
         renderers[step.rendererSlug] ??
         (step.rendererVersion !== undefined

@@ -9,7 +9,11 @@ import {
 } from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import { type GuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
+import {
+  getGuidedFlowStep,
+  isCommandGuidedFlowStep,
+  type GuidedFlowDefinition,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import { GUIDED_FLOW_CONTROL_IDS } from "@kody-ade/kody-chat-dashboard/guided-flows/control-contract";
 import { guidedFlowDraftSchema } from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
 import {
@@ -29,6 +33,7 @@ import {
 import { runGuidedFlowAction } from "@kody-ade/kody-chat-dashboard/guided-flows/runtime";
 import type { StoredGuidedFlowDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
 import { sanitizeGuidedFlowData } from "@kody-ade/kody-chat-dashboard/guided-flows/safe-data";
+import { guidedFlowStepResult } from "@kody-ade/kody-chat-dashboard/guided-flows/step-results";
 import { ONBOARDING_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
   availableGuidedFlowDefinitions,
@@ -54,6 +59,10 @@ import {
   setGuidedFlowBootstrapCookie,
   type GuidedFlowBootstrapScope,
 } from "./bootstrap-scope";
+import {
+  executeGuidedFlowCommand,
+  GuidedFlowCommandError,
+} from "./command-execution";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -478,6 +487,26 @@ export async function POST(req: NextRequest) {
       flowVersion: definition.version,
       stepId: current.currentStepId,
     };
+    let submittedResult = parsed.data.result;
+    if (parsed.data.action === "submit") {
+      const activeStep = getGuidedFlowStep(definition, current);
+      if (isCommandGuidedFlowStep(activeStep)) {
+        if (parsed.data.actionId === "run") {
+          submittedResult = await executeGuidedFlowCommand(
+            req,
+            activeStep.command,
+            parsed.data.mutationId,
+          );
+        } else if (parsed.data.actionId === "continue") {
+          if (
+            guidedFlowStepResult(definition, current, activeStep.id)?.status !==
+            "completed"
+          ) {
+            return json({ error: "command_not_completed" }, { status: 409 });
+          }
+        }
+      }
+    }
     let runtime;
     if (parsed.data.action === "control") {
       if (!parsed.data.controlId) {
@@ -498,7 +527,7 @@ export async function POST(req: NextRequest) {
         instance: current,
         action: parsed.data.action,
         actionId: parsed.data.actionId,
-        result: parsed.data.result,
+        result: submittedResult,
         resolveDefinition: (flowId, flowVersion) =>
           guidedFlowDefinitionForReference(
             flowId,
@@ -533,7 +562,7 @@ export async function POST(req: NextRequest) {
             submission: {
               ...submittedFlow,
               actionId: parsed.data.actionId ?? "",
-              result: sanitizeGuidedFlowData(parsed.data.result),
+              result: sanitizeGuidedFlowData(submittedResult),
               submittedAt: new Date().toISOString(),
             },
           }
@@ -568,6 +597,9 @@ export async function POST(req: NextRequest) {
       return json({ error: error.code }, { status: 409 });
     }
     if (error instanceof GuidedFlowCompletionError) {
+      return json({ error: error.code }, { status: error.status });
+    }
+    if (error instanceof GuidedFlowCommandError) {
       return json({ error: error.code }, { status: error.status });
     }
     if (error instanceof GuidedFlowCompositionError) {

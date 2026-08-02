@@ -35,6 +35,47 @@ const DEFINITION: GuidedFlowDefinition = {
 };
 
 describe("guided flow controller", () => {
+  it("records a command result without leaving the current step", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "initialize",
+      version: 1,
+      title: "Initialize",
+      steps: [
+        {
+          id: "run-init",
+          type: "command",
+          title: "Initialize Kody",
+          explanation: "Run initialization.",
+          command: "/init",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "continue", target: { type: "complete" } },
+          ],
+        },
+      ],
+    };
+
+    expect(
+      advanceGuidedFlow(
+        definition,
+        createGuidedFlowInstance(definition, "instance-1"),
+        { actionId: "run", result: { status: "completed", summary: "Ready" } },
+      ),
+    ).toMatchObject({
+      currentStepId: "run-init",
+      status: "active",
+      revision: 1,
+      data: {
+        stepResults: {
+          "initialize@1/run-init": {
+            actionId: "run",
+            result: { status: "completed", summary: "Ready" },
+          },
+        },
+      },
+    });
+  });
+
   it("creates an active instance at the definition start step", () => {
     expect(createGuidedFlowInstance(DEFINITION, "instance-1")).toMatchObject({
       instanceId: "instance-1",

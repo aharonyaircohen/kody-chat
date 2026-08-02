@@ -7,6 +7,7 @@ import {
   type GuidedFlowDraft,
 } from "../../src/dashboard/lib/guided-flows/authoring";
 import {
+  isCommandGuidedFlowStep,
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
   type GuidedFlowViewStepDefinition,
@@ -17,7 +18,7 @@ function viewStep(
   index: number,
 ): GuidedFlowViewStepDefinition {
   const step = definition.steps[index];
-  if (!step || isNestedGuidedFlowStep(step)) {
+  if (!step || isNestedGuidedFlowStep(step) || isCommandGuidedFlowStep(step)) {
     throw new Error(`Expected view step ${index + 1}`);
   }
   return step;
@@ -37,6 +38,52 @@ const validDraft: GuidedFlowDraft = {
 };
 
 describe("guided flow authoring", () => {
+  it("stores a command step as a raw chat command with generic actions", () => {
+    const definition = buildGuidedFlowDefinition({
+      title: "Initialize Kody",
+      steps: [
+        {
+          type: "command",
+          title: "Initialize Kody Engine",
+          explanation: "Run the standard initialization command.",
+          command: "/init",
+        },
+      ],
+    });
+    const step = definition.steps[0];
+
+    expect(step && isCommandGuidedFlowStep(step)).toBe(true);
+    expect(step).toEqual({
+      id: "step-1",
+      type: "command",
+      title: "Initialize Kody Engine",
+      explanation: "Run the standard initialization command.",
+      command: "/init",
+      actions: [
+        { id: "run", target: { type: "stay" } },
+        { id: "continue", target: { type: "complete" } },
+      ],
+    });
+  });
+
+  it("rejects command steps that do not contain one slash command", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Invalid command",
+        steps: [
+          {
+            type: "command",
+            title: "Run",
+            explanation: "Run it.",
+            command: "init",
+          },
+        ],
+      }),
+    ).toEqual({
+      steps: "Enter one valid slash command for every command step.",
+    });
+  });
+
   it("generates a simple sign-in form from a plain-language goal", () => {
     expect(
       deriveGuidedFlowRendererData(

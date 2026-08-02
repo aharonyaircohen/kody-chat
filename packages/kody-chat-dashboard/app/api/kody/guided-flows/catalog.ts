@@ -1,6 +1,7 @@
 import { api as backendApi } from "@kody-ade/backend/api";
 import type { createBackendClient } from "@kody-ade/backend/client";
 import {
+  isCommandGuidedFlowStep,
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
@@ -60,7 +61,11 @@ export async function loadGuidedFlowRenderers(
     ...new Map(
       definitions
         .flatMap((definition) => definition.steps)
-        .flatMap((step) => (isNestedGuidedFlowStep(step) ? [] : [step]))
+        .flatMap((step) =>
+          isNestedGuidedFlowStep(step) || isCommandGuidedFlowStep(step)
+            ? []
+            : [step],
+        )
         .filter((step) => !getBuiltinViewRendererDefinition(step.rendererSlug))
         .map((step) => [
           `${step.rendererSlug}@${step.rendererVersion ?? "latest"}`,

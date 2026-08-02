@@ -35,6 +35,53 @@ const DEFINITION: GuidedFlowDefinition = {
 };
 
 describe("GuidedFlow presenter navigation", () => {
+  it("presents command execution before manual continuation", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "initialize",
+      version: 1,
+      title: "Initialize",
+      steps: [
+        {
+          id: "run-init",
+          type: "command",
+          title: "Initialize Kody",
+          explanation: "Run initialization, then continue.",
+          command: "/init",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "continue", target: { type: "complete" } },
+          ],
+        },
+      ],
+    };
+    const started = createGuidedFlowInstance(definition, "instance-1");
+    const initialView = presentGuidedFlow(definition, started).view;
+
+    expect(initialView).toMatchObject({
+      rendererSlug: "guided-flow-command",
+      data: {
+        command: "/init",
+        status: "ready",
+        actions: [{ id: "run", label: "Run command" }],
+      },
+    });
+
+    const executed = advanceGuidedFlow(definition, started, {
+      actionId: "run",
+      result: { status: "completed", summary: "Kody Engine is ready." },
+    });
+    expect(presentGuidedFlow(definition, executed).view).toMatchObject({
+      data: {
+        status: "completed",
+        summary: "Kody Engine is ready.",
+        actions: [
+          { id: "run", label: "Run again" },
+          { id: "continue", label: "Continue" },
+        ],
+      },
+    });
+  });
+
   it("navigates to the page owned by the active step", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
     const atConfigure = advanceGuidedFlow(DEFINITION, started, {

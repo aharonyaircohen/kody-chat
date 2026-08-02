@@ -26,6 +26,7 @@ import {
 } from "../guided-flows/authoring";
 import { listGuidedFlowDefinitions } from "../guided-flows/registry";
 import {
+  isCommandGuidedFlowStep,
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
 } from "../guided-flows/controller";
@@ -88,18 +89,26 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
             flowId: step.flowId,
             flowVersion: step.flowVersion,
           }
-        : {
-            title: step.title ?? definition.title,
-            explanation:
-              step.explanation ??
-              (typeof step.rendererData?.body === "string"
-                ? step.rendererData.body
-                : "Explain what the user should do next."),
-            rendererSlug: step.rendererSlug,
-            routeId: step.routeId,
-            rendererVersion: step.rendererVersion,
-            rendererData: step.rendererData,
-          },
+        : isCommandGuidedFlowStep(step)
+          ? {
+              type: "command",
+              title: step.title,
+              explanation: step.explanation,
+              routeId: step.routeId,
+              command: step.command,
+            }
+          : {
+              title: step.title ?? definition.title,
+              explanation:
+                step.explanation ??
+                (typeof step.rendererData?.body === "string"
+                  ? step.rendererData.body
+                  : "Explain what the user should do next."),
+              rendererSlug: step.rendererSlug,
+              routeId: step.routeId,
+              rendererVersion: step.rendererVersion,
+              rendererData: step.rendererData,
+            },
     ),
   };
 }
@@ -121,6 +130,29 @@ function previewForDraft(
     });
     const step = definition.steps[selectedStepIndex] ?? definition.steps[0];
     if (!step || isNestedGuidedFlowStep(step)) return null;
+    if (isCommandGuidedFlowStep(step)) {
+      const renderer = getBuiltinViewRendererDefinition("guided-flow-command");
+      if (!renderer) return null;
+      return buildRenderedViewDirective({
+        id: `guided-flow-preview-${selectedStepIndex}`,
+        definition: renderer,
+        data: {
+          title: step.title,
+          body: step.explanation,
+          command: step.command,
+          status: "ready",
+          summary: "Ready to run.",
+          actions: [
+            {
+              id: "run",
+              label: "Run command",
+              response: "run",
+              variant: "primary",
+            },
+          ],
+        },
+      });
+    }
     const renderer = step
       ? getBuiltinViewRendererDefinition(step.rendererSlug)
       : null;
@@ -411,7 +443,7 @@ function FlowBuilder({
                           <select
                             aria-label={`Step ${index + 1} type`}
                             className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
-                            value={step.type === "flow" ? "flow" : "view"}
+                            value={step.type ?? "view"}
                             disabled={readOnly}
                             onChange={(event) => {
                               updateStep(index, (current) =>
@@ -424,16 +456,25 @@ function FlowBuilder({
                                       flowId: "",
                                       flowVersion: 1,
                                     }
-                                  : {
-                                      title: current.title,
-                                      explanation: current.explanation,
-                                      routeId: current.routeId,
-                                      rendererSlug: "guided-form",
-                                    },
+                                  : event.target.value === "command"
+                                    ? {
+                                        type: "command",
+                                        title: current.title,
+                                        explanation: current.explanation,
+                                        routeId: current.routeId,
+                                        command: "/init",
+                                      }
+                                    : {
+                                        title: current.title,
+                                        explanation: current.explanation,
+                                        routeId: current.routeId,
+                                        rendererSlug: "guided-form",
+                                      },
                               );
                             }}
                           >
                             <option value="view">View</option>
+                            <option value="command">Command</option>
                             <option value="flow">Nested flow</option>
                           </select>
                         </div>
@@ -475,6 +516,21 @@ function FlowBuilder({
                               }
                             />
                           </div>
+                        ) : step.type === "command" ? (
+                          <input
+                            aria-label={`Step ${index + 1} command`}
+                            placeholder="/init"
+                            className="mt-3 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                            value={step.command}
+                            disabled={readOnly}
+                            onChange={(event) =>
+                              updateStep(index, (current) =>
+                                current.type === "command"
+                                  ? { ...current, command: event.target.value }
+                                  : current,
+                              )
+                            }
+                          />
                         ) : (
                           <select
                             aria-label={`Step ${index + 1} renderer`}
