@@ -3,6 +3,24 @@ import { api } from "../../convex/_generated/api";
 import { setup } from "./helpers";
 
 describe("catalog projection", () => {
+  it("keeps legacy goal-template rows deployable and queryable", async () => {
+    const t = setup()
+    await t.mutation(api.catalog.save, {
+      tenantId: "acme/app",
+      category: "goal-template",
+      slug: "quality",
+      doc: { name: "Quality" },
+      source: "store",
+      updatedAt: "2026-08-02T00:00:00.000Z",
+    })
+
+    const entries = await t.query(api.catalog.list, {
+      tenantId: "acme/app",
+      category: "goal-template",
+    })
+    expect(entries.map((entry) => entry.slug)).toEqual(["quality"])
+  })
+
   it("upserts and lists projected repository assets by category", async () => {
     const t = setup();
     await t.mutation(api.catalog.save, {

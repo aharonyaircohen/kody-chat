@@ -5,6 +5,7 @@ const category = v.union(
   v.literal("config"),
   v.literal("capability"),
   v.literal("agent"),
+  v.literal("goal-template"),
   v.literal("workflow-template"),
   v.literal("capability-workflow"),
 )

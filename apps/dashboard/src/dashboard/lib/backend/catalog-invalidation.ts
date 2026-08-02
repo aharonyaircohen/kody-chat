@@ -14,6 +14,7 @@ export function catalogCategoriesForChangedPaths(
   | "config"
   | "capability"
   | "agent"
+  | "goal-template"
   | "workflow-template"
   | "capability-workflow"
 > {
@@ -21,6 +22,7 @@ export function catalogCategoriesForChangedPaths(
     | "config"
     | "capability"
     | "agent"
+    | "goal-template"
     | "workflow-template"
     | "capability-workflow"
   >();
