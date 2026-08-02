@@ -21,7 +21,7 @@ vi.mock("@kody-ade/workspace/github", () => ({
   invalidateCommandsCache: vi.fn(),
   getStoreRef: vi.fn(() => "stable"),
   getStoreRepoUrl: vi.fn(
-    () => "https://github.com/aharonyaircohen/kody-company-store",
+    () => "https://github.com/aharonyaircohen/kody-ai-agency-catalog",
   ),
 }));
 vi.mock("@kody-ade/backend/client", () => ({
@@ -37,7 +37,7 @@ vi.mock("@kody-ade/base/company-store/assets", async (importOriginal) => {
     ...actual,
     buildCompanyStoreBlobUrl: vi.fn(
       (path: string) =>
-        `https://github.com/aharonyaircohen/kody-company-store/blob/stable/${path}`,
+        `https://github.com/aharonyaircohen/kody-ai-agency-catalog/blob/stable/${path}`,
     ),
     companyStoreUpdatedAt: vi.fn(async () => "2026-06-24T00:00:00.000Z"),
     companyStoreAssetPath: vi.fn(

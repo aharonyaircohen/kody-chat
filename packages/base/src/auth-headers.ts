@@ -6,7 +6,7 @@
  */
 
 export const DEFAULT_KODY_STORE_REPO_URL =
-  "https://github.com/aharonyaircohen/kody-company-store";
+  "https://github.com/aharonyaircohen/kody-ai-agency-catalog";
 export const DEFAULT_KODY_STORE_REF = "main";
 
 export const KODY_AUTH_HEADERS = {
