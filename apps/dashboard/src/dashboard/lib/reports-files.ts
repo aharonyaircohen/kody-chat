@@ -132,6 +132,15 @@ function countFindings(frontmatter: string | null): number {
   return (frontmatter.match(/^\s{2}-\s+id:\s*/gm) ?? []).length;
 }
 
+function markdownField(markdown: string, label: string): string | null {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return (
+    markdown
+      .match(new RegExp(`^- \\*\\*${escaped}:\\*\\*\\s*(.+)$`, "mi"))?.[1]
+      ?.trim() || null
+  );
+}
+
 function runIdFromName(name: string): string | null {
   if (!name.endsWith(".md")) return null;
   const id = name.slice(0, -".md".length);
@@ -175,24 +184,39 @@ function stripLeadingH1(body: string): string {
 
 function parseReportMarkdown(raw: string, slug: string) {
   const { frontmatter, body: afterFrontmatter } = splitReportFrontmatter(raw);
+  const visibleValue = (label: string) =>
+    markdownField(afterFrontmatter, label);
   return {
-    generatedAt: topLevelValue(frontmatter, "generatedAt"),
+    generatedAt:
+      visibleValue("Generated") ?? topLevelValue(frontmatter, "generatedAt"),
     title: deriveTitle(afterFrontmatter, slug),
     body: stripLeadingH1(afterFrontmatter),
     capabilitySlug:
+      visibleValue("Capability") ??
       topLevelValue(frontmatter, "capabilitySlug") ??
       topLevelValue(frontmatter, "capabilitySlug"),
-    reportType: normalizeReportType(topLevelValue(frontmatter, "reportType")),
+    reportType: normalizeReportType(
+      visibleValue("Type") ?? topLevelValue(frontmatter, "reportType"),
+    ),
     reportTypeVersion: positiveInteger(
-      topLevelValue(frontmatter, "reportTypeVersion"),
+      visibleValue("Version") ??
+        topLevelValue(frontmatter, "reportTypeVersion"),
     ),
     producer: {
-      model: nestedValue(frontmatter, "producer", "model"),
-      capability: nestedValue(frontmatter, "producer", "capability"),
+      model:
+        visibleValue("Owner") ?? nestedValue(frontmatter, "producer", "model"),
+      capability:
+        visibleValue("Capability") ??
+        nestedValue(frontmatter, "producer", "capability"),
     },
-    reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
-    reviewArea: topLevelValue(frontmatter, "reviewArea"),
-    findingCount: countFindings(frontmatter),
+    reviewStatus:
+      visibleValue("Review status") ??
+      topLevelValue(frontmatter, "reviewStatus"),
+    reviewArea:
+      visibleValue("Review area") ?? topLevelValue(frontmatter, "reviewArea"),
+    findingCount:
+      (afterFrontmatter.match(/^## Finding\s*$/gm) ?? []).length ||
+      countFindings(frontmatter),
     suggestedActions: parseReportSuggestedActions(frontmatter),
   };
 }

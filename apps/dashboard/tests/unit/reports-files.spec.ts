@@ -50,16 +50,16 @@ const RUN_NEW = {
   slug: "loop-review",
   runId: "2026-07-02T10-00-00Z",
   body: [
-    "---",
-    "generatedAt: 2026-07-02T10:00:00Z",
-    "reportType: loop-review",
-    "producer:",
-    "  model: claude",
-    "  capability: reviewer",
-    "---",
     "# Loop Review",
     "",
     "New run.",
+    "",
+    "## About",
+    "- **Type:** loop-review",
+    "- **Version:** 1",
+    "- **Generated:** 2026-07-02T10:00:00Z",
+    "- **Owner:** claude",
+    "- **Capability:** reviewer",
     "",
   ].join("\n"),
   meta: {},
@@ -94,7 +94,7 @@ describe("listReportFiles", () => {
     expect(family.body).toContain("New run.");
   });
 
-  it("parses frontmatter into report metadata", async () => {
+  it("parses visible Markdown into report metadata", async () => {
     const reports = await listReportFiles();
     const family = reports.find((r) => r.slug === "loop-review")!;
     expect(family.title).toBe("Loop Review");
