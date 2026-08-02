@@ -40,13 +40,16 @@
       "release-prepare",
       "release-validate",
       "release-merge",
-      "npm-publish"
+      "npm-publish",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
-      "package-release"
+      "package-release",
+      "web-release"
     ]
   },
   "access": {
