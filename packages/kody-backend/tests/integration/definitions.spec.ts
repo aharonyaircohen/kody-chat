@@ -6,9 +6,14 @@ const TENANT = "acme/app";
 const CREATED_AT = "2026-07-18T00:00:00.000Z";
 
 describe("versioned agency definitions", () => {
-  it("stores technical Implementation packages and reusable assets without making them agency entities", async () => {
+  it("stores goals, technical Implementation packages, and reusable assets", async () => {
     const t = setup();
     for (const [kind, slug, files] of [
+      [
+        "goal",
+        "quality",
+        { "goal.md": "# Quality\n", "goal.json": "{\"active\":true}\n" },
+      ],
       [
         "implementation",
         "safe-deployer",

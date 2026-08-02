@@ -559,6 +559,7 @@ export default defineSchema({
     kind: v.union(
       v.literal("agent"),
       v.literal("capability"),
+      v.literal("goal"),
       v.literal("implementation"),
       v.literal("asset"),
     ),
@@ -574,6 +575,7 @@ export default defineSchema({
     kind: v.union(
       v.literal("agent"),
       v.literal("capability"),
+      v.literal("goal"),
       v.literal("implementation"),
       v.literal("asset"),
     ),
