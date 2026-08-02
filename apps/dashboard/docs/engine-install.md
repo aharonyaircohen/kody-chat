@@ -28,7 +28,8 @@ auth headers):
    it is never copied to the repository or runner.
 6. **Registers the dashboard webhook** at
    `<dashboard-base>/api/webhooks/github` so push-based cache
-   invalidation works.
+   invalidation works. Registration requires a public HTTPS dashboard URL;
+   local and private URLs skip this step without calling GitHub.
 
 The compatibility token write and webhook registration are **soft-fail**:
 their failures appear in `nextSteps` and `summary` without undoing the
@@ -74,15 +75,19 @@ Headers: x-kody-token, x-kody-owner, x-kody-repo
 Body:    { "force"?: boolean }
 ```
 
-`x-kody-token` authorizes the installer itself and must be a fine-grained PAT
-with at least:
+`x-kody-token` authorizes the installer itself. A fine-grained PAT needs these
+repository permissions:
 
-- `repo` (contents:write — to commit the workflow file)
-- `repo:secrets:write` (optional, to set the compatibility `KODY_TOKEN`)
-- `admin:repo_hook` (for the webhook step)
+- **Contents: Read and write** — to commit the workflow and config.
+- **Secrets: Read and write** — optional, for the compatibility `KODY_TOKEN`.
+- **Webhooks: Read and write** — to register the dashboard webhook.
 
-If `repo:secrets:write` is missing, the workflow still lands and can use the
-built-in GitHub token. User vault secrets never require this permission.
+For a classic PAT, use the corresponding repository access plus
+`admin:repo_hook` for webhook registration.
+
+If **Secrets: Read and write** is missing, the workflow still lands and can
+use the built-in GitHub token. User vault secrets never require this
+permission.
 
 ## Outputs
 
@@ -92,7 +97,7 @@ built-in GitHub token. User vault secrets never require this permission.
   workflow:        { action: 'created' | 'updated' | 'unchanged', ... },
   kodyTokenSecret: { ok: boolean, name: 'KODY_TOKEN', error? },
   runtimeSecrets:  { source: 'kody-vault', authentication: 'github-oidc' },
-  webhook:         { ok: boolean, created?, hookId?, error? },
+  webhook:         { ok: boolean, skipped?, created?, hookId?, error?, status?, detail? },
   nextSteps:       string[],   // user-facing follow-ups
   summary:         string      // one-line human summary
 }

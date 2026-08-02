@@ -24,7 +24,10 @@ import type { Octokit } from "@octokit/rest";
 import sodium from "libsodium-wrappers";
 import { logger } from "@kody-ade/base/logger";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
-import { ensureWebhook } from "@dashboard/lib/webhooks/register";
+import {
+  ensureWebhook,
+  type EnsureWebhookResult,
+} from "@dashboard/lib/webhooks/register";
 import { readVariables } from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
@@ -65,12 +68,7 @@ export interface InstallEngineResult {
     commitSha: string | null;
     templateSource: string;
   };
-  webhook: {
-    ok: boolean;
-    created?: boolean;
-    hookId?: number;
-    error?: string;
-  };
+  webhook: EnsureWebhookResult;
   kodyTokenSecret: {
     ok: boolean;
     name: string;
@@ -283,12 +281,7 @@ export async function installEngine(
     let webhook: InstallEngineResult["webhook"];
     try {
       const result = await ensureWebhook({ token, owner, repo, hookUrl });
-      webhook = {
-        ok: result.ok,
-        created: result.created,
-        hookId: result.hookId,
-        error: result.error,
-      };
+      webhook = result;
     } catch (err) {
       webhook = {
         ok: false,
@@ -325,6 +318,23 @@ export async function installEngine(
           `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
       );
     }
+    if (!webhook.ok) {
+      if (webhook.skipped) {
+        nextSteps.push(
+          "Webhook setup was skipped because the dashboard has no public HTTPS URL. " +
+            "Set NEXT_PUBLIC_SERVER_URL to the deployed dashboard URL, then re-run /init.",
+        );
+      } else if (webhook.status === 403 || webhook.status === 404) {
+        nextSteps.push(
+          "GitHub denied the webhook update. Give the PAT Webhooks: write permission " +
+            "(or admin:repo_hook for a classic PAT), then re-run /init.",
+        );
+      } else {
+        nextSteps.push(
+          `Webhook setup failed (${webhook.detail ?? webhook.error}). Re-run /init after correcting the dashboard URL or PAT permissions.`,
+        );
+      }
+    }
 
     const tokenSummary = kodyTokenSecret.ok
       ? `${KODY_TOKEN_SECRET} secret ${workflowAction === "created" ? "set" : "refreshed"}.`
@@ -332,8 +342,10 @@ export async function installEngine(
     const vaultSummary =
       "Runtime secrets stay in Kody vault and use GitHub OIDC.";
     const webhookSummary = webhook.ok
-      ? `Webhook ${workflowAction === "created" ? "registered" : "refreshed"}.`
-      : `Webhook FAILED — ${webhook.error ?? "unknown"}.`;
+      ? `Webhook ${webhook.created ? "registered" : "refreshed"}.`
+      : webhook.skipped
+        ? "Webhook skipped — configure a public HTTPS dashboard URL."
+        : `Webhook FAILED — ${webhook.detail ?? webhook.error}${webhook.status ? ` (HTTP ${webhook.status})` : ""}.`;
     const workflowSummary =
       workflowAction === "created"
         ? `Engine workflow created at ${WORKFLOW_PATH}.`

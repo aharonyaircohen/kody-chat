@@ -17,6 +17,9 @@ const convex = vi.hoisted(() => ({
 const vault = vi.hoisted(() => ({
   read: vi.fn(),
 }));
+const webhooks = vi.hoisted(() => ({
+  ensureWebhook: vi.fn(),
+}));
 
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
@@ -27,6 +30,7 @@ vi.mock("convex/browser", () => ({
 vi.mock("@kody-ade/base/vault/store", () => ({
   readVault: vault.read,
 }));
+vi.mock("@dashboard/lib/webhooks/register", () => webhooks);
 
 import { _resetConvexClient } from "@kody-ade/base/backend/convex";
 import { invalidateVariablesCache } from "@kody-ade/base/variables/store";
@@ -73,6 +77,11 @@ beforeEach(() => {
   vault.read.mockResolvedValue({
     doc: { version: 1, secrets: {} },
     sha: null,
+  });
+  webhooks.ensureWebhook.mockResolvedValue({
+    ok: true,
+    created: false,
+    hookId: 42,
   });
   vi.stubGlobal(
     "fetch",
@@ -149,6 +158,62 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("installEngine", () => {
+  it("reports a skipped local webhook without failing the engine install", async () => {
+    webhooks.ensureWebhook.mockResolvedValueOnce({
+      ok: false,
+      skipped: true,
+      error: "public_url_required",
+    });
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "http://localhost:3333/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.webhook).toEqual({
+      ok: false,
+      skipped: true,
+      error: "public_url_required",
+    });
+    expect(result.summary).toContain(
+      "Webhook skipped — configure a public HTTPS dashboard URL.",
+    );
+  });
+
+  it("preserves safe GitHub webhook failure context", async () => {
+    webhooks.ensureWebhook.mockResolvedValueOnce({
+      ok: false,
+      error: "patch hook failed",
+      status: 403,
+      detail: "Resource not accessible by personal access token",
+    });
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.webhook).toMatchObject({
+      ok: false,
+      error: "patch hook failed",
+      status: 403,
+      detail: "Resource not accessible by personal access token",
+    });
+    expect(result.summary).toContain(
+      "Webhook FAILED — Resource not accessible by personal access token (HTTP 403).",
+    );
+  });
+
   it("keeps user vault secrets out of GitHub Actions", async () => {
     vault.read.mockResolvedValue({
       doc: {

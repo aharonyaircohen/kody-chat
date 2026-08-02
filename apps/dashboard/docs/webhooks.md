@@ -115,10 +115,15 @@ preview/prod URL change reuses the same canonical hook), and either:
 - **PATCHes** it (`active: true`, refreshed events, no `secret` field), or
 - **POSTs** a new `web` hook if none exists.
 
+Before calling GitHub, the registrar requires a public HTTPS hook URL. Local,
+private-network, loopback, and non-HTTPS URLs return
+`{ ok: false, skipped: true, error: "public_url_required" }`. This makes local
+development explicit and avoids sending an unreachable URL to GitHub.
+
 The hook config is `{ url, content_type: "json", insecure_ssl: "0" }` —
-deliberately **no `secret`**, since verification is by source IP. The
-caller's PAT must have **`admin:repo_hook`** scope (included in the
-classic `repo` scope).
+deliberately **no `secret`**, since verification is by source IP. A
+fine-grained PAT needs repository **Webhooks: Read and write** permission. A
+classic PAT needs the **`admin:repo_hook`** scope.
 
 The default subscribed events (`DEFAULT_WEBHOOK_EVENTS`):
 
@@ -145,8 +150,9 @@ was removed when dashboard auth became header-based PAT.)
 - The hook URL is derived from the public base URL +
   `/api/webhooks/github`.
 - **Responses:** `201` (created) / `200` (existing hook PATCHed), both
-  `{ ok, hookId, created, url }`. On failure, `403`/`404` are passed
-  through from GitHub; anything else maps to `502`.
+  `{ ok, hookId, created, url }`. A non-public hook URL returns `422`
+  `{ error: "public_url_required", skipped: true }`. GitHub `403`/`404`
+  failures are passed through; anything else maps to `502`.
 
 ## Known limitation
 

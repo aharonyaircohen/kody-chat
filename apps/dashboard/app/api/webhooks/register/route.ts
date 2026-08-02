@@ -15,7 +15,8 @@
  *
  * Authentication: the same per-request PAT every other dashboard route
  * uses — `x-kody-token` (with optional `x-kody-owner` / `x-kody-repo`).
- * The PAT must have `admin:repo_hook` scope (covered by classic `repo`).
+ * Fine-grained PATs need repository Webhooks read/write permission. Classic
+ * PATs need the `admin:repo_hook` scope.
  *
  * When GITHUB_WEBHOOK_SECRET or KODY_WEBHOOK_SECRET is configured, hooks are
  * registered with that secret and deliveries are HMAC-verified. Without a
@@ -66,6 +67,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   if (!result.ok) {
+    if (result.skipped) {
+      return NextResponse.json(
+        { error: result.error, skipped: true },
+        { status: 422 },
+      );
+    }
+
     return NextResponse.json(
       { error: result.error, status: result.status },
       {

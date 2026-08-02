@@ -18,6 +18,7 @@
  */
 
 import { logger } from "@kody-ade/base/logger";
+import { isPublicHttpsUrl } from "@dashboard/lib/webhooks/public-url";
 
 export const DEFAULT_WEBHOOK_EVENTS = [
   "issues",
@@ -55,12 +56,42 @@ export interface EnsureWebhookInput {
   events?: string[];
 }
 
-export interface EnsureWebhookResult {
-  ok: boolean;
-  hookId?: number;
-  created?: boolean;
-  error?: string;
-  status?: number;
+export type EnsureWebhookResult =
+  | {
+      ok: true;
+      hookId: number;
+      created: boolean;
+    }
+  | {
+      ok: false;
+      skipped: true;
+      error: "public_url_required";
+      status?: undefined;
+      hookId?: undefined;
+      detail?: undefined;
+    }
+  | {
+      ok: false;
+      skipped?: false;
+      error: string;
+      status?: number;
+      hookId?: number;
+      detail?: string;
+    };
+
+async function readGithubErrorDetail(
+  response: Response,
+  token: string,
+): Promise<string | undefined> {
+  const payload = (await response.json().catch(() => null)) as {
+    message?: unknown;
+  } | null;
+  if (typeof payload?.message !== "string") return undefined;
+
+  const normalized = payload.message.replace(/\s+/g, " ").trim();
+  if (!normalized) return undefined;
+  const redacted = token ? normalized.split(token).join("[redacted]") : normalized;
+  return redacted.slice(0, 200);
 }
 
 function getWebhookSecret(): string | undefined {
@@ -94,6 +125,14 @@ export async function ensureWebhook(
   const { token, owner, repo, hookUrl } = input;
   const events = input.events?.length ? input.events : DEFAULT_WEBHOOK_EVENTS;
 
+  if (!isPublicHttpsUrl(hookUrl)) {
+    return {
+      ok: false,
+      skipped: true,
+      error: "public_url_required",
+    };
+  }
+
   const config = {
     url: hookUrl,
     content_type: "json",
@@ -104,18 +143,23 @@ export async function ensureWebhook(
   // 1) List hooks; reuse if one already points at us.
   const listRes = await gh(token, `/repos/${owner}/${repo}/hooks`);
   if (!listRes.ok) {
-    const detail = await listRes.text();
+    const detail = await readGithubErrorDetail(listRes, token);
     logger.warn(
       {
         event: "webhook_list_failed",
         status: listRes.status,
         owner,
         repo,
-        detail: detail.slice(0, 300),
+        detail,
       },
       "Failed to list webhooks",
     );
-    return { ok: false, error: "list hooks failed", status: listRes.status };
+    return {
+      ok: false,
+      error: "list hooks failed",
+      status: listRes.status,
+      detail,
+    };
   }
 
   const hooks = (await listRes.json()) as GitHubHook[];
@@ -145,13 +189,13 @@ export async function ensureWebhook(
       },
     );
     if (!patchRes.ok) {
-      const detail = await patchRes.text();
+      const detail = await readGithubErrorDetail(patchRes, token);
       logger.warn(
         {
           event: "webhook_patch_failed",
           status: patchRes.status,
           hookId: existing.id,
-          detail: detail.slice(0, 300),
+          detail,
         },
         "Failed to update webhook",
       );
@@ -160,6 +204,7 @@ export async function ensureWebhook(
         error: "patch hook failed",
         status: patchRes.status,
         hookId: existing.id,
+        detail,
       };
     }
     return { ok: true, hookId: existing.id, created: false };
@@ -171,14 +216,14 @@ export async function ensureWebhook(
     body: JSON.stringify({ name: "web", active: true, events, config }),
   });
   if (!createRes.ok) {
-    const detail = await createRes.text();
+    const detail = await readGithubErrorDetail(createRes, token);
     logger.warn(
       {
         event: "webhook_create_failed",
         status: createRes.status,
         owner,
         repo,
-        detail: detail.slice(0, 300),
+        detail,
       },
       "Failed to create webhook",
     );
@@ -186,6 +231,7 @@ export async function ensureWebhook(
       ok: false,
       error: "create hook failed",
       status: createRes.status,
+      detail,
     };
   }
   const created = (await createRes.json()) as GitHubHook;
