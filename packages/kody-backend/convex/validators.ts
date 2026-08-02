@@ -114,6 +114,7 @@ const intentControlsValidator = v.object({
   automation: v.object({
     authority: v.literal("full-auto"),
     maxDailyActions: v.number(),
+    maxConcurrentGoals: v.optional(v.number()),
     requiresHumanFor: v.array(v.string()),
   }),
 });
@@ -150,6 +151,7 @@ const companyIntentBase = {
   portfolio: v.object({
     loops: v.array(v.string()),
     capabilities: v.array(v.string()),
+    goals: v.optional(v.array(v.string())),
   }),
   createdAt: v.string(),
   updatedAt: v.string(),

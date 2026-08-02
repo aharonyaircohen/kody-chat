@@ -6,6 +6,40 @@ import { setup } from "./helpers";
 const TENANT = "acme/app";
 
 describe("intents", () => {
+  it("keeps legacy goal portfolios and concurrency controls readable", async () => {
+    const t = setup()
+    const intent = {
+      version: 1 as const,
+      id: "legacy-operations",
+      status: "active" as const,
+      for: "operations",
+      priority: 30,
+      posture: "balanced" as const,
+      scope: { repos: [TENANT], areas: ["operations"] },
+      principles: ["Prefer reversible actions."],
+      metrics: ["Failures are detected."],
+      policy: {
+        automation: {
+          authority: "full-auto",
+          maxDailyActions: 8,
+          maxConcurrentGoals: 1,
+          requiresHumanFor: ["production deployment"],
+        },
+      },
+      portfolio: { loops: [], capabilities: [], goals: [] },
+      createdAt: NOW,
+      updatedAt: NOW,
+    }
+
+    await t.mutation(api.intents.save, {
+      tenantId: TENANT,
+      intentId: intent.id,
+      intent,
+      updatedAt: NOW,
+    })
+    expect((await t.query(api.intents.get, { tenantId: TENANT, intentId: intent.id }))?.intent).toEqual(intent)
+  })
+
   it("stores intents and their ordered decision history", async () => {
     const t = setup();
 
