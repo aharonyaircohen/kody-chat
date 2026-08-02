@@ -55,6 +55,12 @@ describe("workflows", () => {
       ...definition("Chore"),
       capabilities: ["run", "review", "fix"],
       startAt: "run",
+      report: {
+        type: "workflow-summary",
+        owner: "chore",
+        slug: "chore",
+        title: "Chore",
+      },
       steps: [
         {
           id: "run",

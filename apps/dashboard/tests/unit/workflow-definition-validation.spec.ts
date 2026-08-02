@@ -135,6 +135,25 @@ describe("validateWorkflowDefinition", () => {
     expect(normalized && validateWorkflowDefinition(normalized)).toEqual([]);
   });
 
+  it("preserves workflow-level report publication settings", () => {
+    const report = {
+      type: "agency-observer",
+      version: 1,
+      owner: "agency-observer",
+      slug: "agency-observer",
+      title: "Agency Observer",
+    };
+    const normalized = normalizeWorkflowDefinition({
+      name: "Agency Observer",
+      agent: "kody",
+      capabilities: ["observe"],
+      steps: [{ id: "observe", capability: "observe" }],
+      report,
+    });
+
+    expect(normalized?.report).toEqual(report);
+  });
+
   it.each([
     [
       workflow([

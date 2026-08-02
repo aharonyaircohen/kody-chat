@@ -27,6 +27,8 @@ export interface WorkflowDefinition {
   inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  /** Report published once after the whole workflow run completes. */
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -91,6 +93,7 @@ export interface CreateWorkflowDefinitionInput {
   inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
 }
 
@@ -101,6 +104,7 @@ export interface UpdateWorkflowDefinitionInput {
   inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
 }
 
@@ -305,6 +309,13 @@ export function normalizeWorkflowDefinition(
     isJsonValue(raw.inputSchema)
       ? (raw.inputSchema as Record<string, unknown>)
       : undefined;
+  const report =
+    raw.report &&
+    typeof raw.report === "object" &&
+    !Array.isArray(raw.report) &&
+    isJsonValue(raw.report)
+      ? (raw.report as Record<string, unknown>)
+      : undefined;
 
   if (!name || capabilities.length === 0) return null;
   return {
@@ -314,6 +325,7 @@ export function normalizeWorkflowDefinition(
     ...(inputSchema ? { inputSchema } : {}),
     ...(startAt && WORKFLOW_ID_PATTERN.test(startAt) ? { startAt } : {}),
     ...(steps.length > 0 ? { steps } : {}),
+    ...(report ? { report } : {}),
     ...(raw.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt,
     updatedAt,
@@ -334,6 +346,7 @@ export function buildWorkflowDefinition(
     ...(input.inputSchema ? { inputSchema: input.inputSchema } : {}),
     ...(input.startAt ? { startAt: input.startAt } : {}),
     ...(input.steps && input.steps.length > 0 ? { steps: input.steps } : {}),
+    ...(input.report ? { report: input.report } : {}),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -352,6 +365,7 @@ export function mergeWorkflowDefinition(
       inputSchema: input.inputSchema ?? existing.inputSchema,
       startAt: input.startAt ?? existing.startAt,
       steps: input.steps ?? existing.steps,
+      report: input.report ?? existing.report,
       runWithoutApproval:
         input.runWithoutApproval ?? existing.runWithoutApproval,
     },

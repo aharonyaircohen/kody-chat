@@ -38,6 +38,8 @@ export const workflowDefinitionValidator = v.object({
   inputSchema: v.optional(v.any()),
   startAt: v.optional(v.string()),
   steps: v.optional(v.array(workflowStepValidator)),
+  // Engine-owned workflow summary publication policy.
+  report: v.optional(v.record(v.string(), v.any())),
   runWithoutApproval: v.optional(v.boolean()),
   createdAt: v.optional(v.string()),
   updatedAt: v.optional(v.string()),
