@@ -110,6 +110,10 @@ export function preserveActiveSessionId(
 }
 
 function sessionFromList(value: Record<string, unknown>): SessionMeta {
+  const storedScope =
+    value.scope && typeof value.scope === "object"
+      ? (value.scope as Record<string, unknown>)
+      : null;
   return {
     id: String(value.conversationId),
     title: String(value.title ?? "New conversation"),
@@ -118,6 +122,12 @@ function sessionFromList(value: Record<string, unknown>): SessionMeta {
     updatedAt: String(value.updatedAt),
     messageCount: 0,
     pinned: value.pinned === true,
+    repository:
+      storedScope?.kind === "repository" &&
+      typeof storedScope.owner === "string" &&
+      typeof storedScope.repo === "string"
+        ? { owner: storedScope.owner, repo: storedScope.repo }
+        : undefined,
     agencyAgent:
       value.activeAgent && typeof value.activeAgent === "object"
         ? (value.activeAgent as AgencyAgentIdentity)
@@ -253,6 +263,13 @@ export function useConversationSessions(
       locallyCreatedSessionIdsRef.current.add(id);
       const now = new Date().toISOString();
       const login = actorLogin;
+      const repository =
+        requestHeaders?.["x-kody-owner"] && requestHeaders["x-kody-repo"]
+          ? {
+              owner: requestHeaders["x-kody-owner"],
+              repo: requestHeaders["x-kody-repo"],
+            }
+          : undefined;
       const session: SessionMeta = {
         id,
         title: "New conversation",
@@ -260,6 +277,7 @@ export function useConversationSessions(
         updatedAt: now,
         messageCount: 0,
         pinned: false,
+        repository,
         agentKey: opts?.agentKey,
         agencyAgent: { slug: "kody", title: "Kody" },
       };
@@ -284,7 +302,7 @@ export function useConversationSessions(
       }
       return id;
     },
-    [actorLogin, conversationClient, persist, scope],
+    [actorLogin, conversationClient, persist, requestHeaders, scope],
   );
 
   const persistMessageChanges = useCallback(

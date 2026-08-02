@@ -38,12 +38,22 @@ export interface RequestAuth {
   storeRef?: string;
 }
 
+export interface UserRequestAuth {
+  token: string;
+}
+
+/** User authentication is independent from optional repository context. */
+export function getUserRequestAuth(req: NextRequest): UserRequestAuth | null {
+  const token = req.headers.get(HDR_TOKEN)?.trim();
+  return token ? { token } : null;
+}
+
 /**
  * Extract auth from request headers (set by client from localStorage).
  * Returns null if headers are missing or incomplete.
  */
 export function getRequestAuth(req: NextRequest): RequestAuth | null {
-  const token = req.headers.get(HDR_TOKEN);
+  const token = getUserRequestAuth(req)?.token;
   const owner = req.headers.get(HDR_OWNER);
   const repo = req.headers.get(HDR_REPO);
   const userLogin = req.headers.get(HDR_USER_LOGIN)?.trim() || undefined;
@@ -97,6 +107,22 @@ export async function requireKodyAuth(
   return null;
 }
 
+/** Require only a verified-user credential; repository context is optional. */
+export async function requireUserAuth(
+  req: NextRequest,
+  options: KodyAuthOptions = {},
+): Promise<null | NextResponse> {
+  const headerAuth = getUserRequestAuth(req);
+  const envToken = options.allowEnvToken ? getEnvToken() : null;
+  if (!headerAuth && !envToken) {
+    return NextResponse.json(
+      { message: "Not authenticated. Provide an x-kody-token header." },
+      { status: 401 },
+    );
+  }
+  return null;
+}
+
 // ─── Get Octokit instance ──────────────────────────────────────────────────────
 
 /**
@@ -114,7 +140,7 @@ export async function getUserOctokit(
   options: KodyAuthOptions = {},
 ): Promise<Octokit | null> {
   // 1. Client header token (localStorage auth)
-  const headerAuth = getRequestAuth(req);
+  const headerAuth = getUserRequestAuth(req);
   if (headerAuth) {
     return createUserOctokit(headerAuth.token);
   }
@@ -288,13 +314,12 @@ export async function verifyActorLogin(
   | { identity: { login: string; avatar_url: string; githubId: number } }
   | NextResponse
 > {
-  const headerAuth = getRequestAuth(req);
+  const headerAuth = getUserRequestAuth(req);
   if (!headerAuth) {
     return NextResponse.json(
       {
         error: "request_auth_required",
-        message:
-          "Actor verification requires x-kody-token, x-kody-owner, and x-kody-repo headers.",
+        message: "Actor verification requires an x-kody-token header.",
       },
       { status: 401 },
     );

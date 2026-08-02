@@ -21,4 +21,13 @@ describe("GuidedFlow chat launch location", () => {
       ),
     ).toBe("/repo/acme/widgets/chat?panel=chat");
   });
+
+  it("consumes a one-time definition launch", () => {
+    expect(
+      locationAfterGuidedFlowLaunch(
+        "/chat",
+        "?guidedFlow=onboarding&guidedFlowOnce=1",
+      ),
+    ).toBe("/chat");
+  });
 });

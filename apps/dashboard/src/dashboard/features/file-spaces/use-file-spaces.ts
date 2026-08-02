@@ -12,7 +12,7 @@ export function useFileSpaces() {
   return useQuery({
     queryKey: [FILE_SPACES_QUERY_KEY, scope],
     queryFn: () => fetchFileSpaces(auth!),
-    enabled: Boolean(auth),
+    enabled: Boolean(auth?.owner && auth.repo),
     staleTime: 30_000,
   });
 }

@@ -135,6 +135,7 @@ export const startOrResume = mutation({
   args: {
     ...flowStateArgs,
     rootFlowId: v.string(),
+    restart: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const key = activeKey(args.rootFlowId, args.instanceKey);
@@ -148,7 +149,15 @@ export const startOrResume = mutation({
           .eq("status", "active"),
       )
       .first();
-    if (indexed) return { created: false, instance: indexed };
+    if (indexed && !args.restart) {
+      return { created: false, instance: indexed };
+    }
+    if (indexed) {
+      await ctx.db.patch(indexed._id, {
+        status: "cancelled",
+        updatedAt: args.updatedAt,
+      });
+    }
 
     // Adopt a pre-indexing active row instead of creating a duplicate.
     const legacyRows = await ctx.db
@@ -160,12 +169,14 @@ export const startOrResume = mutation({
           .eq("status", "active"),
       )
       .collect();
-    const legacy = legacyRows.find(
+    const matchingLegacy = legacyRows.filter(
       (row) =>
+        row._id !== indexed?._id &&
         rootFlowIdFor(row) === args.rootFlowId &&
         (row.instanceKey ?? "") === (args.instanceKey ?? ""),
     );
-    if (legacy) {
+    const legacy = matchingLegacy[0];
+    if (legacy && !args.restart) {
       await ctx.db.patch(legacy._id, {
         rootFlowId: args.rootFlowId,
         activeKey: key,
@@ -180,8 +191,20 @@ export const startOrResume = mutation({
       };
     }
 
+    if (args.restart) {
+      await Promise.all(
+        matchingLegacy.map((row) =>
+          ctx.db.patch(row._id, {
+            status: "cancelled",
+            updatedAt: args.updatedAt,
+          }),
+        ),
+      );
+    }
+
+    const { restart: _restart, ...instanceArgs } = args;
     const id = await ctx.db.insert("guidedFlowInstances", {
-      ...args,
+      ...instanceArgs,
       rootFlowId: args.rootFlowId,
       activeKey: key,
       output: args.output ?? {},

@@ -45,6 +45,36 @@ describe("guidedFlows", () => {
     ).toHaveLength(1);
   });
 
+  it("atomically replaces the active instance when start requests a restart", async () => {
+    const t = setup();
+    await t.mutation(api.guidedFlows.startOrResume, {
+      ...START,
+      rootFlowId: START.flowId,
+    });
+    const restarted = await t.mutation(api.guidedFlows.startOrResume, {
+      ...START,
+      instanceId: "flow-instance-2",
+      rootFlowId: START.flowId,
+      restart: true,
+    });
+
+    expect(restarted.created).toBe(true);
+    expect(restarted.instance.instanceId).toBe("flow-instance-2");
+    expect(
+      await t.query(api.guidedFlows.listActive, {
+        tenantId: TENANT,
+        actorId: ACTOR,
+      }),
+    ).toHaveLength(1);
+    expect(
+      await t.query(api.guidedFlows.get, {
+        tenantId: TENANT,
+        actorId: ACTOR,
+        instanceId: START.instanceId,
+      }),
+    ).toMatchObject({ status: "cancelled" });
+  });
+
   it("stores and lists active instances per actor and tenant", async () => {
     const t = setup();
     await t.mutation(api.guidedFlows.upsert, START);

@@ -1031,12 +1031,6 @@ export function KodyChat({
       window.location.pathname,
       window.location.search,
     );
-    if (
-      locationAfterLaunch !==
-      `${window.location.pathname}${window.location.search}`
-    ) {
-      window.history.replaceState({}, "", locationAfterLaunch);
-    }
     let cancelled = false;
     const request = guidedFlowInstanceId
       ? fetch(
@@ -1060,6 +1054,12 @@ export function KodyChat({
       .then((payload) => {
         const view = payload?.flow?.view ?? payload?.view;
         if (cancelled || !isRenderedViewDirective(view)) return;
+        if (
+          locationAfterLaunch !==
+          `${window.location.pathname}${window.location.search}`
+        ) {
+          router.replace(locationAfterLaunch, { scroll: false });
+        }
         persistGuidedFlowMessageRef.current(activeChatSessionId, {
           role: "assistant",
           content: guidedFlowInstanceId
@@ -1079,6 +1079,7 @@ export function KodyChat({
     ensureChatSession,
     lockedAgentSlug,
     pathname,
+    router,
     sessionHook.hydrated,
   ]);
 

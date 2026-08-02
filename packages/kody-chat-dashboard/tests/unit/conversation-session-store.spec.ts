@@ -20,6 +20,7 @@ describe("conversation session store", () => {
     const result = mapConversationDetail({
       conversation: {
         conversationId: "c1",
+        scope: { kind: "repository", owner: "acme", repo: "widgets" },
         title: "Risk",
         pinned: false,
         activeAgent: { slug: "ceo", title: "CEO" },
@@ -57,6 +58,10 @@ describe("conversation session store", () => {
     expect(result.session.agentHandoffs).toEqual([
       expect.objectContaining({ fromSlug: "ux", toSlug: "ceo" }),
     ]);
+    expect(result.session.repository).toEqual({
+      owner: "acme",
+      repo: "widgets",
+    });
   });
 
   it("keeps streaming assistant drafts out of durable storage", () => {

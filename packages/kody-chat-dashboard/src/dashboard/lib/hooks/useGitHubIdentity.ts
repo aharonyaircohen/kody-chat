@@ -12,7 +12,8 @@
 
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { readActiveRepo } from "@kody-ade/base/active-repo";
+import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
+import { useAuth, type KodyAuth } from "../auth-context";
 
 export interface GitHubIdentity {
   login: string;
@@ -30,26 +31,13 @@ interface MeResponse {
 
 const QUERY_KEY = ["kody-github-identity"];
 
-function buildHeaders(): Record<string, string> {
-  // URL-first active repo (see active-repo.ts) — the token is the matched
-  // repo entry's PAT, not the stored flat mirror.
-  const active = readActiveRepo();
-  if (!active || !active.token) return {};
-  return {
-    "x-kody-token": active.token,
-    "x-kody-owner": active.owner,
-    "x-kody-repo": active.repo,
-  };
-}
-
-async function fetchIdentity(): Promise<{
+async function fetchIdentity(auth: KodyAuth): Promise<{
   identity: GitHubIdentity | null;
   repo: string | null;
   error: string | null;
 }> {
-  const headers = buildHeaders();
   const res = await fetch("/api/kody/auth/me", {
-    headers,
+    headers: buildKodyAuthHeaders(auth),
     credentials: "include",
   });
   if (!res.ok) {
@@ -78,10 +66,12 @@ async function fetchIdentity(): Promise<{
  */
 export function useGitHubIdentity() {
   const queryClient = useQueryClient();
+  const { auth } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: fetchIdentity,
+    queryKey: [...QUERY_KEY, auth?.user.id ?? null],
+    queryFn: () => fetchIdentity(auth!),
+    enabled: Boolean(auth),
     staleTime: 5 * 60 * 1000, // 5 minutes — session is stable within a visit
     retry: false,
   });

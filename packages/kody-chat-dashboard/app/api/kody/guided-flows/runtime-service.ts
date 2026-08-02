@@ -97,6 +97,7 @@ export async function startOrResumeGuidedFlow(
       tenantId: input.tenantId,
       actorId: input.actorId,
       rootFlowId: rootGuidedFlowId(entered.instance),
+      restart: true,
       ...guidedFlowInstanceWriteFields(entered.instance),
       updatedAt: new Date().toISOString(),
     },

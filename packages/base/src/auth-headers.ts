@@ -20,8 +20,8 @@ export const KODY_AUTH_HEADERS = {
 
 export interface KodyAuthHeaderContext {
   token: string;
-  owner: string;
-  repo: string;
+  owner?: string;
+  repo?: string;
   userLogin?: string;
   user?: { login?: string };
   storeRepoUrl?: string | null;
@@ -35,8 +35,8 @@ export function buildKodyAuthHeaders(
   const userLogin = auth.userLogin ?? auth.user?.login;
   return {
     [KODY_AUTH_HEADERS.token]: auth.token,
-    [KODY_AUTH_HEADERS.owner]: auth.owner,
-    [KODY_AUTH_HEADERS.repo]: auth.repo,
+    ...(auth.owner ? { [KODY_AUTH_HEADERS.owner]: auth.owner } : {}),
+    ...(auth.repo ? { [KODY_AUTH_HEADERS.repo]: auth.repo } : {}),
     ...(userLogin ? { [KODY_AUTH_HEADERS.userLogin]: userLogin } : {}),
     [KODY_AUTH_HEADERS.storeRepoUrl]:
       auth.storeRepoUrl?.trim() || DEFAULT_KODY_STORE_REPO_URL,

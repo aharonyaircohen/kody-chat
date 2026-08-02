@@ -17,11 +17,14 @@ import { useState } from "react";
 
 import { KodyHeader } from "./KodyHeader";
 import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
-import { DASHBOARD_NAV_ITEM } from "./settings-nav";
+import { DASHBOARD_NAV_ITEM, HOME_NAV_ITEM } from "./settings-nav";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
+import { useAuth } from "../auth-context";
 
 export function AppHeader() {
   const [navOpen, setNavOpen] = useState(false);
+  const { auth } = useAuth();
+  const hasRepository = Boolean(auth?.owner && auth.repo);
   const navSections = useSidebarNavSections();
 
   return (
@@ -35,8 +38,8 @@ export function AppHeader() {
       <MobileMenu
         open={navOpen}
         onOpenChange={setNavOpen}
-        sections={navSections}
-        pinnedItem={DASHBOARD_NAV_ITEM}
+        sections={hasRepository ? navSections : []}
+        pinnedItem={hasRepository ? DASHBOARD_NAV_ITEM : HOME_NAV_ITEM}
       />
     </>
   );

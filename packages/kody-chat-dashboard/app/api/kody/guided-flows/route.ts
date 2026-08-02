@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  getUserRequestAuth,
   getRequestAuth,
   requireKodyAuth,
+  requireUserAuth,
   verifyActorLogin,
   verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
@@ -37,6 +39,7 @@ import { guidedFlowStepResult } from "@kody-ade/kody-chat-dashboard/guided-flows
 import { ONBOARDING_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
   availableGuidedFlowDefinitions,
+  availableUserGuidedFlowDefinitions,
   loadGuidedFlowRenderers,
   loadStoredGuidedFlowDefinitions,
 } from "./catalog";
@@ -54,7 +57,6 @@ import {
   saveGuidedFlowDefinition,
 } from "./definition-service";
 import {
-  createGuidedFlowBootstrapScope,
   readGuidedFlowBootstrapScope,
   setGuidedFlowBootstrapCookie,
   type GuidedFlowBootstrapScope,
@@ -71,6 +73,10 @@ const getConvexClient = createBackendClient;
 
 function tenantIdFor(owner: string, repo: string): string {
   return `${owner}/${repo}`;
+}
+
+function userTenantIdFor(githubId: number): string {
+  return `user:${githubId}`;
 }
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
@@ -126,6 +132,7 @@ type GuidedFlowRow = GuidedFlowStoredInstance & {
 interface GuidedFlowRequestScope {
   readonly tenantId: string;
   readonly actorId: string;
+  readonly kind: "user" | "repository" | "bootstrap";
   readonly bootstrap?: GuidedFlowBootstrapScope;
   readonly instanceRow?: GuidedFlowRow;
 }
@@ -136,6 +143,7 @@ function requestScopeForBootstrap(
   return {
     tenantId: bootstrap.tenantId,
     actorId: bootstrap.actorId,
+    kind: "bootstrap",
     bootstrap,
   };
 }
@@ -172,7 +180,43 @@ async function repositoryScope(
   return {
     tenantId: tenantIdFor(auth.owner, auth.repo),
     actorId: actor,
+    kind: "repository",
   };
+}
+
+async function userScope(
+  req: NextRequest,
+  actorLogin?: string,
+): Promise<GuidedFlowRequestScope | NextResponse> {
+  const authError = await requireUserAuth(req);
+  if (authError) return authError;
+  if (!getUserRequestAuth(req)) {
+    return json({ error: "request_auth_required" }, { status: 401 });
+  }
+  const actor = await verifyActorLogin(req, actorLogin);
+  if (actor instanceof NextResponse) return actor;
+  return {
+    tenantId: userTenantIdFor(actor.identity.githubId),
+    actorId: `github:${actor.identity.githubId}`,
+    kind: "user",
+  };
+}
+
+async function userScopeForInstance(
+  req: NextRequest,
+  instanceId: string,
+): Promise<GuidedFlowRequestScope | null> {
+  const scope = await userScope(req);
+  if (scope instanceof NextResponse) return null;
+  const instanceRow = (await getConvexClient().query(
+    backendApi.guidedFlows.get,
+    {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      instanceId,
+    },
+  )) as GuidedFlowRow | null;
+  return instanceRow ? { ...scope, instanceRow } : null;
 }
 
 async function bootstrapScopeForInstance(
@@ -193,6 +237,7 @@ async function bootstrapScopeForInstance(
     ? {
         tenantId: bootstrap.tenantId,
         actorId: bootstrap.actorId,
+        kind: "bootstrap",
         bootstrap,
         instanceRow,
       }
@@ -210,17 +255,24 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const instanceId = url.searchParams.get("instanceId");
+    const userInstanceScope = instanceId
+      ? await userScopeForInstance(req, instanceId)
+      : null;
     const bootstrapScope = instanceId
       ? await bootstrapScopeForInstance(req, instanceId)
       : null;
     const existingBootstrap = readGuidedFlowBootstrapScope(req);
-    const scope = bootstrapScope
-      ? bootstrapScope
-      : getRequestAuth(req)
-        ? await repositoryScope(req)
-        : existingBootstrap
-          ? requestScopeForBootstrap(existingBootstrap)
-          : null;
+    const scope = userInstanceScope
+      ? userInstanceScope
+      : bootstrapScope
+        ? bootstrapScope
+        : getRequestAuth(req)
+          ? await repositoryScope(req)
+          : getUserRequestAuth(req)
+            ? await userScope(req)
+            : existingBootstrap
+              ? requestScopeForBootstrap(existingBootstrap)
+              : null;
     if (!scope) {
       return json({ error: "repository_required" }, { status: 401 });
     }
@@ -233,7 +285,10 @@ export async function GET(req: NextRequest) {
     );
     if (url.searchParams.get("view") === "templates") {
       return json({
-        definitions: availableGuidedFlowDefinitions(customDefinitions),
+        definitions:
+          scope.kind === "user"
+            ? availableUserGuidedFlowDefinitions()
+            : availableGuidedFlowDefinitions(customDefinitions),
       });
     }
     if (instanceId) {
@@ -286,7 +341,10 @@ export async function GET(req: NextRequest) {
     });
     return json({
       flows,
-      definitions: availableGuidedFlowDefinitions(customDefinitions),
+      definitions:
+        scope.kind === "user"
+          ? availableUserGuidedFlowDefinitions()
+          : availableGuidedFlowDefinitions(customDefinitions),
     });
   } catch (error) {
     console.error("[GuidedFlows] list failed", error);
@@ -345,20 +403,19 @@ export async function POST(req: NextRequest) {
       scope = {
         tenantId: tenantIdFor(auth.owner, auth.repo),
         actorId: verified.actorLogin,
+        kind: "repository",
       };
     } else if (parsed.data.action === "start") {
-      const auth = getRequestAuth(req);
-      if (auth) {
+      if (parsed.data.flowId === ONBOARDING_FLOW_ID) {
+        scope = await userScope(req, parsed.data.actorLogin);
+      } else if (getRequestAuth(req)) {
         scope = await repositoryScope(req, parsed.data.actorLogin);
-      } else if (parsed.data.flowId === ONBOARDING_FLOW_ID) {
-        const bootstrap =
-          readGuidedFlowBootstrapScope(req) ?? createGuidedFlowBootstrapScope();
-        scope = requestScopeForBootstrap(bootstrap);
       } else {
         return json({ error: "repository_required" }, { status: 401 });
       }
     } else if ("instanceId" in parsed.data) {
       scope =
+        (await userScopeForInstance(req, parsed.data.instanceId)) ??
         (await bootstrapScopeForInstance(req, parsed.data.instanceId)) ??
         (await repositoryScope(req));
     } else {

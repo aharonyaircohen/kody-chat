@@ -11,14 +11,16 @@ vi.mock("../src/github/core", () => ({
     rest: {
       users: { getAuthenticated: github.getAuthenticated },
       repos: {
-        getCollaboratorPermissionLevel:
-          github.getCollaboratorPermissionLevel,
+        getCollaboratorPermissionLevel: github.getCollaboratorPermissionLevel,
       },
     },
   }),
 }));
 
 import {
+  getUserRequestAuth,
+  requireUserAuth,
+  verifyActorLogin,
   verifyRepoReadAccess,
   verifyRepoWriteAccess,
 } from "../src/auth";
@@ -35,7 +37,23 @@ function request(token = "token") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  github.getAuthenticated.mockResolvedValue({ data: { login: "alice" } });
+  github.getAuthenticated.mockResolvedValue({
+    data: { login: "alice", id: 42, avatar_url: "https://example.test/a.png" },
+  });
+});
+
+describe("user authentication", () => {
+  it("accepts a PAT without requiring repository headers", async () => {
+    const req = new NextRequest("https://dash.test/api", {
+      headers: { "x-kody-token": "token" },
+    });
+
+    expect(getUserRequestAuth(req)).toEqual({ token: "token" });
+    await expect(requireUserAuth(req)).resolves.toBeNull();
+    await expect(verifyActorLogin(req, "alice")).resolves.toMatchObject({
+      identity: { login: "alice", githubId: 42 },
+    });
+  });
 });
 
 describe("repository access verification", () => {
@@ -65,9 +83,9 @@ describe("repository access verification", () => {
 
   it("rejects invalid tokens and missing headers", async () => {
     github.getAuthenticated.mockRejectedValue(new Error("bad credentials"));
-    await expect(verifyRepoReadAccess(request("invalid"))).resolves.toMatchObject(
-      { status: 403 },
-    );
+    await expect(
+      verifyRepoReadAccess(request("invalid")),
+    ).resolves.toMatchObject({ status: 403 });
     await expect(
       verifyRepoReadAccess(new NextRequest("https://dash.test/api")),
     ).resolves.toMatchObject({ status: 401 });

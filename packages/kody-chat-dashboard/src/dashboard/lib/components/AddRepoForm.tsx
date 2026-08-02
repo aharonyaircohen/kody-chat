@@ -89,7 +89,7 @@ interface AddRepoFormProps {
 }
 
 export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
-  const { addRepo } = useAuth();
+  const { addRepo, auth } = useAuth();
 
   const [repoInput, setRepoInput] = useState("");
   const [token, setToken] = useState("");
@@ -107,7 +107,7 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
       );
       return;
     }
-    const trimmedToken = token.trim();
+    const trimmedToken = (auth?.token ?? token).trim();
     if (!trimmedToken) {
       setError("Personal access token is required");
       return;
@@ -185,34 +185,37 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
         />
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="token" className="flex items-center gap-1.5">
-          <Lock className="w-3.5 h-3.5" />
-          Personal access token
-        </Label>
-        <Input
-          id="token"
-          type="password"
-          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          required
-        />
-        <p className="text-xs text-muted-foreground">
-          Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
-          <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-          <code className="bg-muted px-1 rounded">admin:repo_hook</code> scopes.{" "}
-          <a
-            href={TOKEN_DOC_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            Generate one here
-          </a>
-          .
-        </p>
-      </div>
+      {!auth ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="token" className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" />
+            Personal access token
+          </Label>
+          <Input
+            id="token"
+            type="password"
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
+            <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
+            <code className="bg-muted px-1 rounded">admin:repo_hook</code>{" "}
+            scopes.{" "}
+            <a
+              href={TOKEN_DOC_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Generate one here
+            </a>
+            .
+          </p>
+        </div>
+      ) : null}
 
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">

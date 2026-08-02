@@ -48,7 +48,7 @@ import {
 } from "../../../../../src/dashboard/lib/agents";
 import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overlay";
 import {
-  requireKodyAuth,
+  requireUserAuth,
   getRequestAuth,
   verifyActorLogin,
   type RequestAuth,
@@ -600,7 +600,7 @@ async function handleKodyDirectPost(
   // today's 401 via requireKodyAuth, unchanged.
   const surfaceScope = resolveSurfaceScope(req.headers);
   if (surfaceScope.kind === "none") {
-    const authError = await requireKodyAuth(req);
+    const authError = await requireUserAuth(req);
     if (authError) return authError;
   }
   await ensureKodyRuntimeInitialized();
@@ -792,7 +792,7 @@ async function handleKodyDirectPost(
   const turnSystemInstructions: string[] = [];
   const repo = getRequestAuth(repoScopedReq);
   const durableIdentity =
-    repo &&
+    verifiedActorGithubId !== null &&
     typeof body.conversationId === "string" &&
     body.conversationId.trim() &&
     typeof body.turnId === "string" &&
@@ -801,7 +801,7 @@ async function handleKodyDirectPost(
     typeof body.conversationAgent.slug === "string" &&
     typeof body.conversationAgent.title === "string"
       ? {
-          tenantId: `${repo.owner}/${repo.repo}`,
+          tenantId: `user:${verifiedActorGithubId}`,
           conversationId: body.conversationId.trim(),
           turnId: body.turnId.trim(),
           backend: "direct" as const,
@@ -810,8 +810,7 @@ async function handleKodyDirectPost(
             title: body.conversationAgent.title.trim(),
           },
           createIfMissing: {
-            owner: repo.owner,
-            repo: repo.repo,
+            ...(repo ? { owner: repo.owner, repo: repo.repo } : {}),
             modelId,
             createdBy: verifiedActorLogin
               ? `operator:${verifiedActorLogin.toLowerCase()}`

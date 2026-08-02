@@ -10,8 +10,8 @@ export type DurableTurnIdentity = Readonly<{
   backend: DurableTurnBackend;
   agent: Readonly<{ slug: string; title: string }>;
   createIfMissing?: Readonly<{
-    owner: string;
-    repo: string;
+    owner?: string;
+    repo?: string;
     modelId: string;
     createdBy: string;
   }>;

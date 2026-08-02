@@ -8,6 +8,7 @@ import {
 import {
   getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
+  ONBOARDING_FLOW_ID,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
   latestAvailableGuidedFlowDefinitions,
@@ -41,6 +42,12 @@ export function availableGuidedFlowDefinitions(
       (definition) => !reservedIds.has(definition.id),
     ),
   ];
+}
+
+export function availableUserGuidedFlowDefinitions(): GuidedFlowDefinition[] {
+  return listGuidedFlowDefinitions().filter(
+    (definition) => definition.id === ONBOARDING_FLOW_ID,
+  );
 }
 
 export function availableGuidedFlowDefinition(

@@ -144,8 +144,11 @@ function SidebarContent({
     }
     return [...items.values()];
   }, [baseSections]);
-  const { favoriteHrefs, toggleFavorite, message: favoritesMessage } =
-    useNavigationFavorites(auth, availableFavoriteItems);
+  const {
+    favoriteHrefs,
+    toggleFavorite,
+    message: favoritesMessage,
+  } = useNavigationFavorites(auth, availableFavoriteItems);
   const favoriteItems = useMemo(
     () => resolveFavoriteItems(favoriteHrefs, availableFavoriteItems),
     [availableFavoriteItems, favoriteHrefs],
@@ -186,7 +189,7 @@ function SidebarContent({
   };
 
   const scopedHref = (href: string) =>
-    auth ? repoScopedHref(auth, href) : href;
+    auth?.owner && auth.repo ? repoScopedHref(auth, href) : href;
 
   useEffect(() => {
     setExpandedSectionTitle(activeCollapsibleSectionTitle);
@@ -436,9 +439,7 @@ function SidebarContent({
           {!query.trim() && favoriteItems.length > 0 && (
             <section aria-label="Favorite pages" className="space-y-1 pb-2">
               <div className="space-y-1">
-                {favoriteItems.map((item) =>
-                  renderLink(item, false, true),
-                )}
+                {favoriteItems.map((item) => renderLink(item, false, true))}
               </div>
             </section>
           )}
@@ -667,9 +668,7 @@ function SidebarContent({
             <button
               type="button"
               onClick={toggleCollapsed}
-              aria-label={
-                isCollapsed ? "Expand sidebar" : "Collapse sidebar"
-              }
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               className={cn(
                 "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
                 "text-muted-foreground hover:bg-accent/50 hover:text-foreground",

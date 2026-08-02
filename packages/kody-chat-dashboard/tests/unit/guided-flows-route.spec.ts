@@ -3,11 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
+  requireUserAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
+  getUserRequestAuth: vi.fn((): { token: string } | null => ({
+    token: "ghp_test",
+  })),
   getRequestAuth: vi.fn((): { owner: string; repo: string } | null => ({
     owner: "acme",
     repo: "widgets",
   })),
-  verifyActorLogin: vi.fn(async () => ({ identity: { login: "alice" } })),
+  verifyActorLogin: vi.fn(async () => ({
+    identity: { login: "alice", githubId: 42 },
+  })),
   verifyRepoWriteAccess: vi.fn<
     () => Promise<{ actorLogin: string } | NextResponse>
   >(async () => ({ actorLogin: "alice" })),
@@ -22,6 +28,7 @@ const store = vi.hoisted(() => ({
   bindings: [] as Array<Record<string, unknown>>,
   submissions: [] as Array<Record<string, unknown>>,
   effects: [] as Array<Record<string, unknown>>,
+  starts: [] as Array<Record<string, unknown>>,
   failCompletionWrites: false,
 }));
 
@@ -145,6 +152,7 @@ vi.mock("@kody-ade/backend/client", () => ({
         return;
       }
       if (operation === "startOrResume") {
+        store.starts.push({ ...args });
         const existing = store.rows.find(
           (row) =>
             row.tenantId === args.tenantId &&
@@ -153,8 +161,11 @@ vi.mock("@kody-ade/backend/client", () => ({
             (row.rootFlowId ?? row.flowId) === args.rootFlowId &&
             (row.instanceKey ?? "") === (args.instanceKey ?? ""),
         );
-        if (existing) return { created: false, instance: existing };
-        const instance = { ...args };
+        if (existing && args.restart !== true) {
+          return { created: false, instance: existing };
+        }
+        if (existing) existing.status = "cancelled";
+        const { restart: _restart, ...instance } = args;
         store.rows.push(instance);
         return { created: true, instance };
       }
@@ -264,11 +275,16 @@ describe("GuidedFlow route", () => {
     store.bindings = [];
     store.submissions = [];
     store.effects = [];
+    store.starts = [];
     store.failCompletionWrites = false;
     vi.clearAllMocks();
     auth.requireKodyAuth.mockResolvedValue(null);
+    auth.requireUserAuth.mockResolvedValue(null);
+    auth.getUserRequestAuth.mockReturnValue({ token: "ghp_test" });
     auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
-    auth.verifyActorLogin.mockResolvedValue({ identity: { login: "alice" } });
+    auth.verifyActorLogin.mockResolvedValue({
+      identity: { login: "alice", githubId: 42 },
+    });
     auth.verifyRepoWriteAccess.mockResolvedValue({ actorLogin: "alice" });
   });
 
@@ -295,7 +311,36 @@ describe("GuidedFlow route", () => {
     ]);
   });
 
-  it("starts onboarding in a private bootstrap scope without a repository", async () => {
+  it("starts a fresh instance instead of reopening the active instance", async () => {
+    const first = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const firstInstance = (await first.json()).instance as {
+      instanceId: string;
+    };
+
+    const second = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const secondInstance = (await second.json()).instance as {
+      instanceId: string;
+      currentStepId: string;
+      revision: number;
+    };
+
+    expect(second.status).toBe(201);
+    expect(secondInstance).toMatchObject({
+      currentStepId: "choose-capability",
+      revision: 0,
+    });
+    expect(secondInstance.instanceId).not.toBe(firstInstance.instanceId);
+    expect(store.rows).toHaveLength(2);
+    expect(store.rows[0]).toMatchObject({ status: "cancelled" });
+    expect(store.rows[1]).toMatchObject({ status: "active" });
+    expect(store.starts.at(-1)).toMatchObject({ restart: true });
+  });
+
+  it("starts onboarding in the verified user's private scope without a repository", async () => {
     auth.getRequestAuth.mockReturnValue(null);
 
     const response = await POST(
@@ -303,27 +348,25 @@ describe("GuidedFlow route", () => {
         {
           action: "start",
           flowId: "onboarding",
-          conversationId: "bootstrap-conversation",
+          conversationId: "user-conversation",
         },
         { includeRepo: false },
       ),
     );
 
     expect(response.status).toBe(201);
-    expect(response.headers.get("set-cookie")).toMatch(
-      /kody_guided_flow_bootstrap=.*HttpOnly.*SameSite=Lax/i,
-    );
+    expect(response.headers.get("set-cookie")).toBeNull();
     expect(store.rows).toEqual([
       expect.objectContaining({
-        tenantId: expect.stringMatching(/^bootstrap\//),
-        actorId: expect.stringMatching(/^bootstrap:/),
+        tenantId: "user:42",
+        actorId: "github:42",
         rootFlowId: "onboarding",
       }),
     ]);
-    expect(auth.verifyActorLogin).not.toHaveBeenCalled();
+    expect(auth.verifyActorLogin).toHaveBeenCalledOnce();
   });
 
-  it("does not allow other GuidedFlows to start anonymously", async () => {
+  it("does not allow repository GuidedFlows before a repository is attached", async () => {
     auth.getRequestAuth.mockReturnValue(null);
 
     const response = await POST(
@@ -338,7 +381,26 @@ describe("GuidedFlow route", () => {
     expect(store.rows).toHaveLength(0);
   });
 
-  it("continues a bootstrap onboarding instance after a repository connects", async () => {
+  it("does not start onboarding without a verified user", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+    auth.getUserRequestAuth.mockReturnValue(null);
+    auth.requireUserAuth.mockResolvedValue(
+      NextResponse.json({ error: "request_auth_required" }, { status: 401 }),
+    );
+
+    const response = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "request_auth_required" });
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it("continues a user-owned onboarding instance after a repository connects", async () => {
     auth.getRequestAuth.mockReturnValue(null);
     const started = await POST(
       request(
@@ -346,7 +408,6 @@ describe("GuidedFlow route", () => {
         { includeRepo: false },
       ),
     );
-    const cookie = started.headers.get("set-cookie")?.split(";")[0];
     const instance = (await started.json()).instance as {
       instanceId: string;
       revision: number;
@@ -354,29 +415,47 @@ describe("GuidedFlow route", () => {
 
     auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
     const response = await POST(
-      request(
-        {
-          action: "submit",
-          instanceId: instance.instanceId,
-          stepId: "welcome",
-          actionId: "next",
-          expectedRevision: instance.revision,
-          mutationId: "bootstrap-next",
-        },
-        { cookie },
-      ),
+      request({
+        action: "submit",
+        instanceId: instance.instanceId,
+        stepId: "welcome",
+        actionId: "finish",
+        expectedRevision: instance.revision,
+        mutationId: "bootstrap-next",
+      }),
     );
 
     expect(response.status).toBe(200);
     expect((await response.json()).instance).toMatchObject({
       instanceId: instance.instanceId,
-      currentStepId: "create-github-pat",
+      currentStepId: "welcome",
+      status: "completed",
       revision: 1,
     });
     expect(store.rows[0]).toMatchObject({
-      tenantId: expect.stringMatching(/^bootstrap\//),
-      actorId: expect.stringMatching(/^bootstrap:/),
+      tenantId: "user:42",
+      actorId: "github:42",
     });
+  });
+
+  it("lists only user-level GuidedFlows before a repository is attached", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const started = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+    expect(started.status).toBe(201);
+
+    const listed = await GET(request(undefined, { includeRepo: false }));
+    expect(listed.status).toBe(200);
+    const body = await listed.json();
+    expect(body.flows).toHaveLength(1);
+    expect(
+      body.definitions.map((definition: { id: string }) => definition.id),
+    ).toEqual(["onboarding"]);
   });
 
   it("binds an existing instance without changing its progress", async () => {
@@ -759,15 +838,6 @@ describe("GuidedFlow route", () => {
       stack: [{ flowId: "addition-guide" }],
     });
 
-    const resumed = await POST(
-      request({ action: "start", flowId: "addition-guide" }),
-    );
-    expect(resumed.status).toBe(200);
-    expect(await resumed.json()).toMatchObject({
-      instance: { instanceId, flowId: "addition-exercise" },
-    });
-    expect(store.rows).toHaveLength(1);
-
     const summary = await POST(
       request({
         action: "submit",
@@ -1065,14 +1135,16 @@ describe("GuidedFlow route", () => {
       },
     });
 
-    const resumedOldRun = await POST(
+    const restartedRun = await POST(
       request({ action: "start", flowId: "review-a-release" }),
     );
-    expect(resumedOldRun.status).toBe(200);
-    expect(await resumedOldRun.json()).toMatchObject({
-      instance: { instanceId, flowVersion: 1 },
-      flow: { title: "Review a release" },
+    expect(restartedRun.status).toBe(201);
+    const restartedPayload = await restartedRun.json();
+    expect(restartedPayload).toMatchObject({
+      instance: { flowVersion: 2, revision: 0 },
+      flow: { title: "Review the release" },
     });
+    expect(restartedPayload.instance.instanceId).not.toBe(instanceId);
 
     const protectedBuiltin = await POST(
       request({

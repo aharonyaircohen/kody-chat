@@ -52,8 +52,8 @@ export const start = mutation({
     startedAt: v.string(),
     createIfMissing: v.optional(
       v.object({
-        owner: v.string(),
-        repo: v.string(),
+        owner: v.optional(v.string()),
+        repo: v.optional(v.string()),
         modelId: v.string(),
         createdBy: v.string(),
       }),
@@ -69,21 +69,19 @@ export const start = mutation({
       )
       .unique();
     if (!conversation && args.createIfMissing) {
-      if (
-        `${args.createIfMissing.owner}/${args.createIfMissing.repo}` !==
-        args.tenantId
-      ) {
-        throw new Error("Conversation scope does not match tenant");
-      }
+      const repositoryScope =
+        args.createIfMissing.owner && args.createIfMissing.repo
+          ? {
+              kind: "repository" as const,
+              owner: args.createIfMissing.owner,
+              repo: args.createIfMissing.repo,
+            }
+          : { kind: "global" as const };
       const conversationDocument = {
         tenantId: args.tenantId,
         conversationId: args.conversationId,
         surface: "global" as const,
-        scope: {
-          kind: "repository" as const,
-          owner: args.createIfMissing.owner,
-          repo: args.createIfMissing.repo,
-        },
+        scope: repositoryScope,
         title: "New conversation",
         pinned: false,
         activeAgent: args.agent,

@@ -40,7 +40,7 @@ import {
 import { WIDGET_OPEN_EVENT } from "@kody-ade/kody-chat-dashboard/widgets/chat-launch";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
-import { DASHBOARD_NAV_ITEM } from "./settings-nav";
+import { DASHBOARD_NAV_ITEM, HOME_NAV_ITEM } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -345,14 +345,22 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   // page you expanded from (so browsing away from /chat just shows that
   // page — chat never hovers over it). Remembered in a ref for the session.
   const router = useRouter();
+  const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
 
   useEffect(() => {
     if (publicRoute) return;
-    if (loading || !auth || !pathname) return;
+    if (
+      loading ||
+      !auth?.owner ||
+      !auth.repo ||
+      !pathname ||
+      currentRepoPath === "/chat"
+    )
+      return;
     const target = legacyRepoRedirectPath(auth, pathname);
     if (!target) return;
     router.replace(`${target}${window.location.search}${window.location.hash}`);
-  }, [auth, loading, pathname, publicRoute, router]);
+  }, [auth, currentRepoPath, loading, pathname, publicRoute, router]);
 
   // The auth context derives the active repo from the URL, so the only
   // sync state left to handle is "missing" — a /repo/<owner>/<repo> URL we
@@ -362,7 +370,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     : resolveRepoRouteAuthSync(pathname ?? "/", auth);
 
   const preExpandRouteRef = useRef("/tasks");
-  const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
 
   // ─── Chat-first layout flip (phase 2 step 2, per-user, default ON) ───
   // Desktop only: the routed page can render through the plugin panel host
@@ -376,7 +383,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     trace({ kind: "panel:open", detail: currentRepoPath });
   }, [flipActive, currentRepoPath]);
   const scopedHref = useCallback(
-    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    (href: string) =>
+      auth?.owner && auth.repo ? repoScopedHref(auth, href) : href,
     [auth],
   );
   const toggleExpandedChat = useCallback(() => {
@@ -531,6 +539,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const isOrgRoute =
     pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   const repoRouteBlocksPage = repoRouteAuthSync.status === "missing";
+  const hasRepository = Boolean(auth?.owner && auth.repo);
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -544,14 +553,22 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     !repoRouteBlocksPage &&
     (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
-  const bootstrapWelcome = auth ? undefined : (
+  const bootstrapWelcome = !auth ? (
     <div className="space-y-2">
       <p className="font-medium text-foreground">Welcome to Kody</p>
       <p className="mx-auto max-w-sm text-sm">
-        Start onboarding from the welcome page and follow the guidance here.
+        Sign in from the welcome page to start your private Chat.
       </p>
     </div>
-  );
+  ) : !hasRepository ? (
+    <div className="space-y-2">
+      <p className="font-medium text-foreground">Your private Chat</p>
+      <p className="mx-auto max-w-sm text-sm">
+        Chat works without a repository. Attach one when you need repository
+        context, tools, and Agency.
+      </p>
+    </div>
+  ) : undefined;
   // Flipped layout only: if a registered plugin owns a panel for this
   // route, its view replaces the raw route children (step 3 pilot —
   // currently just /tasks). Auth-sync blocking states below still win.
@@ -581,13 +598,14 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       actorLogin={githubUser?.login}
       emptyStateWelcome={bootstrapWelcome}
       lockedAgentId={lockedAgentId}
+      allowAgencyAgentSelection={hasRepository}
       vibeMode={isVibeRoute}
       onIssueCreated={dispatchIssueCreated}
       onIssueReportReady={setIssueReporter}
       composerInjection={composerInjection}
       attachmentInjection={attachmentInjection}
       previewContext={previewContext}
-      plugins={ADMIN_CHAT_PLUGINS}
+      plugins={hasRepository ? ADMIN_CHAT_PLUGINS : []}
       // Expand = navigate to the /chat page; restore = back to the previous
       // page. On /chat the button reads as "restore" (railFullscreen).
       onToggleFullscreen={toggleExpandedChat}
@@ -610,8 +628,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               Preview included), so the old Vibe/Engineer toggle is gone. */}
               <ChatShell
                 title="Kody"
-                sections={navSections}
-                pinnedItem={DASHBOARD_NAV_ITEM}
+                sections={hasRepository ? navSections : []}
+                pinnedItem={hasRepository ? DASHBOARD_NAV_ITEM : HOME_NAV_ITEM}
                 sidebarBrandExtra={<SidebarNotifications />}
                 chat={chatPane}
                 onReportIssue={openIssueReport}
@@ -651,12 +669,13 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                       emptyStateWelcome={bootstrapWelcome}
                       onClose={() => setMobileOpenPersist(false)}
                       lockedAgentId={lockedAgentId}
+                      allowAgencyAgentSelection={hasRepository}
                       vibeMode={isVibeRoute}
                       onIssueCreated={dispatchIssueCreated}
                       composerInjection={composerInjection}
                       attachmentInjection={attachmentInjection}
                       previewContext={previewContext}
-                      plugins={ADMIN_CHAT_PLUGINS}
+                      plugins={hasRepository ? ADMIN_CHAT_PLUGINS : []}
                     />
                   </div>
                 )}

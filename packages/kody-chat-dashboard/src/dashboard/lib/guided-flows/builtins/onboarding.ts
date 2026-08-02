@@ -2,7 +2,7 @@ import type { GuidedFlowDefinition } from "../controller";
 
 export const ONBOARDING_FLOW_ID = "onboarding";
 
-export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+export const ONBOARDING_FLOW_V1: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 1,
   title: "Get started with Kody",
@@ -113,6 +113,67 @@ export const ONBOARDING_FLOW: GuidedFlowDefinition = {
       rendererSlug: "approval-card",
       rendererData: {
         title: "You are ready to try Chat",
+        actions: [
+          {
+            id: "finish",
+            label: "Finish",
+            response: "finish",
+            variant: "primary",
+          },
+        ],
+      },
+      actions: [{ id: "finish", target: { type: "complete" } }],
+    },
+  ],
+};
+
+export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+  id: ONBOARDING_FLOW_ID,
+  version: 2,
+  title: "Get started with Kody",
+  completionRouteId: "chat",
+  controls: ["back"],
+  steps: [
+    {
+      id: "welcome",
+      title: "Your private Chat is ready",
+      explanation:
+        "Your Chat belongs to you and works without a repository. Its history stays with you when you attach or switch repositories.\n\nChoose **Start chatting** now, or attach a repository to add repository pages, tools, and Agency.",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Your private Chat is ready",
+        actions: [
+          {
+            id: "finish",
+            label: "Start chatting",
+            response: "finish",
+            variant: "primary",
+          },
+          {
+            id: "repository",
+            label: "Attach a repository",
+            response: "repository",
+            variant: "secondary",
+          },
+        ],
+      },
+      actions: [
+        { id: "finish", target: { type: "complete" } },
+        {
+          id: "repository",
+          target: { type: "step", stepId: "attach-repository" },
+        },
+      ],
+    },
+    {
+      id: "attach-repository",
+      title: "Add repository tools",
+      explanation:
+        "Attach a repository from the repository switcher. This adds repository context, pages, tools, and Agency to the same Chat; it does not create a separate Chat or replace your history.\n\nWhen the repository is connected, return to Chat and select **Finish**.",
+      routeId: "org",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Attach a repository when you need one",
         actions: [
           {
             id: "finish",

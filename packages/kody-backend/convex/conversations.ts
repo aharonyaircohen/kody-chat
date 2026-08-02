@@ -51,12 +51,6 @@ export const create = mutation({
     updatedAt: v.string(),
   },
   handler: async (ctx, args) => {
-    if (
-      args.scope.kind === "repository" &&
-      `${args.scope.owner}/${args.scope.repo}` !== args.tenantId
-    ) {
-      throw new Error("Conversation scope does not match tenant");
-    }
     const existing = await findConversation(
       ctx,
       args.tenantId,

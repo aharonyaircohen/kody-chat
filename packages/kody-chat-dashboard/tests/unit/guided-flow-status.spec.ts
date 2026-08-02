@@ -31,6 +31,7 @@ describe("guided flow registry", () => {
     expect(onboarding).toMatchObject({
       id: "onboarding",
       title: "Get started with Kody",
+      version: 2,
       completionRouteId: "chat",
       steps: [
         {
@@ -41,55 +42,21 @@ describe("guided flow registry", () => {
           },
           actions: [
             {
-              id: "next",
+              id: "finish",
+              target: { type: "complete" },
+            },
+            {
+              id: "repository",
               target: {
                 type: "step",
-                stepId: "create-github-pat",
+                stepId: "attach-repository",
               },
             },
           ],
         },
         {
-          id: "create-github-pat",
-          rendererSlug: "approval-card",
-          explanation: expect.stringMatching(
-            /personal access token[\s\S]*`repo`[\s\S]*`workflow`[\s\S]*`admin:repo_hook`/i,
-          ),
-          rendererData: {
-            actions: expect.any(Array),
-          },
-          actions: [
-            {
-              id: "next",
-              target: { type: "step", stepId: "connect-repository" },
-            },
-          ],
-        },
-        {
-          id: "connect-repository",
+          id: "attach-repository",
           routeId: "org",
-          rendererSlug: "approval-card",
-          rendererData: {
-            actions: expect.any(Array),
-          },
-          actions: [
-            {
-              id: "next",
-              target: { type: "step", stepId: "add-openrouter-key" },
-            },
-          ],
-        },
-        {
-          id: "add-openrouter-key",
-          routeId: "secrets",
-          rendererSlug: "approval-card",
-          rendererData: {
-            actions: expect.any(Array),
-          },
-          actions: [{ id: "next", target: { type: "step", stepId: "ready" } }],
-        },
-        {
-          id: "ready",
           rendererSlug: "approval-card",
           rendererData: {
             actions: expect.any(Array),
@@ -98,6 +65,13 @@ describe("guided flow registry", () => {
         },
       ],
     });
+    expect(onboarding?.steps.map((step) => step.id)).not.toContain(
+      "create-github-pat",
+    );
+    expect(onboarding?.steps.map((step) => step.routeId)).not.toContain(
+      "secrets",
+    );
+    expect(getGuidedFlowDefinition("onboarding", 1)).not.toBeNull();
     expect(
       listGuidedFlowDefinitions().filter(
         (definition) => definition.id === "onboarding",

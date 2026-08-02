@@ -86,9 +86,11 @@ export function CommandPalette() {
   }, [open]);
 
   const scopedHref = useCallback(
-    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    (href: string) =>
+      auth?.owner && auth.repo ? repoScopedHref(auth, href) : href,
     [auth],
   );
+  const hasRepository = Boolean(auth?.owner && auth.repo);
   const isVibe = repoPathForNavMatching(pathname).startsWith("/vibe");
 
   const commands = useMemo<Command[]>(() => {
@@ -97,8 +99,11 @@ export function CommandPalette() {
       setOpen(false);
     };
 
+    const visiblePrimaryItems = hasRepository
+      ? [HOME_NAV_ITEM, ...PRIMARY_NAV_ITEMS]
+      : [HOME_NAV_ITEM];
     const navCommands: Command[] = [
-      ...[HOME_NAV_ITEM, ...PRIMARY_NAV_ITEMS].map((item) => ({
+      ...visiblePrimaryItems.map((item) => ({
         id: `nav:${item.href}`,
         label: item.label,
         group: "Go to",
@@ -106,7 +111,7 @@ export function CommandPalette() {
         keywords: item.description,
         run: go(item.href),
       })),
-      ...SETTINGS_NAV_SECTIONS.flatMap((section) =>
+      ...(hasRepository ? SETTINGS_NAV_SECTIONS : []).flatMap((section) =>
         section.items.map((item) => ({
           id: `nav:${item.href}`,
           label: item.label,
@@ -119,14 +124,18 @@ export function CommandPalette() {
     ];
 
     const actionCommands: Command[] = [
-      {
-        id: "action:vibe",
-        label: isVibe ? "Turn off Vibe" : "Turn on Vibe",
-        group: "Actions",
-        icon: Sparkles,
-        keywords: "vibe mode toggle build",
-        run: go(isVibe ? "/" : "/vibe"),
-      },
+      ...(hasRepository
+        ? [
+            {
+              id: "action:vibe",
+              label: isVibe ? "Turn off Vibe" : "Turn on Vibe",
+              group: "Actions",
+              icon: Sparkles,
+              keywords: "vibe mode toggle build",
+              run: go(isVibe ? "/" : "/vibe"),
+            } as Command,
+          ]
+        : []),
       {
         id: "action:theme",
         label:
@@ -164,6 +173,7 @@ export function CommandPalette() {
     setTheme,
     githubUser,
     clearGitHubUser,
+    hasRepository,
   ]);
 
   const filtered = useMemo(() => {

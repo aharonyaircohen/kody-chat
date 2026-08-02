@@ -133,6 +133,8 @@ export interface SessionMeta {
   messageCount: number;
   /** Whether this session is pinned */
   pinned?: boolean;
+  /** Optional repository context used when this conversation was created. */
+  repository?: { owner: string; repo: string };
   /**
    * The chat entry key (from `buildAgentList` — e.g. `"brain"`,
    * `"kody:claude-sonnet"`, `"kody-live"`) the user picked for THIS

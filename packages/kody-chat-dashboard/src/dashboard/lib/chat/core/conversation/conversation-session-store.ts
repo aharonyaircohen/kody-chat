@@ -26,6 +26,8 @@ type StoredHandoff = {
 export type ConversationDetail = {
   conversation: {
     conversationId: string;
+    scope?:
+      { kind: "global" } | { kind: "repository"; owner: string; repo: string };
     title: string;
     preview?: string;
     pinned: boolean;
@@ -134,6 +136,13 @@ export function mapConversationDetail(detail: ConversationDetail): {
       updatedAt: detail.conversation.updatedAt,
       messageCount: messages.length,
       pinned: detail.conversation.pinned,
+      repository:
+        detail.conversation.scope?.kind === "repository"
+          ? {
+              owner: detail.conversation.scope.owner,
+              repo: detail.conversation.scope.repo,
+            }
+          : undefined,
       agentKey: agentKeyForRuntime(detail.conversation.runtime),
       agencyAgent: detail.conversation.activeAgent,
       agentHandoffs: handoffs,
