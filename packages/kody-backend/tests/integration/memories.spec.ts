@@ -42,6 +42,30 @@ function firstRevision() {
 }
 
 describe("typed memories", () => {
+  it("preserves legacy goal memory rows without permitting new goal writes", async () => {
+    const t = setup();
+    const id = await t.run(async (ctx) =>
+      await ctx.db.insert("memories", {
+        memoryId: "legacy-goal",
+        scopeKind: "repository",
+        scopeId: TENANT,
+        kind: "goal",
+        title: "Legacy goal",
+        summary: "Imported before typed memory kinds.",
+        body: "Historical data",
+        searchText: "Legacy goal\nImported before typed memory kinds.\nHistorical data",
+        currentRevisionId: "legacy-revision",
+        status: "active",
+        createdAt: CREATED_AT,
+        updatedAt: CREATED_AT,
+      } as never),
+    );
+
+    await expect(t.run(async (ctx) => await ctx.db.get(id))).resolves.toMatchObject({
+      kind: "goal",
+    });
+  });
+
   it("creates and reads a user memory with its first revision atomically", async () => {
     const t = setup();
 

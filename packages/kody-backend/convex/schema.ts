@@ -19,10 +19,10 @@ import {
 import {
   memoryActorValidator,
   memoryEvidenceValidator,
-  memoryKindValidator,
   memoryStatusValidator,
+  storedMemoryKindValidator,
 } from "./memoryValidators";
-import { agencyRunSubjectTypeValidator } from "./agencyValidators";
+import { storedAgencyRunSubjectTypeValidator } from "./agencyValidators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
 // tenantId) — the same scope the GitHub backend serves today. Per-user rows add
@@ -33,7 +33,7 @@ export default defineSchema({
     memoryId: v.string(),
     scopeKind: v.union(v.literal("user"), v.literal("repository")),
     scopeId: v.string(),
-    kind: memoryKindValidator,
+    kind: storedMemoryKindValidator,
     title: v.string(),
     summary: v.string(),
     body: v.string(),
@@ -55,7 +55,7 @@ export default defineSchema({
     revisionId: v.string(),
     memoryId: v.string(),
     previousRevisionId: v.union(v.string(), v.null()),
-    kind: memoryKindValidator,
+    kind: storedMemoryKindValidator,
     title: v.string(),
     summary: v.string(),
     body: v.string(),
@@ -310,7 +310,7 @@ export default defineSchema({
   agencyRuns: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    subjectType: agencyRunSubjectTypeValidator,
+    subjectType: storedAgencyRunSubjectTypeValidator,
     subjectId: v.string(),
     run: v.any(),
     updatedAt: v.string(),
