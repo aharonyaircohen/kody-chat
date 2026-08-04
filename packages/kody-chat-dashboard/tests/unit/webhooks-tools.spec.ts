@@ -4,7 +4,7 @@ const webhook = vi.hoisted(() => ({
   ensureWebhook: vi.fn(),
 }));
 
-vi.mock("../../tests/fixtures/chat-business-fixtures", () => ({
+vi.mock("../../src/dashboard/lib/webhooks/register", () => ({
   ensureWebhook: webhook.ensureWebhook,
 }));
 

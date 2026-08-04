@@ -9,7 +9,7 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { ensureWebhook } from "../../../../../tests/fixtures/chat-business-fixtures";
+import { ensureWebhook } from "../../../../../src/dashboard/lib/webhooks/register";
 
 interface Ctx {
   token: string;

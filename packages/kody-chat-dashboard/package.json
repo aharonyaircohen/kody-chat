@@ -113,6 +113,7 @@
     "./routes/kody/secrets-vault": "./app/api/kody/secrets/vault/route.ts",
     "./routes/kody/vibe-execute": "./app/api/kody/vibe/execute/route.ts",
     "./integration-ts/lib/*": "./src/dashboard/lib/*.ts",
+    "./webhooks/*": "./src/dashboard/lib/webhooks/*.ts",
     "./integration-ts/providers/*": "./src/dashboard/providers/*.ts",
     "./integration-tsx/lib/*": "./src/dashboard/lib/*.tsx",
     "./integration-tsx/providers/*": "./src/dashboard/providers/*.tsx",
