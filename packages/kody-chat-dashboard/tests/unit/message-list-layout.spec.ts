@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isRenderedViewMessageActive,
   messageJustifyClass,
+  shouldShowSilentAssistantNotice,
 } from "../../src/dashboard/lib/chat/surface/MessageList";
 import {
   RENDER_VIEW_DIRECTIVE,
@@ -98,11 +99,7 @@ describe("active rendered view", () => {
     };
 
     expect(
-      isRenderedViewMessageActive(
-        [completedMessage],
-        0,
-        new Set<string>(),
-      ),
+      isRenderedViewMessageActive([completedMessage], 0, new Set<string>()),
     ).toBe(false);
   });
 
@@ -121,5 +118,44 @@ describe("active rendered view", () => {
     expect(isRenderedViewMessageActive(messages, 1, new Set<string>())).toBe(
       true,
     );
+  });
+});
+
+describe("silent assistant messages", () => {
+  it("shows a visible outcome for a committed thought-only reply", () => {
+    expect(
+      shouldShowSilentAssistantNotice({
+        isLoading: false,
+        hasAnswer: false,
+        hasView: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not replace an in-flight reply with an error notice", () => {
+    expect(
+      shouldShowSilentAssistantNotice({
+        isLoading: true,
+        hasAnswer: false,
+        hasView: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not show the notice when an answer or view exists", () => {
+    expect(
+      shouldShowSilentAssistantNotice({
+        isLoading: false,
+        hasAnswer: true,
+        hasView: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowSilentAssistantNotice({
+        isLoading: false,
+        hasAnswer: false,
+        hasView: true,
+      }),
+    ).toBe(false);
   });
 });

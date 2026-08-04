@@ -34,6 +34,7 @@ import {
 } from "../../components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
+import { SILENT_ASSISTANT_NOTICE } from "../core/silent-turn";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
 import {
   isRenderedViewDirective,
@@ -55,6 +56,14 @@ export function getMessageDirection(text: string) {
 }
 
 export const messageTextDirectionStyle = textIsolationStyle;
+
+export function shouldShowSilentAssistantNotice(input: {
+  isLoading: boolean;
+  hasAnswer: boolean;
+  hasView: boolean;
+}): boolean {
+  return !input.isLoading && !input.hasAnswer && !input.hasView;
+}
 
 interface MessageListProps {
   /** Current surface mode — terminal mode swaps the container chrome. */
@@ -360,6 +369,18 @@ export function MessageList({
                                 style={messageTextDirectionStyle}
                                 className={`chat-message-text text-start prose-base break-words ${rtlAwareMarkdownClassName} [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                               />
+                            )}
+                            {shouldShowSilentAssistantNotice({
+                              isLoading: !!msg.isLoading,
+                              hasAnswer,
+                              hasView: Boolean(msg.view),
+                            }) && (
+                              <div
+                                role="alert"
+                                className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+                              >
+                                {SILENT_ASSISTANT_NOTICE}
+                              </div>
                             )}
                             {parsedAssistant?.strippedToolMarkup &&
                               !msg.isLoading && (

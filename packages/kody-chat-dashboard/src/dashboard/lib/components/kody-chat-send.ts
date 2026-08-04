@@ -94,6 +94,7 @@ import {
 } from "../chat/core/agent-handoff";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
+import { SILENT_ASSISTANT_NOTICE } from "../chat/core/silent-turn";
 import {
   extractFirstStaffMentionCandidate,
   type StaffMentionTrigger,
@@ -337,7 +338,7 @@ export function finalizeKodyDirectTurn(params: {
               ...m,
               isLoading: false,
               isError: true,
-              content: `${reasoning.trim() ? `<think>${reasoning}</think>\n\n` : ""}Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.`,
+              content: `${reasoning.trim() ? `<think>${reasoning}</think>\n\n` : ""}${SILENT_ASSISTANT_NOTICE}`,
             }
           : {
               ...m,
