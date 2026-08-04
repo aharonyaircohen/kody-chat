@@ -35,6 +35,7 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
       appendEntry: "conversations.appendEntry",
       updateMessage: "conversations.updateMessage",
       updateRuntime: "conversations.updateRuntime",
+      updateMachineAccess: "conversations.updateMachineAccess",
       saveCheckpoint: "conversations.saveCheckpoint",
       updateMetadata: "conversations.updateMetadata",
       remove: "conversations.remove",
@@ -100,7 +101,43 @@ describe("chat conversations route", () => {
           repo: "widgets",
         },
         createdBy: "github:alice",
+        machineAccess: "none",
       }),
+    );
+  });
+
+  it("updates machine access without changing agent identity or runtime", async () => {
+    mocks.mutation.mockResolvedValue("conversation-1");
+    const request = new NextRequest(
+      "http://localhost/api/kody/chat/conversations/conversation-1/commands",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "machine-access",
+          actorLogin: "alice",
+          machineAccess: "local",
+          updatedAt: "2026-07-20T10:00:00.000Z",
+        }),
+      },
+    );
+
+    const response = await POST_COMMAND(request, {
+      params: Promise.resolve({ conversationId: "conversation-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith(
+      "conversations.updateMachineAccess",
+      {
+        tenantId: "user:42",
+        conversationId: "conversation-1",
+        machineAccess: "local",
+        updatedAt: "2026-07-20T10:00:00.000Z",
+      },
+    );
+    expect(mocks.mutation).not.toHaveBeenCalledWith(
+      "conversations.updateRuntime",
+      expect.anything(),
     );
   });
 

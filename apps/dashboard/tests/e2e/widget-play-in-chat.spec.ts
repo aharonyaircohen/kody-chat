@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -252,13 +253,13 @@ test("plays a tenant widget directly in Chat without starting a Guided Flow", as
   await expect(page.getByText("Count forward from three.")).toBeVisible();
   await expect(widget).toBeVisible();
   const chat = page.locator('[aria-label="Kody chat"]').first();
-  const modelPicker = chat.locator('button[aria-label="Model"]').first();
-  await modelPicker.click();
-  await chat
-    .locator('[role="listbox"]:visible button[role="option"]')
+  const setup = chat.getByLabel("Chat setup").first();
+  const modelMenu = await openChatSetupSection(chat, "Model");
+  await modelMenu
+    .locator('button[role="option"]')
     .filter({ hasText: "Widget Model" })
     .click();
-  await expect(modelPicker).toHaveAttribute("title", /Widget Model/);
+  await expect(setup).toHaveAttribute("title", /Widget Model/);
 
   await widget.getByRole("button", { name: "Ask Kody why" }).click();
   await expect(page.getByText("Three and four more make seven.")).toBeVisible();

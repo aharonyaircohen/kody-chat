@@ -6,30 +6,48 @@ const SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/surface/HeaderControls.tsx"),
   "utf8",
 );
+const SETUP_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/chat/surface/ChatSetupControl.tsx",
+  ),
+  "utf8",
+);
 const COMPOSER_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/surface/Composer.tsx"),
   "utf8",
 );
 describe("chat conversation actions", () => {
-  it("keeps model and effort controls separate from the agency selector", () => {
-    expect(SOURCE).toContain('aria-label="Agency agent"');
-    expect(SOURCE).toContain('aria-label="Model"');
-    expect(SOURCE).toContain('aria-label="Effort"');
-    expect(SOURCE).toContain("const agencyAgentEntries");
-    expect(SOURCE).not.toContain(">Agent:</span>");
-    expect(SOURCE).not.toContain("agencyAgentControl");
-    expect(SOURCE.match(/\{agencyAgentPicker\}/g)).toHaveLength(1);
-    expect(SOURCE).toContain("{agentList.map((entry) => {");
-    expect(SOURCE).not.toContain("const modelEntries");
-    expect(SOURCE).toContain("Add chat model");
-    expect(SOURCE).not.toContain("chatSettingsControl");
+  it("uses one setup menu while keeping every selection concept separate", () => {
+    expect(SETUP_SOURCE).toContain('ariaLabel="Agency agent"');
+    expect(SETUP_SOURCE).toContain('ariaLabel="Model"');
+    expect(SETUP_SOURCE).toContain('ariaLabel="Effort"');
+    expect(SETUP_SOURCE).toContain('ariaLabel="Machine"');
+    expect(SETUP_SOURCE).toContain('aria-label="Chat setup"');
+    expect(SETUP_SOURCE).toContain('data-testid="chat-setup-menu"');
+    expect(SETUP_SOURCE).toContain("const agencyAgents");
+    expect(SETUP_SOURCE).not.toContain(">Agent:</span>");
+    expect(SETUP_SOURCE).not.toContain("agencyAgentControl");
+    expect(SOURCE).not.toContain("const agencyAgentPicker");
+    expect(SETUP_SOURCE).toContain("props.modelEntries.map((entry) => (");
+    expect(SETUP_SOURCE).toContain("Add chat model");
+    expect(SOURCE).toContain("chatSetupControl");
     expect(COMPOSER_SOURCE).not.toContain("chatSettingsControl");
+  });
+
+  it("keeps all four selections visible in a two-row header trigger", () => {
+    expect(SETUP_SOURCE).toContain('data-testid="chat-setup-primary"');
+    expect(SETUP_SOURCE).toContain('data-testid="chat-setup-secondary"');
+    expect(SETUP_SOURCE).toContain("selectedAgencyAgent.title");
+    expect(SETUP_SOURCE).toContain("props.currentModelName");
+    expect(SETUP_SOURCE).toContain("`${effortLabel} effort`");
+    expect(SETUP_SOURCE).toContain('none: "No machine access"');
   });
 
   it("places the message count beside the chat title", () => {
     const headerRow = SOURCE.slice(
-      SOURCE.indexOf("return ("),
-      SOURCE.indexOf("Context bar:"),
+      SOURCE.indexOf('data-testid="chat-header-controls"'),
+      SOURCE.indexOf('data-testid="chat-context-bar"'),
     );
     const titleRow = SOURCE.slice(
       SOURCE.indexOf('data-testid="chat-context-bar"'),
@@ -48,27 +66,27 @@ describe("chat conversation actions", () => {
       SOURCE.indexOf('data-testid="chat-context-bar"'),
     );
     const headerActions = SOURCE.slice(
-      SOURCE.indexOf("Right: Window and host actions"),
-      SOURCE.indexOf("Title line:"),
+      SOURCE.indexOf('data-testid="chat-header-controls"'),
+      SOURCE.indexOf('data-testid="chat-context-bar"'),
     );
 
     expect(conversationActions).toContain('aria-label="New conversation"');
     expect(conversationActions).toContain('aria-label="Toggle conversations"');
-    expect(conversationActions).toContain("disabled={!sessionSidebarReady}");
-    expect(conversationActions).toContain("aria-expanded={showSessionSidebar}");
+    expect(conversationActions).toContain(
+      "disabled={!props.sessionSidebarReady}",
+    );
+    expect(conversationActions).toContain(
+      "aria-expanded={props.showSessionSidebar}",
+    );
     expect(headerActions).toContain("{conversationActions}");
     expect(titleRow).not.toContain("{conversationActions}");
-    expect(SOURCE.indexOf("{agencyAgentPicker}")).toBeGreaterThan(
-      SOURCE.indexOf("Title line:"),
-    );
+    expect(SOURCE).not.toContain("agencyAgentPicker");
   });
 
   it("closes each header dropdown on an outside pointer press", () => {
     expect(SOURCE).toContain(
-      'document.addEventListener("pointerdown", closeMenusOutsideTarget)',
+      'document.addEventListener("pointerdown", closeMenuOutsideTarget)',
     );
-    expect(SOURCE).toContain("agencyAgentMenuRef.current?.contains");
-    expect(SOURCE).toContain("modelMenuRef.current?.contains");
-    expect(SOURCE).toContain("reasoningMenuRef.current?.contains");
+    expect(SOURCE).toContain("setupMenuRef.current?.contains");
   });
 });

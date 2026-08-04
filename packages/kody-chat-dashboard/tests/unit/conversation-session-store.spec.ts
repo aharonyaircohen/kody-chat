@@ -62,6 +62,49 @@ describe("conversation session store", () => {
       owner: "acme",
       repo: "widgets",
     });
+    expect(result.session.machineAccess).toBe("none");
+  });
+
+  it("hydrates machine access independently from agent and model", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-machine",
+        title: "Machine",
+        pinned: false,
+        activeAgent: { slug: "cto", title: "CTO" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        machineAccess: "local",
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:03:00.000Z",
+      },
+      entries: [],
+      checkpoints: [],
+    });
+
+    expect(result.session).toMatchObject({
+      agencyAgent: { slug: "cto", title: "CTO" },
+      agentKey: "model-1",
+      machineAccess: "local",
+    });
+  });
+
+  it("migrates legacy Brain conversations without changing their runtime", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-brain",
+        title: "Brain",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "brain", brainId: "brain" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:03:00.000Z",
+      },
+      entries: [],
+      checkpoints: [],
+    });
+
+    expect(result.session.machineAccess).toBe("brain");
+    expect(result.session.agentKey).toBe("brain");
   });
 
   it("keeps streaming assistant drafts out of durable storage", () => {

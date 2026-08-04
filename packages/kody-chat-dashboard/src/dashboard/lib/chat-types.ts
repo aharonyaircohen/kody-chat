@@ -147,6 +147,8 @@ export interface SessionMeta {
    * user picks an agent in that session, the field is populated.
    */
   agentKey?: string;
+  /** Explicit host-machine access for this conversation. */
+  machineAccess?: MachineAccess;
   /** Server-validated AI Agency identity currently active in this session. */
   agencyAgent?: AgencyAgentIdentity;
   /** Ordered conversation events; kept outside the user/assistant transcript. */
@@ -156,6 +158,9 @@ export interface SessionMeta {
   /** Ephemeral UI status derived from the stored messages */
   status?: "idle" | "running";
 }
+
+/** Machine access is independent from agent identity and model choice. */
+export type MachineAccess = "none" | "local" | "brain";
 
 /**
  * UI projection of a canonical conversation.

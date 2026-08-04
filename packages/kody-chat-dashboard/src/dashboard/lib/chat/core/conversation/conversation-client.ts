@@ -1,4 +1,5 @@
 import type { ChatViewDirective } from "../../../chat-ui-actions";
+import type { MachineAccess } from "../../../chat-types";
 
 export type ConversationCommand =
   | {
@@ -43,6 +44,12 @@ export type ConversationCommand =
       kind: "runtime";
       actorLogin: string;
       runtime: ConversationRuntime;
+      updatedAt: string;
+    }
+  | {
+      kind: "machine-access";
+      actorLogin: string;
+      machineAccess: MachineAccess;
       updatedAt: string;
     }
   | {

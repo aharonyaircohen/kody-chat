@@ -69,6 +69,12 @@ const commandSchema = z.discriminatedUnion("kind", [
     updatedAt: z.string().datetime(),
   }),
   z.object({
+    kind: z.literal("machine-access"),
+    actorLogin: z.string().min(1).max(100),
+    machineAccess: z.enum(["none", "local", "brain"]),
+    updatedAt: z.string().datetime(),
+  }),
+  z.object({
     kind: z.literal("checkpoint"),
     actorLogin: z.string().min(1).max(100),
     version: z.number().int().positive(),
@@ -180,6 +186,17 @@ export async function POST(
           runtime: parsed.data.runtime,
           updatedAt: parsed.data.updatedAt,
         });
+        break;
+      case "machine-access":
+        await client.mutation(
+          backendApi.conversations.updateMachineAccess,
+          {
+            tenantId: context.tenantId,
+            conversationId,
+            machineAccess: parsed.data.machineAccess,
+            updatedAt: parsed.data.updatedAt,
+          },
+        );
         break;
       case "checkpoint":
         await client.mutation(backendApi.conversations.saveCheckpoint, {

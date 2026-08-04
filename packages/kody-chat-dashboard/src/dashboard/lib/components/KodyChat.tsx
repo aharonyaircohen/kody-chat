@@ -66,6 +66,13 @@ import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "../voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
+import { useMachineAccessSelection } from "../chat/core/use-machine-access-selection";
+import { useLocalMachineAvailability } from "../chat/core/use-machine-availability";
+import {
+  modelEntriesForMachineAccess,
+  reconcileMachineSelection,
+} from "../chat/core/machine-access";
+import type { MachineAccess } from "../chat-types";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
@@ -514,6 +521,11 @@ export function KodyChat({
     effectiveActorLogin,
     effectiveActorLogin !== null,
   );
+  const { machineAccess, setMachineAccess } =
+    useMachineAccessSelection(sessionHook);
+  const localMachineAvailable = useLocalMachineAvailability(
+    conversationRequestHeaders,
+  );
   const createChatSession = sessionHook.createSession;
   const setChatSessionMessages = sessionHook.setSessionMessages;
   createGuidedFlowSessionRef.current = createChatSession;
@@ -529,8 +541,6 @@ export function KodyChat({
     setSelectedModelId,
     agentMenuOpen,
     setAgentMenuOpen,
-    reasoningMenuOpen,
-    setReasoningMenuOpen,
     setReasoningEffort,
     currentAgent,
     agentList,
@@ -807,23 +817,72 @@ export function KodyChat({
     setContextChips,
   });
 
-  const selectChatEntry = useCallback(
+  const activeSelectionSessionId = sessionHook.activeSession?.id;
+  const persistSessionAgent = sessionHook.setSessionAgent;
+  const applyChatEntry = useCallback(
     (entry: (typeof agentList)[number]) => {
       setSelectedAgentId(entry.agentId);
       setSelectedModelId(entry.modelId);
-      const activeId = sessionHook.activeSession?.id;
-      if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
-      setAgentMenuOpen(false);
+      if (activeSelectionSessionId) {
+        persistSessionAgent(activeSelectionSessionId, entry.key);
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      sessionHook.activeSession?.id,
-      sessionHook.setSessionAgent,
-      setAgentMenuOpen,
+      activeSelectionSessionId,
+      persistSessionAgent,
       setSelectedAgentId,
       setSelectedModelId,
     ],
   );
+  const selectChatEntry = useCallback(
+    (entry: (typeof agentList)[number]) => {
+      applyChatEntry(entry);
+      setAgentMenuOpen(false);
+    },
+    [applyChatEntry, setAgentMenuOpen],
+  );
+  const selectMachineAccess = useCallback(
+    (next: MachineAccess) => {
+      setMachineAccess(next);
+      const compatibleEntries = modelEntriesForMachineAccess(agentList, next);
+      const currentIsCompatible = compatibleEntries.some(
+        (entry) =>
+          entry.agentId === selectedAgentId &&
+          (entry.modelId ?? null) === selectedModelId,
+      );
+      if (!currentIsCompatible && compatibleEntries[0]) {
+        selectChatEntry(compatibleEntries[0]);
+      }
+    },
+    [
+      agentList,
+      selectChatEntry,
+      selectedAgentId,
+      selectedModelId,
+      setMachineAccess,
+    ],
+  );
+  useEffect(() => {
+    const reconciled = reconcileMachineSelection({
+      entries: agentList,
+      machineAccess,
+      selectedAgentId,
+      selectedModelId,
+    });
+    if (reconciled.machineAccess !== machineAccess) {
+      setMachineAccess(reconciled.machineAccess);
+    }
+    if (reconciled.replacementEntry) {
+      applyChatEntry(reconciled.replacementEntry);
+    }
+  }, [
+    agentList,
+    applyChatEntry,
+    machineAccess,
+    selectedAgentId,
+    selectedModelId,
+    setMachineAccess,
+  ]);
   // Client trace: record display-mode flips (ai ↔ terminal). Inspection
   // only — no behavior change (trace never throws, never logs).
   useEffect(() => {
@@ -1158,10 +1217,7 @@ export function KodyChat({
     if (pendingRequest) openWidget(pendingRequest);
     return () =>
       window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
-  }, [
-    ensureChatSession,
-    setMessagesForSession,
-  ]);
+  }, [ensureChatSession, setMessagesForSession]);
   persistGuidedFlowMessageRef.current = (sessionId, message) => {
     if (!sessionId) return;
     const viewKey = message.view
@@ -1503,6 +1559,7 @@ export function KodyChat({
           selectedAgentId,
           selectedModelId,
           effectiveReasoningEffort,
+          selectedMachineAccess: machineAccess,
           selectedTask,
           capabilitySlug,
           selectedCapability,
@@ -1557,6 +1614,7 @@ export function KodyChat({
       selectedAgentId,
       selectedModelId,
       effectiveReasoningEffort,
+      machineAccess,
       lockedAgentSlug,
       kodyDirectHeaders,
       effectiveActorLogin,
@@ -2201,8 +2259,6 @@ export function KodyChat({
           currentReasoning={currentReasoning}
           effectiveReasoningEffort={effectiveReasoningEffort}
           setReasoningEffort={setReasoningEffort}
-          reasoningMenuOpen={reasoningMenuOpen}
-          setReasoningMenuOpen={setReasoningMenuOpen}
           agentList={agentList}
           selectedAgentId={selectedAgentId}
           selectedModelId={selectedModelId}
@@ -2210,6 +2266,17 @@ export function KodyChat({
           selectedAgencyAgentSlug={selectedAgencyAgentSlug}
           onSelectAgencyAgent={selectAgencyAgent}
           onSelectEntry={selectChatEntry}
+          machineAccess={machineAccess}
+          machineAvailability={{
+            local:
+              localMachineAvailable &&
+              agentList.some((entry) => entry.agentId === "kody"),
+            brain: agentList.some(
+              (entry) =>
+                entry.agentId === "brain" || entry.agentId === "brain-fly",
+            ),
+          }}
+          onSelectMachine={selectMachineAccess}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
             // Seed the new session with the current effective agent so a

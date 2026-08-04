@@ -21,6 +21,12 @@ export const conversationRuntimeValidator = v.union(
   v.object({ kind: v.literal("live"), profileId: v.string() }),
 );
 
+export const machineAccessValidator = v.union(
+  v.literal("none"),
+  v.literal("local"),
+  v.literal("brain"),
+);
+
 export const conversationAuthorValidator = v.union(
   v.object({ kind: v.literal("user"), actorId: v.string() }),
   v.object({

@@ -83,7 +83,7 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { AttachmentRef, ChatContext } from "../chat-types";
+import type { AttachmentRef, ChatContext, MachineAccess } from "../chat-types";
 import type { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
 import { persistPendingAttachment } from "../attachment-store";
 import { prepareUiConversationTurn } from "../chat/core/conversation/prepare-ui-turn";
@@ -385,6 +385,7 @@ export interface SendTextDeps {
   selectedAgentId: AgentId;
   selectedModelId: string | null;
   effectiveReasoningEffort: string | null;
+  selectedMachineAccess: MachineAccess;
   selectedTask: KodyTask | null;
   capabilitySlug: string | null;
   selectedCapability:
@@ -487,6 +488,7 @@ async function runSendTextInner(
     selectedAgentId,
     selectedModelId,
     effectiveReasoningEffort,
+    selectedMachineAccess,
     selectedTask,
     selectedCapability,
     selectedOrg,
@@ -548,7 +550,8 @@ async function runSendTextInner(
   const timestamp = new Date().toISOString();
   const currentMessageId = crypto.randomUUID();
   const uiSessionId =
-    sessionHook.activeSession?.id ?? sessionHook.createSession();
+    sessionHook.activeSession?.id ??
+    sessionHook.createSession({ machineAccess: selectedMachineAccess });
   let turnMessages =
     sessionHook.activeSession?.id === uiSessionId
       ? messages
@@ -979,6 +982,7 @@ async function runSendTextInner(
         ...(effectiveReasoningEffort
           ? { reasoningEffort: effectiveReasoningEffort }
           : {}),
+        workspaceMode: "host",
       },
     } satisfies BrainTurnConfig;
     const brainTurn = createTransportTurnHandler({
@@ -1193,6 +1197,7 @@ async function runSendTextInner(
           ...(effectiveReasoningEffort
             ? { reasoningEffort: effectiveReasoningEffort }
             : {}),
+          machineAccess: selectedMachineAccess,
           ...(actorLogin ? { actorLogin } : {}),
           // The dashboard page the user is on, so "what am I viewing?"
           // resolves. Surfaced as a `## Current page` system section.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AgencyAgentIdentity,
   ChatMessage,
+  MachineAccess,
   SessionMeta,
 } from "../../../chat-types";
 import type { ConversationCheckpoint } from "../conversation-compaction";
@@ -41,13 +42,20 @@ export interface UseConversationSessionsResult {
     options?: { persist?: boolean },
   ) => void;
   getSessionMessages: (sessionId: string) => ChatMessage[];
-  createSession: (opts?: { agentKey?: string }) => string;
+  createSession: (opts?: {
+    agentKey?: string;
+    machineAccess?: MachineAccess;
+  }) => string;
   switchSession: (sessionId: string) => void;
   renameSession: (sessionId: string, title: string) => void;
   deleteSession: (sessionId: string) => void;
   pinSession: (sessionId: string) => void;
   clearActiveSession: () => void;
   setSessionAgent: (sessionId: string, agentKey: string) => void;
+  setSessionMachineAccess: (
+    sessionId: string,
+    machineAccess: MachineAccess,
+  ) => void;
   setSessionAgencyAgent: (
     sessionId: string,
     agent: AgencyAgentIdentity,
@@ -132,6 +140,10 @@ function sessionFromList(value: Record<string, unknown>): SessionMeta {
       value.activeAgent && typeof value.activeAgent === "object"
         ? (value.activeAgent as AgencyAgentIdentity)
         : { slug: "kody", title: "Kody" },
+    machineAccess:
+      value.machineAccess === "local" || value.machineAccess === "brain"
+        ? value.machineAccess
+        : "none",
   };
 }
 
@@ -258,7 +270,7 @@ export function useConversationSessions(
     : [];
 
   const createSession = useCallback(
-    (opts?: { agentKey?: string }) => {
+    (opts?: { agentKey?: string; machineAccess?: MachineAccess }) => {
       const id = crypto.randomUUID();
       locallyCreatedSessionIdsRef.current.add(id);
       const now = new Date().toISOString();
@@ -280,6 +292,7 @@ export function useConversationSessions(
         repository,
         agentKey: opts?.agentKey,
         agencyAgent: { slug: "kody", title: "Kody" },
+        machineAccess: opts?.machineAccess ?? "none",
       };
       setSessions((previous) => {
         const next = [session, ...previous];
@@ -295,6 +308,7 @@ export function useConversationSessions(
             title: session.title,
             activeAgent: session.agencyAgent,
             runtime: runtimeForAgentKey(opts?.agentKey),
+            machineAccess: session.machineAccess,
             actorLogin: login,
             surface: scope,
           }),
@@ -620,6 +634,33 @@ export function useConversationSessions(
     [actorLogin, conversationClient, persist],
   );
 
+  const setSessionMachineAccess = useCallback(
+    (sessionId: string, machineAccess: MachineAccess) => {
+      const updatedAt = new Date().toISOString();
+      setSessions((previous) => {
+        const next = previous.map((session) =>
+          session.id === sessionId
+            ? { ...session, machineAccess, updatedAt }
+            : session,
+        );
+        sessionsRef.current = next;
+        return next;
+      });
+      const login = actorLogin;
+      if (login) {
+        persist(
+          conversationClient.command(sessionId, {
+            kind: "machine-access",
+            actorLogin: login,
+            machineAccess,
+            updatedAt,
+          }),
+        );
+      }
+    },
+    [actorLogin, conversationClient, persist],
+  );
+
   const setSessionCheckpoint = useCallback(
     (sessionId: string, checkpoint: ConversationCheckpoint) => {
       setSessions((previous) =>
@@ -667,6 +708,7 @@ export function useConversationSessions(
     pinSession,
     clearActiveSession,
     setSessionAgent,
+    setSessionMachineAccess,
     setSessionAgencyAgent,
     setSessionCheckpoint,
   };

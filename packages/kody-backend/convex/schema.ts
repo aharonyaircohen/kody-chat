@@ -14,6 +14,7 @@ import {
   conversationAttachmentValidator,
   conversationEntryValidator,
   conversationRuntimeValidator,
+  machineAccessValidator,
   conversationScopeValidator,
 } from "./conversationValidators";
 import {
@@ -387,6 +388,7 @@ export default defineSchema({
     pinned: v.boolean(),
     activeAgent: agentIdentityValidator,
     runtime: conversationRuntimeValidator,
+    machineAccess: v.optional(machineAccessValidator),
     createdBy: v.string(),
     createdAt: v.string(),
     updatedAt: v.string(),

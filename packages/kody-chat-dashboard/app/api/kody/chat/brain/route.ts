@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
      */
     reasoningEffort?: string;
     agentSlug?: string;
+    workspaceMode?: "repository" | "host";
   };
   try {
     body = await req.json();
@@ -112,18 +113,22 @@ export async function POST(req: NextRequest) {
   // Forward the user's connected repo so Brain can clone it into a worktree
   // and enable code-context tools. Locked on first turn by Brain.
   const headerAuth = getRequestAuth(req);
-  const repo = headerAuth
-    ? `${headerAuth.owner}/${headerAuth.repo}`
-    : undefined;
+  const useHostWorkspace = body.workspaceMode === "host";
+  const repo =
+    !useHostWorkspace && headerAuth
+      ? `${headerAuth.owner}/${headerAuth.repo}`
+      : undefined;
   // Forward the user's token too — a dev Brain server has no GitHub creds of
   // its own, so without this the worktree clone of a private repo fails.
-  const repoToken = headerAuth?.token;
+  const repoToken = useHostWorkspace ? undefined : headerAuth?.token;
   const dashboardUrl = requestOrigin(req);
 
   // First turn only: pull the dashboard's curated Context for the chat
   // audience. Cached 60s in-process; `null` when the repo has none.
   const dashboardContext =
-    !isResume && body.includeContext ? await loadContextForPrompt() : null;
+    !useHostWorkspace && !isResume && body.includeContext
+      ? await loadContextForPrompt()
+      : null;
   let agentIdentity: BrainAgentIdentity | undefined;
   if (!isResume && body.agentSlug) {
     const agent = await readResolvedAgentFile(body.agentSlug).catch(() => null);
@@ -144,19 +149,29 @@ export async function POST(req: NextRequest) {
     // Context onto the user message (skip on resume, which has no new message).
     message: isResume
       ? ""
-      : withDashboardContext(
-          withPageContext(message ?? "", body.currentPage),
-          dashboardContext,
-        ),
-    taskContext: body.taskContext,
+      : useHostWorkspace
+        ? (message ?? "")
+        : withDashboardContext(
+            withPageContext(message ?? "", body.currentPage),
+            dashboardContext,
+          ),
+    ...(!useHostWorkspace && body.taskContext
+      ? { taskContext: body.taskContext }
+      : {}),
     attachments: body.attachments,
-    capabilityContext: body.capabilityContext,
-    repo,
-    repoToken,
+    ...(!useHostWorkspace && body.capabilityContext
+      ? { capabilityContext: body.capabilityContext }
+      : {}),
+    ...(repo ? { repo } : {}),
+    ...(repoToken ? { repoToken } : {}),
     dashboardUrl,
     ...(agentIdentity ? { agentIdentity } : {}),
-    storeRepoUrl: headerAuth?.storeRepoUrl,
-    storeRef: headerAuth?.storeRef,
+    ...(!useHostWorkspace && headerAuth?.storeRepoUrl
+      ? { storeRepoUrl: headerAuth.storeRepoUrl }
+      : {}),
+    ...(!useHostWorkspace && headerAuth?.storeRef
+      ? { storeRef: headerAuth.storeRef }
+      : {}),
     voiceMode: body.voiceMode === true,
     ...(body.modelId ? { modelId: body.modelId } : {}),
     ...(body.runtime ? { runtime: body.runtime } : {}),

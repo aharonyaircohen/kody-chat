@@ -43,6 +43,7 @@ const createConversationSchema = z.object({
   title: z.string().trim().min(1).max(200),
   activeAgent: agentSchema,
   runtime: runtimeSchema,
+  machineAccess: z.enum(["none", "local", "brain"]).default("none"),
   actorLogin: z.string().trim().min(1).max(100),
   surface: z.enum(["global", "vibe-default"]),
 });
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       pinned: false,
       activeAgent: parsed.data.activeAgent,
       runtime: parsed.data.runtime,
+      machineAccess: parsed.data.machineAccess,
       createdBy: `github:${actor.identity.login}`,
       createdAt: now,
       updatedAt: now,

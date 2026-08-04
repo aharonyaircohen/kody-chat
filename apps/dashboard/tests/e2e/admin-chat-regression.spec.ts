@@ -8,6 +8,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
@@ -94,16 +95,14 @@ test.describe("Admin Kody chat regression", () => {
   test("/chat keeps models, reasoning, and sessions", async ({ page }) => {
     await page.goto(`${BASE_URL}/chat`);
     await page.waitForLoadState("domcontentloaded");
-    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
+    await expect(page).toHaveURL(/\/chat$/);
 
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    const picker = chat.getByLabel("Model").first();
+    const picker = chat.getByLabel("Chat setup").first();
     await expect(picker).toBeVisible({ timeout: 15_000 });
-    await picker.click();
-
-    const menu = chat.locator('[role="listbox"]:visible').first();
+    const menu = await openChatSetupSection(chat, "Model");
     await expect(
       menu.locator('button[role="option"]').filter({ hasText: "GPT X" }),
     ).toBeVisible({
@@ -118,8 +117,7 @@ test.describe("Admin Kody chat regression", () => {
       .click();
 
     await expect(picker).toHaveAttribute("title", /GPT X/);
-    await chat.getByLabel("Effort").click();
-    const effortMenu = chat.locator('[role="listbox"]:visible').last();
+    const effortMenu = await openChatSetupSection(chat, "Effort");
     await expect(
       effortMenu.locator('button[role="option"]').filter({ hasText: "Medium" }),
     ).toBeVisible();

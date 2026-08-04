@@ -11,6 +11,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
@@ -57,12 +58,11 @@ async function injectAuth(page: Page): Promise<void> {
 
 async function selectKodyAgent(page: Page): Promise<void> {
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Model").first();
+  const trigger = chat.getByLabel("Chat setup").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
 
-  await trigger.click();
-  const menu = chat.locator('[role="listbox"]:visible').first();
+  const menu = await openChatSetupSection(chat, "Model");
   const option = menu
     .locator('button[role="option"]')
     .filter({ hasText: "Kody Test" });

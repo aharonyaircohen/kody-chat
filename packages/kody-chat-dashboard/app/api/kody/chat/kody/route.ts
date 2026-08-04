@@ -87,6 +87,8 @@ import {
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
+import { createMachineTools } from "../tools/machine-tools";
+import { isLocalMachineAccessEnabled } from "@kody-ade/terminal/machine-exec";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createAgentTools } from "../tools/agent-tools";
@@ -685,6 +687,7 @@ async function handleKodyDirectPost(
     conversationId?: string;
     turnId?: string;
     conversationAgent?: { slug: string; title: string };
+    machineAccess?: "none" | "local" | "brain";
   };
   try {
     body = (await req.json()) as typeof body;
@@ -997,6 +1000,20 @@ async function handleKodyDirectPost(
   }
 
   const vibeMode = body.vibeMode === true;
+  const requestedMachineAccess =
+    body.machineAccess === "local" || body.machineAccess === "brain"
+      ? body.machineAccess
+      : "none";
+  const localMachineAccessEnabled = isLocalMachineAccessEnabled();
+  if (requestedMachineAccess === "local" && !localMachineAccessEnabled) {
+    return NextResponse.json(
+      {
+        error: "local_machine_access_unavailable",
+        message: "Local machine access is not enabled on this Kody host.",
+      },
+      { status: 409 },
+    );
+  }
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
   // the vault for FLY_API_TOKEN so the prompt can tell the agent which
@@ -1270,6 +1287,12 @@ async function handleKodyDirectPost(
   extraTools = {
     ...extraTools,
     ...createRemoteTools(verifiedActorLogin),
+    ...(!clientSurface
+      ? createMachineTools({
+          machineAccess: requestedMachineAccess,
+          localEnabled: localMachineAccessEnabled,
+        })
+      : {}),
     ...(repo && !clientSurface && verifiedActorLogin
       ? createGuidedFlowTools({
           tenantId: `${repo.owner}/${repo.repo}`,

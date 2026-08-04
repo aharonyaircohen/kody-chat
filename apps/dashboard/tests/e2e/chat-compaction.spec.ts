@@ -1,23 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 const REPO_KEY = "test-owner/test-repo";
-const STORAGE_KEY = `kody-sessions-v3:${REPO_KEY}`;
+const SESSION_ID = "compaction-e2e-session";
 
 async function seedLongConversation(page: Page) {
   await page.goto(`${BASE_URL}/login`);
   await page.waitForLoadState("domcontentloaded");
   await page.evaluate(
-    ({ repoKey, storageKey }) => {
-      const now = new Date().toISOString();
-      const sessionId = "compaction-e2e-session";
-      const messages = Array.from({ length: 20 }, (_, index) => ({
-        role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
-        text:
-          (index === 0 ? "OLD_VISIBLE_MARKER " : `message-${index} `) +
-          "working context ".repeat(625),
-        timestamp: now,
-      }));
+    ({ repoKey }) => {
       localStorage.setItem(
         "kody_auth",
         JSON.stringify({
@@ -33,39 +25,83 @@ async function seedLongConversation(page: Page) {
         `kody-default-chat-entry:${repoKey}`,
         "kody:test/model",
       );
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          version: 3,
-          sessions: [
-            {
-              id: sessionId,
-              title: "Long conversation",
-              createdAt: now,
-              updatedAt: now,
-              messageCount: messages.length,
-              agentKey: "kody:test/model",
-            },
-          ],
-          messages: { [sessionId]: messages },
-          activeSessionId: sessionId,
-        }),
-      );
     },
-    { repoKey: REPO_KEY, storageKey: STORAGE_KEY },
+    { repoKey: REPO_KEY },
   );
+}
+
+async function mockLongConversationPersistence(
+  page: Page,
+  onCommand: (command: Record<string, unknown>) => void,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const conversation = {
+    conversationId: SESSION_ID,
+    scope: { kind: "repository", owner: "test-owner", repo: "test-repo" },
+    title: "Long conversation",
+    pinned: false,
+    activeAgent: { slug: "kody", title: "Kody" },
+    runtime: { kind: "direct", modelId: "test/model" },
+    machineAccess: "none",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const entries = Array.from({ length: 20 }, (_, index) => ({
+    entryId: `message-${index}`,
+    seq: index,
+    entry: {
+      kind: "message",
+      role: index % 2 === 0 ? "user" : "assistant",
+      content:
+        (index === 0 ? "OLD_VISIBLE_MARKER " : `message-${index} `) +
+        "working context ".repeat(625),
+      status: "committed",
+      createdAt: now,
+    },
+  }));
+
+  await page.route("**/api/kody/chat/conversations**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "GET" && pathname.endsWith("/conversations")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ conversations: [conversation] }),
+      });
+      return;
+    }
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          conversation,
+          entries,
+          checkpoints: [],
+          attachments: [],
+        }),
+      });
+      return;
+    }
+    const command = request.postDataJSON() as Record<string, unknown>;
+    onCommand(command);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
 }
 
 async function selectKodyAgent(page: Page) {
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Model").first();
+  const trigger = chat.getByLabel("Chat setup").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
-  await trigger.click();
-  const menu = chat.locator('[role="listbox"]').first();
+  const menu = await openChatSetupSection(chat, "Model");
   await menu.getByRole("button", { name: /Kody Test/i }).click();
   await expect(trigger).toHaveAttribute("title", /Kody Test/i);
-  await trigger.click();
 }
 
 test("compacts model context while keeping the visible conversation", async ({
@@ -83,6 +119,12 @@ test("compacts model context while keeping the visible conversation", async ({
 
   let compactCalls = 0;
   let directBody: Record<string, unknown> | null = null;
+  let savedCheckpointSummary: unknown = null;
+  await mockLongConversationPersistence(page, (command) => {
+    if (command.kind === "checkpoint") {
+      savedCheckpointSummary = command.summary;
+    }
+  });
   await page.route("**/api/kody/chat/compact", async (route) => {
     compactCalls += 1;
     await new Promise((resolve) => setTimeout(resolve, 700));
@@ -135,12 +177,7 @@ test("compacts model context while keeping the visible conversation", async ({
   expect(JSON.stringify(directBody)).not.toContain("OLD_VISIBLE_MARKER");
 
   await expect
-    .poll(() =>
-      page.evaluate((storageKey) => {
-        const store = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
-        return store.sessions?.[0]?.contextCheckpoint?.summary ?? null;
-      }, STORAGE_KEY),
-    )
+    .poll(() => savedCheckpointSummary)
     .toBe("The earlier working context.");
 });
 
@@ -155,6 +192,12 @@ test("manually compacts from the composer menu", async ({ page }, testInfo) => {
     }),
   );
   let compactCalls = 0;
+  let savedCheckpointSummary: unknown = null;
+  await mockLongConversationPersistence(page, (command) => {
+    if (command.kind === "checkpoint") {
+      savedCheckpointSummary = command.summary;
+    }
+  });
   await page.route("**/api/kody/chat/compact", async (route) => {
     compactCalls += 1;
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -193,11 +236,6 @@ test("manually compacts from the composer menu", async ({ page }, testInfo) => {
   });
   await expect(page.getByText(/OLD_VISIBLE_MARKER/).first()).toBeAttached();
   await expect
-    .poll(() =>
-      page.evaluate((storageKey) => {
-        const store = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
-        return store.sessions?.[0]?.contextCheckpoint?.summary ?? null;
-      }, STORAGE_KEY),
-    )
+    .poll(() => savedCheckpointSummary)
     .toBe("Manual composer memory.");
 });

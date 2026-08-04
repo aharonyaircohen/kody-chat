@@ -7,6 +7,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.PW_LOCAL
   ? "http://127.0.0.1:3333"
@@ -113,6 +114,13 @@ test.describe("Chat picker backend boundary", () => {
         }),
       }),
     );
+    await page.route("**/api/kody/chat/machines", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ local: false }),
+      }),
+    );
     await page.route("**/api/kody/chat/conversations**", async (route) => {
       const request = route.request();
       const pathname = new URL(request.url()).pathname;
@@ -144,20 +152,18 @@ test.describe("Chat picker backend boundary", () => {
     await seedAuth(page);
   });
 
-  test("keeps agency and model selection separate", async ({ page }) => {
+  test("keeps agent, model, and machine selection separate", async ({
+    page,
+  }) => {
     await page.goto(CHAT_URL);
     await expect(page).toHaveURL(CHAT_URL);
 
     const chat = page.locator('[aria-label="Kody chat"]').first();
     const title = chat.getByTestId("chat-context-bar");
     await expect(title).toContainText("Global chat — not tied to any task");
-    const agentPickers = chat.getByLabel("Agency agent");
-    await expect(agentPickers).toHaveCount(1);
-    const agentPicker = agentPickers.first();
-    await expect(agentPicker).toBeVisible({ timeout: 15_000 });
-    await agentPicker.click();
-
-    const menu = chat.locator('[role="listbox"]:visible').first();
+    const setup = chat.getByLabel("Chat setup").first();
+    await expect(setup).toBeVisible({ timeout: 15_000 });
+    const menu = await openChatSetupSection(chat, "Agency agent");
     await expect(
       menu.locator('button[role="option"]').filter({ hasText: "Kody" }),
     ).toBeVisible();
@@ -167,19 +173,15 @@ test.describe("Chat picker backend boundary", () => {
     await page.locator("body").click({ position: { x: 4, y: 4 } });
     await expect(menu).toBeHidden();
 
-    await agentPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const agentMenu = await openChatSetupSection(chat, "Agency agent");
+    await agentMenu
       .locator('button[role="option"]')
       .filter({ hasText: "Research" })
       .click();
-    await expect(agentPicker).toContainText("research");
+    await expect(setup).toHaveAttribute("title", /Research/);
     await expect(title).toContainText("Global chat — not tied to any task");
 
-    const modelPicker = chat.getByLabel("Model").first();
-    await modelPicker.click();
-    const modelMenu = chat.locator('[role="listbox"]:visible').first();
+    const modelMenu = await openChatSetupSection(chat, "Model");
     await expect(
       modelMenu.locator('button[role="option"]').filter({
         hasText: "Kody Test",
@@ -189,7 +191,7 @@ test.describe("Chat picker backend boundary", () => {
       modelMenu.locator('button[role="option"]').filter({
         hasText: "Kody Brain",
       }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       modelMenu.locator('button[role="option"]').filter({
         hasText: "Kody Live",
@@ -198,20 +200,36 @@ test.describe("Chat picker backend boundary", () => {
     await page.locator("body").click({ position: { x: 4, y: 4 } });
     await expect(modelMenu).toBeHidden();
 
-    await modelPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const reopenedModelMenu = await openChatSetupSection(chat, "Model");
+    await reopenedModelMenu
       .locator('button[role="option"]')
       .filter({ hasText: "Kody Test" })
       .click();
 
-    const effortPicker = chat.getByLabel("Effort").first();
-    await effortPicker.click();
-    const effortMenu = chat.locator('[role="listbox"]:visible').first();
+    const effortMenu = await openChatSetupSection(chat, "Effort");
     await expect(effortMenu).toBeVisible();
     await page.locator("body").click({ position: { x: 4, y: 4 } });
     await expect(effortMenu).toBeHidden();
+
+    const machineMenu = await openChatSetupSection(chat, "Machine");
+    await expect(
+      machineMenu
+        .locator('button[role="option"]')
+        .filter({ hasText: "No access" }),
+    ).toBeVisible();
+    await machineMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "Brain" })
+      .click();
+    await expect(setup).toHaveAttribute("title", /Kody Brain.*Brain/);
+
+    const brainModelMenu = await openChatSetupSection(chat, "Model");
+    await expect(brainModelMenu.locator('button[role="option"]')).toHaveCount(
+      1,
+    );
+    await expect(
+      brainModelMenu.locator('button[role="option"]').first(),
+    ).toContainText("Kody Brain");
   });
 
   test("shows the message and starts the model before storage responds", async ({
@@ -248,11 +266,8 @@ test.describe("Chat picker backend boundary", () => {
 
     await page.goto(CHAT_URL);
     const chat = page.locator('[aria-label="Kody chat"]').first();
-    const modelPicker = chat.getByLabel("Model").first();
-    await modelPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
       .locator('button[role="option"]')
       .filter({ hasText: "Kody Test" })
       .click();
@@ -269,6 +284,46 @@ test.describe("Chat picker backend boundary", () => {
     });
 
     releaseSave();
+  });
+
+  test("shows Local only when the host enables it and sends the selection", async ({
+    page,
+  }) => {
+    let requestBody: Record<string, unknown> | null = null;
+    await page.route("**/api/kody/chat/machines", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ local: true }),
+      }),
+    );
+    await page.route("**/api/kody/chat/kody", (route) => {
+      requestBody = route.request().postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream; charset=utf-8" },
+        body: sseBody([
+          { type: "text-delta", delta: "Local reply" },
+          { type: "finish" },
+        ]),
+      });
+    });
+
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const setup = chat.getByLabel("Chat setup").first();
+    const machineMenu = await openChatSetupSection(chat, "Machine");
+    await machineMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "Local" })
+      .click();
+    await expect(setup).toHaveAttribute("title", /Local/);
+    await page.locator("body").click({ position: { x: 4, y: 4 } });
+
+    await chat.locator("textarea").first().fill("inspect this machine");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect(chat.getByText("Local reply")).toBeVisible();
+    expect(requestBody).toMatchObject({ machineAccess: "local" });
   });
 
   test("keeps the model response visible when storage fails", async ({
@@ -305,11 +360,8 @@ test.describe("Chat picker backend boundary", () => {
 
     await page.goto(CHAT_URL);
     const chat = page.locator('[aria-label="Kody chat"]').first();
-    const modelPicker = chat.getByLabel("Model").first();
-    await modelPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
       .locator('button[role="option"]')
       .filter({ hasText: "Kody Test" })
       .click();
@@ -445,22 +497,17 @@ test.describe("Chat picker backend boundary", () => {
 
     await page.goto(CHAT_URL);
     const chat = page.locator('[aria-label="Kody chat"]').first();
-    const agentPicker = chat.getByLabel("Agency agent").first();
-    await expect(agentPicker).toBeVisible({ timeout: 15_000 });
+    const setup = chat.getByLabel("Chat setup").first();
+    await expect(setup).toBeVisible({ timeout: 15_000 });
 
-    const modelPicker = chat.getByLabel("Model").first();
-    await modelPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
       .locator('button[role="option"]')
       .filter({ hasText: "Kody Test" })
       .click();
 
-    await agentPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const agentMenu = await openChatSetupSection(chat, "Agency agent");
+    await agentMenu
       .locator('button[role="option"]')
       .filter({ hasText: "UX" })
       .click();
@@ -470,10 +517,8 @@ test.describe("Chat picker backend boundary", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
     await expect(chat.getByText("Agent reply")).toBeVisible();
 
-    await agentPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const nextAgentMenu = await openChatSetupSection(chat, "Agency agent");
+    await nextAgentMenu
       .locator('button[role="option"]')
       .filter({ hasText: "CEO" })
       .click();
@@ -515,7 +560,7 @@ test.describe("Chat picker backend boundary", () => {
     );
     await page.reload();
     await expect(chat.getByTestId("agent-handoff")).toHaveText("UX → CEO");
-    await expect(agentPicker).toContainText("ceo");
+    await expect(setup).toHaveAttribute("title", /CEO/);
   });
 
   test("keeps the current agent when server validation fails", async ({
@@ -530,17 +575,15 @@ test.describe("Chat picker backend boundary", () => {
     );
     await page.goto(CHAT_URL);
     const chat = page.locator('[aria-label="Kody chat"]').first();
-    const agentPicker = chat.getByLabel("Agency agent").first();
+    const setup = chat.getByLabel("Chat setup").first();
 
-    await agentPicker.click();
-    await chat
-      .locator('[role="listbox"]:visible')
-      .first()
+    const agentMenu = await openChatSetupSection(chat, "Agency agent");
+    await agentMenu
       .locator('button[role="option"]')
       .filter({ hasText: "CEO" })
       .click();
 
-    await expect(agentPicker).toContainText("kody");
+    await expect(setup).not.toHaveAttribute("title", /ceo/);
     await expect(chat.getByTestId("agent-handoff")).toHaveCount(0);
     await expect(page.getByText("Could not switch to CEO")).toBeVisible();
   });

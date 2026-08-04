@@ -1,10 +1,12 @@
 # Chat backends
 
 The dashboard chat is **three** different backends behind one composer.
-Which one answers a turn is decided by the agent picked in the chat
-dropdown — its `backend` field (see
-[`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts)) routes
-the request to one of three endpoints. A fresh composer initializes to the
+The Chat setup menu keeps three independent choices: the Agency agent controls
+behavior, Model controls which model answers, and Machine controls whether the
+turn has no machine access, Local host access, or Brain host access. Model
+entries still carry an internal `backend` field (see
+[`src/dashboard/lib/agents.ts`](../../src/dashboard/lib/agents.ts)), which
+routes the request to one of three endpoints. A fresh composer initializes to the
 `kody-live` engine agent (`lockedAgentId ?? "kody-live"`) unless the host
 pins one; the in-process `kody` agent is the fastest path and the fallback
 for an unresolved id.
@@ -27,6 +29,22 @@ commands, and the message history are shared; everything below the
 `AGENT_KODY`, so a stale or bogus agent never hard-fails — it just lands on
 the in-process `kody` agent. (That's the _unresolved-id fallback_; the
 _initial_ agent on a fresh composer is `kody-live` — see the FAQ.)
+
+## Machine access
+
+Machine access is conversation state, not an Agency agent profile:
+
+- **No access** is the safe default and excludes Brain models.
+- **Local** appears only when `KODY_LOCAL_MACHINE_ACCESS=1` is set on the
+  dashboard process. It exposes one server-side `machine` tool to direct Kody
+  models. Commands run with the dashboard process user's host permissions; the
+  tool is never exposed to client chat surfaces.
+- **Brain** appears when a Brain model is configured. It runs in general host
+  mode: the selected repository, repository token, opened dashboard page, task,
+  and capability context are not attached to the turn.
+
+Changing Machine filters the Model choices to compatible entries. It does not
+change the selected Agency agent.
 
 ## Routing
 
