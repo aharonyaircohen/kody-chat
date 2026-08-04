@@ -30,6 +30,11 @@ const FIXTURES: Record<string, Record<string, unknown>> = {
     source: "model",
   },
   "system.error": { area: "chat", message: "boom" },
+  "github.workflow_run.completed": {
+    runId: 42,
+    conclusion: "failure",
+    repository: "acme/shop",
+  },
 };
 
 describe("system event catalog", () => {

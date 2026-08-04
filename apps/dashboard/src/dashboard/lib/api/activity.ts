@@ -1,9 +1,39 @@
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
+export type WorkflowEventDeliveryStatus = "pending" | "dispatched" | "failed";
+
+export interface WorkflowEventDelivery {
+  deliveryId: string;
+  triggerId: string;
+  workflowId: string;
+  eventName: string;
+  requestId: string;
+  sourceEventId?: string;
+  sourceUrl?: string;
+  status: WorkflowEventDeliveryStatus;
+  attempts: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ============ Activity API ============
 
 /** Engine run health for the connected repo (read-only). */
 export const activityApi = {
+  workflowEvents: async (
+    limit = 20,
+  ): Promise<{
+    events: WorkflowEventDelivery[];
+    total: number;
+    computedAt: string;
+  }> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const res = await fetch(`${API_BASE}/workflow-events?${params}`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
   get: async (): Promise<import("../activity/types").ActivitySnapshot> => {
     const res = await fetch(`${API_BASE}/activity`, {
       headers: buildHeaders(),

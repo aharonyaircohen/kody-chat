@@ -24,7 +24,7 @@
  * delivery is harmless — invalidation is idempotent.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   invalidateIssueCache,
@@ -36,6 +36,8 @@ import {
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@kody-ade/base/logger";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
+import { createUserOctokit } from "@kody-ade/base/github/core";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
@@ -55,6 +57,8 @@ import {
   handlePrOpenedOrSynced as handlePreviewPrOpenedOrSynced,
   handleTrackedBranchPush as handlePreviewTrackedBranchPush,
 } from "@kody-ade/fly/previews/webhook";
+import { normalizeGitHubWebhookEvent } from "@dashboard/features/workflows/server/github-event-normalizer";
+import { dispatchGitHubWorkflowTriggers } from "@dashboard/features/workflows/server/github-workflow-trigger-dispatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -425,6 +429,67 @@ function dispatch(event: string, payload: unknown): DispatchResult {
   }
 }
 
+async function dispatchConfiguredWorkflows(
+  eventType: string,
+  deliveryId: string,
+  payload: unknown,
+): Promise<void> {
+  const event = normalizeGitHubWebhookEvent({
+    eventType,
+    deliveryId,
+    payload,
+  });
+  if (!event?.brand) return;
+
+  const background = await resolveBackgroundToken(
+    event.brand.owner,
+    event.brand.repo,
+  );
+  if (!background) {
+    logger.warn(
+      { owner: event.brand.owner, repo: event.brand.repo, event: event.name },
+      "github workflow trigger skipped: no background GitHub token",
+    );
+    return;
+  }
+  await dispatchGitHubWorkflowTriggers({
+    event,
+    deliveryId,
+    octokit: createUserOctokit(background.token),
+  });
+}
+
+function scheduleConfiguredWorkflows(
+  eventType: string,
+  deliveryId: string,
+  payload: unknown,
+): void {
+  const work = async () => {
+    try {
+      await dispatchConfiguredWorkflows(eventType, deliveryId, payload);
+    } catch (error) {
+      // Workflow automation is an additional consumer of the webhook. It
+      // must not prevent existing repository handlers from completing.
+      logger.warn(
+        {
+          eventType,
+          deliveryId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "configured workflow dispatch failed; continuing webhook processing",
+      );
+    }
+  };
+
+  try {
+    after(work);
+  } catch {
+    // Unit tests and non-Next callers have no request async context. Preserve
+    // the same non-blocking behavior there instead of making dispatch fatal.
+    void work();
+  }
+}
+
 // ============ Handler ============
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -464,15 +529,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const eventType = req.headers.get("x-github-event") ?? "";
   const deliveryId = req.headers.get("x-github-delivery") ?? "";
 
-  if (deliveryId && rememberDelivery(deliveryId)) {
-    return NextResponse.json({ ok: true, dedup: true }, { status: 200 });
-  }
-
   let payload: unknown;
   try {
     payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  // Durable delivery claiming happens in the after-response task. A retry
+  // can safely reclaim a failed delivery, while the webhook ACK stays fast.
+  scheduleConfiguredWorkflows(eventType, deliveryId, payload);
+
+  if (deliveryId && rememberDelivery(deliveryId)) {
+    return NextResponse.json({ ok: true, dedup: true }, { status: 200 });
   }
 
   const result = dispatch(eventType, payload);

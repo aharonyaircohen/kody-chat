@@ -640,10 +640,17 @@ function LoopForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="schedule">Schedule</SelectItem>
-            <SelectItem value="event">Event</SelectItem>
-            <SelectItem value="webhook">Webhook</SelectItem>
-            <SelectItem value="condition">Condition</SelectItem>
             <SelectItem value="manual">Manual</SelectItem>
+            {loop?.trigger.type === "event" || loop?.trigger.type === "webhook" ? (
+              <SelectItem value={loop.trigger.type} disabled>
+                Legacy {loop.trigger.type} (read-only)
+              </SelectItem>
+            ) : null}
+            {loop?.trigger.type === "condition" ? (
+              <SelectItem value="condition" disabled>
+                Legacy condition (read-only)
+              </SelectItem>
+            ) : null}
           </SelectContent>
         </Select>
       </div>

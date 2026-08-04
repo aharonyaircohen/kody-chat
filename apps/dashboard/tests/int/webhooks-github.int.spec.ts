@@ -22,6 +22,16 @@ const gh = vi.hoisted(() => ({
   invalidatePRBehindCache: vi.fn(),
   invalidateDiscussionCache: vi.fn(),
 }));
+const workflow = vi.hoisted(() => ({
+  dispatchGitHubWorkflowTriggers: vi.fn(async () => {}),
+}));
+const background = vi.hoisted(() => ({
+  resolveBackgroundToken: vi.fn(async () => ({
+    token: "background-token",
+    source: "app",
+  })),
+  createUserOctokit: vi.fn(() => ({}) as never),
+}));
 const ipv = vi.hoisted(() => ({
   getClientIp: vi.fn(() => "140.82.115.42"),
   isFromGitHub: vi.fn(async () => true),
@@ -44,6 +54,15 @@ vi.mock("@dashboard/lib/webhooks/github-ip", () => ipv);
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
+vi.mock("@kody-ade/base/auth/background-token", () => ({
+  resolveBackgroundToken: background.resolveBackgroundToken,
+}));
+vi.mock("@kody-ade/base/github/core", async () => {
+  const actual = await vi.importActual<
+    typeof import("@kody-ade/base/github/core")
+  >("@kody-ade/base/github/core");
+  return { ...actual, createUserOctokit: background.createUserOctokit };
+});
 vi.mock("@dashboard/lib/notifications-dispatch", () => ({
   dispatchNotifications: side.dispatchNotifications,
 }));
@@ -66,6 +85,10 @@ vi.mock("@kody-ade/fly/previews/webhook", () => ({
   handlePrOpenedOrSynced: side.handlePreviewPrOpenedOrSynced,
   handleTrackedBranchPush: side.handlePreviewTrackedBranchPush,
 }));
+vi.mock(
+  "@dashboard/features/workflows/server/github-workflow-trigger-dispatch",
+  () => workflow,
+);
 
 import { POST } from "../../app/api/webhooks/github/route";
 
@@ -195,6 +218,65 @@ describe("POST /api/webhooks/github — invalidation routing", () => {
 });
 
 describe("POST /api/webhooks/github — side effects", () => {
+  it("passes a completed workflow run to configured Workflow triggers", async () => {
+    await POST(
+      makeReq("workflow_run", {
+        action: "completed",
+        workflow_run: { id: 77, conclusion: "failure" },
+        repository: { full_name: "acme/widgets" },
+      }),
+    );
+    expect(workflow.dispatchGitHubWorkflowTriggers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryId: expect.stringMatching(/^delivery-/),
+        event: expect.objectContaining({
+          name: "github.workflow_run.completed",
+          brand: { owner: "acme", repo: "widgets" },
+          payload: expect.objectContaining({
+            runId: 77,
+            conclusion: "failure",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps the webhook successful when configured workflow dispatch fails", async () => {
+    workflow.dispatchGitHubWorkflowTriggers.mockRejectedValueOnce(
+      new Error("workflow backend unavailable"),
+    );
+
+    const response = await POST(
+      makeReq("workflow_run", {
+        action: "completed",
+        workflow_run: { id: 78, conclusion: "failure" },
+        repository: { full_name: "acme/widgets" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(gh.invalidateWorkflowCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("ACKs before a slow configured workflow dispatch finishes", async () => {
+    let finishDispatch!: () => void;
+    workflow.dispatchGitHubWorkflowTriggers.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishDispatch = resolve)),
+    );
+
+    const response = await POST(
+      makeReq("workflow_run", {
+        action: "completed",
+        workflow_run: { id: 79, conclusion: "success" },
+        repository: { full_name: "acme/widgets" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(workflow.dispatchGitHubWorkflowTriggers).toHaveBeenCalledTimes(1);
+    finishDispatch();
+  });
+
   it("appends a changelog entry when a PR is merged", async () => {
     await POST(
       makeReq("pull_request", {

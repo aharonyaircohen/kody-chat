@@ -34,6 +34,13 @@ describe("TriggersManager data fetching", () => {
   it("bypasses the browser cache on every fetch", () => {
     expect(SOURCE).toContain('cache: "no-store"');
   });
+
+  it("loads GitHub and Kody workflow choices only for the relevant trigger form", () => {
+    expect(SOURCE).toContain('"/api/kody/github/workflows"');
+    expect(SOURCE).toContain('"/api/kody/company/workflows"');
+    expect(SOURCE).toContain("enabled: !!auth && !!editor");
+    expect(SOURCE).toContain("staleTime: 5 * 60 * 1000");
+  });
 });
 
 describe("TriggersManager listing", () => {
@@ -42,9 +49,10 @@ describe("TriggersManager listing", () => {
     expect(SOURCE).toContain('title="No triggers yet"');
   });
 
-  it("summarizes each trigger as event → namespace with a condition count", () => {
+  it("summarizes each trigger as event → action target with a condition count", () => {
     expect(SOURCE).toContain("<code>{trigger.event}</code>");
-    expect(SOURCE).toContain("<code>{trigger.action.namespace}</code>");
+    expect(SOURCE).toContain("trigger.action.workflowId");
+    expect(SOURCE).toContain("trigger.action.namespace");
     expect(SOURCE).toContain("${trigger.conditions.length} condition(s)");
   });
 
@@ -59,17 +67,17 @@ describe("TriggersManager editor", () => {
   it("opens a blank editor defaulting to the first event and namespace", () => {
     expect(SOURCE).toContain("event: SYSTEM_EVENT_NAMES[0]");
     expect(SOURCE).toContain(
-      "setEditor(emptyEditor(namespaces[0]?.name ?? \"\"))",
+      'setEditor(emptyEditor(namespaces[0]?.name ?? ""))',
     );
-    expect(SOURCE).toContain('conditionsJson: "[]"');
-    expect(SOURCE).toContain('mapJson: "{}"');
+    expect(SOURCE).toContain("conditions: []");
+    expect(SOURCE).toContain("map: []");
   });
 
   it("prefills the editor from an existing trigger with pretty-printed JSON", () => {
-    expect(SOURCE).toContain(
-      "JSON.stringify(trigger.conditions, null, 2)",
-    );
-    expect(SOURCE).toContain("JSON.stringify(trigger.action.map, null, 2)");
+    expect(SOURCE).toContain("conditionRows(");
+    expect(SOURCE).toContain("trigger.conditions.filter");
+    expect(SOURCE).toContain("action.inputMap");
+    expect(SOURCE).toContain("action.map");
   });
 
   it("slugifies the name into an id only for new triggers", () => {
@@ -88,15 +96,29 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).toContain("setEditor({ ...editor, name: e.target.value })");
     expect(SOURCE).toContain("setEditor({ ...editor, event: value })");
   });
+
+  it("uses selectors for the source GitHub workflow and target Kody workflow", () => {
+    expect(SOURCE).toContain("When GitHub workflow finishes");
+    expect(SOURCE).toContain("Only when result is");
+    expect(SOURCE).toContain("Start Kody workflow");
+    expect(SOURCE).toContain("githubWorkflowId");
+    expect(SOURCE).toContain("workflowDefinitionsQuery.data");
+    expect(SOURCE).not.toContain('htmlFor="trigger-workflow"');
+  });
+
+  it("keeps advanced payload conditions behind an explicit disclosure", () => {
+    expect(SOURCE).toContain("More filters");
+    expect(SOURCE).toContain("workflowId");
+    expect(SOURCE).toContain('op: "equals"');
+  });
 });
 
 describe("TriggersManager validation and errors", () => {
-  it("rejects invalid conditions/map JSON before hitting the API", () => {
-    expect(SOURCE).toContain("JSON.parse(state.conditionsJson)");
-    expect(SOURCE).toContain("JSON.parse(state.mapJson)");
-    expect(SOURCE).toContain(
-      'throw new Error("Conditions and map must be valid JSON")',
-    );
+  it("uses structured condition and mapping rows before hitting the API", () => {
+    expect(SOURCE).toContain("state.conditions");
+    expect(SOURCE).toContain("state.map");
+    expect(SOURCE).toContain('aria-label="Condition payload path"');
+    expect(SOURCE).toContain('aria-label="Workflow input source"');
   });
 
   it("toasts errors from every mutation", () => {
@@ -123,9 +145,7 @@ describe("TriggersManager deletion", () => {
   });
 
   it("deletes via DELETE with an encoded id and accepts 204 responses", () => {
-    expect(SOURCE).toContain(
-      "`/api/kody/triggers/${encodeURIComponent(id)}`",
-    );
+    expect(SOURCE).toContain("`/api/kody/triggers/${encodeURIComponent(id)}`");
     expect(SOURCE).toContain('method: "DELETE"');
     expect(SOURCE).toContain("!res.ok && res.status !== 204");
   });

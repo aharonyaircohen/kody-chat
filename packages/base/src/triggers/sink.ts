@@ -60,6 +60,7 @@ async function runTriggersForEvent(
 
   for (const trigger of matching) {
     try {
+      if (trigger.action.type !== "save-user-state") continue;
       const data = resolveActionData(trigger, event);
       if (Object.keys(data).length === 0) continue;
       await writer({

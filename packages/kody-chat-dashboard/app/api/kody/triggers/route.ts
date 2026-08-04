@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
   recordAudit(req, {
     action: "trigger.save",
     resource: trigger.id,
-    detail: `${trigger.event} → ${trigger.action.namespace}`,
+    detail:
+      trigger.action.type === "start-workflow"
+        ? `${trigger.event} → workflow:${trigger.action.workflowId}`
+        : `${trigger.event} → state:${trigger.action.namespace}`,
   });
   return NextResponse.json({ trigger }, { headers: NO_STORE_HEADERS });
 }

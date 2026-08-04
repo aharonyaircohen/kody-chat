@@ -9,6 +9,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ExternalLink,
@@ -43,6 +45,7 @@ import {
 import type { WorkflowDefinitionRecord } from "@dashboard/lib/workflow-definitions";
 import { workflowDefinitionGraph } from "@dashboard/lib/workflow-graph";
 import { cn } from "@dashboard/lib/utils";
+import { buildHeaders, handleResponse } from "@dashboard/lib/api";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
@@ -480,6 +483,34 @@ function WorkflowDetail({
     [workflow.workflow],
   );
   const { data: latestRun } = useWorkflowRunState(workflow.id, runId);
+  const { data: triggers = [] } = useQuery({
+    queryKey: ["workflow-event-triggers", workflow.id],
+    queryFn: async () =>
+      (
+        await handleResponse<{
+          triggers: Array<{
+            id: string;
+            name: string;
+            enabled: boolean;
+            event: string;
+            action:
+              | { type: "start-workflow"; workflowId: string }
+              | { type: "save-user-state" };
+          }>;
+        }>(
+          await fetch("/api/kody/triggers", {
+            headers: buildHeaders(),
+            cache: "no-store",
+          }),
+        )
+      ).triggers,
+  });
+  const workflowTriggers = triggers.filter(
+    (trigger) =>
+      trigger.enabled &&
+      trigger.action.type === "start-workflow" &&
+      trigger.action.workflowId === workflow.id,
+  );
   const latestRunId = latestRun?.runId;
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
@@ -598,6 +629,35 @@ function WorkflowDetail({
           runId={latestRun?.runId}
           runState={latestRun?.state}
         />
+      </section>
+
+      <section className="rounded-md border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium text-foreground">Starts when</div>
+          <Link
+            href="/triggers"
+            className="text-xs text-cyan-300 hover:text-cyan-200"
+          >
+            Manage event rules
+          </Link>
+        </div>
+        {workflowTriggers.length > 0 ? (
+          <ul className="space-y-2 text-sm">
+            {workflowTriggers.map((trigger) => (
+              <li key={trigger.id} className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>{trigger.event}</span>
+                <span className="text-xs text-muted-foreground">
+                  ({trigger.name})
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No event rules start this Workflow.
+          </p>
+        )}
       </section>
 
       <div className="text-xs text-muted-foreground">

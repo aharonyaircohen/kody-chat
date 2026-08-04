@@ -32,9 +32,9 @@ export function createCompanyWorkflowLoader({
     const local = await readWorkflowDefinitionFile(workflowId, owner, repo);
     if (local) return local;
 
-    const { config } = await getEngineConfig(octokit, owner, repo, {
-      force: true,
-    });
+    // Webhook bursts must reuse the normal 60s config cache. A forced GitHub
+    // read here would spend one API request per matching event.
+    const { config } = await getEngineConfig(octokit, owner, repo);
     if (!activeWorkflowIds(config.company?.activeWorkflows).has(workflowId)) {
       return null;
     }

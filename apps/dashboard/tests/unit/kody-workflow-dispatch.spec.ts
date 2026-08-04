@@ -97,4 +97,21 @@ describe("kody workflow dispatch input mapping", () => {
       }),
     ).resolves.toEqual({ implementation: "repo-graph" });
   });
+
+  it("shares cached workflow input reads for repeated dispatches", async () => {
+    const octokit = octokitWithWorkflow(executableWorkflow);
+
+    await buildKodyWorkflowDispatchInputs(
+      octokit,
+      { owner: "cache-owner", repo: "cache-repo", ref: "main", action: "run" },
+      { cache: true },
+    );
+    await buildKodyWorkflowDispatchInputs(
+      octokit,
+      { owner: "cache-owner", repo: "cache-repo", ref: "main", action: "run" },
+      { cache: true },
+    );
+
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(1);
+  });
 });

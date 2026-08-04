@@ -1,6 +1,6 @@
 # Loop
 
-Status: **Current Dashboard contract; Engine integration incomplete**
+Status: **Current Dashboard contract; event bindings moved to Triggers**
 
 A Loop says when Kody should repeatedly run one Workflow or Capability.
 
@@ -15,10 +15,8 @@ interface LoopDefinition {
         type: "schedule";
         every: string;
         at?: { time: string; timezone: string };
-      }
-    | { type: "event"; event: string }
-    | { type: "webhook"; event: string }
-    | { type: "condition"; expression: string };
+      };
+    /* event/webhook/condition remain readable for legacy definitions only */
   target: { kind: "workflow" | "capability"; id: string };
   input: Record<string, unknown>;
   enabled: boolean;
@@ -39,13 +37,14 @@ interface LoopDefinition {
 | --------- | ----------------- | ------------------------------------------ |
 | Manual    | Yes               | No                                         |
 | Schedule  | Yes               | No                                         |
-| Event     | Yes               | No                                         |
-| Webhook   | Yes               | No                                         |
-| Condition | Yes               | No                                         |
+| Event     | Legacy read only  | No                                         |
+| Webhook   | Legacy read only  | No                                         |
+| Condition | Legacy read only  | No                                         |
 
-The published Engine has a separate older Loop contract. Its manual and
-scheduled triggers execute; event, webhook, and condition triggers are skipped.
-That does not prove Dashboard-created simple Loops execute.
+New event-driven behavior belongs to the Trigger model. A matching Trigger
+starts its Workflow directly, so an event does not create one Loop per
+delivery. Existing Loop files with event, webhook, or condition values are
+still parsed and displayed as legacy values while they are migrated.
 
 ## Invariants
 

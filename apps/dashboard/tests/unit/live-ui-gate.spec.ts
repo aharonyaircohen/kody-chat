@@ -225,8 +225,6 @@ describe("live UI service preflight", () => {
         return new Response(
           JSON.stringify({
             authenticated: true,
-            owner: "example",
-            repo: "kody-e2e-tester",
           }),
           { status: 200 },
         );

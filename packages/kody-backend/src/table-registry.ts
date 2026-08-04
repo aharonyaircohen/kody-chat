@@ -27,6 +27,11 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_run",
   },
   {
+    table: "workflowEventDeliveries",
+    naturalKey: ["deliveryId", "triggerId"],
+    upsertIndex: "by_key",
+  },
+  {
     table: "guidedFlowInstances",
     naturalKey: ["actorId", "instanceId"],
     upsertIndex: "by_instance",

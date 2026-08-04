@@ -63,11 +63,15 @@ export function resolveActionData(
   trigger: TriggerConfig,
   event: SystemEventEnvelope,
 ): Record<string, unknown> {
-  if (Object.keys(trigger.action.map).length === 0) {
+  const map =
+    trigger.action.type === "save-user-state"
+      ? trigger.action.map
+      : trigger.action.inputMap;
+  if (Object.keys(map).length === 0) {
     return { ...event.payload };
   }
   const data: Record<string, unknown> = {};
-  for (const [targetKey, source] of Object.entries(trigger.action.map)) {
+  for (const [targetKey, source] of Object.entries(map)) {
     let value: unknown;
     if (source.startsWith("payload.")) {
       value = payloadValue(event.payload, source.slice("payload.".length));

@@ -102,6 +102,32 @@ export default defineSchema({
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
 
+  workflowEventDeliveries: defineTable({
+    tenantId: v.string(),
+    deliveryId: v.string(),
+    triggerId: v.string(),
+    workflowId: v.string(),
+    eventName: v.string(),
+    requestId: v.string(),
+    // Optional so existing deliveries remain readable during deployment.
+    sourceEventId: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    input: v.any(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("dispatched"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_key", ["tenantId", "deliveryId", "triggerId"])
+    .index("by_source_key", ["tenantId", "sourceEventId", "triggerId"])
+    .index("by_status", ["tenantId", "status", "updatedAt"])
+    .index("by_tenant", ["tenantId", "updatedAt"]),
+
   guidedFlowInstances: defineTable({
     tenantId: v.string(),
     actorId: v.string(),

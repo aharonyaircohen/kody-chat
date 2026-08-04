@@ -45,5 +45,10 @@ describe("GitHubActionsEngineGateway", () => {
       ref: "main",
       inputs: { runRequest: JSON.stringify(request) },
     });
+
+    await gateway({ ...request, requestId: "run-memory-2" });
+    expect(octokit.rest.repos.get).toHaveBeenCalledTimes(1);
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(1);
+    expect(createWorkflowDispatch).toHaveBeenCalledTimes(2);
   });
 });

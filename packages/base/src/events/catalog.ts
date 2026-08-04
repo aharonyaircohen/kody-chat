@@ -156,6 +156,39 @@ export const SYSTEM_EVENT_CATALOG = {
       })
       .strict(),
   ),
+  "github.workflow_run.completed": defineEvent(
+    "A GitHub Actions workflow run finished.",
+    z
+      .object({
+        runId: z.number().int().positive(),
+        workflowId: z.number().int().positive().optional(),
+        workflowName: z.string().trim().min(1).max(200).optional(),
+        workflowPath: z
+          .string()
+          .trim()
+          .startsWith(".github/workflows/")
+          .max(500)
+          .optional(),
+        conclusion: z
+          .enum([
+            "success",
+            "failure",
+            "neutral",
+            "cancelled",
+            "skipped",
+            "timed_out",
+            "action_required",
+            "stale",
+          ])
+          .nullable(),
+        branch: z.string().trim().min(1).max(255).optional(),
+        event: z.string().trim().min(1).max(100).optional(),
+        repository: z.string().trim().min(1).max(255),
+        actor: z.string().trim().min(1).max(255).optional(),
+        htmlUrl: z.string().url().max(1000).optional(),
+      })
+      .strict(),
+  ),
 } as const;
 
 export type SystemEventName = keyof typeof SYSTEM_EVENT_CATALOG;

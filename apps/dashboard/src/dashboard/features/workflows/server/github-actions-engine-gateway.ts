@@ -37,6 +37,42 @@ interface GitHubActionsEngineGatewayOptions {
   now?: () => Date;
 }
 
+const CACHE_TTL_MS = 60_000;
+const defaultBranchCache = new Map<
+  string,
+  { branch: string; expiresAt: number }
+>();
+const defaultBranchInflight = new Map<string, Promise<string>>();
+
+async function readDefaultBranch(
+  octokit: GitHubActionsClient,
+  owner: string,
+  repo: string,
+): Promise<string> {
+  const key = `${owner}/${repo}`.toLowerCase();
+  const cached = defaultBranchCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.branch;
+
+  const existing = defaultBranchInflight.get(key);
+  if (existing) return existing;
+
+  const promise = octokit.rest.repos
+    .get({ owner, repo })
+    .then((result) => result.data.default_branch || "main")
+    .then((branch) => {
+      defaultBranchCache.set(key, {
+        branch,
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      });
+      return branch;
+    })
+    .finally(() => {
+      defaultBranchInflight.delete(key);
+    });
+  defaultBranchInflight.set(key, promise);
+  return promise;
+}
+
 export function createGitHubActionsEngineGateway({
   octokit,
   owner,
@@ -46,14 +82,17 @@ export function createGitHubActionsEngineGateway({
   return async function dispatch(
     request: EngineExecutionRequest,
   ): Promise<EngineExecutionReceipt> {
-    const repository = await octokit.rest.repos.get({ owner, repo });
-    const ref = repository.data.default_branch || "main";
-    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
-      owner,
-      repo,
-      ref,
-      executionRequest: request,
-    });
+    const ref = await readDefaultBranch(octokit, owner, repo);
+    const inputs = await buildKodyWorkflowDispatchInputs(
+      octokit,
+      {
+        owner,
+        repo,
+        ref,
+        executionRequest: request,
+      },
+      { cache: true },
+    );
     await octokit.rest.actions.createWorkflowDispatch({
       owner,
       repo,
