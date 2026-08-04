@@ -118,6 +118,7 @@ import {
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
@@ -1237,6 +1238,7 @@ async function handleKodyDirectPost(
         token: repo.token,
         owner: repo.owner,
         repo: repo.repo,
+        hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
       }),
       ...createInboxTools({
         octokit,
