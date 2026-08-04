@@ -41,6 +41,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  if (
+    req.headers.get("x-kody-webhook-reconcile") === "automatic" &&
+    process.env.VERCEL_ENV === "preview"
+  ) {
+    return NextResponse.json(
+      { error: "preview_environment", skipped: true },
+      { status: 422 },
+    );
+  }
+
   let body: { owner?: string; repo?: string; events?: string[] } = {};
   try {
     if (req.headers.get("content-length") !== "0") {

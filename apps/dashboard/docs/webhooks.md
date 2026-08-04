@@ -138,9 +138,20 @@ repository, release
 
 [`app/api/webhooks/register/route.ts`](../app/api/webhooks/register/route.ts)
 
-Manual entry point — POST it **after login** to register or refresh the
-webhook for the connected repo. (Auto-registration on the OAuth callback
-was removed when dashboard auth became header-based PAT.)
+The dashboard automatically reconciles the active repository once per
+reconciliation policy version. This repairs repositories connected before
+automatic registration existed, without polling GitHub on every page load.
+The client supplies the browser-held PAT to this server endpoint; the server
+owns the GitHub API call.
+
+Automatic reconciliation uses the configured `NEXT_PUBLIC_SERVER_URL` when it
+exists, otherwise the production request origin. Preview deployments are
+blocked from automatic reconciliation so they cannot move the production hook
+to a temporary URL.
+
+This endpoint remains available for an explicit repair or operational
+backfill. (Auto-registration on the OAuth callback was removed when dashboard
+auth became header-based PAT.)
 
 - **Auth:** `x-kody-token` header (required; **401** if missing). Optional
   `x-kody-owner` / `x-kody-repo`.

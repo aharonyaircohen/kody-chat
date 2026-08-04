@@ -86,7 +86,7 @@ The dashboard intentionally keeps the env surface tiny. **One** secret is requir
 
 A classic PAT with `repo` + `workflow` is the simplest setup. Create one at [github.com/settings/tokens](https://github.com/settings/tokens).
 
-The dashboard auto-registers a webhook on the connected repo at login (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). If the user's token lacks `admin:repo_hook` on the repo, registration fails silently and the dashboard falls back to polling.
+The dashboard auto-registers and reconciles the active repository's webhook (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). Reconciliation runs once per repository and policy version, with a bounded retry after failure. If the user's token lacks `admin:repo_hook`, Kody shows a warning and falls back to polling.
 
 ---
 

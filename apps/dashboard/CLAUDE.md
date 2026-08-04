@@ -144,8 +144,11 @@ from anywhere else return 403.
   — shared `ensureWebhook` helper. Idempotent: lists existing hooks on the
   repo and PATCHes the matching one or creates a new one. Caller's PAT
   must have `admin:repo_hook` (the classic `repo` scope already includes it).
+  - Automatic reconciler: [src/dashboard/lib/webhooks/WebhookRegistrationReconciler.tsx](src/dashboard/lib/webhooks/WebhookRegistrationReconciler.tsx)
+    — repairs the active repository once per policy version, with a bounded
+    retry after failure.
   - Manual endpoint: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
-    — POST after login to register the webhook for the connected repo.
+    — explicit repair/backfill entry point.
     (Auto-registration on the OAuth callback was removed along with the
     OAuth flow; dashboard auth is header-based PAT now.)
 
