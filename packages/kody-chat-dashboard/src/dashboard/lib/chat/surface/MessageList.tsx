@@ -34,7 +34,11 @@ import {
 } from "../../components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
-import { SILENT_ASSISTANT_NOTICE } from "../core/silent-turn";
+import {
+  isLikelyTransientAssistantStatus,
+  SILENT_ASSISTANT_NOTICE,
+  TRANSIENT_ASSISTANT_NOTICE,
+} from "../core/silent-turn";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
 import {
   isRenderedViewDirective,
@@ -61,8 +65,13 @@ export function shouldShowSilentAssistantNotice(input: {
   isLoading: boolean;
   hasAnswer: boolean;
   hasView: boolean;
+  hasTransientStatus?: boolean;
 }): boolean {
-  return !input.isLoading && !input.hasAnswer && !input.hasView;
+  return (
+    !input.isLoading &&
+    !input.hasView &&
+    (!input.hasAnswer || input.hasTransientStatus === true)
+  );
 }
 
 interface MessageListProps {
@@ -349,6 +358,8 @@ export function MessageList({
                         const isActive =
                           activeLoading && i === messages.length - 1;
                         const hasAnswer = answer.trim().length > 0;
+                        const hasTransientStatus =
+                          isLikelyTransientAssistantStatus(answer);
                         return (
                           <>
                             {reasoning && (
@@ -374,12 +385,15 @@ export function MessageList({
                               isLoading: !!msg.isLoading,
                               hasAnswer,
                               hasView: Boolean(msg.view),
+                              hasTransientStatus,
                             }) && (
                               <div
                                 role="alert"
                                 className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
                               >
-                                {SILENT_ASSISTANT_NOTICE}
+                                {hasTransientStatus
+                                  ? TRANSIENT_ASSISTANT_NOTICE
+                                  : SILENT_ASSISTANT_NOTICE}
                               </div>
                             )}
                             {parsedAssistant?.strippedToolMarkup &&

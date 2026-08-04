@@ -158,4 +158,15 @@ describe("silent assistant messages", () => {
       }),
     ).toBe(false);
   });
+
+  it("recognizes a short progress sentence as an incomplete final result", () => {
+    expect(
+      shouldShowSilentAssistantNotice({
+        isLoading: false,
+        hasAnswer: true,
+        hasView: false,
+        hasTransientStatus: true,
+      }),
+    ).toBe(true);
+  });
 });
