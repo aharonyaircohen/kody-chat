@@ -28,6 +28,9 @@ const storedStepBaseSchema = {
   explanation: z.string().trim().min(1).max(1_000),
   authoringGoal: z.string().trim().max(1_000).optional(),
   routeId: z.string().trim().max(80).optional(),
+  routeParameters: z
+    .record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200))
+    .optional(),
   transitions: z.record(z.string(), z.string()).optional(),
   actions: z
     .array(
@@ -80,6 +83,9 @@ export const storedGuidedFlowDefinitionSchema = z.object({
   version: z.number().int().positive(),
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
+  completionRouteParameters: z
+    .record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200))
+    .optional(),
   controls: z
     .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
     .max(8)

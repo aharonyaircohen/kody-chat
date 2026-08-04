@@ -232,7 +232,9 @@ test("runs onboarding manually and lets the user advance after completing each p
   });
   await page.route("**/api/kody/models", (route) =>
     json(route, {
-      models: [{ id: "openrouter/free", label: "OpenRouter Free", enabled: true }],
+      models: [
+        { id: "openrouter/free", label: "OpenRouter Free", enabled: true },
+      ],
     }),
   );
   await page.route("**/api/kody/orgs/**/repos", (route) =>
@@ -345,7 +347,9 @@ test("runs onboarding manually and lets the user advance after completing each p
   const markdownCode = page.getByText("OPENROUTER_API_KEY", { exact: true });
   await expect(markdownCode).toBeVisible();
   await expect(markdownCode).toHaveJSProperty("tagName", "CODE");
-  const markdown = markdownCode.locator("xpath=ancestor::div[contains(@class, 'prose')][1]");
+  const markdown = markdownCode.locator(
+    "xpath=ancestor::div[contains(@class, 'prose')][1]",
+  );
   expect(
     await markdown.evaluate((element) =>
       Number.parseFloat(getComputedStyle(element).fontSize),
@@ -790,9 +794,7 @@ test("provides step editing controls, preview, and validation", async ({
     "tagName",
     "STRONG",
   );
-  await stepOneForm
-    .getByRole("button", { name: "Write", exact: true })
-    .click();
+  await stepOneForm.getByRole("button", { name: "Write", exact: true }).click();
   await expect(
     page.getByLabel("Preview step 1").getByLabel("Client ID"),
   ).toBeVisible();
@@ -809,13 +811,13 @@ test("provides step editing controls, preview, and validation", async ({
   await expect(
     page.getByLabel("Preview step 1").getByRole("button", { name: "Course 2" }),
   ).toBeVisible();
-  await page
-    .getByLabel("Step 1 type", { exact: true })
-    .selectOption("command");
+  await page.getByLabel("Step 1 type", { exact: true }).selectOption("command");
   await expect(page.getByLabel("Step 1 command", { exact: true })).toHaveValue(
     "/init",
   );
-  await page.getByLabel("Step 1 command", { exact: true }).fill("/init --force");
+  await page
+    .getByLabel("Step 1 command", { exact: true })
+    .fill("/init --force");
   await expect(
     page
       .getByLabel("Preview step 1")
@@ -896,7 +898,14 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   await page
     .getByLabel("Step 1 renderer", { exact: true })
     .selectOption("approval-card");
-  await page.getByLabel("Step 1 page").fill("secrets");
+  await page
+    .getByLabel("Completion page")
+    .selectOption({ label: "Task detail" });
+  await page.getByLabel("Completion page Task number").fill("42");
+  await page.getByLabel("Step 1 page").selectOption({ label: "Findings" });
+  await expect(
+    page.getByPlaceholder("Dashboard page ID (optional)"),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Save Guided Flow" }).click();
   await expect(
     page.getByText("Review a release", { exact: true }),
@@ -905,11 +914,104 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
     action: "create-definition",
     draft: expect.objectContaining({
       title: "Review a release",
+      completionRouteId: "task",
+      completionRouteParameters: { issueNumber: "42" },
       controls: ["back"],
       steps: expect.arrayContaining([
-        expect.objectContaining({ routeId: "secrets" }),
+        expect.objectContaining({ routeId: "findings" }),
       ]),
     }),
+  });
+});
+
+test("adds a widget through the existing GuidedFlow view-step model", async ({
+  page,
+}) => {
+  const posts: unknown[] = [];
+  await page.route("**/api/kody/widgets/question-select?**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: "export default function mount(element) { element.textContent = 'Question widget preview'; }",
+    }),
+  );
+  await page.route("**/api/kody/view-renderers", (route) =>
+    json(route, {
+      renderers: [
+        {
+          slug: "question-select",
+          name: "Question select",
+          version: 4,
+          source: "repo",
+          type: "layout",
+          data: { question: { type: "json" } },
+          ui: {
+            type: "widget",
+            widget: "question-select",
+            version: 7,
+            data: "$question",
+          },
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/kody/guided-flows**", async (route) => {
+    if (route.request().method() === "GET") {
+      await json(route, { definitions: [] });
+      return;
+    }
+    posts.push(route.request().postDataJSON());
+    await json(
+      route,
+      {
+        definition: {
+          id: "question-flow",
+          version: 1,
+          title: "Question flow",
+          steps: [{ rendererSlug: "question-select" }],
+        },
+      },
+      201,
+    );
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
+  await page.getByLabel("Flow name").fill("Question flow");
+  await page.getByLabel("Step 1 title").fill("Answer the question");
+  await page.getByLabel("Step 1 instructions").fill("Choose one answer.");
+  await page.getByLabel("Step 1 type").selectOption("widget");
+  await page
+    .getByLabel("Step 1 widget", { exact: true })
+    .selectOption("question-select");
+  await page
+    .getByLabel("Step 1 widget input")
+    .fill('{"question":{"questionId":"question-1"}}');
+  await page.getByLabel("Step 1 completion action").fill("correct");
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
+
+  await expect(page.getByText("Question flow", { exact: true })).toBeVisible();
+  expect(posts).toContainEqual({
+    action: "create-definition",
+    draft: {
+      title: "Question flow",
+      completionRouteId: "",
+      controls: [],
+      steps: [
+        {
+          title: "Answer the question",
+          explanation: "Choose one answer.",
+          rendererSlug: "question-select",
+          rendererVersion: 4,
+          rendererDataJson: '{"question":{"questionId":"question-1"}}',
+          completionActionId: "correct",
+        },
+      ],
+    },
   });
 });
 
@@ -917,7 +1019,22 @@ test("creates a GuidedFlow that calls another flow", async ({ page }) => {
   const posts: unknown[] = [];
   await page.route("**/api/kody/guided-flows**", async (route) => {
     if (route.request().method() === "GET") {
-      await json(route, { definitions: [] });
+      await json(route, {
+        definitions: [
+          {
+            id: "child-flow",
+            version: 2,
+            title: "Child flow",
+            steps: [],
+          },
+          {
+            id: "other-flow",
+            version: 4,
+            title: "Other flow",
+            steps: [],
+          },
+        ],
+      });
       return;
     }
     posts.push(route.request().postDataJSON());
@@ -953,8 +1070,11 @@ test("creates a GuidedFlow that calls another flow", async ({ page }) => {
   await page.getByLabel("Step 1 title").fill("Run child");
   await page.getByLabel("Step 1 instructions").fill("Complete the child flow.");
   await page.getByLabel("Step 1 type").selectOption("flow");
-  await page.getByLabel("Step 1 flow ID").fill("child-flow");
-  await page.getByLabel("Step 1 flow version").fill("2");
+  await page
+    .getByLabel("Step 1 nested flow")
+    .selectOption({ label: "Child flow · v2" });
+  await expect(page.getByLabel("Step 1 flow ID")).toHaveCount(0);
+  await expect(page.getByLabel("Step 1 flow version")).toHaveCount(0);
   await page.getByRole("button", { name: "Save Guided Flow" }).click();
 
   await expect(page.getByText("Parent flow", { exact: true })).toBeVisible();

@@ -19,6 +19,7 @@ export interface GuidedFlowStepBase {
   readonly explanation: string;
   readonly authoringGoal?: string;
   readonly routeId?: string;
+  readonly routeParameters?: Readonly<Record<string, string>>;
   readonly actions: readonly GuidedFlowActionDefinition[];
 }
 
@@ -52,6 +53,7 @@ export interface GuidedFlowDefinition {
   readonly title: string;
   readonly steps: readonly GuidedFlowStepDefinition[];
   readonly completionRouteId?: string;
+  readonly completionRouteParameters?: Readonly<Record<string, string>>;
   readonly controls?: readonly GuidedFlowControlId[];
 }
 

@@ -97,6 +97,26 @@ describe("GuidedFlow presenter navigation", () => {
     });
   });
 
+  it("fills a dynamic page from the step's typed parameters", () => {
+    const definition: GuidedFlowDefinition = {
+      ...DEFINITION,
+      steps: [
+        {
+          ...DEFINITION.steps[0],
+          routeId: "task",
+          routeParameters: { issueNumber: "42" },
+        },
+      ],
+    };
+    const started = createGuidedFlowInstance(definition, "instance-1");
+
+    expect(presentGuidedFlow(definition, started).navigation).toMatchObject({
+      routeId: "task",
+      href: "/42",
+      label: "Task #42",
+    });
+  });
+
   it("does not navigate when the active step has no page", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
 

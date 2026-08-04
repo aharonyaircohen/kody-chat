@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseGuidedFlowDefinitionRows } from "../../src/dashboard/lib/guided-flows/stored";
+import {
+  parseGuidedFlowDefinitionRows,
+  parseStoredGuidedFlowDefinitions,
+} from "../../src/dashboard/lib/guided-flows/stored";
 
 function definition(title: string) {
   return {
@@ -127,5 +130,39 @@ describe("stored guided flow definitions", () => {
         },
       ]),
     ).toEqual([expect.objectContaining({ title: "Newer" })]);
+  });
+
+  it("preserves typed dynamic-page parameters", () => {
+    expect(
+      parseStoredGuidedFlowDefinitions([
+        {
+          id: "open-task",
+          version: 1,
+          title: "Open a task",
+          completionRouteId: "task",
+          completionRouteParameters: { issueNumber: "42" },
+          steps: [
+            {
+              id: "step-1",
+              title: "Review the task",
+              explanation: "Review it.",
+              routeId: "task",
+              routeParameters: { issueNumber: "42" },
+              rendererSlug: "approval-card",
+              actions: [{ id: "continue", target: { type: "complete" } }],
+            },
+          ],
+        },
+      ]),
+    ).toMatchObject([
+      {
+        completionRouteParameters: { issueNumber: "42" },
+        steps: [
+          expect.objectContaining({
+            routeParameters: { issueNumber: "42" },
+          }),
+        ],
+      },
+    ]);
   });
 });

@@ -6,8 +6,7 @@ import type { DashboardNavigateDirective } from "../../../../src/dashboard/lib/c
 import { resolveDashboardNavigationTarget } from "../../../../src/dashboard/lib/dashboard-navigation";
 
 export type GuidedFlowNavigationError =
-  | "invalid_completion_route"
-  | "invalid_step_route";
+  "invalid_completion_route" | "invalid_step_route";
 
 export function validateGuidedFlowNavigation(
   definition: GuidedFlowDefinition,
@@ -17,6 +16,7 @@ export function validateGuidedFlowNavigation(
     "error" in
       resolveDashboardNavigationTarget({
         routeId: definition.completionRouteId,
+        parameters: definition.completionRouteParameters,
         reason: `Open ${definition.title} results`,
       })
   ) {
@@ -28,6 +28,7 @@ export function validateGuidedFlowNavigation(
       "error" in
         resolveDashboardNavigationTarget({
           routeId: step.routeId,
+          parameters: step.routeParameters,
           reason: `Open ${step.title}`,
         })
     ) {
@@ -43,6 +44,7 @@ export function navigationForCompletion(
   if (!definition.completionRouteId) return undefined;
   const resolved = resolveDashboardNavigationTarget({
     routeId: definition.completionRouteId,
+    parameters: definition.completionRouteParameters,
     reason: `Open ${definition.title} results`,
   });
   if ("error" in resolved) return undefined;
@@ -55,6 +57,7 @@ export function navigationForStep(
   if (!step.routeId) return undefined;
   const resolved = resolveDashboardNavigationTarget({
     routeId: step.routeId,
+    parameters: step.routeParameters,
     reason: `Open ${step.title}`,
   });
   if ("error" in resolved) throw new Error(resolved.error);

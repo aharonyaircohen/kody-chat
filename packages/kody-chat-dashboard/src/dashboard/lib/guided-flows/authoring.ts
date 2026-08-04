@@ -13,10 +13,16 @@ import {
 } from "./control-contract";
 import { z } from "zod";
 
+const GUIDED_FLOW_ACTION_ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const routeParametersSchema = z
+  .record(z.string().trim().min(1).max(80), z.string().max(200))
+  .optional();
+
 const guidedFlowDraftStepBaseSchema = {
   title: z.string().trim().min(1).max(160),
   explanation: z.string().trim().min(1).max(1_000),
   routeId: z.string().trim().max(80).optional(),
+  routeParameters: routeParametersSchema,
 };
 
 export const guidedFlowDraftViewStepSchema = z.object({
@@ -25,6 +31,14 @@ export const guidedFlowDraftViewStepSchema = z.object({
   rendererSlug: z.string().trim().min(1).max(80),
   rendererVersion: z.number().int().positive().optional(),
   rendererData: z.record(z.string(), z.unknown()).optional(),
+  /** Raw editor input compiled into rendererData; never stored at runtime. */
+  rendererDataJson: z.string().max(100_000).optional(),
+  /** Widget/result signal that advances this authored view step. */
+  completionActionId: z
+    .string()
+    .trim()
+    .regex(GUIDED_FLOW_ACTION_ID_RE)
+    .optional(),
 });
 
 export const guidedFlowDraftNestedStepSchema = z.object({
@@ -45,6 +59,7 @@ export const guidedFlowDraftCommandStepSchema = z.object({
 export const guidedFlowDraftSchema = z.object({
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
+  completionRouteParameters: routeParametersSchema,
   controls: z
     .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
     .max(8)
@@ -80,6 +95,20 @@ export type GuidedFlowDraftErrors = Partial<
   Record<"controls" | "title" | "steps", string>
 >;
 
+function normalizedRouteParameters(
+  parameters: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> | undefined {
+  if (!parameters) return undefined;
+  const entries = Object.entries(parameters).flatMap(([key, value]) => {
+    const normalizedKey = key.trim();
+    const normalizedValue = value.trim();
+    return normalizedKey && normalizedValue
+      ? [[normalizedKey, normalizedValue] as const]
+      : [];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 const SUPPORTED_RENDERERS = [
   "approval-card",
   "guided-form",
@@ -114,6 +143,28 @@ export function validateGuidedFlowDraft(
     return { steps: "Enter one valid slash command for every command step." };
   }
   if (
+    draft.steps.some(
+      (step) =>
+        step.type !== "flow" &&
+        step.type !== "command" &&
+        step.completionActionId !== undefined &&
+        !GUIDED_FLOW_ACTION_ID_RE.test(step.completionActionId),
+    )
+  ) {
+    return { steps: "Enter a valid finish signal for every widget." };
+  }
+  if (
+    draft.steps.some(
+      (step) =>
+        step.type !== "flow" &&
+        step.type !== "command" &&
+        step.rendererDataJson !== undefined &&
+        !parseRendererDataJson(step.rendererDataJson),
+    )
+  ) {
+    return { steps: "Enter valid JSON for every widget input." };
+  }
+  if (
     !draft.steps.every((step) => {
       if (step.type === "flow") {
         return (
@@ -142,6 +193,17 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
+}
+
+function parseRendererDataJson(source: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(source || "{}");
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function approvalActionsForGoal(
@@ -351,6 +413,29 @@ function rendererDataFor(
   nextStepId?: string,
 ): Pick<GuidedFlowViewStepDefinition, "rendererData" | "actions"> {
   const body = step.explanation.trim();
+  if (
+    step.rendererDataJson !== undefined ||
+    step.completionActionId !== undefined
+  ) {
+    const rendererData =
+      step.rendererDataJson !== undefined
+        ? parseRendererDataJson(step.rendererDataJson)
+        : (step.rendererData ?? {});
+    if (!rendererData) {
+      throw new Error("Enter valid JSON for every widget input.");
+    }
+    return {
+      rendererData,
+      actions: [
+        {
+          id: step.completionActionId ?? "complete",
+          target: nextStepId
+            ? { type: "step", stepId: nextStepId }
+            : { type: "complete" },
+        },
+      ],
+    };
+  }
   const generatedData =
     step.rendererData ?? deriveGuidedFlowRendererData(step.rendererSlug, body);
   if (step.rendererSlug === "approval-card") {
@@ -440,6 +525,7 @@ export function buildGuidedFlowDefinition(
   const id = slugify(requestedId || draft.title);
   if (!id) throw new Error("Flow name must contain a letter or number.");
   const steps = draft.steps.map((step, index) => {
+    const routeParameters = normalizedRouteParameters(step.routeParameters);
     const nextStepId =
       index < draft.steps.length - 1 ? `step-${index + 2}` : undefined;
     if (step.type === "flow") {
@@ -449,6 +535,7 @@ export function buildGuidedFlowDefinition(
         title: step.title.trim(),
         explanation: step.explanation.trim(),
         ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
+        ...(routeParameters ? { routeParameters } : {}),
         flowId: step.flowId.trim(),
         flowVersion: step.flowVersion,
         actions: [
@@ -468,6 +555,7 @@ export function buildGuidedFlowDefinition(
         title: step.title.trim(),
         explanation: step.explanation.trim(),
         ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
+        ...(routeParameters ? { routeParameters } : {}),
         command: step.command.trim(),
         actions: [
           { id: "run", target: { type: "stay" as const } },
@@ -485,6 +573,7 @@ export function buildGuidedFlowDefinition(
       title: step.title.trim(),
       explanation: step.explanation.trim(),
       ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
+      ...(routeParameters ? { routeParameters } : {}),
       rendererSlug: step.rendererSlug,
       ...(step.rendererVersion
         ? { rendererVersion: step.rendererVersion }
@@ -493,6 +582,9 @@ export function buildGuidedFlowDefinition(
     };
   });
 
+  const completionRouteParameters = normalizedRouteParameters(
+    draft.completionRouteParameters,
+  );
   return {
     id,
     version,
@@ -500,6 +592,7 @@ export function buildGuidedFlowDefinition(
     ...(draft.completionRouteId?.trim()
       ? { completionRouteId: draft.completionRouteId.trim() }
       : {}),
+    ...(completionRouteParameters ? { completionRouteParameters } : {}),
     ...(draft.controls && draft.controls.length > 0
       ? { controls: [...draft.controls] }
       : {}),

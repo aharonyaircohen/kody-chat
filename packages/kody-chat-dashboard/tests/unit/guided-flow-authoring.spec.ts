@@ -168,6 +168,32 @@ describe("guided flow authoring", () => {
     expect(definition.steps[0]).toMatchObject({ routeId: "secrets" });
   });
 
+  it("preserves dynamic page parameters without teaching the flow about routes", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      completionRouteId: "task",
+      completionRouteParameters: { issueNumber: "42" },
+      steps: [
+        {
+          title: "Open the task",
+          explanation: "Review the task.",
+          routeId: "task",
+          routeParameters: { issueNumber: "42" },
+          rendererSlug: "approval-card",
+        },
+      ],
+    });
+
+    expect(definition).toMatchObject({
+      completionRouteParameters: { issueNumber: "42" },
+      steps: [
+        expect.objectContaining({
+          routeParameters: { issueNumber: "42" },
+        }),
+      ],
+    });
+  });
+
   it("builds a stable definition with generated ids and renderer data", () => {
     expect(buildGuidedFlowDefinition(validDraft, "review-release")).toEqual({
       id: "review-release",
@@ -258,6 +284,70 @@ describe("guided flow authoring", () => {
         { id: "production", label: "Production" },
       ],
     });
+  });
+
+  it("compiles widget authoring fields into the existing view-step model", () => {
+    const definition = buildGuidedFlowDefinition({
+      title: "Answer a question",
+      steps: [
+        {
+          title: "Choose the answer",
+          explanation: "Answer the question in the widget.",
+          rendererSlug: "question-select",
+          rendererVersion: 3,
+          rendererDataJson: JSON.stringify({
+            question: { exerciseId: "exercise-1", questionId: "question-2" },
+          }),
+          completionActionId: "correct",
+        },
+      ],
+    });
+
+    expect(viewStep(definition, 0)).toEqual({
+      id: "step-1",
+      title: "Choose the answer",
+      explanation: "Answer the question in the widget.",
+      rendererSlug: "question-select",
+      rendererVersion: 3,
+      rendererData: {
+        question: { exerciseId: "exercise-1", questionId: "question-2" },
+      },
+      actions: [{ id: "correct", target: { type: "complete" } }],
+    });
+  });
+
+  it("rejects invalid widget input without changing the runtime model", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Broken widget",
+        steps: [
+          {
+            title: "Widget",
+            explanation: "Use it.",
+            rendererSlug: "question-select",
+            rendererDataJson: "{broken",
+            completionActionId: "correct",
+          },
+        ],
+      }),
+    ).toEqual({ steps: "Enter valid JSON for every widget input." });
+  });
+
+  it("rejects an invalid widget finish signal", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Broken widget",
+        steps: [
+          {
+            title: "Widget",
+            explanation: "Use it.",
+            rendererSlug: "question-select",
+            rendererDataJson: "{}",
+            completionActionId: "Not valid",
+          },
+        ],
+      }),
+    ).toEqual({ steps: "Enter a valid finish signal for every widget." });
   });
 
   it("migrates legacy multi-select actions at the persistence boundary", () => {
