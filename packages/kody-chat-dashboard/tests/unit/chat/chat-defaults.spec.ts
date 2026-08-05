@@ -223,6 +223,33 @@ describe("chat-defaults bundle", () => {
     );
   });
 
+  it("reads existing Agency documentation before answering Agency questions", () => {
+    const skill = DEFAULT_SKILLS["read-agency-documentation"];
+    const analyzer = DEFAULT_WORKFLOWS.find(
+      (workflow) => workflow.slug === "kody-analyzer",
+    );
+
+    expect(DEFAULT_CHAT_CAPABILITY.skills).toContain(
+      "read-agency-documentation",
+    );
+    expect(analyzer?.body).toContain("read-agency-documentation");
+    expect(skill?.body).toContain("AI Agency");
+    expect(skill?.body).toContain("Workflow");
+    expect(skill?.body).toContain("Capability");
+    expect(skill?.body).toContain("cms_list_collections");
+    expect(skill?.body).toContain("cms_get_document");
+    expect(skill?.body).toContain("If the CMS does not contain");
+    expect(skill?.body).toContain("github_search_code");
+    expect(skill?.body).toContain("github_get_file");
+    expect(skill?.body).toContain("complete relevant document");
+    expect(skill?.body).toContain(
+      "Once authoritative documentation has been found",
+    );
+    expect(skill?.body).toContain("stop discovery");
+    expect(skill?.body).toContain("Do not repeat searches");
+    expect(skill?.body).toContain("Do not create or copy documentation");
+  });
+
   it("documents show_view as spec-based rendering with strict validation", () => {
     const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
     expect(uiTools).toContain("Render an interactive UI card");
@@ -281,7 +308,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 10 skills — including generic workflow execution", () => {
+  it("exposes 11 skills — including documentation reading and generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -289,6 +316,7 @@ describe("chat-defaults bundle", () => {
       "create-workflow",
       "diagnose-pr",
       "memory",
+      "read-agency-documentation",
       "report-advise",
       "run-workflow",
       "todo-planner",

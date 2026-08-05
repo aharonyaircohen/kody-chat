@@ -154,6 +154,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "diagnose-pr",
     "report-advise",
     "todo-planner",
+    "read-agency-documentation",
     "create-issue",
     "create-capability",
     "create-agent",

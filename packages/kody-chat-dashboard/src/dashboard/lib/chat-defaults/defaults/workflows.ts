@@ -12,6 +12,7 @@ Skills:
 - diagnose-pr — analyze a Kody PR and find gaps between claims and diff.
 - report-advise — read a report and recommend create-issue / add-Todo / no-action.
 - todo-planner — decompose a finite outcome into concrete Todos.
+- read-agency-documentation — read the existing CMS or repository documentation before explaining AI Agency models or usage.
 
 Output shape: use agentIdentity's deep question shape: verdict, ### Findings, ### What's missing or risky.`,
 };
