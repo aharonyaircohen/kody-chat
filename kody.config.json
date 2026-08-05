@@ -39,7 +39,6 @@
       "detect-stale-memory",
       "release-prepare",
       "release-validate",
-      "release-merge",
       "release-promote",
       "vercel-production-deploy"
     ],
