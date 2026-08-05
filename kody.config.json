@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "minimax/MiniMax-M3"
+    "model": "openrouter/free"
   },
   "company": {
     "activeAgents": [
