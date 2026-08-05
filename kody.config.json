@@ -40,7 +40,6 @@
       "release-prepare",
       "release-validate",
       "release-merge",
-      "npm-publish",
       "release-promote",
       "vercel-production-deploy"
     ],
