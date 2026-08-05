@@ -9,39 +9,33 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
-import {
-  listAgentFiles,
-  readAgentFile,
-  deleteAgentFile,
-  isValidSlug,
-} from "../../../../../src/dashboard/lib/agent-files";
-import { dispatchAgentAsk } from "../../../../../src/dashboard/lib/control-issue";
 
 interface Ctx {
-  octokit: Octokit;
   owner: string;
   repo: string;
-  actorLogin?: string | null;
+  listAgents(): Promise<unknown>;
+  readAgent(slug: string): Promise<unknown>;
+  updateAgent(
+    slug: string,
+    input: { title?: string; body?: string; capabilities?: string[] },
+  ): Promise<unknown>;
+  removeAgent(slug: string): Promise<unknown>;
+  dispatchAgent(slug: string, message: string): Promise<unknown>;
+}
+
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
 export function createAgentAdminTools(ctx: Ctx) {
-  const { octokit, owner, repo } = ctx;
-  const repoRef = `${owner}/${repo}`;
+  const repoRef = `${ctx.owner}/${ctx.repo}`;
 
   return {
     list_agents: tool({
-      description: `List the agentIdentity identities in ${repoRef} (backend agents/). Returns slug and title for each reusable agentIdentity.`,
+      description: `List local and active Store Agent identities in ${repoRef} through the Dashboard API.`,
       inputSchema: z.object({}),
       execute: async () => {
-        try {
-          const agent = await listAgentFiles();
-          return {
-            agent: agent.map((s) => ({ slug: s.slug, title: s.title })),
-          };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.listAgents();
       },
     }),
 
@@ -50,29 +44,38 @@ export function createAgentAdminTools(ctx: Ctx) {
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        try {
-          const agent = await readAgentFile(slug);
-          if (!agent) return { error: `agent "${slug}" not found` };
-          return { agent };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.readAgent(slug);
+      },
+    }),
+
+    update_agent: tool({
+      description: `Update one local or active Store Agent identity in ${repoRef} through the Dashboard API. Editing a Store agent publishes a local version for this repo.`,
+      inputSchema: z
+        .object({
+          slug: z.string().min(1).max(64),
+          title: z.string().trim().min(1).optional(),
+          body: z.string().optional(),
+          capabilities: z.array(z.string().min(1).max(80)).max(50).optional(),
+        })
+        .refine(
+          (input) =>
+            input.title !== undefined ||
+            input.body !== undefined ||
+            input.capabilities !== undefined,
+          { message: "Provide at least one Agent field to update." },
+        ),
+      execute: async ({ slug, ...input }) => {
+        if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
+        return ctx.updateAgent(slug, input);
       },
     }),
 
     delete_agent: tool({
-      description: `Delete an agentIdentity from ${repoRef} (removes agents/<slug>.md from the backend).`,
+      description: `Remove an Agent identity from ${repoRef} through the Dashboard API. A local Agent is deleted; a Store Agent is only detached from this repo.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        try {
-          const existing = await readAgentFile(slug);
-          if (!existing) return { error: `agent "${slug}" not found` };
-          await deleteAgentFile(slug);
-          return { ok: true, action: "deleted", slug };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.removeAgent(slug);
       },
     }),
 
@@ -84,17 +87,7 @@ export function createAgentAdminTools(ctx: Ctx) {
       }),
       execute: async ({ slug, message }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        try {
-          const existing = await readAgentFile(slug);
-          if (!existing) return { error: `agent "${slug}" not found` };
-          const result = await dispatchAgentAsk(octokit, owner, repo, {
-            slug,
-            message,
-          });
-          return { ok: true, ...result };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.dispatchAgent(slug, message);
       },
     }),
   };

@@ -377,6 +377,10 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("deletes the Convex capability projection", async () => {
+    h.readCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      describe: "Ship feature",
+    });
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
@@ -401,6 +405,42 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
         resource: "ship-feature",
       }),
     );
+  });
+
+  it("detaches an active Store capability without deleting the Store item", async () => {
+    h.readCapabilityFile.mockResolvedValue(null);
+    h.readResolvedCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      source: "store",
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: {
+        company: { activeCapabilities: ["ship-feature", "review"] },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      request(
+        "https://dash.test/api/kody/capabilities/ship-feature?actorLogin=alice",
+        { method: "DELETE" },
+      ),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      removedStoreReference: true,
+    });
+    expect(h.writeConfigPatch).toHaveBeenCalledWith(
+      { rest: {} },
+      "acme",
+      "widgets",
+      { activeCapabilities: ["review"] },
+      "chore(kody): remove store capability ship-feature",
+    );
+    expect(h.deleteCapabilityFile).not.toHaveBeenCalled();
   });
 
   it("replaces the capability folder", async () => {

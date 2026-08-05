@@ -119,6 +119,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
       "app/api/kody/chat/tools/workflow-tools.ts",
+      "app/api/kody/chat/tools/agency-lifecycle-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",

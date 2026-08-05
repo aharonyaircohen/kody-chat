@@ -96,6 +96,8 @@ import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
+import { createAgencyApiClient } from "../tools/agency-api-client";
+import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
 import { applyVibeToolPolicy } from "./vibe-tool-policy";
@@ -1146,6 +1148,10 @@ async function handleKodyDirectPost(
         latestUserText,
       },
     });
+    const agencyApi = createAgencyApiClient({
+      request: repoScopedReq,
+      actorLogin: verifiedActorLogin,
+    });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -1164,10 +1170,9 @@ async function handleKodyDirectPost(
           typeof body.previewContext === "string" ? body.previewContext : null,
       }),
       ...createAgentTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        createAgent: (input) => agencyApi.createAgent(input),
       }),
       ...createMemoryTools({
         actorId: `github:${verifiedActorGithubId}`,
@@ -1190,13 +1195,35 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+        listCapabilities: () => agencyApi.listCapabilities(),
+        readCapability: (slug) => agencyApi.readCapability(slug),
+        saveCapability: (input) => agencyApi.saveCapability(input),
+        removeCapability: (slug) => agencyApi.removeCapability(slug),
+        runCapability: (slug) => agencyApi.runCapability(slug),
       }),
       ...createWorkflowTools({
         owner: repo.owner,
         repo: repo.repo,
         listWorkflows: () => workflowApi.list(),
         readWorkflow: (workflowId) => workflowApi.read(workflowId),
+        saveWorkflow: (input) => agencyApi.saveWorkflow(input),
+        removeWorkflow: (workflowId) => agencyApi.removeWorkflow(workflowId),
         runWorkflow: (command) => workflowApi.run(command),
+      }),
+      ...createAgencyLifecycleTools({
+        owner: repo.owner,
+        repo: repo.repo,
+        listLoops: () => agencyApi.listLoops(),
+        readLoop: (loopId) => agencyApi.readLoop(loopId),
+        saveLoop: (input) => agencyApi.saveLoop(input),
+        removeLoop: (loopId) => agencyApi.removeLoop(loopId),
+        runLoop: (loopId) => agencyApi.runLoop(loopId),
+        listIntents: () => agencyApi.listIntents(),
+        readIntent: (slug) => agencyApi.readIntent(slug),
+        saveIntent: (input) => agencyApi.saveIntent(input),
+        removeIntent: (slug) => agencyApi.removeIntent(slug),
+        listRuns: (limit) => agencyApi.listRuns(limit),
+        readRun: (runId, githubRunId) => agencyApi.readRun(runId, githubRunId),
       }),
       // Dashboard-management tools: let chat manage every dashboard feature
       // (config files, settings, infra) the same way the pages do. Reads use
@@ -1214,10 +1241,12 @@ async function handleKodyDirectPost(
         actorLogin: verifiedActorLogin,
       }),
       ...createTodoTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        listTodos: () => agencyApi.listTodos(),
+        readTodo: (slug) => agencyApi.readTodo(slug),
+        saveTodo: (input) => agencyApi.saveTodo(input),
+        removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),
       ...createInstructionsTools({
         octokit,
@@ -1263,10 +1292,14 @@ async function handleKodyDirectPost(
         repo: repo.repo,
       }),
       ...createAgentAdminTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        listAgents: () => agencyApi.listAgents(),
+        readAgent: (slug) => agencyApi.readAgent(slug),
+        updateAgent: (slug, input) => agencyApi.updateAgent(slug, input),
+        removeAgent: (slug) => agencyApi.removeAgent(slug),
+        dispatchAgent: (slug, message) =>
+          agencyApi.dispatchAgent(slug, message),
       }),
       ...createMacroTools({
         octokit,

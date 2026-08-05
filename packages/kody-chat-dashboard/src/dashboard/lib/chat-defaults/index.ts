@@ -227,7 +227,7 @@ export function composeChatPrompt(
   // Todo guidance + memory index (only when a repo is connected).
   if (sections.repo) {
     parts.push(
-      `## Todos\n\nFinite Agency outcomes are Todos. Use \`list_todo_lists\`, \`read_todo_list\`, and \`create_or_update_todo_list\` to inspect or change them. A Todo may track evidence, blockers, and related Runs; it does not own scheduling, routing, or Agent selection.`,
+      `## Todos and Agency management\n\nUse the Agency tools to manage the same data shown by the Dashboard. Workflows, Agents, Capabilities, Todos, Loops, and Intents can be listed, read, saved, and removed through their named tools; only runnable items can run. Store items are detached from this repo rather than deleted from the Store. Agency Runs are immutable and may only be listed or read.`,
     );
     if (sections.memoryContext && sections.memoryContext.trim().length > 0) {
       parts.push(

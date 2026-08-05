@@ -76,10 +76,13 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     // ── Workflow discovery and execution (repo-gated) ─────────────────────
     "list_workflows",
     "read_workflow",
+    "create_or_update_workflow",
+    "remove_workflow",
     "run_workflow",
     // ── Agent admin (actor-gated) ──────────────────────────────────────────
     "list_agents",
     "read_agent",
+    "update_agent",
     "delete_agent",
     "dispatch_agent",
     "create_kody_agent",
@@ -98,6 +101,20 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "read_todo_list",
     "create_or_update_todo_list",
     "delete_todo_list",
+    // ── Loops (actor-gated) ───────────────────────────────────────────────
+    "list_loops",
+    "read_loop",
+    "create_or_update_loop",
+    "remove_loop",
+    "run_loop",
+    // ── Agency intents (actor-gated) ──────────────────────────────────────
+    "list_intents",
+    "read_intent",
+    "create_or_update_intent",
+    "remove_intent",
+    // ── Immutable Agency run history ──────────────────────────────────────
+    "list_agency_runs",
+    "read_agency_run",
     // ── Instructions (actor-gated) ─────────────────────────────────────────
     "read_instructions",
     "set_instructions",

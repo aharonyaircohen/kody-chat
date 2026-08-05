@@ -7,6 +7,8 @@ const ctx = {
   repo: "app",
   listWorkflows: vi.fn(),
   readWorkflow: vi.fn(),
+  saveWorkflow: vi.fn(),
+  removeWorkflow: vi.fn(),
   runWorkflow: vi.fn(),
 };
 
@@ -19,6 +21,10 @@ describe("workflow chat tools", () => {
     ctx.readWorkflow.mockResolvedValue({
       workflow: { id: "documentation-agency" },
     });
+    ctx.saveWorkflow.mockResolvedValue({
+      workflow: { id: "documentation-agency" },
+    });
+    ctx.removeWorkflow.mockResolvedValue({ success: true });
     ctx.runWorkflow.mockResolvedValue({
       ok: true,
       workflow: "documentation-agency",
@@ -71,5 +77,33 @@ describe("workflow chat tools", () => {
       workflowId: "documentation-agency",
       input: { issue: 42 },
     });
+  });
+
+  it("saves and removes workflows through the workflow API", async () => {
+    const tools = createWorkflowTools(ctx);
+    const workflow = {
+      id: "documentation-agency",
+      name: "Documentation Agency",
+      agent: "writer",
+      capabilities: ["draft-docs"],
+      inputSchema: {},
+      steps: [{ id: "draft", capability: "draft-docs" }],
+      runWithoutApproval: false,
+    };
+
+    await expect(
+      tools.create_or_update_workflow.execute!(workflow, {} as never),
+    ).resolves.toMatchObject({
+      workflow: { id: "documentation-agency" },
+    });
+    expect(ctx.saveWorkflow).toHaveBeenCalledWith(workflow);
+
+    await expect(
+      tools.remove_workflow.execute!(
+        { workflowId: "documentation-agency" },
+        {} as never,
+      ),
+    ).resolves.toEqual({ success: true });
+    expect(ctx.removeWorkflow).toHaveBeenCalledWith("documentation-agency");
   });
 });

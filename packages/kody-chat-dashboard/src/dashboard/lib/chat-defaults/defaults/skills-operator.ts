@@ -38,7 +38,7 @@ export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
 export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
   slug: "create-workflow",
   title: "create-workflow",
-  body: `A workflow is one validated ordered run of existing capabilities. Research the request and current capabilities first, show the proposed graph and handoffs, then create an approved issue and call \`run_workflow_creator\`. Never write workflow files from chat and never call the creator on the first turn.`,
+  body: `A Workflow is one validated ordered run of existing Capabilities. Research the request and current Capabilities first, show the proposed graph and handoffs, then call \`create_or_update_workflow\` only after the user approves. The tool uses the same validated Dashboard API as the visual editor. Never call it on the first turn.`,
 };
 
 export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {

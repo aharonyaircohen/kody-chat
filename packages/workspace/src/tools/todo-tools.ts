@@ -8,22 +8,14 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
-import {
-  createTodoSlug,
-  deleteTodoFile,
-  isValidTodoSlug,
-  listTodoFiles,
-  readTodoFile,
-  writeTodoFile,
-} from "../todos/files";
-import { dashboardTodoUrl } from "@kody-ade/base/thread-link";
 
 interface Ctx {
-  octokit: Octokit;
   owner: string;
   repo: string;
-  actorLogin?: string | null;
+  listTodos(): Promise<unknown>;
+  readTodo(slug: string): Promise<unknown>;
+  saveTodo(input: z.infer<typeof todoWriteSchema>): Promise<unknown>;
+  removeTodo(slug: string): Promise<unknown>;
 }
 
 const todoItemSchema = z.object({
@@ -36,54 +28,26 @@ const todoItemSchema = z.object({
   completedAt: z.string().nullable().optional(),
 });
 
-function itemId(): string {
-  return `item-${Date.now().toString(36)}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
-}
+const todoWriteSchema = z.object({
+  slug: z.string().min(1).max(64).optional(),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().max(20_000).optional(),
+  items: z.array(todoItemSchema).max(200).default([]),
+});
 
-function normalizeItems(items: z.infer<typeof todoItemSchema>[], now: string) {
-  return items.map((item) => ({
-    id: item.id ?? itemId(),
-    title: item.title,
-    body: item.body,
-    assignee: item.assignee?.replace(/^@+/, "") || null,
-    completed: item.completed,
-    createdAt: item.createdAt ?? now,
-    completedAt: item.completed ? (item.completedAt ?? now) : null,
-  }));
+function isValidTodoSlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
 export function createTodoTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
-  const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
+  const repoRef = `${ctx.owner}/${ctx.repo}`;
 
   return {
     list_todo_lists: tool({
-      description: `List todo lists in ${repoRef} (Convex todos/). Returns each list slug/title and item completion counts.`,
+      description: `List todo lists in ${repoRef} through the same Dashboard API used by the Todos page.`,
       inputSchema: z.object({}),
       execute: async () => {
-        try {
-          const lists = await listTodoFiles();
-          return {
-            lists: lists.map((list) => {
-              const total = list.items.length;
-              const done = list.items.filter((item) => item.completed).length;
-              return {
-                slug: list.slug,
-                title: list.title,
-                description: list.description,
-                totalItems: total,
-                completedItems: done,
-                openItems: total - done,
-                updatedAt: list.updatedAt,
-              };
-            }),
-          };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.listTodos();
       },
     }),
 
@@ -94,13 +58,7 @@ export function createTodoTools(ctx: Ctx) {
       }),
       execute: async ({ slug }) => {
         if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
-        try {
-          const list = await readTodoFile(slug, octokit);
-          if (!list) return { found: false, slug };
-          return { found: true, list };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.readTodo(slug);
       },
     }),
 
@@ -108,68 +66,23 @@ export function createTodoTools(ctx: Ctx) {
       description:
         `Create or replace a todo list in ${repoRef}. Use this to add/edit/delete/reorder items, ` +
         "or mark individual items complete/reopened. Pass the full desired items array.",
-      inputSchema: z.object({
-        slug: z
-          .string()
-          .min(1)
-          .max(64)
-          .optional()
-          .describe(
-            "Filename slug. Omit for a new list and it will be generated from title.",
-          ),
-        title: z.string().trim().min(1).max(160),
-        description: z.string().max(20_000).optional(),
-        items: z.array(todoItemSchema).max(200).default([]),
-      }),
+      inputSchema: todoWriteSchema,
       execute: async (input) => {
-        const slug = input.slug ?? (await createTodoSlug(input.title));
-        if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
-
-        try {
-          const now = new Date().toISOString();
-          const existing = await readTodoFile(slug, octokit);
-          const list = await writeTodoFile({
-            octokit,
-            slug,
-            title: input.title,
-            description: input.description ?? existing?.description ?? "",
-            items: normalizeItems(input.items, existing?.createdAt ?? now),
-            createdAt: existing?.createdAt ?? now,
-            sha: existing?.sha,
-            message: `${existing ? "chore" : "feat"}(todos): ${
-              existing ? "update" : "add"
-            } ${slug}${by}`,
-          });
-          return {
-            ok: true,
-            action: existing ? "updated" : "created",
-            slug: list.slug,
-            title: list.title,
-            description: list.description,
-            itemCount: list.items.length,
-            htmlUrl: dashboardTodoUrl(list.slug),
-          };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
+        if (input.slug && !isValidTodoSlug(input.slug)) {
+          return { error: `invalid slug "${input.slug}"` };
         }
+        return ctx.saveTodo(input);
       },
     }),
 
     delete_todo_list: tool({
-      description: `Delete one todo list from ${repoRef} (removes todos/<slug>.json from the Convex).`,
+      description: `Delete one todo list from ${repoRef} through the Dashboard API.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),
       execute: async ({ slug }) => {
         if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
-        try {
-          const existing = await readTodoFile(slug, octokit);
-          if (!existing) return { error: `todo list "${slug}" not found` };
-          await deleteTodoFile(octokit, slug);
-          return { ok: true, action: "deleted", slug };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
-        }
+        return ctx.removeTodo(slug);
       },
     }),
   };
