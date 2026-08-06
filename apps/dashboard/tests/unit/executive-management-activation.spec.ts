@@ -18,7 +18,7 @@ describe("kody-chat company activation", () => {
     expect(config).not.toHaveProperty("state");
   });
 
-  it("activates CI repair and the installed memory agency", () => {
+  it("activates CI repair, the installed memory agency, and release workflows", () => {
     const config = JSON.parse(
       readFileSync(resolve(repoRoot, "kody.config.json"), "utf8"),
     );
@@ -37,11 +37,19 @@ describe("kody-chat company activation", () => {
       "apply-memory-changes",
       "verify-memory-change",
       "detect-stale-memory",
+      "release-prepare",
+      "release-validate",
+      "release-merge",
+      "npm-publish",
+      "release-promote",
+      "vercel-production-deploy",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
+      "package-release",
+      "web-release",
     ]);
   });
 
@@ -51,7 +59,7 @@ describe("kody-chat company activation", () => {
       "utf8",
     );
 
-    expect(workflow).toMatch(/cron: "(?:\*|\d+)\/15 \* \* \* \*"/);
+    expect(workflow).toMatch(/cron: ["'](?:\*|\d+)\/15 \* \* \* \*["']/);
     expect(workflow).toContain("@kody-ade/kody-engine@latest");
   });
 });

@@ -228,6 +228,7 @@ describe("chat-defaults bundle", () => {
     const mem = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem");
 
     expect(analyzer!.body).toContain("diagnose-pr");
+    expect(analyzer!.body).toContain("read-agency-documentation");
     expect(analyzer!.body).toContain("report-advise");
     expect(analyzer!.body).toContain("todo-planner");
 
@@ -253,7 +254,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 10 skills — including generic workflow execution", () => {
+  it("exposes 11 skills — including agency documentation and generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -261,6 +262,7 @@ describe("chat-defaults bundle", () => {
       "create-workflow",
       "diagnose-pr",
       "memory",
+      "read-agency-documentation",
       "report-advise",
       "run-workflow",
       "todo-planner",

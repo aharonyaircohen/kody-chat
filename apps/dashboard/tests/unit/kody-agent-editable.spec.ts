@@ -25,7 +25,9 @@ describe("Kody agent editability", () => {
       "Edit — saves agents/kody.md, making Kody a regular agent",
     );
     expect(SOURCE).toContain("isFileless");
-    expect(SOURCE).toMatch(/createMutation.mutate\(\s*\{ slug: member.slug/);
+    expect(SOURCE).toMatch(
+      /createMutation\.mutate\(\s*\{\s*slug:\s*member\.slug,/,
+    );
   });
 
   it("a real kody.md file wins over the built-in placeholder", () => {
