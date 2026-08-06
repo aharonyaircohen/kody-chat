@@ -29,6 +29,13 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@kody-ade/base/ui/dropdown-menu";
 import { useTheme } from "../../providers/Theme";
 import { cn } from "@kody-ade/base/utils/ui";
 import {
@@ -466,59 +473,121 @@ function SidebarContent({
               const sectionActive =
                 activeCollapsibleSectionTitle === section.title;
               const showItems =
-                isCollapsed ||
-                !section.collapsible ||
-                Boolean(query.trim()) ||
-                expandedSectionTitle === section.title;
+                !isCollapsed &&
+                (!section.collapsible ||
+                  Boolean(query.trim()) ||
+                  expandedSectionTitle === section.title);
 
               return (
                 <div key={section.title} className="space-y-1">
-                  {!isCollapsed && section.collapsible ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedSectionTitle((current) =>
-                          current === section.title ? null : section.title,
-                        )
-                      }
-                      aria-controls={sectionId}
-                      aria-expanded={showItems}
-                      className={cn(
-                        "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
-                        sectionActive
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                      )}
-                    >
-                      {Icon && (
-                        <Icon
+                  {section.collapsible ? (
+                    isCollapsed ? (
+                      <DropdownMenu>
+                        <SimpleTooltip content={section.title} side="right">
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={section.title}
+                              className={cn(
+                                "flex h-10 w-full items-center justify-center rounded-md text-body-sm transition-colors",
+                                sectionActive
+                                  ? "bg-accent text-foreground"
+                                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                              )}
+                            >
+                              {Icon && (
+                                <Icon
+                                  className={cn(
+                                    "h-5 w-5 shrink-0",
+                                    iconTintClass(section),
+                                  )}
+                                />
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                        </SimpleTooltip>
+                        <DropdownMenuContent
+                          side="right"
+                          align="start"
+                          sideOffset={8}
+                          className="w-56"
+                        >
+                          <DropdownMenuLabel className="text-muted-foreground">
+                            {section.title}
+                          </DropdownMenuLabel>
+                          {section.items.map((item) => {
+                            const ItemIcon = item.icon;
+                            const active = isNavItemActive(
+                              pathname,
+                              search,
+                              item,
+                            );
+                            return (
+                              <DropdownMenuItem key={item.href} asChild>
+                                <Link
+                                  href={scopedHref(item.href)}
+                                  prefetch={
+                                    item.href === "/" ? false : undefined
+                                  }
+                                  onClick={onNavigate}
+                                  aria-current={active ? "page" : undefined}
+                                  className={cn(
+                                    "cursor-pointer gap-3",
+                                    active && "bg-accent text-foreground",
+                                  )}
+                                >
+                                  <ItemIcon
+                                    className={cn(iconTintClass(item))}
+                                    aria-hidden="true"
+                                  />
+                                  <span className="truncate">{item.label}</span>
+                                </Link>
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedSectionTitle((current) =>
+                            current === section.title ? null : section.title,
+                          )
+                        }
+                        aria-controls={sectionId}
+                        aria-expanded={showItems}
+                        className={cn(
+                          "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
+                          sectionActive
+                            ? "bg-accent text-foreground"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        )}
+                      >
+                        {Icon && (
+                          <Icon
+                            className={cn(
+                              "h-5 w-5 shrink-0",
+                              iconTintClass(section),
+                            )}
+                          />
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-left">
+                          {section.title}
+                        </span>
+                        <ChevronDown
                           className={cn(
-                            "h-5 w-5 shrink-0",
-                            iconTintClass(section),
+                            "h-4 w-4 shrink-0 transition-transform",
+                            !showItems && "-rotate-90",
                           )}
                         />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-left">
-                        {section.title}
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 shrink-0 transition-transform",
-                          !showItems && "-rotate-90",
-                        )}
-                      />
-                    </button>
+                      </button>
+                    )
                   ) : !isCollapsed ? (
                     <p className="px-3.5 pb-1 pt-3.5 text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
                       {section.title}
                     </p>
                   ) : null}
-                  {isCollapsed && i > 0 && (
-                    <div
-                      className="my-2 mx-3 border-t border-white/[0.06]"
-                      aria-hidden="true"
-                    />
-                  )}
                   {section.collapsible && !isCollapsed ? (
                     <div
                       id={sectionId}
@@ -536,6 +605,7 @@ function SidebarContent({
                       </div>
                     </div>
                   ) : (
+                    !isCollapsed &&
                     showItems && (
                       <div id={sectionId} className="space-y-1">
                         {section.items.map((item) =>

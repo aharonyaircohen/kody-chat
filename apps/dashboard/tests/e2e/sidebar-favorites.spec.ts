@@ -41,7 +41,16 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     ) {
       return;
     }
-    failedRequests.push(`${request.method()} ${request.url()}`);
+    if (
+      request.method() === "GET" &&
+      request.url().endsWith("/api/kody/chat/machines") &&
+      request.failure()?.errorText === "net::ERR_ABORTED"
+    ) {
+      return;
+    }
+    failedRequests.push(
+      `${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown failure"}`,
+    );
   });
   page.on("response", (response) => {
     if (response.status() >= 400) {
@@ -101,6 +110,13 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ models: [] }),
+    }),
+  );
+  await page.route("**/api/kody/chat/machines", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ local: false }),
     }),
   );
   await page.route("**/api/kody/guided-flows", (route) =>
@@ -204,6 +220,7 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   const navigation = page.getByRole("complementary", {
     name: "Primary navigation",
   });
+  const sidebar = page.locator('aside[aria-label="Primary navigation"]');
   await expect(navigation).toBeVisible();
 
   const saveFavorite = page.waitForResponse(
@@ -266,6 +283,35 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   await expect(
     navigation.getByRole("link", { name: "Users", exact: true }),
   ).toHaveCount(0);
+
+  await navigation
+    .getByRole("button", { name: "Collapse sidebar", exact: true })
+    .click();
+  await expect(
+    navigation.getByRole("button", { name: "Work", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Tasks", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
+
+  await navigation.getByRole("button", { name: "Work", exact: true }).click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  const workPages = page.getByRole("menu", { name: "Work", exact: true });
+  await expect(workPages).toBeVisible();
+  await expect(
+    workPages.getByRole("menuitem", { name: "Tasks", exact: true }),
+  ).toBeVisible();
+  await expect(
+    workPages.getByRole("menuitem", { name: "Vibe", exact: true }),
+  ).toBeVisible();
+  await workPages.getByRole("menuitem", { name: "Tasks", exact: true }).click();
+  await expect(workPages).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
