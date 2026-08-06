@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   resolveActionData: vi.fn(),
   mutation: vi.fn(),
   startWorkflow: vi.fn(),
+  listJobsForWorkflowRun: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/triggers/config", () => ({
@@ -50,6 +51,14 @@ vi.mock("@kody-ade/base/logger", () => ({
 
 import { dispatchGitHubWorkflowTriggers } from "../../src/dashboard/features/workflows/server/github-workflow-trigger-dispatch";
 
+const octokit = {
+  rest: {
+    actions: {
+      listJobsForWorkflowRun: h.listJobsForWorkflowRun,
+    },
+  },
+} as never;
+
 const event = {
   id: "delivery-1",
   name: "github.workflow_run.completed",
@@ -88,13 +97,24 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       requestId: "github-request",
       acceptedAt: "2026-08-04T07:00:00.000Z",
     });
+    h.listJobsForWorkflowRun.mockResolvedValue({
+      data: {
+        jobs: [
+          {
+            conclusion: "failure",
+            runner_name: "GitHub Actions 123",
+            steps: [{ name: "Set up job", conclusion: "success" }],
+          },
+        ],
+      },
+    });
   });
 
   it("claims the delivery and starts the configured Workflow", async () => {
     await dispatchGitHubWorkflowTriggers({
       event,
       deliveryId: "delivery-1",
-      octokit: {} as never,
+      octokit,
     });
 
     expect(h.mutation).toHaveBeenCalledTimes(2);
@@ -115,11 +135,24 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     await dispatchGitHubWorkflowTriggers({
       event,
       deliveryId: "delivery-1",
-      octokit: {} as never,
+      octokit,
     });
 
     expect(h.startWorkflow).not.toHaveBeenCalled();
     expect(h.mutation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not inspect jobs when no configured trigger matches", async () => {
+    h.triggerMatches.mockReturnValue(false);
+
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId: "delivery-1",
+      octokit,
+    });
+
+    expect(h.listJobsForWorkflowRun).not.toHaveBeenCalled();
+    expect(h.startWorkflow).not.toHaveBeenCalled();
   });
 
   it("does not let the Kody Engine workflow recursively trigger itself", async () => {
@@ -132,7 +165,7 @@ describe("dispatchGitHubWorkflowTriggers", () => {
         },
       },
       deliveryId: "delivery-1",
-      octokit: {} as never,
+      octokit,
     });
 
     expect(h.mutation).not.toHaveBeenCalled();
@@ -171,7 +204,7 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       dispatchGitHubWorkflowTriggers({
         event,
         deliveryId: "delivery-1",
-        octokit: {} as never,
+        octokit,
       }),
     ).resolves.toBeUndefined();
     expect(h.startWorkflow).toHaveBeenCalledTimes(2);
@@ -183,7 +216,7 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     await dispatchGitHubWorkflowTriggers({
       event,
       deliveryId: "delivery-1",
-      octokit: {} as never,
+      octokit,
     });
 
     expect(h.startWorkflow).not.toHaveBeenCalled();
@@ -191,5 +224,40 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     expect(h.mutation.mock.calls[1]?.[1]).toMatchObject({
       error: "workflow input exceeds 64KB",
     });
+  });
+
+  it("does not start CI Repair when GitHub never assigned a runner", async () => {
+    h.listJobsForWorkflowRun.mockResolvedValue({
+      data: {
+        jobs: [
+          {
+            conclusion: "cancelled",
+            runner_name: "",
+            steps: [],
+          },
+        ],
+      },
+    });
+
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId: "delivery-1",
+      octokit,
+    });
+
+    expect(h.mutation).not.toHaveBeenCalled();
+    expect(h.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("keeps normal CI repair behavior when source-run inspection fails", async () => {
+    h.listJobsForWorkflowRun.mockRejectedValue(new Error("GitHub unavailable"));
+
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId: "delivery-1",
+      octokit,
+    });
+
+    expect(h.startWorkflow).toHaveBeenCalledTimes(1);
   });
 });

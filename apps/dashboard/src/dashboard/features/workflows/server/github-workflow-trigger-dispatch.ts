@@ -42,6 +42,51 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function sourceRunNeverStarted(input: {
+  event: SystemEventEnvelope;
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+}): Promise<boolean> {
+  const payload = input.event.payload as {
+    runId?: unknown;
+    conclusion?: unknown;
+  };
+  if (payload.conclusion !== "failure" || typeof payload.runId !== "number") {
+    return false;
+  }
+
+  try {
+    const response = await input.octokit.rest.actions.listJobsForWorkflowRun({
+      owner: input.owner,
+      repo: input.repo,
+      run_id: payload.runId,
+      filter: "latest",
+    });
+    const jobs = response.data.jobs;
+    return (
+      jobs.length > 0 &&
+      jobs.every(
+        (job) =>
+          job.conclusion === "cancelled" &&
+          !job.runner_name &&
+          (!job.steps || job.steps.length === 0),
+      )
+    );
+  } catch (error) {
+    logger.warn(
+      {
+        owner: input.owner,
+        repo: input.repo,
+        runId: payload.runId,
+        error: errorMessage(error),
+      },
+      "failed to inspect source workflow jobs; continuing trigger evaluation",
+    );
+    return false;
+  }
+}
+
 async function updateDelivery(
   operation: "markDispatched" | "markFailed",
   input: {
@@ -100,9 +145,33 @@ export async function dispatchGitHubWorkflowTriggers(input: {
     );
     return;
   }
-  for (const trigger of triggers) {
+  const matchingTriggers = triggers.filter(
+    (trigger) =>
+      trigger.action.type === "start-workflow" &&
+      triggerMatches(trigger, input.event),
+  );
+  if (matchingTriggers.length === 0) return;
+  if (
+    await sourceRunNeverStarted({
+      event: input.event,
+      octokit: input.octokit,
+      owner: brand.owner,
+      repo: brand.repo,
+    })
+  ) {
+    logger.info(
+      {
+        owner: brand.owner,
+        repo: brand.repo,
+        runId: input.event.payload.runId,
+        delivery: input.deliveryId,
+      },
+      "github workflow trigger skipped because the source run never acquired a runner",
+    );
+    return;
+  }
+  for (const trigger of matchingTriggers) {
     if (trigger.action.type !== "start-workflow") continue;
-    if (!triggerMatches(trigger, input.event)) continue;
     const action = trigger.action;
     const requestId = requestIdFor(sourceEventId, trigger.id);
     const workflowInput = resolveActionData(trigger, input.event);
