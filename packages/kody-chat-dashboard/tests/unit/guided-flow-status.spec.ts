@@ -31,7 +31,7 @@ describe("guided flow registry", () => {
     expect(onboarding).toMatchObject({
       id: "onboarding",
       title: "Get started with Kody",
-      version: 2,
+      version: 3,
       completionRouteId: "chat",
       steps: [
         {
@@ -61,10 +61,28 @@ describe("guided flow registry", () => {
           rendererData: {
             actions: expect.any(Array),
           },
-          actions: [{ id: "finish", target: { type: "complete" } }],
+          actions: [
+            {
+              id: "continue",
+              target: { type: "step", stepId: "initialize-repository" },
+            },
+          ],
+        },
+        {
+          id: "initialize-repository",
+          type: "command",
+          command: "/init",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "finish", target: { type: "complete" } },
+          ],
         },
       ],
     });
+    expect(onboarding?.steps[1]?.explanation).toContain(
+      "Webhooks: Read and write",
+    );
+    expect(onboarding?.steps[1]?.explanation).toContain("admin:repo_hook");
     expect(onboarding?.steps.map((step) => step.id)).not.toContain(
       "create-github-pat",
     );
@@ -72,6 +90,7 @@ describe("guided flow registry", () => {
       "secrets",
     );
     expect(getGuidedFlowDefinition("onboarding", 1)).not.toBeNull();
+    expect(getGuidedFlowDefinition("onboarding", 2)).not.toBeNull();
     expect(
       listGuidedFlowDefinitions().filter(
         (definition) => definition.id === "onboarding",

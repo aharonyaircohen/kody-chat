@@ -127,7 +127,7 @@ export const ONBOARDING_FLOW_V1: GuidedFlowDefinition = {
   ],
 };
 
-export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+export const ONBOARDING_FLOW_V2: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 2,
   title: "Get started with Kody",
@@ -184,6 +184,54 @@ export const ONBOARDING_FLOW: GuidedFlowDefinition = {
         ],
       },
       actions: [{ id: "finish", target: { type: "complete" } }],
+    },
+  ],
+};
+
+export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+  id: ONBOARDING_FLOW_ID,
+  version: 3,
+  title: "Get started with Kody",
+  completionRouteId: "chat",
+  controls: ["back"],
+  steps: [
+    ONBOARDING_FLOW_V2.steps[0]!,
+    {
+      id: "attach-repository",
+      title: "Add repository tools",
+      explanation:
+        "Attach a repository from the repository switcher. This adds repository context, pages, tools, and Agency to the same Chat; it does not create a separate Chat or replace your history.\n\n**Before connecting, make sure your GitHub token can manage repository webhooks:**\n\n- Fine-grained token: grant **Webhooks: Read and write**.\n- Classic token: grant `admin:repo_hook`.\n\nWhen the repository is connected, return to Chat and select **Continue**.",
+      routeId: "org",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Attach a repository when you need one",
+        actions: [
+          {
+            id: "continue",
+            label: "Continue",
+            response: "continue",
+            variant: "primary",
+          },
+        ],
+      },
+      actions: [
+        {
+          id: "continue",
+          target: { type: "step", stepId: "initialize-repository" },
+        },
+      ],
+    },
+    {
+      id: "initialize-repository",
+      type: "command",
+      title: "Verify the repository connection",
+      explanation:
+        "Run `/init` for the active repository. It installs or updates Kody Engine and verifies the repository webhook.\n\n> Select **Run command** and wait for the summary. If webhook setup failed, update the token permission and run `/init` again before finishing.",
+      command: "/init",
+      actions: [
+        { id: "run", target: { type: "stay" } },
+        { id: "finish", target: { type: "complete" } },
+      ],
     },
   ],
 };

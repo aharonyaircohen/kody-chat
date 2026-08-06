@@ -39,4 +39,15 @@ describe("RepoSwitcher org grouping", () => {
     expect(SOURCE).toContain("window.location.hash");
     expect(SOURCE).toContain("navigateBeforeCommit: true");
   });
+
+  it("offers one PAT update action for each repository", () => {
+    expect(SOURCE).toContain(
+      'import { UpdatePatDialog } from "./UpdatePatDialog"',
+    );
+    expect(SOURCE).toContain("setUpdatePatTarget({ index, entry })");
+    expect(SOURCE).toContain(
+      "aria-label={`Update PAT for ${entry.owner}/${entry.repo}`}",
+    );
+    expect(SOURCE).toContain("<UpdatePatDialog");
+  });
 });

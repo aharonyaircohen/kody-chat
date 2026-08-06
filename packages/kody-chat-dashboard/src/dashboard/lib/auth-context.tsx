@@ -138,6 +138,8 @@ export interface AuthContextValue {
     entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
     user?: KodyAuth["user"],
   ) => void;
+  /** Replace one repository's verified browser-owned PAT and identity. */
+  replaceRepoToken: (index: number, token: string, user: KodyUser) => boolean;
   /** Remove a repo by index. Removing the current repo falls back to index 0. Removing the only repo logs out. */
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
@@ -167,6 +169,7 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
   signIn: () => {},
   addRepo: () => {},
+  replaceRepoToken: () => false,
   removeRepo: () => {},
   setCurrentRepo: () => {},
   updateIntegrations: () => {},
@@ -586,6 +589,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const replaceRepoToken = useCallback(
+    (index: number, token: string, user: KodyUser): boolean => {
+      const trimmedToken = token.trim();
+      if (!auth || !trimmedToken || index < 0 || index >= auth.repos.length) {
+        return false;
+      }
+
+      const repos = auth.repos.map((repo, repoIndex) =>
+        repoIndex === index ? { ...repo, token: trimmedToken, user } : repo,
+      );
+      const replacingActive = index === auth.currentRepoIndex;
+      const next: KodyAuth = {
+        ...auth,
+        repos,
+        ...(replacingActive ? { token: trimmedToken, user } : {}),
+      };
+      persist(next);
+      setStoredAuth(next);
+      return true;
+    },
+    [auth],
+  );
+
   const setCurrentRepo = useCallback(
     (
       index: number,
@@ -678,6 +704,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         signIn,
         addRepo,
+        replaceRepoToken,
         removeRepo,
         setCurrentRepo,
         updateIntegrations,

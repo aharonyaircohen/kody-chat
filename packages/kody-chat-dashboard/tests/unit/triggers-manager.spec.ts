@@ -49,11 +49,10 @@ describe("TriggersManager listing", () => {
     expect(SOURCE).toContain('title="No triggers yet"');
   });
 
-  it("summarizes each trigger as event → action target with a condition count", () => {
-    expect(SOURCE).toContain("<code>{trigger.event}</code>");
-    expect(SOURCE).toContain("trigger.action.workflowId");
-    expect(SOURCE).toContain("trigger.action.namespace");
-    expect(SOURCE).toContain("${trigger.conditions.length} condition(s)");
+  it("summarizes each trigger in readable When → Then language", () => {
+    expect(SOURCE).toContain("When {EVENT_LABELS[trigger.event]");
+    expect(SOURCE).toContain('"start a Kody workflow"');
+    expect(SOURCE).toContain('"save event data"');
   });
 
   it("toggles enabled state by re-posting the trigger with enabled flipped", () => {
@@ -64,8 +63,9 @@ describe("TriggersManager listing", () => {
 });
 
 describe("TriggersManager editor", () => {
-  it("opens a blank editor defaulting to the first event and namespace", () => {
-    expect(SOURCE).toContain("event: SYSTEM_EVENT_NAMES[0]");
+  it("opens a blank editor with generic trigger and action choices", () => {
+    expect(SOURCE).toContain('event: ""');
+    expect(SOURCE).toContain('actionType: ""');
     expect(SOURCE).toContain(
       'setEditor(emptyEditor(namespaces[0]?.name ?? ""))',
     );
@@ -94,31 +94,49 @@ describe("TriggersManager editor", () => {
 
   it("updates editor state immutably via spread", () => {
     expect(SOURCE).toContain("setEditor({ ...editor, name: e.target.value })");
-    expect(SOURCE).toContain("setEditor({ ...editor, event: value })");
+    expect(SOURCE).toMatch(/setEditor\(\{\s+\.\.\.editor,\s+event: value,/);
   });
 
-  it("uses selectors for the source GitHub workflow and target Kody workflow", () => {
-    expect(SOURCE).toContain("When GitHub workflow finishes");
-    expect(SOURCE).toContain("Only when result is");
-    expect(SOURCE).toContain("Start Kody workflow");
+  it("uses a simple When trigger, Then action flow", () => {
+    expect(SOURCE).toContain("<Label>When</Label>");
+    expect(SOURCE).toContain('aria-label="Trigger"');
+    expect(SOURCE).toContain("<Label>Then</Label>");
+    expect(SOURCE).toContain('aria-label="Action"');
+    expect(SOURCE).not.toContain("When GitHub workflow");
+    expect(SOURCE).not.toContain("Use a different trigger");
+    expect(SOURCE).toContain('aria-label="GitHub workflow"');
+    expect(SOURCE).toContain("<Label>Result</Label>");
+    expect(SOURCE).toContain("Start a Kody workflow");
+    expect(SOURCE).toContain('aria-label="Kody workflow to start"');
     expect(SOURCE).toContain("githubWorkflowId");
     expect(SOURCE).toContain("workflowDefinitionsQuery.data");
     expect(SOURCE).not.toContain('htmlFor="trigger-workflow"');
   });
 
-  it("keeps advanced payload conditions behind an explicit disclosure", () => {
-    expect(SOURCE).toContain("More filters");
-    expect(SOURCE).toContain("workflowId");
-    expect(SOURCE).toContain('op: "equals"');
+  it("only offers the action supported by the selected trigger", () => {
+    expect(SOURCE).toContain("function actionTypeForEvent(event: string)");
+    expect(SOURCE).toContain("actionType: actionTypeForEvent(value),");
+    expect(SOURCE).toContain(
+      "editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (",
+    );
+    expect(SOURCE).toContain(
+      "editor.actionType !== actionTypeForEvent(editor.event)",
+    );
+  });
+
+  it("does not expose payload filters or input mapping in the editor", () => {
+    expect(SOURCE).not.toContain("More filters and input mapping");
+    expect(SOURCE).not.toContain("Additional filters");
+    expect(SOURCE).not.toContain("Pass these values");
+    expect(SOURCE).not.toContain('aria-label="Condition payload path"');
+    expect(SOURCE).not.toContain('aria-label="Workflow input source"');
   });
 });
 
 describe("TriggersManager validation and errors", () => {
-  it("uses structured condition and mapping rows before hitting the API", () => {
+  it("preserves stored condition and mapping rows when saving", () => {
     expect(SOURCE).toContain("state.conditions");
     expect(SOURCE).toContain("state.map");
-    expect(SOURCE).toContain('aria-label="Condition payload path"');
-    expect(SOURCE).toContain('aria-label="Workflow input source"');
   });
 
   it("toasts errors from every mutation", () => {

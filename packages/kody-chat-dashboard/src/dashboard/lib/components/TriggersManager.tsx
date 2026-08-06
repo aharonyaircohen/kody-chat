@@ -2,11 +2,10 @@
  * @fileType component
  * @domain triggers
  * @pattern triggers-manager
- * @ai-summary CRUD UI for trigger rules ("when event X matches, save mapped
- *   payload values or start Workflow Y"). Rules live at
- *   `triggers/config.json` in the backend; the event dropdown is the
- *   hardcoded system-event catalog, the entity dropdown is the brand's
- *   user-state namespaces. Follows the standard admin-page structure:
+ * @ai-summary CRUD UI for trigger rules ("when something happens, do Y").
+ *   Rules live at `triggers/config.json` in the backend; the editor presents
+ *   them as a readable When → Then sentence while preserving the existing
+ *   event and action contracts. Follows the standard admin-page structure:
  *   PageShell + card rows with status icon and Power toggle + ui-kit
  *   dialog editor.
  */
@@ -29,7 +28,6 @@ import {
 import { SYSTEM_EVENT_NAMES } from "@kody-ade/base/events/catalog";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
-import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +51,22 @@ import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";
 
 const GITHUB_WORKFLOW_COMPLETED_EVENT = "github.workflow_run.completed";
+const EVENT_LABELS: Record<string, string> = {
+  "session.started": "A chat session starts",
+  "session.ended": "A chat session ends",
+  "chat.message.sent": "A chat message is sent",
+  "chat.response.completed": "A chat response completes",
+  "ui.view.shown": "A view is shown",
+  "ui.form.submitted": "A form is submitted",
+  "ui.action.clicked": "A UI action is clicked",
+  "auth.signed_in": "A user signs in",
+  "auth.signed_out": "A user signs out",
+  "page.viewed": "A page is viewed",
+  "model.save.proposed": "Kody proposes saving state",
+  "state.entity.written": "State is saved",
+  "system.error": "A system error occurs",
+  [GITHUB_WORKFLOW_COMPLETED_EVENT]: "GitHub workflow finishes",
+};
 const WORKFLOW_CONCLUSIONS = [
   "success",
   "failure",
@@ -132,7 +146,7 @@ interface EditorState {
   name: string;
   enabled: boolean;
   event: string;
-  actionType: "save-user-state" | "start-workflow";
+  actionType: "" | "save-user-state" | "start-workflow";
   namespace: string;
   workflowId: string;
   githubWorkflowId: number | null;
@@ -141,6 +155,13 @@ interface EditorState {
   conditions: Array<{ path: string; op: string; value: string }>;
   map: Array<{ key: string; source: string }>;
   isNew: boolean;
+}
+
+function actionTypeForEvent(event: string): EditorState["actionType"] {
+  if (!event) return "";
+  return event === GITHUB_WORKFLOW_COMPLETED_EVENT
+    ? "start-workflow"
+    : "save-user-state";
 }
 
 function conditionRows(
@@ -218,8 +239,8 @@ function emptyEditor(defaultNamespace: string): EditorState {
     id: "",
     name: "",
     enabled: true,
-    event: SYSTEM_EVENT_NAMES[0],
-    actionType: "save-user-state",
+    event: "",
+    actionType: "",
     namespace: defaultNamespace,
     workflowId: "",
     githubWorkflowId: null,
@@ -229,6 +250,18 @@ function emptyEditor(defaultNamespace: string): EditorState {
     map: [],
     isNew: true,
   };
+}
+
+function EventOptions() {
+  return (
+    <>
+      {SYSTEM_EVENT_NAMES.map((name) => (
+        <SelectItem key={name} value={name}>
+          {EVENT_LABELS[name] ?? name}
+        </SelectItem>
+      ))}
+    </>
+  );
 }
 
 export function TriggersManager() {
@@ -291,6 +324,12 @@ export function TriggersManager() {
 
   const saveMutation = useMutation({
     mutationFn: async (state: EditorState) => {
+      if (!state.event || !state.actionType) {
+        throw new Error("Choose a trigger and an action");
+      }
+      if (state.actionType !== actionTypeForEvent(state.event)) {
+        throw new Error("Choose the action supported by this trigger");
+      }
       const advancedConditions = state.conditions
         .filter((condition) => condition.path.trim())
         .map((condition) => ({
@@ -416,7 +455,7 @@ export function TriggersManager() {
     <PageShell
       title="Triggers"
       icon={Zap}
-      subtitle="Rules that react to system events and save data or start workflows."
+      subtitle="Connect something that happens to what Kody should do next."
       actions={
         <>
           <Button
@@ -463,15 +502,10 @@ export function TriggersManager() {
                   <div className="min-w-0">
                     <div className="font-medium">{trigger.name}</div>
                     <div className="truncate text-sm text-muted-foreground">
-                      <code>{trigger.event}</code> →{" "}
-                      <code>
-                        {trigger.action.type === "start-workflow"
-                          ? trigger.action.workflowId
-                          : trigger.action.namespace}
-                      </code>
-                      {trigger.conditions.length > 0
-                        ? ` · ${trigger.conditions.length} condition(s)`
-                        : ""}
+                      When {EVENT_LABELS[trigger.event] ?? trigger.event}; then{" "}
+                      {trigger.action.type === "start-workflow"
+                        ? "start a Kody workflow"
+                        : "save event data"}
                     </div>
                   </div>
                 </div>
@@ -519,7 +553,7 @@ export function TriggersManager() {
               {editor?.isNew ? "New trigger" : "Edit trigger"}
             </DialogTitle>
             <DialogDescription>
-              When the event matches, Kody performs the selected action.
+              Describe what should happen in one simple rule.
             </DialogDescription>
           </DialogHeader>
           {editor ? (
@@ -535,29 +569,115 @@ export function TriggersManager() {
                   }
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3 rounded-md border border-border/70 p-3">
                 <div className="space-y-1">
-                  <Label>Event</Label>
+                  <Label>When</Label>
                   <Select
                     value={editor.event}
                     onValueChange={(value) =>
-                      setEditor({ ...editor, event: value })
+                      setEditor({
+                        ...editor,
+                        event: value,
+                        actionType: actionTypeForEvent(value),
+                      })
                     }
                   >
-                    <SelectTrigger aria-label="Event">
-                      <SelectValue placeholder="Event" />
+                    <SelectTrigger aria-label="Trigger">
+                      <SelectValue placeholder="Select a trigger" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SYSTEM_EVENT_NAMES.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {name}
-                        </SelectItem>
-                      ))}
+                      <EventOptions />
                     </SelectContent>
                   </Select>
                 </div>
+                {editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>GitHub workflow</Label>
+                      <Select
+                        value={selectedGithubWorkflowValue}
+                        onValueChange={(value) => {
+                          const workflow = githubWorkflows.find(
+                            (candidate) => String(candidate.id) === value,
+                          );
+                          if (!workflow) return;
+                          setEditor({
+                            ...editor,
+                            githubWorkflowId: workflow.id,
+                            githubWorkflowName: workflow.name,
+                          });
+                        }}
+                        disabled={githubWorkflowsQuery.isLoading}
+                      >
+                        <SelectTrigger aria-label="GitHub workflow">
+                          <SelectValue
+                            placeholder={
+                              githubWorkflowsQuery.isLoading
+                                ? "Loading GitHub workflows…"
+                                : "Select a GitHub workflow"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editor.githubWorkflowName &&
+                          editor.githubWorkflowId === null &&
+                          !githubWorkflows.some(
+                            (workflow) =>
+                              workflow.name === editor.githubWorkflowName,
+                          ) ? (
+                            <SelectItem
+                              value={`name:${editor.githubWorkflowName}`}
+                            >
+                              {editor.githubWorkflowName}
+                            </SelectItem>
+                          ) : null}
+                          {githubWorkflows.map((workflow) => (
+                            <SelectItem
+                              key={workflow.id}
+                              value={String(workflow.id)}
+                            >
+                              {workflow.name}
+                              {workflow.state === "active"
+                                ? ""
+                                : ` (${workflow.state.replaceAll("_", " ")})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Result</Label>
+                      <Select
+                        value={editor.githubWorkflowConclusion || "any"}
+                        onValueChange={(value) =>
+                          setEditor({
+                            ...editor,
+                            githubWorkflowConclusion:
+                              value === "any"
+                                ? ""
+                                : (value as WorkflowConclusion),
+                          })
+                        }
+                      >
+                        <SelectTrigger aria-label="GitHub workflow result">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any result</SelectItem>
+                          {WORKFLOW_CONCLUSIONS.map((conclusion) => (
+                            <SelectItem key={conclusion} value={conclusion}>
+                              {conclusion.replaceAll("_", " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="space-y-3 rounded-md border border-border/70 p-3">
                 <div className="space-y-1">
-                  <Label>Action</Label>
+                  <Label>Then</Label>
                   <Select
                     value={editor.actionType}
                     onValueChange={(value: EditorState["actionType"]) =>
@@ -569,326 +689,75 @@ export function TriggersManager() {
                           : { namespace: "" }),
                       })
                     }
+                    disabled={!editor.event}
                   >
                     <SelectTrigger aria-label="Action">
-                      <SelectValue placeholder="Action" />
+                      <SelectValue placeholder="Select an action" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="save-user-state">
-                        Save state
-                      </SelectItem>
-                      <SelectItem value="start-workflow">
-                        Start Workflow
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {editor.actionType === "save-user-state" ? (
-                <div className="space-y-1">
-                  <Label>Entity</Label>
-                  <Select
-                    value={editor.namespace}
-                    onValueChange={(value) =>
-                      setEditor({ ...editor, namespace: value })
-                    }
-                  >
-                    <SelectTrigger aria-label="Entity">
-                      <SelectValue placeholder="Entity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {namespaces.map((ns) => (
-                        <SelectItem key={ns.name} value={ns.name}>
-                          {ns.name} ({ns.origin})
+                      {editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (
+                        <SelectItem value="start-workflow">
+                          Start a Kody workflow
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <Label>Start Kody workflow</Label>
-                  <Select
-                    value={editor.workflowId}
-                    onValueChange={(value) =>
-                      setEditor({ ...editor, workflowId: value })
-                    }
-                    disabled={workflowDefinitionsQuery.isLoading}
-                  >
-                    <SelectTrigger aria-label="Start Kody workflow">
-                      <SelectValue
-                        placeholder={
-                          workflowDefinitionsQuery.isLoading
-                            ? "Loading workflows…"
-                            : "Select a workflow"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {kodyWorkflows.map((workflow) => (
-                        <SelectItem key={workflow.id} value={workflow.id}>
-                          {workflow.workflow.name} ({workflow.id})
+                      ) : editor.event ? (
+                        <SelectItem value="save-user-state">
+                          Save event data
                         </SelectItem>
-                      ))}
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              {editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (
-                <div className="space-y-3 rounded-md border border-border/70 p-3">
+                {editor.actionType === "start-workflow" ? (
                   <div className="space-y-1">
-                    <Label>When GitHub workflow finishes</Label>
+                    <Label>Kody workflow to start</Label>
                     <Select
-                      value={selectedGithubWorkflowValue}
-                      onValueChange={(value) => {
-                        const workflow = githubWorkflows.find(
-                          (candidate) => String(candidate.id) === value,
-                        );
-                        if (!workflow) return;
-                        setEditor({
-                          ...editor,
-                          githubWorkflowId: workflow.id,
-                          githubWorkflowName: workflow.name,
-                        });
-                      }}
-                      disabled={githubWorkflowsQuery.isLoading}
+                      value={editor.workflowId}
+                      onValueChange={(value) =>
+                        setEditor({ ...editor, workflowId: value })
+                      }
+                      disabled={workflowDefinitionsQuery.isLoading}
                     >
-                      <SelectTrigger aria-label="When GitHub workflow finishes">
+                      <SelectTrigger aria-label="Kody workflow to start">
                         <SelectValue
                           placeholder={
-                            githubWorkflowsQuery.isLoading
-                              ? "Loading GitHub workflows…"
-                              : "Select a GitHub workflow"
+                            workflowDefinitionsQuery.isLoading
+                              ? "Loading workflows…"
+                              : "Select a workflow"
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {editor.githubWorkflowName &&
-                        editor.githubWorkflowId === null &&
-                        !githubWorkflows.some(
-                          (workflow) =>
-                            workflow.name === editor.githubWorkflowName,
-                        ) ? (
-                          <SelectItem
-                            value={`name:${editor.githubWorkflowName}`}
-                          >
-                            {editor.githubWorkflowName}
-                          </SelectItem>
-                        ) : null}
-                        {githubWorkflows.map((workflow) => (
-                          <SelectItem
-                            key={workflow.id}
-                            value={String(workflow.id)}
-                          >
-                            {workflow.name}
-                            {workflow.state === "active"
-                              ? ""
-                              : ` (${workflow.state.replaceAll("_", " ")})`}
+                        {kodyWorkflows.map((workflow) => (
+                          <SelectItem key={workflow.id} value={workflow.id}>
+                            {workflow.workflow.name} ({workflow.id})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                ) : editor.actionType === "save-user-state" ? (
                   <div className="space-y-1">
-                    <Label>Only when result is</Label>
+                    <Label>Save event data to</Label>
                     <Select
-                      value={editor.githubWorkflowConclusion || "any"}
+                      value={editor.namespace}
                       onValueChange={(value) =>
-                        setEditor({
-                          ...editor,
-                          githubWorkflowConclusion:
-                            value === "any"
-                              ? ""
-                              : (value as WorkflowConclusion),
-                        })
+                        setEditor({ ...editor, namespace: value })
                       }
                     >
-                      <SelectTrigger aria-label="Only when result is">
-                        <SelectValue />
+                      <SelectTrigger aria-label="Save event data to">
+                        <SelectValue placeholder="Select an entity" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="any">Any result</SelectItem>
-                        {WORKFLOW_CONCLUSIONS.map((conclusion) => (
-                          <SelectItem key={conclusion} value={conclusion}>
-                            {conclusion.replaceAll("_", " ")}
+                        {namespaces.map((ns) => (
+                          <SelectItem key={ns.name} value={ns.name}>
+                            {ns.name} ({ns.origin})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                {editor.actionType === "start-workflow"
-                  ? "By default the whole normalized event is passed as Workflow input."
-                  : "By default the whole event payload is saved to the entity."}
-              </p>
-              <details className="rounded-md border border-border px-3 py-2">
-                <summary className="cursor-pointer text-sm text-muted-foreground">
-                  More filters and input mapping (optional)
-                </summary>
-                <div className="mt-3 space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Additional filters</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setEditor({
-                            ...editor,
-                            conditions: [
-                              ...editor.conditions,
-                              { path: "", op: "equals", value: "" },
-                            ],
-                          })
-                        }
-                      >
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Add condition
-                      </Button>
-                    </div>
-                    {editor.conditions.map((condition, index) => (
-                      <div
-                        key={`condition-${index}`}
-                        className="grid grid-cols-[1fr_8rem_1fr_auto] gap-2"
-                      >
-                        <Input
-                          aria-label="Condition payload path"
-                          placeholder="conclusion"
-                          value={condition.path}
-                          onChange={(e) => {
-                            const conditions = [...editor.conditions];
-                            conditions[index] = {
-                              ...condition,
-                              path: e.target.value,
-                            };
-                            setEditor({ ...editor, conditions });
-                          }}
-                        />
-                        <Select
-                          value={condition.op}
-                          onValueChange={(op) => {
-                            const conditions = [...editor.conditions];
-                            conditions[index] = { ...condition, op };
-                            setEditor({ ...editor, conditions });
-                          }}
-                        >
-                          <SelectTrigger aria-label="Condition operator">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="equals">equals</SelectItem>
-                            <SelectItem value="not_equals">
-                              not equals
-                            </SelectItem>
-                            <SelectItem value="contains">contains</SelectItem>
-                            <SelectItem value="exists">exists</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          aria-label="Condition value"
-                          placeholder="failure"
-                          disabled={condition.op === "exists"}
-                          value={condition.value}
-                          onChange={(e) => {
-                            const conditions = [...editor.conditions];
-                            conditions[index] = {
-                              ...condition,
-                              value: e.target.value,
-                            };
-                            setEditor({ ...editor, conditions });
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Remove condition"
-                          onClick={() =>
-                            setEditor({
-                              ...editor,
-                              conditions: editor.conditions.filter(
-                                (_, i) => i !== index,
-                              ),
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Pass these values</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setEditor({
-                            ...editor,
-                            map: [...editor.map, { key: "", source: "" }],
-                          })
-                        }
-                      >
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Add mapping
-                      </Button>
-                    </div>
-                    {editor.map.map((entry, index) => (
-                      <div
-                        key={`map-${index}`}
-                        className="grid grid-cols-[1fr_1fr_auto] gap-2"
-                      >
-                        <Input
-                          aria-label="Workflow input key"
-                          placeholder="sourceRunId"
-                          value={entry.key}
-                          onChange={(e) => {
-                            const map = [...editor.map];
-                            map[index] = { ...entry, key: e.target.value };
-                            setEditor({ ...editor, map });
-                          }}
-                        />
-                        <Input
-                          aria-label="Workflow input source"
-                          placeholder="payload.runId"
-                          value={entry.source}
-                          onChange={(e) => {
-                            const map = [...editor.map];
-                            map[index] = { ...entry, source: e.target.value };
-                            setEditor({ ...editor, map });
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Remove mapping"
-                          onClick={() =>
-                            setEditor({
-                              ...editor,
-                              map: editor.map.filter((_, i) => i !== index),
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={editor.enabled}
-                      onCheckedChange={(checked) =>
-                        setEditor({ ...editor, enabled: checked === true })
-                      }
-                    />
-                    Enabled
-                  </label>
-                </div>
-              </details>
+                ) : null}
+              </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setEditor(null)}>
                   Cancel
@@ -898,6 +767,9 @@ export function TriggersManager() {
                   disabled={
                     saveMutation.isPending ||
                     !editor.name.trim() ||
+                    !editor.event ||
+                    !editor.actionType ||
+                    editor.actionType !== actionTypeForEvent(editor.event) ||
                     (editor.actionType === "save-user-state"
                       ? !editor.namespace
                       : !editor.workflowId.trim())

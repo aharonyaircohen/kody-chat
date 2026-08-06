@@ -7,17 +7,35 @@ const REPO = "test-repo";
 async function seedAuth(page: Page): Promise<void> {
   await page.addInitScript(
     ({ owner, repo }) => {
-      localStorage.setItem(
-        "kody_auth",
-        JSON.stringify({
-          repoUrl: `https://github.com/${owner}/${repo}`,
-          owner,
-          repo,
-          token: "ghp_trigger_e2e",
-          user: { login: "trigger-e2e", avatar_url: "", id: 1 },
-          loggedInAt: Date.now(),
-        }),
-      );
+      if (!localStorage.getItem("kody_auth")) {
+        localStorage.setItem(
+          "kody_auth",
+          JSON.stringify({
+            repoUrl: `https://github.com/${owner}/${repo}`,
+            owner,
+            repo,
+            token: "ghp_trigger_e2e",
+            user: { login: "trigger-e2e", avatar_url: "", id: 1 },
+            loggedInAt: Date.now(),
+            repos: [
+              {
+                repoUrl: `https://github.com/${owner}/${repo}`,
+                owner,
+                repo,
+                token: "ghp_trigger_e2e",
+                user: {
+                  login: "trigger-e2e",
+                  avatar_url: "",
+                  id: 1,
+                },
+                addedAt: Date.now(),
+                isLogin: true,
+              },
+            ],
+            currentRepoIndex: 0,
+          }),
+        );
+      }
     },
     { owner: OWNER, repo: REPO },
   );
@@ -28,6 +46,7 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
 }) => {
   const errors: string[] = [];
   let savedTrigger: Record<string, unknown> | null = null;
+  const patUpdateAttempts: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -121,29 +140,92 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
       }),
     }),
   );
+  await page.route("**/api/kody/repos/add", async (route) => {
+    const body = route.request().postDataJSON() as {
+      owner: string;
+      repo: string;
+      token: string;
+    };
+    patUpdateAttempts.push(body.token);
+    if (body.token === "bad_token") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          error: "invalid_token",
+          message: "GitHub rejected the token.",
+        }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        owner: body.owner,
+        repo: body.repo,
+        repository: {
+          fullName: `${body.owner}/${body.repo}`,
+          private: true,
+          defaultBranch: "main",
+          htmlUrl: `https://github.com/${body.owner}/${body.repo}`,
+        },
+        user: {
+          login: "replacement-user",
+          avatar_url: "https://example.com/avatar.png",
+          id: 2,
+        },
+        webhook: { ok: true, created: false },
+      }),
+    });
+  });
 
   await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/triggers`);
   await expect(page.getByText("No triggers yet")).toBeVisible();
   await page.getByRole("button", { name: /new trigger/i }).click();
 
-  await page.getByRole("combobox", { name: "Event" }).click();
-  await page
-    .getByRole("option", { name: "github.workflow_run.completed" })
-    .click();
+  await expect(page.getByText("When", { exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Trigger" }).click();
+  await page.getByRole("option", { name: "A chat session starts" }).click();
+  await expect(page.getByRole("combobox", { name: "Action" })).toContainText(
+    "Save event data",
+  );
+  await page.getByRole("combobox", { name: "Action" }).click();
   await expect(
-    page.getByRole("combobox", { name: "When GitHub workflow finishes" }),
+    page.getByRole("option", { name: "Save event data" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: "Start a Kody workflow" }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("combobox", { name: "Trigger" }).click();
+  await page.getByRole("option", { name: "GitHub workflow finishes" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "GitHub workflow", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("combobox", { name: "When GitHub workflow finishes" })
+    .getByRole("combobox", { name: "GitHub workflow", exact: true })
     .click();
   await page
     .getByRole("option", { name: "Repo Hygiene Report (Daily)" })
     .click();
 
+  await expect(page.getByText("Then", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Action" })).toContainText(
+    "Start a Kody workflow",
+  );
   await page.getByRole("combobox", { name: "Action" }).click();
-  await page.getByRole("option", { name: "Start Workflow" }).click();
-  await page.getByRole("combobox", { name: "Start Kody workflow" }).click();
+  await expect(
+    page.getByRole("option", { name: "Save event data" }),
+  ).toHaveCount(0);
+  await page.getByRole("option", { name: "Start a Kody workflow" }).click();
+  await page.getByRole("combobox", { name: "Kody workflow to start" }).click();
   await page.getByRole("option", { name: /Review CI/ }).click();
+  await expect(
+    page.getByText("More filters and input mapping (optional)"),
+  ).toHaveCount(0);
 
   await page.getByLabel("Name").fill("Start review after hygiene");
   await page.getByRole("button", { name: "Save" }).click();
@@ -157,5 +239,51 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
       },
       conditions: [{ path: "workflowId", op: "equals", value: 12 }],
     });
+  await expect(page.getByText("Use a different trigger")).toHaveCount(0);
+  await expect(page.getByText("When GitHub workflow")).toHaveCount(0);
+
+  await page.getByTitle("Switch repository").click();
+  await page
+    .getByRole("button", {
+      name: `Update PAT for ${OWNER}/${REPO}`,
+    })
+    .click();
+  const patDialog = page.getByRole("dialog", { name: "Update PAT" });
+  const patInput = patDialog.getByLabel("New personal access token");
+  await expect(patInput).toHaveAttribute("type", "password");
+
+  await patInput.fill("bad_token");
+  await patDialog.getByRole("button", { name: "Save" }).click();
+  await expect(patDialog.getByText("GitHub rejected the token.")).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("kody_auth") ?? "null"),
+    ),
+  ).toMatchObject({ token: "ghp_trigger_e2e" });
+
+  await patInput.fill("ghp_replacement_e2e");
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+    patDialog.getByRole("button", { name: "Save" }).click(),
+  ]);
+  await expect
+    .poll(() => patUpdateAttempts)
+    .toEqual(["bad_token", "ghp_replacement_e2e"]);
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("kody_auth") ?? "null"),
+    ),
+  ).toMatchObject({
+    token: "ghp_replacement_e2e",
+    user: { login: "replacement-user" },
+    repos: [
+      {
+        owner: OWNER,
+        repo: REPO,
+        token: "ghp_replacement_e2e",
+        user: { login: "replacement-user" },
+      },
+    ],
+  });
   expect(errors).toEqual([]);
 });

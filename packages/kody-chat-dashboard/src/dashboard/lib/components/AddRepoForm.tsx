@@ -23,7 +23,7 @@ import { useAuth } from "../auth-context";
 const TOKEN_DOC_URL =
   "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow,admin:repo_hook";
 
-interface AddRepoResponse {
+export interface AddRepoResponse {
   ok: boolean;
   owner: string;
   repo: string;

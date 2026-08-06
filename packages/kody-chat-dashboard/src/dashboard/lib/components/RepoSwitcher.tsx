@@ -16,6 +16,7 @@ import {
   ChevronDown,
   FolderGit2,
   ExternalLink,
+  KeyRound,
   Plus,
   Star,
   Trash2,
@@ -25,6 +26,7 @@ import { useAuth, type KodyRepoEntry } from "../auth-context";
 import { repoSwitchRedirectPath } from "@kody-ade/base/routes";
 import { AddRepoForm } from "./AddRepoForm";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { UpdatePatDialog } from "./UpdatePatDialog";
 
 interface RepoGroup {
   owner: string;
@@ -64,6 +66,10 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
     index: number;
     entry: KodyRepoEntry;
   } | null>(null);
+  const [updatePatTarget, setUpdatePatTarget] = useState<{
+    index: number;
+    entry: KodyRepoEntry;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -99,7 +105,10 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
   const rail = variant === "rail";
 
   return (
-    <div ref={rootRef} className={rail ? "relative flex w-full" : "relative inline-flex"}>
+    <div
+      ref={rootRef}
+      className={rail ? "relative flex w-full" : "relative inline-flex"}
+    >
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
@@ -219,6 +228,19 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
                     </a>
                     <button
                       type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setAddOpen(false);
+                        setUpdatePatTarget({ index, entry });
+                      }}
+                      title="Update PAT"
+                      aria-label={`Update PAT for ${entry.owner}/${entry.repo}`}
+                      className="rounded p-1 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-100 md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setConfirmRemove({ index, entry })}
                       disabled={entry.isLogin}
                       title={
@@ -276,6 +298,10 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
           }}
         />
       )}
+      <UpdatePatDialog
+        target={updatePatTarget}
+        onOpenChange={(open) => !open && setUpdatePatTarget(null)}
+      />
     </div>
   );
 }

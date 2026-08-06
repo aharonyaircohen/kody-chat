@@ -306,7 +306,7 @@ test("runs onboarding manually and lets the user advance after completing each p
           title: "Connect your first repository",
           actionId: "next",
           actionLabel: "Next",
-          body: "Enter the repository URL, paste your PAT, and select **Connect repository**.",
+          body: "Enter the repository URL, paste your PAT, and select **Connect repository**.\n\nBefore connecting, grant **Webhooks: Read and write** on a fine-grained token, or `admin:repo_hook` on a classic token.",
         }),
         navigation: {
           action: "dashboard_navigate",
@@ -369,6 +369,12 @@ test("runs onboarding manually and lets the user advance after completing each p
   await expect(page).toHaveURL("/org/acme");
   await expect(
     page.getByRole("heading", { name: "Attached repositories" }),
+  ).toBeVisible();
+  await expect(
+    chat.getByText("Webhooks: Read and write", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    chat.getByText("admin:repo_hook", { exact: true }).last(),
   ).toBeVisible();
 
   await page
