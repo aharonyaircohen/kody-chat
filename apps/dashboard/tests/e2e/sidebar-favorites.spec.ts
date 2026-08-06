@@ -296,6 +296,54 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   await expect(
     navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
   ).toBeVisible();
+  await expect(
+    navigation.getByRole("button", { name: /^Notifications/ }),
+  ).toBeVisible();
+  const repoSwitcher = navigation.getByTitle("Switch repository");
+  await expect(repoSwitcher).toBeVisible();
+  await repoSwitcher.click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  await expect(
+    page.getByRole("listbox", { name: "Connected repositories" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  const reportAction = navigation.getByRole("button", {
+    name: "Report issue to Kody",
+    exact: true,
+  });
+  const sidebarVersion = sidebar.locator("[data-sidebar-version]");
+  await expect(reportAction).toBeVisible();
+  await expect(sidebarVersion).toBeVisible();
+  expect(
+    await reportAction.evaluate((element) => {
+      const version = document.querySelector("[data-sidebar-version]");
+      return Boolean(
+        version &&
+        element.compareDocumentPosition(version) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }),
+  ).toBe(true);
+
+  await navigation.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  const collapsedSearch = page.getByRole("menu", {
+    name: "Search",
+    exact: true,
+  });
+  const collapsedSearchInput = collapsedSearch.getByRole("searchbox", {
+    name: "Search navigation",
+  });
+  await expect(collapsedSearchInput).toBeVisible();
+  await collapsedSearchInput.fill("Vibe");
+  await expect(
+    collapsedSearch.getByRole("menuitem", { name: "Vibe", exact: true }),
+  ).toBeVisible();
+  await collapsedSearchInput.press("Escape");
+  await expect(collapsedSearch).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
 
   await navigation.getByRole("button", { name: "Work", exact: true }).click();
   await expect(sidebar).toHaveCSS("width", "72px");

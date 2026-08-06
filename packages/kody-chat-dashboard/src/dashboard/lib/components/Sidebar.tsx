@@ -13,7 +13,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -89,9 +89,11 @@ export interface SidebarProps {
    * switcher). Hidden while the rail is collapsed.
    */
   headerExtra?: React.ReactNode;
+  /** Compact counterpart to `headerExtra`, rendered only while collapsed. */
+  collapsedHeaderExtra?: React.ReactNode;
   /**
    * Optional slot at the right side of the brand row itself (e.g. a
-   * notifications bell). Hidden while the rail is collapsed.
+   * notifications bell). Shown in its own centered row while collapsed.
    */
   brandRowExtra?: React.ReactNode;
   /** Optional action rendered above the scrollable navigation list. */
@@ -100,7 +102,7 @@ export interface SidebarProps {
   extras?: React.ReactNode;
   /** Optional host CTA rendered at the bottom of the sidebar. */
   bottomCta?: React.ReactNode;
-  /** Optional footer action, shown beside the app version. */
+  /** Optional footer action, shown above the app version. */
   onReportIssue?: () => void;
 }
 
@@ -119,6 +121,7 @@ function SidebarContent({
   pinnedItem,
   brandLabel = "Kody",
   headerExtra,
+  collapsedHeaderExtra,
   brandRowExtra,
   navigationExtra,
   extras,
@@ -141,6 +144,9 @@ function SidebarContent({
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
+  const [collapsedSearchOpen, setCollapsedSearchOpen] =
+    useState<boolean>(false);
+  const collapsedSearchInputRef = useRef<HTMLInputElement>(null);
   const baseSections = hostSections;
   const availableFavoriteItems = useMemo(() => {
     const items = new Map<string, SettingsNavItem>();
@@ -202,6 +208,14 @@ function SidebarContent({
     setExpandedSectionTitle(activeCollapsibleSectionTitle);
   }, [activeCollapsibleSectionTitle]);
 
+  useEffect(() => {
+    if (!collapsedSearchOpen) return;
+    const frame = requestAnimationFrame(() =>
+      collapsedSearchInputRef.current?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [collapsedSearchOpen]);
+
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
@@ -218,16 +232,22 @@ function SidebarContent({
       .filter((section) => section.items.length > 0);
   }, [baseSections, query]);
 
-  const firstMatch = filteredSections[0]?.items[0];
+  const collapsedSearchItems = query.trim()
+    ? filteredSections.flatMap((section) => section.items)
+    : [];
+  const firstMatch = collapsedSearchItems[0];
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
+      e.preventDefault();
       setQuery("");
+      setCollapsedSearchOpen(false);
     } else if (e.key === "Enter" && firstMatch) {
       e.preventDefault();
       e.currentTarget.blur();
       router.push(scopedHref(firstMatch.href));
       setQuery("");
+      setCollapsedSearchOpen(false);
       onNavigate?.();
     }
   };
@@ -381,6 +401,24 @@ function SidebarContent({
         </div>
       )}
 
+      {brandRowExtra && isCollapsed && (
+        <div
+          data-sidebar-collapsed-notifications="true"
+          className="flex shrink-0 justify-center border-b border-white/[0.06] px-2.5 py-2"
+        >
+          {brandRowExtra}
+        </div>
+      )}
+
+      {collapsedHeaderExtra && isCollapsed && (
+        <div
+          data-sidebar-collapsed-header-extra="true"
+          className="flex shrink-0 justify-center border-b border-white/[0.06] px-2.5 py-2"
+        >
+          {collapsedHeaderExtra}
+        </div>
+      )}
+
       <nav className="min-h-0 flex-1 flex flex-col py-3">
         <div
           data-sidebar-fixed-controls="true"
@@ -393,19 +431,100 @@ function SidebarContent({
           )}
 
           {/* Inline search — filters the rail's own items as you type. Collapsed
-              mode shows an icon that expands the rail so there's room to type. */}
+              mode opens the same destinations in a floating picker. */}
           <div className="pb-1">
             {isCollapsed ? (
-              <SimpleTooltip content="Search" side="right">
-                <button
-                  type="button"
-                  onClick={toggleCollapsed}
-                  aria-label="Search"
-                  className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+              <DropdownMenu
+                open={collapsedSearchOpen}
+                onOpenChange={(open) => {
+                  setCollapsedSearchOpen(open);
+                  if (!open) setQuery("");
+                }}
+              >
+                <SimpleTooltip content="Search" side="right">
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Search"
+                      className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    >
+                      <Search className="h-5 w-5 shrink-0" />
+                    </button>
+                  </DropdownMenuTrigger>
+                </SimpleTooltip>
+                <DropdownMenuContent
+                  side="right"
+                  align="start"
+                  sideOffset={8}
+                  className="w-72"
                 >
-                  <Search className="h-5 w-5 shrink-0" />
-                </button>
-              </SimpleTooltip>
+                  <DropdownMenuLabel className="text-muted-foreground">
+                    Search navigation
+                  </DropdownMenuLabel>
+                  <div className="mx-1 mb-1 flex h-10 items-center gap-2 rounded-md border px-3">
+                    <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <input
+                      ref={collapsedSearchInputRef}
+                      type="search"
+                      name="kody-collapsed-navigation-search"
+                      autoComplete="off"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        onSearchKeyDown(event);
+                      }}
+                      placeholder="Search pages…"
+                      aria-label="Search navigation"
+                      className="min-w-0 flex-1 bg-transparent text-body-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
+                    />
+                    {query && (
+                      <button
+                        type="button"
+                        onClick={() => setQuery("")}
+                        aria-label="Clear search"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4 shrink-0" />
+                      </button>
+                    )}
+                  </div>
+                  {!query.trim() ? (
+                    <p className="px-3 py-2 text-body-xs text-muted-foreground">
+                      Type to find a page.
+                    </p>
+                  ) : collapsedSearchItems.length === 0 ? (
+                    <p className="px-3 py-2 text-body-xs text-muted-foreground">
+                      No matches.
+                    </p>
+                  ) : (
+                    collapsedSearchItems.map((item) => {
+                      const ItemIcon = item.icon;
+                      const active = isNavItemActive(pathname, search, item);
+                      return (
+                        <DropdownMenuItem key={item.href} asChild>
+                          <Link
+                            href={scopedHref(item.href)}
+                            prefetch={item.href === "/" ? false : undefined}
+                            onClick={onNavigate}
+                            aria-current={active ? "page" : undefined}
+                            className={cn(
+                              "cursor-pointer gap-3",
+                              active && "bg-accent text-foreground",
+                            )}
+                          >
+                            <ItemIcon
+                              className={cn(iconTintClass(item))}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      );
+                    })
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <div className="flex h-10 w-full items-center gap-2.5 rounded-md border border-white/[0.08] bg-black/20 px-3.5 text-body-sm transition-colors focus-within:border-white/[0.18]">
                 <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
@@ -755,30 +874,32 @@ function SidebarContent({
           </SimpleTooltip>
         )}
 
-        {(APP_VERSION || onReportIssue) && (
-          <div
-            className={cn(
-              "flex items-center gap-2 pt-1",
-              isCollapsed ? "justify-center px-0" : "justify-between px-3",
-            )}
+        {onReportIssue && (
+          <SimpleTooltip content="Report issue to Kody" side="right">
+            <button
+              type="button"
+              onClick={onReportIssue}
+              data-sidebar-report-issue="true"
+              aria-label="Report issue to Kody"
+              className={cn(
+                "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
+                "text-destructive hover:bg-destructive/10 hover:text-destructive",
+                isCollapsed && "justify-center px-0",
+              )}
+            >
+              <Bug className="h-5 w-5 shrink-0" aria-hidden="true" />
+              {!isCollapsed && <span className="truncate">Report issue</span>}
+            </button>
+          </SimpleTooltip>
+        )}
+
+        {APP_VERSION && (
+          <p
+            data-sidebar-version="true"
+            className="select-none px-1 pt-1 text-center font-mono text-code-sm text-muted-foreground/50"
           >
-            {APP_VERSION && (
-              <p className="text-code-sm font-mono text-muted-foreground/50 select-none">
-                v{APP_VERSION}
-              </p>
-            )}
-            {onReportIssue && (
-              <button
-                type="button"
-                onClick={onReportIssue}
-                title="Report issue to Kody"
-                aria-label="Report issue to Kody"
-                className="inline-flex h-8 w-8 items-center justify-center rounded text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Bug className="h-5 w-5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+            v{APP_VERSION}
+          </p>
         )}
       </div>
 
