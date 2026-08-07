@@ -36,6 +36,7 @@ import {
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+import { workflowAutomationEligibility } from "@dashboard/features/workflows/server/workflow-execution-authorization";
 
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
@@ -131,8 +132,16 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
       storeWorkflows,
     ).catch(() => undefined);
+    const automationById = await workflowAutomationEligibility(workflows);
+    const workflowsWithAutomation = workflows.map((workflow) => ({
+      ...workflow,
+      automation: automationById.get(workflow.id) ?? {
+        eligible: false as const,
+        reason: "approval-required" as const,
+      },
+    }));
     return NextResponse.json(
-      { workflows },
+      { workflows: workflowsWithAutomation },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {

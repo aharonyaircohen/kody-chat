@@ -11,9 +11,9 @@
  *
  * Body: { owner: string, repo: string, token: string }
  *
- * The PAT is *not* stored server-side — the client persists it in
- * localStorage alongside the rest of `kody_auth`. This endpoint only proves
- * the PAT works and ensures push-based cache invalidation is wired up.
+ * After GitHub validates the PAT, Kody stores an encrypted server-side copy
+ * under its reserved vault key so webhook work can continue without a browser.
+ * The client also persists the PAT in localStorage for interactive requests.
  *
  * Webhook registration failure does not fail the request — polling still
  * works as a fallback. The response includes `webhook.ok` so the UI can
@@ -21,6 +21,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createUserOctokit } from "@kody-ade/base/github/core";
+import { provisionBackgroundGitHubAccess } from "@kody-ade/base/auth/background-token-provisioning";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { logger } from "@kody-ade/base/logger";
@@ -60,6 +62,10 @@ interface AddRepoResponse {
     ok: boolean;
     created?: boolean;
     error?: string;
+  };
+  backgroundAccess: {
+    ok: true;
+    source: "managed-vault";
   };
 }
 
@@ -212,7 +218,43 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "network_error" }, { status: 502 });
   }
 
-  // 2) Best-effort webhook registration. Failure is non-fatal — polling still works.
+  // 2) Establish durable access for unattended webhook work. Repository
+  // connection is not complete until both browser and background callers can
+  // use the verified credential.
+  let backgroundAccess: AddRepoResponse["backgroundAccess"];
+  try {
+    const result = await provisionBackgroundGitHubAccess({
+      octokit: createUserOctokit(token),
+      owner,
+      repo,
+      token,
+      actorLogin: userData.login,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error: "background_access_unavailable",
+          message: "Secure background GitHub access is not configured.",
+        },
+        { status: 503 },
+      );
+    }
+    backgroundAccess = result;
+  } catch {
+    logger.error(
+      { event: "background_access_provision_failed", owner, repo },
+      "Failed to provision background GitHub access",
+    );
+    return NextResponse.json(
+      {
+        error: "background_access_failed",
+        message: "Could not secure background GitHub access.",
+      },
+      { status: 502 },
+    );
+  }
+
+  // 3) Best-effort webhook registration. Failure is non-fatal — polling still works.
   const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
   let webhook: AddRepoResponse["webhook"] = { ok: false };
   try {
@@ -261,6 +303,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       avatar_url: userData.avatar_url,
       id: userData.id,
     },
+    backgroundAccess,
     webhook,
   };
 

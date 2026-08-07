@@ -135,6 +135,16 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
             id: "review-ci",
             workflow: { name: "Review CI" },
             runnable: true,
+            automation: { eligible: true },
+          },
+          {
+            id: "release-with-approval",
+            workflow: { name: "Release with approval" },
+            runnable: true,
+            automation: {
+              eligible: false,
+              reason: "approval-required",
+            },
           },
         ],
       }),
@@ -177,6 +187,7 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
           id: 2,
         },
         webhook: { ok: true, created: false },
+        backgroundAccess: { ok: true, source: "managed-vault" },
       }),
     });
   });
@@ -223,6 +234,9 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
   await page.getByRole("option", { name: "Start a Kody workflow" }).click();
   await page.getByRole("combobox", { name: "Kody workflow to start" }).click();
   await page.getByRole("option", { name: /Review CI/ }).click();
+  await expect(
+    page.getByRole("option", { name: /Release with approval/ }),
+  ).toHaveCount(0);
   await expect(
     page.getByText("More filters and input mapping (optional)"),
   ).toHaveCount(0);

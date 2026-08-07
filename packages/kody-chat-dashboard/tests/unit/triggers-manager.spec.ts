@@ -124,6 +124,11 @@ describe("TriggersManager editor", () => {
     );
   });
 
+  it("only offers workflows that policy allows to run automatically", () => {
+    expect(SOURCE).toContain("workflow.automation.eligible");
+    expect(SOURCE).toContain("No workflows can run automatically");
+  });
+
   it("does not expose payload filters or input mapping in the editor", () => {
     expect(SOURCE).not.toContain("More filters and input mapping");
     expect(SOURCE).not.toContain("Additional filters");

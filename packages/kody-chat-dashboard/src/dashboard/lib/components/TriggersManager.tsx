@@ -90,6 +90,8 @@ interface KodyWorkflowOption {
   id: string;
   workflow: { name: string };
   runnable?: boolean;
+  automation:
+    { eligible: true } | { eligible: false; reason: "approval-required" };
 }
 
 interface TriggerRow {
@@ -441,7 +443,11 @@ export function TriggersManager() {
   const triggers = triggersQuery.data ?? [];
   const githubWorkflows = githubWorkflowsQuery.data ?? [];
   const kodyWorkflows = (workflowDefinitionsQuery.data ?? []).filter(
-    (workflow) => workflow.runnable !== false,
+    (workflow) =>
+      workflow.runnable !== false && workflow.automation.eligible === true,
+  );
+  const selectedKodyWorkflowIsEligible = kodyWorkflows.some(
+    (workflow) => workflow.id === editor?.workflowId,
   );
   const selectedGithubWorkflowValue = editor
     ? editor.githubWorkflowId !== null
@@ -715,7 +721,10 @@ export function TriggersManager() {
                       onValueChange={(value) =>
                         setEditor({ ...editor, workflowId: value })
                       }
-                      disabled={workflowDefinitionsQuery.isLoading}
+                      disabled={
+                        workflowDefinitionsQuery.isLoading ||
+                        kodyWorkflows.length === 0
+                      }
                     >
                       <SelectTrigger aria-label="Kody workflow to start">
                         <SelectValue
@@ -734,6 +743,19 @@ export function TriggersManager() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {!workflowDefinitionsQuery.isLoading &&
+                    kodyWorkflows.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No workflows can run automatically. Allow one from{" "}
+                        <a
+                          className="underline underline-offset-2"
+                          href={`/repo/${owner}/${repo}/workflows`}
+                        >
+                          Workflows
+                        </a>
+                        .
+                      </p>
+                    ) : null}
                   </div>
                 ) : editor.actionType === "save-user-state" ? (
                   <div className="space-y-1">
@@ -772,7 +794,8 @@ export function TriggersManager() {
                     editor.actionType !== actionTypeForEvent(editor.event) ||
                     (editor.actionType === "save-user-state"
                       ? !editor.namespace
-                      : !editor.workflowId.trim())
+                      : !editor.workflowId.trim() ||
+                        !selectedKodyWorkflowIsEligible)
                   }
                 >
                   {saveMutation.isPending ? (

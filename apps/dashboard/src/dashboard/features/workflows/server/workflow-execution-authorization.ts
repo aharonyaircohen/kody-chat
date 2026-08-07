@@ -6,17 +6,48 @@ import {
   trustSubjectKey,
 } from "@dashboard/lib/cto/trust-state";
 
-export async function workflowRequiresApproval(
+export type WorkflowAutomationEligibility =
+  { eligible: true } | { eligible: false; reason: "approval-required" };
+
+function automationEligibility(
+  trust: Awaited<ReturnType<typeof readTrust>>,
   workflowId: string,
   workflow: WorkflowDefinition,
-): Promise<boolean> {
-  const trust = await readTrust();
+): WorkflowAutomationEligibility {
   const subject = trustSubjectKey("workflow", workflowId);
   const level = trustLevelForSubject(
     trust.subjects[subject],
     workflow.runWithoutApproval === true,
   );
-  return level === "approval-required";
+  return level === "approval-required"
+    ? { eligible: false, reason: "approval-required" }
+    : { eligible: true };
+}
+
+/** Resolve automation policy for a workflow collection with one trust read. */
+export async function workflowAutomationEligibility(
+  workflows: ReadonlyArray<{
+    id: string;
+    workflow: WorkflowDefinition;
+  }>,
+): Promise<Map<string, WorkflowAutomationEligibility>> {
+  const trust = await readTrust();
+  return new Map(
+    workflows.map(({ id, workflow }) => [
+      id,
+      automationEligibility(trust, id, workflow),
+    ]),
+  );
+}
+
+export async function workflowRequiresApproval(
+  workflowId: string,
+  workflow: WorkflowDefinition,
+): Promise<boolean> {
+  const eligibility = await workflowAutomationEligibility([
+    { id: workflowId, workflow },
+  ]);
+  return eligibility.get(workflowId)?.eligible !== true;
 }
 
 export async function authorizeLoopExecution(

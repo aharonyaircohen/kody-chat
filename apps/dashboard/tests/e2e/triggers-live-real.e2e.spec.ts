@@ -1,10 +1,24 @@
 import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
+import type { APIResponse } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const EXECUTION_BASE_URL =
   process.env.KODY_TRIGGER_EXECUTION_BASE_URL ?? BASE_URL;
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
+const TEST_KODY_WORKFLOW_ID = "trigger-e2e";
+const TEST_KODY_WORKFLOW_NAME = "Trigger E2E";
+const TEST_KODY_CAPABILITY =
+  process.env.E2E_KODY_TRIGGER_CAPABILITY ?? "ci-health-check";
+
+interface LiveWorkflowDefinition {
+  id: string;
+  workflow: { name: string; runWithoutApproval?: boolean };
+  source?: "local" | "store";
+  runnable?: boolean;
+  automation:
+    { eligible: true } | { eligible: false; reason: "approval-required" };
+}
 
 function parseRepo(value: string) {
   const path = value.includes("://") ? new URL(value).pathname : value;
@@ -57,6 +71,90 @@ async function installAuth(page: Page, owner: string, repo: string) {
   );
 }
 
+async function expectOk(response: APIResponse) {
+  const text = await response.text();
+  expect(response.ok(), text).toBe(true);
+  return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+}
+
+async function ensureRepositoryConnection(
+  page: Page,
+  owner: string,
+  repo: string,
+  headers: ReturnType<typeof apiHeaders>,
+) {
+  const connection = await page.request.post(`${BASE_URL}/api/kody/repos/add`, {
+    data: { owner, repo, token: TEST_TOKEN },
+  });
+  const connectionBody = await expectOk(connection);
+  expect(connectionBody.backgroundAccess).toEqual({
+    ok: true,
+    source: "managed-vault",
+  });
+
+  if (EXECUTION_BASE_URL !== BASE_URL) {
+    const registration = await page.request.post(
+      `${EXECUTION_BASE_URL}/api/webhooks/register`,
+      { headers, data: { owner, repo } },
+    );
+    await expectOk(registration);
+  }
+}
+
+async function ensureTriggerWorkflow(
+  page: Page,
+  headers: ReturnType<typeof apiHeaders>,
+): Promise<LiveWorkflowDefinition> {
+  const list = async () => {
+    const response = await page.request.get(
+      `${BASE_URL}/api/kody/company/workflows`,
+      { headers },
+    );
+    const body = await expectOk(response);
+    return (body.workflows ?? []) as LiveWorkflowDefinition[];
+  };
+
+  let workflow = (await list()).find(
+    (candidate) => candidate.id === TEST_KODY_WORKFLOW_ID,
+  );
+  if (!workflow) {
+    const created = await page.request.post(
+      `${BASE_URL}/api/kody/company/workflows`,
+      {
+        headers,
+        data: {
+          id: TEST_KODY_WORKFLOW_ID,
+          name: TEST_KODY_WORKFLOW_NAME,
+          agent: "kody",
+          capabilities: [TEST_KODY_CAPABILITY],
+          runWithoutApproval: true,
+        },
+      },
+    );
+    await expectOk(created);
+    workflow = (await list()).find(
+      (candidate) => candidate.id === TEST_KODY_WORKFLOW_ID,
+    );
+  } else if (!workflow.automation.eligible && workflow.source === "local") {
+    const updated = await page.request.patch(
+      `${BASE_URL}/api/kody/company/workflows/${TEST_KODY_WORKFLOW_ID}`,
+      { headers, data: { runWithoutApproval: true } },
+    );
+    await expectOk(updated);
+    workflow = (await list()).find(
+      (candidate) => candidate.id === TEST_KODY_WORKFLOW_ID,
+    );
+  }
+
+  expect(workflow).toMatchObject({
+    id: TEST_KODY_WORKFLOW_ID,
+    workflow: { name: TEST_KODY_WORKFLOW_NAME },
+    runnable: true,
+    automation: { eligible: true },
+  });
+  return workflow!;
+}
+
 test("creates, persists, and executes a GitHub workflow trigger", async ({
   page,
 }) => {
@@ -74,35 +172,22 @@ test("creates, persists, and executes a GitHub workflow trigger", async ({
     "x-github-api-version": "2022-11-28",
   };
   const marker = `live-trigger-${Date.now()}`;
+  await ensureRepositoryConnection(page, owner, repo, headers);
+  const kodyWorkflow = await ensureTriggerWorkflow(page, headers);
   const githubWorkflowsResponse = await page.request.get(
     `${BASE_URL}/api/kody/github/workflows`,
     { headers },
   );
-  const workflowDefinitionsResponse = await page.request.get(
-    `${BASE_URL}/api/kody/company/workflows`,
-    { headers },
-  );
   expect(githubWorkflowsResponse.ok()).toBe(true);
-  expect(workflowDefinitionsResponse.ok()).toBe(true);
   const githubWorkflows = (await githubWorkflowsResponse.json())
     .workflows as Array<{
     id: number;
     name: string;
   }>;
-  const workflowDefinitions = (await workflowDefinitionsResponse.json())
-    .workflows as Array<{
-    id: string;
-    workflow: { name: string };
-    runnable?: boolean;
-  }>;
   const githubWorkflow = githubWorkflows.find(
     (workflow) => workflow.name === "Test CI",
   );
-  const kodyWorkflow = workflowDefinitions.find(
-    (workflow) => workflow.workflow.name === "Chore Flow" && workflow.runnable,
-  );
   expect(githubWorkflow).toBeTruthy();
-  expect(kodyWorkflow).toBeTruthy();
 
   await installAuth(page, owner, repo);
   // The shared shell requests this optional widget on every repo page. It is
@@ -220,54 +305,101 @@ test("creates, persists, and executes a GitHub workflow trigger", async ({
     }
 
     const dispatchedAfter = Date.now() - 5_000;
-    const sourceRunsResponse = await page.request.get(
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${githubWorkflow!.id}/runs?per_page=20`,
+    const hooksResponse = await page.request.get(
+      `https://api.github.com/repos/${owner}/${repo}/hooks`,
       { headers: githubHeaders },
     );
-    expect(sourceRunsResponse.ok()).toBe(true);
-    const sourceRuns = (await sourceRunsResponse.json()) as {
-      workflow_runs?: Array<{ id: number; status: string }>;
-    };
-    const completedSourceRun = sourceRuns.workflow_runs?.find(
-      (run) => run.status === "completed",
+    expect(hooksResponse.ok()).toBe(true);
+    const hooks = (await hooksResponse.json()) as Array<{
+      id: number;
+      config?: { url?: string };
+    }>;
+    const dashboardHook = hooks.find(
+      (hook) =>
+        hook.config?.url &&
+        new URL(hook.config.url).pathname === "/api/webhooks/github",
     );
-    expect(completedSourceRun).toBeTruthy();
-    const sourceRerunResponse = await page.request.post(
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs/${completedSourceRun!.id}/rerun`,
+    expect(dashboardHook).toBeTruthy();
+
+    const deliveriesResponse = await page.request.get(
+      `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries?per_page=100`,
       { headers: githubHeaders },
     );
-    expect(sourceRerunResponse.status(), await sourceRerunResponse.text()).toBe(
-      201,
+    expect(deliveriesResponse.ok()).toBe(true);
+    const deliveries = JSON.parse(
+      (await deliveriesResponse.text()).replace(
+        /"id":\s*(\d{16,})/g,
+        '"id":"$1"',
+      ),
+    ) as Array<{ id: string; event: string; action?: string }>;
+    let completedSourceDeliveryId: string | null = null;
+    for (const delivery of deliveries.filter(
+      (candidate) =>
+        candidate.event === "workflow_run" && candidate.action === "completed",
+    )) {
+      const detailResponse = await page.request.get(
+        `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries/${delivery.id}`,
+        { headers: githubHeaders },
+      );
+      if (!detailResponse.ok()) continue;
+      const detail = (await detailResponse.json()) as {
+        request?: { payload?: { workflow_run?: { workflow_id?: number } } };
+      };
+      if (
+        detail.request?.payload?.workflow_run?.workflow_id ===
+        githubWorkflow!.id
+      ) {
+        completedSourceDeliveryId = delivery.id;
+        break;
+      }
+    }
+    expect(completedSourceDeliveryId).toBeTruthy();
+    const redeliveryResponse = await page.request.post(
+      `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries/${completedSourceDeliveryId}/attempts`,
+      { headers: githubHeaders },
+    );
+    expect(redeliveryResponse.status(), await redeliveryResponse.text()).toBe(
+      202,
     );
 
+    type ObservedWorkflowEvent = {
+      triggerId: string;
+      workflowId: string;
+      eventName: string;
+      status: string;
+      error?: string;
+    };
+    const readWorkflowEvent =
+      async (): Promise<ObservedWorkflowEvent | null> => {
+        const response = await page.request.get(
+          `${EXECUTION_BASE_URL}/api/kody/workflow-events?limit=100`,
+          { headers },
+        );
+        if (!response.ok()) return null;
+        const body = (await response.json()) as {
+          events?: ObservedWorkflowEvent[];
+        };
+        return body.events?.find((event) => event.triggerId === marker) ?? null;
+      };
     await expect
       .poll(
         async () => {
-          const response = await page.request.get(
-            `${EXECUTION_BASE_URL}/api/kody/workflow-events?limit=100`,
-            { headers },
-          );
-          if (!response.ok()) return null;
-          const body = (await response.json()) as {
-            events?: Array<{
-              triggerId: string;
-              workflowId: string;
-              eventName: string;
-              status: string;
-            }>;
-          };
-          return (
-            body.events?.find((event) => event.triggerId === marker) ?? null
-          );
+          const event = await readWorkflowEvent();
+          return event?.status ?? null;
         },
         { timeout: 150_000, intervals: [3_000, 5_000, 10_000] },
       )
-      .toMatchObject({
-        triggerId: marker,
-        workflowId: kodyWorkflow!.id,
-        eventName: "github.workflow_run.completed",
-        status: "dispatched",
-      });
+      .toMatch(/^(dispatched|failed)$/);
+    const observedWorkflowEvent = await readWorkflowEvent();
+    expect(
+      observedWorkflowEvent,
+      observedWorkflowEvent?.error ?? "Triggered workflow execution failed",
+    ).toMatchObject({
+      triggerId: marker,
+      workflowId: kodyWorkflow!.id,
+      eventName: "github.workflow_run.completed",
+      status: "dispatched",
+    });
 
     await expect
       .poll(

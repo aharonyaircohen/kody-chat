@@ -2,10 +2,9 @@
  * @fileType component
  * @domain kody
  * @pattern credential-update-dialog
- * @ai-summary Replaces one connected repository's browser-owned GitHub PAT.
- *   The existing repository connection endpoint validates the PAT and repairs
- *   the webhook before auth-context persists it. The token is never logged or
- *   stored server-side.
+ * @ai-summary Replaces a connected repository's GitHub PAT. The repository
+ *   connection endpoint validates it, updates encrypted background access,
+ *   and repairs the webhook before auth-context persists the browser copy.
  */
 "use client";
 
@@ -79,8 +78,8 @@ export function UpdatePatDialog({
 
       toast.success("PAT updated", {
         description: data.webhook.ok
-          ? "GitHub access and webhook verified."
-          : "GitHub access verified, but webhook repair needs attention.",
+          ? "GitHub access, background automation, and webhook verified."
+          : "GitHub access and background automation verified, but webhook repair needs attention.",
       });
       onOpenChange(false);
       window.location.reload();

@@ -10,7 +10,7 @@
  *   - configured + installed → mints a token (JWT → installation → token),
  *     caches it, and reuses the cache on the next call
  *   - App not installed (404 on the installation lookup) → null
- *   - background-token prefers the App token, falls back to vault, else null
+ *   - background-token prefers App, then managed vault, then legacy vault
  *
  * `fetch` is stubbed per-test; a throwaway RSA keypair stands in for the App
  * private key so JWT signing exercises the real node:crypto path.
@@ -141,7 +141,7 @@ describe("background-token policy", () => {
     expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
   });
 
-  it("falls back to vault when the App is unconfigured", async () => {
+  it("falls back to the Kody-managed vault token when the App is unconfigured", async () => {
     vi.stubEnv("GITHUB_APP_ID", "");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
     h.resolveVaultGithubToken.mockResolvedValue("vault_tok");
@@ -149,7 +149,26 @@ describe("background-token policy", () => {
     const { resolveBackgroundToken } =
       await import("@kody-ade/base/auth/background-token");
     const bg = await resolveBackgroundToken(OWNER, REPO);
-    expect(bg).toEqual({ token: "vault_tok", source: "vault" });
+    expect(bg).toEqual({ token: "vault_tok", source: "managed-vault" });
+    expect(h.resolveVaultGithubToken).toHaveBeenCalledWith(
+      OWNER,
+      REPO,
+      "KODY_GITHUB_TOKEN",
+    );
+  });
+
+  it("keeps the legacy GITHUB_TOKEN as a migration fallback", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
+    h.resolveVaultGithubToken.mockImplementation(
+      async (_owner, _repo, key?: string) =>
+        key === "KODY_GITHUB_TOKEN" ? null : "legacy_vault_tok",
+    );
+
+    const { resolveBackgroundToken } =
+      await import("@kody-ade/base/auth/background-token");
+    const bg = await resolveBackgroundToken(OWNER, REPO);
+    expect(bg).toEqual({ token: "legacy_vault_tok", source: "vault" });
   });
 
   it("returns null when neither source yields a token", async () => {

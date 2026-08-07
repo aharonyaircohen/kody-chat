@@ -5,10 +5,11 @@
  * @ai-summary GitHub repo + PAT connect form. Shared by two surfaces:
  *   the first-run connect screen (RepoManager, bootstrap mode) and the
  *   header RepoSwitcher's "Add repository" row. Validates the repo input
- *   and token, POSTs `/api/kody/repos/add` (server-side PAT validation +
- *   webhook registration), then pushes the entry into auth-context.
+ *   and token, POSTs `/api/kody/repos/add` (server-side PAT validation,
+ *   encrypted background access, and webhook registration), then pushes the
+ *   entry into auth-context.
  *   Presentation + the add call only — switching/removing repos lives in
- *   the switcher; the token never leaves this browser.
+ *   the switcher.
  */
 "use client";
 
@@ -43,6 +44,10 @@ export interface AddRepoResponse {
     ok: boolean;
     created?: boolean;
     error?: string;
+  };
+  backgroundAccess: {
+    ok: true;
+    source: "managed-vault";
   };
   error?: string;
   message?: string;
@@ -212,7 +217,7 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
             >
               Generate one here
             </a>
-            .
+            . Kody stores an encrypted copy for background automation.
           </p>
         </div>
       ) : null}

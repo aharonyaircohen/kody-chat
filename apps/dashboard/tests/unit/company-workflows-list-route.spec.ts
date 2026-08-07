@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   listWorkflowDefinitionFiles: vi.fn(),
   listCompanyStoreWorkflowDefinitionFiles: vi.fn(),
   reconcileProjectedStoreWorkflows: vi.fn(),
+  workflowAutomationEligibility: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -40,6 +41,13 @@ vi.mock("@dashboard/lib/workflow-definition-files", () => ({
 vi.mock("@dashboard/lib/backend/repo-projection", () => ({
   reconcileProjectedStoreWorkflows: h.reconcileProjectedStoreWorkflows,
 }));
+
+vi.mock(
+  "@dashboard/features/workflows/server/workflow-execution-authorization",
+  () => ({
+    workflowAutomationEligibility: h.workflowAutomationEligibility,
+  }),
+);
 
 vi.mock("@dashboard/lib/capabilities/files", () => ({
   listLocalCapabilityFiles: vi.fn(),
@@ -80,6 +88,11 @@ describe("GET /api/kody/company/workflows", () => {
       },
     ]);
     h.reconcileProjectedStoreWorkflows.mockResolvedValue(undefined);
+    h.workflowAutomationEligibility.mockResolvedValue(
+      new Map([
+        ["learn-from-runs", { eligible: false, reason: "approval-required" }],
+      ]),
+    );
   });
 
   it("uses the repository config to select active Store workflows", async () => {
@@ -100,7 +113,11 @@ describe("GET /api/kody/company/workflows", () => {
       expect.objectContaining({
         id: "learn-from-runs",
         source: "store",
+        automation: { eligible: false, reason: "approval-required" },
       }),
+    ]);
+    expect(h.workflowAutomationEligibility).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "learn-from-runs" }),
     ]);
     expect(h.getEngineConfig).toHaveBeenCalledWith(
       { rest: {} },
@@ -110,7 +127,12 @@ describe("GET /api/kody/company/workflows", () => {
     expect(h.reconcileProjectedStoreWorkflows).toHaveBeenCalledWith(
       "acme",
       "widgets",
-      body.workflows,
+      [
+        expect.objectContaining({
+          id: "learn-from-runs",
+          source: "store",
+        }),
+      ],
     );
   });
 });
