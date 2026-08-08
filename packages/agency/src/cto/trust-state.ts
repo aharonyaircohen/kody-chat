@@ -412,6 +412,24 @@ export function trustLevelForSubject(
   return "approval-required";
 }
 
+export type AutomationEligibility =
+  { eligible: true } | { eligible: false; reason: "approval-required" };
+
+/** Shared policy used by every UI and API boundary that enables automation. */
+export function automationEligibilityForSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+  fallbackCanRun = false,
+): AutomationEligibility {
+  const level = trustLevelForSubject(
+    manifest.subjects[subject],
+    fallbackCanRun,
+  );
+  return level === "approval-required"
+    ? { eligible: false, reason: "approval-required" }
+    : { eligible: true };
+}
+
 export function trustLevelForCapability(
   capabilityStats: TrustCapabilityStats | null | undefined,
   subjectStats: TrustCapabilityStats | null | undefined,

@@ -2,6 +2,7 @@ import type { WorkflowDefinition } from "@dashboard/lib/workflow-definitions";
 import type { LoopDefinition } from "@kody-ade/agency-domain";
 import { readTrust } from "@dashboard/lib/cto/trust-store";
 import {
+  automationEligibilityForSubject,
   trustLevelForSubject,
   trustSubjectKey,
 } from "@dashboard/lib/cto/trust-state";
@@ -15,13 +16,11 @@ function automationEligibility(
   workflow: WorkflowDefinition,
 ): WorkflowAutomationEligibility {
   const subject = trustSubjectKey("workflow", workflowId);
-  const level = trustLevelForSubject(
-    trust.subjects[subject],
+  return automationEligibilityForSubject(
+    trust,
+    subject,
     workflow.runWithoutApproval === true,
   );
-  return level === "approval-required"
-    ? { eligible: false, reason: "approval-required" }
-    : { eligible: true };
 }
 
 /** Resolve automation policy for a workflow collection with one trust read. */

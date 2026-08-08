@@ -10,22 +10,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  requireKodyAuth,
-  getUserOctokit,
-  getRequestAuth,
-} from "@kody-ade/base/auth";
+import { verifyRepoWriteAccess } from "@kody-ade/base/auth";
 import { readVault } from "@kody-ade/base/vault/store";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { logger } from "@kody-ade/base/logger";
+import { MANAGED_BACKGROUND_GITHUB_TOKEN } from "@kody-ade/base/auth/background-token-contract";
 
 interface RouteContext {
   params: Promise<{ name: string }>;
 }
 
 export async function GET(req: NextRequest, context: RouteContext) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
   if (!isVaultConfigured()) {
     return NextResponse.json(
       { error: "vault_not_configured" },
@@ -37,16 +32,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (!name) {
     return NextResponse.json({ error: "missing_name" }, { status: 400 });
   }
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  if (name === MANAGED_BACKGROUND_GITHUB_TOKEN) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-  }
+  const access = await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
+  const { auth, octokit } = access;
 
   try {
     const { doc } = await readVault(octokit, auth.owner, auth.repo);

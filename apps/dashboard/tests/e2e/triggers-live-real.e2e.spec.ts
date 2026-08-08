@@ -321,37 +321,47 @@ test("creates, persists, and executes a GitHub workflow trigger", async ({
     );
     expect(dashboardHook).toBeTruthy();
 
-    const deliveriesResponse = await page.request.get(
-      `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries?per_page=100`,
-      { headers: githubHeaders },
-    );
-    expect(deliveriesResponse.ok()).toBe(true);
-    const deliveries = JSON.parse(
-      (await deliveriesResponse.text()).replace(
-        /"id":\s*(\d{16,})/g,
-        '"id":"$1"',
-      ),
-    ) as Array<{ id: string; event: string; action?: string }>;
     let completedSourceDeliveryId: string | null = null;
-    for (const delivery of deliveries.filter(
-      (candidate) =>
-        candidate.event === "workflow_run" && candidate.action === "completed",
-    )) {
-      const detailResponse = await page.request.get(
-        `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries/${delivery.id}`,
-        { headers: githubHeaders },
-      );
-      if (!detailResponse.ok()) continue;
-      const detail = (await detailResponse.json()) as {
-        request?: { payload?: { workflow_run?: { workflow_id?: number } } };
-      };
-      if (
-        detail.request?.payload?.workflow_run?.workflow_id ===
-        githubWorkflow!.id
-      ) {
-        completedSourceDeliveryId = delivery.id;
-        break;
+    let deliveriesUrl = `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries?per_page=100`;
+    for (let deliveryPage = 1; deliveryPage <= 10; deliveryPage += 1) {
+      const deliveriesResponse = await page.request.get(deliveriesUrl, {
+        headers: githubHeaders,
+      });
+      const deliveriesText = await deliveriesResponse.text();
+      expect(
+        deliveriesResponse.ok(),
+        `GitHub deliveries page ${deliveryPage} failed (${deliveriesResponse.status()}): ${deliveriesText}`,
+      ).toBe(true);
+      const deliveries = JSON.parse(
+        deliveriesText.replace(/"id":\s*(\d{16,})/g, '"id":"$1"'),
+      ) as Array<{ id: string; event: string; action?: string }>;
+      for (const delivery of deliveries.filter(
+        (candidate) =>
+          candidate.event === "workflow_run" &&
+          candidate.action === "completed",
+      )) {
+        const detailResponse = await page.request.get(
+          `https://api.github.com/repos/${owner}/${repo}/hooks/${dashboardHook!.id}/deliveries/${delivery.id}`,
+          { headers: githubHeaders },
+        );
+        if (!detailResponse.ok()) continue;
+        const detail = (await detailResponse.json()) as {
+          request?: { payload?: { workflow_run?: { workflow_id?: number } } };
+        };
+        if (
+          detail.request?.payload?.workflow_run?.workflow_id ===
+          githubWorkflow!.id
+        ) {
+          completedSourceDeliveryId = delivery.id;
+          break;
+        }
       }
+      if (completedSourceDeliveryId) break;
+      const nextLink = deliveriesResponse
+        .headers()
+        ["link"]?.match(/<([^>]+)>;\s*rel="next"/i)?.[1];
+      if (!nextLink) break;
+      deliveriesUrl = nextLink;
     }
     expect(completedSourceDeliveryId).toBeTruthy();
     const redeliveryResponse = await page.request.post(

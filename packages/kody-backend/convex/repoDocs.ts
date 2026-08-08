@@ -34,7 +34,7 @@ export const save = mutation({
     kind: v.string(),
     doc: v.any(),
     updatedAt: v.string(),
-    expectedUpdatedAt: v.optional(v.string()),
+    expectedUpdatedAt: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -56,7 +56,14 @@ export const save = mutation({
       });
       return existing._id;
     }
-    return await ctx.db.insert("repoDocs", args);
+    if (
+      args.expectedUpdatedAt !== undefined &&
+      args.expectedUpdatedAt !== null
+    ) {
+      throw new Error("Repository document changed since it was read");
+    }
+    const { expectedUpdatedAt: _expectedUpdatedAt, ...document } = args;
+    return await ctx.db.insert("repoDocs", document);
   },
 });
 

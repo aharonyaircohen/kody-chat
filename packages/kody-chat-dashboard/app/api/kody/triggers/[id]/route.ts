@@ -6,11 +6,7 @@
  *   in the Kody backend. Admin only; audited.
  */
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@kody-ade/base/auth";
+import { verifyRepoWriteAccess } from "@kody-ade/base/auth";
 import { mutateTriggers } from "@kody-ade/base/triggers";
 import { recordAudit } from "../../../../../src/dashboard/lib/activity/audit";
 
@@ -23,16 +19,9 @@ export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-  const auth = getRequestAuth(req);
-  const octokit = await getUserOctokit(req);
-  if (!auth || !octokit) {
-    return NextResponse.json(
-      { error: "missing_repo_context" },
-      { status: 401, headers: NO_STORE_HEADERS },
-    );
-  }
+  const access = await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
+  const { auth, octokit } = access;
 
   const { id } = await context.params;
   let found = false;

@@ -12,6 +12,7 @@ import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
 import { decrypt, deriveKeyCheck, encrypt } from "./crypto";
+import { MANAGED_BACKGROUND_GITHUB_TOKEN } from "../auth/background-token-contract";
 
 export const VAULT_PATH = "secrets.enc";
 
@@ -115,7 +116,7 @@ export async function writeVault(
   owner: string,
   repo: string,
   doc: VaultDocument,
-  _currentSha: string | null,
+  currentSha: string | null,
   _commitMessage = "chore(vault): update dashboard secrets",
 ): Promise<{ sha: string }> {
   const docToWrite: VaultDocument = doc.keyCheck
@@ -129,6 +130,7 @@ export async function writeVault(
     kind: VAULT_PATH,
     doc: { ciphertext },
     updatedAt: newSha,
+    expectedUpdatedAt: currentSha,
   });
 
   CACHE.set(cacheKey(owner, repo), {
@@ -150,6 +152,7 @@ export function listSecretMetadata(doc: VaultDocument): Array<{
   updatedBy?: string;
 }> {
   return Object.entries(doc.secrets)
+    .filter(([name]) => name !== MANAGED_BACKGROUND_GITHUB_TOKEN)
     .map(([name, entry]) => ({
       name,
       updatedAt: entry.updatedAt,
