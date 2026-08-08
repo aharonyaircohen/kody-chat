@@ -33,6 +33,10 @@ const operations = {
     kind: "mutation",
     fn: backendApi.agencyModel.reserveDispatch,
   },
+  "agencyModel.renewDispatch": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.renewDispatch,
+  },
   "agencyModel.recordSkippedDispatch": {
     kind: "mutation",
     fn: backendApi.agencyModel.recordSkippedDispatch,
