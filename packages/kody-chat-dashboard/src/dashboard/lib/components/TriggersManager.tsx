@@ -28,6 +28,7 @@ import {
 import { SYSTEM_EVENT_NAMES } from "@kody-ade/base/events/catalog";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -178,6 +179,24 @@ function conditionRows(
 
 function mapRows(map: Record<string, string>): EditorState["map"] {
   return Object.entries(map).map(([key, source]) => ({ key, source }));
+}
+
+function isPullRequestOnlyCondition(
+  condition: EditorState["conditions"][number],
+): boolean {
+  return condition.path === "pr" && condition.op === "exists";
+}
+
+function withPullRequestOnlyCondition(
+  conditions: EditorState["conditions"],
+  enabled: boolean,
+): EditorState["conditions"] {
+  const remaining = conditions.filter(
+    (condition) => !isPullRequestOnlyCondition(condition),
+  );
+  return enabled
+    ? [...remaining, { path: "pr", op: "exists", value: "" }]
+    : remaining;
 }
 
 function editorFromTrigger(trigger: TriggerRow): EditorState {
@@ -597,87 +616,106 @@ export function TriggersManager() {
                   </Select>
                 </div>
                 {editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label>GitHub workflow</Label>
-                      <Select
-                        value={selectedGithubWorkflowValue}
-                        onValueChange={(value) => {
-                          const workflow = githubWorkflows.find(
-                            (candidate) => String(candidate.id) === value,
-                          );
-                          if (!workflow) return;
-                          setEditor({
-                            ...editor,
-                            githubWorkflowId: workflow.id,
-                            githubWorkflowName: workflow.name,
-                          });
-                        }}
-                        disabled={githubWorkflowsQuery.isLoading}
-                      >
-                        <SelectTrigger aria-label="GitHub workflow">
-                          <SelectValue
-                            placeholder={
-                              githubWorkflowsQuery.isLoading
-                                ? "Loading GitHub workflows…"
-                                : "Select a GitHub workflow"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {editor.githubWorkflowName &&
-                          editor.githubWorkflowId === null &&
-                          !githubWorkflows.some(
-                            (workflow) =>
-                              workflow.name === editor.githubWorkflowName,
-                          ) ? (
-                            <SelectItem
-                              value={`name:${editor.githubWorkflowName}`}
-                            >
-                              {editor.githubWorkflowName}
-                            </SelectItem>
-                          ) : null}
-                          {githubWorkflows.map((workflow) => (
-                            <SelectItem
-                              key={workflow.id}
-                              value={String(workflow.id)}
-                            >
-                              {workflow.name}
-                              {workflow.state === "active"
-                                ? ""
-                                : ` (${workflow.state.replaceAll("_", " ")})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>GitHub workflow</Label>
+                        <Select
+                          value={selectedGithubWorkflowValue}
+                          onValueChange={(value) => {
+                            const workflow = githubWorkflows.find(
+                              (candidate) => String(candidate.id) === value,
+                            );
+                            if (!workflow) return;
+                            setEditor({
+                              ...editor,
+                              githubWorkflowId: workflow.id,
+                              githubWorkflowName: workflow.name,
+                            });
+                          }}
+                          disabled={githubWorkflowsQuery.isLoading}
+                        >
+                          <SelectTrigger aria-label="GitHub workflow">
+                            <SelectValue
+                              placeholder={
+                                githubWorkflowsQuery.isLoading
+                                  ? "Loading GitHub workflows…"
+                                  : "Select a GitHub workflow"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {editor.githubWorkflowName &&
+                            editor.githubWorkflowId === null &&
+                            !githubWorkflows.some(
+                              (workflow) =>
+                                workflow.name === editor.githubWorkflowName,
+                            ) ? (
+                              <SelectItem
+                                value={`name:${editor.githubWorkflowName}`}
+                              >
+                                {editor.githubWorkflowName}
+                              </SelectItem>
+                            ) : null}
+                            {githubWorkflows.map((workflow) => (
+                              <SelectItem
+                                key={workflow.id}
+                                value={String(workflow.id)}
+                              >
+                                {workflow.name}
+                                {workflow.state === "active"
+                                  ? ""
+                                  : ` (${workflow.state.replaceAll("_", " ")})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Result</Label>
+                        <Select
+                          value={editor.githubWorkflowConclusion || "any"}
+                          onValueChange={(value) =>
+                            setEditor({
+                              ...editor,
+                              githubWorkflowConclusion:
+                                value === "any"
+                                  ? ""
+                                  : (value as WorkflowConclusion),
+                            })
+                          }
+                        >
+                          <SelectTrigger aria-label="GitHub workflow result">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any result</SelectItem>
+                            {WORKFLOW_CONCLUSIONS.map((conclusion) => (
+                              <SelectItem key={conclusion} value={conclusion}>
+                                {conclusion.replaceAll("_", " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label>Result</Label>
-                      <Select
-                        value={editor.githubWorkflowConclusion || "any"}
-                        onValueChange={(value) =>
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <Checkbox
+                        checked={editor.conditions.some(
+                          isPullRequestOnlyCondition,
+                        )}
+                        onCheckedChange={(checked) =>
                           setEditor({
                             ...editor,
-                            githubWorkflowConclusion:
-                              value === "any"
-                                ? ""
-                                : (value as WorkflowConclusion),
+                            conditions: withPullRequestOnlyCondition(
+                              editor.conditions,
+                              checked === true,
+                            ),
                           })
                         }
-                      >
-                        <SelectTrigger aria-label="GitHub workflow result">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any result</SelectItem>
-                          {WORKFLOW_CONCLUSIONS.map((conclusion) => (
-                            <SelectItem key={conclusion} value={conclusion}>
-                              {conclusion.replaceAll("_", " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                      />
+                      Pull request runs only
+                    </label>
                   </div>
                 ) : null}
               </div>

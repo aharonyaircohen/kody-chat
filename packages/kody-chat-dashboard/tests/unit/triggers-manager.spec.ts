@@ -136,6 +136,12 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).not.toContain('aria-label="Condition payload path"');
     expect(SOURCE).not.toContain('aria-label="Workflow input source"');
   });
+
+  it("can limit GitHub workflow triggers to pull request runs", () => {
+    expect(SOURCE).toContain("Pull request runs only");
+    expect(SOURCE).toContain('path: "pr", op: "exists"');
+    expect(SOURCE).toContain("withPullRequestOnlyCondition(");
+  });
 });
 
 describe("TriggersManager validation and errors", () => {
