@@ -249,4 +249,29 @@ describe("simple capability folders", () => {
       }),
     ).toThrow(/agent/i);
   });
+
+  it("accepts browser and QA credential requirements for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: { browser: true, qaCredentials: true },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: { qaCredentials: true },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/requires browser/i);
+  });
 });

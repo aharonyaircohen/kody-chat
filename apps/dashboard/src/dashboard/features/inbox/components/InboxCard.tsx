@@ -315,7 +315,7 @@ export function InboxCard({
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open on GitHub"
+            title={entry.source === "kody" ? "Open workflow" : "Open on GitHub"}
             className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
           >
             <ExternalLink className="w-3.5 h-3.5" />

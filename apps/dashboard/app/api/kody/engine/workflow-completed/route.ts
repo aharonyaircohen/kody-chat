@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { createUserOctokit } from "@kody-ade/base/github/core";
+import { logger } from "@kody-ade/base/logger";
 import type { SystemEventEnvelope } from "@kody-ade/base/events/types";
 import {
   bearerToken,
@@ -12,6 +13,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { dispatchWorkflowTriggers } from "@dashboard/features/workflows/server/github-workflow-trigger-dispatch";
+import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/workflow-inbox-alert";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,7 +22,8 @@ const requestSchema = z
   .object({
     workflowId: z.string().trim().min(1).max(200),
     runId: z.string().trim().min(1).max(200),
-    status: z.enum(["success", "failed"]),
+    status: z.enum(["success", "failed", "blocked"]),
+    summary: z.string().trim().min(1).max(1000).optional(),
     output: z
       .object({
         pr: z.number().int().positive().optional(),
@@ -72,12 +75,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { workflowId, runId, status, output } = parsed.data;
+  const { workflowId, runId, status, summary, output } = parsed.data;
   const deliveryId = `kody-workflow:${workflowId}:${runId}`;
   const event: SystemEventEnvelope = {
     id: deliveryId,
     name: "kody.workflow.completed",
-    version: 1,
+    version: 2,
     occurredAt: new Date().toISOString(),
     userId: null,
     sessionId: null,
@@ -87,6 +90,7 @@ export async function POST(request: Request) {
       workflowId,
       runId,
       status,
+      ...(summary ? { summary } : {}),
       repository: identity.repository,
       ...output,
     },
@@ -94,11 +98,38 @@ export async function POST(request: Request) {
 
   setGitHubContext(owner, repo, background.token);
   try {
+    const octokit = createUserOctokit(background.token);
     await dispatchWorkflowTriggers({
       event,
       deliveryId,
-      octokit: createUserOctokit(background.token),
+      octokit,
     });
+    if (status === "blocked") {
+      try {
+        await deliverWorkflowInboxAlert({
+          owner,
+          repo,
+          workflowId,
+          runId,
+          summary: summary ?? "The workflow is blocked and needs attention.",
+          url: new URL(
+            `/repo/${owner}/${repo}/workflows/${workflowId}`,
+            request.url,
+          ).toString(),
+          octokit,
+        });
+      } catch (error) {
+        logger.warn(
+          {
+            event: "workflow_inbox_alert_failed",
+            workflowId,
+            runId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "Workflow completed, but its Inbox alert could not be delivered",
+        );
+      }
+    }
   } finally {
     clearGitHubContext();
   }

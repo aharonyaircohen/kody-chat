@@ -190,6 +190,7 @@ export const inboxEntryValidator = v.object({
     v.literal("team_mention"),
     v.literal("subscribed"),
     v.literal("request"),
+    v.literal("kody"),
     v.literal("other"),
   ),
   repoFullName: v.string(),

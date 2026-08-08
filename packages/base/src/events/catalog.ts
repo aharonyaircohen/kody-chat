@@ -199,12 +199,14 @@ export const SYSTEM_EVENT_CATALOG = {
       .object({
         workflowId: z.string().trim().min(1).max(200),
         runId: z.string().trim().min(1).max(200),
-        status: z.enum(["success", "failed"]),
+        status: z.enum(["success", "failed", "blocked"]),
+        summary: z.string().trim().min(1).max(1000).optional(),
         repository: z.string().trim().min(1).max(255),
         pr: z.number().int().positive().optional(),
         headSha: z.string().trim().min(7).max(64).optional(),
       })
       .strict(),
+    2,
   ),
 } as const;
 

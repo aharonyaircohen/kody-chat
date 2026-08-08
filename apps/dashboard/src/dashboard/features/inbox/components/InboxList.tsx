@@ -397,6 +397,17 @@ export function InboxList() {
     if (target) {
       setActiveEntry(entry);
       syncDeepLink(target.type, target.number);
+    } else if (entry.source === "kody") {
+      try {
+        const url = new URL(entry.url, window.location.origin);
+        if (url.origin === window.location.origin) {
+          router.push(`${url.pathname}${url.search}${url.hash}`);
+        } else {
+          window.open(url.toString(), "_blank", "noopener,noreferrer");
+        }
+      } catch {
+        return;
+      }
     }
     if (entry.readAt === null) {
       setBusyId(entry.id);

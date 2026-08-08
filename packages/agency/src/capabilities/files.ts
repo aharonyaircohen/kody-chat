@@ -353,6 +353,7 @@ export function assertSimpleCapabilityFolder(
 
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
+  requirements?: { browser?: boolean; qaCredentials?: boolean };
   secrets?: string[];
   timeoutMs?: number;
   requiredSubagents?: string[];
@@ -376,6 +377,50 @@ function parseCapabilityContract(raw: string): {
   ) {
     throw new Error('contract.json execution must be "agent" or "script"');
   }
+  const requirementsValue =
+    value.requirements === undefined ? undefined : asRecord(value.requirements);
+  if (value.requirements !== undefined && !requirementsValue) {
+    throw new Error("contract.json requirements must be an object");
+  }
+  const requirementKeys = Object.keys(requirementsValue ?? {});
+  const unsupportedRequirements = requirementKeys.filter(
+    (key) => key !== "browser" && key !== "qaCredentials",
+  );
+  if (unsupportedRequirements.length > 0) {
+    throw new Error(
+      `contract.json requirements contains unsupported fields: ${unsupportedRequirements.join(", ")}`,
+    );
+  }
+  if (
+    requirementsValue?.browser !== undefined &&
+    typeof requirementsValue.browser !== "boolean"
+  ) {
+    throw new Error("contract.json requirements.browser must be boolean");
+  }
+  if (
+    requirementsValue?.qaCredentials !== undefined &&
+    typeof requirementsValue.qaCredentials !== "boolean"
+  ) {
+    throw new Error(
+      "contract.json requirements.qaCredentials must be boolean",
+    );
+  }
+  if (
+    requirementsValue?.qaCredentials === true &&
+    requirementsValue.browser !== true
+  ) {
+    throw new Error(
+      "contract.json requirements.qaCredentials requires browser",
+    );
+  }
+  const requirements = requirementsValue
+    ? {
+        ...(requirementsValue.browser === true ? { browser: true } : {}),
+        ...(requirementsValue.qaCredentials === true
+          ? { qaCredentials: true }
+          : {}),
+      }
+    : undefined;
   const secrets =
     value.secrets === undefined
       ? undefined
@@ -439,6 +484,7 @@ function parseCapabilityContract(raw: string): {
   const unsupported = Object.keys(value).filter(
     (key) =>
       key !== "execution" &&
+      key !== "requirements" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
       key !== "requiredSubagents" &&
@@ -452,6 +498,9 @@ function parseCapabilityContract(raw: string): {
   }
   return {
     ...(value.execution ? { execution: value.execution } : {}),
+    ...(requirements && Object.keys(requirements).length > 0
+      ? { requirements }
+      : {}),
     ...(secrets ? { secrets } : {}),
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(requiredSubagents ? { requiredSubagents } : {}),
