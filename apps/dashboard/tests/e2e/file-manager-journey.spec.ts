@@ -46,6 +46,7 @@ async function installFileManagerHarness(
     officePreview?: boolean;
     presentationPreview?: boolean;
     spreadsheetPreview?: boolean;
+    textSpreadsheetPreview?: boolean;
     zipPreview?: boolean;
   } = {},
 ) {
@@ -96,6 +97,12 @@ async function installFileManagerHarness(
       content: "",
       base64Content: MINIMAL_XLSX_BASE64,
       sha: "report-xlsx-sha",
+    });
+  }
+  if (options.textSpreadsheetPreview) {
+    files.set("report.csv", {
+      content: "Status,Message\nReady,Office CSV preview works\n",
+      sha: "report-csv-sha",
     });
   }
   if (options.presentationPreview) {
@@ -464,8 +471,13 @@ function collectRuntimeFailures(
       url.pathname.includes("/monaco-editor@") &&
       url.pathname.includes("/assets/editor.worker-") &&
       url.pathname.endsWith(".js");
-    if (isOptionalMonacoWorker) return;
-    failures.push(`${request.method()} ${request.url()} failed`);
+    const isCancelledMachineProbe =
+      url.pathname === "/api/kody/chat/machines" &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    if (isOptionalMonacoWorker || isCancelledMachineProbe) return;
+    failures.push(
+      `${request.method()} ${request.url()} failed (${request.failure()?.errorText ?? "unknown error"})`,
+    );
   });
   page.on("response", (response) => {
     if (response.status() < 400) return;
@@ -916,6 +928,40 @@ test.describe("repository file manager", () => {
     const preview = page.locator('[aria-label="Preview of report.xlsx"]');
     await expect(preview).toBeVisible();
     await expect(preview).toHaveAttribute("data-preview-status", "ready");
+    expect(unhandledGitHubRequests).toEqual([]);
+    expect(runtimeFailures).toEqual([]);
+  });
+
+  test("keeps a text spreadsheet editable and offers a formatted preview", async ({
+    page,
+  }) => {
+    const runtimeFailures = collectRuntimeFailures(page);
+    const { unhandledGitHubRequests } = await installFileManagerHarness(page, {
+      textSpreadsheetPreview: true,
+    });
+
+    await page.goto(REPO_ROUTE, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /report\.csv/ }).click();
+
+    await expect(page.getByRole("button", { name: "Edit mode" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByRole("button", { name: "View mode" }).click();
+    await page.getByRole("button", { name: "Hide file panel" }).click();
+
+    const preview = page.locator('[aria-label="Preview of report.csv"]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveAttribute("data-preview-status", "ready");
+    await expect(
+      preview.getByText("2 rows, 2 columns, loading smoothly by viewport"),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Edit mode" }).click();
+    await expect(page.getByRole("button", { name: "Edit mode" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
   });

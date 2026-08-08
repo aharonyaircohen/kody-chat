@@ -29,4 +29,7 @@ export async function mockDashboardShellRequests(page: Page): Promise<void> {
       page.route(`**${pathname}`, (route) => fulfillJson(route, response)),
     ),
   );
+  await page.route("**/api/kody/chat/machines**", (route) =>
+    fulfillJson(route, { local: false }),
+  );
 }

@@ -34,6 +34,11 @@ import {
 } from "../lib/file-drafts";
 import { isHtmlFile } from "../lib/html-preview";
 import { HtmlPreview } from "./HtmlPreview";
+import {
+  advancedFilePreview,
+  canPreviewAdvancedFile,
+} from "../lib/advanced-file-preview";
+import { stringToBase64 } from "../lib/file-content";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -46,6 +51,18 @@ const MonacoEditor = dynamic(
     ),
   },
 ) as React.ComponentType<EditorProps>;
+
+const AdvancedFilePreview = dynamic(
+  () => import("./AdvancedFilePreview").then((mod) => mod.AdvancedFilePreview),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full flex-1 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 export type FileEditorMode = "edit" | "view";
 
@@ -77,7 +94,16 @@ export function FileEditor({
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const isHtml = isHtmlFile(path);
-  const supportsView = isMarkdown || isHtml;
+  const advancedPreview = advancedFilePreview(path);
+  const supportsView = isMarkdown || isHtml || advancedPreview !== null;
+  const advancedPreviewSource = useMemo(
+    () => (advancedPreview ? stringToBase64(content) : ""),
+    [advancedPreview, content],
+  );
+  const advancedPreviewSize = useMemo(
+    () => (advancedPreview ? new TextEncoder().encode(content).byteLength : 0),
+    [advancedPreview, content],
+  );
   const draftStorageKey = useMemo(
     () => fileDraftStorageKey(transport?.cacheKey ?? "workspace", path),
     [transport?.cacheKey, path],
@@ -393,6 +419,18 @@ export function FileEditor({
                 automaticLayout: true,
               }}
             />
+          </div>
+        ) : advancedPreview &&
+          advancedPreviewSource &&
+          canPreviewAdvancedFile(advancedPreviewSize) ? (
+          <AdvancedFilePreview
+            base64Content={advancedPreviewSource}
+            fileName={fileName}
+            renderer={advancedPreview.renderer}
+          />
+        ) : advancedPreview ? (
+          <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground">
+            This file is too large for a formatted browser preview.
           </div>
         ) : null}
 

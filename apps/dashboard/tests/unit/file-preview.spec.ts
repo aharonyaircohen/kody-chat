@@ -44,6 +44,10 @@ describe("filePreview", () => {
     expect(fileSupportsTextEditing("archive.zip", false)).toBe(false);
     expect(fileSupportsTextEditing("README.md", false)).toBe(true);
     expect(fileSupportsTextEditing("src/index.ts", false)).toBe(true);
+    expect(fileSupportsTextEditing("report.csv", false)).toBe(true);
+    expect(fileSupportsTextEditing("report.tsv", false)).toBe(true);
+    expect(fileSupportsTextEditing("report.fods", false)).toBe(true);
+    expect(fileSupportsTextEditing("report.rtf", false)).toBe(true);
     expect(fileSupportsTextEditing("unknown.bin", true)).toBe(false);
   });
 
@@ -76,7 +80,16 @@ describe("advancedFilePreview", () => {
     expect(canPreviewAdvancedFile(-1)).toBe(false);
   });
 
-  it.each(["report.doc", "report.docx"])(
+  it.each([
+    "report.doc",
+    "report.docx",
+    "report.docm",
+    "template.dot",
+    "template.dotx",
+    "template.dotm",
+    "report.rtf",
+    "report.odt",
+  ])(
     "routes %s through the Word renderer",
     (path) => {
       expect(advancedFilePreview(path)).toEqual({ renderer: "word" });
@@ -96,7 +109,10 @@ describe("advancedFilePreview", () => {
     "template.xltx",
     "template.xltm",
     "sheet.ods",
+    "sheet.fods",
     "sheet.numbers",
+    "sheet.csv",
+    "sheet.tsv",
   ])("routes %s through the spreadsheet renderer", (path) => {
     expect(advancedFilePreview(path)).toEqual({ renderer: "spreadsheet" });
   });
@@ -108,6 +124,7 @@ describe("advancedFilePreview", () => {
     "template.potm",
     "show.ppsx",
     "show.ppsm",
+    "slides.odp",
   ])("routes %s through the presentation renderer", (path) => {
     expect(advancedFilePreview(path)).toEqual({ renderer: "presentation" });
   });
@@ -132,9 +149,6 @@ describe("advancedFilePreview", () => {
     "photo.png",
     "document.pdf",
     "legacy.ppt",
-    "sheet.csv",
-    "sheet.tsv",
-    "sheet.fods",
     "archive.rar",
     "extensionless",
   ])("leaves %s with the existing preview path", (path) => {

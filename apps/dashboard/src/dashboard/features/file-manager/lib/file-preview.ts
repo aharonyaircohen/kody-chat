@@ -1,4 +1,7 @@
-import { advancedFilePreview } from "./advanced-file-preview";
+import {
+  advancedFilePreview,
+  advancedFileSupportsTextEditing,
+} from "./advanced-file-preview";
 
 export type FilePreviewKind =
   "image" | "pdf" | "video" | "audio" | "unsupported";
@@ -54,6 +57,7 @@ export function fileSupportsTextEditing(
   return (
     !isBinary &&
     filePreview(path).kind === "unsupported" &&
-    advancedFilePreview(path) === null
+    (advancedFilePreview(path) === null ||
+      advancedFileSupportsTextEditing(path))
   );
 }
