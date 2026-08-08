@@ -71,6 +71,18 @@ Do not invent another top-level page structure unless all three approved types
 have been checked and cannot satisfy a verified requirement. State the exact
 gap and obtain explicit user approval before implementing a bespoke structure.
 
+## Apply the simplicity rule before implementation
+
+Before designing or coding user-facing UI:
+
+1. State the user's goal in one sentence.
+2. Identify only the concepts required to reach it.
+3. Identify what the system already does automatically.
+4. Remove duplicate, automatic, speculative, and implementation-specific controls.
+5. Design the simplest visible flow that remains correct.
+
+If a control cannot be justified by a distinct user decision, do not add it.
+
 ## Keep the information model simple
 
 - Use one input for one user concept.
