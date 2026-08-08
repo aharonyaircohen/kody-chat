@@ -298,6 +298,30 @@ describe("public Agent delegation", () => {
     ).resolves.toBe("Workflows sequence reusable Capabilities.");
   });
 
+  it("rejects reasoning-only synthesis and uses grounded results", async () => {
+    await expect(
+      synthesizePublicAgentResponse({
+        userText: "Explain Agency workflows in this repository.",
+        assignments: [
+          { agent: "agency-specialist", task: "Explain workflows." },
+        ],
+        assignedAgents: roster,
+        results: [
+          {
+            status: "completed",
+            agent: "agency-specialist",
+            result: "Workflows sequence reusable Capabilities.",
+            reference: "A Workflow is an Agent-owned sequence of steps.",
+          },
+        ],
+        model: {} as never,
+        generate: vi.fn(async () => ({
+          text: "<think>\nI am still planning the final answer.",
+        })) as never,
+      }),
+    ).resolves.toBe("Workflows sequence reusable Capabilities.");
+  });
+
   it("derives routing guidance from the existing Agent definition", () => {
     expect(publicAgentPurpose(roster[0]!)).toBe(
       "Manages Agents, Workflows, Capabilities, Loops, Intents, and Todos.",

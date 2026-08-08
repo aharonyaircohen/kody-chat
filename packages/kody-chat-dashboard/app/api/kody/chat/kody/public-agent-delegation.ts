@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { generateText, stepCountIs, streamText, type ToolSet } from "ai";
-import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
+import {
+  containsToolCallMarkup,
+  parseAssistantContent,
+} from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentAssignment } from "./public-agent-routing";
 
@@ -301,8 +304,12 @@ export async function synthesizePublicAgentResponse({
     }
     throw error;
   }
-  const generatedAnswer = stripProviderReasoningMetadata(response.text).trim();
-  const answer = containsToolCallMarkup(generatedAnswer) ? "" : generatedAnswer;
+  const generatedAnswer = parseAssistantContent(
+    stripProviderReasoningMetadata(response.text),
+  );
+  const answer = generatedAnswer.strippedToolMarkup
+    ? ""
+    : generatedAnswer.answer.trim();
   return formatPublicAgentResponse({
     answer:
       answer ||
