@@ -47,7 +47,7 @@ export interface AddRepoResponse {
   };
   backgroundAccess: {
     ok: true;
-    source: "managed-vault";
+    source: "github-app" | "encrypted-pat";
   };
   error?: string;
   message?: string;
@@ -217,7 +217,8 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
             >
               Generate one here
             </a>
-            . Kody stores an encrypted copy for background automation.
+            . Kody uses its GitHub App when installed; otherwise it stores an
+            encrypted copy for background automation.
           </p>
         </div>
       ) : null}

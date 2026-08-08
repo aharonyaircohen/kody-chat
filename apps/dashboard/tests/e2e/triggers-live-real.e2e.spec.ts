@@ -87,10 +87,10 @@ async function ensureRepositoryConnection(
     data: { owner, repo, token: TEST_TOKEN },
   });
   const connectionBody = await expectOk(connection);
-  expect(connectionBody.backgroundAccess).toEqual({
-    ok: true,
-    source: "managed-vault",
-  });
+  expect(connectionBody.backgroundAccess).toMatchObject({ ok: true });
+  expect(["github-app", "encrypted-pat"]).toContain(
+    (connectionBody.backgroundAccess as { source?: string }).source,
+  );
 
   if (EXECUTION_BASE_URL !== BASE_URL) {
     const registration = await page.request.post(

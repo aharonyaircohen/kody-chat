@@ -1,60 +1,38 @@
-import type { Octokit } from "@octokit/rest";
-
+import type { BackgroundGitHubAccessProvisionResult } from "./background-token-contract";
+import { getInstallationToken } from "./app-token";
 import {
-  MANAGED_BACKGROUND_GITHUB_TOKEN,
-  type BackgroundGitHubAccessProvisionResult,
-} from "./background-token-contract";
-import { _resetBackgroundCredentialCache } from "../vault/bootstrap";
-import { isVaultConfigured } from "../vault/crypto";
-import { invalidateVaultCache, readVault, writeVault } from "../vault/store";
+  deleteManagedBackgroundCredential,
+  isBackgroundCredentialStoreConfigured,
+  writeManagedBackgroundCredential,
+} from "./background-credential-store";
 
 /**
- * Persist a verified repository PAT for unattended Kody work.
- *
- * The reserved key keeps Kody-managed credentials separate from user-owned
- * secrets such as `GITHUB_TOKEN`. Values remain encrypted by the shared vault
- * and are never returned to callers.
+ * Prefer repository-owned GitHub App access. Persist an encrypted human PAT
+ * only as a fallback when the App is not installed for this repository.
  */
 export async function provisionBackgroundGitHubAccess(input: {
-  octokit: Octokit;
   owner: string;
   repo: string;
   token: string;
   actorLogin?: string | null;
   now?: string;
 }): Promise<BackgroundGitHubAccessProvisionResult> {
-  if (!isVaultConfigured()) {
-    return { ok: false, reason: "vault-not-configured" };
+  const installationToken = await getInstallationToken(input.owner, input.repo);
+  if (installationToken) {
+    await deleteManagedBackgroundCredential(input.owner, input.repo);
+    return { ok: true, source: "github-app" };
   }
 
-  const { doc, sha } = await readVault(input.octokit, input.owner, input.repo, {
-    force: true,
+  if (!isBackgroundCredentialStoreConfigured()) {
+    return { ok: false, reason: "credential-store-not-configured" };
+  }
+
+  await writeManagedBackgroundCredential({
+    owner: input.owner,
+    repo: input.repo,
+    token: input.token,
+    actorLogin: input.actorLogin,
+    updatedAt: input.now ?? new Date().toISOString(),
   });
-  const existing = doc.secrets[MANAGED_BACKGROUND_GITHUB_TOKEN];
-  if (existing?.value === input.token) {
-    return { ok: true, source: "managed-vault" };
-  }
-
-  const next = {
-    ...doc,
-    secrets: {
-      ...doc.secrets,
-      [MANAGED_BACKGROUND_GITHUB_TOKEN]: {
-        value: input.token,
-        updatedAt: input.now ?? new Date().toISOString(),
-        ...(input.actorLogin ? { updatedBy: input.actorLogin } : {}),
-      },
-    },
-  };
-  await writeVault(
-    input.octokit,
-    input.owner,
-    input.repo,
-    next,
-    sha,
-    "chore(vault): update Kody background GitHub access",
-  );
-  invalidateVaultCache(input.owner, input.repo);
-  _resetBackgroundCredentialCache();
-  return { ok: true, source: "managed-vault" };
+  return { ok: true, source: "encrypted-pat" };
 }

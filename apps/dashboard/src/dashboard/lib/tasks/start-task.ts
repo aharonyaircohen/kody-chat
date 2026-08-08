@@ -28,7 +28,7 @@ export interface StartTaskResult {
   issueNumber: number;
   workflowDispatched: true;
   backlogLabelApplied: boolean;
-  tokenSource: "app" | "managed-vault" | "vault" | "env";
+  tokenSource: "app" | "managed-store" | "managed-vault" | "vault" | "env";
   workflowId: "kody.yml";
   ref: string;
 }

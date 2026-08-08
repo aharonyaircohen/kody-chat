@@ -4,15 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   ensureWebhook: vi.fn(),
   provisionBackgroundGitHubAccess: vi.fn(),
-  createUserOctokit: vi.fn(() => ({ rest: {} })),
 }));
 
 vi.mock("@dashboard/lib/webhooks/register", () => ({
   ensureWebhook: dependencies.ensureWebhook,
-}));
-
-vi.mock("@kody-ade/base/github/core", () => ({
-  createUserOctokit: dependencies.createUserOctokit,
 }));
 
 vi.mock("@kody-ade/base/auth/background-token-provisioning", () => ({
@@ -42,7 +37,7 @@ describe("POST /api/kody/repos/add background access", () => {
     vi.clearAllMocks();
     dependencies.provisionBackgroundGitHubAccess.mockResolvedValue({
       ok: true,
-      source: "managed-vault",
+      source: "encrypted-pat",
     });
     dependencies.ensureWebhook.mockResolvedValue({
       ok: true,
@@ -82,13 +77,9 @@ describe("POST /api/kody/repos/add background access", () => {
     expect(response.status).toBe(200);
     expect(body.backgroundAccess).toEqual({
       ok: true,
-      source: "managed-vault",
+      source: "encrypted-pat",
     });
-    expect(dependencies.createUserOctokit).toHaveBeenCalledWith(
-      "github_pat_verified",
-    );
     expect(dependencies.provisionBackgroundGitHubAccess).toHaveBeenCalledWith({
-      octokit: { rest: {} },
       owner: "acme",
       repo: "widgets",
       token: "github_pat_verified",
@@ -100,7 +91,7 @@ describe("POST /api/kody/repos/add background access", () => {
   it("does not complete connection without durable background access", async () => {
     dependencies.provisionBackgroundGitHubAccess.mockResolvedValue({
       ok: false,
-      reason: "vault-not-configured",
+      reason: "credential-store-not-configured",
     });
 
     const response = await POST(request());

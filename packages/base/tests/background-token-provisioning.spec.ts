@@ -1,85 +1,85 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const vault = vi.hoisted(() => ({
-  configured: vi.fn(),
-  read: vi.fn(),
-  write: vi.fn(),
-  invalidate: vi.fn(),
-  resetBackgroundCache: vi.fn(),
+const dependencies = vi.hoisted(() => ({
+  getInstallationToken: vi.fn(),
+  isConfigured: vi.fn(),
+  writeCredential: vi.fn(),
+  deleteCredential: vi.fn(),
 }));
 
-vi.mock("../src/vault/crypto", () => ({
-  isVaultConfigured: vault.configured,
+vi.mock("../src/auth/app-token", () => ({
+  getInstallationToken: dependencies.getInstallationToken,
 }));
 
-vi.mock("../src/vault/store", () => ({
-  readVault: vault.read,
-  writeVault: vault.write,
-  invalidateVaultCache: vault.invalidate,
+vi.mock("../src/auth/background-credential-store", () => ({
+  isBackgroundCredentialStoreConfigured: dependencies.isConfigured,
+  writeManagedBackgroundCredential: dependencies.writeCredential,
+  deleteManagedBackgroundCredential: dependencies.deleteCredential,
 }));
 
-vi.mock("../src/vault/bootstrap", () => ({
-  _resetBackgroundCredentialCache: vault.resetBackgroundCache,
-}));
-
-import { MANAGED_BACKGROUND_GITHUB_TOKEN } from "../src/auth/background-token-contract";
 import { provisionBackgroundGitHubAccess } from "../src/auth/background-token-provisioning";
 
 describe("managed background GitHub access", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vault.configured.mockReturnValue(true);
-    vault.read.mockResolvedValue({
-      doc: { version: 1, secrets: {} },
-      sha: null,
-    });
-    vault.write.mockResolvedValue({ sha: "next" });
+    dependencies.getInstallationToken.mockResolvedValue(null);
+    dependencies.isConfigured.mockReturnValue(true);
+    dependencies.writeCredential.mockResolvedValue(undefined);
+    dependencies.deleteCredential.mockResolvedValue(undefined);
   });
 
-  it("stores the verified PAT under a Kody-owned vault key", async () => {
+  it("uses the GitHub App without retaining a human PAT", async () => {
+    dependencies.getInstallationToken.mockResolvedValue("installation-token");
+
     const result = await provisionBackgroundGitHubAccess({
-      octokit: {} as never,
       owner: "acme",
       repo: "widgets",
       token: "github_pat_verified",
       actorLogin: "alice",
-      now: "2026-08-06T00:00:00.000Z",
     });
 
-    expect(result).toEqual({ ok: true, source: "managed-vault" });
-    expect(vault.write).toHaveBeenCalledWith(
-      {},
+    expect(result).toEqual({ ok: true, source: "github-app" });
+    expect(dependencies.deleteCredential).toHaveBeenCalledWith(
       "acme",
       "widgets",
-      {
-        version: 1,
-        secrets: {
-          [MANAGED_BACKGROUND_GITHUB_TOKEN]: {
-            value: "github_pat_verified",
-            updatedAt: "2026-08-06T00:00:00.000Z",
-            updatedBy: "alice",
-          },
-        },
-      },
-      null,
-      "chore(vault): update Kody background GitHub access",
     );
-    expect(vault.invalidate).toHaveBeenCalledWith("acme", "widgets");
-    expect(vault.resetBackgroundCache).toHaveBeenCalledOnce();
+    expect(dependencies.writeCredential).not.toHaveBeenCalled();
     expect(JSON.stringify(result)).not.toContain("github_pat_verified");
   });
 
-  it("fails closed when encrypted vault storage is unavailable", async () => {
-    vault.configured.mockReturnValue(false);
+  it("stores an encrypted PAT only when the App is unavailable", async () => {
+    const result = await provisionBackgroundGitHubAccess({
+      owner: "acme",
+      repo: "widgets",
+      token: "github_pat_verified",
+      actorLogin: "alice",
+      now: "2026-08-07T00:00:00.000Z",
+    });
+
+    expect(result).toEqual({ ok: true, source: "encrypted-pat" });
+    expect(dependencies.writeCredential).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "widgets",
+      token: "github_pat_verified",
+      actorLogin: "alice",
+      updatedAt: "2026-08-07T00:00:00.000Z",
+    });
+    expect(JSON.stringify(result)).not.toContain("github_pat_verified");
+  });
+
+  it("fails closed when encrypted credential storage is unavailable", async () => {
+    dependencies.isConfigured.mockReturnValue(false);
 
     await expect(
       provisionBackgroundGitHubAccess({
-        octokit: {} as never,
         owner: "acme",
         repo: "widgets",
         token: "github_pat_verified",
       }),
-    ).resolves.toEqual({ ok: false, reason: "vault-not-configured" });
-    expect(vault.write).not.toHaveBeenCalled();
+    ).resolves.toEqual({
+      ok: false,
+      reason: "credential-store-not-configured",
+    });
+    expect(dependencies.writeCredential).not.toHaveBeenCalled();
   });
 });

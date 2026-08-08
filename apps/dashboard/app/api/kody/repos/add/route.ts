@@ -21,7 +21,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createUserOctokit } from "@kody-ade/base/github/core";
 import { provisionBackgroundGitHubAccess } from "@kody-ade/base/auth/background-token-provisioning";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
@@ -65,7 +64,7 @@ interface AddRepoResponse {
   };
   backgroundAccess: {
     ok: true;
-    source: "managed-vault";
+    source: "github-app" | "encrypted-pat";
   };
 }
 
@@ -224,7 +223,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let backgroundAccess: AddRepoResponse["backgroundAccess"];
   try {
     const result = await provisionBackgroundGitHubAccess({
-      octokit: createUserOctokit(token),
       owner,
       repo,
       token,

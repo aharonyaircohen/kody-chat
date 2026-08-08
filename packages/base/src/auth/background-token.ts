@@ -17,11 +17,12 @@ import "server-only";
 import { getInstallationToken } from "./app-token";
 import { resolveVaultGithubToken } from "../vault/bootstrap";
 import { MANAGED_BACKGROUND_GITHUB_TOKEN } from "./background-token-contract";
+import { readManagedBackgroundCredential } from "./background-credential-store";
 
 export interface BackgroundToken {
   token: string;
   /** Which source supplied it — for logging / attribution clarity. */
-  source: "app" | "managed-vault" | "vault";
+  source: "app" | "managed-store" | "managed-vault" | "vault";
 }
 
 /**
@@ -35,6 +36,10 @@ export async function resolveBackgroundToken(
   const appToken = await getInstallationToken(owner, repo);
   if (appToken) return { token: appToken, source: "app" };
 
+  const managedToken = await readManagedBackgroundCredential(owner, repo);
+  if (managedToken) return { token: managedToken, source: "managed-store" };
+
+  // Migration fallback for credentials stored before the dedicated boundary.
   const managedVaultToken = await resolveVaultGithubToken(
     owner,
     repo,

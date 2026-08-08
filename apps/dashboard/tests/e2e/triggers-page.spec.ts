@@ -187,7 +187,7 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
           id: 2,
         },
         webhook: { ok: true, created: false },
-        backgroundAccess: { ok: true, source: "managed-vault" },
+        backgroundAccess: { ok: true, source: "encrypted-pat" },
       }),
     });
   });

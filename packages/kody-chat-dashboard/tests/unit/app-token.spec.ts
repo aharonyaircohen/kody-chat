@@ -24,9 +24,15 @@ const { privateKey: PEM } = generateKeyPairSync("rsa", {
   privateKeyEncoding: { type: "pkcs1", format: "pem" },
 });
 
-const h = vi.hoisted(() => ({ resolveVaultGithubToken: vi.fn() }));
+const h = vi.hoisted(() => ({
+  resolveVaultGithubToken: vi.fn(),
+  readManagedBackgroundCredential: vi.fn(),
+}));
 vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: h.resolveVaultGithubToken,
+}));
+vi.mock("@kody-ade/base/auth/background-credential-store", () => ({
+  readManagedBackgroundCredential: h.readManagedBackgroundCredential,
 }));
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
@@ -49,6 +55,8 @@ describe("app-token", () => {
     vi.resetModules();
     vi.unstubAllEnvs();
     h.resolveVaultGithubToken.mockReset();
+    h.readManagedBackgroundCredential.mockReset();
+    h.readManagedBackgroundCredential.mockResolvedValue(null);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -121,6 +129,8 @@ describe("background-token policy", () => {
     vi.resetModules();
     vi.unstubAllEnvs();
     h.resolveVaultGithubToken.mockReset();
+    h.readManagedBackgroundCredential.mockReset();
+    h.readManagedBackgroundCredential.mockResolvedValue(null);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -155,6 +165,20 @@ describe("background-token policy", () => {
       REPO,
       "KODY_GITHUB_TOKEN",
     );
+  });
+
+  it("uses the dedicated encrypted credential before migration vault keys", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
+    h.readManagedBackgroundCredential.mockResolvedValue("managed_tok");
+
+    const { resolveBackgroundToken } =
+      await import("@kody-ade/base/auth/background-token");
+    await expect(resolveBackgroundToken(OWNER, REPO)).resolves.toEqual({
+      token: "managed_tok",
+      source: "managed-store",
+    });
+    expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
   });
 
   it("keeps the legacy GITHUB_TOKEN as a migration fallback", async () => {
