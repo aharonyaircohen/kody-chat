@@ -14,6 +14,7 @@ describe("built-in specialist routing", () => {
     ["Do you know how to add a new todo?", "agency-architect"],
     ["Check CI status and blockers.", "operations-specialist"],
     ["Which models and secrets are configured?", "system-admin"],
+    ["What chat models are currently configured?", "system-admin"],
     ["What policies and memory constrain this request?", "context-scout"],
     ["Explain how this dashboard preview works.", "ui-vibe-specialist"],
   ])("routes %s to %s from Agent definitions", (prompt, expectedAgent) => {

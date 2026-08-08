@@ -716,6 +716,46 @@ describe("public Agent delegation", () => {
     );
   });
 
+  it("does not expose a textual tool call after real specialist evidence", async () => {
+    await expect(
+      runIsolatedPublicAgentTask({
+        agent: roster[1]!,
+        task: "Inspect the repository policies",
+        reference: "Repository claims require current evidence.",
+        system: "Repository Scout isolated system prompt",
+        model: {} as never,
+        tools: { inspect_repository: {} as never },
+        requireToolEvidence: true,
+        sessionId: "mixed-tool-session",
+        stream: vi.fn(() => ({
+          fullStream: (async function* () {})(),
+          text: Promise.resolve(
+            'The repository contains policy files. <tool_call>{"name":"inspect_repository"}</tool_call>',
+          ),
+          reasoningText: Promise.resolve("Inspected the repository."),
+          steps: Promise.resolve([
+            {
+              toolResults: [
+                {
+                  toolName: "inspect_repository",
+                  output: { files: ["POLICY.md"] },
+                },
+              ],
+            },
+          ]),
+        })) as never,
+      }),
+    ).resolves.toEqual({
+      status: "completed",
+      agent: "repo-scout",
+      sessionId: "mixed-tool-session",
+      reasoning: "Inspected the repository.",
+      reference: "Repository claims require current evidence.",
+      evidence:
+        'Evidence item 1 (inspect_repository): {"files":["POLICY.md"]}',
+    });
+  });
+
   it("builds a minimal child system from configured Agent data", () => {
     const system = buildPublicAgentChildSystem({
       agent: roster[0]!,

@@ -516,7 +516,8 @@ export async function runIsolatedPublicAgentTask({
       response.reasoningText,
       response.steps,
     ]);
-    const result = stripProviderReasoningMetadata(text).trim();
+    const rawResult = stripProviderReasoningMetadata(text).trim();
+    const result = containsToolCallMarkup(rawResult) ? "" : rawResult;
     const reasoning = collectPublicAgentReasoning({
       reasoningText: reasoningText || streamedReasoning,
       steps,
