@@ -56,6 +56,9 @@ export interface ChatMessage {
     result?: unknown;
     status: "running" | "success" | "error";
     durationMs?: number;
+    description?: string;
+    activityKind?: "subagent";
+    displayName?: string;
   }>;
   /** Attachments uploaded with this message (binaries in Convex storage). */
   attachments?: AttachmentRef[];

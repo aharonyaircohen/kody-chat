@@ -395,6 +395,7 @@ export function AgentsControlInner({
         {editingMember ? (
           <EditStaffDialog
             member={editingMember}
+            availableAgents={agent}
             onClose={() => setEditingMember(null)}
             onSaved={() => setEditingMember(null)}
           />
@@ -585,6 +586,21 @@ function StaffDetail({
               <MarkdownPreview content={member.body} />
             </div>
           ) : null}
+          {member.subagents?.length ? (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium">Subagents</h2>
+              <div className="flex flex-wrap gap-2">
+                {member.subagents.map((slug) => (
+                  <span
+                    key={slug}
+                    className="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 font-mono text-xs text-emerald-300"
+                  >
+                    {slug}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -660,7 +676,7 @@ function CreateAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New agent</DialogTitle>
           <DialogDescription>
@@ -771,12 +787,65 @@ function CapabilitiesChecklist({
   );
 }
 
+/** Public Agents this Agent can invoke as isolated subagents. */
+function SubagentsChecklist({
+  ownerSlug,
+  options,
+  selected,
+  onToggle,
+}: {
+  ownerSlug: string;
+  options: Agent[];
+  selected: string[];
+  onToggle: (slug: string, on: boolean) => void;
+}) {
+  const candidates = options.filter((agent) => agent.slug !== ownerSlug);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Subagents</Label>
+      <p className="text-xs text-muted-foreground">
+        Assigned public Agents can receive focused work and return their result
+        to this Agent.
+      </p>
+      <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+        {candidates.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No other Agents are available.
+          </div>
+        ) : (
+          candidates.map((agent) => (
+            <label
+              key={agent.slug}
+              className="flex items-start gap-2 rounded px-1 py-1 text-sm"
+            >
+              <Checkbox
+                aria-label={`Assign ${agent.title} as subagent`}
+                checked={selected.includes(agent.slug)}
+                onCheckedChange={(on) => onToggle(agent.slug, on === true)}
+              />
+              <span className="min-w-0">
+                <span className="font-medium">{agent.title}</span>
+                <span className="ml-2 font-mono text-muted-foreground">
+                  {agent.slug}
+                </span>
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditStaffDialog({
   member,
+  availableAgents,
   onClose,
   onSaved,
 }: {
   member: Agent;
+  availableAgents: Agent[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -792,15 +861,21 @@ function EditStaffDialog({
   const [capabilities, setCapabilities] = useState<string[]>(
     member.capabilities ?? [],
   );
+  const [subagents, setSubagents] = useState<string[]>(member.subagents ?? []);
 
   useEffect(() => {
     setTitle(member.title);
     setBody(member.body || "");
     setCapabilities(member.capabilities ?? []);
+    setSubagents(member.subagents ?? []);
   }, [member]);
 
   const toggleCapability = (slug: string, on: boolean) =>
     setCapabilities((current) =>
+      on ? [...new Set([...current, slug])] : current.filter((s) => s !== slug),
+    );
+  const toggleSubagent = (slug: string, on: boolean) =>
+    setSubagents((current) =>
       on ? [...new Set([...current, slug])] : current.filter((s) => s !== slug),
     );
 
@@ -812,7 +887,13 @@ function EditStaffDialog({
       return;
     if (isFileless) {
       createMutation.mutate(
-        { slug: member.slug, title: title.trim(), body, capabilities },
+        {
+          slug: member.slug,
+          title: title.trim(),
+          body,
+          capabilities,
+          subagents,
+        },
         { onSuccess: () => onSaved() },
       );
       return;
@@ -821,11 +902,15 @@ function EditStaffDialog({
       title?: string;
       body?: string;
       capabilities?: string[];
+      subagents?: string[];
     } = {};
     if (title !== member.title) patch.title = title.trim();
     if (body !== member.body) patch.body = body;
     if (!sameCapabilities(capabilities, member.capabilities ?? [])) {
       patch.capabilities = capabilities;
+    }
+    if (!sameCapabilities(subagents, member.subagents ?? [])) {
+      patch.subagents = subagents;
     }
     if (Object.keys(patch).length === 0) {
       onSaved();
@@ -836,7 +921,7 @@ function EditStaffDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit agent `{member.slug}`</DialogTitle>
           <DialogDescription>
@@ -862,6 +947,12 @@ function EditStaffDialog({
           <CapabilitiesChecklist
             selected={capabilities}
             onToggle={toggleCapability}
+          />
+          <SubagentsChecklist
+            ownerSlug={member.slug}
+            options={availableAgents}
+            selected={subagents}
+            onToggle={toggleSubagent}
           />
         </div>
 

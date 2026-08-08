@@ -36,6 +36,8 @@ export interface Message {
      * populate the same slot.
      */
     description?: string;
+    activityKind?: "subagent";
+    displayName?: string;
   }>;
   /** Attachment refs backed by pending memory or canonical conversation storage. */
   attachments?: AttachmentRef[];
@@ -108,6 +110,8 @@ export interface ToolCall {
    * populate the same slot.
    */
   description?: string;
+  activityKind?: "subagent";
+  displayName?: string;
 }
 
 export interface Attachment {

@@ -5,7 +5,7 @@ import { DEFAULT_CHAT_CAPABILITY } from "../../src/dashboard/lib/chat-defaults/d
 
 const CAPABILITY_GUIDE = readFileSync("docs/capabilities.md", "utf8");
 const CAPABILITY_TOOLS_SOURCE = readFileSync(
-  "app/api/kody/chat/tools/capability-tools.ts",
+  "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/capability-tools.ts",
   "utf8",
 );
 
@@ -48,13 +48,13 @@ describe("capability creation guide wiring", () => {
     );
   });
 
-  it("uses capability storage and workflow dispatch", () => {
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("listLocalCapabilityFiles");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("readCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFolderFiles");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("deleteCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("api.catalog");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: slug }");
+  it("delegates capability storage and execution to the Dashboard API", () => {
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.listCapabilities()");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.readCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.saveCapability({");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.removeCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.runCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("listLocalCapabilityFiles");
   });
 
   it("exposes the validated workflow creator instead of dashboard authoring", () => {

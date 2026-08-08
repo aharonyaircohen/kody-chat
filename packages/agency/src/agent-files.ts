@@ -74,6 +74,7 @@ function agentFileFromDefinition(definition: AgentDefinition): TickFile {
     ...(frontmatter.capabilities
       ? { capabilities: frontmatter.capabilities }
       : {}),
+    ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
   };
 }
 
@@ -124,7 +125,10 @@ function buildRawMarkdown(opts: AgentWriteOptions): string {
       ? `# ${opts.title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
       : `# ${opts.title.trim()}\n`;
   return joinFrontmatter(
-    opts.capabilities ? { capabilities: opts.capabilities } : {},
+    {
+      ...(opts.capabilities ? { capabilities: opts.capabilities } : {}),
+      ...(opts.subagents ? { subagents: opts.subagents } : {}),
+    },
     titled,
   );
 }
@@ -222,7 +226,7 @@ export async function readStoreAgentFile(
     companyStoreUpdatedAt(octokit, "agents", slug),
   ]);
   if (raw === null) return null;
-  const { title, body } = parseTickedMarkdown(raw, slug);
+  const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
   return {
     slug,
     title,
@@ -232,5 +236,9 @@ export async function readStoreAgentFile(
     htmlUrl: buildCompanyStoreBlobUrl(path),
     source: "store",
     readOnly: true,
+    ...(frontmatter.capabilities
+      ? { capabilities: frontmatter.capabilities }
+      : {}),
+    ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
   };
 }

@@ -7,6 +7,7 @@
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
+import { z } from "zod";
 
 export const NOTIFICATIONS_MANIFEST_LABEL = "kody:notifications-manifest";
 export const MANIFEST_START = "<!-- kody-notifications-start -->";
@@ -38,6 +39,61 @@ export const CHANNEL_TYPES = [
 ] as const;
 
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
+
+export const NotificationChannelSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("slack-webhook"),
+    url: z.string().url().startsWith("https://hooks.slack.com/"),
+  }),
+  z.object({
+    type: z.literal("telegram-bot"),
+    botToken: z.string().min(1),
+    chatId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("discord-webhook"),
+    url: z
+      .string()
+      .url()
+      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
+  }),
+  z.object({
+    type: z.literal("generic-webhook"),
+    url: z.string().url().startsWith("https://"),
+    jsonTemplate: z.string().max(4000).optional(),
+    bodyFormat: z.enum(["json", "form"]).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+  z.object({ type: z.literal("web-push") }),
+]);
+
+export const NotificationCreateRuleInputSchema = z.object({
+  name: z.string().min(1).max(120),
+  enabled: z.boolean().optional().default(true),
+  event: z.enum(NOTIFICATION_EVENTS),
+  channel: NotificationChannelSchema,
+  template: z.string().max(2000).optional(),
+});
+
+export const NotificationCreateRuleSchema =
+  NotificationCreateRuleInputSchema.extend({
+    actorLogin: z.string().optional(),
+  });
+
+export const NotificationPatchRuleSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  enabled: z.boolean().optional(),
+  event: z.enum(NOTIFICATION_EVENTS).optional(),
+  channel: NotificationChannelSchema.optional(),
+  template: z.string().max(2000).nullable().optional(),
+  actorLogin: z.string().optional(),
+});
+
+export const NotificationTestSchema = z.object({
+  channel: NotificationChannelSchema,
+  text: z.string().min(1).max(2000),
+  actorLogin: z.string().optional(),
+});
 
 /**
  * Discriminated union over channel transport. Adding a new channel = add a
@@ -116,7 +172,9 @@ export interface NotificationsManifest {
 
 export const EMPTY_MANIFEST: NotificationsManifest = { version: 1, rules: [] };
 
-export function parseNotificationsManifest(value: unknown): NotificationsManifest {
+export function parseNotificationsManifest(
+  value: unknown,
+): NotificationsManifest {
   if (!value || typeof value !== "object") return { version: 1, rules: [] };
   const parsed = value as Partial<NotificationsManifest>;
   if (!Array.isArray(parsed.rules)) return { version: 1, rules: [] };

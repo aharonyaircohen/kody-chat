@@ -10,11 +10,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { readVariables, listVariables } from "@kody-ade/base/variables/store";
 import {
-  readVariables,
-  updateVariables,
-  listVariables,
-} from "@kody-ade/base/variables/store";
+  ConfigNameSchema,
+  ConfigValueSchema,
+  RESERVED_VARIABLE_NAMES,
+  deleteVariable,
+  upsertVariable,
+} from "@kody-ade/base/variables/mutations";
 
 interface Ctx {
   octokit: Octokit;
@@ -22,8 +25,6 @@ interface Ctx {
   repo: string;
   actorLogin?: string | null;
 }
-
-const RESERVED = new Set(["LLM_MODELS"]);
 
 export function createVariableTools(ctx: Ctx) {
   const { owner, repo, actorLogin } = ctx;
@@ -46,31 +47,16 @@ export function createVariableTools(ctx: Ctx) {
     set_variable: tool({
       description: `Set (create or overwrite) a non-secret variable in ${repoRef}. Use this only for non-sensitive config; anything secret (API keys, tokens) must go through set_secret instead.`,
       inputSchema: z.object({
-        name: z
-          .string()
-          .regex(
-            /^[A-Za-z][A-Za-z0-9_]{0,127}$/,
-            "letters/digits/underscores; start with a letter",
-          ),
-        value: z.string(),
+        name: ConfigNameSchema,
+        value: ConfigValueSchema,
       }),
       execute: async ({ name, value }) => {
-        if (RESERVED.has(name))
+        if (RESERVED_VARIABLE_NAMES.has(name))
           return {
             error: `"${name}" is reserved — manage it via the models tools.`,
           };
         try {
-          await updateVariables(owner, repo, (doc) => ({
-            ...doc,
-            variables: {
-              ...doc.variables,
-              [name]: {
-                value,
-                updatedAt: new Date().toISOString(),
-                ...(actorLogin ? { updatedBy: actorLogin } : {}),
-              },
-            },
-          }));
+          await upsertVariable({ owner, repo, name, value, actorLogin });
           return { ok: true, name };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -80,21 +66,15 @@ export function createVariableTools(ctx: Ctx) {
 
     delete_variable: tool({
       description: `Delete a non-secret variable from ${repoRef}.`,
-      inputSchema: z.object({ name: z.string().min(1) }),
+      inputSchema: z.object({ name: ConfigNameSchema }),
       execute: async ({ name }) => {
-        if (RESERVED.has(name))
+        if (RESERVED_VARIABLE_NAMES.has(name))
           return {
             error: `"${name}" is reserved — manage it via the models tools.`,
           };
         try {
-          const { doc } = await readVariables(owner, repo);
-          if (!doc.variables[name])
-            return { error: `variable "${name}" not found` };
-          await updateVariables(owner, repo, (d) => {
-            const variables = { ...d.variables };
-            delete variables[name];
-            return { ...d, variables };
-          });
+          const result = await deleteVariable({ owner, repo, name });
+          if (!result.found) return { error: `variable "${name}" not found` };
           return { ok: true, action: "deleted", name };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

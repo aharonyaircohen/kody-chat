@@ -540,7 +540,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.merge).toHaveBeenCalledTimes(1);
   });
 
-  it("puts textual tool-call correction in the per-step system prompt", async () => {
+  it("puts textual tool-call correction in the per-step system prompt for reasoning tokens", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     await POST(
@@ -555,6 +555,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
           steps: Array<{
             toolResults: Array<{ toolName: string; output: unknown }>;
             text?: string;
+            reasoningText?: string;
           }>;
           messages: Array<{ role: string; content: string }>;
         }) => {
@@ -566,7 +567,8 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       steps: [
         {
           toolResults: [],
-          text: '<tool_call>{"name":"list_goals"}</tool_call>',
+          text: "",
+          reasoningText: "<|tool_call>call:list_workflows{}",
         },
       ],
       messages: [{ role: "user", content: "look into this bug" }],

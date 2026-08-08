@@ -8,38 +8,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import { listVariables, readVariables } from "@kody-ade/base/variables/store";
 import {
-  listVariables,
-  readVariables,
-  updateVariables,
-} from "@kody-ade/base/variables/store";
+  VariableWriteSchema,
+  upsertVariable,
+} from "@kody-ade/base/variables/mutations";
 import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
-
-const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
-
-const UpsertSchema = z.object({
-  name: z.string().regex(NAME_RE, {
-    message:
-      "Name must be uppercase letters, digits, underscores; start with a letter; ≤128 chars.",
-  }),
-  value: z
-    .string()
-    .min(1, { message: "Value cannot be empty" })
-    .max(64 * 1024),
-  actorLogin: z.string().optional(),
-});
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -94,7 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const parsed = UpsertSchema.safeParse(body);
+  const parsed = VariableWriteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "validation_error", details: parsed.error.format() },
@@ -111,22 +96,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc: next } = await updateVariables(
-      auth.owner,
-      auth.repo,
-      (doc) => ({
-        ...doc,
-        variables: {
-          ...doc.variables,
-          [parsed.data.name]: {
-            value: parsed.data.value,
-            updatedAt: new Date().toISOString(),
-            updatedBy: actorLogin,
-          },
-        },
-      }),
-    );
-    return NextResponse.json({ ok: true, variables: listVariables(next) });
+    const { doc } = await upsertVariable({
+      owner: auth.owner,
+      repo: auth.repo,
+      name: parsed.data.name,
+      value: parsed.data.value,
+      actorLogin,
+    });
+    return NextResponse.json({ ok: true, variables: listVariables(doc) });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo, name: parsed.data.name },

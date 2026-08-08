@@ -35,9 +35,8 @@ import {
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
 import {
+  getIncompleteAssistantNotice,
   isLikelyTransientAssistantStatus,
-  SILENT_ASSISTANT_NOTICE,
-  TRANSIENT_ASSISTANT_NOTICE,
 } from "../core/silent-turn";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
 import {
@@ -391,9 +390,11 @@ export function MessageList({
                                 role="alert"
                                 className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
                               >
-                                {hasTransientStatus
-                                  ? TRANSIENT_ASSISTANT_NOTICE
-                                  : SILENT_ASSISTANT_NOTICE}
+                                {getIncompleteAssistantNotice({
+                                  hasToolActivity:
+                                    (msg.toolCalls?.length ?? 0) > 0,
+                                  hasTransientStatus,
+                                })}
                               </div>
                             )}
                             {parsedAssistant?.strippedToolMarkup &&

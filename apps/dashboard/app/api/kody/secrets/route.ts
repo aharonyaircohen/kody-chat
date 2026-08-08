@@ -7,20 +7,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import { listSecretMetadata, readVault } from "@kody-ade/base/vault/store";
 import {
-  invalidateVaultCache,
-  listSecretMetadata,
-  readVault,
-  writeVault,
-  type VaultDocument,
-} from "@kody-ade/base/vault/store";
+  SecretWriteSchema,
+  upsertSecret,
+} from "@kody-ade/base/vault/mutations";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { logger } from "@kody-ade/base/logger";
@@ -29,20 +26,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
-
-const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
-
-const UpsertSchema = z.object({
-  name: z.string().regex(NAME_RE, {
-    message:
-      "Name must be uppercase letters, digits, underscores; start with a letter; ≤128 chars.",
-  }),
-  value: z
-    .string()
-    .min(1, { message: "Value cannot be empty" })
-    .max(64 * 1024),
-  actorLogin: z.string().optional(),
-});
 
 function vaultUnconfiguredResponse() {
   return NextResponse.json(
@@ -110,7 +93,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const parsed = UpsertSchema.safeParse(body);
+  const parsed = SecretWriteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "validation_error", details: parsed.error.format() },
@@ -127,35 +110,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readVault(octokit, auth.owner, auth.repo, {
-      force: true,
-    });
-    const next: VaultDocument = {
-      ...doc,
-      secrets: {
-        ...doc.secrets,
-        [parsed.data.name]: {
-          value: parsed.data.value,
-          updatedAt: new Date().toISOString(),
-          updatedBy: actorLogin,
-        },
-      },
-    };
-    await writeVault(
+    const result = await upsertSecret({
       octokit,
-      auth.owner,
-      auth.repo,
-      next,
-      sha,
-      `chore(vault): upsert ${parsed.data.name}`,
-    );
-    invalidateVaultCache(auth.owner, auth.repo);
+      owner: auth.owner,
+      repo: auth.repo,
+      name: parsed.data.name,
+      value: parsed.data.value,
+      actorLogin,
+    });
     recordAudit(req, {
       action: "vault.write",
       resource: parsed.data.name,
       detail: "upsert secret",
     });
-    return NextResponse.json({ ok: true, secrets: listSecretMetadata(next) });
+    return NextResponse.json({ ok: true, secrets: result.secrets });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo, name: parsed.data.name },

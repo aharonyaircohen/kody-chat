@@ -58,6 +58,8 @@ export interface TickFrontmatter {
    * runs. Stored as an inline list: `capabilities: [a, b]`.
    */
   capabilities?: string[];
+  /** Public Agent slugs this Agent may delegate work to. */
+  subagents?: string[];
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -186,6 +188,9 @@ function parseFlatYaml(text: string): TickFrontmatter {
     } else if (key === "capabilities") {
       const list = parseInlineList(value);
       if (list.length > 0) out.capabilities = list;
+    } else if (key === "subagents") {
+      const list = parseInlineList(value);
+      if (list.length > 0) out.subagents = list;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -203,6 +208,9 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   if (frontmatter.disabled === true) lines.push(`disabled: true`);
   if (frontmatter.capabilities && frontmatter.capabilities.length > 0) {
     lines.push(`capabilities: [${frontmatter.capabilities.join(", ")}]`);
+  }
+  if (frontmatter.subagents && frontmatter.subagents.length > 0) {
+    lines.push(`subagents: [${frontmatter.subagents.join(", ")}]`);
   }
   return lines;
 }

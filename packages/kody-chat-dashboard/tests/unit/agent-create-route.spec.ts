@@ -204,4 +204,37 @@ describe("POST /api/kody/agents", () => {
       }),
     );
   });
+
+  it("stores assigned public subagents", async () => {
+    const res = await POST(
+      request({
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates the team.",
+        subagents: ["agency-specialist", "repo-scout"],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(h.writeAgentFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "kody",
+        subagents: ["agency-specialist", "repo-scout"],
+      }),
+    );
+  });
+
+  it("rejects assigning an agent to itself", async () => {
+    const res = await POST(
+      request({
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates the team.",
+        subagents: ["kody"],
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(h.writeAgentFile).not.toHaveBeenCalled();
+  });
 });

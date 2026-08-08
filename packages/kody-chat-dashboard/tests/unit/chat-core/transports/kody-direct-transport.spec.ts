@@ -126,6 +126,128 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("maps subagent activity into a visible running and completed Thought item", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "started",
+              agentTitle: "Agency Specialist",
+              task: "Explain AI Agency structure.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "reasoning",
+              agentTitle: "Agency Specialist",
+              reasoningDelta: "I checked the seven ",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "reasoning",
+              agentTitle: "Agency Specialist",
+              reasoningDelta: "Agency model definitions.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "completed",
+              agentTitle: "Agency Specialist",
+            },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "tool-call",
+        id: "subagent-agency-specialist",
+        toolName: "subagent",
+        input: { task: "Explain AI Agency structure." },
+        status: "running",
+        activityKind: "subagent",
+        displayName: "Agency Specialist",
+        description: "Working on delegated specialist research.",
+      },
+      {
+        type: "reasoning",
+        text: "Agency Specialist:\n",
+      },
+      {
+        type: "reasoning",
+        text: "I checked the seven ",
+      },
+      {
+        type: "reasoning",
+        text: "Agency model definitions.",
+      },
+      {
+        type: "tool-result",
+        id: "subagent-agency-specialist",
+        toolName: "subagent",
+        output: { status: "completed" },
+      },
+      { type: "done" },
+    ]);
+  });
+
+  it("preserves a safe specialist failure reason for the activity panel", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "started",
+              agentTitle: "Agency Specialist",
+              task: "Explain AI Agency structure.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "failed",
+              agentTitle: "Agency Specialist",
+              errorText:
+                "The specialist timed out. Retry or choose another model. (trace a1b2c3d4)",
+            },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events.at(1)).toEqual({
+      type: "tool-result",
+      id: "subagent-agency-specialist",
+      toolName: "subagent",
+      output: { status: "failed" },
+      isError: true,
+      errorText:
+        "The specialist timed out. Retry or choose another model. (trace a1b2c3d4)",
+    });
+  });
+
   it("final_answer never becomes a chip; its output replaces the streamed text", async () => {
     const { restore } = installScriptedFetch([
       () =>
@@ -651,6 +773,33 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "partial" },
       { type: "error", message: "model overloaded", recoverable: true },
+      { type: "done" },
+    ]);
+  });
+
+  it("turns tool-protocol failures into a clear model operation notice", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "error",
+            errorText:
+              "[trace a1b2c3d4] No endpoints found that support tool use",
+          }),
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "error",
+        message:
+          "This model could not complete the requested operation with the available tools. Choose another model and try again. (trace a1b2c3d4)",
+        recoverable: true,
+      },
       { type: "done" },
     ]);
   });

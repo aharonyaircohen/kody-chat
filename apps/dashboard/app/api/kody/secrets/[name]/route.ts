@@ -11,12 +11,8 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  invalidateVaultCache,
-  listSecretMetadata,
-  readVault,
-  writeVault,
-} from "@kody-ade/base/vault/store";
+import { deleteSecret } from "@kody-ade/base/vault/mutations";
+import { ConfigNameSchema } from "@kody-ade/base/variables/mutations";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { logger } from "@kody-ade/base/logger";
@@ -36,7 +32,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
   }
 
   const { name } = await context.params;
-  if (!name) {
+  if (!name || !ConfigNameSchema.safeParse(name).success) {
     return NextResponse.json({ error: "missing_name" }, { status: 400 });
   }
 
@@ -50,30 +46,21 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readVault(octokit, auth.owner, auth.repo, {
-      force: true,
+    const result = await deleteSecret({
+      octokit,
+      owner: auth.owner,
+      repo: auth.repo,
+      name,
     });
-    if (!(name in doc.secrets)) {
+    if (!result.found) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const nextSecrets = { ...doc.secrets };
-    delete nextSecrets[name];
-    const next = { ...doc, secrets: nextSecrets };
-    await writeVault(
-      octokit,
-      auth.owner,
-      auth.repo,
-      next,
-      sha,
-      `chore(vault): delete ${name}`,
-    );
-    invalidateVaultCache(auth.owner, auth.repo);
     recordAudit(req, {
       action: "vault.delete",
       resource: name,
       detail: "delete secret",
     });
-    return NextResponse.json({ ok: true, secrets: listSecretMetadata(next) });
+    return NextResponse.json({ ok: true, secrets: result.secrets });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo, name },

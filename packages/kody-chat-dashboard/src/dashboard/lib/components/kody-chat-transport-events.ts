@@ -209,6 +209,12 @@ export function createTransportTurnHandler(
                 ...(event.description
                   ? { description: event.description }
                   : {}),
+                ...(event.activityKind
+                  ? { activityKind: event.activityKind }
+                  : {}),
+                ...(event.displayName
+                  ? { displayName: event.displayName }
+                  : {}),
               },
             ],
           };
@@ -238,7 +244,15 @@ export function createTransportTurnHandler(
             if (idx < 0) return copy;
             const existing = copy[idx].toolCalls ?? [];
             const next = existing.map((tc) =>
-              tc.id === event.id ? { ...tc, status: "error" as const } : tc,
+              tc.id === event.id
+                ? {
+                    ...tc,
+                    status: "error" as const,
+                    ...(tc.activityKind === "subagent" && event.errorText
+                      ? { result: event.errorText }
+                      : {}),
+                  }
+                : tc,
             );
             copy[idx] = {
               ...copy[idx],
@@ -271,7 +285,12 @@ export function createTransportTurnHandler(
           if (idx < 0) return copy;
           const existing = copy[idx].toolCalls ?? [];
           const next = existing.map((tc) =>
-            tc.id === event.id ? { ...tc, status: "success" as const } : tc,
+            tc.id === event.id
+              ? {
+                  ...tc,
+                  status: "success" as const,
+                }
+              : tc,
           );
           copy[idx] = { ...copy[idx], toolCalls: next };
           return copy;

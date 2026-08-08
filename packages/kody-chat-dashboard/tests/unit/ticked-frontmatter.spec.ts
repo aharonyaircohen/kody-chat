@@ -101,9 +101,21 @@ describe("joinFrontmatter", () => {
       every: "7d",
       agent: "weekly",
       disabled: true,
+      subagents: ["agency-specialist", "repo-scout"],
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
+  });
+
+  it("parses public subagent assignments as agent slugs", () => {
+    const { frontmatter } = splitFrontmatter(
+      "---\nsubagents: [agency-specialist, repo_scout, Bad Slug]\n---\nbody",
+    );
+
+    expect(frontmatter.subagents).toEqual([
+      "agency-specialist",
+      "repo_scout",
+    ]);
   });
 });
 

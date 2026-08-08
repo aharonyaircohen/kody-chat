@@ -11,17 +11,12 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { readVariables } from "@kody-ade/base/variables/store";
 import {
-  readVariables,
-  writeVariables,
-  invalidateVariablesCache,
-  type VariablesDocument,
-} from "@kody-ade/base/variables/store";
-import {
-  ChatModelsSchema,
-  VAR_LLM_MODELS,
-  type ChatModel,
-} from "@kody-ade/base/variables/models";
+  readManagedChatModels,
+  setManagedDefaultModel,
+  setManagedModelEnabled,
+} from "@kody-ade/base/variables/mutations";
 
 interface Ctx {
   octokit: Octokit;
@@ -30,38 +25,9 @@ interface Ctx {
   actorLogin?: string | null;
 }
 
-function loadModels(doc: VariablesDocument): ChatModel[] {
-  const raw = doc.variables[VAR_LLM_MODELS]?.value;
-  if (!raw) return [];
-  try {
-    return ChatModelsSchema.parse(JSON.parse(raw));
-  } catch {
-    return [];
-  }
-}
-
 export function createModelTools(ctx: Ctx) {
-  const { owner, repo, actorLogin } = ctx;
+  const { octokit, owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
-
-  async function persist(models: ChatModel[]) {
-    const { doc } = await readVariables(owner, repo, {
-      force: true,
-    });
-    const next: VariablesDocument = {
-      ...doc,
-      variables: {
-        ...doc.variables,
-        [VAR_LLM_MODELS]: {
-          value: JSON.stringify(models),
-          updatedAt: new Date().toISOString(),
-          ...(actorLogin ? { updatedBy: actorLogin } : {}),
-        },
-      },
-    };
-    await writeVariables(owner, repo, next);
-    invalidateVariablesCache(owner, repo);
-  }
 
   return {
     list_models: tool({
@@ -70,7 +36,7 @@ export function createModelTools(ctx: Ctx) {
       execute: async () => {
         try {
           const { doc } = await readVariables(owner, repo);
-          const models = loadModels(doc).map((m) => ({
+          const models = readManagedChatModels(doc).map((m) => ({
             id: m.id,
             label: m.label,
             provider: m.provider,
@@ -93,23 +59,23 @@ export function createModelTools(ctx: Ctx) {
       }),
       execute: async ({ id, scope }) => {
         try {
-          const { doc } = await readVariables(owner, repo, {
-            force: true,
+          const result = await setManagedDefaultModel({
+            octokit,
+            owner,
+            repo,
+            id,
+            scope,
+            actorLogin,
           });
-          const models = loadModels(doc);
-          if (!models.some((m) => m.id === id))
-            return { error: `model "${id}" not found` };
-          const next = models.map((m) => ({
-            ...m,
-            ...(scope === "chat" || scope === "both"
-              ? { default: m.id === id }
+          if (!result.found) return { error: `model "${id}" not found` };
+          return {
+            ok: true,
+            id,
+            scope,
+            ...(result.engineSyncWarning
+              ? { engineSyncWarning: result.engineSyncWarning }
               : {}),
-            ...(scope === "engine" || scope === "both"
-              ? { engineDefault: m.id === id }
-              : {}),
-          }));
-          await persist(next);
-          return { ok: true, id, scope };
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }
@@ -121,16 +87,23 @@ export function createModelTools(ctx: Ctx) {
       inputSchema: z.object({ id: z.string().min(1), enabled: z.boolean() }),
       execute: async ({ id, enabled }) => {
         try {
-          const { doc } = await readVariables(owner, repo, {
-            force: true,
+          const result = await setManagedModelEnabled({
+            octokit,
+            owner,
+            repo,
+            id,
+            enabled,
+            actorLogin,
           });
-          const models = loadModels(doc);
-          if (!models.some((m) => m.id === id))
-            return { error: `model "${id}" not found` };
-          await persist(
-            models.map((m) => (m.id === id ? { ...m, enabled } : m)),
-          );
-          return { ok: true, id, enabled };
+          if (!result.found) return { error: `model "${id}" not found` };
+          return {
+            ok: true,
+            id,
+            enabled,
+            ...(result.engineSyncWarning
+              ? { engineSyncWarning: result.engineSyncWarning }
+              : {}),
+          };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

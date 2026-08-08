@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { DASHBOARD_HOST_TOOL_NAMES } from "../../../src/dashboard/lib/chat/platform";
 import { existsSync, readFileSync } from "fs";
 import {
   loadChatDefaults,
@@ -127,15 +128,9 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/variables-tools.ts",
       "app/api/kody/chat/tools/secrets-tools.ts",
       "app/api/kody/chat/tools/models-tools.ts",
-      "app/api/kody/chat/tools/reports-tools.ts",
-      "app/api/kody/chat/tools/notifications-tools.ts",
-      "app/api/kody/chat/tools/company-tools.ts",
       "app/api/kody/chat/tools/webhooks-tools.ts",
-      "app/api/kody/chat/tools/inbox-tools.ts",
       "app/api/kody/chat/tools/release-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/memory-tools.ts",
-      "app/api/kody/chat/tools/macros-tools.ts",
-      "app/api/kody/chat/tools/remote-tools.ts",
       "app/api/kody/chat/tools/feature-tools.ts",
       "app/api/kody/chat/tools/ui-tools.ts",
       "app/api/kody/chat/tools/guided-flow-tools.ts",
@@ -146,6 +141,7 @@ describe("chat-defaults bundle", () => {
     // `export const uiTools = { name: tool, ... }`. The map keys
     // are the model's tool names.
     const toolKeys = new Set<string>();
+    for (const name of DASHBOARD_HOST_TOOL_NAMES) toolKeys.add(name);
     for (const f of toolFiles) {
       const src = readFileSync(f, "utf8");
       // Inline: "  name: tool({"

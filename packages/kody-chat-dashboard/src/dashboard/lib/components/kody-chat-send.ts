@@ -309,7 +309,7 @@ export function finalizeKodyDirectTurn(params: {
       const m = copy[idx];
       const { reasoning, answer } = parseReasoning(m.content ?? "");
       const hadSuccessfulTools = (m.toolCalls ?? []).some(
-        (tc) => tc.status === "success",
+        (tc) => tc.status === "success" && tc.activityKind !== "subagent",
       );
       const shouldSurfaceToolError =
         !!lastToolErrorText &&
@@ -549,9 +549,17 @@ async function runSendTextInner(
 
   const timestamp = new Date().toISOString();
   const currentMessageId = crypto.randomUUID();
+  const selectedEntryKey = agentList.find(
+    (entry) =>
+      entry.agentId === selectedAgentId &&
+      (entry.modelId ?? null) === selectedModelId,
+  )?.key;
   const uiSessionId =
     sessionHook.activeSession?.id ??
-    sessionHook.createSession({ machineAccess: selectedMachineAccess });
+    sessionHook.createSession({
+      ...(selectedEntryKey ? { agentKey: selectedEntryKey } : {}),
+      machineAccess: selectedMachineAccess,
+    });
   let turnMessages =
     sessionHook.activeSession?.id === uiSessionId
       ? messages

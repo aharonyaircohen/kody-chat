@@ -91,6 +91,12 @@ function uiNodeText(node: ViewRendererDefinition["ui"]): string[] {
   );
 }
 
+function isDirectAgentAsk(text: string): boolean {
+  const match =
+    /\bask\s+([^.!?\n]{0,80}?)\b(?:agent|subagent|specialist)\b/i.exec(text);
+  return Boolean(match && !/\b(?:me|user)\b/i.test(match[1] ?? ""));
+}
+
 export function shouldRequireViewOutputForTurn({
   userText,
   definitions,
@@ -100,6 +106,9 @@ export function shouldRequireViewOutputForTurn({
 }): boolean {
   const text = userText ?? "";
   if (/<view_result>[\s\S]*<\/view_result>/i.test(text)) return false;
+  // "Ask the Repository Specialist to ..." is an instruction to execute an
+  // assigned Agent, not a request for Kody to ask the user for approval.
+  if (isDirectAgentAsk(text)) return false;
   const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(

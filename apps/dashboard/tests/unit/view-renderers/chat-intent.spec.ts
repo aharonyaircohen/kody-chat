@@ -144,6 +144,16 @@ describe("view renderer chat intent", () => {
     ).toBe(true);
   });
 
+  it("does not turn a direct request to ask a specialist into an approval card", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText:
+          "Ask the best specialist to explain this repository's structure.",
+        definitions: [approvalRenderer],
+      }),
+    ).toBe(false);
+  });
+
   it("allows plain output when no renderer definitions are available", () => {
     expect(
       shouldRequireViewOutputForTurn({

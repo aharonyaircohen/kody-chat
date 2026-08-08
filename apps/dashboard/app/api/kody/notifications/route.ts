@@ -24,7 +24,7 @@ import {
 import {
   EMPTY_MANIFEST,
   NOTIFICATIONS_MANIFEST_LABEL,
-  NOTIFICATION_EVENTS,
+  NotificationCreateRuleSchema,
   parseManifestBody,
   slugifyRuleName,
   uniqueRuleId,
@@ -88,47 +88,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Discriminated union — one schema per channel type. The `type` field is the
-// discriminator. Adding a new channel: add a variant here, in the [id] route,
-// in `notifications.ts`, and create an adapter under `notifications/channels/`.
-const channelSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("slack-webhook"),
-    url: z.string().url().startsWith("https://hooks.slack.com/"),
-  }),
-  z.object({
-    type: z.literal("telegram-bot"),
-    botToken: z.string().min(1),
-    chatId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("discord-webhook"),
-    url: z
-      .string()
-      .url()
-      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
-  }),
-  z.object({
-    type: z.literal("generic-webhook"),
-    url: z.string().url().startsWith("https://"),
-    jsonTemplate: z.string().max(4000).optional(),
-    bodyFormat: z.enum(["json", "form"]).optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-  }),
-  z.object({
-    type: z.literal("web-push"),
-  }),
-]);
-
-const createRuleSchema = z.object({
-  name: z.string().min(1).max(120),
-  enabled: z.boolean().optional().default(true),
-  event: z.enum(NOTIFICATION_EVENTS),
-  channel: channelSchema,
-  template: z.string().max(2000).optional(),
-  actorLogin: z.string().optional(),
-});
-
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -140,7 +99,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const parsed = createRuleSchema.parse(payload);
+    const parsed = NotificationCreateRuleSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, parsed.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;

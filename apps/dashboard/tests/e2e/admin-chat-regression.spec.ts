@@ -371,6 +371,137 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.locator("textarea").first()).toBeEditable();
   });
 
+  test("sidebar New conversation inherits the selected model", async ({
+    page,
+  }) => {
+    const createdRuntimes: Array<{ kind?: string; modelId?: string }> = [];
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        request.method() === "GET" &&
+        url.pathname.endsWith("/conversations")
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ conversations: [] }),
+        });
+        return;
+      }
+      if (
+        request.method() === "POST" &&
+        url.pathname.endsWith("/conversations")
+      ) {
+        const body = request.postDataJSON() as {
+          runtime?: { kind?: string; modelId?: string };
+        };
+        createdRuntimes.push(body.runtime ?? {});
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const sidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sidebar).toBeVisible({ timeout: 15_000 });
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /GPT X/,
+    );
+
+    await sidebar.getByRole("button", { name: "New conversation" }).click();
+
+    await expect
+      .poll(() => createdRuntimes)
+      .toEqual([{ kind: "direct", modelId: "kody:gpt-x" }]);
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /GPT X/,
+    );
+  });
+
+  test("first send creates one conversation with the selected model", async ({
+    page,
+  }) => {
+    const createdRuntimes: Array<{ kind?: string; modelId?: string }> = [];
+    const requestedModels: Array<string | undefined> = [];
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        request.method() === "GET" &&
+        url.pathname.endsWith("/conversations")
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ conversations: [] }),
+        });
+        return;
+      }
+      if (
+        request.method() === "POST" &&
+        url.pathname.endsWith("/conversations")
+      ) {
+        const body = request.postDataJSON() as {
+          runtime?: { kind?: string; modelId?: string };
+        };
+        createdRuntimes.push(body.runtime ?? {});
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      const body = route.request().postDataJSON() as { model?: string };
+      requestedModels.push(body.model);
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body: sseBody([
+          { type: "text-start", id: "reply" },
+          { type: "text-delta", id: "reply", delta: "Ready." },
+          { type: "text-end", id: "reply" },
+        ]),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /GPT X/,
+    );
+    const input = chat.locator("textarea").first();
+    await input.fill("Hello");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect
+      .poll(() => createdRuntimes)
+      .toEqual([{ kind: "direct", modelId: "kody:gpt-x" }]);
+    await expect.poll(() => requestedModels).toEqual(["gpt-x"]);
+    await expect(chat.getByRole("alert")).toHaveCount(0);
+  });
+
   test("deleting a new conversation waits for its save and keeps the existing session", async ({
     page,
   }) => {

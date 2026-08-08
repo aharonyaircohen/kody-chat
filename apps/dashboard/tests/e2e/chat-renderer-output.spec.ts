@@ -11,9 +11,11 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const LOCAL_BASE_URL =
   process.env.RENDERER_E2E_BASE_URL ?? "http://127.0.0.1:3333";
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
-const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
+// This is a mocked browser-contract suite. Keep its repository identity
+// hermetic so a developer's live E2E environment cannot select a persisted
+// runner or conversation and disable the fixture composer.
+const TEST_TOKEN = "ghp_placeholder";
+const TEST_REPO = "https://github.com/test-owner/test-repo";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {

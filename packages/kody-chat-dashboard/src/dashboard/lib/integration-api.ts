@@ -1113,6 +1113,8 @@ export interface Agent {
   slug: string;
   title: string;
   body: string;
+  capabilities?: string[];
+  subagents?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
@@ -1145,6 +1147,8 @@ export const staffApi = {
     slug?: string;
     title: string;
     body: string;
+    capabilities?: string[];
+    subagents?: string[];
     actorLogin?: string;
   }): Promise<Agent> => {
     const res = await fetch(`${API_BASE}/agents`, {
@@ -1161,6 +1165,8 @@ export const staffApi = {
     data: {
       title?: string;
       body?: string;
+      capabilities?: string[];
+      subagents?: string[];
       actorLogin?: string;
     },
   ): Promise<Agent> => {

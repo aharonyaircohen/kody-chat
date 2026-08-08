@@ -74,6 +74,8 @@ export type ChatEvent =
       /** Initial chip status. Brain reports completed calls (`success`). */
       status?: "running" | "success";
       description?: string;
+      activityKind?: "subagent";
+      displayName?: string;
       timestamp?: string;
     }
   | {

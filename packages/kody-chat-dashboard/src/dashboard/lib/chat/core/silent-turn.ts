@@ -8,6 +8,41 @@ export const SILENT_ASSISTANT_NOTICE =
 export const TRANSIENT_ASSISTANT_NOTICE =
   "The assistant did not return a final result. The action may have completed; verify it before retrying.";
 
+export const MODEL_OPERATION_FAILURE_NOTICE =
+  "This model could not complete the requested operation with the available tools. Choose another model and try again.";
+
+const TOOL_PROTOCOL_FAILURE_PATTERNS = [
+  /(?:(?:does not|doesn't) support|unsupported).{0,40}(?:tools?|functions?)/i,
+  /no endpoints? found that support.{0,20}(?:tools?|functions?)/i,
+  /(?:tools?|functions?).{0,50}(?:not supported|unsupported|not (?:defined|found|available)|unknown|invalid)/i,
+  /(?:unknown|invalid|undefined|undeclared|unavailable|no such).{0,20}(?:tools?|functions?)/i,
+];
+
+const TRACE_PREFIX = /^\[trace ([^\]]+)]\s*/i;
+const TRACE_SUFFIX = /\(trace ([^)]+)\)\s*$/i;
+
+export function normalizeModelOperationFailure(message: string): string {
+  const isToolProtocolFailure = TOOL_PROTOCOL_FAILURE_PATTERNS.some((pattern) =>
+    pattern.test(message),
+  );
+  if (!isToolProtocolFailure) return message;
+  const traceId =
+    TRACE_PREFIX.exec(message)?.[1] ?? TRACE_SUFFIX.exec(message)?.[1];
+  return traceId
+    ? `${MODEL_OPERATION_FAILURE_NOTICE} (trace ${traceId})`
+    : MODEL_OPERATION_FAILURE_NOTICE;
+}
+
+export function getIncompleteAssistantNotice(input: {
+  hasToolActivity: boolean;
+  hasTransientStatus: boolean;
+}): string {
+  if (input.hasTransientStatus) return TRANSIENT_ASSISTANT_NOTICE;
+  return input.hasToolActivity
+    ? MODEL_OPERATION_FAILURE_NOTICE
+    : SILENT_ASSISTANT_NOTICE;
+}
+
 const TRANSIENT_ASSISTANT_STATUS =
   /^(registering|starting|working|processing|checking|trying|loading|running)\b/i;
 

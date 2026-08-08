@@ -104,7 +104,9 @@ describe("stripToolCallMarkup", () => {
       "Reading it next.",
     ].join("\n");
 
-    expect(stripToolCallMarkup(input)).toBe("Found the file.\nReading it next.");
+    expect(stripToolCallMarkup(input)).toBe(
+      "Found the file.\nReading it next.",
+    );
   });
 
   it("removes streamed provider invoke markup with channel separators", () => {
@@ -129,6 +131,15 @@ describe("stripToolCallMarkup", () => {
 });
 
 describe("parseAssistantContent", () => {
+  it("unwraps a plain-text final_answer tool envelope", () => {
+    const { answer, strippedToolMarkup } = parseAssistantContent(
+      'final_answer {"content":"Hello! How can I assist you today?"}',
+    );
+
+    expect(answer).toBe("Hello! How can I assist you today?");
+    expect(strippedToolMarkup).toBe(false);
+  });
+
   it("strips tool_call markup from the visible answer", () => {
     const { answer } = parseAssistantContent(
       'Done.\n<tool_call>\n{"name":"kody_run_issue"}\n</tool_call>',
@@ -341,9 +352,9 @@ describe("parseAssistantContent", () => {
   });
 
   it("does not flag plain answers", () => {
-    expect(parseAssistantContent("All done, no calls.").strippedToolMarkup).toBe(
-      false,
-    );
+    expect(
+      parseAssistantContent("All done, no calls.").strippedToolMarkup,
+    ).toBe(false);
   });
 });
 
@@ -354,9 +365,31 @@ describe("containsToolCallMarkup", () => {
     expect(containsToolCallMarkup("<kody_run_issue issue='7' />")).toBe(true);
   });
 
+  it("detects MiniMax tool-call tokens emitted as reasoning text", () => {
+    expect(
+      containsToolCallMarkup("", "<|tool_call>call:list_workflows{}"),
+    ).toBe(true);
+  });
+
   it("ignores plain text, unknown tags, and stream noise", () => {
     expect(containsToolCallMarkup("just an answer")).toBe(false);
     expect(containsToolCallMarkup("<br /> unrelated <hr />")).toBe(false);
     expect(containsToolCallMarkup("")).toBe(false);
+  });
+});
+
+describe("MiniMax tool-call token handling", () => {
+  it("removes the token and payload from visible text", () => {
+    expect(stripToolCallMarkup("<|tool_call>call:list_workflows{}")).toBe("");
+  });
+
+  it("removes the token from reasoning and reports the unsafe call", () => {
+    const parsed = parseAssistantContent(
+      "<think><|tool_call>call:list_workflows{}</think>",
+    );
+
+    expect(parsed.reasoning).toBe("");
+    expect(parsed.answer).toBe("");
+    expect(parsed.strippedToolMarkup).toBe(true);
   });
 });

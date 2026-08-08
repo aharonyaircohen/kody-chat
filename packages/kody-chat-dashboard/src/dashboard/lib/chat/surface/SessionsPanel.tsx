@@ -15,8 +15,6 @@ import type { SessionMeta } from "../../chat-types";
 interface SessionsPanelProps {
   /** Whether the panel is open (host-owned state). */
   open: boolean;
-  /** Sessions UI only exists in global chat mode. */
-  isGlobalMode: boolean;
   /** Pinned-open state (host-owned, persisted by the host). */
   pinned: boolean;
   /** True when the chat is in /chat fullscreen mode. */
@@ -43,7 +41,6 @@ interface SessionsPanelProps {
  */
 export function SessionsPanel({
   open,
-  isGlobalMode,
   pinned,
   railFullscreen,
   standalonePresentation,
@@ -58,7 +55,7 @@ export function SessionsPanel({
   onTogglePinned,
   onClose,
 }: SessionsPanelProps) {
-  if (!open || !isGlobalMode) return null;
+  if (!open) return null;
 
   return (
     <>

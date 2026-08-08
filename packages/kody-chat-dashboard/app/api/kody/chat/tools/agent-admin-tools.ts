@@ -17,7 +17,12 @@ interface Ctx {
   readAgent(slug: string): Promise<unknown>;
   updateAgent(
     slug: string,
-    input: { title?: string; body?: string; capabilities?: string[] },
+    input: {
+      title?: string;
+      body?: string;
+      capabilities?: string[];
+      subagents?: string[];
+    },
   ): Promise<unknown>;
   removeAgent(slug: string): Promise<unknown>;
   dispatchAgent(slug: string, message: string): Promise<unknown>;
@@ -56,12 +61,14 @@ export function createAgentAdminTools(ctx: Ctx) {
           title: z.string().trim().min(1).optional(),
           body: z.string().optional(),
           capabilities: z.array(z.string().min(1).max(80)).max(50).optional(),
+          subagents: z.array(z.string().min(1).max(64)).max(20).optional(),
         })
         .refine(
           (input) =>
             input.title !== undefined ||
             input.body !== undefined ||
-            input.capabilities !== undefined,
+            input.capabilities !== undefined ||
+            input.subagents !== undefined,
           { message: "Provide at least one Agent field to update." },
         ),
       execute: async ({ slug, ...input }) => {

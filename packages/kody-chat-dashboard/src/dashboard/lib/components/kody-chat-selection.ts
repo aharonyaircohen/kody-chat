@@ -19,13 +19,8 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AGENT_KODY,
-  AGENTS,
-  type AgentConfig,
-  type AgentId,
-} from "../agents";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "../agents";
 import {
   buildAgentList,
   shouldWaitForChatCatalogResolution,
@@ -228,6 +223,7 @@ export function useAgentSelection(
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
+  const noSessionDefaultAppliedRef = useRef(false);
 
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
@@ -323,6 +319,11 @@ export function useAgentSelection(
   //      effect will re-run to capture the pick).
   useEffect(() => {
     if (lockedAgentId) return; // Vibe page owns the agent
+    if (activeSessionId) {
+      noSessionDefaultAppliedRef.current = false;
+    } else if (noSessionDefaultAppliedRef.current) {
+      return;
+    }
     if (
       shouldWaitForChatCatalogResolution({
         sessionHydrated,
@@ -345,6 +346,10 @@ export function useAgentSelection(
       targetEntry = defaultAgentEntry;
     }
     if (!targetEntry) return;
+
+    if (!activeSessionId) {
+      noSessionDefaultAppliedRef.current = true;
+    }
 
     if (
       targetEntry.agentId !== selectedAgentId ||

@@ -528,7 +528,6 @@ export function KodyChat({
   );
   const createChatSession = sessionHook.createSession;
   const setChatSessionMessages = sessionHook.setSessionMessages;
-  createGuidedFlowSessionRef.current = createChatSession;
   activateGuidedFlowSessionRef.current = sessionHook.switchSession;
 
   // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected
@@ -558,6 +557,24 @@ export function KodyChat({
     brainModels,
     sessionHook,
   });
+  const createSelectedChatSession = useCallback(
+    (options?: { machineAccess?: MachineAccess }) =>
+      createChatSession({
+        ...(sessionHook.hydrated && chatModelsLoaded && currentEntry?.key
+          ? { agentKey: currentEntry.key }
+          : {}),
+        ...(options?.machineAccess
+          ? { machineAccess: options.machineAccess }
+          : {}),
+      }),
+    [
+      chatModelsLoaded,
+      createChatSession,
+      currentEntry?.key,
+      sessionHook.hydrated,
+    ],
+  );
+  createGuidedFlowSessionRef.current = createSelectedChatSession;
 
   // Read-only host snapshot handed to slot components and send middleware.
   // Minimal by design (plan H2 host-context channel) — grows per plugin
@@ -684,7 +701,7 @@ export function KodyChat({
     [auth, router],
   );
   const { data: repoAgents = [] } = useAgents();
-  const { createSession, setSessionAgencyAgent } = sessionHook;
+  const { setSessionAgencyAgent } = sessionHook;
   const selectedAgencyAgentSlug =
     sessionHook.activeSession?.agencyAgent?.slug ?? "kody";
   const repoAgentSlugs = useMemo(
@@ -711,7 +728,7 @@ export function KodyChat({
             ? { slug: "kody", title: "Kody" }
             : await kodyApi.agent.get(nextSlug);
         const activeSessionId =
-          sessionHook.activeSession?.id ?? createSession();
+          sessionHook.activeSession?.id ?? createSelectedChatSession();
         setSessionAgencyAgent(activeSessionId, {
           slug: resolvedAgent.slug,
           title: resolvedAgent.title,
@@ -726,7 +743,7 @@ export function KodyChat({
       repoAgents,
       selectedAgencyAgentSlug,
       sessionHook.activeSession?.id,
-      createSession,
+      createSelectedChatSession,
       setSessionAgencyAgent,
     ],
   );
@@ -805,7 +822,7 @@ export function KodyChat({
     lockedAgentId,
     pluginRegistry,
     activeSessionIdForReset,
-    createChatSession,
+    createChatSession: createSelectedChatSession,
     sessions: sessionHook.sessions,
     sessionsHydrated: sessionHook.hydrated,
     sessionStoreScope,
@@ -863,6 +880,7 @@ export function KodyChat({
     ],
   );
   useEffect(() => {
+    if (!activeSelectionSessionId) return;
     const reconciled = reconcileMachineSelection({
       entries: agentList,
       machineAccess,
@@ -876,6 +894,7 @@ export function KodyChat({
       applyChatEntry(reconciled.replacementEntry);
     }
   }, [
+    activeSelectionSessionId,
     agentList,
     applyChatEntry,
     machineAccess,
@@ -920,7 +939,6 @@ export function KodyChat({
   // prompt, not a separate message store.
   const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
-  const ensureChatSession = sessionHook.createSession;
   const activeChatSessionId = sessionHook.activeSession?.id;
   activeGuidedFlowSessionIdRef.current = activeChatSessionId ?? null;
   useEffect(() => {
@@ -947,10 +965,7 @@ export function KodyChat({
       );
       return;
     }
-    if (!activeSessionId) {
-      ensureChatSession();
-      return;
-    }
+    if (!activeSessionId) return;
 
     const initialParams = new URLSearchParams(window.location.search);
     if (
@@ -1066,7 +1081,6 @@ export function KodyChat({
       cancelled = true;
     };
   }, [
-    ensureChatSession,
     lockedAgentSlug,
     messages.length,
     activeChatSessionId,
@@ -1076,15 +1090,15 @@ export function KodyChat({
   useEffect(() => {
     if (!sessionHook.hydrated) return;
     if (lockedAgentSlug) return;
-    if (!activeChatSessionId) {
-      ensureChatSession();
-      return;
-    }
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("guidedFlow");
     const guidedFlowInstanceId = params.get("guidedFlowInstanceId");
     const instanceKey = params.get("instanceKey") ?? undefined;
     if (!flowId && !guidedFlowInstanceId) return;
+    if (!activeChatSessionId) {
+      createSelectedChatSession();
+      return;
+    }
 
     const locationAfterLaunch = locationAfterGuidedFlowLaunch(
       window.location.pathname,
@@ -1135,7 +1149,7 @@ export function KodyChat({
     };
   }, [
     activeChatSessionId,
-    ensureChatSession,
+    createSelectedChatSession,
     lockedAgentSlug,
     pathname,
     router,
@@ -1189,7 +1203,7 @@ export function KodyChat({
   );
   useEffect(() => {
     const openWidget = (request: WidgetOpenRequest) => {
-      const sessionId = request.conversationId ?? ensureChatSession();
+      const sessionId = request.conversationId ?? createSelectedChatSession();
       const view = buildWidgetPreviewView(
         request.widgetSlug,
         `widget-preview:${request.widgetSlug}:${crypto.randomUUID()}`,
@@ -1217,7 +1231,7 @@ export function KodyChat({
     if (pendingRequest) openWidget(pendingRequest);
     return () =>
       window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
-  }, [ensureChatSession, setMessagesForSession]);
+  }, [createSelectedChatSession, setMessagesForSession]);
   persistGuidedFlowMessageRef.current = (sessionId, message) => {
     if (!sessionId) return;
     const viewKey = message.view
@@ -1424,7 +1438,7 @@ export function KodyChat({
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     const conversationId =
-      sessionHook.activeSession?.id ?? sessionHook.createSession();
+      sessionHook.activeSession?.id ?? createSelectedChatSession();
     const newAttachments: Attachment[] = [];
 
     for (const file of list) {
@@ -2190,7 +2204,6 @@ export function KodyChat({
       sessionsPanel={
         <SessionsPanel
           open={showSessionSidebar}
-          isGlobalMode={isGlobalMode}
           pinned={allowSessionSidebarPin && isDesktop && sessionSidebarPinned}
           railFullscreen={railFullscreen}
           standalonePresentation={standalonePresentation}
@@ -2202,7 +2215,7 @@ export function KodyChat({
             sessionHook.switchSession(id);
           }}
           onCreateSession={() => {
-            setActiveWidgetConversationId(sessionHook.createSession());
+            setActiveWidgetConversationId(createSelectedChatSession());
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
@@ -2285,10 +2298,7 @@ export function KodyChat({
             // fall back to the global default on first render — which is
             // fine for the very first session but surprises users who
             // expect a "new chat" to start where the last one left off.
-            const seed = currentEntry?.key;
-            setActiveWidgetConversationId(
-              sessionHook.createSession(seed ? { agentKey: seed } : undefined),
-            );
+            setActiveWidgetConversationId(createSelectedChatSession());
             setToolCalls([]);
           }}
           activeLoading={activeLoading}

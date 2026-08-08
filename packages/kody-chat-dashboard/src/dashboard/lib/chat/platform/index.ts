@@ -64,6 +64,10 @@ export type {
   ChatTurnInput,
 } from "./transport";
 export {
+  DASHBOARD_HOST_TOOL_NAMES,
+  type DashboardHostToolName,
+} from "./host-tool-contract";
+export {
   ChatToolRegistrationError,
   createChatServerToolRegistry,
   type ChatPluginServerTools,

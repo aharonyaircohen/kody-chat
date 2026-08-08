@@ -61,6 +61,7 @@ import {
 } from "../../../../../src/dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { emitSystemEvent } from "@kody-ade/base/events";
+import { recordAudit } from "@kody-ade/base/activity/audit";
 import { ensureTriggerStateWriter } from "@kody-ade/kody-chat-dashboard/user-state";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
@@ -86,7 +87,6 @@ import {
 } from "../../../../../src/dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
-import { createRemoteTools } from "../tools/remote-tools";
 import { createMachineTools } from "../tools/machine-tools";
 import { isLocalMachineAccessEnabled } from "@kody-ade/terminal/machine-exec";
 import { createBugTools } from "../tools/bug-tools";
@@ -138,11 +138,7 @@ import { createInstructionsTools } from "../tools/instructions-tools";
 import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
 import { createModelTools } from "../tools/models-tools";
-import { createReportTools } from "../tools/reports-tools";
 import { createWebhookTools } from "../tools/webhooks-tools";
-import { createNotificationTools } from "../tools/notifications-tools";
-import { createCompanyTools } from "../tools/company-tools";
-import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
 import { createPositionTools } from "../tools/position-tools";
@@ -150,7 +146,6 @@ import { applyReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning-ada
 import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { readCapabilityFile } from "@kody-ade/agency/capabilities";
-import { createMacroTools } from "../tools/macros-tools";
 import { loadRelevantMemoryForPrompt } from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
@@ -179,6 +174,8 @@ import {
   parseExplicitViewRequest,
 } from "./view-request";
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
+import { isClearlyConversationalTurn } from "./public-agent-routing";
+import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -1049,8 +1046,27 @@ async function handleKodyDirectPost(
   // optional catalog is unavailable.
   const agentSlug = requestedAgentSlug === "kody" ? "" : requestedAgentSlug;
   let activeAgentIdentity = chatBundle.agentIdentity;
-  let addressedAgentMember:
-    Awaited<ReturnType<typeof listResolvedAgentFiles>>[number] | null = null;
+  type ResolvedAgentMember = Awaited<
+    ReturnType<typeof listResolvedAgentFiles>
+  >[number];
+  let resolvedAgentRoster: ResolvedAgentMember[] = [];
+  if (repo && (agentSlug || !clientSurface)) {
+    try {
+      resolvedAgentRoster = await listResolvedAgentFiles();
+    } catch (err) {
+      // A missing optional public Kody definition must not break ordinary
+      // chat, but an explicitly addressed public Agent still must resolve.
+      if (agentSlug) {
+        clearGitHubContext();
+        throw err;
+      }
+      traceWarn(
+        { traceId, err: formatProviderError(err) },
+        "kody-direct: public Agent roster unavailable",
+      );
+    }
+  }
+  let addressedAgentMember: ResolvedAgentMember | null = null;
   if (agentSlug) {
     if (!isValidAgentSlug(agentSlug)) {
       clearGitHubContext();
@@ -1062,18 +1078,12 @@ async function handleKodyDirectPost(
     if (!repo) {
       return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
     }
-    let agentMember;
-    try {
-      // Resolve from the same merged list that powers the AI Agency picker.
-      // A separate point lookup allowed the picker and chat to disagree,
-      // surfacing a selectable agent as `agent_not_found` only after send.
-      agentMember = (await listResolvedAgentFiles()).find(
-        (candidate) => candidate.slug === agentSlug,
-      );
-    } catch (err) {
-      clearGitHubContext();
-      throw err;
-    }
+    // Resolve from the same merged list that powers the AI Agency picker.
+    // A separate point lookup allowed the picker and chat to disagree,
+    // surfacing a selectable agent as `agent_not_found` only after send.
+    const agentMember = resolvedAgentRoster.find(
+      (candidate) => candidate.slug === agentSlug,
+    );
     if (!agentMember) {
       clearGitHubContext();
       return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
@@ -1081,6 +1091,12 @@ async function handleKodyDirectPost(
     activeAgentIdentity = buildAgentChatIdentity(agentMember);
     addressedAgentMember = agentMember;
   }
+  const delegatingAgentMember =
+    addressedAgentMember ??
+    (!clientSurface && !agentSlug
+      ? (resolvedAgentRoster.find((candidate) => candidate.slug === "kody") ??
+        null)
+      : null);
   if (
     durableIdentity &&
     durableIdentity.agent.slug !== (addressedAgentMember?.slug ?? "kody")
@@ -1265,16 +1281,14 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+        onSecretWritten: (name) =>
+          recordAudit(req, {
+            action: "vault.write",
+            resource: name,
+            detail: "upsert secret via chat",
+          }),
       }),
       ...createModelTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
-      }),
-      ...createReportTools({ owner: repo.owner, repo: repo.repo }),
-      ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
-      ...createCompanyTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
@@ -1286,11 +1300,6 @@ async function handleKodyDirectPost(
         repo: repo.repo,
         hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
       }),
-      ...createInboxTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-      }),
       ...createAgentAdminTools({
         owner: repo.owner,
         repo: repo.repo,
@@ -1300,12 +1309,6 @@ async function handleKodyDirectPost(
         removeAgent: (slug) => agencyApi.removeAgent(slug),
         dispatchAgent: (slug, message) =>
           agencyApi.dispatchAgent(slug, message),
-      }),
-      ...createMacroTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
       }),
     };
     // Pipeline tools currently use github-client's module-level context
@@ -1319,7 +1322,6 @@ async function handleKodyDirectPost(
   }
   extraTools = {
     ...extraTools,
-    ...createRemoteTools(verifiedActorLogin),
     ...(!clientSurface
       ? createMachineTools({
           machineAccess: requestedMachineAccess,
@@ -1404,11 +1406,64 @@ async function handleKodyDirectPost(
     ...featureTools,
     ...uiToolSet,
   };
+  // Host/plugin tools enter the same policy and capability pipeline as
+  // package-owned tools. This keeps one enforcement path for every tool and
+  // prevents host registrations from bypassing implementation restrictions.
+  const pluginAiTools: Record<string, unknown> = {};
+  if (repo) {
+    const pluginToolCtx: ChatToolServerContext = {
+      owner: repo.owner,
+      repo: repo.repo,
+      token: repo.token,
+      extras: {
+        actorLogin: verifiedActorLogin,
+        actorGithubId: verifiedActorGithubId,
+      },
+    };
+    let pluginTools: Record<string, ChatPluginToolDefinition>;
+    try {
+      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
+    } catch (err) {
+      clearGitHubContext();
+      const msg = err instanceof Error ? err.message : String(err);
+      traceError(
+        { traceId, err: msg },
+        "kody-direct: chat plugin tool collect failed",
+      );
+      return NextResponse.json(
+        { error: `chat_plugin_tools_failed: ${msg}` },
+        { status: 500 },
+      );
+    }
+    for (const [name, def] of Object.entries(pluginTools)) {
+      if (
+        Object.prototype.hasOwnProperty.call(baseTools, name) ||
+        Object.prototype.hasOwnProperty.call(extraTools, name)
+      ) {
+        clearGitHubContext();
+        traceError(
+          { traceId, tool: name },
+          "kody-direct: chat plugin tool collides with a built-in tool",
+        );
+        return NextResponse.json(
+          {
+            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
+          },
+          { status: 500 },
+        );
+      }
+      pluginAiTools[name] = tool({
+        description: def.description,
+        inputSchema: def.inputSchema,
+        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
+      });
+    }
+  }
   // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
   // starters from this endpoint, and strips issue-creation tools in vibe mode
   // once a task is scoped so the model can't file a duplicate.
   const mergedTools = applyVibeToolPolicy(
-    { ...baseTools, ...extraTools },
+    { ...baseTools, ...extraTools, ...pluginAiTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
   // Bundle allowlist controls domain tools. Core output tools are preserved
@@ -1419,7 +1474,11 @@ async function handleKodyDirectPost(
   const bundleFilteredTools = filterToolsByAllowlist(
     mergedTools,
     chatBundle.capability.tools.length > 0
-      ? [...chatBundle.capability.tools, ...capabilityToolNames]
+      ? [
+          ...chatBundle.capability.tools,
+          ...capabilityToolNames,
+          ...Object.keys(pluginAiTools),
+        ]
       : chatBundle.capability.tools,
   );
   // Client-surface scope hard-caps the result at the conservative surface
@@ -1440,73 +1499,14 @@ async function handleKodyDirectPost(
       allowlistedTools[name] = mergedTools[name];
     }
   }
-  // Plugin server tools (platform Step 4). Plugins registered in the
-  // server-only registry contribute tools ON TOP of the built-in map —
-  // never instead of it. With zero plugins registered `collect()` returns
-  // {} and the tool map is byte-identical to the built-in set. A plugin
-  // tool whose name collides with any built-in (or another plugin — the
-  // registry throws at collect time) is a deploy-time bug: fail the
-  // request loudly with a 500 instead of silently overriding. Tools are
-  // repo-scoped (ChatToolServerContext), so repo-less requests skip them.
-  if (repo) {
-    const pluginToolCtx: ChatToolServerContext = {
-      owner: repo.owner,
-      repo: repo.repo,
-      token: repo.token,
-    };
-    let pluginTools: Record<string, ChatPluginToolDefinition>;
-    try {
-      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
-    } catch (err) {
-      clearGitHubContext();
-      const msg = err instanceof Error ? err.message : String(err);
-      traceError(
-        { traceId, err: msg },
-        "kody-direct: chat plugin tool collect failed",
-      );
-      return NextResponse.json(
-        { error: `chat_plugin_tools_failed: ${msg}` },
-        { status: 500 },
-      );
-    }
-    for (const [name, def] of Object.entries(pluginTools)) {
-      if (
-        Object.prototype.hasOwnProperty.call(mergedTools, name) ||
-        Object.prototype.hasOwnProperty.call(allowlistedTools, name)
-      ) {
-        clearGitHubContext();
-        traceError(
-          { traceId, tool: name },
-          "kody-direct: chat plugin tool collides with a built-in tool",
-        );
-        return NextResponse.json(
-          {
-            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
-          },
-          { status: 500 },
-        );
-      }
-      // Adapt the plugin contract to the AI SDK tool shape. Input is
-      // zod-validated inside the registry's execute wrapper (collect()
-      // parses through the plugin's schema before the handler runs).
-      allowlistedTools[name] = tool({
-        description: def.description,
-        inputSchema: def.inputSchema,
-        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
-      });
-    }
-  }
-  // Tool failures must become tool results, not stream-level failures. The
-  // client can then show the real reason and the model can correct its input
-  // instead of every provider collapsing the error to "An error occurred."
-  for (const [name, candidate] of Object.entries(allowlistedTools)) {
-    if (!candidate || typeof candidate !== "object") continue;
+  const wrapToolExecution = (name: string, candidate: unknown): unknown => {
+    if (!candidate || typeof candidate !== "object") return candidate;
     const executable = candidate as {
       execute?: (input: unknown) => Promise<unknown>;
     };
-    if (!executable.execute) continue;
+    if (!executable.execute) return candidate;
     const execute = executable.execute;
-    allowlistedTools[name] = {
+    return {
       ...executable,
       execute: async (input: unknown) => {
         try {
@@ -1522,6 +1522,72 @@ async function handleKodyDirectPost(
         }
       },
     };
+  };
+
+  const assignedSubagentSlugs = delegatingAgentMember?.subagents ?? [];
+  const assignedSubagentRoster = resolvedAgentRoster.filter((candidate) =>
+    assignedSubagentSlugs.includes(candidate.slug),
+  );
+  if (!clientSurface && assignedSubagentRoster.length > 0) {
+    const specialistChat = await handleConfiguredPublicAgentChat({
+      userText: latestUserText ?? "",
+      assignedAgents: assignedSubagentRoster,
+      model,
+      availableTools: allowlistedTools,
+      specialistTools: mergedTools,
+      outputToolNames: CHAT_OUTPUT_TOOL_NAMES,
+      loadCapabilities: async (agent) =>
+        (
+          await Promise.all(
+            (agent.capabilities ?? []).map((slug) =>
+              readCapabilityFile(slug).catch(() => null),
+            ),
+          )
+        ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),
+      wrapTool: wrapToolExecution,
+      repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
+      maxSteps: Math.min(resolvedModel.maxSteps ?? 8, 8),
+      providerCapabilities,
+      ...(durableIdentity
+        ? { startDurableTurn: () => startDurableTurn(durableIdentity) }
+        : {}),
+      telemetry: {
+        traceId,
+        startedAt: reqStartedAt,
+        formatError: formatProviderError,
+        clearContext: clearGitHubContext,
+        log: traceLog,
+        warn: traceWarn,
+        error: traceError,
+      },
+    });
+    if (specialistChat.mode === "delegated") {
+      return specialistChat.response;
+    }
+    for (const name of Object.keys(allowlistedTools)) {
+      delete allowlistedTools[name];
+    }
+    Object.assign(allowlistedTools, specialistChat.parentTools);
+  }
+  const clearlyConversationalTurn = isClearlyConversationalTurn(
+    latestUserText ?? "",
+  );
+  if (
+    clearlyConversationalTurn &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, FINAL_ANSWER_TOOL)
+  ) {
+    for (const name of Object.keys(allowlistedTools)) {
+      if (name !== FINAL_ANSWER_TOOL) delete allowlistedTools[name];
+    }
+    turnSystemInstructions.push(
+      "Answer this conversational message directly. Do not infer Kody's overall capabilities from this turn's reduced tool list, and do not claim Kody cannot perform actions unless the user asked for a specific action that is unavailable.",
+    );
+  }
+  // Tool failures must become tool results, not stream-level failures. The
+  // client can then show the real reason and the model can correct its input
+  // instead of every provider collapsing the error to "An error occurred."
+  for (const [name, candidate] of Object.entries(allowlistedTools)) {
+    allowlistedTools[name] = wrapToolExecution(name, candidate);
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
@@ -1779,8 +1845,11 @@ This turn includes an image from the user. For questions about what is visible i
                 // literal text instead of API tool calls — nothing executes,
                 // then they report fabricated results. Bounce it immediately:
                 // the next step starts with a corrective system message.
-                const lastStepText = steps[steps.length - 1]?.text ?? "";
-                const fabricatedToolCall = containsToolCallMarkup(lastStepText);
+                const lastStep = steps[steps.length - 1];
+                const fabricatedToolCall = containsToolCallMarkup(
+                  lastStep?.text,
+                  lastStep?.reasoningText,
+                );
                 if (fabricatedToolCall) {
                   traceWarn(
                     { traceId, step: steps.length },
