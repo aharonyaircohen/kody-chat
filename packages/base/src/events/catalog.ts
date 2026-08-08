@@ -193,6 +193,19 @@ export const SYSTEM_EVENT_CATALOG = {
       .strict(),
     2,
   ),
+  "kody.workflow.completed": defineEvent(
+    "A Kody workflow run finished.",
+    z
+      .object({
+        workflowId: z.string().trim().min(1).max(200),
+        runId: z.string().trim().min(1).max(200),
+        status: z.enum(["success", "failed"]),
+        repository: z.string().trim().min(1).max(255),
+        pr: z.number().int().positive().optional(),
+        headSha: z.string().trim().min(7).max(64).optional(),
+      })
+      .strict(),
+  ),
 } as const;
 
 export type SystemEventName = keyof typeof SYSTEM_EVENT_CATALOG;

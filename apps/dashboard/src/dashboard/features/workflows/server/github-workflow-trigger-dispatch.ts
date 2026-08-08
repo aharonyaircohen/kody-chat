@@ -33,7 +33,7 @@ function requestIdFor(sourceEventId: string, triggerId: string): string {
 
 function sourceEventIdFor(event: SystemEventEnvelope): string {
   const payload = event.payload as { runId?: unknown };
-  return typeof payload.runId === "number"
+  return typeof payload.runId === "number" || typeof payload.runId === "string"
     ? `${event.name}:${payload.runId}`
     : event.id;
 }
@@ -124,7 +124,7 @@ async function updateDelivery(
  * are durable and keyed by source event + trigger, so webhook redeliveries do
  * not start the same configured Workflow twice.
  */
-export async function dispatchGitHubWorkflowTriggers(input: {
+export async function dispatchWorkflowTriggers(input: {
   event: SystemEventEnvelope;
   deliveryId: string;
   octokit: Octokit;
@@ -328,3 +328,6 @@ export async function dispatchGitHubWorkflowTriggers(input: {
     }
   }
 }
+
+/** Compatibility name for the GitHub webhook caller. */
+export const dispatchGitHubWorkflowTriggers = dispatchWorkflowTriggers;

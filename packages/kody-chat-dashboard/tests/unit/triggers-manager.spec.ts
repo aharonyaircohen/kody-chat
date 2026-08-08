@@ -122,6 +122,8 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).toContain(
       "editor.actionType !== actionTypeForEvent(editor.event)",
     );
+    expect(SOURCE).toContain('"kody.workflow.completed"');
+    expect(SOURCE).toContain('aria-label="Kody workflow that finished"');
   });
 
   it("only offers workflows that policy allows to run automatically", () => {

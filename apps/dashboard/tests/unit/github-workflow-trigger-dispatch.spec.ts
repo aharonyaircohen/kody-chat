@@ -129,6 +129,30 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     );
   });
 
+  it("uses a stable source id for a completed Kody workflow run", async () => {
+    await dispatchGitHubWorkflowTriggers({
+      event: {
+        ...event,
+        id: "event-7",
+        name: "kody.workflow.completed",
+        payload: {
+          workflowId: "ci-repair",
+          runId: "run-7",
+          status: "success",
+          repository: "acme/shop",
+          pr: 3947,
+        },
+      },
+      deliveryId: "kody-workflow-run-7",
+      octokit,
+    });
+
+    expect(h.mutation.mock.calls[0]?.[1]).toMatchObject({
+      sourceEventId: "kody.workflow.completed:run-7",
+    });
+    expect(h.listJobsForWorkflowRun).not.toHaveBeenCalled();
+  });
+
   it("does not start the Workflow when the durable claim is already taken", async () => {
     h.mutation.mockResolvedValue({ claimed: false, status: "dispatched" });
 

@@ -52,6 +52,11 @@ import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";
 
 const GITHUB_WORKFLOW_COMPLETED_EVENT = "github.workflow_run.completed";
+const KODY_WORKFLOW_COMPLETED_EVENT = "kody.workflow.completed";
+const WORKFLOW_COMPLETED_EVENTS = new Set([
+  GITHUB_WORKFLOW_COMPLETED_EVENT,
+  KODY_WORKFLOW_COMPLETED_EVENT,
+]);
 const EVENT_LABELS: Record<string, string> = {
   "session.started": "A chat session starts",
   "session.ended": "A chat session ends",
@@ -67,6 +72,7 @@ const EVENT_LABELS: Record<string, string> = {
   "state.entity.written": "State is saved",
   "system.error": "A system error occurs",
   [GITHUB_WORKFLOW_COMPLETED_EVENT]: "GitHub workflow finishes",
+  [KODY_WORKFLOW_COMPLETED_EVENT]: "Kody workflow finishes",
 };
 const WORKFLOW_CONCLUSIONS = [
   "success",
@@ -79,6 +85,8 @@ const WORKFLOW_CONCLUSIONS = [
   "stale",
 ] as const;
 type WorkflowConclusion = (typeof WORKFLOW_CONCLUSIONS)[number];
+const KODY_WORKFLOW_STATUSES = ["success", "failed"] as const;
+type KodyWorkflowStatus = (typeof KODY_WORKFLOW_STATUSES)[number];
 
 interface GitHubWorkflowOption {
   id: number;
@@ -158,6 +166,8 @@ interface EditorState {
   githubWorkflowId: number | null;
   githubWorkflowName: string;
   githubWorkflowConclusion: WorkflowConclusion | "";
+  kodySourceWorkflowId: string;
+  kodyWorkflowStatus: KodyWorkflowStatus | "";
   conditions: Array<{ path: string; op: string; value: string }>;
   map: Array<{ key: string; source: string }>;
   isNew: boolean;
@@ -165,7 +175,7 @@ interface EditorState {
 
 function actionTypeForEvent(event: string): EditorState["actionType"] {
   if (!event) return "";
-  return event === GITHUB_WORKFLOW_COMPLETED_EVENT
+  return WORKFLOW_COMPLETED_EVENTS.has(event)
     ? "start-workflow"
     : "save-user-state";
 }
@@ -243,6 +253,22 @@ function editorFromTrigger(trigger: TriggerRow): EditorState {
   )
     ? (githubWorkflowConclusionCondition?.value as WorkflowConclusion)
     : "";
+  const kodySourceWorkflowIdCondition = trigger.conditions.find(
+    (condition) => condition.path === "workflowId" && condition.op === "equals",
+  );
+  const kodySourceWorkflowId =
+    trigger.event === KODY_WORKFLOW_COMPLETED_EVENT &&
+    typeof kodySourceWorkflowIdCondition?.value === "string"
+      ? kodySourceWorkflowIdCondition.value
+      : "";
+  const kodyWorkflowStatusCondition = trigger.conditions.find(
+    (condition) => condition.path === "status" && condition.op === "equals",
+  );
+  const kodyWorkflowStatus = KODY_WORKFLOW_STATUSES.includes(
+    kodyWorkflowStatusCondition?.value as KodyWorkflowStatus,
+  )
+    ? (kodyWorkflowStatusCondition?.value as KodyWorkflowStatus)
+    : "";
   return {
     id: trigger.id,
     name: trigger.name,
@@ -254,10 +280,12 @@ function editorFromTrigger(trigger: TriggerRow): EditorState {
     githubWorkflowId,
     githubWorkflowName,
     githubWorkflowConclusion,
+    kodySourceWorkflowId,
+    kodyWorkflowStatus,
     conditions: conditionRows(
       trigger.conditions.filter(
         (condition) =>
-          !["workflowId", "workflowName", "conclusion"].includes(
+          !["workflowId", "workflowName", "conclusion", "status"].includes(
             condition.path,
           ),
       ),
@@ -281,6 +309,8 @@ function emptyEditor(defaultNamespace: string): EditorState {
     githubWorkflowId: null,
     githubWorkflowName: "",
     githubWorkflowConclusion: "",
+    kodySourceWorkflowId: "",
+    kodyWorkflowStatus: "",
     conditions: [],
     map: [],
     isNew: true,
@@ -402,7 +432,28 @@ export function TriggersManager() {
                   ]
                 : []),
             ]
-          : [];
+          : state.event === KODY_WORKFLOW_COMPLETED_EVENT
+            ? [
+                ...(state.kodySourceWorkflowId
+                  ? [
+                      {
+                        path: "workflowId",
+                        op: "equals",
+                        value: state.kodySourceWorkflowId,
+                      },
+                    ]
+                  : []),
+                ...(state.kodyWorkflowStatus
+                  ? [
+                      {
+                        path: "status",
+                        op: "equals",
+                        value: state.kodyWorkflowStatus,
+                      },
+                    ]
+                  : []),
+              ]
+            : [];
       const conditions = [...workflowConditions, ...advancedConditions];
       const selectedWorkflow = workflowDefinitionsQuery.data?.find(
         (workflow) => workflow.id === state.workflowId,
@@ -482,7 +533,8 @@ export function TriggersManager() {
   const namespaces = namespacesQuery.data ?? [];
   const triggers = triggersQuery.data ?? [];
   const githubWorkflows = githubWorkflowsQuery.data ?? [];
-  const kodyWorkflows = (workflowDefinitionsQuery.data ?? []).filter(
+  const workflowDefinitions = workflowDefinitionsQuery.data ?? [];
+  const kodyWorkflows = workflowDefinitions.filter(
     (workflow) =>
       workflow.runnable !== false && workflow.automation.eligible === true,
   );
@@ -720,24 +772,81 @@ export function TriggersManager() {
                         </Select>
                       </div>
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-foreground">
-                      <Checkbox
-                        checked={editor.conditions.some(
-                          isPullRequestOnlyCondition,
-                        )}
-                        onCheckedChange={(checked) =>
+                  </div>
+                ) : null}
+                {editor.event === KODY_WORKFLOW_COMPLETED_EVENT ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Kody workflow</Label>
+                      <Select
+                        value={editor.kodySourceWorkflowId}
+                        onValueChange={(value) =>
                           setEditor({
                             ...editor,
-                            conditions: withPullRequestOnlyCondition(
-                              editor.conditions,
-                              checked === true,
-                            ),
+                            kodySourceWorkflowId: value,
                           })
                         }
-                      />
-                      Pull request runs only
-                    </label>
+                        disabled={workflowDefinitionsQuery.isLoading}
+                      >
+                        <SelectTrigger aria-label="Kody workflow that finished">
+                          <SelectValue placeholder="Select a Kody workflow" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {workflowDefinitions.map((workflow) => (
+                            <SelectItem key={workflow.id} value={workflow.id}>
+                              {workflow.workflow.name} ({workflow.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Result</Label>
+                      <Select
+                        value={editor.kodyWorkflowStatus || "any"}
+                        onValueChange={(value) =>
+                          setEditor({
+                            ...editor,
+                            kodyWorkflowStatus:
+                              value === "any"
+                                ? ""
+                                : (value as KodyWorkflowStatus),
+                          })
+                        }
+                      >
+                        <SelectTrigger aria-label="Kody workflow result">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any result</SelectItem>
+                          {KODY_WORKFLOW_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                ) : null}
+                {WORKFLOW_COMPLETED_EVENTS.has(editor.event) ? (
+                  <label className="flex items-center gap-2 text-sm text-foreground">
+                    <Checkbox
+                      checked={editor.conditions.some(
+                        isPullRequestOnlyCondition,
+                      )}
+                      onCheckedChange={(checked) =>
+                        setEditor({
+                          ...editor,
+                          conditions: withPullRequestOnlyCondition(
+                            editor.conditions,
+                            checked === true,
+                          ),
+                        })
+                      }
+                    />
+                    Pull request runs only
+                  </label>
                 ) : null}
               </div>
               <div className="space-y-3 rounded-md border border-border/70 p-3">
@@ -760,7 +869,7 @@ export function TriggersManager() {
                       <SelectValue placeholder="Select an action" />
                     </SelectTrigger>
                     <SelectContent>
-                      {editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (
+                      {WORKFLOW_COMPLETED_EVENTS.has(editor.event) ? (
                         <SelectItem value="start-workflow">
                           Start a Kody workflow
                         </SelectItem>
@@ -854,7 +963,9 @@ export function TriggersManager() {
                     (editor.actionType === "save-user-state"
                       ? !editor.namespace
                       : !editor.workflowId.trim() ||
-                        !selectedKodyWorkflowIsEligible)
+                        !selectedKodyWorkflowIsEligible ||
+                        (editor.event === KODY_WORKFLOW_COMPLETED_EVENT &&
+                          !editor.kodySourceWorkflowId))
                   }
                 >
                   {saveMutation.isPending ? (
