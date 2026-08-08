@@ -101,6 +101,23 @@ describe("advancedFilePreview", () => {
     expect(advancedFilePreview(path)).toEqual({ renderer: "spreadsheet" });
   });
 
+  it.each([
+    "slides.pptx",
+    "slides.pptm",
+    "template.potx",
+    "template.potm",
+    "show.ppsx",
+    "show.ppsm",
+  ])("routes %s through the presentation renderer", (path) => {
+    expect(advancedFilePreview(path)).toEqual({ renderer: "presentation" });
+  });
+
+  it("matches presentation extensions case-insensitively", () => {
+    expect(advancedFilePreview("SLIDES.PPTX")).toEqual({
+      renderer: "presentation",
+    });
+  });
+
   it("routes only ZIP archives through the archive renderer", () => {
     expect(advancedFilePreview("bundle.zip")).toEqual({ renderer: "archive" });
     expect(advancedFilePreview("BUNDLE.ZIP")).toEqual({ renderer: "archive" });
@@ -118,7 +135,6 @@ describe("advancedFilePreview", () => {
     "sheet.csv",
     "sheet.tsv",
     "sheet.fods",
-    "slides.pptx",
     "archive.rar",
     "extensionless",
   ])("leaves %s with the existing preview path", (path) => {

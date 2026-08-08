@@ -47,6 +47,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@file-viewer/react": "2.2.3",
     "@file-viewer/renderer-archive": "2.2.3",
+    "@file-viewer/renderer-presentation": "2.2.3",
     "@file-viewer/renderer-spreadsheet": "2.2.3",
     "@file-viewer/renderer-word": "2.2.3",
     "@json-render/core": "^0.19.0",

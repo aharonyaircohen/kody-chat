@@ -34,6 +34,9 @@ importers:
       '@file-viewer/renderer-archive':
         specifier: 2.2.3
         version: 2.2.3
+      '@file-viewer/renderer-presentation':
+        specifier: 2.2.3
+        version: 2.2.3
       '@file-viewer/renderer-spreadsheet':
         specifier: 2.2.3
         version: 2.2.3
@@ -1514,6 +1517,13 @@ packages:
   '@file-viewer/docx@0.3.24':
     resolution: {integrity: sha512-WaKMmgDSt8ZbBvWe2P97L0E7pJOZR/DNgcTch/oRvZ8l3kxJRTGUw54zEt//VOyScuWg/X6o3hQk7KKf3ryHXg==}
 
+  '@file-viewer/ppt@0.3.2':
+    resolution: {integrity: sha512-5+CUEIhEGB9CItlA0RfN8ErvFxebtJqlUHZVrm87M8Be54oHI2PvlzuZhwD7l72hasUd52amdC7uX0+uKYoQvg==}
+    engines: {node: '>=18'}
+
+  '@file-viewer/pptx@2.2.3':
+    resolution: {integrity: sha512-dZNp6vDyVDk0iV/Esbrn1qKQQfdCUSE8NVEnu1aM1pgGLIOj8xKu+y0W5/ayDU87RoazZkU4q0Zy1Q+/GE9Gnw==}
+
   '@file-viewer/react@2.2.3':
     resolution: {integrity: sha512-GbuGOEKAS8whQncnWKXsw1QPaBY1DaFZR0zWAWtFOY4jY99mmmshVFCN2pf9SVrGBXpZCpnPozxhud07pZuswA==}
     peerDependencies:
@@ -1521,6 +1531,9 @@ packages:
 
   '@file-viewer/renderer-archive@2.2.3':
     resolution: {integrity: sha512-+WbrIhFBnAXIvGBYjiWuySOnxibi6rHNGABqjZDTMBuEBqTOLImY8NH3wg6HAmgOeULHUV+ckSuzsKWlPDf28g==}
+
+  '@file-viewer/renderer-presentation@2.2.3':
+    resolution: {integrity: sha512-vuaSNpMlI28mU1XgsKBIHLJCZECfaCAlM1ezE87+S2pqxWPhplSxKEqFoSFMfz3Elu3yqtc2H6QqFJy2HBjYxQ==}
 
   '@file-viewer/renderer-spreadsheet@2.2.3':
     resolution: {integrity: sha512-OCDZNC28q8CnRUBe4//MfazbKBcoO0d1nMznZ182mjaD5aUnTbjImCxarO6GKZ725UswzvPq5h9KwN9uIx0oNw==}
@@ -3431,6 +3444,9 @@ packages:
   before-after-hook@4.0.0:
     resolution: {integrity: sha512-q6tR3RPqIB1pMiTRMFcZwuG5T8vwp+vUvEG0vuI6B+Rikh5BfPp2fQ82c925FOs+b0lcFQ8CFrL+KbilfZFhOQ==}
 
+  billboard.js@3.18.0:
+    resolution: {integrity: sha512-aci69MLwOX0HfdmQHk+v/iA7L4R+wG53hW9VwhkYzMOyqemWLjscf229XsQRrTau9EJSVyOHnr/rpVukoqppXw==}
+
   bn.js@4.12.5:
     resolution: {integrity: sha512-3aRg6/JxfffFD+OlOjOFR3Vo79l39ooBTFucxx+MT3dhCtzn3EmiUPQo+6/OZuI2jbXi3YKgmiTFBgChQMwIRQ==}
 
@@ -3843,6 +3859,9 @@ packages:
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
+
+  dingbat-to-unicode@1.0.1:
+    resolution: {integrity: sha512-98l0sW87ZT58pU4i61wa2OHwxbiYSbuxsCBozaVnYX2iCnr3bLM3fIes1/ej7h1YdOKuKt/MLs706TVnALA65w==}
 
   doctrine@2.1.0:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
@@ -5878,6 +5897,9 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  utif@3.1.0:
+    resolution: {integrity: sha512-WEo4D/xOvFW53K5f5QTaTbbiORcm2/pCL9P6qmJnup+17eYfKaEhDeX9PeQkuyEoIxlbGklDuGl8xwuXYMrrXQ==}
+
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
@@ -6545,6 +6567,17 @@ snapshots:
     dependencies:
       jszip: 3.10.1
 
+  '@file-viewer/ppt@0.3.2': {}
+
+  '@file-viewer/pptx@2.2.3':
+    dependencies:
+      billboard.js: 3.18.0
+      d3-format: 3.1.2
+      dingbat-to-unicode: 1.0.1
+      jszip: 3.10.1
+      tinycolor2: 1.6.0
+      utif: 3.1.0
+
   '@file-viewer/react@2.2.3(react@19.2.7)':
     dependencies:
       '@file-viewer/core': 2.2.3
@@ -6555,6 +6588,12 @@ snapshots:
       '@file-viewer/core': 2.2.3
       jszip: 3.10.1
       libarchive.js: 2.0.2
+
+  '@file-viewer/renderer-presentation@2.2.3':
+    dependencies:
+      '@file-viewer/core': 2.2.3
+      '@file-viewer/ppt': 0.3.2
+      '@file-viewer/pptx': 2.2.3
 
   '@file-viewer/renderer-spreadsheet@2.2.3':
     dependencies:
@@ -8504,6 +8543,24 @@ snapshots:
 
   before-after-hook@4.0.0: {}
 
+  billboard.js@3.18.0:
+    dependencies:
+      '@types/d3-selection': 3.0.11
+      '@types/d3-transition': 3.0.9
+      d3-axis: 3.0.0
+      d3-brush: 3.0.0
+      d3-drag: 3.0.0
+      d3-dsv: 3.0.1
+      d3-ease: 3.0.1
+      d3-hierarchy: 3.1.2
+      d3-interpolate: 3.0.1
+      d3-scale: 4.0.2
+      d3-selection: 3.0.0
+      d3-shape: 3.2.0
+      d3-time-format: 4.1.0
+      d3-transition: 3.0.1(d3-selection@3.0.0)
+      d3-zoom: 3.0.0
+
   bn.js@4.12.5: {}
 
   bottleneck@2.19.5: {}
@@ -8912,6 +8969,8 @@ snapshots:
   devlop@1.1.0:
     dependencies:
       dequal: 2.0.3
+
+  dingbat-to-unicode@1.0.1: {}
 
   doctrine@2.1.0:
     dependencies:
@@ -11501,6 +11560,10 @@ snapshots:
   use-sync-external-store@1.6.0(react@19.2.7):
     dependencies:
       react: 19.2.7
+
+  utif@3.1.0:
+    dependencies:
+      pako: 1.0.11
 
   util-deprecate@1.0.2: {}
 

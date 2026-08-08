@@ -1,4 +1,5 @@
-export type AdvancedFileRenderer = "archive" | "spreadsheet" | "word";
+export type AdvancedFileRenderer =
+  "archive" | "presentation" | "spreadsheet" | "word";
 
 export interface AdvancedFilePreview {
   renderer: AdvancedFileRenderer;
@@ -12,6 +13,14 @@ export function canPreviewAdvancedFile(size: number): boolean {
 
 const WORD_EXTENSIONS = new Set(["doc", "docx"]);
 const ARCHIVE_EXTENSIONS = new Set(["zip"]);
+const PRESENTATION_EXTENSIONS = new Set([
+  "potm",
+  "potx",
+  "ppsm",
+  "ppsx",
+  "pptm",
+  "pptx",
+]);
 const SPREADSHEET_EXTENSIONS = new Set([
   "numbers",
   "ods",
@@ -31,6 +40,9 @@ export function advancedFilePreview(path: string): AdvancedFilePreview | null {
     separator === -1 ? "" : fileName.slice(separator + 1).toLowerCase();
 
   if (WORD_EXTENSIONS.has(extension)) return { renderer: "word" };
+  if (PRESENTATION_EXTENSIONS.has(extension)) {
+    return { renderer: "presentation" };
+  }
   if (SPREADSHEET_EXTENSIONS.has(extension)) {
     return { renderer: "spreadsheet" };
   }
