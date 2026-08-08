@@ -22,6 +22,7 @@ import {
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
 } from "../../../../../src/dashboard/lib/feature-catalog";
+import { getFeatureGuideRegistry } from "../../../../../src/dashboard/lib/chat/platform/server-feature-guides";
 
 export interface FeatureEntry {
   id: string;
@@ -323,8 +324,20 @@ export const listDashboardFeaturesTool = tool({
     "id to pass to describe_feature.",
   inputSchema: z.object({}),
   execute: async () => {
+    const guides = await getFeatureGuideRegistry().list();
+    const guideEntries = guides.map(({ id, title, summary }) => ({
+      id,
+      name: title,
+      summary,
+    }));
+    const guideIds = new Set(guideEntries.map((entry) => entry.id));
     return {
-      features: CATALOG.map(({ id, name, summary }) => ({ id, name, summary })),
+      features: [
+        ...guideEntries,
+        ...CATALOG.filter((entry) => !guideIds.has(entry.id)).map(
+          ({ id, name, summary }) => ({ id, name, summary }),
+        ),
+      ],
     };
   },
 });
@@ -345,6 +358,15 @@ export const describeFeatureTool = tool({
       ),
   }),
   execute: async ({ id }) => {
+    const guide = await getFeatureGuideRegistry().read(id.toLowerCase());
+    if (guide) {
+      return {
+        id: guide.id,
+        name: guide.title,
+        summary: guide.summary,
+        details: guide.body,
+      };
+    }
     const entry = CATALOG_BY_ID.get(id.toLowerCase());
     if (!entry) {
       return {

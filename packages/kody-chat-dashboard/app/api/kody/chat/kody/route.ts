@@ -32,6 +32,8 @@ import {
   type ToolSet,
 } from "ai";
 import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
+import { getFeatureGuideRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-feature-guides";
+import { formatFeatureGuidePromptSection } from "@kody-ade/kody-chat-dashboard/platform/feature-guide-context";
 import {
   resolveSurfaceScope,
   CLIENT_SURFACE_TOOL_ALLOWLIST,
@@ -878,6 +880,7 @@ async function handleKodyDirectPost(
   let context: string | null = null;
   let constraints: string | null = null;
   let policies: string | null = null;
+  let featureGuidePromptSection: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (repo && clientSurface) {
@@ -943,6 +946,21 @@ async function handleKodyDirectPost(
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: context load failed (continuing without it)",
+      );
+    }
+    try {
+      const featureGuide = await getFeatureGuideRegistry().resolveForTurn({
+        currentPage:
+          typeof body.currentPage === "string" ? body.currentPage : null,
+        userText: latestUserText ?? "",
+      });
+      featureGuidePromptSection = featureGuide
+        ? formatFeatureGuidePromptSection(featureGuide)
+        : null;
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: feature guide load failed (continuing without it)",
       );
     }
     try {
@@ -1676,6 +1694,7 @@ async function handleKodyDirectPost(
     : null;
   const promptWithReminders = [
     assembledPrompt,
+    featureGuidePromptSection,
     conversationSummarySection,
     voiceMode ? null : CRITICAL_REMINDERS_MD,
     userInstructionsSection,
