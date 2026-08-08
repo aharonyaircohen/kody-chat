@@ -1,0 +1,107 @@
+import {
+  runPublicAgentAssignments,
+  selectPublicAgentTools,
+  type PublicAgentTaskResult,
+} from "./public-agent-delegation";
+import type { PublicDelegationAgent } from "./public-agent-definition";
+import type { PublicAgentRouteDecision } from "./public-agent-routing";
+
+export interface PublicAgentCapability {
+  instructions: string;
+  capabilityTools: Array<{ name: string }>;
+}
+
+interface OrchestratePublicAgentTurnOptions {
+  userText: string;
+  assignedAgents: readonly PublicDelegationAgent[];
+  availableTools: Record<string, unknown>;
+  specialistTools?: Record<string, unknown>;
+  outputToolNames: readonly string[];
+  loadCapabilities(
+    agent: PublicDelegationAgent,
+  ): Promise<PublicAgentCapability[]>;
+  route(input: {
+    userText: string;
+    assignedAgents: readonly PublicDelegationAgent[];
+  }): Promise<PublicAgentRouteDecision>;
+  invoke(input: {
+    agent: PublicDelegationAgent;
+    task: string;
+    capabilities: PublicAgentCapability[];
+    tools: Record<string, unknown>;
+  }): Promise<PublicAgentTaskResult>;
+}
+
+function selectTools(
+  availableTools: Record<string, unknown>,
+  names: ReadonlySet<string>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(availableTools).filter(([name]) => names.has(name)),
+  );
+}
+
+export async function orchestratePublicAgentTurn({
+  userText,
+  assignedAgents,
+  availableTools,
+  specialistTools = availableTools,
+  outputToolNames,
+  loadCapabilities,
+  route,
+  invoke,
+}: OrchestratePublicAgentTurnOptions): Promise<{
+  decision: PublicAgentRouteDecision;
+  parentTools: Record<string, unknown>;
+  results: PublicAgentTaskResult[];
+}> {
+  const capabilitiesByAgent = new Map(
+    await Promise.all(
+      assignedAgents.map(
+        async (agent) => [agent.slug, await loadCapabilities(agent)] as const,
+      ),
+    ),
+  );
+  const claimedToolNames = new Set(
+    [...capabilitiesByAgent.values()].flatMap((capabilities) =>
+      capabilities.flatMap((capability) =>
+        capability.capabilityTools.map((tool) => tool.name),
+      ),
+    ),
+  );
+  const decision = await route({ userText, assignedAgents });
+  if (decision.mode === "self") {
+    return {
+      decision,
+      parentTools: Object.fromEntries(
+        Object.entries(availableTools).filter(
+          ([name]) => !claimedToolNames.has(name),
+        ),
+      ),
+      results: [],
+    };
+  }
+
+  const results = await runPublicAgentAssignments({
+    assignments: decision.assignments,
+    assignedAgents,
+    invoke: async ({ agent, task }) => {
+      const capabilities = capabilitiesByAgent.get(agent.slug) ?? [];
+      const tools = selectPublicAgentTools({
+        availableTools: specialistTools,
+        capabilityToolNames: capabilities.flatMap((capability) =>
+          capability.capabilityTools.map((tool) => tool.name),
+        ),
+      });
+      return invoke({ agent, task, capabilities, tools });
+    },
+  });
+  const completed = results.some((result) => result.status === "completed");
+  return {
+    decision,
+    parentTools: completed
+      ? selectTools(availableTools, new Set(outputToolNames))
+      : { ...availableTools },
+    results,
+  };
+}

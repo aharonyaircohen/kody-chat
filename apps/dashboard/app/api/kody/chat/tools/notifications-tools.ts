@@ -8,36 +8,20 @@
  *   Mutations go through the CAS-based mutateNotificationsManifest helper.
  */
 import { tool } from "ai";
-import { z } from "zod";
 import {
   type NotificationRule,
   type NotificationChannel,
   NOTIFICATION_EVENTS,
   slugifyRuleName,
   uniqueRuleId,
+  NotificationCreateRuleInputSchema,
 } from "@dashboard/lib/notifications";
 import {
   mutateNotificationsManifest,
   readNotificationsManifestFresh,
 } from "@dashboard/lib/notifications-server";
 
-const ChannelSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("slack-webhook"), url: z.string().url() }),
-  z.object({
-    type: z.literal("telegram-bot"),
-    botToken: z.string().min(1),
-    chatId: z.string().min(1),
-  }),
-  z.object({ type: z.literal("discord-webhook"), url: z.string().url() }),
-  z.object({
-    type: z.literal("generic-webhook"),
-    url: z.string().url(),
-    jsonTemplate: z.string().optional(),
-    bodyFormat: z.enum(["json", "form"]).optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-  }),
-  z.object({ type: z.literal("web-push") }),
-]);
+import { z } from "zod";
 
 export function createNotificationTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
@@ -65,13 +49,7 @@ export function createNotificationTools(opts: { owner: string; repo: string }) {
 
     create_notification_rule: tool({
       description: `Create a notification rule for ${repoRef}: when \`event\` fires, deliver to \`channel\`. Channel is one of slack-webhook / discord-webhook (need url), telegram-bot (botToken + chatId), generic-webhook (url + optional template), or web-push.`,
-      inputSchema: z.object({
-        name: z.string().min(1).max(80),
-        event: z.enum(NOTIFICATION_EVENTS),
-        channel: ChannelSchema,
-        template: z.string().max(2000).optional(),
-        enabled: z.boolean().optional(),
-      }),
+      inputSchema: NotificationCreateRuleInputSchema,
       execute: async (input) => {
         try {
           const outcome = await mutateNotificationsManifest<NotificationRule>(

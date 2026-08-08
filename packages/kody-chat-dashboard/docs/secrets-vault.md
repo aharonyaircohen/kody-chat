@@ -2,8 +2,8 @@
 
 The dashboard ships with a per-repo encrypted vault you can use instead
 of pasting API keys into Vercel environment variables. Secrets are
-stored in the connected GitHub repo at `backend vault record`,
-AES-256-GCM-encrypted with a single shared key (`KODY_MASTER_KEY`)
+stored as the repository-scoped `secrets.enc` document in Convex,
+AES-256-GCM-encrypted with a shared server key (`KODY_MASTER_KEY`)
 that lives only in Vercel env. Runtime code reads them at request
 time via the `getSecret()` helper, falling back to `process.env`
 when the vault is empty or unconfigured.
@@ -26,12 +26,12 @@ Use the vault for:
 - **Editable secrets without redeploys**: change a value on the
   `/secrets` page and the next request picks it up (60s cache TTL).
 
+The same vault supplies Engine runtime secrets. A `kody.yml` run authenticates
+with GitHub OIDC, and Engine requests only the secret names declared by its
+capability. User secrets are not mirrored into GitHub Actions.
+
 Do **not** use the vault for:
 
-- **Engine-runtime secrets** read from inside `kody.yml` workflow
-  runs. Those still live in GitHub Actions repository secrets — the
-  engine reads `${{ toJSON(secrets) }}` directly. Future work could
-  unify both, but today they are separate stores.
 - **The master secret itself** (`KODY_MASTER_KEY`) — must stay in
   Vercel env, because it's what unlocks the vault. Plus the
   server-side `GITHUB_TOKEN` for cron/webhook flows. That's the entire
@@ -61,9 +61,8 @@ the only manual step.
 
 3. **Save it in your team's password manager**
 
-   1Password, Bitwarden, etc. The key is the only thing standing
-   between an attacker who clones your repo and your secrets — keep
-   a copy outside Vercel for recovery.
+   1Password, Bitwarden, etc. The key is required to decrypt every
+   repository vault — keep a copy outside Vercel for recovery.
 
 4. **Redeploy** (any push or `vercel --prod`) so the new env var is
    picked up by running functions.
@@ -84,8 +83,8 @@ logs into the dashboard.
 The dashboard:
 
 - Encrypts the new map with `KODY_MASTER_KEY`.
-- Commits `backend vault record` to the connected repo with a message
-  like `chore(vault): upsert GEMINI_API_KEY`.
+- Saves the encrypted `secrets.enc` document under the active repository's
+  Convex tenant.
 - Invalidates the in-memory cache. Next read sees the new value.
 
 ### Editing a secret
@@ -120,7 +119,7 @@ The helper:
   has auth headers, and the secret exists.
 - Falls back to `process.env[name]` otherwise.
 - Caches per-repo for 60s with in-flight dedup so polling endpoints
-  don't stampede GitHub.
+  don't stampede Convex.
 
 ## How it works
 
@@ -132,41 +131,37 @@ The helper:
                                                    │ encrypt with KODY_MASTER_KEY
                                                    ▼
                                          ┌────────────────────────┐
-                                         │ GitHub Contents API    │
-                                         │ PUT backend vault record  │
+                                         │ Convex repoDocs        │
+                                         │ SAVE secrets.enc       │
                                          └────────────────────────┘
 
 ┌────────────────────┐  read   ┌──────────────┐  fetch + decrypt   ┌────────────┐
-│ /api/kody/chat/... │────────▶│ getSecret()  │───────────────────▶│ vault file │
+│ /api/kody/chat/... │────────▶│ getSecret()  │───────────────────▶│ secrets.enc │
 └────────────────────┘         └──────────────┘  (60s cache)       └────────────┘
 ```
 
 - **Encryption**: AES-256-GCM (`crypto` module). Format:
   `v1:<iv_b64>:<ct_b64>:<tag_b64>`.
-- **Vault file**: JSON of shape
+- **Vault document**: JSON of shape
   `{ version: 1, secrets: { NAME: { value, updatedAt, updatedBy } } }`,
-  encrypted, base64-wrapped, committed to the repo.
+  encrypted before it is saved under the repository's Convex tenant.
 - **Cache**: per `owner/repo`, 60s TTL, in-flight dedup. Writes
   invalidate same-instance cache; other instances pick up changes
   within TTL.
-- **CAS**: every write reads the latest SHA from GitHub and passes
-  it to the next `createOrUpdateFileContents` call so concurrent
-  edits fail loudly instead of silently clobbering.
 
 ## Threat model
 
-| Attacker has…                                | Can they read your secrets?                                                                        |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Public internet only                         | No (`backend vault record` is in a private repo).                                                  |
-| Read access to the repo                      | No — they get ciphertext only.                                                                     |
-| Write access to the repo                     | They can replace the vault file with garbage (denial of service), but cannot read existing values. |
-| `KODY_MASTER_KEY` (e.g. via Vercel env leak) | No — the key alone doesn't give them the encrypted blob. They also need repo read access.          |
-| `KODY_MASTER_KEY` **and** repo read access   | Yes — every secret in the vault is exposed.                                                        |
+| Attacker has…                                      | Can they read your secrets?                     |
+| -------------------------------------------------- | ----------------------------------------------- |
+| Public internet only                               | No.                                             |
+| Repository read access                             | No vault data is stored in the repository.      |
+| Convex data read access                            | No — stored vault documents are encrypted.      |
+| Valid Kody workflow identity for the repository    | Yes, through the repository-scoped runtime API. |
+| Dashboard runtime or master key plus Convex access | Yes.                                            |
 
-So: the security model is "Vercel env _and_ GitHub repo together". An
-attacker needs both. Either alone yields nothing useful. This is
-strictly stronger than putting the same secrets in Vercel env vars
-(where Vercel access alone is enough).
+GitHub repository writers can modify and run workflows, so treat them as able
+to access that repository's runtime secrets. This matches GitHub Actions'
+standard trust model.
 
 **What the vault does NOT protect against**:
 
@@ -195,9 +190,6 @@ unreadable.
 3. Update `KODY_MASTER_KEY` in Vercel env.
 4. Redeploy.
 5. Re-enter every secret on the `/secrets` page.
-6. Optionally: rewrite `backend vault record` history with `git filter-repo`
-   to remove old ciphertext (defense in depth — under the old key it's
-   still encrypted).
 
 ### What if I lose `KODY_MASTER_KEY`?
 
@@ -224,30 +216,28 @@ Already cut over: `GEMINI_API_KEY` (read by
 
 ## File reference
 
-| File                                                                                                    | Purpose                                                                   |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`src/dashboard/lib/vault/crypto.ts`](../src/dashboard/lib/vault/crypto.ts)                             | AES-256-GCM encrypt/decrypt + key loading from `KODY_MASTER_KEY`          |
-| [`src/dashboard/lib/vault/store.ts`](../src/dashboard/lib/vault/store.ts)                               | GitHub Contents API read/write of `backend vault record` + per-repo cache |
-| [`src/dashboard/lib/vault/get-secret.ts`](../src/dashboard/lib/vault/get-secret.ts)                     | Runtime helper: `getSecret(name, { req })`                                |
-| [`app/api/kody/secrets/route.ts`](../app/api/kody/secrets/route.ts)                                     | `GET` (list) and `POST` (upsert)                                          |
-| [`app/api/kody/secrets/[name]/route.ts`](../app/api/kody/secrets/%5Bname%5D/route.ts)                   | `DELETE`                                                                  |
-| [`src/dashboard/lib/components/SecretsManager.tsx`](../src/dashboard/lib/components/SecretsManager.tsx) | The `/secrets` page UI                                                    |
-| [`scripts/generate-vault-key.mjs`](../scripts/generate-vault-key.mjs)                                   | `pnpm vault:init` — print a fresh key                                     |
+| File                                    | Purpose                                            |
+| --------------------------------------- | -------------------------------------------------- |
+| `packages/base/src/vault/crypto.ts`     | AES-256-GCM encryption and master-key loading      |
+| `packages/base/src/vault/store.ts`      | Convex-backed encrypted document storage and cache |
+| `packages/base/src/vault/get-secret.ts` | Dashboard runtime secret lookup                    |
+| `app/api/kody/secrets/route.ts`         | User-authenticated list and upsert                 |
+| `app/api/kody/engine/secret/route.ts`   | GitHub OIDC-authenticated Engine lookup            |
 
 ## FAQ
 
 **Can the same vault be used by multiple connected repos?**
 
-No. Each connected repo has its own `backend vault record`. If you want
+No. Each connected repo has its own `secrets.enc` document. If you want
 shared secrets across repos, store them in Vercel env vars (which is
 the default fallback) or duplicate them per repo.
 
-**Why isn't the engine using this vault too?**
+**How does Engine use the vault without the master key?**
 
-The engine workflow (`kody.yml`) runs in a GitHub Actions runner and
-reads secrets via `${{ toJSON(secrets) }}`. Migrating it would
-require a decrypt step before the engine boots, which adds a moving
-part. Today the dashboard and the engine read from separate stores.
+GitHub issues the running `kody.yml` workflow a short-lived OIDC identity.
+Dashboard verifies that identity, decrypts the matching repository vault on
+the server, and returns only the requested secret. `KODY_MASTER_KEY` never
+leaves Dashboard.
 
 **Can I see the values after I save them?**
 
@@ -256,12 +246,10 @@ only. To verify a value, set it again — saves overwrite.
 
 **What happens during deploys?**
 
-Reads pass through the cache; writes commit to GitHub. Neither
-depends on Vercel deploy state. New deploys start with an empty
-in-memory cache and warm up on the first request per repo.
+Reads pass through the cache and writes update Convex. New deployments start
+with an empty in-memory cache and warm it on the first request per repository.
 
 **How do I revoke a team member?**
 
-Remove their access from the GitHub repo (or change their PAT
-scope). They lose both the ability to read the vault file and the
-ability to call `/api/kody/secrets` from the dashboard.
+Remove their Dashboard and GitHub repository access. Repository writers must
+be treated as trusted because they can modify and run `kody.yml`.

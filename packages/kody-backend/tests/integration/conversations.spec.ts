@@ -163,15 +163,26 @@ describe("conversations", () => {
     expect(inaccessible).toBeNull();
   });
 
-  it("rejects repository scope that does not match the server-owned tenant", async () => {
+  it("keeps repository context independent from conversation ownership", async () => {
     const t = setup();
 
     await expect(
       t.mutation(api.conversations.create, {
         ...conversation,
+        tenantId: "user:42",
         scope: { kind: "repository", owner: "other", repo: "repo" },
       }),
-    ).rejects.toThrow("Conversation scope does not match tenant");
+    ).resolves.toBeDefined();
+  });
+
+  it("stores optional repository context inside a user-owned conversation", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.conversations.create, {
+        ...conversation,
+        tenantId: "user:42",
+      }),
+    ).resolves.toBeDefined();
   });
 
   it("appends entries in exact order and makes retries idempotent", async () => {

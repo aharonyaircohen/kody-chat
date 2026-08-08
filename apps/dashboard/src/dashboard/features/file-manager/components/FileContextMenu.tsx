@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "@kody-ade/base/utils/ui";
 
 interface FileContextMenuProps {
   x: number;

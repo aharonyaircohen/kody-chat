@@ -12,7 +12,7 @@ Status: **Current Dashboard map**
 | Run           | Todo                   | optional association          | `run.todoId`      |
 | Run           | Run                    | optional parent/child history | `run.parentRunId` |
 
-Intent and Todo do not own other Agency models. Operation and Goal are not part
+Intent and Todo do not own other Agency models. Older planning aggregates are not part
 of this map. Runtime state does not establish definition ownership.
 
 The current product has duplicate TypeScript contracts for Todo, Workflow, and

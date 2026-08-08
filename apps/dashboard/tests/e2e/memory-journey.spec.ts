@@ -5,6 +5,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 import type {
   Memory,
   MemoryRevision,
@@ -43,7 +44,10 @@ async function seedAuth(page: Page) {
 
 async function showWorkspaceContent(page: Page, content: Locator) {
   if (!(await content.isVisible())) {
-    await page.getByRole("button", { name: "Hide file panel" }).click();
+    const hideFilePanel = page.getByRole("button", {
+      name: "Hide file panel",
+    });
+    if (await hideFilePanel.isVisible()) await hideFilePanel.click();
   }
   await expect(content).toBeVisible();
 }
@@ -107,6 +111,7 @@ test("creates, revises, reviews, and deletes typed memory", async ({
   );
   page.on("dialog", (dialog) => void dialog.accept());
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
 
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
@@ -196,6 +201,7 @@ test("creates, revises, reviews, and deletes typed memory", async ({
       revisions: revisions.get(id),
     });
   });
+  await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
   for (const path of [
     "models",
     "commands",

@@ -98,7 +98,7 @@ export const GITHUB_REPO = process.env.GITHUB_REPO?.trim() ?? "";
  */
 export const KODY_REPORT_TARGET = {
   owner: "aharonyaircohen",
-  repo: "Kody-Dashboard",
+  repo: "kody-chat",
 } as const;
 
 /** Where reports opened from the Kody Chat product are filed. */
@@ -448,7 +448,6 @@ export const INTERNAL_ISSUE_LABELS = [
   INTERNAL_ISSUE_LABEL,
   "kody:control",
   "kody:inbox-feed",
-  "kody:goals-manifest",
   "kody:push-subscriptions",
   "kody:audit-log",
 ] as const;

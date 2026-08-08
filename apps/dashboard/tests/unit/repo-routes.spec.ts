@@ -36,9 +36,6 @@ describe("repo-scoped route contract", () => {
     expect(routes.repoReports(repo, "release-health")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports/release-health",
     );
-    expect(routes.repoKnowledgeSystem(repo)).toBe(
-      "/repo/A-Guy-educ/A-Guy-Web/knowledge-system",
-    );
     expect(routes.repoTodos(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/todos");
     expect(routes.repoTodoList(repo, "launch-plan")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan",
@@ -76,6 +73,9 @@ describe("repo-scoped route contract", () => {
     expect(repoScopedHref(repo, "/agency")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/agency",
     );
+    expect(repoScopedHref(repo, "/pipelines/review-and-merge")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/pipelines/review-and-merge",
+    );
     expect(repoScopedHref(repo, "/org")).toBe("/org");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/tasks",
@@ -94,6 +94,9 @@ describe("repo-scoped route contract", () => {
     expect(repoSwitchRedirectPath(nextRepo, "/todos/launch-plan")).toBe(
       "/repo/OtherOrg/OtherRepo/todos/launch-plan",
     );
+    expect(
+      repoSwitchRedirectPath(nextRepo, "/pipelines/review-and-merge"),
+    ).toBe("/repo/OtherOrg/OtherRepo/pipelines/review-and-merge");
     expect(repoSwitchRedirectPath(nextRepo, "/org/A-Guy-educ")).toBe(
       "/repo/OtherOrg/OtherRepo",
     );
@@ -107,6 +110,11 @@ describe("repo-scoped route contract", () => {
     expect(
       repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/constraints"),
     ).toBe("/constraints");
+    expect(
+      repoPathForNavMatching(
+        "/repo/A-Guy-educ/A-Guy-Web/pipelines/review-and-merge",
+      ),
+    ).toBe("/pipelines/review-and-merge");
     expect(repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/policies")).toBe(
       "/policies",
     );
@@ -145,6 +153,9 @@ describe("repo-scoped route contract", () => {
     expect(legacyRepoRedirectPath(repo, "/backend")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/backend",
     );
+    expect(
+      legacyRepoRedirectPath(repo, "/pipelines/review-and-merge"),
+    ).toBe("/repo/A-Guy-educ/A-Guy-Web/pipelines/review-and-merge");
     expect(legacyRepoRedirectPath(repo, "/content/entries/blog/post-1")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/content/entries/blog/post-1",
     );

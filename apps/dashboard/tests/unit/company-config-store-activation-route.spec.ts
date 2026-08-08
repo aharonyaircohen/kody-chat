@@ -95,7 +95,6 @@ describe("PATCH /api/kody/company/config store activation", () => {
     const patch = calls[0]![3];
     expect(patch.activeAgents).toEqual(["cto"]);
     expect(patch.activeCapabilities).toEqual(["fix-ci", "review"]);
-    expect(patch).not.toHaveProperty("activeGoals");
     expect(patch.activeWorkflows).toEqual(["release-readiness"]);
   });
 

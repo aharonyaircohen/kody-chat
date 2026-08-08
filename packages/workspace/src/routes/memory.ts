@@ -15,7 +15,6 @@ const kindSchema = z.enum([
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ]);
 const createSchema = z.object({
@@ -36,7 +35,7 @@ export async function GET(req: NextRequest) {
     const memories = await context.application.list({
       principal: context.principal,
       scopes: [
-        { kind: "user", userId: context.principal.userId },
+        { kind: "user", userId: context.principal.actor.id },
         { kind: "repository", tenantId: context.tenantId },
       ],
     });
@@ -56,7 +55,7 @@ export async function POST(req: NextRequest) {
       principal: context.principal,
       scope:
         input.scope === "user"
-          ? { kind: "user", userId: context.principal.userId }
+          ? { kind: "user", userId: context.principal.actor.id }
           : { kind: "repository", tenantId: context.tenantId },
       kind: input.kind,
       content: {

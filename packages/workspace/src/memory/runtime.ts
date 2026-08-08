@@ -2,12 +2,13 @@ import { createBackendClient } from "@kody-ade/backend/client";
 import { createConvexMemoryStore } from "@kody-ade/backend/memory-store";
 import {
   createMemoryApplication,
+  type MemoryActor,
   type MemoryPrincipal,
   type MemoryScope,
 } from "@kody-ade/memory";
 
 export interface MemoryRuntimeContext {
-  readonly actorId: string;
+  readonly actor: Readonly<MemoryActor>;
   readonly tenantId: string;
 }
 
@@ -15,7 +16,7 @@ export function createMemoryRuntime(
   context: Readonly<MemoryRuntimeContext>,
 ) {
   const principal: MemoryPrincipal = {
-    userId: context.actorId,
+    actor: context.actor,
     tenantIds: [context.tenantId],
   };
   const store = createConvexMemoryStore(createBackendClient(), context);
@@ -25,7 +26,9 @@ export function createMemoryRuntime(
     now: () => new Date().toISOString(),
   });
   const scopes: readonly MemoryScope[] = [
-    { kind: "user", userId: context.actorId },
+    ...(context.actor.kind === "user"
+      ? [{ kind: "user" as const, userId: context.actor.id }]
+      : []),
     { kind: "repository", tenantId: context.tenantId },
   ];
   return Object.freeze({

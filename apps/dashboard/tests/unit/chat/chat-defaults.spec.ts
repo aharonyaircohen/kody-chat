@@ -103,14 +103,16 @@ describe("chat-defaults bundle", () => {
     // recent hallucination regression (do-not-invent-labels memory)
     // was caused by exactly this kind of phantom tool mention.
     const toolFiles = [
-      "app/api/kody/chat/tools/github-tools.ts",
-      "app/api/kody/chat/tools/pipeline-tools.ts",
-      "app/api/kody/chat/tools/kody-tools.ts",
-      "app/api/kody/chat/tools/task-tools.ts",
-      "app/api/kody/chat/tools/bug-tools.ts",
-      "app/api/kody/chat/tools/agent-tools.ts",
-      "app/api/kody/chat/tools/agent-admin-tools.ts",
-      "app/api/kody/chat/tools/capability-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/github-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/pipeline-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/kody-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/task-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/bug-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agent-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agent-admin-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/capability-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/workflow-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agency-lifecycle-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
@@ -121,15 +123,14 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/reports-tools.ts",
       "app/api/kody/chat/tools/notifications-tools.ts",
       "app/api/kody/chat/tools/company-tools.ts",
-      "app/api/kody/chat/tools/webhooks-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/webhooks-tools.ts",
       "app/api/kody/chat/tools/inbox-tools.ts",
-      "app/api/kody/chat/tools/release-tools.ts",
-      "app/api/kody/chat/tools/planner-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/release-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/memory-tools.ts",
       "app/api/kody/chat/tools/macros-tools.ts",
       "app/api/kody/chat/tools/remote-tools.ts",
-      "app/api/kody/chat/tools/feature-tools.ts",
-      "app/api/kody/chat/tools/ui-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/feature-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/ui-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/guided-flow-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/fetch-url.ts",
     ];
@@ -195,7 +196,10 @@ describe("chat-defaults bundle", () => {
   });
 
   it("documents show_view as spec-based rendering with strict validation", () => {
-    const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
+    const uiTools = readFileSync(
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/ui-tools.ts",
+      "utf8",
+    );
     expect(uiTools).toContain("Render an interactive UI card");
     expect(uiTools).toContain("do not print JSON");
     expect(uiTools).toContain("buildShowViewGuidance");
@@ -227,6 +231,7 @@ describe("chat-defaults bundle", () => {
     const mem = DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem");
 
     expect(analyzer!.body).toContain("diagnose-pr");
+    expect(analyzer!.body).toContain("read-agency-documentation");
     expect(analyzer!.body).toContain("report-advise");
     expect(analyzer!.body).toContain("todo-planner");
 
@@ -252,7 +257,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 9 skills — including create-workflow", () => {
+  it("exposes 11 skills — including agency documentation and generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -260,7 +265,9 @@ describe("chat-defaults bundle", () => {
       "create-workflow",
       "diagnose-pr",
       "memory",
+      "read-agency-documentation",
       "report-advise",
+      "run-workflow",
       "todo-planner",
       "vibe",
     ]);
@@ -342,7 +349,7 @@ describe("composeChatPrompt", () => {
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
-    // Goals / missions namespace block.
+    // Todo namespace block.
     expect(prompt).toContain("## Todos");
     // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");

@@ -2,9 +2,8 @@
  * @fileType tool
  * @domain kody
  * @pattern ai-sdk-tool
- * @ai-summary Agent-creation tool for the kody-direct chat agent. Writes a
- *   `agents/<slug>.md` backend file via the same `writeAgentFile` helper the
- *   dashboard's POST /api/kody/agents endpoint uses. An agent is a pure
+ * @ai-summary Agent-creation tool for the kody-direct chat agent. Calls the
+ *   same authenticated Dashboard API used by the Agents page. An agent is a pure
  *   reusable IDENTITY: a markdown body describing intent, allowed commands,
  *   and restrictions. Agents have no schedule, no state, and no run/tick —
  *   they're agent identities referenced by other flows. Format mirrors the agent
@@ -15,22 +14,16 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
-import { logger } from "@kody-ade/base/logger";
-import {
-  readAgentFile,
-  writeAgentFile,
-  isValidSlug,
-} from "../../../../../src/dashboard/lib/agent-files";
 import { normalizeAgentSlug } from "../../../../../src/dashboard/lib/agent-slug";
-import { dashboardAgentUrl } from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
-  octokit: Octokit;
   owner: string;
   repo: string;
-  // Login of the chat user. Used in the commit message for traceability.
-  actorLogin: string | null;
+  createAgent(input: {
+    slug: string;
+    title: string;
+    body: string;
+  }): Promise<unknown>;
 }
 
 interface AgentInput {
@@ -109,14 +102,12 @@ export const createKodyAgentInputSchema = z.object({
 });
 
 export function createAgentTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
-  const repoRef = `${owner}/${repo}`;
+  const repoRef = `${ctx.owner}/${ctx.repo}`;
 
   return {
     create_kody_agent: tool({
       description:
-        `Create a new Kody Agent member in ${repoRef} by committing a markdown file at ` +
-        "`agents/<slug>.md` in the backend. An agent is a pure reusable identity — a " +
+        `Create a new Kody Agent member in ${repoRef} through the same authenticated Dashboard API used by the Agents page. An agent is a pure reusable identity — a ` +
         "markdown body describing intent, allowed commands, and restrictions. " +
         "Agents have no schedule, no state, and no run/tick; they're agent identities " +
         "referenced by other flows.\n\n" +
@@ -128,7 +119,7 @@ export function createAgentTools(ctx: Ctx) {
       inputSchema: createKodyAgentInputSchema,
       execute: async (input) => {
         const slug = normalizeAgentSlug(input.slug ?? input.title);
-        if (!slug || !isValidSlug(slug)) {
+        if (!slug || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)) {
           return {
             error: "invalid_slug",
             message:
@@ -137,51 +128,11 @@ export function createAgentTools(ctx: Ctx) {
           };
         }
 
-        try {
-          const existing = await readAgentFile(slug);
-          if (existing) {
-            return {
-              error: "slug_taken",
-              message: `Agent member "${slug}" already exists at ${dashboardAgentUrl(existing.slug)}. Pick a different slug.`,
-              existingHtmlUrl: dashboardAgentUrl(existing.slug),
-            };
-          }
-
-          const body = buildAgentBody(input);
-          const message = `feat(agent): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
-          const agentMember = await writeAgentFile({
-            slug,
-            title: input.title,
-            body,
-            message,
-          });
-
-          logger.info(
-            { owner, repo, slug, actorLogin },
-            "create_kody_agent: created agent file",
-          );
-
-          return {
-            slug: agentMember.slug,
-            title: agentMember.title,
-            htmlUrl: dashboardAgentUrl(agentMember.slug),
-            note:
-              "AgentIdentity published as an immutable backend definition. It can " +
-              "now be referenced by other flows.",
-          };
-        } catch (err) {
-          logger.warn(
-            { err, owner, repo, slug, title: input.title },
-            "create_kody_agent failed",
-          );
-          return {
-            error: "create_failed",
-            message:
-              err instanceof Error
-                ? err.message
-                : "Failed to create agent file",
-          };
-        }
+        return ctx.createAgent({
+          slug,
+          title: input.title,
+          body: buildAgentBody(input),
+        });
       },
     }),
   };

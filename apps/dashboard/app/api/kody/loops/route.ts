@@ -42,6 +42,19 @@ const payload = z.object({
   enabled: z.boolean().default(true),
 });
 
+function isLegacyEventTrigger(
+  value: z.infer<typeof trigger>,
+): value is
+  | { type: "event"; event: string }
+  | { type: "webhook"; event: string }
+  | { type: "condition"; expression: string } {
+  return (
+    value.type === "event" ||
+    value.type === "webhook" ||
+    value.type === "condition"
+  );
+}
+
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError instanceof NextResponse) return authError;
@@ -53,11 +66,9 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-  const loops = (await listRepositoryLoops(
-    octokit,
-    auth.owner,
-    auth.repo,
-  )).map((loop) => ({ ...loop, updatedAt: "" }));
+  const loops = (await listRepositoryLoops(octokit, auth.owner, auth.repo)).map(
+    (loop) => ({ ...loop, updatedAt: "" }),
+  );
   return NextResponse.json({ loops });
 }
 
@@ -74,6 +85,16 @@ export async function POST(req: NextRequest) {
   }
   try {
     const loop = createLoopDefinition(payload.parse(await req.json()));
+    if (isLegacyEventTrigger(loop.trigger)) {
+      return NextResponse.json(
+        {
+          error: "event_triggers_use_workflow_rules",
+          message:
+            "GitHub and event-driven starts are configured as event rules, not Loops.",
+        },
+        { status: 400 },
+      );
+    }
     const existing = await readRepositoryLoop(
       octokit,
       auth.owner,

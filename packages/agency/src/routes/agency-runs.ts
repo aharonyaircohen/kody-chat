@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agency-runs-api
  * @ai-summary GET /api/kody/agency-runs returns Kody-native runs for
- *   user-owned AI Agency objects: goals, loops, and workflows.
+ *   user-owned AI Agency objects: loops and workflows.
  */
 import { NextRequest, NextResponse } from "next/server";
 

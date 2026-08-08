@@ -4,8 +4,8 @@
  * @pattern messages-thread-api
  * @ai-summary GET returns a channel's metadata + comment feed. POST posts a
  *   message to the channel. Channel identity comes from `fetchMessageChannels`
- *   (cached); the feed reuses `fetchGoalDiscussionComments` /
- *   `postGoalDiscussionComment`, so posting invalidates the correct per-
+ *   (cached); the feed reuses `fetchDiscussionComments` /
+ *   `postDiscussionComment`, so posting invalidates the correct per-
  *   discussion comment cache and @mentions fan out to push/Slack/inbox via
  *   the existing `discussion_comment` webhook path.
  */
@@ -22,8 +22,8 @@ import {
   setGitHubContext,
   clearGitHubContext,
   fetchMessageChannels,
-  fetchGoalDiscussionComments,
-  postGoalDiscussionComment,
+  fetchDiscussionComments,
+  postDiscussionComment,
   deleteMessageChannel,
 } from "@dashboard/lib/github-client";
 
@@ -74,7 +74,7 @@ export async function GET(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const comments = await fetchGoalDiscussionComments(channelNumber);
+    const comments = await fetchDiscussionComments(channelNumber);
     return NextResponse.json(
       {
         channel: {
@@ -133,7 +133,7 @@ export async function POST(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const comment = await postGoalDiscussionComment(
+    const comment = await postDiscussionComment(
       {
         discussionId: channel.id,
         body: parsed.body,

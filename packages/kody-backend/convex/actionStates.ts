@@ -22,7 +22,7 @@ export const liveGet = publicQuery({
 })
 
 // Global (cross-tenant) engine action state — replaces action-state.json in
-// the Kody-Dashboard repo.
+// the legacy GitHub-backed Dashboard store.
 
 export const get = query({
   args: { runId: v.string() },

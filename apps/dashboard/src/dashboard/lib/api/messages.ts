@@ -1,9 +1,23 @@
 import { API_BASE, buildHeaders, handleResponse } from "./client";
-import type {
-  GoalDiscussionAuthor,
-  GoalDiscussionComment,
-  DiscussionDisabledReason,
-} from "./goals";
+export interface DiscussionAuthor {
+  login: string;
+  avatarUrl?: string;
+}
+
+export interface DiscussionComment {
+  id: string;
+  databaseId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  author: DiscussionAuthor | null;
+}
+
+export type DiscussionDisabledReason =
+  | "discussions_disabled"
+  | "category_missing"
+  | "provision_failed";
 
 // ============ Messaging channels (team chat over Discussions) ============
 
@@ -14,7 +28,7 @@ export interface MessageChannel {
   url: string;
   commentsCount: number;
   updatedAt: string;
-  author: GoalDiscussionAuthor | null;
+  author: DiscussionAuthor | null;
 }
 
 export type MessageChannelsPayload =
@@ -28,7 +42,7 @@ export type MessageChannelsPayload =
 
 export interface MessageThreadPayload {
   channel: { number: number; id: string; name: string; url: string };
-  comments: GoalDiscussionComment[];
+  comments: DiscussionComment[];
 }
 
 export const messagesApi = {
@@ -66,13 +80,13 @@ export const messagesApi = {
     channelNumber: number,
     body: string,
     actorLogin?: string,
-  ): Promise<GoalDiscussionComment> => {
+  ): Promise<DiscussionComment> => {
     const res = await fetch(`${API_BASE}/messages/${channelNumber}`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify({ body, ...(actorLogin && { actorLogin }) }),
     });
-    const payload = await handleResponse<{ comment: GoalDiscussionComment }>(
+    const payload = await handleResponse<{ comment: DiscussionComment }>(
       res,
     );
     return payload.comment;

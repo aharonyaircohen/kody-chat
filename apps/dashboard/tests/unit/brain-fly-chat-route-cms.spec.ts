@@ -149,4 +149,27 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
       },
     });
   });
+
+  it("adds the current Dashboard page guide to the Repo Brain turn", async () => {
+    const res = await POST(
+      request({
+        chatId: "c1",
+        currentPage: "the File Spaces page (/file-spaces)",
+        message: "What important limits should I know here?",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
+      message: expect.stringContaining(
+        "## Dashboard feature guide — Files and File Spaces",
+      ),
+    });
+    expect(streamBrainChat.mock.calls[0]![0].message).toContain(
+      "A File Space cannot access files outside its configured root",
+    );
+    expect(streamBrainChat.mock.calls[0]![0].message).toContain(
+      "What important limits should I know here?",
+    );
+  });
 });

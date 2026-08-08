@@ -5,14 +5,12 @@ The parallel track from [chat-platform-phase2.md](chat-platform-phase2.md)
 are now operator-editable data feeding the existing branding plugin and
 `/client/<slug>` surfaces.
 
-Constraints honored: GitHub is the only datastore (no DB, no Vercel
-features); rate-limit rules (cached reads, `invalidate*` after writes);
-current UI/UX unchanged — this added one admin page and left the client
-surface server-rendered.
+Brand runtime state is Convex-owned and repository scoped. The client surface
+remains server-rendered.
 
 ## Current state
 
-- Repo brands live at `brands/<slug>.json` in the resolved backend via
+- Repo brands live in Convex `repoDocs` under `brand:<slug>` via
   [brands/files.ts](../src/dashboard/lib/brands/files.ts).
 - Built-ins remain in [client-brand.ts](../src/dashboard/lib/client-brand.ts)
   (`kody`, `kody-he`, `acme`; unknown slugs get a title-cased default).
@@ -23,17 +21,13 @@ surface server-rendered.
 
 ## Shipped shape
 
-**Storage.** Brand files are at `brands/<slug>.json` through the
-existing backend layer ([backend.ts](../src/dashboard/lib/backend.ts)),
-exactly like slash commands ([commands/files.ts](../src/dashboard/lib/commands/files.ts)).
-`src/dashboard/lib/brands/files.ts` owns list/read/write/delete, cached
-reads, zod validation (`slug`, `name`, `accent`, `locale?`, `welcomeText?`),
-and slug/locale normalization.
+**Storage.** `@kody-ade/workspace/brands` owns explicit tenant-scoped Convex
+reads and atomic writes, plus validation and normalization.
 
 **API.** `app/api/kody/brands/route.ts` (GET list, POST create) and
 `app/api/kody/brands/[slug]/route.ts` (GET, PATCH upsert, DELETE) —
 mirroring [commands/[slug]/route.ts](../app/api/kody/commands/%5Bslug%5D/route.ts):
-`requireKodyAuth`, `getUserOctokit`, `verifyActorLogin` on writes. Response
+`requireKodyAuth` and `verifyActorLogin` on writes. Response
 shapes follow the commands convention (`{ brand }`, `{ brands }`,
 `{ error }`). Every write invalidates the brands cache.
 
@@ -54,8 +48,5 @@ text), delete with confirm, live preview link to `/client/<slug>`.
 behavior, resolver fallbacks, page-plugin registration, and plugin directory
 coverage. Pinned E2E client brands continue to ride the fallback path.
 
-## Out of scope
-
-- Surface-scope ticket activation (phase 3 step 6 — separate).
-- Per-brand agents/tools grants (branding stays theme-only).
-- Multi-repo/org-level brand store (org two-tier config track).
+Access is now explicit `public` or `delegated`; see
+[brand-chat-access.md](brand-chat-access.md).

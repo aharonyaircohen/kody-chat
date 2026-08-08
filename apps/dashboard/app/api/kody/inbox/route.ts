@@ -41,6 +41,17 @@ const entrySchema = z.object({
     .regex(/^[^/\s]+\/[^/\s]+$/)
     .max(140)
     .optional(),
+  category: z
+    .enum([
+      "task-assigned",
+      "task-completed",
+      "task-failed",
+      "pr-ready",
+      "pr-merged",
+      "chat-response",
+      "gate-waiting",
+    ])
+    .optional(),
 }) satisfies z.ZodType<InboxEntry>;
 
 const appendSchema = z.object({

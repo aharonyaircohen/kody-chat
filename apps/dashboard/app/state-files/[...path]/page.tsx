@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern state-file-view-page
  * @ai-summary State file viewer entry point for deep links like
- *   /state-files/logs/goals/ci-health/runs/run.jsonl.
+ *   /state-files/logs/workflows/ci-health/runs/run.jsonl.
  */
 import type { Metadata } from "next";
 

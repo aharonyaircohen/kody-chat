@@ -1,19 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const capabilityFiles = vi.hoisted(() => ({
-  listLocalCapabilityFiles: vi.fn(),
-  readCapabilityFile: vi.fn(),
-  writeCapabilityFolderFiles: vi.fn(),
-  deleteCapabilityFile: vi.fn(),
-}));
-vi.mock("@kody-ade/agency/capabilities", () => ({
-  listLocalCapabilityFiles: capabilityFiles.listLocalCapabilityFiles,
-  readCapabilityFile: capabilityFiles.readCapabilityFile,
-  writeCapabilityFolderFiles: capabilityFiles.writeCapabilityFolderFiles,
-  deleteCapabilityFile: capabilityFiles.deleteCapabilityFile,
-  isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
-}));
-
 import { createCapabilityTools } from "../../app/api/kody/chat/tools/capability-tools";
 
 const ctx = {
@@ -27,64 +13,72 @@ const ctx = {
       actions: { createWorkflowDispatch: vi.fn() },
     },
   },
+  listCapabilities: vi.fn(),
+  readCapability: vi.fn(),
+  saveCapability: vi.fn(),
+  removeCapability: vi.fn(),
+  runCapability: vi.fn(),
 };
 
-describe("Convex capability chat tools", () => {
+describe("capability chat tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    capabilityFiles.listLocalCapabilityFiles.mockResolvedValue([]);
-    capabilityFiles.readCapabilityFile.mockResolvedValue(null);
-    capabilityFiles.writeCapabilityFolderFiles.mockResolvedValue(undefined);
-    capabilityFiles.deleteCapabilityFile.mockResolvedValue(undefined);
+    ctx.listCapabilities.mockResolvedValue({ capabilities: [] });
+    ctx.readCapability.mockResolvedValue({ capability: { slug: "greet" } });
+    ctx.saveCapability.mockResolvedValue({ capability: { slug: "greet" } });
+    ctx.removeCapability.mockResolvedValue({ success: true });
+    ctx.runCapability.mockResolvedValue({ ok: true, capability: "greet" });
   });
 
-  it("lists backend capabilities", async () => {
-    capabilityFiles.listLocalCapabilityFiles.mockResolvedValue([
-      { slug: "greet" },
-    ]);
+  it("lists and reads local or active Store capabilities through the Dashboard API", async () => {
     const tools = createCapabilityTools(ctx as never);
-    await expect(
-      tools.list_capabilities.execute!({}, {} as never),
-    ).resolves.toEqual({ capabilities: [{ slug: "greet" }] });
+
+    await tools.list_capabilities.execute!({}, {} as never);
+    await tools.read_capability.execute!({ slug: "greet" }, {} as never);
+
+    expect(ctx.listCapabilities).toHaveBeenCalledOnce();
+    expect(ctx.readCapability).toHaveBeenCalledWith("greet");
   });
 
-  it("creates and updates a backend capability", async () => {
+  it("saves the whole capability through the Dashboard API", async () => {
     const tools = createCapabilityTools(ctx as never);
-    const result = await tools.create_or_update_capability.execute!(
+    await tools.create_or_update_capability.execute!(
       {
-        slug: "greet",
-        instructions: "say hello",
-        tools: [],
+        slug: "greet-script",
+        instructions: "say hello deterministically",
+        contract: {
+          execution: "script",
+          secrets: ["DEPLOY_TOKEN"],
+          timeoutMs: 1_800_000,
+          input: {},
+          output: {},
+        },
+        tools: [{ path: "run.sh", content: "#!/bin/sh\nprintf '{}'\n" }],
         skills: [],
       },
       {} as never,
     );
-    expect(result).toMatchObject({
-      ok: true,
-      action: "created",
-      slug: "greet",
+
+    expect(ctx.saveCapability).toHaveBeenCalledWith({
+      slug: "greet-script",
+      instructions: "say hello deterministically",
+      contract: expect.stringContaining('"execution": "script"'),
+      tools: [{ path: "run.sh", content: "#!/bin/sh\nprintf '{}'\n" }],
+      skills: [],
     });
-    expect(capabilityFiles.writeCapabilityFolderFiles).toHaveBeenCalledWith(
-      expect.objectContaining({
-        slug: "greet",
-        files: expect.objectContaining({
-          "instructions.md": "say hello\n",
-        }),
-      }),
-    );
   });
 
-  it("deletes and dispatches backend capabilities", async () => {
-    capabilityFiles.readCapabilityFile.mockResolvedValue({
-      slug: "greet",
-      instructions: "say hello",
-    });
+  it("removes or runs a capability through the Dashboard API", async () => {
     const tools = createCapabilityTools(ctx as never);
+
     await expect(
       tools.delete_capability.execute!({ slug: "greet" }, {} as never),
-    ).resolves.toMatchObject({ ok: true });
+    ).resolves.toEqual({ success: true });
     await expect(
       tools.run_capability.execute!({ slug: "greet" }, {} as never),
     ).resolves.toMatchObject({ ok: true, capability: "greet" });
+
+    expect(ctx.removeCapability).toHaveBeenCalledWith("greet");
+    expect(ctx.runCapability).toHaveBeenCalledWith("greet");
   });
 });

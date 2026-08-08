@@ -9,35 +9,29 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { ensureWebhook } from "../../../../../tests/fixtures/chat-business-fixtures";
+import { ensureWebhook } from "../../../../../src/dashboard/lib/webhooks/register";
 
 interface Ctx {
   token: string;
   owner: string;
   repo: string;
+  hookUrl: string;
 }
 
 export function createWebhookTools(ctx: Ctx) {
-  const { token, owner, repo } = ctx;
+  const { token, owner, repo, hookUrl } = ctx;
   const repoRef = `${owner}/${repo}`;
   return {
     register_webhook: tool({
-      description: `Register or refresh the GitHub webhook on ${repoRef} so the dashboard receives push-based cache invalidation and mention notifications. Idempotent — safe to call repeatedly. Requires NEXT_PUBLIC_SERVER_URL to be set on the server and the token to have admin:repo_hook (the classic repo scope includes it).`,
+      description: `Register or refresh the GitHub webhook on ${repoRef} so the dashboard receives push-based cache invalidation and workflow events. Idempotent — safe to call repeatedly. The dashboard URL is taken from the current request; the token still needs repository webhook write permission.`,
       inputSchema: z.object({}),
       execute: async () => {
-        const base = process.env.NEXT_PUBLIC_SERVER_URL;
-        if (!base)
-          return {
-            error: "no_server_url",
-            message:
-              "NEXT_PUBLIC_SERVER_URL is not set on the server, so the webhook target URL is unknown.",
-          };
         try {
           const result = await ensureWebhook({
             token,
             owner,
             repo,
-            hookUrl: `${base}/api/webhooks/github`,
+            hookUrl,
           });
           return result;
         } catch (err) {

@@ -1,4 +1,4 @@
-import { FILE_HTML_PREVIEW_CSP } from "@dashboard/lib/html-preview-security";
+import { FILE_HTML_PREVIEW_CSP } from "./html-preview-security";
 
 export function isHtmlFile(path: string): boolean {
   return /\.html?$/i.test(path);

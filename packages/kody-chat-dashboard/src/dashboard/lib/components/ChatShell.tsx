@@ -11,7 +11,13 @@
  */
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Zap } from "lucide-react";
 import type { ChatPlugin } from "../chat/platform/types";
@@ -20,10 +26,7 @@ import { KodyChat } from "./KodyChat";
 import { Sidebar } from "./Sidebar";
 import { MobileMenu } from "./MobileMenu";
 import { RepoSwitcher } from "./RepoSwitcher";
-import type {
-  SettingsNavItem,
-  SettingsNavSection,
-} from "../feature-catalog";
+import type { SettingsNavItem, SettingsNavSection } from "../feature-catalog";
 import { cn } from "../utils";
 
 const RAIL_MIN = 360;
@@ -47,6 +50,8 @@ export interface ChatShellProps {
    * every host gets repo management in the sidepanel; pass null to remove.
    */
   sidebarHeaderExtra?: ReactNode;
+  /** Compact counterpart shown when the desktop sidepanel is collapsed. */
+  sidebarCollapsedHeaderExtra?: ReactNode;
   /** Slot at the right of the sidebar brand row (e.g. notifications). */
   sidebarBrandExtra?: ReactNode;
   /** Plugins registered on the DEFAULT chat mount (ignored when `chat` set). */
@@ -72,7 +77,8 @@ export function ChatShell({
   title = "Kody Chat",
   sections,
   pinnedItem,
-  sidebarHeaderExtra = <RepoSwitcher variant="rail" />,
+  sidebarHeaderExtra,
+  sidebarCollapsedHeaderExtra,
   sidebarBrandExtra,
   chatPlugins,
   chat,
@@ -83,6 +89,20 @@ export function ChatShell({
   children,
 }: ChatShellProps) {
   const pathname = usePathname() ?? "/";
+  const resolvedSidebarHeaderExtra =
+    sidebarHeaderExtra === undefined ? (
+      <RepoSwitcher variant="rail" />
+    ) : (
+      sidebarHeaderExtra
+    );
+  const resolvedSidebarCollapsedHeaderExtra =
+    sidebarCollapsedHeaderExtra === undefined ? (
+      sidebarHeaderExtra === undefined ? (
+        <RepoSwitcher variant="rail" compact />
+      ) : null
+    ) : (
+      sidebarCollapsedHeaderExtra
+    );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const reportIssueRef = useRef<(() => void) | null>(null);
   const setIssueReporter = useCallback((report: (() => void) | null) => {
@@ -92,8 +112,8 @@ export function ChatShell({
   // strip the prefix so the chat-home check matches both shapes.
   const bare = pathname.replace(/^\/repo\/[^/]+\/[^/]+/, "") || "/";
   const isChatHome = isChatHomeProp ?? bare === "/";
-  const reportIssueAction = onReportIssue ??
-    (chat ? undefined : () => reportIssueRef.current?.());
+  const reportIssueAction =
+    onReportIssue ?? (chat ? undefined : () => reportIssueRef.current?.());
 
   // Drag-to-resize width (px) for the chat rail, persisted per device.
   const [railWidth, setRailWidth] = useState(RAIL_DEFAULT);
@@ -179,7 +199,7 @@ export function ChatShell({
             onOpenChange={setMobileNavOpen}
             sections={sections}
             pinnedItem={pinnedItem}
-            headerExtra={sidebarHeaderExtra}
+            headerExtra={resolvedSidebarHeaderExtra}
           />
         </>
       )}
@@ -191,7 +211,8 @@ export function ChatShell({
           sections={sections}
           pinnedItem={pinnedItem}
           brandLabel={title}
-          headerExtra={sidebarHeaderExtra}
+          headerExtra={resolvedSidebarHeaderExtra}
+          collapsedHeaderExtra={resolvedSidebarCollapsedHeaderExtra}
           brandRowExtra={sidebarBrandExtra}
           onReportIssue={reportIssueAction}
         />

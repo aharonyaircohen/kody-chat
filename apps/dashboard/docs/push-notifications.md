@@ -1,6 +1,6 @@
 # Push notifications
 
-The dashboard ships as an installable PWA with browser/OS push notifications. When you @mention a user in any GitHub-backed thread (issues, PRs, comments, reviews, goal discussions), every device they've enabled push on gets a notification — independent of the rule-based Slack/Discord channels.
+The dashboard ships as an installable PWA with browser/OS push notifications. When you @mention a user in any GitHub-backed thread (issues, PRs, comments, reviews, discussions), every device they've enabled push on gets a notification — independent of the rule-based Slack/Discord channels.
 
 ## Enabling on a device
 
@@ -49,8 +49,8 @@ Currently: any `@username` matching a subscribed user's GitHub login, in the bod
 | `pull_request_review_comment` (created) | Line comment on a PR diff                                                          |
 | `pull_request_review` (submitted)       | Review with a body                                                                 |
 | `commit_comment` (created)              | Comment on a commit                                                                |
-| `discussion` (created, edited)          | New goal-discussion thread (dashboard goal chats are backed by GitHub Discussions) |
-| `discussion_comment` (created)          | Comment in a goal discussion                                                       |
+| `discussion` (created, edited)          | New GitHub Discussion thread                                                       |
+| `discussion_comment` (created)          | Comment in a GitHub Discussion                                                     |
 
 The notification title is `@author mentioned you on "<thread title>"`. The body is the first ~180 characters of the comment/post, with code fences stripped, so repeated mentions on the same thread are distinguishable at a glance.
 

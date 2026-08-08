@@ -3,10 +3,13 @@ import type { ConvexHttpClient } from "convex/browser";
 import { describe, expect, it, vi } from "vitest";
 import { createConvexMemoryStore } from "../../src/memory-store";
 
-const context = { actorId: "user-1", tenantId: "acme/widgets" };
+const context = {
+  actor: { kind: "user" as const, id: "user-1" },
+  tenantId: "acme/widgets",
+};
 const memory = {
   id: "memory-1",
-  scope: { kind: "user", userId: context.actorId },
+  scope: { kind: "user", userId: context.actor.id },
   kind: "preference",
   content: {
     title: "Reply style",
@@ -26,7 +29,7 @@ const revision = {
   content: memory.content,
   evidence: [{ source: "message", id: "message-1" }],
   reason: "Explicit user request.",
-  actor: { kind: "user", id: context.actorId },
+  actor: context.actor,
   createdAt: memory.createdAt,
 } satisfies MemoryRevision;
 

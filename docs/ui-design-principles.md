@@ -71,12 +71,43 @@ Do not invent another top-level page structure unless all three approved types
 have been checked and cannot satisfy a verified requirement. State the exact
 gap and obtain explicit user approval before implementing a bespoke structure.
 
+## Apply the simplicity rule before implementation
+
+Before designing or coding user-facing UI:
+
+1. State the user's goal in one sentence.
+2. Identify only the concepts required to reach it.
+3. Identify what the system already does automatically.
+4. Remove duplicate, automatic, speculative, and implementation-specific controls.
+5. Design the simplest visible flow that remains correct.
+
+If a control cannot be justified by a distinct user decision, do not add it.
+
 ## Keep the information model simple
 
 - Use one input for one user concept.
 - Merge fields when they describe the same intent.
 - Before adding a control, ask whether the result already happens automatically.
 - Do not repeat the same information in a header, field label, helper text, and preview.
+
+## Give routable surfaces stable slugs
+
+- Every dashboard page must have a human-readable title and a stable route
+  slug. Every durable item with its own detail route must have a human-readable
+  name and stable item slug.
+- Use the name for visible titles and accessible labels. Use the slug for
+  routing, chat context, automation, and durable references.
+- On master-detail pages, keep the collection at `/page-slug` and route a
+  selected item as `/page-slug/item-slug`; selection must be reflected in the
+  URL, not only held in component state.
+- A modal is transient and does not need a slug. Give it an accessible title;
+  add a stable identifier only when a verified deep-linking or automation
+  contract requires one.
+- Ask users for the name and derive new slugs with the shared
+  `@kody-ade/base/slug` helper. Do not add a second manual slug input unless an
+  external identifier must be preserved.
+- Treat a persisted slug as immutable identity. Renaming the visible name must
+  not silently change existing routes or references.
 
 ## Create hierarchy with structure
 

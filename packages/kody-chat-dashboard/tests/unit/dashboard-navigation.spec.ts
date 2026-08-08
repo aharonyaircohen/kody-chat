@@ -19,6 +19,21 @@ describe("dashboard navigation catalog", () => {
           href: "/models",
           label: "Chat Models",
         }),
+        expect.objectContaining({
+          routeId: "findings",
+          href: "/findings",
+          label: "Findings",
+        }),
+        expect.objectContaining({
+          routeId: "task",
+          href: "/:issueNumber",
+          parameters: [
+            expect.objectContaining({
+              key: "issueNumber",
+              label: "Task number",
+            }),
+          ],
+        }),
       ]),
     );
   });
@@ -56,7 +71,7 @@ describe("dashboard navigation catalog", () => {
     expect(
       resolveDashboardNavigationTarget({
         routeId: "task",
-        issueNumber: 123,
+        parameters: { issueNumber: "123" },
         reason: "Opening task 123.",
       }),
     ).toEqual({

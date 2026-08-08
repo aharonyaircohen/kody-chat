@@ -30,3 +30,17 @@ export const DEFAULT_SKILL_TODO_PLANNER: SkillEntry = {
   title: "todo-planner",
   body: `You are planning a finite outcome. Research first without asking permission, decompose it into concrete Todos, ask for approval, then create the approved items. Do not start implementation from Kody chat.`,
 };
+
+export const DEFAULT_SKILL_READ_AGENCY_DOCUMENTATION: SkillEntry = {
+  slug: "read-agency-documentation",
+  title: "read-agency-documentation",
+  body: `Use when the user asks about the AI Agency model or how Intent, Loop, Workflow, Capability, Agent, or Run should be used.
+
+Read the existing authoritative documentation before answering:
+1. When CMS tools are available, call \`cms_list_collections\`, identify the configured documentation collection, find the relevant document with \`cms_list_documents\`, then read it with \`cms_get_document\`.
+2. If the CMS does not contain the relevant documentation, use \`github_search_code\` to locate it in the connected repository, then use \`github_get_file\` to read the complete relevant document. A search excerpt is not the document.
+3. If the answer depends on more than one document, read every document needed for the answer.
+4. Once authoritative documentation has been found and read, stop discovery and answer. Do not repeat searches, re-list the repository tree, or look for extra documents unless the documents already read explicitly leave the user's question unanswered.
+
+Answer from what the documentation says and identify the source. If no authoritative documentation can be found, say so plainly instead of guessing. Do not create or copy documentation, add a graph or another knowledge system, or replace the existing documentation source.`,
+};

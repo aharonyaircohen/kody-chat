@@ -17,12 +17,11 @@ export function validIntent(overrides: Record<string, unknown> = {}) {
     controls: {
       automation: {
         authority: "full-auto",
-        maxConcurrentGoals: 1,
         maxDailyActions: 10,
         requiresHumanFor: [],
       },
     },
-    portfolio: { goals: [], loops: [], capabilities: [] },
+    portfolio: { loops: [], capabilities: [] },
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

@@ -39,7 +39,7 @@ function trigger(overrides: Partial<TriggerConfig> = {}): TriggerConfig {
     action: {
       type: "save-user-state",
       namespace: "selections",
-        map: { formView: "payload.viewId" },
+      map: { formView: "payload.viewId" },
     },
     ...overrides,
   };
@@ -69,9 +69,9 @@ describe("triggerMatches", () => {
     expect(match([{ path: "viewId", op: "equals", value: "other" }])).toBe(
       false,
     );
-    expect(
-      match([{ path: "viewId", op: "not_equals", value: "other" }]),
-    ).toBe(true);
+    expect(match([{ path: "viewId", op: "not_equals", value: "other" }])).toBe(
+      true,
+    );
     expect(match([{ path: "fields", op: "contains", value: "email" }])).toBe(
       true,
     );
@@ -83,6 +83,28 @@ describe("triggerMatches", () => {
       ]),
     ).toBe(false);
   });
+
+  it("matches the numeric GitHub workflow ID selected by the trigger form", () => {
+    const event = envelope("github.workflow_run.completed", {
+      workflowId: 12,
+      workflowName: "CI",
+      conclusion: "success",
+      runId: 42,
+    });
+
+    expect(
+      triggerMatches(
+        trigger({
+          event: "github.workflow_run.completed",
+          conditions: [
+            { path: "workflowId", op: "equals", value: 12 },
+            { path: "conclusion", op: "equals", value: "success" },
+          ],
+        }),
+        event,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("resolveActionData", () => {
@@ -93,7 +115,7 @@ describe("resolveActionData", () => {
         action: {
           type: "save-user-state",
           namespace: "selections",
-                map: {
+          map: {
             view: "payload.viewId",
             what: "event.name",
             at: "event.occurredAt",
@@ -124,11 +146,65 @@ describe("resolveActionData", () => {
         action: {
           type: "save-user-state",
           namespace: "selections",
-                map: {},
+          map: {},
         },
       }),
       event,
     );
     expect(data).toEqual({ viewId: "intake", fields: ["a"] });
+  });
+
+  it("maps inputs for a workflow-start action", () => {
+    const event = envelope("github.workflow_run.completed", {
+      conclusion: "failure",
+      workflow: "CI",
+      runId: 42,
+    });
+    const data = resolveActionData(
+      trigger({
+        event: "github.workflow_run.completed",
+        action: {
+          type: "start-workflow",
+          workflowId: "ci-repair",
+          inputMap: {
+            conclusion: "payload.conclusion",
+            sourceRunId: "payload.runId",
+            eventName: "event.name",
+          },
+        },
+      }),
+      event,
+    );
+    expect(data).toEqual({
+      conclusion: "failure",
+      sourceRunId: 42,
+      eventName: "github.workflow_run.completed",
+    });
+  });
+
+  it("maps a completed PR workflow into a reusable review workflow", () => {
+    const event = envelope("github.workflow_run.completed", {
+      conclusion: "success",
+      workflowId: 12,
+      runId: 42,
+      pr: 73,
+      headSha: "abc1234",
+    });
+    const data = resolveActionData(
+      trigger({
+        event: "github.workflow_run.completed",
+        action: {
+          type: "start-workflow",
+          workflowId: "review-fix",
+          inputMap: {
+            pr: "payload.pr",
+            headSha: "payload.headSha",
+          },
+        },
+      }),
+      event,
+    );
+
+    expect(data).toEqual({ pr: 73, headSha: "abc1234" });
   });
 });

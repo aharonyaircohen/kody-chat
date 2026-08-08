@@ -18,7 +18,10 @@ import type {
 } from "@kody-ade/cms/adapters/types";
 import { defaultCmsAdapterSettings } from "@kody-ade/cms/adapter-catalog";
 import { loadCmsConfigFromState } from "@kody-ade/cms/config";
-import { createCmsRepoDocsTransport } from "@kody-ade/cms/repo-docs";
+import {
+  createCmsRepoDocsTransport,
+  runWithCmsRepoDocsStore,
+} from "@kody-ade/cms/repo-docs";
 import type { CmsCollectionConfig, CmsDocument } from "@kody-ade/cms/types";
 import { logger } from "@kody-ade/base/logger";
 import { readVault } from "@kody-ade/base/vault/store";
@@ -30,6 +33,7 @@ import {
   type UserStateDoc,
   type UserStateNamespace,
 } from "../types";
+import { createBackendCmsRepoDocsStore } from "../../backend/cms-repo-docs-store";
 
 export const CMS_BRIDGE_ADAPTER_PREFIX = "cms:";
 
@@ -75,37 +79,43 @@ async function resolveCmsBinding(
   context: CmsAdapterContext;
   collection: CmsCollectionConfig;
 }> {
-  const config = await loadCmsConfigFromState(ctx.octokit, ctx.owner, ctx.repo);
-  const collection = config?.collections[collectionName];
-  if (!config || !collection) {
-    throw new UserStateError(
-      "config_invalid",
-      `CMS collection "${collectionName}" is not configured for this repo`,
+  return runWithCmsRepoDocsStore(createBackendCmsRepoDocsStore(), async () => {
+    const config = await loadCmsConfigFromState(
+      ctx.octokit,
+      ctx.owner,
+      ctx.repo,
     );
-  }
-  const adapter = getCmsAdapter(collection.adapter);
-  if (!adapter) {
-    throw new UserStateError(
-      "adapter_not_found",
-      `CMS adapter "${collection.adapter}" is not available`,
-    );
-  }
-  return {
-    adapter,
-    collection,
-    context: {
-      config,
+    const collection = config?.collections[collectionName];
+    if (!config || !collection) {
+      throw new UserStateError(
+        "config_invalid",
+        `CMS collection "${collectionName}" is not configured for this repo`,
+      );
+    }
+    const adapter = getCmsAdapter(collection.adapter);
+    if (!adapter) {
+      throw new UserStateError(
+        "adapter_not_found",
+        `CMS adapter "${collection.adapter}" is not available`,
+      );
+    }
+    return {
+      adapter,
       collection,
-      settings: {
-        ...defaultCmsAdapterSettings(collection.adapter),
-        ...(config.adapters[collection.adapter] ?? {}),
+      context: {
+        config,
+        collection,
+        settings: {
+          ...defaultCmsAdapterSettings(collection.adapter),
+          ...(config.adapters[collection.adapter] ?? {}),
+        },
+        getSecret: (name: string) =>
+          resolveSecret(ctx.octokit, ctx.owner, ctx.repo, name),
+        store: { octokit: ctx.octokit },
+        transport: createCmsRepoDocsTransport(ctx.owner, ctx.repo),
       },
-      getSecret: (name) =>
-        resolveSecret(ctx.octokit, ctx.owner, ctx.repo, name),
-      store: { octokit: ctx.octokit },
-      transport: createCmsRepoDocsTransport(ctx.owner, ctx.repo),
-    },
-  };
+    };
+  });
 }
 
 async function findOwnDocument(

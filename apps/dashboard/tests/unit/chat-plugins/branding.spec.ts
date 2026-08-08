@@ -38,6 +38,7 @@ describe("branding chat plugin factory", () => {
       name: "Acme",
       accent: "#7c3aed",
       locale: "en",
+      access: { mode: "public" },
     });
     expect(plugin.theme).toEqual({
       name: "Acme",
@@ -59,6 +60,7 @@ describe("branding chat plugin factory", () => {
       name: "Kody",
       accent: "#0f766e",
       locale: "en",
+      access: { mode: "public" },
     });
     // Absent, not `undefined` — an undefined field would still override an
     // earlier plugin's welcomeText in the registry's per-field theme merge.
@@ -70,6 +72,7 @@ describe("branding chat plugin factory", () => {
       accent: "#0f766e",
       locale: "en",
       welcomeText: "Hi! Ask me anything about your project.",
+      access: { mode: "public" },
     });
     expect(withText.theme?.welcomeText).toBe(
       "Hi! Ask me anything about your project.",

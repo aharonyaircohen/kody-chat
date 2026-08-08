@@ -13,13 +13,10 @@ import type { DiffEditorProps } from "@monaco-editor/react";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
-import {
-  commitsForPath,
-  getFileAtRef,
-  type CommitInfo,
-} from "../lib/repo-files";
-import type { Octokit } from "@octokit/rest";
+import { cn } from "@kody-ade/base/utils/ui";
+import { useFileManagerColorScheme } from "../lib/color-scheme";
+import type { CommitInfo } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 
 const DiffEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.DiffEditor),
@@ -27,7 +24,7 @@ const DiffEditor = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     ),
   },
@@ -35,19 +32,12 @@ const DiffEditor = dynamic(
 
 interface FileDiffViewerProps {
   path: string;
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   onClose: () => void;
 }
 
-export function FileDiffViewer({
-  path,
-  octokit,
-  owner,
-  repo,
-  onClose,
-}: FileDiffViewerProps) {
+export function FileDiffViewer({ path, onClose }: FileDiffViewerProps) {
+  const theme = useFileManagerColorScheme();
+  const transport = useFilesTransport();
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [leftCommit, setLeftCommit] = useState<CommitInfo | null>(null);
@@ -58,10 +48,13 @@ export function FileDiffViewer({
 
   // Load commit history
   useEffect(() => {
-    if (!octokit) return;
+    if (!transport?.history) {
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       try {
-        const history = await commitsForPath(octokit, owner, repo, path, 20);
+        const history = await transport.history!(path, 20);
         setCommits(history);
         if (history.length >= 2) {
           setLeftCommit(history[1]);
@@ -77,16 +70,16 @@ export function FileDiffViewer({
       }
     };
     load();
-  }, [octokit, owner, repo, path]);
+  }, [transport, path]);
 
   // Load content for selected commits
   const loadDiffContent = useCallback(async () => {
-    if (!octokit || !leftCommit || !rightCommit) return;
+    if (!transport?.readVersion || !leftCommit || !rightCommit) return;
     setLoadingContent(true);
     try {
       const [left, right] = await Promise.all([
-        getFileAtRef(octokit, owner, repo, path, leftCommit.sha),
-        getFileAtRef(octokit, owner, repo, path, rightCommit.sha),
+        transport.readVersion(path, leftCommit.sha),
+        transport.readVersion(path, rightCommit.sha),
       ]);
       setLeftContent(left?.content ?? "");
       setRightContent(right?.content ?? "");
@@ -95,7 +88,7 @@ export function FileDiffViewer({
     } finally {
       setLoadingContent(false);
     }
-  }, [octokit, owner, repo, path, leftCommit, rightCommit]);
+  }, [transport, path, leftCommit, rightCommit]);
 
   // Load diff when commits change
   useEffect(() => {
@@ -112,9 +105,9 @@ export function FileDiffViewer({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 shrink-0">
+      <div className="flex items-center gap-4 border-b border-border px-4 py-2 shrink-0">
         <span className="text-sm font-medium truncate">{path}</span>
-        <span className="text-xs text-white/40">Diff view</span>
+        <span className="text-xs text-muted-foreground">Diff view</span>
 
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -123,7 +116,7 @@ export function FileDiffViewer({
             onClick={handleCopyDiff}
             className={cn(
               "flex items-center gap-1.5 text-xs font-normal px-2 py-1 rounded",
-              "text-white/60 hover:text-white/90 hover:bg-white/10",
+              "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             <Copy className="w-3.5 h-3.5" />
@@ -135,7 +128,7 @@ export function FileDiffViewer({
             onClick={onClose}
             className={cn(
               "text-xs font-normal px-2 py-1 rounded",
-              "text-white/60 hover:text-white/90 hover:bg-white/10",
+              "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             Close
@@ -144,16 +137,16 @@ export function FileDiffViewer({
       </div>
 
       {/* Commit selector */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-white/5 shrink-0">
+      <div className="flex items-center gap-4 border-b border-border px-4 py-2 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-white/40">Compare:</span>
+          <span className="text-xs text-muted-foreground">Compare:</span>
           <select
             value={leftCommit?.sha ?? ""}
             onChange={(e) => {
               const sha = e.target.value;
               setLeftCommit(commits.find((c) => c.sha === sha) ?? null);
             }}
-            className="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 text-white/70"
+            className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground"
           >
             {commits.map((c) => (
               <option key={c.sha} value={c.sha}>
@@ -162,7 +155,7 @@ export function FileDiffViewer({
             ))}
           </select>
 
-          <span className="text-white/30">→</span>
+          <span className="text-muted-foreground">→</span>
 
           <select
             value={rightCommit?.sha ?? ""}
@@ -170,7 +163,7 @@ export function FileDiffViewer({
               const sha = e.target.value;
               setRightCommit(commits.find((c) => c.sha === sha) ?? null);
             }}
-            className="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 text-white/70"
+            className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground"
           >
             {commits.map((c) => (
               <option key={c.sha} value={c.sha}>
@@ -181,7 +174,7 @@ export function FileDiffViewer({
         </div>
 
         {loadingContent && (
-          <Loader2 className="w-4 h-4 animate-spin text-white/40 ml-2" />
+          <Loader2 className="ml-2 h-4 w-4 animate-spin text-muted-foreground" />
         )}
       </div>
 
@@ -193,7 +186,7 @@ export function FileDiffViewer({
             language="plaintext"
             original={leftContent}
             modified={rightContent}
-            theme="vs-dark"
+            theme={theme === "dark" ? "vs-dark" : "light"}
             options={{
               readOnly: true,
               minimap: { enabled: false },
@@ -204,9 +197,9 @@ export function FileDiffViewer({
             }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-white/40">
+          <div className="flex h-full items-center justify-center text-muted-foreground">
             {loading ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
               <span>Select two commits to compare</span>
             )}

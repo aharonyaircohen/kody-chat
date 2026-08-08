@@ -10,8 +10,8 @@ Agent and Capability are separate:
 - Loop decides when a Workflow or Capability becomes eligible.
 
 An Agent is stored as `agent.md` in a versioned Convex definition bundle. A
-Capability is a simple folder containing `instructions.md`, `skills/`, and
-`tools/`.
+Capability is a simple folder containing `instructions.md`, `contract.json`,
+`skills/`, and `tools/`.
 
 A Capability does not own Agent selection, cadence, approval, Workflow, model,
 or provider. Technical Engine `profile.json` files remain runtime assets and

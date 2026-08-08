@@ -32,6 +32,8 @@ import {
   type ToolSet,
 } from "ai";
 import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
+import { getFeatureGuideRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-feature-guides";
+import { formatFeatureGuidePromptSection } from "@kody-ade/kody-chat-dashboard/platform/feature-guide-context";
 import {
   resolveSurfaceScope,
   CLIENT_SURFACE_TOOL_ALLOWLIST,
@@ -48,7 +50,7 @@ import {
 } from "../../../../../src/dashboard/lib/agents";
 import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overlay";
 import {
-  requireKodyAuth,
+  requireUserAuth,
   getRequestAuth,
   verifyActorLogin,
   type RequestAuth,
@@ -61,6 +63,7 @@ import {
 } from "../../../../../src/dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { emitSystemEvent } from "@kody-ade/base/events";
+import { recordAudit } from "@kody-ade/base/activity/audit";
 import { ensureTriggerStateWriter } from "@kody-ade/kody-chat-dashboard/user-state";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
@@ -73,7 +76,6 @@ import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat-dashboard/co
 import {
   buildSystemPrompt,
   formatUserInstructionsPromptSection,
-  type GoalContext,
   type CapabilityContext,
   type TaskContext,
   type OrgContext,
@@ -87,13 +89,17 @@ import {
 } from "../../../../../src/dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
-import { createRemoteTools } from "../tools/remote-tools";
+import { createMachineTools } from "../tools/machine-tools";
+import { isLocalMachineAccessEnabled } from "@kody-ade/terminal/machine-exec";
 import { createBugTools } from "../tools/bug-tools";
 import { createTaskTools } from "../tools/task-tools";
 import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
-import { createPlannerTools } from "../tools/planner-tools";
+import { createWorkflowTools } from "../tools/workflow-tools";
+import { createWorkflowApiClient } from "../tools/workflow-api-client";
+import { createAgencyApiClient } from "../tools/agency-api-client";
+import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
 import { applyVibeToolPolicy } from "./vibe-tool-policy";
@@ -101,12 +107,15 @@ import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
 import { createGuidedFlowTools } from "../tools/guided-flow-tools";
+import { ConvexGuidedFlowReader } from "../../guided-flows/reader";
+import { buildGuidedFlowTurnContext } from "../guided-flow-context";
 import {
+  CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   CHAT_OUTPUT_TOOL_NAMES,
+  EXCLUSIVE_TOOL_OUTPUT_MODE,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
   isFinalAnswerOutput,
-  isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
@@ -115,6 +124,11 @@ import {
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
+import {
+  buildModelOutputRecoveryView,
+  MODEL_OUTPUT_RECOVERY_RENDERER,
+} from "../../../../../src/dashboard/lib/chat/core/model-output-recovery";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
@@ -130,19 +144,18 @@ import { createInstructionsTools } from "../tools/instructions-tools";
 import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
 import { createModelTools } from "../tools/models-tools";
-import { createReportTools } from "../tools/reports-tools";
 import { createWebhookTools } from "../tools/webhooks-tools";
-import { createNotificationTools } from "../tools/notifications-tools";
-import { createCompanyTools } from "../tools/company-tools";
-import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
 import { createPositionTools } from "../tools/position-tools";
 import { applyReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning-adapter";
 import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
-import { readCapabilityFile } from "@kody-ade/agency/capabilities";
-import { createMacroTools } from "../tools/macros-tools";
+import {
+  readCapabilityFile,
+  readResolvedCapabilityFile,
+} from "@kody-ade/agency/capabilities";
+import { readBuiltinAgentCapability } from "@kody-ade/agency/builtin-agents";
 import { loadRelevantMemoryForPrompt } from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
@@ -171,6 +184,9 @@ import {
   parseExplicitViewRequest,
 } from "./view-request";
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
+import { isClearlyConversationalTurn } from "./public-agent-routing";
+import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
+import { shouldDelegatePublicAgentChat } from "./public-agent-routing";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -597,7 +613,7 @@ async function handleKodyDirectPost(
   // today's 401 via requireKodyAuth, unchanged.
   const surfaceScope = resolveSurfaceScope(req.headers);
   if (surfaceScope.kind === "none") {
-    const authError = await requireKodyAuth(req);
+    const authError = await requireUserAuth(req);
     if (authError) return authError;
   }
   await ensureKodyRuntimeInitialized();
@@ -618,13 +634,6 @@ async function handleKodyDirectPost(
     actorLogin?: string;
     /** Current capability context — scopes the chat to a specific capability folder. */
     capability?: CapabilityContext;
-    /**
-     * When true, append the mission-planning block to the system prompt and
-     * wire the planner tools (`create_task_for_goal`). `goal` must be set.
-     */
-    goalPlanner?: boolean;
-    /** The goal this planner session is scoped to. */
-    goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string; path?: string };
     /** Org workspace scope from /org/:org. */
@@ -688,6 +697,7 @@ async function handleKodyDirectPost(
     conversationId?: string;
     turnId?: string;
     conversationAgent?: { slug: string; title: string };
+    machineAccess?: "none" | "local" | "brain";
   };
   try {
     body = (await req.json()) as typeof body;
@@ -796,7 +806,7 @@ async function handleKodyDirectPost(
   const turnSystemInstructions: string[] = [];
   const repo = getRequestAuth(repoScopedReq);
   const durableIdentity =
-    repo &&
+    verifiedActorGithubId !== null &&
     typeof body.conversationId === "string" &&
     body.conversationId.trim() &&
     typeof body.turnId === "string" &&
@@ -805,7 +815,7 @@ async function handleKodyDirectPost(
     typeof body.conversationAgent.slug === "string" &&
     typeof body.conversationAgent.title === "string"
       ? {
-          tenantId: `${repo.owner}/${repo.repo}`,
+          tenantId: `user:${verifiedActorGithubId}`,
           conversationId: body.conversationId.trim(),
           turnId: body.turnId.trim(),
           backend: "direct" as const,
@@ -814,8 +824,7 @@ async function handleKodyDirectPost(
             title: body.conversationAgent.title.trim(),
           },
           createIfMissing: {
-            owner: repo.owner,
-            repo: repo.repo,
+            ...(repo ? { owner: repo.owner, repo: repo.repo } : {}),
             modelId,
             createdBy: verifiedActorLogin
               ? `operator:${verifiedActorLogin.toLowerCase()}`
@@ -823,7 +832,28 @@ async function handleKodyDirectPost(
           },
         }
       : null;
-  const goalPlannerActive = body.goalPlanner === true && !!body.goal;
+  if (
+    repo &&
+    verifiedActorLogin &&
+    typeof body.conversationId === "string" &&
+    body.conversationId.trim()
+  ) {
+    try {
+      const guidedFlowContext = await buildGuidedFlowTurnContext(
+        new ConvexGuidedFlowReader({
+          tenantId: `${repo.owner}/${repo.repo}`,
+          actorId: verifiedActorLogin,
+          conversationId: body.conversationId.trim(),
+        }),
+      );
+      if (guidedFlowContext) turnSystemInstructions.push(guidedFlowContext);
+    } catch (error) {
+      traceWarn(
+        { err: error, conversationId: body.conversationId },
+        "guided-flow context unavailable",
+      );
+    }
+  }
   ensureTriggerStateWriter();
   const eventUserId = verifiedActorLogin
     ? `operator:${verifiedActorLogin.toLowerCase()}`
@@ -855,6 +885,7 @@ async function handleKodyDirectPost(
   let context: string | null = null;
   let constraints: string | null = null;
   let policies: string | null = null;
+  let featureGuidePromptSection: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (repo && clientSurface) {
@@ -889,7 +920,10 @@ async function handleKodyDirectPost(
     try {
       memoryContext = await loadRelevantMemoryForPrompt(
         {
-          actorId: `github:${verifiedActorGithubId}`,
+          actor: {
+            kind: "user",
+            id: `github:${verifiedActorGithubId}`,
+          },
           tenantId: `${repo.owner}/${repo.repo}`,
         },
         latestUserText ?? "",
@@ -917,6 +951,21 @@ async function handleKodyDirectPost(
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: context load failed (continuing without it)",
+      );
+    }
+    try {
+      const featureGuide = await getFeatureGuideRegistry().resolveForTurn({
+        currentPage:
+          typeof body.currentPage === "string" ? body.currentPage : null,
+        userText: latestUserText ?? "",
+      });
+      featureGuidePromptSection = featureGuide
+        ? formatFeatureGuidePromptSection(featureGuide)
+        : null;
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: feature guide load failed (continuing without it)",
       );
     }
     try {
@@ -977,6 +1026,20 @@ async function handleKodyDirectPost(
   }
 
   const vibeMode = body.vibeMode === true;
+  const requestedMachineAccess =
+    body.machineAccess === "local" || body.machineAccess === "brain"
+      ? body.machineAccess
+      : "none";
+  const localMachineAccessEnabled = isLocalMachineAccessEnabled();
+  if (requestedMachineAccess === "local" && !localMachineAccessEnabled) {
+    return NextResponse.json(
+      {
+        error: "local_machine_access_unavailable",
+        message: "Local machine access is not enabled on this Kody host.",
+      },
+      { status: 409 },
+    );
+  }
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
   // the vault for FLY_API_TOKEN so the prompt can tell the agent which
@@ -1010,8 +1073,27 @@ async function handleKodyDirectPost(
   // optional catalog is unavailable.
   const agentSlug = requestedAgentSlug === "kody" ? "" : requestedAgentSlug;
   let activeAgentIdentity = chatBundle.agentIdentity;
-  let addressedAgentMember:
-    Awaited<ReturnType<typeof listResolvedAgentFiles>>[number] | null = null;
+  type ResolvedAgentMember = Awaited<
+    ReturnType<typeof listResolvedAgentFiles>
+  >[number];
+  let resolvedAgentRoster: ResolvedAgentMember[] = [];
+  if (repo && (agentSlug || !clientSurface)) {
+    try {
+      resolvedAgentRoster = await listResolvedAgentFiles();
+    } catch (err) {
+      // A missing optional public Kody definition must not break ordinary
+      // chat, but an explicitly addressed public Agent still must resolve.
+      if (agentSlug) {
+        clearGitHubContext();
+        throw err;
+      }
+      traceWarn(
+        { traceId, err: formatProviderError(err) },
+        "kody-direct: public Agent roster unavailable",
+      );
+    }
+  }
+  let addressedAgentMember: ResolvedAgentMember | null = null;
   if (agentSlug) {
     if (!isValidAgentSlug(agentSlug)) {
       clearGitHubContext();
@@ -1023,18 +1105,12 @@ async function handleKodyDirectPost(
     if (!repo) {
       return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
     }
-    let agentMember;
-    try {
-      // Resolve from the same merged list that powers the AI Agency picker.
-      // A separate point lookup allowed the picker and chat to disagree,
-      // surfacing a selectable agent as `agent_not_found` only after send.
-      agentMember = (await listResolvedAgentFiles()).find(
-        (candidate) => candidate.slug === agentSlug,
-      );
-    } catch (err) {
-      clearGitHubContext();
-      throw err;
-    }
+    // Resolve from the same merged list that powers the AI Agency picker.
+    // A separate point lookup allowed the picker and chat to disagree,
+    // surfacing a selectable agent as `agent_not_found` only after send.
+    const agentMember = resolvedAgentRoster.find(
+      (candidate) => candidate.slug === agentSlug,
+    );
     if (!agentMember) {
       clearGitHubContext();
       return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
@@ -1042,6 +1118,12 @@ async function handleKodyDirectPost(
     activeAgentIdentity = buildAgentChatIdentity(agentMember);
     addressedAgentMember = agentMember;
   }
+  const delegatingAgentMember =
+    addressedAgentMember ??
+    (!clientSurface && !agentSlug
+      ? (resolvedAgentRoster.find((candidate) => candidate.slug === "kody") ??
+        null)
+      : null);
   if (
     durableIdentity &&
     durableIdentity.agent.slug !== (addressedAgentMember?.slug ?? "kody")
@@ -1101,6 +1183,18 @@ async function handleKodyDirectPost(
       viewRendererDefinitions,
       requireInteractiveAction,
     });
+    const workflowApi = createWorkflowApiClient({
+      request: repoScopedReq,
+      approval: {
+        owner: repo.owner,
+        repo: repo.repo,
+        latestUserText,
+      },
+    });
+    const agencyApi = createAgencyApiClient({
+      request: repoScopedReq,
+      actorLogin: verifiedActorLogin,
+    });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -1119,10 +1213,9 @@ async function handleKodyDirectPost(
           typeof body.previewContext === "string" ? body.previewContext : null,
       }),
       ...createAgentTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        createAgent: (input) => agencyApi.createAgent(input),
       }),
       ...createMemoryTools({
         actorId: `github:${verifiedActorGithubId}`,
@@ -1145,6 +1238,35 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+        listCapabilities: () => agencyApi.listCapabilities(),
+        readCapability: (slug) => agencyApi.readCapability(slug),
+        saveCapability: (input) => agencyApi.saveCapability(input),
+        removeCapability: (slug) => agencyApi.removeCapability(slug),
+        runCapability: (slug) => agencyApi.runCapability(slug),
+      }),
+      ...createWorkflowTools({
+        owner: repo.owner,
+        repo: repo.repo,
+        listWorkflows: () => workflowApi.list(),
+        readWorkflow: (workflowId) => workflowApi.read(workflowId),
+        saveWorkflow: (input) => agencyApi.saveWorkflow(input),
+        removeWorkflow: (workflowId) => agencyApi.removeWorkflow(workflowId),
+        runWorkflow: (command) => workflowApi.run(command),
+      }),
+      ...createAgencyLifecycleTools({
+        owner: repo.owner,
+        repo: repo.repo,
+        listLoops: () => agencyApi.listLoops(),
+        readLoop: (loopId) => agencyApi.readLoop(loopId),
+        saveLoop: (input) => agencyApi.saveLoop(input),
+        removeLoop: (loopId) => agencyApi.removeLoop(loopId),
+        runLoop: (loopId) => agencyApi.runLoop(loopId),
+        listIntents: () => agencyApi.listIntents(),
+        readIntent: (slug) => agencyApi.readIntent(slug),
+        saveIntent: (input) => agencyApi.saveIntent(input),
+        removeIntent: (slug) => agencyApi.removeIntent(slug),
+        listRuns: (limit) => agencyApi.listRuns(limit),
+        readRun: (runId, githubRunId) => agencyApi.readRun(runId, githubRunId),
       }),
       // Dashboard-management tools: let chat manage every dashboard feature
       // (config files, settings, infra) the same way the pages do. Reads use
@@ -1162,10 +1284,12 @@ async function handleKodyDirectPost(
         actorLogin: verifiedActorLogin,
       }),
       ...createTodoTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        listTodos: () => agencyApi.listTodos(),
+        readTodo: (slug) => agencyApi.readTodo(slug),
+        saveTodo: (input) => agencyApi.saveTodo(input),
+        removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),
       ...createInstructionsTools({
         octokit,
@@ -1184,16 +1308,14 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+        onSecretWritten: (name) =>
+          recordAudit(req, {
+            action: "vault.write",
+            resource: name,
+            detail: "upsert secret via chat",
+          }),
       }),
       ...createModelTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
-      }),
-      ...createReportTools({ owner: repo.owner, repo: repo.repo }),
-      ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
-      ...createCompanyTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
@@ -1203,37 +1325,18 @@ async function handleKodyDirectPost(
         token: repo.token,
         owner: repo.owner,
         repo: repo.repo,
-      }),
-      ...createInboxTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
+        hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
       }),
       ...createAgentAdminTools({
-        octokit,
         owner: repo.owner,
         repo: repo.repo,
-        actorLogin: verifiedActorLogin,
+        listAgents: () => agencyApi.listAgents(),
+        readAgent: (slug) => agencyApi.readAgent(slug),
+        updateAgent: (slug, input) => agencyApi.updateAgent(slug, input),
+        removeAgent: (slug) => agencyApi.removeAgent(slug),
+        dispatchAgent: (slug, message) =>
+          agencyApi.dispatchAgent(slug, message),
       }),
-      ...createMacroTools({
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-        actorLogin: verifiedActorLogin,
-      }),
-      ...(goalPlannerActive && body.goal
-        ? createPlannerTools({
-            octokit,
-            owner: repo.owner,
-            repo: repo.repo,
-            actorLogin: verifiedActorLogin,
-            goalId: body.goal.id,
-            previewContext:
-              typeof body.previewContext === "string"
-                ? body.previewContext
-                : null,
-          })
-        : {}),
     };
     // Pipeline tools currently use github-client's module-level context
     // (already set above for the memory index loader) — they do *not* take
@@ -1246,11 +1349,20 @@ async function handleKodyDirectPost(
   }
   extraTools = {
     ...extraTools,
-    ...createRemoteTools(verifiedActorLogin),
+    ...(!clientSurface
+      ? createMachineTools({
+          machineAccess: requestedMachineAccess,
+          localEnabled: localMachineAccessEnabled,
+        })
+      : {}),
     ...(repo && !clientSurface && verifiedActorLogin
       ? createGuidedFlowTools({
           tenantId: `${repo.owner}/${repo.repo}`,
           actorId: verifiedActorLogin,
+          ...(typeof body.conversationId === "string" &&
+          body.conversationId.trim()
+            ? { conversationId: body.conversationId.trim() }
+            : {}),
         })
       : {}),
   };
@@ -1321,11 +1433,64 @@ async function handleKodyDirectPost(
     ...featureTools,
     ...uiToolSet,
   };
+  // Host/plugin tools enter the same policy and capability pipeline as
+  // package-owned tools. This keeps one enforcement path for every tool and
+  // prevents host registrations from bypassing implementation restrictions.
+  const pluginAiTools: Record<string, unknown> = {};
+  if (repo) {
+    const pluginToolCtx: ChatToolServerContext = {
+      owner: repo.owner,
+      repo: repo.repo,
+      token: repo.token,
+      extras: {
+        actorLogin: verifiedActorLogin,
+        actorGithubId: verifiedActorGithubId,
+      },
+    };
+    let pluginTools: Record<string, ChatPluginToolDefinition>;
+    try {
+      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
+    } catch (err) {
+      clearGitHubContext();
+      const msg = err instanceof Error ? err.message : String(err);
+      traceError(
+        { traceId, err: msg },
+        "kody-direct: chat plugin tool collect failed",
+      );
+      return NextResponse.json(
+        { error: `chat_plugin_tools_failed: ${msg}` },
+        { status: 500 },
+      );
+    }
+    for (const [name, def] of Object.entries(pluginTools)) {
+      if (
+        Object.prototype.hasOwnProperty.call(baseTools, name) ||
+        Object.prototype.hasOwnProperty.call(extraTools, name)
+      ) {
+        clearGitHubContext();
+        traceError(
+          { traceId, tool: name },
+          "kody-direct: chat plugin tool collides with a built-in tool",
+        );
+        return NextResponse.json(
+          {
+            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
+          },
+          { status: 500 },
+        );
+      }
+      pluginAiTools[name] = tool({
+        description: def.description,
+        inputSchema: def.inputSchema,
+        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
+      });
+    }
+  }
   // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
   // starters from this endpoint, and strips issue-creation tools in vibe mode
   // once a task is scoped so the model can't file a duplicate.
   const mergedTools = applyVibeToolPolicy(
-    { ...baseTools, ...extraTools },
+    { ...baseTools, ...extraTools, ...pluginAiTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
   // Bundle allowlist controls domain tools. Core output tools are preserved
@@ -1336,7 +1501,11 @@ async function handleKodyDirectPost(
   const bundleFilteredTools = filterToolsByAllowlist(
     mergedTools,
     chatBundle.capability.tools.length > 0
-      ? [...chatBundle.capability.tools, ...capabilityToolNames]
+      ? [
+          ...chatBundle.capability.tools,
+          ...capabilityToolNames,
+          ...Object.keys(pluginAiTools),
+        ]
       : chatBundle.capability.tools,
   );
   // Client-surface scope hard-caps the result at the conservative surface
@@ -1357,73 +1526,14 @@ async function handleKodyDirectPost(
       allowlistedTools[name] = mergedTools[name];
     }
   }
-  // Plugin server tools (platform Step 4). Plugins registered in the
-  // server-only registry contribute tools ON TOP of the built-in map —
-  // never instead of it. With zero plugins registered `collect()` returns
-  // {} and the tool map is byte-identical to the built-in set. A plugin
-  // tool whose name collides with any built-in (or another plugin — the
-  // registry throws at collect time) is a deploy-time bug: fail the
-  // request loudly with a 500 instead of silently overriding. Tools are
-  // repo-scoped (ChatToolServerContext), so repo-less requests skip them.
-  if (repo) {
-    const pluginToolCtx: ChatToolServerContext = {
-      owner: repo.owner,
-      repo: repo.repo,
-      token: repo.token,
-    };
-    let pluginTools: Record<string, ChatPluginToolDefinition>;
-    try {
-      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
-    } catch (err) {
-      clearGitHubContext();
-      const msg = err instanceof Error ? err.message : String(err);
-      traceError(
-        { traceId, err: msg },
-        "kody-direct: chat plugin tool collect failed",
-      );
-      return NextResponse.json(
-        { error: `chat_plugin_tools_failed: ${msg}` },
-        { status: 500 },
-      );
-    }
-    for (const [name, def] of Object.entries(pluginTools)) {
-      if (
-        Object.prototype.hasOwnProperty.call(mergedTools, name) ||
-        Object.prototype.hasOwnProperty.call(allowlistedTools, name)
-      ) {
-        clearGitHubContext();
-        traceError(
-          { traceId, tool: name },
-          "kody-direct: chat plugin tool collides with a built-in tool",
-        );
-        return NextResponse.json(
-          {
-            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
-          },
-          { status: 500 },
-        );
-      }
-      // Adapt the plugin contract to the AI SDK tool shape. Input is
-      // zod-validated inside the registry's execute wrapper (collect()
-      // parses through the plugin's schema before the handler runs).
-      allowlistedTools[name] = tool({
-        description: def.description,
-        inputSchema: def.inputSchema,
-        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
-      });
-    }
-  }
-  // Tool failures must become tool results, not stream-level failures. The
-  // client can then show the real reason and the model can correct its input
-  // instead of every provider collapsing the error to "An error occurred."
-  for (const [name, candidate] of Object.entries(allowlistedTools)) {
-    if (!candidate || typeof candidate !== "object") continue;
+  const wrapToolExecution = (name: string, candidate: unknown): unknown => {
+    if (!candidate || typeof candidate !== "object") return candidate;
     const executable = candidate as {
       execute?: (input: unknown) => Promise<unknown>;
     };
-    if (!executable.execute) continue;
+    if (!executable.execute) return candidate;
     const execute = executable.execute;
-    allowlistedTools[name] = {
+    return {
       ...executable,
       execute: async (input: unknown) => {
         try {
@@ -1439,6 +1549,79 @@ async function handleKodyDirectPost(
         }
       },
     };
+  };
+
+  const assignedSubagentSlugs = delegatingAgentMember?.subagents ?? [];
+  const assignedSubagentRoster = resolvedAgentRoster.filter((candidate) =>
+    assignedSubagentSlugs.includes(candidate.slug),
+  );
+  if (
+    shouldDelegatePublicAgentChat({
+      clientSurface: Boolean(clientSurface),
+      assignedSubagentCount: assignedSubagentRoster.length,
+      requireInteractiveAction,
+    })
+  ) {
+    const specialistChat = await handleConfiguredPublicAgentChat({
+      userText: latestUserText ?? "",
+      assignedAgents: assignedSubagentRoster,
+      model,
+      availableTools: allowlistedTools,
+      specialistTools: mergedTools,
+      outputToolNames: CHAT_OUTPUT_TOOL_NAMES,
+      loadCapabilities: async (agent) =>
+        (
+          await Promise.all(
+            (agent.capabilities ?? []).map(async (slug) =>
+              readBuiltinAgentCapability(slug) ??
+              readResolvedCapabilityFile(slug).catch(() => null),
+            ),
+          )
+        ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),
+      wrapTool: wrapToolExecution,
+      repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
+      maxSteps: Math.min(resolvedModel.maxSteps ?? 8, 8),
+      providerCapabilities,
+      ...(durableIdentity
+        ? { startDurableTurn: () => startDurableTurn(durableIdentity) }
+        : {}),
+      telemetry: {
+        traceId,
+        startedAt: reqStartedAt,
+        formatError: formatProviderError,
+        clearContext: clearGitHubContext,
+        log: traceLog,
+        warn: traceWarn,
+        error: traceError,
+      },
+    });
+    if (specialistChat.mode === "delegated") {
+      return specialistChat.response;
+    }
+    for (const name of Object.keys(allowlistedTools)) {
+      delete allowlistedTools[name];
+    }
+    Object.assign(allowlistedTools, specialistChat.parentTools);
+  }
+  const clearlyConversationalTurn = isClearlyConversationalTurn(
+    latestUserText ?? "",
+  );
+  if (
+    clearlyConversationalTurn &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, FINAL_ANSWER_TOOL)
+  ) {
+    for (const name of Object.keys(allowlistedTools)) {
+      if (name !== FINAL_ANSWER_TOOL) delete allowlistedTools[name];
+    }
+    turnSystemInstructions.push(
+      "Answer this conversational message directly. Do not infer Kody's overall capabilities from this turn's reduced tool list, and do not claim Kody cannot perform actions unless the user asked for a specific action that is unavailable.",
+    );
+  }
+  // Tool failures must become tool results, not stream-level failures. The
+  // client can then show the real reason and the model can correct its input
+  // instead of every provider collapsing the error to "An error occurred."
+  for (const [name, candidate] of Object.entries(allowlistedTools)) {
+    allowlistedTools[name] = wrapToolExecution(name, candidate);
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
@@ -1494,8 +1677,6 @@ async function handleKodyDirectPost(
     body.task,
     {
       capability: body.capability,
-      goalPlanner: goalPlannerActive,
-      goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
       org: body.org,
       currentPage: body.currentPage,
@@ -1524,6 +1705,7 @@ async function handleKodyDirectPost(
     : null;
   const promptWithReminders = [
     assembledPrompt,
+    featureGuidePromptSection,
     conversationSummarySection,
     voiceMode ? null : CRITICAL_REMINDERS_MD,
     userInstructionsSection,
@@ -1687,13 +1869,6 @@ This turn includes an image from the user. For questions about what is visible i
                         : ("required" as const),
                   };
                 }
-                const finalAnswerNeedsView = steps.some((step) =>
-                  step.toolResults.some(
-                    (result) =>
-                      result.toolName === FINAL_ANSWER_TOOL &&
-                      isFinalAnswerRequiresViewOutput(result.output),
-                  ),
-                );
                 const hasPreRenderToolResult = steps.some((step) =>
                   step.toolResults.some(
                     (result) =>
@@ -1705,8 +1880,11 @@ This turn includes an image from the user. For questions about what is visible i
                 // literal text instead of API tool calls — nothing executes,
                 // then they report fabricated results. Bounce it immediately:
                 // the next step starts with a corrective system message.
-                const lastStepText = steps[steps.length - 1]?.text ?? "";
-                const fabricatedToolCall = containsToolCallMarkup(lastStepText);
+                const lastStep = steps[steps.length - 1];
+                const fabricatedToolCall = containsToolCallMarkup(
+                  lastStep?.text,
+                  lastStep?.reasoningText,
+                );
                 if (fabricatedToolCall) {
                   traceWarn(
                     { traceId, step: steps.length },
@@ -1718,7 +1896,6 @@ This turn includes an image from the user. For questions about what is visible i
                   requireViewOutput,
                   allowPreRenderTools:
                     shouldAllowPreRenderTools && !hasPreRenderToolResult,
-                  finalAnswerNeedsView,
                 });
                 return {
                   activeTools: stepActiveTools,
@@ -1900,12 +2077,16 @@ This turn includes an image from the user. For questions about what is visible i
           type: "data-tools-index",
           data: toolDescriptionByName,
         });
-        if (failedToolFamilies.length > 0) {
-          // Visible warning line — without it a fabricated "saved!" reply
-          // is indistinguishable from a real one for the user.
+        if (
+          requireViewOutput ||
+          providerCapabilities.supportsRequiredToolChoice !== false
+        ) {
+          // Required tool choice makes raw provider prose non-final. Tell the
+          // transport to expose only the semantic final_answer/show_view
+          // result, so a renderer can never erase text the user already saw.
           writer.write({
-            type: "error",
-            errorText: `Some tools failed to load this turn and are unavailable: ${failedToolFamilies.join(", ")}. Related actions cannot run right now.`,
+            type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
+            data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
           });
         }
         writer.merge(
@@ -1944,10 +2125,33 @@ This turn includes an image from the user. For questions about what is visible i
               steps.map((step) => step.text ?? "").join(""),
             ).answer.trim();
             if (
+              requireViewOutput &&
+              !producedOutputTool &&
+              retryCount >= MAX_SILENT_TURN_RETRIES
+            ) {
+              const toolCallId = `model-output-recovery-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: SHOW_VIEW_TOOL,
+                input: { purpose: MODEL_OUTPUT_RECOVERY_RENDERER },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: buildModelOutputRecoveryView({
+                  id: toolCallId,
+                  modelLabel: resolvedModel.label || resolvedModel.modelName,
+                }),
+              });
+              return;
+            }
+            if (
               !shouldRetryToollessTurn({
                 producedOutputTool,
                 visibleAnswer,
                 enforceToolOutput:
+                  requireViewOutput ||
                   providerCapabilities.supportsRequiredToolChoice !== false,
                 retryCount,
                 maxRetries: MAX_SILENT_TURN_RETRIES,

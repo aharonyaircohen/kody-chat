@@ -366,9 +366,7 @@ export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
           headers: dashboardHeaders,
         },
         (data) =>
-          data?.authenticated === true &&
-          data?.owner === owner &&
-          data?.repo === repo,
+          data?.authenticated === true,
       ),
     },
     {

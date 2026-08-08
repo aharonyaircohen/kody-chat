@@ -20,6 +20,7 @@ export interface CapabilityAsset {
 
 export interface CapabilityDetail extends CapabilitySummary {
   instructions: string;
+  contract: string | null;
   skills: CapabilityAsset[];
   capabilityTools: CapabilityAsset[];
 }
@@ -27,6 +28,7 @@ export interface CapabilityDetail extends CapabilitySummary {
 export interface CapabilityWriteInput {
   slug?: string;
   instructions: string;
+  contract?: string | null;
   skills: Array<{ path: string; content: string }>;
   tools: Array<{ path: string; content: string }>;
 }

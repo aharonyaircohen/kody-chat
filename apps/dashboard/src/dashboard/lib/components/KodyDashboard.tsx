@@ -11,12 +11,6 @@ import type { KodyTask, SortField } from "@kody-ade/base/types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { cn } from "../utils";
 import { TaskList } from "@dashboard/features/tasks/components/TaskList";
-import { GoalGroupedView, useGoalCollapse } from "@dashboard/features/goals/components/GoalGroupedView";
-import { CreateGoalDialog, EditGoalDialog } from "@dashboard/features/goals/components/GoalControl";
-import { GoalDiscussionDialog } from "@dashboard/features/goals/components/GoalDiscussionDialog";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
-import type { Goal } from "../api";
 
 import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
 import { EditTaskDialog } from "@dashboard/features/tasks/components/EditTaskDialog";
@@ -24,7 +18,6 @@ import { BugReportDialog } from "./BugReportDialog";
 import { KodyBugReportDialog } from "./KodyBugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { useChatScope } from "./ChatRailShell";
-import type { ChatContext } from "../chat-types";
 import { KodyStatusBanner } from "./KodyStatusBanner";
 import {
   FilterBar,
@@ -54,34 +47,17 @@ import {
   MessageSquare,
   Bug,
   LifeBuoy,
-  Menu,
   RefreshCw,
   AlertCircle,
   X as XIcon,
-  Github,
-  Layers,
-  FileText,
-  LogOut,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  Bell,
-  Bot,
-  KeyRound,
-  Settings as SettingsIcon,
-  Settings2,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  List,
   Plus,
 } from "lucide-react";
-import Link from "next/link";
 import { useKodyTasksPage, queryKeys, useDefaultBranchCI } from "../hooks";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
 import { useNotifications } from "../notifications/NotificationsProvider";
-import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { useScrollRestoration } from "@dashboard/lib/hooks/useScrollRestoration";
 import {
@@ -100,7 +76,6 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
 import { repoPathForNavMatching, repoScopedHref } from "@kody-ade/base/routes";
 import { RepoManager } from "./RepoManager";
-import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
@@ -207,59 +182,28 @@ export function KodyDashboard({
     history: 1,
   });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Goal-first: inline CRUD + attach dialog state
-  const [showCreateGoal, setShowCreateGoal] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null);
-  // Goal whose discussion thread is currently open in a modal. Null = closed.
-  const [discussingGoal, setDiscussingGoal] = useState<Goal | null>(null);
-  // Goal currently being planned (planner chat dialog). Null = closed. The
-  // sessionId is regenerated on every open so a fresh thread is shown.
-  const [planningGoal, setPlanningGoal] = useState<Goal | null>(null);
-  const [plannerSessionId, setPlannerSessionId] = useState<string | null>(null);
-  // When set, the CreateTaskDialog pre-applies this goal's label. Null = no scope.
-  const [presetGoalForCreate, setPresetGoalForCreate] = useState<Goal | null>(
-    null,
-  );
-  // When set, the BugReportDialog pre-applies this goal's label. Null = no scope.
-  const [presetGoalForBug, setPresetGoalForBug] = useState<Goal | null>(null);
   const [sortField, setSortField] = useState<string>("updatedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const VIEW_MODE_KEY = "kody.taskListViewMode";
-  type TaskListLayout = "grouped" | "flat";
-  const [taskListLayout, setTaskListLayout] = useState<TaskListLayout>(() => {
-    if (typeof window === "undefined") return "grouped";
-    const stored = window.localStorage.getItem(VIEW_MODE_KEY);
-    return stored === "flat" ? "flat" : "grouped";
-  });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(VIEW_MODE_KEY, taskListLayout);
-    }
-  }, [taskListLayout]);
   const showingBacklog = viewMode === "backlog";
   const showingHistory = viewMode === "history";
   const isPagedTaskView = showingBacklog || showingHistory;
   const currentTaskPage = showingHistory
     ? pagedTaskPages.history
     : pagedTaskPages.backlog;
-  const isGroupedTaskList =
-    taskListLayout === "grouped" && viewMode === "running";
 
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
   // Persist the list scroll position across list → task detail → back.
   // The list subtree fully unmounts when a task is selected, so a module-
   // scoped store keyed by the API list page + filters is what survives.
-  const taskListScrollKey = `dash:${taskListLayout}:${viewMode}:page-${currentTaskPage}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`;
+  const taskListScrollKey = `dash:${viewMode}:page-${currentTaskPage}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`;
   const listScrollRef = useScrollRestoration(taskListScrollKey);
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
@@ -475,7 +419,7 @@ export function KodyDashboard({
   }, [selectedTask, selectedIssueNumber]);
 
   // GitHub identity — verified via OAuth session cookie
-  const { githubUser, authError, clearGitHubUser } = useGitHubIdentity();
+  const { githubUser, authError } = useGitHubIdentity();
 
   const visibleTasks = useMemo(() => filterVisibleTasks(tasks), [tasks]);
 
@@ -502,10 +446,6 @@ export function KodyDashboard({
     queryFn: () => kodyApi.collaborators.list(),
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
-
-  // Goals — drive the goal-first dashboard grouping
-  const { data: goals = [] } = useGoals();
-  const deleteGoalMutation = useDeleteGoal(githubUser?.login);
 
   // Mutations for assign/unassign
   const assignMutation = useMutation({
@@ -952,7 +892,7 @@ export function KodyDashboard({
   // useMemo is load-bearing: without it the function returns a fresh array every
   // render, cascading instability through sortedTasks → filteredTasks →
   // plannerExistingTasksForChat → the chat-rail setScope effect, which then
-  // fires every render once a goal is being planned and trips React error #185.
+  // fires every render and can trip React error #185.
   const baseFilteredTasks = useMemo(
     () =>
       filterTasksByView(visibleTasks, {
@@ -960,9 +900,6 @@ export function KodyDashboard({
         statusFilter,
         labelFilter,
         priorityFilter,
-        // Goal view collapses the running/backlog split — every active task
-        // is visible under its goal section.
-        showAllStates: isGroupedTaskList,
       }),
     [
       visibleTasks,
@@ -970,7 +907,6 @@ export function KodyDashboard({
       statusFilter,
       labelFilter,
       priorityFilter,
-      isGroupedTaskList,
     ],
   );
   const searchedTasks = useMemo(() => {
@@ -989,17 +925,6 @@ export function KodyDashboard({
   );
 
   const filteredTasks = sortedTasks;
-
-  // Shared goal collapse controller — drives both the section headers and the
-  // expand/collapse toggle that lives in the Kody status banner.
-  const {
-    collapsed: collapsedGoalKeys,
-    toggle: toggleGoalCollapsed,
-    allCollapsed: allGoalsCollapsed,
-    expandAll: expandAllGoals,
-    collapseAll: collapseAllGoals,
-    hasMultipleGroups: hasMultipleGoalGroups,
-  } = useGoalCollapse(goals, filteredTasks);
 
   // Keyboard shortcuts (after sortedTasks is defined)
   useKeyboardShortcuts({
@@ -1137,7 +1062,6 @@ export function KodyDashboard({
 
   // Open/close modal dialogs with URL sync
   const handleOpenCreate = useCallback(() => {
-    setPresetGoalForCreate(null);
     setShowCreateDialog(true);
     pushKodyPath("/new");
   }, [pushKodyPath]);
@@ -1145,81 +1069,16 @@ export function KodyDashboard({
   const handleCloseCreate = useCallback(() => {
     setShowCreateDialog(false);
     setDuplicateSource(null);
-    setPresetGoalForCreate(null);
     pushKodyBase();
   }, [pushKodyBase]);
 
-  const handleCreateInGoal = useCallback(
-    (goal: Goal | null) => {
-      setPresetGoalForCreate(goal);
-      setShowCreateDialog(true);
-      pushKodyPath("/new");
-    },
-    [pushKodyPath],
-  );
-
-  // Goal-to-goal DnD: remove all existing goal:* labels, then add the target (if any)
-  const handleMoveTask = useCallback(
-    async (task: KodyTask, targetGoalId: string | null) => {
-      const existingGoalLabels = task.labels.filter((l) =>
-        l.startsWith("goal:"),
-      );
-      const targetLabel = targetGoalId ? `goal:${targetGoalId}` : null;
-
-      // Optimistic: update the tasks cache so the row jumps to the new group immediately
-      queryClient.setQueryData<TaskCacheData>(taskQueryKey, (old) =>
-        mapTaskCacheData(old, (cachedTasks) =>
-          cachedTasks.map((t) => {
-            if (t.id !== task.id) return t;
-            const nextLabels = t.labels.filter((l) => !l.startsWith("goal:"));
-            if (targetLabel) nextLabels.push(targetLabel);
-            return { ...t, labels: nextLabels };
-          }),
-        ),
-      );
-
-      try {
-        // Remove all existing goal:* labels that aren't the target
-        await Promise.all(
-          existingGoalLabels
-            .filter((l) => l !== targetLabel)
-            .map((l) =>
-              kodyApi.tasks.removeLabel(task.issueNumber, l, githubUser?.login),
-            ),
-        );
-        // Add the target label (if we have one and the task doesn't already carry it)
-        if (targetLabel && !existingGoalLabels.includes(targetLabel)) {
-          await kodyApi.tasks.addLabel(
-            task.issueNumber,
-            targetLabel,
-            githubUser?.login,
-          );
-        }
-        toast.success(
-          targetGoalId
-            ? `Moved to ${goals.find((g) => g.id === targetGoalId)?.name ?? "goal"}`
-            : "Moved to Ungrouped",
-        );
-        refetch();
-      } catch (error) {
-        toast.error("Failed to move task", {
-          description: (error as Error).message,
-        });
-        refetch();
-      }
-    },
-    [queryClient, taskQueryKey, githubUser?.login, goals, refetch],
-  );
-
   const handleOpenBug = useCallback(() => {
-    setPresetGoalForBug(null);
     setShowBugDialog(true);
     pushKodyPath("/bug");
   }, [pushKodyPath]);
 
   const handleCloseBug = useCallback(() => {
     setShowBugDialog(false);
-    setPresetGoalForBug(null);
     pushKodyBase();
   }, [pushKodyBase]);
 
@@ -1232,15 +1091,6 @@ export function KodyDashboard({
     setShowKodyBugDialog(false);
     pushKodyBase();
   }, [pushKodyBase]);
-
-  const handleReportBugInGoal = useCallback(
-    (goal: Goal | null) => {
-      setPresetGoalForBug(goal);
-      setShowBugDialog(true);
-      pushKodyPath("/bug");
-    },
-    [pushKodyPath],
-  );
 
   const handleOpenChat = useCallback(() => {
     openMobileChat();
@@ -1360,14 +1210,12 @@ export function KodyDashboard({
   // Mobile filter controls — rendered inside the mobile menu Sheet
   const mobileFilterControls = (
     <>
-      {/* View toggle — hidden in goal-grouped view (all tasks visible). */}
       <ViewToggle
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         runningCount={runningCount}
         backlogCount={backlogCount}
         historyCount={visibleHistoryCount}
-        disableBacklog={isGroupedTaskList}
       />
       {/* Date filter */}
       <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -1428,56 +1276,20 @@ export function KodyDashboard({
     </>
   );
 
-  // Chat context for the always-mounted KodyChat panel. Priority:
-  //   planner (active "Plan with chat" session) > task (selected task) > null.
-  // Planner wins so a user opening another task while planning doesn't
-  // accidentally drop the planner thread; the X on the planner badge is
-  // the explicit exit. selectedTask is still set in state, so leaving
-  // planner mode falls back to the task chat without losing position.
-  const exitPlanner = useCallback(() => {
-    setPlanningGoal(null);
-    setPlannerSessionId(null);
-  }, []);
-  const plannerExistingTasksForChat = useMemo(() => {
-    if (!planningGoal) return undefined;
-    return filteredTasks
-      .filter((t) => t.labels.includes(`goal:${planningGoal.id}`))
-      .map((t) => ({
-        number: t.issueNumber,
-        title: t.title,
-        state: t.state,
-      }));
-  }, [planningGoal, filteredTasks]);
   // Push our context into the persistent chat rail (in the root layout).
   // We build the context object INSIDE the effect rather than at render
   // time so the value identity doesn't churn every render (which would
   // ping-pong with the rail's state and trigger an infinite update loop).
   // Effect deps are the real inputs — primitives plus stable-ref hooks.
   useEffect(() => {
-    if (planningGoal && plannerSessionId) {
-      setScope({
-        kind: "goal-planner",
-        goal: planningGoal,
-        sessionId: plannerSessionId,
-        existingTasks: plannerExistingTasksForChat,
-        onTasksCreated: () => {
-          refetch();
-        },
-        onExit: exitPlanner,
-      });
-    } else if (selectedTask) {
+    if (selectedTask) {
       setScope({ kind: "task", task: selectedTask });
     } else {
       setScope(null);
     }
     return () => setScope(null);
   }, [
-    planningGoal,
-    plannerSessionId,
     selectedTask,
-    plannerExistingTasksForChat,
-    exitPlanner,
-    refetch,
     setScope,
   ]);
 
@@ -1688,9 +1500,6 @@ export function KodyDashboard({
                 onOpenMobileMenu={() => setShowMobileMenu(true)}
                 onRefresh={() => {
                   refetch();
-                  queryClient.invalidateQueries({
-                    queryKey: goalQueryKeys.list,
-                  });
                 }}
                 isFetching={isFetching}
                 showRefresh={false}
@@ -1699,9 +1508,6 @@ export function KodyDashboard({
                     onReportBug={handleOpenKodyBug}
                     onRefresh={() => {
                       refetch();
-                      queryClient.invalidateQueries({
-                        queryKey: goalQueryKeys.list,
-                      });
                     }}
                     isFetching={isFetching}
                   />
@@ -1727,7 +1533,6 @@ export function KodyDashboard({
                     backlogCount={backlogCount}
                     historyCount={visibleHistoryCount}
                     queueCount={queueCount}
-                    disableBacklog={isGroupedTaskList}
                     searchQuery={searchQuery}
                     onSearchChange={handleSearchChange}
                     sortField={sortField as SortField}
@@ -1769,63 +1574,6 @@ export function KodyDashboard({
                 mainCiLoading={mainCiFetching}
                 isFetching={isFetching}
                 dataUpdatedAt={dataUpdatedAt}
-                trailing={
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* View toggle: grouped-by-goal vs. flat task list. The
-                        flat view is the legacy layout — useful when the
-                        user wants every task in one stream regardless of
-                        goal. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setTaskListLayout(
-                          isGroupedTaskList ? "flat" : "grouped",
-                        )
-                      }
-                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      title={
-                        isGroupedTaskList
-                          ? "Switch to flat task list (hide missions)"
-                          : "Switch to mission-grouped view"
-                      }
-                    >
-                      {isGroupedTaskList ? (
-                        <>
-                          <List className="w-3.5 h-3.5" />
-                          Flat list
-                        </>
-                      ) : (
-                        <>
-                          <Layers className="w-3.5 h-3.5" />
-                          Group by mission
-                        </>
-                      )}
-                    </Button>
-                    {isGroupedTaskList && hasMultipleGoalGroups ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={
-                          allGoalsCollapsed ? expandAllGoals : collapseAllGoals
-                        }
-                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {allGoalsCollapsed ? (
-                          <>
-                            <ChevronsUpDown className="w-3.5 h-3.5" />
-                            Expand all
-                          </>
-                        ) : (
-                          <>
-                            <ChevronsDownUp className="w-3.5 h-3.5" />
-                            Collapse all
-                          </>
-                        )}
-                      </Button>
-                    ) : null}
-                  </div>
-                }
               />
 
               {/* Task List */}
@@ -1842,11 +1590,8 @@ export function KodyDashboard({
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
-                ) : !isGroupedTaskList || debouncedSearch.trim() ? (
+                ) : (
                   <div>
-                    {/* Legacy flat view: actions pinned at the top so the
-                        user can create a task or report a bug without
-                        scrolling into a goal section. */}
                     <div className="grid gap-2 grid-cols-2 p-3">
                       {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
@@ -1860,7 +1605,7 @@ export function KodyDashboard({
                       {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
                         type="button"
-                        onClick={() => handleReportBugInGoal(null)}
+                        onClick={handleOpenBug}
                         className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-white/[0.02] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-white/[0.04] hover:border-white/[0.18] transition-colors"
                       >
                         <Bug className="w-4 h-4" />
@@ -1936,81 +1681,6 @@ export function KodyDashboard({
                       />
                     ) : null}
                   </div>
-                ) : (
-                  <GoalGroupedView
-                    collapsed={collapsedGoalKeys}
-                    onToggleCollapsed={toggleGoalCollapsed}
-                    goals={goals}
-                    tasks={filteredTasks}
-                    selectedTask={selectedTask}
-                    executingTaskId={executingTaskId}
-                    mergingTaskId={mergingTaskId}
-                    focusedIndex={focusedIndex}
-                    onTaskSelect={handleTaskSelect}
-                    onExecuteTask={handleExecuteTask}
-                    onStopTask={handleStopTask}
-                    onApproveReview={handleMerge}
-                    onTaskHover={handleTaskHover}
-                    collaborators={collaborators}
-                    onAssign={(issueNumber, assignees) =>
-                      assignMutation.mutate({ issueNumber, assignees })
-                    }
-                    onUnassign={(issueNumber, assignees) =>
-                      unassignMutation.mutate({ issueNumber, assignees })
-                    }
-                    onOpenPreview={handleOpenPreview}
-                    onCreateTask={handleOpenCreate}
-                    onEditTask={setEditingTask}
-                    onDuplicate={handleDuplicateTask}
-                    onHideTask={(task) =>
-                      taskVisibilityMutation.mutate({ task, hidden: true })
-                    }
-                    onShowTask={(task) =>
-                      taskVisibilityMutation.mutate({ task, hidden: false })
-                    }
-                    onRerun={(task) => rerunMutation.mutate(task)}
-                    onToggleQueue={(task) => {
-                      const isQueued = task.labels.includes("kody:queued");
-                      const action = isQueued
-                        ? tasksApi.removeFromQueue(
-                            task.issueNumber,
-                            githubUser?.login,
-                          )
-                        : tasksApi.addToQueue(
-                            task.issueNumber,
-                            githubUser?.login,
-                          );
-                      action.then(() => {
-                        toast.success(
-                          isQueued ? "Removed from queue" : "Added to queue",
-                        );
-                        refetch();
-                      });
-                    }}
-                    onCreateGoal={() => setShowCreateGoal(true)}
-                    onEditGoal={setEditingGoal}
-                    onDeleteGoal={setPendingDeleteGoal}
-                    onOpenGoalDiscussion={setDiscussingGoal}
-                    onPlanGoal={(goal) => {
-                      // Generate a fresh planner session id (so messages
-                      // start clean) and switch the chat panel into
-                      // goal-planner mode. The X on the chat header
-                      // exits planner mode and returns to task/global.
-                      setPlannerSessionId(
-                        typeof crypto !== "undefined" && "randomUUID" in crypto
-                          ? crypto.randomUUID()
-                          : `planner-${Date.now()}`,
-                      );
-                      setPlanningGoal(goal);
-                      // On mobile, surface the chat sheet so the user
-                      // sees the planner kick off — on desktop the panel
-                      // is always visible.
-                      if (!isDesktop) handleOpenChat();
-                    }}
-                    onCreateTaskInGoal={handleCreateInGoal}
-                    onReportBugInGoal={handleReportBugInGoal}
-                    onMoveTask={handleMoveTask}
-                  />
                 )}
               </div>
             </>
@@ -2044,9 +1714,6 @@ export function KodyDashboard({
                     className="w-full justify-start gap-2 h-11"
                     onClick={() => {
                       refetch();
-                      queryClient.invalidateQueries({
-                        queryKey: goalQueryKeys.list,
-                      });
                     }}
                     disabled={isFetching}
                   >
@@ -2154,9 +1821,6 @@ export function KodyDashboard({
                 }
               : undefined
           }
-          presetLabels={
-            presetGoalForCreate ? [`goal:${presetGoalForCreate.id}`] : undefined
-          }
         />
 
         {/* Edit Task Dialog */}
@@ -2175,9 +1839,6 @@ export function KodyDashboard({
           open={showBugDialog}
           onClose={handleCloseBug}
           onCreated={refetch}
-          presetLabels={
-            presetGoalForBug ? [`goal:${presetGoalForBug.id}`] : undefined
-          }
         />
 
         {/* Kody Bug Report Dialog — files into the Kody repo, not the connected one */}
@@ -2192,42 +1853,6 @@ export function KodyDashboard({
           onClose={() => setShowShortcutsHelp(false)}
         />
 
-        {/* Goal-first: inline goal dialogs */}
-        <CreateGoalDialog
-          open={showCreateGoal}
-          onClose={() => setShowCreateGoal(false)}
-          onCreated={() => setShowCreateGoal(false)}
-        />
-        {editingGoal ? (
-          <EditGoalDialog
-            goal={editingGoal}
-            onClose={() => setEditingGoal(null)}
-            onSaved={() => setEditingGoal(null)}
-          />
-        ) : null}
-        <GoalDiscussionDialog
-          goal={discussingGoal}
-          onClose={() => setDiscussingGoal(null)}
-        />
-        <ConfirmDialog
-          open={!!pendingDeleteGoal}
-          title="Remove this mission?"
-          description={
-            pendingDeleteGoal
-              ? `"${pendingDeleteGoal.name}" will be removed from missions. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
-              : ""
-          }
-          variant="destructive"
-          confirmLabel="Remove mission"
-          onConfirm={() => {
-            if (!pendingDeleteGoal) return;
-            const target = pendingDeleteGoal;
-            deleteGoalMutation.mutate(target.id, {
-              onSuccess: () => setPendingDeleteGoal(null),
-            });
-          }}
-          onClose={() => setPendingDeleteGoal(null)}
-        />
       </div>
     </ErrorBoundary>
   );

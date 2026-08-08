@@ -92,6 +92,7 @@ export function useCreateAgent(actorLogin?: string) {
       title: string;
       body: string;
       capabilities?: string[];
+      subagents?: string[];
     }
   >({
     mutationFn: (data) =>
@@ -123,6 +124,7 @@ export function useUpdateAgent(slug: string, actorLogin?: string) {
       title?: string;
       body?: string;
       capabilities?: string[];
+      subagents?: string[];
     }
   >({
     mutationFn: (data) =>

@@ -132,7 +132,6 @@ export function AddCommentDialog({
                 <MarkdownPreview
                   content={body}
                   dir="auto"
-                  variant="compact"
                   className={cn("text-start", rtlAwareMarkdownClassName)}
                 />
               ) : (

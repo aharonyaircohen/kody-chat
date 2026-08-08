@@ -17,7 +17,7 @@ import {
 import {
   listStoredAgencyRuns,
   listStoredRunEvents,
-} from "@kody-ade/agency/backend/agency-runs-store";
+} from "@kody-ade/agency/agency-runs";
 
 function parseLimit(req: NextRequest): number {
   const raw = Number(req.nextUrl.searchParams.get("limit") ?? 10);

@@ -36,9 +36,9 @@ import {
   type VibeTaskContext,
 } from "../../../../../../src/dashboard/lib/vibe/primer";
 import {
-  chatRunRequest,
+  chatExecutionRequest,
   withStoreTarget,
-} from "@kody-ade/fly/runners/run-request";
+} from "@kody-ade/fly/runners/execution-request-builders";
 import { checkGitHubActionsHealth } from "@kody-ade/fly/runners/github-health";
 import { dispatchRun } from "@kody-ade/fly/runners/runner-dispatch";
 import {
@@ -65,7 +65,7 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
   return {
     owner: (GITHUB_OWNER ?? "aharonyaircohen").trim(),
-    repo: (GITHUB_REPO ?? "Kody-Dashboard").trim(),
+    repo: (GITHUB_REPO ?? "kody-chat").trim(),
   };
 }
 
@@ -210,7 +210,10 @@ export async function POST(req: NextRequest) {
       runServer: () =>
         claimOrRunServer(serverCtx!.ok ? serverCtx!.context : (null as never), {
           taskId,
-          runRequest: withStoreTarget(chatRunRequest(taskId), headerAuth),
+          runRequest: withStoreTarget(
+            chatExecutionRequest(`chat-${taskId}`, taskId),
+            headerAuth,
+          ),
           idleExitMs,
           hardCapMs,
           ...(typeof reasoningEffort === "string" &&

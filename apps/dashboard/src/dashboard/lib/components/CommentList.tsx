@@ -377,7 +377,6 @@ function CommentItem({ comment }: { comment: GitHubComment }) {
       <MarkdownPreview
         {...autoDirProps}
         content={comment.body}
-        variant="compact"
         className={cn("text-sm text-start", rtlAwareMarkdownClassName)}
       />
     </div>

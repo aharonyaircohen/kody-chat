@@ -331,21 +331,6 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
-  /**
-   * Lightweight fetch for closed issues filtered by a goal label.
-   * Used by the per-goal "Show closed" toggle in GoalGroupedView.
-   * Returns minimally-shaped KodyTask[] (column='done', state='closed') —
-   * no pipeline derivation, no workflow run matching, no PR linkage.
-   */
-  listClosedForGoal: async (goalId: string): Promise<KodyTask[]> => {
-    const res = await fetch(
-      `${API_BASE}/tasks/closed?goal=${encodeURIComponent(goalId)}`,
-      { headers: buildHeaders() },
-    );
-    const data = await handleResponse<TasksResponse>(res);
-    return data.tasks;
-  },
-
   create: async (data: {
     title: string;
     body: string;
@@ -1128,13 +1113,15 @@ export interface Agent {
   slug: string;
   title: string;
   body: string;
+  capabilities?: string[];
+  subagents?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Runtime resolution source. Local repo agent win over store agent. */
-  source?: "local" | "store";
-  /** Store-linked agent are visible and dispatchable, but not editable locally. */
+  source?: "local" | "builtin" | "store";
+  /** Code- and Store-owned agents are overridden by saving a local copy. */
   readOnly?: boolean;
 }
 
@@ -1160,6 +1147,8 @@ export const staffApi = {
     slug?: string;
     title: string;
     body: string;
+    capabilities?: string[];
+    subagents?: string[];
     actorLogin?: string;
   }): Promise<Agent> => {
     const res = await fetch(`${API_BASE}/agents`, {
@@ -1176,6 +1165,8 @@ export const staffApi = {
     data: {
       title?: string;
       body?: string;
+      capabilities?: string[];
+      subagents?: string[];
       actorLogin?: string;
     },
   ): Promise<Agent> => {
@@ -1396,269 +1387,25 @@ export const reportsApi = {
   },
 };
 
-// ============ Goals API ============
-
-export interface Goal {
-  id: string;
-  name: string;
-  description?: string;
-  dueDate?: string;
-  /** GitHub login of the single accountable owner. Optional. */
-  assignee?: string;
-  createdAt: string;
-  updatedAt?: string;
-  discussionId?: string;
-  discussionNumber?: number;
-  /**
-   * @deprecated Umbrella-era field (engine ≤ 0.4.38). Stacked-PR engines
-   * don't write this; the goals API stopped hydrating it in 0.4.39.
-   */
-  goalIssueNumber?: number;
-  /** @deprecated Umbrella-era field (engine ≤ 0.4.38). See goalIssueNumber. */
-  goalPrUrl?: string;
-}
-
-export interface GoalDiscussionAuthor {
+export interface DiscussionAuthor {
   login: string;
   avatarUrl?: string;
 }
 
-export interface GoalDiscussionComment {
+export interface DiscussionComment {
   id: string;
   databaseId: number;
   body: string;
   createdAt: string;
   updatedAt: string;
   url: string;
-  author: GoalDiscussionAuthor | null;
+  author: DiscussionAuthor | null;
 }
 
-/**
- * Reasons the discussion thread is unavailable. Used by the UI to render
- * the appropriate badge / tooltip.
- */
 export type DiscussionDisabledReason =
-  "discussions_disabled" | "category_missing" | "provision_failed";
-
-export type GoalDiscussionPayload =
-  | {
-      enabled: true;
-      discussion: { id: string; number: number; url: string };
-      comments: GoalDiscussionComment[];
-    }
-  | {
-      enabled: false;
-      reason: DiscussionDisabledReason;
-      message?: string;
-      comments: never[];
-    };
-
-export interface GoalsListResponse {
-  goals: Goal[];
-  capabilities?: { discussionsEnabled: boolean };
-}
-
-export const goalsApi = {
-  list: async (): Promise<Goal[]> => {
-    const res = await fetch(`${API_BASE}/goals`, {
-      headers: buildHeaders(),
-      cache: "no-store",
-    });
-    const data = await handleResponse<{ goals: Goal[] }>(res);
-    return data.goals;
-  },
-
-  /**
-   * List goals along with capability flags (e.g. whether the repo has
-   * Discussions enabled). The dashboard uses the capability to decide
-   * whether to render the discussion thread or the "off" badge.
-   */
-  listWithCapabilities: async (): Promise<GoalsListResponse> => {
-    const res = await fetch(`${API_BASE}/goals`, {
-      headers: buildHeaders(),
-      cache: "no-store",
-    });
-    return handleResponse<GoalsListResponse>(res);
-  },
-  fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
-      {
-        headers: buildHeaders(),
-        cache: "no-store",
-      },
-    );
-    return handleResponse<GoalDiscussionPayload>(res);
-  },
-
-  postDiscussionComment: async (
-    id: string,
-    body: string,
-    actorLogin?: string,
-  ): Promise<GoalDiscussionComment> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify({
-          body,
-          ...(actorLogin && { actorLogin }),
-        }),
-      },
-    );
-    const payload = await handleResponse<{ comment: GoalDiscussionComment }>(
-      res,
-    );
-    return payload.comment;
-  },
-
-  create: async (data: {
-    name: string;
-    description?: string;
-    dueDate?: string;
-    assignee?: string;
-    actorLogin?: string;
-  }): Promise<Goal> => {
-    const res = await fetch(`${API_BASE}/goals`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ goal: Goal }>(res);
-    return payload.goal;
-  },
-
-  update: async (
-    id: string,
-    data: {
-      name?: string;
-      description?: string | null;
-      dueDate?: string | null;
-      assignee?: string | null;
-      actorLogin?: string;
-    },
-  ): Promise<Goal> => {
-    const res = await fetch(`${API_BASE}/goals/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ goal: Goal }>(res);
-    return payload.goal;
-  },
-
-  remove: async (id: string, actorLogin?: string): Promise<void> => {
-    const params = new URLSearchParams();
-    if (actorLogin) params.set("actorLogin", actorLogin);
-    const suffix = params.toString() ? `?${params}` : "";
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}${suffix}`,
-      {
-        method: "DELETE",
-        headers: buildHeaders(),
-      },
-    );
-    await handleResponse<{ success: boolean }>(res);
-  },
-
-  reorder: async (
-    orderedIds: string[],
-    actorLogin?: string,
-  ): Promise<Goal[]> => {
-    const res = await fetch(`${API_BASE}/goals/reorder`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({
-        orderedIds,
-        ...(actorLogin && { actorLogin }),
-      }),
-    });
-    const payload = await handleResponse<{ goals: Goal[] }>(res);
-    return payload.goals;
-  },
-
-  /** Fetch the goal's runtime state file. Returns null when not started. */
-  getState: async (
-    id: string,
-  ): Promise<import("./goal-state").GoalRunState | null> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/state`,
-      { headers: buildHeaders(), cache: "no-store" },
-    );
-    const payload = await handleResponse<{
-      state: import("./goal-state").GoalRunState | null;
-    }>(res);
-    return payload.state;
-  },
-
-  /** Set the goal's runtime state. Engine-only writes (state="done") are rejected by the API. */
-  setState: async (
-    id: string,
-    body: {
-      state: "active" | "paused";
-      pausedReason?: string;
-      actorLogin?: string;
-    },
-  ): Promise<import("./goal-state").GoalRunState> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/state`,
-      {
-        method: "PUT",
-        headers: buildHeaders(),
-        body: JSON.stringify(body),
-      },
-    );
-    const payload = await handleResponse<{
-      state: import("./goal-state").GoalRunState;
-    }>(res);
-    return payload.state;
-  },
-
-  /**
-   * Toggle "let Kody manage this goal end-to-end". Enabling on a
-   * never-started goal also seeds an active state + dispatches the engine.
-   */
-  manage: async (
-    id: string,
-    body: { managed: boolean; actorLogin?: string },
-  ): Promise<import("./goal-state").GoalRunState> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/manage`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify(body),
-      },
-    );
-    const payload = await handleResponse<{
-      state: import("./goal-state").GoalRunState;
-    }>(res);
-    return payload.state;
-  },
-
-  /**
-   * Approve the manual merge of a parked goal (state="awaiting-merge").
-   * Flips it back to active + arms the engine's one-shot finalize.
-   */
-  merge: async (
-    id: string,
-    body: { actorLogin?: string } = {},
-  ): Promise<import("./goal-state").GoalRunState> => {
-    const res = await fetch(
-      `${API_BASE}/goals/${encodeURIComponent(id)}/merge`,
-      {
-        method: "POST",
-        headers: buildHeaders(),
-        body: JSON.stringify(body),
-      },
-    );
-    const payload = await handleResponse<{
-      state: import("./goal-state").GoalRunState;
-    }>(res);
-    return payload.state;
-  },
-};
+  | "discussions_disabled"
+  | "category_missing"
+  | "provision_failed";
 
 // ============ Notifications API ============
 
@@ -2060,7 +1807,7 @@ export const activityApi = {
 
 // ============ Agency Runs API ============
 
-/** Kody-native run monitor for AI Agency goals, loops, and workflows. */
+/** Kody-native run monitor for loops and workflows. */
 export const agencyRunsApi = {
   list: async (
     limit = 50,
@@ -2093,7 +1840,7 @@ export interface MessageChannel {
   url: string;
   commentsCount: number;
   updatedAt: string;
-  author: GoalDiscussionAuthor | null;
+  author: DiscussionAuthor | null;
 }
 
 export type MessageChannelsPayload =
@@ -2107,7 +1854,7 @@ export type MessageChannelsPayload =
 
 export interface MessageThreadPayload {
   channel: { number: number; id: string; name: string; url: string };
-  comments: GoalDiscussionComment[];
+  comments: DiscussionComment[];
 }
 
 export const messagesApi = {
@@ -2145,13 +1892,13 @@ export const messagesApi = {
     channelNumber: number,
     body: string,
     actorLogin?: string,
-  ): Promise<GoalDiscussionComment> => {
+  ): Promise<DiscussionComment> => {
     const res = await fetch(`${API_BASE}/messages/${channelNumber}`, {
       method: "POST",
       headers: buildHeaders(),
       body: JSON.stringify({ body, ...(actorLogin && { actorLogin }) }),
     });
-    const payload = await handleResponse<{ comment: GoalDiscussionComment }>(
+    const payload = await handleResponse<{ comment: DiscussionComment }>(
       res,
     );
     return payload.comment;
@@ -2307,6 +2054,7 @@ export interface EngineEditableConfig {
   activeCapabilities?: string[];
   activeCommands?: string[];
   activeWorkflows?: string[];
+  activePipelines?: string[];
   defaultBranch: string;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary
@@ -2355,7 +2103,6 @@ export const kodyApi = {
   todos: todosApi,
   company: companyApi,
   reports: reportsApi,
-  goals: goalsApi,
   messages: messagesApi,
   notifications: notificationsApi,
   changelog: changelogApi,

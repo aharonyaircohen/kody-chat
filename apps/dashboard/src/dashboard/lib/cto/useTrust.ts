@@ -52,7 +52,7 @@ export interface UseTrustResult {
   groups: TrustCapabilityView[];
   /** Raw trust stats keyed by capability slug. */
   capabilities: Record<string, TrustCapabilityStats>;
-  /** Repo-owned trigger policy for managed goals, loops, and workflows. */
+  /** Repo-owned trigger policy for loops and workflows. */
   subjects: Record<TrustSubjectKey, TrustCapabilityStats>;
   /** Recent decision log (most recent last), bounded server-side. */
   log: TrustDecisionLogEntry[];

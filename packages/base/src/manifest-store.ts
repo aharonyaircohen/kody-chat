@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern manifest-issue-cas
  * @ai-summary Generic "manifest stored in a GitHub issue body" store. One
- *   factory replaces the five hand-copied helpers (goals / push /
+ *   factory replaces the hand-copied helpers (push /
  *   notifications / inbox-feed) that each carried an
  *   identical read → mutate → write → verify cycle wrapped in an
  *   in-process per-repo mutex.
@@ -121,7 +121,7 @@ export type ManifestMutator<M, T> = (
 ) => ManifestMutatorReturn<M, T> | Promise<ManifestMutatorReturn<M, T>>;
 
 export interface ManifestStoreConfig<M> {
-  /** Issue label used for discovery + create (e.g. `kody:goals-manifest`). */
+  /** Issue label used for discovery + create. */
   label: string;
   /** Title used when creating the manifest issue. */
   title: string;
@@ -142,7 +142,7 @@ export interface ManifestStoreConfig<M> {
    * Per-store last-chance trim invoked right before write. Use it to drop
    * oldest entries so the serialized body stays under `maxBodyBytes` for
    * unbounded growth stores (push subs, inbox feed, …). Curated lists
-   * (goals, notification rules) can omit it — the byte guard will throw a
+   * (notification rules) can omit it — the byte guard will throw a
    * clean `ManifestBodyTooLargeError` instead of silently looping.
    */
   beforeWrite?: (manifest: M) => M;

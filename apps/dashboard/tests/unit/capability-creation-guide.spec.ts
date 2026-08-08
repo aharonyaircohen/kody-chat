@@ -5,7 +5,7 @@ import { DEFAULT_CHAT_CAPABILITY } from "../../src/dashboard/lib/chat-defaults/d
 
 const CAPABILITY_GUIDE = readFileSync("docs/capabilities.md", "utf8");
 const CAPABILITY_TOOLS_SOURCE = readFileSync(
-  "app/api/kody/chat/tools/capability-tools.ts",
+  "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/capability-tools.ts",
   "utf8",
 );
 
@@ -15,14 +15,21 @@ describe("capability creation guide wiring", () => {
       "A Capability is one small executable method.",
     );
     expect(CAPABILITY_GUIDE).toContain("instructions.md");
-    expect(CAPABILITY_GUIDE).not.toContain("contract.json");
+    expect(CAPABILITY_GUIDE).toContain("contract.json");
+    expect(CAPABILITY_GUIDE).toContain('execution');
+    expect(CAPABILITY_GUIDE).toContain('"script"');
+    expect(CAPABILITY_GUIDE).toContain('"agent"');
+    expect(CAPABILITY_GUIDE).toContain("`secrets`");
+    expect(CAPABILITY_GUIDE).toContain("`timeoutMs`");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
     expect(CAPABILITY_GUIDE).not.toContain("Implementation");
   });
 
   it("exposes a guide tool before capability creation", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("read_capability_creation_guide");
-    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("contract.json");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("contract.json");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("execution:");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("secrets:");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
       "read_capability_creation_guide",
     );
@@ -41,13 +48,13 @@ describe("capability creation guide wiring", () => {
     );
   });
 
-  it("uses capability storage and workflow dispatch", () => {
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("listLocalCapabilityFiles");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("readCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFolderFiles");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("deleteCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("api.catalog");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: slug }");
+  it("delegates capability storage and execution to the Dashboard API", () => {
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.listCapabilities()");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.readCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.saveCapability({");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.removeCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("ctx.runCapability(slug)");
+    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("listLocalCapabilityFiles");
   });
 
   it("exposes the validated workflow creator instead of dashboard authoring", () => {

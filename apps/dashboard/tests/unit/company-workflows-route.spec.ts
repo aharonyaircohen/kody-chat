@@ -9,10 +9,16 @@ const detailSource = readFileSync(
   "app/api/kody/company/workflows/[id]/route.ts",
   "utf8",
 );
+const backendValidatorSource = readFileSync(
+  "../../packages/kody-backend/convex/validators.ts",
+  "utf8",
+);
 
 describe("Workflow API boundary", () => {
   it("reads Workflows only from the Workflow stores", () => {
     expect(listSource).toContain("listCompanyStoreWorkflowDefinitionFiles");
+    expect(listSource).toContain("reconcileProjectedStoreWorkflows");
+    expect(listSource).not.toContain("if (projected.length > 0)");
     expect(listSource).not.toContain(
       "listCompanyStoreCapabilityWorkflowDefinitionFiles",
     );
@@ -24,10 +30,14 @@ describe("Workflow API boundary", () => {
   it("keeps Workflow validation and approval behavior", () => {
     expect(listSource).toContain("validateWorkflowDefinition");
     expect(listSource).toContain("runWithoutApproval");
-    expect(listSource).toContain("input: z.unknown().optional()");
     expect(listSource).not.toContain("workflowInputMappingSchema");
     expect(detailSource).toContain("validateWorkflowDefinition");
-    expect(detailSource).toContain("input: z.unknown().optional()");
     expect(detailSource).not.toContain("workflowInputMappingSchema");
+  });
+
+  it("persists the Workflow input schema in the backend definition", () => {
+    expect(backendValidatorSource).toContain(
+      "inputSchema: v.optional(v.any())",
+    );
   });
 });

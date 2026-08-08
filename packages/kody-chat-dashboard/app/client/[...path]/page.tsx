@@ -9,28 +9,20 @@
  *   resolves the right context (Kody backend stays repo-agnostic).
  */
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 // Package-owned (hosts deleted their copies) — must stay relative.
 import { ClientChatSurface } from "../../../src/dashboard/lib/components/ClientChatSurface";
 import {
-  getBuiltinClientBrand,
-  resolveClientBrand,
-  type ClientBrandResolveContext,
-} from "../../../src/dashboard/lib/client-brand";
-import { defaultClientBrandRepoContext } from "../../../src/dashboard/lib/client-brand-default-repo";
+  authorizeClientSurface,
+  loadClientSurfaceDefinition,
+} from "../../../src/dashboard/lib/client-surface/application";
 import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-strings";
 import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language-resolver";
-import { type ClientBrandRepoContext } from "../../../src/dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
-import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { auth, signOut } from "../../../src/dashboard/lib/client-auth/auth";
-import {
-  brandAuthProviders,
-  isEmailAllowed,
-} from "../../../src/dashboard/lib/client-auth/allowlist";
-import { resolveConfiguredProviders } from "../../../src/dashboard/lib/client-auth/credentials";
-import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
+import { CLIENT_SESSION_COOKIE } from "../../../src/dashboard/lib/client-session/session";
+import { ClientAccessGate } from "../../../src/dashboard/lib/client-session/ClientAccessGate";
 import { PageViewTracker } from "../../../src/dashboard/lib/events/PageViewTracker";
 import { createUserOctokit } from "@kody-ade/base/github/core";
 import { BrandSnippets } from "../../../src/dashboard/lib/snippets/BrandSnippets";
@@ -42,88 +34,13 @@ interface ClientChatPageProps {
   params: Promise<{ path: string[] }>;
 }
 
-/** Parsed URL shape: brand slug plus the repo it lives in. */
-interface ClientChatRoute {
-  brandSlug: string;
-  /** Repo context from the URL; null for builtin-brand 1-segment links. */
-  urlContext: ClientBrandRepoContext | null;
-  /** The path the surface should return to after auth round-trips. */
-  callbackUrl: string;
-}
-
-const OWNER_REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-
-function parseClientChatRoute(
-  path: string[] | undefined,
-): ClientChatRoute | null {
-  if (!Array.isArray(path)) return null;
-  const segments = path.map((segment) => decodeURIComponent(segment).trim());
-  if (segments.some((segment) => !segment)) return null;
-
-  // 1-segment links serve the builtin reference brands (kody, kody-he, acme)
-  // without a repo context — pinned by the smoke and e2e suites. Repo-hosted
-  // brands remain repo-qualified only (3 segments).
-  if (segments.length === 1 && getBuiltinClientBrand(segments[0])) {
-    return {
-      brandSlug: segments[0],
-      urlContext: null,
-      callbackUrl: `/client/${encodeURIComponent(segments[0])}`,
-    };
-  }
-  if (segments.length === 3) {
-    const [owner, repo, brandSlug] = segments;
-    if (!OWNER_REPO_PATTERN.test(owner) || !OWNER_REPO_PATTERN.test(repo)) {
-      return null;
-    }
-    return {
-      brandSlug,
-      urlContext: { owner, repo },
-      callbackUrl: `/client/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(brandSlug)}`,
-    };
-  }
-  return null;
-}
-
-async function withVaultToken(
-  context: ClientBrandRepoContext,
-): Promise<ClientBrandResolveContext> {
-  // App installation token first, vault GITHUB_TOKEN fallback — the state
-  // repo may be private, so an unauthenticated vault bootstrap can't read it.
-  const background = await resolveBackgroundToken(context.owner, context.repo);
-  return {
-    ...context,
-    ...(background ? { token: background.token } : {}),
-  };
-}
-
-/**
- * Resolve the brand from the repo named in the URL. Builtin-brand links
- * (1 segment, no repo in the URL) resolve against the configured default
- * repo when one is set, otherwise the builtin definition itself.
- */
-async function resolveBrandAndContext(route: ClientChatRoute): Promise<{
-  brand: Awaited<ReturnType<typeof resolveClientBrand>>;
-  context: ClientBrandResolveContext | null;
-}> {
-  const repoContext = route.urlContext ?? defaultClientBrandRepoContext();
-  if (!repoContext) {
-    return {
-      brand: await resolveClientBrand(route.brandSlug, null),
-      context: null,
-    };
-  }
-  const context = await withVaultToken(repoContext);
-  return { brand: await resolveClientBrand(route.brandSlug, context), context };
-}
-
 export async function generateMetadata({
   params,
 }: ClientChatPageProps): Promise<Metadata> {
   const { path } = await params;
-  const route = parseClientChatRoute(path);
-  if (!route) notFound();
-  const { brand, context } = await resolveBrandAndContext(route);
-  if (!brand) notFound();
+  const definition = await loadClientSurfaceDefinition(path);
+  if (!definition) notFound();
+  const { brand, context } = definition;
 
   const languageStrings = await resolveClientLanguageStrings(
     brand.locale ?? "en",
@@ -144,10 +61,9 @@ export async function generateMetadata({
 
 export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const { path } = await params;
-  const route = parseClientChatRoute(path);
-  if (!route) notFound();
-  const { brand, context } = await resolveBrandAndContext(route);
-  if (!brand) notFound();
+  const definition = await loadClientSurfaceDefinition(path);
+  if (!definition) notFound();
+  const { route, brand, context } = definition;
 
   const languageStrings = await resolveClientLanguageStrings(
     brand.locale ?? "en",
@@ -159,60 +75,26 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     | undefined;
 
   const callbackUrl = route.callbackUrl;
-  if (brand.auth?.required) {
-    const providers = await resolveConfiguredProviders(
-      brandAuthProviders(brand.auth),
-      context,
+  const cookieStore = await cookies();
+  const access = await authorizeClientSurface(
+    definition,
+    cookieStore.get(CLIENT_SESSION_COOKIE)?.value,
+  );
+  if (access.kind === "unauthenticated" || access.kind === "forbidden") {
+    return (
+      <ClientAccessGate brand={brand} forbidden={access.kind === "forbidden"} />
     );
-    if (!providers.length) {
-      return (
-        <ClientAuthGate
-          brand={brand}
-          callbackUrl={callbackUrl}
-          misconfigured
-          languageStrings={languageStrings}
-        />
-      );
-    }
-    const session = await auth();
-    const email = session?.user?.email;
-    if (!email) {
-      if (providers.length === 1) {
-        // Single method → straight to the provider, no interstitial click.
-        // Kick off via the start route (not signIn() here) so the NextAuth
-        // config sees a request that names the brand's repo.
-        redirect(
-          `/api/client-auth/start?provider=${encodeURIComponent(providers[0])}&redirectTo=${encodeURIComponent(callbackUrl)}`,
-        );
-      }
-      return (
-        <ClientAuthGate
-          brand={brand}
-          callbackUrl={callbackUrl}
-          providers={providers}
-          languageStrings={languageStrings}
-        />
-      );
-    }
-    if (!isEmailAllowed(brand.auth, email)) {
-      return (
-        <ClientAuthGate
-          brand={brand}
-          callbackUrl={callbackUrl}
-          deniedEmail={email}
-          languageStrings={languageStrings}
-        />
-      );
-    }
+  }
+  if (access.kind === "authorized") {
     surfaceUser = {
-      name: session?.user?.name,
-      email,
-      image: session?.user?.image,
+      name: access.identity.name,
+      email: access.identity.email,
+      image: access.identity.image,
     };
   }
 
   let ticket: string | undefined;
-  if (context?.token) {
+  if (context) {
     try {
       ticket = mintClientSurfaceTicket({
         brandSlug: brand.slug,
@@ -254,7 +136,9 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
             surfaceUser
               ? async () => {
                   "use server";
-                  await signOut({ redirectTo: callbackUrl });
+                  const sessionCookies = await cookies();
+                  sessionCookies.delete(CLIENT_SESSION_COOKIE);
+                  redirect(callbackUrl);
                 }
               : undefined
           }

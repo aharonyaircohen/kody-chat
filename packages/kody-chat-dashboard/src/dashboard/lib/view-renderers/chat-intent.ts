@@ -91,39 +91,10 @@ function uiNodeText(node: ViewRendererDefinition["ui"]): string[] {
   );
 }
 
-function uiHasInteractiveAtom(node: ViewRendererDefinition["ui"]): boolean {
-  if (
-    node.type === "button" ||
-    node.type === "checkbox" ||
-    node.type === "submit"
-  ) {
-    return true;
-  }
-  if (node.type !== "stack" && node.type !== "row" && node.type !== "list") {
-    return false;
-  }
-  return (
-    (node.children ?? []).some(uiHasInteractiveAtom) ||
-    Boolean(node.item && uiHasInteractiveAtom(node.item))
-  );
-}
-
-function rendererSupportsUserInteraction(
-  definition: ViewRendererDefinition,
-): boolean {
-  return uiHasInteractiveAtom(definition.ui);
-}
-
-export function looksLikeAssistantInteraction(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed.includes("?")) return false;
-  return (
-    /\b(?:which|choose|pick|select)\b/i.test(trimmed) ||
-    /\b(?:want|would|should|shall|can)\s+(?:me|i|we)\s+to\b/i.test(trimmed) ||
-    /\bwould\s+you\s+like\s+(?:me|us)\s+to\b/i.test(trimmed) ||
-    /\b(?:confirm|approve|continue|cancel|edit|ok)\b/i.test(trimmed) ||
-    /\bor\s+(?:should|do|would|want|I|we|you)\b/i.test(trimmed)
-  );
+function isDirectAgentAsk(text: string): boolean {
+  const match =
+    /\bask\s+([^.!?\n]{0,80}?)\b(?:agent|subagent|specialist)\b/i.exec(text);
+  return Boolean(match && !/\b(?:me|user)\b/i.test(match[1] ?? ""));
 }
 
 export function shouldRequireViewOutputForTurn({
@@ -135,6 +106,9 @@ export function shouldRequireViewOutputForTurn({
 }): boolean {
   const text = userText ?? "";
   if (/<view_result>[\s\S]*<\/view_result>/i.test(text)) return false;
+  // "Ask the Repository Specialist to ..." is an instruction to execute an
+  // assigned Agent, not a request for Kody to ask the user for approval.
+  if (isDirectAgentAsk(text)) return false;
   const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(
@@ -144,19 +118,6 @@ export function shouldRequireViewOutputForTurn({
     if (rendererStems.has(stem)) return true;
   }
   return false;
-}
-
-export function shouldRequireViewOutputForAssistantText({
-  assistantText,
-  definitions,
-}: {
-  assistantText: string | null | undefined;
-  definitions: readonly ViewRendererDefinition[];
-}): boolean {
-  const text = assistantText?.trim();
-  if (!text || definitions.length === 0) return false;
-  if (!looksLikeAssistantInteraction(text)) return false;
-  return definitions.some(rendererSupportsUserInteraction);
 }
 
 function isReadLikeToolName(toolName: string): boolean {

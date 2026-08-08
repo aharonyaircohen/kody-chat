@@ -10,7 +10,10 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { AGENTS, type AgentConfig } from "../../../../../src/dashboard/lib/agents";
+import {
+  AGENTS,
+  type AgentConfig,
+} from "../../../../../src/dashboard/lib/agents";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   HOME_NAV_ITEM,
@@ -19,6 +22,7 @@ import {
   SETTINGS_NAV_SECTIONS,
   type SettingsNavItem,
 } from "../../../../../src/dashboard/lib/feature-catalog";
+import { getFeatureGuideRegistry } from "../../../../../src/dashboard/lib/chat/platform/server-feature-guides";
 
 export interface FeatureEntry {
   id: string;
@@ -35,15 +39,15 @@ const HAND_WRITTEN_FEATURES: FeatureEntry[] = [
       "Per-repo encrypted secrets store. Dashboard-managed alternative to Vercel env vars.",
     details: `The secrets vault is a dashboard-managed alternative to Vercel env vars.
 
-- Each connected repo has its own encrypted backend blob at \`secrets.enc\`.
+- Each connected repo has its own encrypted Convex document at \`secrets.enc\`.
 - Values written via the \`/secrets\` page are AES-256-GCM-encrypted with the shared
-  \`KODY_MASTER_KEY\` env var and committed back to the repo.
+  \`KODY_MASTER_KEY\` env var before storage.
 - Runtime code reads values via \`getSecret\` (src/dashboard/lib/vault/get-secret.ts),
   which falls through to \`process.env\` when the vault is missing.
 - Bootstrap with \`pnpm vault:init\` to print a fresh key, then paste it into the
   Vercel env. Losing the key means re-entering every secret.
-- Engine workflows (\`kody.yml\`) are unchanged — they still read from GitHub
-  Actions secrets. The vault is dashboard-runtime only.`,
+- Engine workflows authenticate to Dashboard with GitHub OIDC and request only
+  the secret names needed by the selected capability and model.`,
   },
   {
     id: "webhooks",
@@ -123,16 +127,16 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
 - \`profile.json\` stores execution settings, tools, skills, and scripts.
 - \`capability.md\` stores the human-readable instructions and restrictions.
 
-Intent owns why. Goal owns what should become true. Loop owns when to check.
-Agent owns who acts. Capability owns what can be run.
+Intent owns why. Loop owns when to check. Agent owns who acts. Capability owns
+what can be run.
 
 Format (must match existing capabilities in backend \`capabilities/\`):
 - \`profile.json\` metadata
 - \`capability.md\` with clear instructions
 - \`## Restrictions\`
 
-The capability defines the run contract. Ownership, schedule, goals, and loops
-stay outside the capability.
+The capability defines the run contract. Ownership, schedule, and loops stay
+outside the capability.
 
 Do not put metadata or raw state keys in \`capability.md\`. Runtime state stays
 engine-owned.
@@ -165,11 +169,11 @@ agentIdentity after a gap-analysis conversation.`,
     id: "memory",
     name: "Persistent Memory System",
     summary:
-      'Typed personal and repository memory with relevant retrieval and revision history.',
+      "Typed personal and repository memory with relevant retrieval and revision history.",
     details: `Kody stores typed memory in Convex.
 
 - Scopes: personal user memory and shared repository memory.
-- Kinds: \`preference\`, \`fact\`, \`decision\`, \`goal\`, \`reference\`.
+- Kinds: \`preference\`, \`fact\`, \`decision\`, \`reference\`.
 - Relevant entries are retrieved for each chat turn under "## Remembered context".
 - Corrections create immutable revisions with evidence and reasons.
 
@@ -320,8 +324,20 @@ export const listDashboardFeaturesTool = tool({
     "id to pass to describe_feature.",
   inputSchema: z.object({}),
   execute: async () => {
+    const guides = await getFeatureGuideRegistry().list();
+    const guideEntries = guides.map(({ id, title, summary }) => ({
+      id,
+      name: title,
+      summary,
+    }));
+    const guideIds = new Set(guideEntries.map((entry) => entry.id));
     return {
-      features: CATALOG.map(({ id, name, summary }) => ({ id, name, summary })),
+      features: [
+        ...guideEntries,
+        ...CATALOG.filter((entry) => !guideIds.has(entry.id)).map(
+          ({ id, name, summary }) => ({ id, name, summary }),
+        ),
+      ],
     };
   },
 });
@@ -342,6 +358,15 @@ export const describeFeatureTool = tool({
       ),
   }),
   execute: async ({ id }) => {
+    const guide = await getFeatureGuideRegistry().read(id.toLowerCase());
+    if (guide) {
+      return {
+        id: guide.id,
+        name: guide.title,
+        summary: guide.summary,
+        details: guide.body,
+      };
+    }
     const entry = CATALOG_BY_ID.get(id.toLowerCase());
     if (!entry) {
       return {

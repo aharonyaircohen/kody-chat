@@ -51,6 +51,10 @@ import {
   type ChatProtocol,
   type ProviderPreset,
 } from "@kody-ade/base/variables/models";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "../chat/model-catalog";
 
 export interface ModelsQueryScope {
   owner?: string | null;
@@ -161,7 +165,10 @@ function ModelsManagerInner() {
     enabled: !!auth,
     staleTime: 30_000,
   });
-  const models = data ?? [];
+  const models = composeChatModelCatalog<ChatModel>(
+    data ?? [],
+    KODY_OPENROUTER_FREE_CHAT_MODEL,
+  );
 
   const save = useMutation({
     mutationFn: (list: ChatModel[]) => saveModels(headers, list, actorLogin),
@@ -277,36 +284,6 @@ function ModelsManagerInner() {
           </Card>
         )}
 
-        {!isLoading && !error && models.length === 0 && (
-          <Card className="border-white/[0.08] bg-white/[0.02]">
-            <CardContent className="p-6 text-center space-y-3">
-              <Bot className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">
-                OpenRouter Free is built in.
-              </p>
-              <p className="text-sm text-white/55 max-w-md mx-auto">
-                Add <code>OPENROUTER_API_KEY</code> in{" "}
-                <RepoScopedLink
-                  href="/secrets"
-                  className="font-medium text-emerald-300 underline decoration-emerald-300/70 underline-offset-2 hover:text-emerald-200"
-                >
-                  Secrets
-                </RepoScopedLink>
-                to use it from the chat header. Add other providers here if
-                needed.
-              </p>
-              <Button
-                size="sm"
-                onClick={() => setEditing({ mode: "create" })}
-                className="gap-1"
-              >
-                <Plus className="w-4 h-4" />
-                Add another model
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         <ul className="space-y-2">
           {models.map((m, idx) => (
             <li key={idx}>
@@ -323,6 +300,11 @@ function ModelsManagerInner() {
                         <span className="font-medium text-sm text-white/90 truncate">
                           {m.label || m.modelName || m.id}
                         </span>
+                        {m.id === KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
+                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
+                            Built in
+                          </span>
+                        )}
                         {m.default && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300"
@@ -358,15 +340,17 @@ function ModelsManagerInner() {
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1 text-rose-300 hover:text-rose-200"
-                      onClick={() => setDeleting(idx)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete
-                    </Button>
+                    {m.id !== KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 text-rose-300 hover:text-rose-200"
+                        onClick={() => setDeleting(idx)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -744,7 +728,7 @@ function ModelEditor({
                   className="font-mono text-xs"
                 />
                 <p className="text-[11px] text-white/40 mt-1">
-                  Per-turn tool-call rounds. Blank → 10 (30 in goal-planner).
+                  Per-turn tool-call rounds. Blank → 10.
                   Raise for models that need long research chains.
                 </p>
               </div>

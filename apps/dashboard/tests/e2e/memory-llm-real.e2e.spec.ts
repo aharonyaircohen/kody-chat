@@ -212,9 +212,9 @@ test("real model uses every memory layer across chat journeys", async ({
         scope: "repository",
       },
       {
-        marker: `goalmarker${run}`,
-        message: `Remember: the repo goal is goalmarker${run}, ship memory proof by 2030-01-02.`,
-        kind: "goal",
+        marker: `deadlinemarker${run}`,
+        message: `Remember: the repo deadline is deadlinemarker${run}, ship memory proof by 2030-01-02.`,
+        kind: "reference",
         scope: "repository",
       },
       {

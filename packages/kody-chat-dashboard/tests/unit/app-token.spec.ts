@@ -10,7 +10,7 @@
  *   - configured + installed → mints a token (JWT → installation → token),
  *     caches it, and reuses the cache on the next call
  *   - App not installed (404 on the installation lookup) → null
- *   - background-token prefers the App token, falls back to vault, else null
+ *   - background-token prefers App, then managed vault, then legacy vault
  *
  * `fetch` is stubbed per-test; a throwaway RSA keypair stands in for the App
  * private key so JWT signing exercises the real node:crypto path.
@@ -24,9 +24,15 @@ const { privateKey: PEM } = generateKeyPairSync("rsa", {
   privateKeyEncoding: { type: "pkcs1", format: "pem" },
 });
 
-const h = vi.hoisted(() => ({ resolveVaultGithubToken: vi.fn() }));
+const h = vi.hoisted(() => ({
+  resolveVaultGithubToken: vi.fn(),
+  readManagedBackgroundCredential: vi.fn(),
+}));
 vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: h.resolveVaultGithubToken,
+}));
+vi.mock("@kody-ade/base/auth/background-credential-store", () => ({
+  readManagedBackgroundCredential: h.readManagedBackgroundCredential,
 }));
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
@@ -49,6 +55,8 @@ describe("app-token", () => {
     vi.resetModules();
     vi.unstubAllEnvs();
     h.resolveVaultGithubToken.mockReset();
+    h.readManagedBackgroundCredential.mockReset();
+    h.readManagedBackgroundCredential.mockResolvedValue(null);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -101,6 +109,39 @@ describe("app-token", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // never reaches token mint
   });
 
+  it("checks App installation access separately for repositories under the same owner", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "3813056");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", PEM);
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const value = String(url);
+      if (value.endsWith("/repos/acme/installed/installation")) {
+        return okJson({ id: 135742721 });
+      }
+      if (value.endsWith("/repos/acme/not-installed/installation")) {
+        return okJson({ message: "Not Found" }, 404);
+      }
+      if (value.endsWith("/app/installations/135742721/access_tokens")) {
+        return okJson({ token: "ghs_installationtoken" }, 201);
+      }
+      return okJson({ message: "Unexpected request" }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getInstallationToken } =
+      await import("@kody-ade/base/auth/app-token");
+
+    await expect(getInstallationToken("acme", "installed")).resolves.toBe(
+      "ghs_installationtoken",
+    );
+    await expect(
+      getInstallationToken("acme", "not-installed"),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/repos/acme/not-installed/installation"),
+      expect.any(Object),
+    );
+  });
+
   it("accepts a base64-encoded private key", async () => {
     vi.stubEnv("GITHUB_APP_ID", "3813056");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", Buffer.from(PEM).toString("base64"));
@@ -121,6 +162,8 @@ describe("background-token policy", () => {
     vi.resetModules();
     vi.unstubAllEnvs();
     h.resolveVaultGithubToken.mockReset();
+    h.readManagedBackgroundCredential.mockReset();
+    h.readManagedBackgroundCredential.mockResolvedValue(null);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -141,7 +184,7 @@ describe("background-token policy", () => {
     expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
   });
 
-  it("falls back to vault when the App is unconfigured", async () => {
+  it("falls back to the Kody-managed vault token when the App is unconfigured", async () => {
     vi.stubEnv("GITHUB_APP_ID", "");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
     h.resolveVaultGithubToken.mockResolvedValue("vault_tok");
@@ -149,7 +192,40 @@ describe("background-token policy", () => {
     const { resolveBackgroundToken } =
       await import("@kody-ade/base/auth/background-token");
     const bg = await resolveBackgroundToken(OWNER, REPO);
-    expect(bg).toEqual({ token: "vault_tok", source: "vault" });
+    expect(bg).toEqual({ token: "vault_tok", source: "managed-vault" });
+    expect(h.resolveVaultGithubToken).toHaveBeenCalledWith(
+      OWNER,
+      REPO,
+      "KODY_GITHUB_TOKEN",
+    );
+  });
+
+  it("uses the dedicated encrypted credential before migration vault keys", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
+    h.readManagedBackgroundCredential.mockResolvedValue("managed_tok");
+
+    const { resolveBackgroundToken } =
+      await import("@kody-ade/base/auth/background-token");
+    await expect(resolveBackgroundToken(OWNER, REPO)).resolves.toEqual({
+      token: "managed_tok",
+      source: "managed-store",
+    });
+    expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
+  });
+
+  it("keeps the legacy GITHUB_TOKEN as a migration fallback", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
+    h.resolveVaultGithubToken.mockImplementation(
+      async (_owner, _repo, key?: string) =>
+        key === "KODY_GITHUB_TOKEN" ? null : "legacy_vault_tok",
+    );
+
+    const { resolveBackgroundToken } =
+      await import("@kody-ade/base/auth/background-token");
+    const bg = await resolveBackgroundToken(OWNER, REPO);
+    expect(bg).toEqual({ token: "legacy_vault_tok", source: "vault" });
   });
 
   it("returns null when neither source yields a token", async () => {

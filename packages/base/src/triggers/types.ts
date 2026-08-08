@@ -23,18 +23,33 @@ export const triggerConditionSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean()]).optional(),
 });
 
-export const triggerActionSchema = z.object({
-  type: z.literal("save-user-state"),
-  /** Target user-state namespace (entity). */
-  namespace: z.string().trim().min(1),
-  /**
-   * Target key → source. `payload.<path>` copies from the event payload;
-   * `literal:<value>` stores a fixed string; `event.name` /
-   * `event.occurredAt` / `event.sessionId` copy envelope fields.
-   * An empty map (the default) saves the whole event payload as-is.
-   */
-  map: z.record(z.string().min(1), z.string().min(1)).default({}),
-});
+const eventValueMapSchema = z
+  .record(z.string().min(1).max(100), z.string().min(1).max(300))
+  .default({});
+
+export const triggerActionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("save-user-state"),
+    /** Target user-state namespace (entity). */
+    namespace: z.string().trim().min(1).max(120),
+    /** Target key → event value source. */
+    map: eventValueMapSchema,
+  }),
+  z.object({
+    type: z.literal("start-workflow"),
+    /** Workflow definition to start when the rule matches. */
+    workflowId: z.string().trim().min(1).max(200),
+    /** Workflow input key → event value source. */
+    inputMap: eventValueMapSchema,
+  }),
+  z.object({
+    type: z.literal("start-pipeline"),
+    /** Pipeline definition to start when the rule matches. */
+    pipelineId: z.string().trim().min(1).max(200),
+    /** Pipeline input key -> event value source. */
+    inputMap: eventValueMapSchema,
+  }),
+]);
 
 export const triggerConfigSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/),

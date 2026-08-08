@@ -30,6 +30,18 @@ const FIXTURES: Record<string, Record<string, unknown>> = {
     source: "model",
   },
   "system.error": { area: "chat", message: "boom" },
+  "github.workflow_run.completed": {
+    runId: 42,
+    conclusion: "failure",
+    repository: "acme/shop",
+  },
+  "kody.workflow.completed": {
+    workflowId: "ci-repair",
+    runId: "run-42",
+    status: "success",
+    repository: "acme/shop",
+    pr: 3947,
+  },
 };
 
 describe("system event catalog", () => {
@@ -48,7 +60,9 @@ describe("system event catalog", () => {
   });
 
   it("has a passing fixture for every event", () => {
-    expect(Object.keys(FIXTURES).sort()).toEqual([...SYSTEM_EVENT_NAMES].sort());
+    expect(Object.keys(FIXTURES).sort()).toEqual(
+      [...SYSTEM_EVENT_NAMES].sort(),
+    );
     for (const name of SYSTEM_EVENT_NAMES) {
       const result = SYSTEM_EVENT_CATALOG[name].schema.safeParse(
         FIXTURES[name],

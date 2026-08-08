@@ -17,7 +17,6 @@ export type StoredAgencyRun = {
 
 export type StoredRunEvent = {
   runId: string
-  goalId?: string
   seq: number
   event: unknown
   time: string

@@ -19,13 +19,8 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AGENT_KODY,
-  AGENTS,
-  type AgentConfig,
-  type AgentId,
-} from "../agents";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "../agents";
 import {
   buildAgentList,
   shouldWaitForChatCatalogResolution,
@@ -160,8 +155,6 @@ export interface UseAgentSelectionResult {
   setSelectedModelId: React.Dispatch<React.SetStateAction<string | null>>;
   agentMenuOpen: boolean;
   setAgentMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  reasoningMenuOpen: boolean;
-  setReasoningMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setReasoningEffort: React.Dispatch<React.SetStateAction<string | null>>;
   /** Static agent record for the selected id (AGENT_KODY fallback). */
   currentAgent: AgentConfig;
@@ -220,7 +213,6 @@ export function useAgentSelection(
   // doesn't reset your "High" on Claude when you swap to GPT-5. Sent
   // on every chat request as `body.reasoningEffort`; the chat route
   // translates it to the provider's wire shape at request time.
-  const [reasoningMenuOpen, setReasoningMenuOpen] = useState(false);
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
   // The user-chosen default chat dropdown entry key (any entry: Brain,
   // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
@@ -231,6 +223,7 @@ export function useAgentSelection(
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
+  const noSessionDefaultAppliedRef = useRef(false);
 
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
@@ -326,6 +319,11 @@ export function useAgentSelection(
   //      effect will re-run to capture the pick).
   useEffect(() => {
     if (lockedAgentId) return; // Vibe page owns the agent
+    if (activeSessionId) {
+      noSessionDefaultAppliedRef.current = false;
+    } else if (noSessionDefaultAppliedRef.current) {
+      return;
+    }
     if (
       shouldWaitForChatCatalogResolution({
         sessionHydrated,
@@ -348,6 +346,10 @@ export function useAgentSelection(
       targetEntry = defaultAgentEntry;
     }
     if (!targetEntry) return;
+
+    if (!activeSessionId) {
+      noSessionDefaultAppliedRef.current = true;
+    }
 
     if (
       targetEntry.agentId !== selectedAgentId ||
@@ -385,8 +387,6 @@ export function useAgentSelection(
     setSelectedModelId,
     agentMenuOpen,
     setAgentMenuOpen,
-    reasoningMenuOpen,
-    setReasoningMenuOpen,
     setReasoningEffort,
     currentAgent,
     agentList,

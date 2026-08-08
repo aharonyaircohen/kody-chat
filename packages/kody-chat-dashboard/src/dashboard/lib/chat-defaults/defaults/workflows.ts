@@ -12,6 +12,7 @@ Skills:
 - diagnose-pr — analyze a Kody PR and find gaps between claims and diff.
 - report-advise — read a report and recommend create-issue / add-Todo / no-action.
 - todo-planner — decompose a finite outcome into concrete Todos.
+- read-agency-documentation — read the existing CMS or repository documentation before explaining AI Agency models or usage.
 
 Output shape: use agentIdentity's deep question shape: verdict, ### Findings, ### What's missing or risky.`,
 };
@@ -25,7 +26,8 @@ Skills:
 - create-issue — research -> gap-closing -> show body -> call matching create_* / report_bug.
 - create-capability — research -> gap-closing -> show profile/instructions -> call create_or_update_capability.
 - create-agent — research -> gap-closing -> show body -> call create_kody_agent.
-- create-workflow — research -> gap-closing -> show the workflow graph -> call run_workflow_creator for the approved issue.
+- create-workflow — research -> gap-closing -> show the workflow graph -> call create_or_update_workflow after approval.
+- run-workflow — discover, inspect, approve, and run any active workflow through the shared Engine boundary.
 
 Hard rules: research before asking; never call create_* / report_bug on the first turn. Show title + body once approved, then call the tool. additionalContext must end with Research notes.`,
 };
@@ -47,7 +49,7 @@ export const DEFAULT_WORKFLOW_KODY_MEM: ChatWorkflowEntry = {
   body: `Persistent memory management. Use when the user asks Kody to remember, correct, recall, list, or forget durable context.
 
 Skills:
-- memory — use relevant Convex retrieval plus recall / recall_search / list_memories. Triggers include an explicit memory command, correction, recall, inventory, or forget request. Kinds: preference, fact, decision, goal, reference. Use update_memory for corrections and never create duplicates.`,
+- memory — use relevant Convex retrieval plus recall / recall_search / list_memories. Triggers include an explicit memory command, correction, recall, inventory, or forget request. Kinds: preference, fact, decision, reference. Use update_memory for corrections and never create duplicates.`,
 };
 
 export const DEFAULT_WORKFLOWS = [

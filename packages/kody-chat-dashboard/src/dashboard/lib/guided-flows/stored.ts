@@ -2,14 +2,19 @@
  * @fileType utility
  * @domain guided-flows
  * @pattern stored-definition-codec
- * @ai-summary Shared parsing for custom GuidedFlow definitions persisted in
- *   userState (namespace "guided-flow-definitions"). Used by the guided-flows
- *   route and the chat tools so both resolve the same custom flows.
+ * @ai-summary Shared parsing for repository-owned GuidedFlow definitions.
+ *   Used by the guided-flows route and chat tools so both resolve the same
+ *   published flows.
  */
 import { z } from "zod";
 
 import type { GuidedFlowDefinition } from "./controller";
 import { migrateLegacyGuidedFlowDefinition } from "./authoring";
+import {
+  GUIDED_FLOW_CONTROL_IDS,
+  hasUniqueGuidedFlowControls,
+} from "./control-contract";
+import { validateGuidedFlowDefinition } from "./validation";
 
 export const GUIDED_FLOW_DEFINITIONS_NAMESPACE = "guided-flow-definitions";
 
@@ -17,44 +22,94 @@ export type StoredGuidedFlowDefinition = GuidedFlowDefinition & {
   readonly archived?: boolean;
 };
 
+const storedStepBaseSchema = {
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(160),
+  explanation: z.string().trim().min(1).max(1_000),
+  authoringGoal: z.string().trim().max(1_000).optional(),
+  routeId: z.string().trim().max(80).optional(),
+  routeParameters: z
+    .record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200))
+    .optional(),
+  transitions: z.record(z.string(), z.string()).optional(),
+  actions: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(80),
+        target: z.discriminatedUnion("type", [
+          z.object({
+            type: z.literal("step"),
+            stepId: z.string().trim().min(1),
+          }),
+          z.object({ type: z.literal("complete") }),
+          z.object({ type: z.literal("cancel") }),
+          z.object({ type: z.literal("stay") }),
+        ]),
+      }),
+    )
+    .max(20)
+    .optional(),
+};
+
+const storedGuidedFlowStepSchema = z.union([
+  z.object({
+    ...storedStepBaseSchema,
+    type: z.literal("flow"),
+    flowId: z.string().trim().min(1).max(80),
+    flowVersion: z.number().int().positive(),
+  }),
+  z.object({
+    ...storedStepBaseSchema,
+    type: z.literal("command"),
+    command: z
+      .string()
+      .trim()
+      .min(2)
+      .max(200)
+      .regex(/^\/[a-z][a-z0-9-]*(?:\s+[^\r\n]+)?$/i),
+  }),
+  z.object({
+    ...storedStepBaseSchema,
+    type: z.literal("view").optional(),
+    rendererSlug: z.string().trim().min(1).max(80),
+    rendererVersion: z.number().int().positive().optional(),
+    rendererData: z.record(z.string(), z.unknown()).optional(),
+    allowedActions: z.array(z.string().trim().min(1).max(80)).optional(),
+  }),
+]);
+
 export const storedGuidedFlowDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   version: z.number().int().positive(),
   title: z.string().trim().min(1).max(160),
   completionRouteId: z.string().trim().max(80).optional(),
+  completionRouteParameters: z
+    .record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200))
+    .optional(),
+  controls: z
+    .array(z.enum(GUIDED_FLOW_CONTROL_IDS))
+    .max(8)
+    .refine(hasUniqueGuidedFlowControls)
+    .optional(),
   archived: z.boolean().optional(),
-  steps: z
-    .array(
-      z.object({
-        id: z.string().trim().min(1).max(80),
-        title: z.string().trim().min(1).max(160),
-        explanation: z.string().trim().min(1).max(1_000),
-        rendererSlug: z.string().trim().min(1).max(80),
-        rendererData: z.record(z.string(), z.unknown()).optional(),
-        authoringGoal: z.string().trim().max(1_000).optional(),
-        routeId: z.string().trim().max(80).optional(),
-        transitions: z.record(z.string(), z.string()).optional(),
-        allowedActions: z.array(z.string().trim().min(1).max(80)).optional(),
-      }),
-    )
-    .min(1)
-    .max(20),
+  steps: z.array(storedGuidedFlowStepSchema).min(1).max(20),
 });
 
-/** Parse a userState payload into valid stored definitions, skipping bad rows. */
+/** Parse stored definitions, skipping invalid records. */
 export function parseStoredGuidedFlowDefinitions(
   data: unknown,
 ): StoredGuidedFlowDefinition[] {
   if (!Array.isArray(data)) return [];
   return data.flatMap((candidate) => {
     const parsed = storedGuidedFlowDefinitionSchema.safeParse(candidate);
-    return parsed.success
-      ? [
-          migrateLegacyGuidedFlowDefinition(
-            parsed.data as StoredGuidedFlowDefinition,
-          ),
-        ]
-      : [];
+    if (!parsed.success) return [];
+    try {
+      const definition = migrateLegacyGuidedFlowDefinition(parsed.data);
+      validateGuidedFlowDefinition(definition);
+      return [definition as StoredGuidedFlowDefinition];
+    } catch {
+      return [];
+    }
   });
 }
 
@@ -66,8 +121,41 @@ export function parseGuidedFlowDefinitionRows(
   rows: unknown,
 ): StoredGuidedFlowDefinition[] {
   if (!Array.isArray(rows)) return [];
+  const selectedRows = new Map<
+    string,
+    {
+      actorId?: string;
+      updatedAt?: string;
+      version?: number;
+      archived?: boolean;
+      definition?: unknown;
+    }
+  >();
+  for (const candidate of rows) {
+    const row = candidate as {
+      actorId?: string;
+      flowId?: string;
+      updatedAt?: string;
+      version?: number;
+      archived?: boolean;
+      definition?: unknown;
+    } | null;
+    if (!row?.flowId || typeof row.version !== "number") continue;
+    const key = `${row.flowId}@${row.version}`;
+    const current = selectedRows.get(key);
+    const candidateIsRepositoryOwned = !row.actorId;
+    const currentIsRepositoryOwned = current ? !current.actorId : false;
+    if (
+      !current ||
+      (candidateIsRepositoryOwned && !currentIsRepositoryOwned) ||
+      (candidateIsRepositoryOwned === currentIsRepositoryOwned &&
+        (row.updatedAt ?? "") > (current.updatedAt ?? ""))
+    ) {
+      selectedRows.set(key, row);
+    }
+  }
   return parseStoredGuidedFlowDefinitions(
-    rows.flatMap((row) => {
+    [...selectedRows.values()].flatMap((row) => {
       const record = row as {
         version?: number;
         archived?: boolean;

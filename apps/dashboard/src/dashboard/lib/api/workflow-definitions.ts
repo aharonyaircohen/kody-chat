@@ -79,15 +79,27 @@ export const workflowDefinitionsApi = {
 
   run: async (
     id: string,
-    options?: { mode?: "resume"; runId?: string },
-  ): Promise<{
-    ok: boolean;
-    workflowId: string;
-    ref: string;
-    workflow: string;
-    runId: string;
-    action: string;
-  }> => {
+    options?: {
+      mode?: "resume";
+      runId?: string;
+      approvalId?: string;
+      input?: Record<string, unknown>;
+    },
+  ): Promise<
+    | {
+        kind: "accepted";
+        ok: boolean;
+        execution: "kody-engine";
+        workflow: string;
+        runId: string;
+        acceptedAt: string;
+      }
+    | {
+        kind: "approval-required";
+        approvalToken: string;
+        approvalExpiresAt: string;
+      }
+  > => {
     const res = await fetch(
       `${API_BASE}/company/workflows/${encodeURIComponent(id)}/run`,
       {
@@ -96,7 +108,50 @@ export const workflowDefinitionsApi = {
         ...(options ? { body: JSON.stringify(options) } : {}),
       },
     );
-    return handleResponse(res);
+    if (res.status === 409) {
+      const payload = (await res.json()) as Record<string, unknown>;
+      if (
+        payload.error === "approval_required" &&
+        typeof payload.approvalToken === "string" &&
+        typeof payload.approvalExpiresAt === "string"
+      ) {
+        return {
+          kind: "approval-required",
+          approvalToken: payload.approvalToken,
+          approvalExpiresAt: payload.approvalExpiresAt,
+        };
+      }
+      throw new Error(
+        typeof payload.message === "string"
+          ? payload.message
+          : "Workflow could not start.",
+      );
+    }
+    const accepted = await handleResponse<{
+      ok: boolean;
+      execution: "kody-engine";
+      workflow: string;
+      runId: string;
+      acceptedAt: string;
+    }>(res);
+    return { kind: "accepted", ...accepted };
+  },
+
+  approveRun: async (
+    id: string,
+    approvalToken: string,
+    input: Record<string, unknown>,
+  ): Promise<string> => {
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}/approve`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ approvalToken, input }),
+      },
+    );
+    const payload = await handleResponse<{ approvalId: string }>(res);
+    return payload.approvalId;
   },
 
   latestRun: async (

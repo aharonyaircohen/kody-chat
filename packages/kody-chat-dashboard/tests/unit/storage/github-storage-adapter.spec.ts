@@ -308,6 +308,8 @@ class FakeOctokit {
         truncated: false,
         tree: [...this.files.keys()].map((fileKey) => ({
           path: fileKey.split("/").slice(3).join("/"),
+          sha: this.files.get(fileKey)!.sha,
+          mode: "100644",
           type: "blob",
         })),
       },

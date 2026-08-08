@@ -44,6 +44,7 @@ import {
   TYPE_SINGULAR,
   VERDICT_CLASS,
   VERDICT_LABEL,
+  fullTimestamp,
   inboxCategory,
   questionFromTitle,
   relativeTime,
@@ -247,9 +248,15 @@ export function InboxCard({
                 ? questionFromTitle(entry.title)
                 : entry.title || `${author} ${SOURCE_LABEL[entry.source]}`}
             </h3>
-            <span className="text-[10px] text-white/40 shrink-0">
-              {relativeTime(entry.sentAt)}
-            </span>
+            <time
+              dateTime={entry.sentAt}
+              className="shrink-0 text-right text-[10px] leading-tight text-white/40"
+            >
+              <span>{relativeTime(entry.sentAt)}</span>
+              <span className="block whitespace-nowrap">
+                {fullTimestamp(entry.sentAt)}
+              </span>
+            </time>
           </div>
 
           {rec && isRequest ? (
@@ -315,7 +322,7 @@ export function InboxCard({
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open on GitHub"
+            title={entry.source === "kody" ? "Open workflow" : "Open on GitHub"}
             className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
           >
             <ExternalLink className="w-3.5 h-3.5" />

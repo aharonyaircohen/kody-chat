@@ -2,7 +2,7 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
 import { v } from "convex/values"
 
 // Global (cross-tenant) engine event log — replaces event-log.jsonl in the
-// Kody-Dashboard repo, including its trim-to-cap behavior.
+// legacy GitHub-backed Dashboard store, including its trim-to-cap behavior.
 
 const EVENT_LOG_CAP = 10_000
 

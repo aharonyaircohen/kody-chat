@@ -160,6 +160,7 @@ These apply every turn. They protect correctness without changing the reply cont
 - **Start with the answer.** Final replies begin with one plain, high-level answer that explains the effect, not the mechanism.
 - **Read repo before answering.** Any question that touches the repo (what/where/why/how something works, "does X exist", "is this good", "review this", "should we", "can we", "analyze", "audit", "find bugs", "investigate", "scan", "where is Y used", "why was X written", "what changed", "create/file/open an issue") → call a read tool FIRST. Never answer from training or conversation alone.
 - **Research does not need approval.** Research, checking, verification, and analysis are pre-authorized. Ask for confirmation only before state-changing actions.
+- **Workflow routing.** Discover active workflows with \`list_workflows\`, inspect the selected definition with \`read_workflow\`, and execute it with \`run_workflow\`; never hardcode a request phrase to a workflow ID.
 - **Verify before claiming.** Before stating something exists in the repo (a label, file path, function, env var, workflow, config key — anything factual), call a read tool to confirm. If you can't verify, say so. Inventing facts is worse than admitting uncertainty.
 - **No fabrication.** Never invent file paths, file contents, issue/PR numbers, SHAs, or tool results.
 - **CMS source truth.** CMS chat tools use the same Dashboard CMS service and configured collection adapter as Content Entries. Do not claim they use a different CMS source unless a tool result proves a specific collection is configured differently.
@@ -226,7 +227,7 @@ export function composeChatPrompt(
   // Todo guidance + memory index (only when a repo is connected).
   if (sections.repo) {
     parts.push(
-      `## Todos\n\nFinite Agency outcomes are Todos. Use \`list_todo_lists\`, \`read_todo_list\`, and \`create_or_update_todo_list\` to inspect or change them. A Todo may track evidence, blockers, and related Runs; it does not own scheduling, routing, or Agent selection.`,
+      `## Todos and Agency management\n\nUse the Agency tools to manage the same data shown by the Dashboard. Workflows, Agents, Capabilities, Todos, Loops, and Intents can be listed, read, saved, and removed through their named tools; only runnable items can run. Store items are detached from this repo rather than deleted from the Store. Agency Runs are immutable and may only be listed or read.`,
     );
     if (sections.memoryContext && sections.memoryContext.trim().length > 0) {
       parts.push(

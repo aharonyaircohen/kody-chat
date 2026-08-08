@@ -34,6 +34,13 @@ describe("TriggersManager data fetching", () => {
   it("bypasses the browser cache on every fetch", () => {
     expect(SOURCE).toContain('cache: "no-store"');
   });
+
+  it("loads GitHub and Kody workflow choices only for the relevant trigger form", () => {
+    expect(SOURCE).toContain('"/api/kody/github/workflows"');
+    expect(SOURCE).toContain('"/api/kody/company/workflows"');
+    expect(SOURCE).toContain("enabled: !!auth && !!editor");
+    expect(SOURCE).toContain("staleTime: 5 * 60 * 1000");
+  });
 });
 
 describe("TriggersManager listing", () => {
@@ -42,10 +49,10 @@ describe("TriggersManager listing", () => {
     expect(SOURCE).toContain('title="No triggers yet"');
   });
 
-  it("summarizes each trigger as event → namespace with a condition count", () => {
-    expect(SOURCE).toContain("<code>{trigger.event}</code>");
-    expect(SOURCE).toContain("<code>{trigger.action.namespace}</code>");
-    expect(SOURCE).toContain("${trigger.conditions.length} condition(s)");
+  it("summarizes each trigger in readable When → Then language", () => {
+    expect(SOURCE).toContain("When {EVENT_LABELS[trigger.event]");
+    expect(SOURCE).toContain('"start a Kody workflow"');
+    expect(SOURCE).toContain('"save event data"');
   });
 
   it("toggles enabled state by re-posting the trigger with enabled flipped", () => {
@@ -56,20 +63,21 @@ describe("TriggersManager listing", () => {
 });
 
 describe("TriggersManager editor", () => {
-  it("opens a blank editor defaulting to the first event and namespace", () => {
-    expect(SOURCE).toContain("event: SYSTEM_EVENT_NAMES[0]");
+  it("opens a blank editor with generic trigger and action choices", () => {
+    expect(SOURCE).toContain('event: ""');
+    expect(SOURCE).toContain('actionType: ""');
     expect(SOURCE).toContain(
-      "setEditor(emptyEditor(namespaces[0]?.name ?? \"\"))",
+      'setEditor(emptyEditor(namespaces[0]?.name ?? ""))',
     );
-    expect(SOURCE).toContain('conditionsJson: "[]"');
-    expect(SOURCE).toContain('mapJson: "{}"');
+    expect(SOURCE).toContain("conditions: []");
+    expect(SOURCE).toContain("map: []");
   });
 
   it("prefills the editor from an existing trigger with pretty-printed JSON", () => {
-    expect(SOURCE).toContain(
-      "JSON.stringify(trigger.conditions, null, 2)",
-    );
-    expect(SOURCE).toContain("JSON.stringify(trigger.action.map, null, 2)");
+    expect(SOURCE).toContain("conditionRows(");
+    expect(SOURCE).toContain("trigger.conditions.filter");
+    expect(SOURCE).toContain("action.inputMap");
+    expect(SOURCE).toContain("action.map");
   });
 
   it("slugifies the name into an id only for new triggers", () => {
@@ -86,17 +94,69 @@ describe("TriggersManager editor", () => {
 
   it("updates editor state immutably via spread", () => {
     expect(SOURCE).toContain("setEditor({ ...editor, name: e.target.value })");
-    expect(SOURCE).toContain("setEditor({ ...editor, event: value })");
+    expect(SOURCE).toMatch(/setEditor\(\{\s+\.\.\.editor,\s+event: value,/);
+  });
+
+  it("uses a simple When trigger, Then action flow", () => {
+    expect(SOURCE).toContain("<Label>When</Label>");
+    expect(SOURCE).toContain('aria-label="Trigger"');
+    expect(SOURCE).toContain("<Label>Then</Label>");
+    expect(SOURCE).toContain('aria-label="Action"');
+    expect(SOURCE).not.toContain("When GitHub workflow");
+    expect(SOURCE).not.toContain("Use a different trigger");
+    expect(SOURCE).toContain('aria-label="GitHub workflow"');
+    expect(SOURCE).toContain("<Label>Result</Label>");
+    expect(SOURCE).toContain("Start a Kody workflow");
+    expect(SOURCE).toContain('aria-label="Kody workflow to start"');
+    expect(SOURCE).toContain("githubWorkflowId");
+    expect(SOURCE).toContain("workflowDefinitionsQuery.data");
+    expect(SOURCE).not.toContain('htmlFor="trigger-workflow"');
+  });
+
+  it("only offers actions supported by the selected trigger", () => {
+    expect(SOURCE).toContain("function actionTypeForEvent(event: string)");
+    expect(SOURCE).toContain("actionType: actionTypeForEvent(value),");
+    expect(SOURCE).toContain(
+      "editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (",
+    );
+    expect(SOURCE).toContain(
+      'state.actionType === "start-pipeline"',
+    );
+    expect(SOURCE).toContain('value="start-pipeline"');
+    expect(SOURCE).toContain('"kody.workflow.completed"');
+    expect(SOURCE).toContain('aria-label="Kody workflow that finished"');
+  });
+
+  it("only offers workflows that policy allows to run automatically", () => {
+    expect(SOURCE).toContain("workflow.automation.eligible");
+    expect(SOURCE).toContain("No workflows can run automatically");
+  });
+
+  it("does not expose payload filters or input mapping in the editor", () => {
+    expect(SOURCE).not.toContain("More filters and input mapping");
+    expect(SOURCE).not.toContain("Additional filters");
+    expect(SOURCE).not.toContain("Pass these values");
+    expect(SOURCE).not.toContain('aria-label="Condition payload path"');
+    expect(SOURCE).not.toContain('aria-label="Workflow input source"');
+  });
+
+  it("can limit GitHub workflow triggers to pull request runs", () => {
+    expect(SOURCE).toContain("Pull request runs only");
+    expect(SOURCE).toContain('path: "pr", op: "exists"');
+    expect(SOURCE).toContain("withPullRequestOnlyCondition(");
+  });
+
+  it("maps only declared workflow inputs from the event payload", () => {
+    expect(SOURCE).toContain("defaultInputMap(");
+    expect(SOURCE).toContain("target?.inputSchema?.properties");
+    expect(SOURCE).toContain("`payload.${key}`");
   });
 });
 
 describe("TriggersManager validation and errors", () => {
-  it("rejects invalid conditions/map JSON before hitting the API", () => {
-    expect(SOURCE).toContain("JSON.parse(state.conditionsJson)");
-    expect(SOURCE).toContain("JSON.parse(state.mapJson)");
-    expect(SOURCE).toContain(
-      'throw new Error("Conditions and map must be valid JSON")',
-    );
+  it("preserves stored condition and mapping rows when saving", () => {
+    expect(SOURCE).toContain("state.conditions");
+    expect(SOURCE).toContain("state.map");
   });
 
   it("toasts errors from every mutation", () => {
@@ -123,9 +183,7 @@ describe("TriggersManager deletion", () => {
   });
 
   it("deletes via DELETE with an encoded id and accepts 204 responses", () => {
-    expect(SOURCE).toContain(
-      "`/api/kody/triggers/${encodeURIComponent(id)}`",
-    );
+    expect(SOURCE).toContain("`/api/kody/triggers/${encodeURIComponent(id)}`");
     expect(SOURCE).toContain('method: "DELETE"');
     expect(SOURCE).toContain("!res.ok && res.status !== 204");
   });

@@ -2,7 +2,7 @@
  * @fileType hook
  * @domain kody
  * @pattern notifications-hooks
- * @ai-summary React Query hooks for notification rules. Mirrors useGoals:
+ * @ai-summary React Query hooks for notification rules.
  *   list query + create/update/delete mutations + a test action.
  */
 "use client";

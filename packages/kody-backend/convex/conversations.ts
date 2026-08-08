@@ -8,6 +8,7 @@ import {
   conversationEntryValidator,
   conversationRuntimeValidator,
   conversationScopeValidator,
+  machineAccessValidator,
 } from "./conversationValidators";
 
 type DatabaseContext = Pick<QueryCtx | MutationCtx, "db">;
@@ -46,17 +47,12 @@ export const create = mutation({
     pinned: v.boolean(),
     activeAgent: agentIdentityValidator,
     runtime: conversationRuntimeValidator,
+    machineAccess: v.optional(machineAccessValidator),
     createdBy: v.string(),
     createdAt: v.string(),
     updatedAt: v.string(),
   },
   handler: async (ctx, args) => {
-    if (
-      args.scope.kind === "repository" &&
-      `${args.scope.owner}/${args.scope.repo}` !== args.tenantId
-    ) {
-      throw new Error("Conversation scope does not match tenant");
-    }
     const existing = await findConversation(
       ctx,
       args.tenantId,
@@ -82,6 +78,27 @@ export const updateRuntime = mutation({
     );
     await ctx.db.patch(conversation._id, {
       runtime: args.runtime,
+      updatedAt: args.updatedAt,
+    });
+    return conversation._id;
+  },
+});
+
+export const updateMachineAccess = mutation({
+  args: {
+    tenantId: v.string(),
+    conversationId: v.string(),
+    machineAccess: machineAccessValidator,
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const conversation = await requireConversation(
+      ctx,
+      args.tenantId,
+      args.conversationId,
+    );
+    await ctx.db.patch(conversation._id, {
+      machineAccess: args.machineAccess,
       updatedAt: args.updatedAt,
     });
     return conversation._id;

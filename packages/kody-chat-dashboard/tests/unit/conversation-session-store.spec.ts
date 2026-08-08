@@ -20,6 +20,7 @@ describe("conversation session store", () => {
     const result = mapConversationDetail({
       conversation: {
         conversationId: "c1",
+        scope: { kind: "repository", owner: "acme", repo: "widgets" },
         title: "Risk",
         pinned: false,
         activeAgent: { slug: "ceo", title: "CEO" },
@@ -57,6 +58,53 @@ describe("conversation session store", () => {
     expect(result.session.agentHandoffs).toEqual([
       expect.objectContaining({ fromSlug: "ux", toSlug: "ceo" }),
     ]);
+    expect(result.session.repository).toEqual({
+      owner: "acme",
+      repo: "widgets",
+    });
+    expect(result.session.machineAccess).toBe("none");
+  });
+
+  it("hydrates machine access independently from agent and model", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-machine",
+        title: "Machine",
+        pinned: false,
+        activeAgent: { slug: "cto", title: "CTO" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        machineAccess: "local",
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:03:00.000Z",
+      },
+      entries: [],
+      checkpoints: [],
+    });
+
+    expect(result.session).toMatchObject({
+      agencyAgent: { slug: "cto", title: "CTO" },
+      agentKey: "model-1",
+      machineAccess: "local",
+    });
+  });
+
+  it("migrates legacy Brain conversations without changing their runtime", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-brain",
+        title: "Brain",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "brain", brainId: "brain" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:03:00.000Z",
+      },
+      entries: [],
+      checkpoints: [],
+    });
+
+    expect(result.session.machineAccess).toBe("brain");
+    expect(result.session.agentKey).toBe("brain");
   });
 
   it("keeps streaming assistant drafts out of durable storage", () => {
@@ -153,6 +201,35 @@ describe("conversation session store", () => {
       expect.objectContaining({
         kind: "append",
         message: expect.objectContaining({ view: renderedView }),
+      }),
+    ]);
+  });
+
+  it("persists a completion result added to an existing rendered view", () => {
+    const message = {
+      id: "a1",
+      role: "assistant" as const,
+      text: "Widget opened.",
+      timestamp: "2026-07-20T10:00:00.000Z",
+      view: renderedView,
+    };
+    const completedView = {
+      ...renderedView,
+      result: {
+        actionId: "correct",
+        completedAt: "2026-08-01T12:00:00.000Z",
+      },
+    };
+
+    expect(
+      reconcileConversationMessages(
+        [message],
+        [{ ...message, view: completedView }],
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        kind: "update",
+        message: expect.objectContaining({ view: completedView }),
       }),
     ]);
   });

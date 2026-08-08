@@ -74,8 +74,7 @@ interface CreateTaskDialogProps {
   };
   /**
    * Labels to pre-apply without triggering the duplicate flow (no "Copy of"
-   * title prefix, no body/assignee prefill). Use this for goal-scoped task
-   * creation — pass [`goal:<id>`] so the new task lands under that goal.
+   * title prefix, no body/assignee prefill).
    */
   presetLabels?: string[];
 }
@@ -231,7 +230,7 @@ export function CreateTaskDialog({
     }
   }, [open, initialData, prefill, githubUser?.login]);
 
-  // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
+  // --- Apply presetLabels separately from the duplicate flow ---
   useEffect(() => {
     if (
       open &&
@@ -584,7 +583,7 @@ export function CreateTaskDialog({
               id="task-summary"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="Describe the goal in 2-3 sentences. What problem does this solve and for whom?"
+              placeholder="Describe the outcome in 2-3 sentences. What problem does this solve and for whom?"
               rows={3}
               dir="auto"
               className="text-start"

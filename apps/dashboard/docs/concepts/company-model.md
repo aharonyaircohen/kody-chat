@@ -14,8 +14,8 @@ Agent      = who performs a Workflow
 Run        = one execution record
 ```
 
-Operation, Goal, and a separate public Implementation model are not part of the
-current Dashboard architecture.
+Older planning aggregates and a separate public Implementation model are not
+part of the current Dashboard architecture.
 
 ## System map
 
@@ -63,8 +63,8 @@ The monorepo and published Engine both call their package
 `@kody-ade/agency-domain@0.5.1`, but expose different contracts.
 
 - The Dashboard monorepo contains the simplified model.
-- The Engine's installed package still contains structured Intent, Operation,
-  Goal, and the older Loop contract.
+- The Engine's installed package still contains older structured planning
+  contracts.
 - The Engine scheduler reads older Convex Agency definitions.
 - The Dashboard saves simple Loops to repository JSON.
 
@@ -84,7 +84,7 @@ Loop trigger
               -> Run
 ```
 
-Automation does not require Operation, Goal, or a new scheduler model.
+Automation does not require another planning aggregate or scheduler model.
 
 ## Proof rule
 

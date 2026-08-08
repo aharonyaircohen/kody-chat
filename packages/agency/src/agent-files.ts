@@ -20,7 +20,6 @@ import {
   companyStoreAssetPath,
   companyStoreUpdatedAt,
   listCompanyStoreMarkdownAssetSlugs,
-  mergeAssetsBySlug,
   readCompanyStoreText,
 } from "@kody-ade/base/company-store/assets";
 import {
@@ -31,6 +30,7 @@ import {
 import { joinFrontmatter } from "@kody-ade/base/ticked/frontmatter";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
+import { listBuiltinAgentFiles, readBuiltinAgentFile } from "./builtin-agents";
 
 export type AgentFile = TickFile;
 export type AgentWriteOptions = Omit<TickWriteOptions, "octokit">;
@@ -74,6 +74,7 @@ function agentFileFromDefinition(definition: AgentDefinition): TickFile {
     ...(frontmatter.capabilities
       ? { capabilities: frontmatter.capabilities }
       : {}),
+    ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
   };
 }
 
@@ -124,7 +125,10 @@ function buildRawMarkdown(opts: AgentWriteOptions): string {
       ? `# ${opts.title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
       : `# ${opts.title.trim()}\n`;
   return joinFrontmatter(
-    opts.capabilities ? { capabilities: opts.capabilities } : {},
+    {
+      ...(opts.capabilities ? { capabilities: opts.capabilities } : {}),
+      ...(opts.subagents ? { subagents: opts.subagents } : {}),
+    },
     titled,
   );
 }
@@ -166,14 +170,47 @@ export async function deleteAgentFile(slug: string): Promise<void> {
   });
 }
 
-export async function listResolvedAgentFiles(): Promise<AgentFile[]> {
+export async function listResolvedAgentFiles(
+  options: { activeStoreSlugs?: Set<string> } = {},
+): Promise<AgentFile[]> {
+  const persisted = await listAgentFiles();
+  const local = persisted.filter((agent) => agent.source !== "store");
+  const persistedStore = persisted.filter(
+    (agent) =>
+      agent.source === "store" &&
+      (!options.activeStoreSlugs || options.activeStoreSlugs.has(agent.slug)),
+  );
+  const builtin = listBuiltinAgentFiles();
+  const shadowedSlugs = new Set(
+    [...local, ...builtin].map((agent) => agent.slug),
+  );
+  const activeStoreSlugs = options.activeStoreSlugs
+    ? new Set(
+        [...options.activeStoreSlugs].filter(
+          (slug) =>
+            !shadowedSlugs.has(slug) &&
+            !persistedStore.some((agent) => agent.slug === slug),
+        ),
+      )
+    : undefined;
+  if (activeStoreSlugs?.size === 0) {
+    return mergeResolvedAgentFiles({
+      local,
+      builtin,
+      store: persistedStore,
+    });
+  }
   const octokit = getOctokit();
-  const local = await listAgentFiles();
   const store = await listStoreAgentFiles(
     octokit,
-    new Set(local.map((agent) => agent.slug)),
+    shadowedSlugs,
+    activeStoreSlugs,
   );
-  return mergeAssetsBySlug(local, store);
+  return mergeResolvedAgentFiles({
+    local,
+    builtin,
+    store: [...persistedStore, ...store],
+  });
 }
 
 export async function readResolvedAgentFile(
@@ -181,6 +218,9 @@ export async function readResolvedAgentFile(
   octokitOverride?: Octokit,
 ): Promise<AgentFile | null> {
   const local = await readAgentFile(slug);
+  if (local && local.source !== "store") return local;
+  const builtin = readBuiltinAgentFile(slug);
+  if (builtin) return builtin;
   if (local) return local;
   const store = await listStoreAgentFiles(
     octokitOverride ?? getOctokit(),
@@ -189,9 +229,49 @@ export async function readResolvedAgentFile(
   return store.find((agent) => agent.slug === slug) ?? null;
 }
 
+export function mergeResolvedAgentFiles({
+  local,
+  builtin,
+  store,
+}: {
+  local: readonly AgentFile[];
+  builtin: readonly AgentFile[];
+  store: readonly AgentFile[];
+}): AgentFile[] {
+  const resolved = new Map<string, AgentFile>();
+  for (const agent of store) resolved.set(agent.slug, agent);
+  for (const agent of local.filter(({ source }) => source === "store")) {
+    resolved.set(agent.slug, agent);
+  }
+  for (const agent of builtin) resolved.set(agent.slug, agent);
+  for (const agent of local.filter(({ source }) => source !== "store")) {
+    resolved.set(agent.slug, agent);
+  }
+  return [...resolved.values()].sort((left, right) => {
+    if (left.slug === "kody") return -1;
+    if (right.slug === "kody") return 1;
+    return left.slug.localeCompare(right.slug);
+  });
+}
+
+export function readResolvedAgentFromSources(
+  slug: string,
+  local: readonly AgentFile[],
+  builtin: readonly AgentFile[],
+  store: readonly AgentFile[],
+): AgentFile | null {
+  return (
+    local.find((agent) => agent.slug === slug) ??
+    builtin.find((agent) => agent.slug === slug) ??
+    store.find((agent) => agent.slug === slug) ??
+    null
+  );
+}
+
 export async function listStoreAgentFiles(
   octokit: Octokit,
   localSlugs: Set<string> = new Set(),
+  activeStoreSlugs?: Set<string>,
 ): Promise<AgentFile[]> {
   const slugs = await listCompanyStoreMarkdownAssetSlugs(
     octokit,
@@ -201,6 +281,7 @@ export async function listStoreAgentFiles(
   const agents = await Promise.all(
     slugs
       .filter((slug) => !localSlugs.has(slug))
+      .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
       .map((slug) => readStoreAgentFile(slug, octokit)),
   );
   return agents.filter((agent): agent is AgentFile => agent !== null);
@@ -217,7 +298,7 @@ export async function readStoreAgentFile(
     companyStoreUpdatedAt(octokit, "agents", slug),
   ]);
   if (raw === null) return null;
-  const { title, body } = parseTickedMarkdown(raw, slug);
+  const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
   return {
     slug,
     title,
@@ -227,5 +308,9 @@ export async function readStoreAgentFile(
     htmlUrl: buildCompanyStoreBlobUrl(path),
     source: "store",
     readOnly: true,
+    ...(frontmatter.capabilities
+      ? { capabilities: frontmatter.capabilities }
+      : {}),
+    ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
   };
 }

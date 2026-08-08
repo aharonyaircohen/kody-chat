@@ -8,9 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { RENDER_VIEW_DIRECTIVE } from "../../src/dashboard/lib/chat-ui-actions";
 import {
-  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
-  FINAL_ANSWER_TOOL,
-  SHOW_VIEW_TOOL,
+  CHAT_OUTPUT_CONTRACT_DATA_TYPE,
+  EXCLUSIVE_TOOL_OUTPUT_MODE,
 } from "../../src/dashboard/lib/chat-output-tools";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
@@ -21,6 +20,18 @@ const createUIMessageStreamMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
+const createCmsToolsMock = vi.hoisted(() => vi.fn());
+const resolvedModelMock = vi.hoisted(() => ({
+  id: "test-model",
+  label: "Test model",
+  provider: "openai",
+  protocol: "openai-compatible",
+  baseURL: "https://models.test/v1",
+  modelName: "test-model",
+  apiKeySecret: "TEST_MODEL_API_KEY",
+  enabled: true,
+  default: true,
+}));
 
 vi.mock("ai", () => ({
   tool: (definition: unknown) => definition,
@@ -49,7 +60,9 @@ vi.mock("@kody-ade/base/auth", () => ({
 
 vi.mock("../../src/dashboard/lib/github-client", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../src/dashboard/lib/github-client")>();
+    await importOriginal<
+      typeof import("../../src/dashboard/lib/github-client")
+    >();
   return {
     ...actual,
     createUserOctokit: vi.fn(() => ({})),
@@ -74,36 +87,27 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
 vi.mock(
   "../../src/dashboard/lib/view-renderers/standalone-renderer-store",
   async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("../../src/dashboard/lib/view-renderers/standalone-renderer-store")
-    >();
-  return {
-    ...actual,
-    loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
-  };
-});
+    const actual =
+      await importOriginal<
+        typeof import("../../src/dashboard/lib/view-renderers/standalone-renderer-store")
+      >();
+    return {
+      ...actual,
+      loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
+    };
+  },
+);
 
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: vi.fn(async () => ({
     model: { modelId: "test-model" },
     apiKey: "test-key",
-    resolvedModel: {
-      id: "test-model",
-      label: "Test model",
-      provider: "openai",
-      protocol: "openai-compatible",
-      baseURL: "https://models.test/v1",
-      modelName: "test-model",
-      apiKeySecret: "TEST_MODEL_API_KEY",
-      enabled: true,
-      default: true,
-    },
+    resolvedModel: { ...resolvedModelMock },
   })),
 }));
 
 vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
+  createCmsTools: createCmsToolsMock,
 }));
 
 function makeRequest(body: unknown): NextRequest {
@@ -156,35 +160,13 @@ const approvalRendererDefinition = {
   },
 } as const;
 
-const reportSelectionRendererDefinition = {
-  slug: "selection-list",
-  name: "Selection list",
-  purpose: "selection-list",
-  rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
-  data: {
-    title: { type: "text", description: "Short title." },
-    body: { type: "text", optional: true },
-    items: { type: "selection", description: "Selectable items." },
-  },
-  type: "layout",
-  ui: {
-    type: "stack",
-    children: [
-      { type: "text", value: "$title", variant: "title" },
-      { type: "text", value: "$body" },
-      {
-        type: "list",
-        for: "$items",
-        as: "item",
-        item: { type: "button", label: "$item.label", action: "$item" },
-      },
-    ],
-  },
-} as const;
-
 describe("POST /api/kody/chat/kody preview prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.assign(resolvedModelMock, {
+      provider: "openai",
+      modelName: "test-model",
+    });
     process.env.KODY_MASTER_KEY = "kody-direct-test-secret";
     loadViewRendererContextForPromptMock.mockResolvedValue({
       rules:
@@ -201,6 +183,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     });
     createUIMessageStreamMock.mockImplementation((config: unknown) => config);
     loadInstructionsForPromptMock.mockResolvedValue(null);
+    createCmsToolsMock.mockResolvedValue({});
     createUIMessageStreamResponseMock.mockReturnValue(
       new Response("ok", { status: 200 }),
     );
@@ -210,24 +193,208 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
-      makeRequest({ messages: [{ role: "user", content: "plan this change" }] }),
+      makeRequest({
+        messages: [{ role: "user", content: "plan this change" }],
+      }),
     );
 
     expect(res.status).toBe(200);
     const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
       execute: (args: {
-        writer: { write: (value: unknown) => void; merge: (value: unknown) => void };
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
       }) => Promise<void>;
     };
     await streamConfig.execute({
       writer: { write: vi.fn(), merge: vi.fn() },
     });
     const streamOptions = toUIMessageStreamMock.mock.calls[0]?.[0] as
-      | { onError?: (error: unknown) => string }
-      | undefined;
+      { onError?: (error: unknown) => string } | undefined;
     expect(streamOptions?.onError).toBeTypeOf("function");
     expect(streamOptions?.onError?.(new Error("provider unavailable"))).toMatch(
       /^\[trace [a-f0-9]+\] provider unavailable$/,
+    );
+  });
+
+  it("declares exclusive output-tool ownership before model chunks", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "plan this change" }],
+      }),
+    );
+
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await streamConfig.execute({ writer });
+
+    expect(writer.write).toHaveBeenCalledWith({
+      type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
+      data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
+    });
+  });
+
+  it("hides and retries approval prose when the provider cannot force show_view", async () => {
+    Object.assign(resolvedModelMock, {
+      provider: "minimax",
+      modelName: "MiniMax-M3",
+    });
+    streamTextMock
+      .mockReturnValueOnce({
+        toUIMessageStream: toUIMessageStreamMock,
+        consumeStream: vi.fn(() => Promise.resolve()),
+        steps: Promise.resolve([
+          { toolResults: [], text: "Do you approve this plan?" },
+        ]),
+      })
+      .mockReturnValueOnce({
+        toUIMessageStream: toUIMessageStreamMock,
+        consumeStream: vi.fn(() => Promise.resolve()),
+        steps: Promise.resolve([
+          {
+            text: "",
+            toolResults: [
+              {
+                toolName: "show_view",
+                output: {
+                  action: RENDER_VIEW_DIRECTIVE,
+                  view: "renderer",
+                  rendererSlug: "approval-card",
+                  rendererName: "Approval Card",
+                  data: { title: "Approve this plan?" },
+                  ui: { type: "stack", children: [] },
+                },
+              },
+            ],
+          },
+        ]),
+      });
+
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "Ask me to approve this plan before creating the agents.",
+          },
+        ],
+      }),
+    );
+
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await streamConfig.execute({ writer });
+
+    expect(writer.write).toHaveBeenCalledWith({
+      type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
+      data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
+    });
+    expect(streamTextMock).toHaveBeenCalledTimes(2);
+    expect(streamTextMock.mock.calls[1]?.[0]?.system).toContain(
+      "Call `show_view` NOW",
+    );
+  });
+
+  it("renders explicit recovery choices after the selected model exhausts renderer retries", async () => {
+    Object.assign(resolvedModelMock, {
+      id: "selected/model",
+      label: "Selected model",
+      provider: "custom",
+      modelName: "selected-model",
+    });
+    streamTextMock.mockImplementation(() => ({
+      toUIMessageStream: toUIMessageStreamMock,
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        { toolResults: [], text: "Do you approve this plan?" },
+      ]),
+    }));
+
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "Ask me to approve this plan before creating the agents.",
+          },
+        ],
+      }),
+    );
+
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await streamConfig.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(3);
+    expect(writer.write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tool-output-available",
+        output: expect.objectContaining({
+          action: RENDER_VIEW_DIRECTIVE,
+          rendererSlug: "model-output-recovery",
+          data: expect.objectContaining({
+            actions: expect.arrayContaining([
+              expect.objectContaining({ id: "retry" }),
+              expect.objectContaining({ id: "choose-model" }),
+              expect.objectContaining({ id: "cancel" }),
+            ]),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps an optional CMS load failure out of the user-visible error stream", async () => {
+    createCmsToolsMock.mockRejectedValueOnce(new Error("GitHub unavailable"));
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "what is this project?" }],
+      }),
+    );
+
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: {
+          write: (value: unknown) => void;
+          merge: (value: unknown) => void;
+        };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await streamConfig.execute({ writer });
+
+    expect(writer.write).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+    expect(writer.merge).toHaveBeenCalledTimes(1);
+    expect(streamTextMock.mock.calls[0]?.[0]?.system).toContain(
+      "Tool families UNAVAILABLE this turn (their configuration failed to load): cms.",
     );
   });
 
@@ -302,9 +469,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(options?.messages).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ role: "system" })]),
     );
-    expect(options?.system).toContain(
-      "finish this turn with `show_view`",
-    );
+    expect(options?.system).toContain("finish this turn with `show_view`");
   });
 
   it("exposes a working show_view spec contract for approval renderer requests", async () => {
@@ -461,9 +626,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(retryMessages).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ role: "system" })]),
     );
-    expect(retrySystem).toContain(
-      "Call `show_view` NOW",
-    );
+    expect(retrySystem).toContain("Call `show_view` NOW");
     expect(writer.merge).toHaveBeenCalledTimes(3);
   });
 
@@ -508,57 +671,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.merge).toHaveBeenCalledTimes(1);
   });
 
-  it("forces show_view after a plain final answer asks for a user choice", async () => {
-    const { POST } = await import("../../app/api/kody/chat/kody/route");
-
-    const res = await POST(
-      makeRequest({
-        messages: [
-          {
-            role: "user",
-            content: "look into this bug",
-          },
-        ],
-      }),
-    );
-
-    expect(res.status).toBe(200);
-    const options = streamTextMock.mock.calls[0]?.[0];
-    const prepareStep = options?.prepareStep as
-      | ((input: {
-          steps: Array<{
-            toolResults: Array<{
-              toolName: string;
-              output: unknown;
-            }>;
-          }>;
-        }) => {
-          activeTools?: string[];
-          toolChoice?: "required";
-        })
-      | undefined;
-
-    expect(prepareStep).toBeTypeOf("function");
-    expect(
-      prepareStep?.({
-        steps: [
-          {
-            toolResults: [
-              {
-                toolName: FINAL_ANSWER_TOOL,
-                output: { error: FINAL_ANSWER_REQUIRES_VIEW_ERROR },
-              },
-            ],
-          },
-        ],
-      }),
-    ).toEqual({
-      activeTools: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
-      toolChoice: "required",
-    });
-  });
-
-  it("puts textual tool-call correction in the per-step system prompt", async () => {
+  it("puts textual tool-call correction in the per-step system prompt for reasoning tokens", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     await POST(
@@ -573,6 +686,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
           steps: Array<{
             toolResults: Array<{ toolName: string; output: unknown }>;
             text?: string;
+            reasoningText?: string;
           }>;
           messages: Array<{ role: string; content: string }>;
         }) => {
@@ -584,7 +698,8 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       steps: [
         {
           toolResults: [],
-          text: '<tool_call>{"name":"list_goals"}</tool_call>',
+          text: "",
+          reasoningText: "<|tool_call>call:list_workflows{}",
         },
       ],
       messages: [{ role: "user", content: "look into this bug" }],

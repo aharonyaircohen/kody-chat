@@ -97,11 +97,6 @@ describe("tasksApi.list / get / listClosedForGoal", () => {
     expect(result.task).toEqual({ issueNumber: 5 });
   });
 
-  it("URL-encodes the goal id for closed-task lookups", async () => {
-    respondWith({ tasks: [] });
-    await tasksApi.listClosedForGoal("ship v2");
-    expect(lastCall().url).toBe("/api/kody/tasks/closed?goal=ship%20v2");
-  });
 });
 
 describe("tasksApi.create / update", () => {

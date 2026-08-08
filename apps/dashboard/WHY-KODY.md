@@ -10,7 +10,7 @@ Kody is the difference between AI as a coding assistant you babysit (Cursor, Cop
 
 Kody is two pieces designed to work together:
 
-- **[Kody Engine](https://github.com/aharonyaircohen/Kody-Engine)** — the autonomous-agent runtime. A `kody` CLI built on the Claude Agent SDK, packaged as a GitHub Actions workflow that runs in your own repo. Implements features end-to-end, fixes CI, reviews PRs, browses preview deployments, runs scheduled jobs, manages goals as issues. **This is the actual product.**
+- **[Kody Engine](https://github.com/aharonyaircohen/Kody-Engine)** — the autonomous-agent runtime. A `kody` CLI built on the Claude Agent SDK, packaged as a GitHub Actions workflow that runs in your own repo. Implements features end-to-end, fixes CI, reviews PRs, browses preview deployments, and runs scheduled jobs. **This is the actual product.**
 - **Kody Dashboard** (this repo) — the visual control plane for the engine. A Next.js app that lets you launch tasks, monitor parallel runs, schedule jobs, review reports, manage secrets, and chat with Kody. **Optional but essential at scale.** The engine works without it (via `@kody` comments and scheduled workflows); the dashboard turns it from a CLI into a platform.
 
 ---
@@ -68,11 +68,11 @@ Each flow is a transition table — postflight hooks dispatch the next executabl
 
 ### Capabilities, watches, managers
 
-A **capability** is a stateful, bounded goal expressed as a markdown file under `backend definitions (capabilities)`. A **watch** is a stateless repeating loop. A **manager** is a capability whose goal is overseeing other capabilities.
+A **capability** is a bounded method expressed as a markdown file under `backend definitions (capabilities)`. A **watch** is a stateless repeating loop. A **manager** is a capability that oversees other capabilities.
 
 `capability-scheduler` runs on cron (default every 5 minutes), finds every capability file under `backend definitions (capabilities)`, and calls `capability-tick` once per capability. The tick agent reads the capability body (human-owned prose) and a state file (bot-owned JSON), decides the next step, and updates state. Children spawn via `gh workflow run`.
 
-This is how Kody runs **autonomously without supervision**. You file a goal as a capability under `backend definitions (capabilities)`, and the scheduler keeps making progress every five minutes until the goal is done. Manager capabilities let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
+This is how Kody runs **autonomously without supervision**. You define a capability under `backend definitions (capabilities)`, and a Loop can schedule it repeatedly. Manager capabilities let you set up org-wide policies (e.g. "keep dependencies fresh across all repos") without any external orchestrator.
 
 ### Built-in deterministic commands
 
@@ -177,7 +177,7 @@ No hardcoded provider, no vendor lock-in, at any layer.
 | Runs in your CI                             | Yes                           | No      | No      | No         | GitHub-locked     | No      | No        |
 | `@kody`-style ChatOps in issues/PRs         | Yes                           | No      | Partial | Partial    | No                | No      | No        |
 | Free-form QA agent                          | Yes                           | No      | No      | No         | No                | No      | No        |
-| Goal-driven capabilities (autonomous loops) | Yes                           | No      | No      | No         | No                | No      | No        |
+| Outcome-driven capabilities (autonomous loops) | Yes                        | No      | No      | No         | No                | No      | No        |
 | Multi-model (any provider)                  | Yes (LiteLLM + OpenAI-compat) | No      | No      | Limited    | No                | Limited | Yes       |
 | Visual control plane (dashboard)            | Yes                           | Yes     | Yes     | Yes        | Yes               | n/a     | Yes       |
 | Per-seat pricing                            | No                            | Yes     | Yes     | Yes        | Yes               | Yes     | No        |

@@ -337,7 +337,6 @@ export function CommentEditor({
             <MarkdownPreview
               content={comment || "*Nothing to preview*"}
               dir="auto"
-              variant="compact"
             />
           </div>
         ) : (

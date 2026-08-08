@@ -20,7 +20,7 @@ issues, CI — but stops being a database.
 | ---------------------------------- | ---------------------------------------- |
 | Repos, branches, code              | Workflow definitions and runs            |
 | PRs and issues the engine works on | Chat sessions, turns, events             |
-| Commits, reviews, CI runs          | Intents, goals, agents, reports          |
+| Commits, reviews, CI runs          | Intents, agents, reports                 |
 |                                    | Config docs, macros, view renderers      |
 |                                    | User state, notification prefs, inbox    |
 |                                    | Engine action state + event log (global) |
@@ -68,16 +68,10 @@ the same typed Convex conversation timeline as Direct, Brain, and Live
 canonical storage is unavailable; there is no JSONL transcript fallback or
 dual write.
 
-For the engine to use the Convex path, the repo that runs `kody.yml` needs
-two **GitHub Actions secrets** (the workflow forwards all secrets to the
-engine via `toJSON(secrets)` / `ALL_SECRETS`, so no `kody.yml` change is
-needed):
-
-- `CONVEX_URL` — the Convex deployment URL (same value the dashboard uses;
-  see `packages/kody-backend/.env.local`).
-- `KODY_SERVICE_KEY` — the service auth secret verified by
-  `convex/lib/auth.ts` (same value as the deployment's `KODY_SERVICE_KEY`
-  env var).
+The repo running `kody.yml` does not receive `CONVEX_URL`,
+`KODY_SERVICE_KEY`, or user vault secrets. GitHub OIDC identifies the workflow
+to Dashboard, and Dashboard performs the repository-scoped backend and secret
+operations server-side.
 
 The tenant scope is derived from `GITHUB_REPOSITORY` (`owner/repo`), which
 matches the dashboard's `tenantIdFor(owner, repo)`.

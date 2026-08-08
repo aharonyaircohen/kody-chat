@@ -77,6 +77,10 @@ const updateAgentSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   capabilities: z.array(z.string()).max(50).optional(),
+  subagents: z
+    .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
+    .max(20)
+    .optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -113,8 +117,20 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, capabilities, actorLogin } =
+    const { title, body, capabilities, subagents, actorLogin } =
       updateAgentSchema.parse(payload);
+
+    const assignedSubagents =
+      subagents === undefined ? existing.subagents : [...new Set(subagents)];
+    if (assignedSubagents?.includes(slug)) {
+      return NextResponse.json(
+        {
+          error: "invalid_subagent_assignment",
+          message: "An Agent cannot assign itself as a subagent.",
+        },
+        { status: 400 },
+      );
+    }
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -126,6 +142,7 @@ export async function PATCH(
       sha: existing.sha,
       // Preserve existing capabilities unless the caller sends a new list.
       capabilities: capabilities ?? existing.capabilities,
+      subagents: assignedSubagents,
     });
     if (!headerAuth) {
       throw new Error("Repository context is required to save an agent");

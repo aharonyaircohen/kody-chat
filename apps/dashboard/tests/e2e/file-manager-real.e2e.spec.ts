@@ -124,10 +124,11 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
         mimeType: "text/markdown",
         buffer: Buffer.from("# Uploaded by the file manager\n"),
       });
-    await expect(page.locator("[data-sonner-toast]")).toContainText(
-      `Uploaded ${uploadedFileName}`,
-      { timeout: 10_000 },
-    );
+    await expect(
+      page
+        .locator("[data-sonner-toast]")
+        .filter({ hasText: `Uploaded ${uploadedFileName}` }),
+    ).toBeVisible({ timeout: 10_000 });
     await expect
       .poll(async () => {
         try {
@@ -169,15 +170,16 @@ test("creates, moves, deletes, and cleans up real repository files", async ({
       })
       .toBe(nestedFilePath);
 
-    const folderItem = page.getByRole("treeitem", {
-      name: folderPath,
-      exact: true,
-    });
-    await expect(folderItem).toBeVisible();
-    await folderItem.press("ArrowRight");
-    const nestedFile = page.getByRole("treeitem").filter({ hasText: fileName });
-    await expect(nestedFile).toBeVisible();
-    await nestedFile.dragTo(page.getByTestId("file-tree-root-drop-target"));
+    await page.getByRole("button", { name: "More file actions" }).click();
+    await page.getByRole("menuitem", { name: "Rename or move" }).click();
+    const moveDialog = page.getByRole("dialog", { name: "Rename or move" });
+    await moveDialog.getByRole("textbox").fill(rootFilePath);
+    await moveDialog.getByRole("button", { name: "Move" }).click();
+    await expect(
+      page
+        .locator("[data-sonner-toast]")
+        .filter({ hasText: `Moved ${nestedFilePath} to ${rootFilePath}` }),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page).toHaveURL(new RegExp(`/files/${rootFilePath}$`));
     await expect
       .poll(async () => {

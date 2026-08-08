@@ -10,7 +10,7 @@ const auth = vi.hoisted(() => ({
     token: "ghp_test",
     owner: "A-Guy-educ",
     repo: "A-Guy-Web",
-    storeRepoUrl: "https://github.com/aharonyaircohen/kody-company-store",
+    storeRepoUrl: "https://github.com/aharonyaircohen/kody-ai-agency-catalog",
     storeRef: "stable",
   })),
   getUserOctokit: vi.fn(async () => ({
@@ -76,6 +76,10 @@ const stateRepo = vi.hoisted(() => ({
   deleteStateFile: vi.fn(async (_input: unknown): Promise<void> => undefined),
 }));
 vi.mock("@kody-ade/cms/repo-docs", () => ({
+  runWithCmsRepoDocsStore: <T>(
+    _store: unknown,
+    callback: () => T,
+  ): T => callback(),
   readCmsFile: async (owner: string, repo: string, filePath: string) =>
     stateRepo.readStateText({}, owner, repo, filePath),
   readRepoDocFile: (...args: unknown[]) => stateRepo.readStateText(...args),

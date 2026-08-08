@@ -3,6 +3,7 @@ import { createBackendClient } from "@kody-ade/backend/client";
 
 export type AgencyApprovalScopeKind =
   | "loop"
+  | "pipeline"
   | "workflow"
   | "capability";
 
@@ -63,6 +64,32 @@ export async function grantStoredAgencyApproval(input: {
     approvedAt: input.approvedAt,
     ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
   });
+}
+
+export async function consumeStoredAgencyApproval(input: {
+  owner: string;
+  repo: string;
+  approvalId: string;
+  scopeKind: AgencyApprovalScopeKind;
+  scopeId: string;
+  action: string;
+  approvedBy: string;
+  dispatchKey: string;
+  consumedAt: string;
+}): Promise<boolean> {
+  return await createBackendClient().mutation(
+    backendApi.agencyModel.consumeApproval,
+    {
+      tenantId: tenantIdFor(input.owner, input.repo),
+      approvalId: input.approvalId,
+      scopeKind: input.scopeKind,
+      scopeId: input.scopeId,
+      action: input.action,
+      approvedBy: input.approvedBy,
+      dispatchKey: input.dispatchKey,
+      consumedAt: input.consumedAt,
+    },
+  );
 }
 
 export async function revokeStoredAgencyApproval(input: {

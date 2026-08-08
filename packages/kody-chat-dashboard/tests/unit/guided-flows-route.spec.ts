@@ -1,10 +1,22 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
-  getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
-  verifyActorLogin: vi.fn(async () => ({ identity: { login: "alice" } })),
+  requireUserAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
+  getUserRequestAuth: vi.fn((): { token: string } | null => ({
+    token: "ghp_test",
+  })),
+  getRequestAuth: vi.fn((): { owner: string; repo: string } | null => ({
+    owner: "acme",
+    repo: "widgets",
+  })),
+  verifyActorLogin: vi.fn(async () => ({
+    identity: { login: "alice", githubId: 42 },
+  })),
+  verifyRepoWriteAccess: vi.fn<
+    () => Promise<{ actorLogin: string } | NextResponse>
+  >(async () => ({ actorLogin: "alice" })),
 }));
 
 const store = vi.hoisted(() => ({
@@ -13,6 +25,10 @@ const store = vi.hoisted(() => ({
   userState: {} as Record<string, unknown>,
   failUserStateSaves: [] as string[],
   completions: [] as Array<Record<string, unknown>>,
+  bindings: [] as Array<Record<string, unknown>>,
+  submissions: [] as Array<Record<string, unknown>>,
+  effects: [] as Array<Record<string, unknown>>,
+  starts: [] as Array<Record<string, unknown>>,
   failCompletionWrites: false,
 }));
 
@@ -24,10 +40,15 @@ vi.mock("@kody-ade/backend/api", () => ({
       listActive: "listActive",
       list: "list",
       upsert: "upsert",
+      startOrResume: "startOrResume",
       update: "update",
       recordCompletion: "recordCompletion",
       saveDefinition: "saveDefinition",
       listDefinitions: "listDefinitions",
+      bindConversation: "bindConversation",
+      listPendingEffects: "listPendingEffects",
+      beginEffect: "beginEffect",
+      markEffect: "markEffect",
     },
     userState: {
       get: "userState.get",
@@ -45,7 +66,6 @@ vi.mock("@kody-ade/backend/client", () => ({
       if (operation === "listDefinitions") {
         return store.definitions.map((definition) => ({
           tenantId: args.tenantId,
-          actorId: args.actorId,
           flowId: definition.id,
           version: definition.version ?? 1,
           archived: definition.archived,
@@ -65,6 +85,17 @@ vi.mock("@kody-ade/backend/client", () => ({
           (row) =>
             row.tenantId === args.tenantId && row.actorId === args.actorId,
         );
+      }
+      if (operation === "listPendingEffects") {
+        return store.effects
+          .filter(
+            (effect) =>
+              effect.tenantId === args.tenantId &&
+              effect.actorId === args.actorId &&
+              effect.instanceId === args.instanceId &&
+              effect.status !== "completed",
+          )
+          .map((effect) => ({ ...effect }));
       }
       return (
         store.rows.find(
@@ -120,22 +151,114 @@ vi.mock("@kody-ade/backend/client", () => ({
         store.rows.push({ ...args });
         return;
       }
+      if (operation === "startOrResume") {
+        store.starts.push({ ...args });
+        const existing = store.rows.find(
+          (row) =>
+            row.tenantId === args.tenantId &&
+            row.actorId === args.actorId &&
+            row.status === "active" &&
+            (row.rootFlowId ?? row.flowId) === args.rootFlowId &&
+            (row.instanceKey ?? "") === (args.instanceKey ?? ""),
+        );
+        if (existing && args.restart !== true) {
+          return { created: false, instance: existing };
+        }
+        if (existing) existing.status = "cancelled";
+        const { restart: _restart, ...instance } = args;
+        store.rows.push(instance);
+        return { created: true, instance };
+      }
+      if (operation === "bindConversation") {
+        store.bindings.push({ ...args });
+        return;
+      }
+      if (operation === "markEffect") {
+        const effect = store.effects.find(
+          (candidate) => candidate.effectId === args.effectId,
+        );
+        if (effect) Object.assign(effect, args);
+        return;
+      }
+      if (operation === "beginEffect") {
+        const effect = store.effects.find(
+          (candidate) => candidate.effectId === args.effectId,
+        );
+        if (effect) {
+          effect.attempts = Number(effect.attempts ?? 0) + 1;
+        }
+        return;
+      }
+      if (
+        operation === "update" &&
+        args.completions &&
+        store.failCompletionWrites
+      ) {
+        throw new Error("completions unavailable");
+      }
       const row = store.rows.find(
         (candidate) => candidate.instanceId === args.instanceId,
       );
       if (row) Object.assign(row, args);
+      if (operation === "update" && args.submission) {
+        store.submissions.push({
+          tenantId: args.tenantId,
+          actorId: args.actorId,
+          instanceId: args.instanceId,
+          revision: args.revision,
+          mutationId: args.mutationId,
+          ...(args.submission as Record<string, unknown>),
+        });
+      }
+      if (operation === "update" && Array.isArray(args.completions)) {
+        for (const completion of args.completions) {
+          const value = completion as Record<string, unknown>;
+          if (
+            !store.completions.some(
+              (candidate) => candidate.instanceId === args.instanceId,
+            )
+          ) {
+            store.completions.push({
+              tenantId: args.tenantId,
+              actorId: args.actorId,
+              instanceId: args.instanceId,
+              ...value,
+            });
+          }
+          if (
+            !store.effects.some(
+              (candidate) => candidate.effectId === value.effectId,
+            )
+          ) {
+            store.effects.push({
+              tenantId: args.tenantId,
+              actorId: args.actorId,
+              instanceId: args.instanceId,
+              ...value,
+              status: "pending",
+              attempts: 0,
+            });
+          }
+        }
+      }
     },
   }),
 }));
 
 import { GET, POST } from "../../app/api/kody/guided-flows/route";
 
-function request(body?: unknown): NextRequest {
+function request(
+  body?: unknown,
+  options: { readonly cookie?: string; readonly includeRepo?: boolean } = {},
+): NextRequest {
+  const includeRepo = options.includeRepo ?? true;
   return new NextRequest("https://dash.test/api/kody/guided-flows", {
     method: body === undefined ? "GET" : "POST",
     headers: {
-      "x-kody-owner": "acme",
-      "x-kody-repo": "widgets",
+      ...(includeRepo
+        ? { "x-kody-owner": "acme", "x-kody-repo": "widgets" }
+        : {}),
+      ...(options.cookie ? { cookie: options.cookie } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -149,13 +272,29 @@ describe("GuidedFlow route", () => {
     store.userState = {};
     store.failUserStateSaves = [];
     store.completions = [];
+    store.bindings = [];
+    store.submissions = [];
+    store.effects = [];
+    store.starts = [];
     store.failCompletionWrites = false;
     vi.clearAllMocks();
+    auth.requireKodyAuth.mockResolvedValue(null);
+    auth.requireUserAuth.mockResolvedValue(null);
+    auth.getUserRequestAuth.mockReturnValue({ token: "ghp_test" });
+    auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
+    auth.verifyActorLogin.mockResolvedValue({
+      identity: { login: "alice", githubId: 42 },
+    });
+    auth.verifyRepoWriteAccess.mockResolvedValue({ actorLogin: "alice" });
   });
 
   it("starts and lists an active flow for the authenticated actor", async () => {
     const response = await POST(
-      request({ action: "start", flowId: "create-workflow" }),
+      request({
+        action: "start",
+        flowId: "create-workflow",
+        conversationId: "conversation-1",
+      }),
     );
     expect(response.status).toBe(201);
     expect((await response.json()).view.guidedFlow.revision).toBe(0);
@@ -163,6 +302,188 @@ describe("GuidedFlow route", () => {
     const listed = await GET(request());
     expect(listed.status).toBe(200);
     expect((await listed.json()).flows).toHaveLength(1);
+    expect(store.bindings).toEqual([
+      expect.objectContaining({
+        actorId: "alice",
+        conversationId: "conversation-1",
+        instanceId: store.rows[0]?.instanceId,
+      }),
+    ]);
+  });
+
+  it("starts a fresh instance instead of reopening the active instance", async () => {
+    const first = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const firstInstance = (await first.json()).instance as {
+      instanceId: string;
+    };
+
+    const second = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const secondInstance = (await second.json()).instance as {
+      instanceId: string;
+      currentStepId: string;
+      revision: number;
+    };
+
+    expect(second.status).toBe(201);
+    expect(secondInstance).toMatchObject({
+      currentStepId: "choose-capability",
+      revision: 0,
+    });
+    expect(secondInstance.instanceId).not.toBe(firstInstance.instanceId);
+    expect(store.rows).toHaveLength(2);
+    expect(store.rows[0]).toMatchObject({ status: "cancelled" });
+    expect(store.rows[1]).toMatchObject({ status: "active" });
+    expect(store.starts.at(-1)).toMatchObject({ restart: true });
+  });
+
+  it("starts onboarding in the verified user's private scope without a repository", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const response = await POST(
+      request(
+        {
+          action: "start",
+          flowId: "onboarding",
+          conversationId: "user-conversation",
+        },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(store.rows).toEqual([
+      expect.objectContaining({
+        tenantId: "user:42",
+        actorId: "github:42",
+        rootFlowId: "onboarding",
+      }),
+    ]);
+    expect(auth.verifyActorLogin).toHaveBeenCalledOnce();
+  });
+
+  it("does not allow repository GuidedFlows before a repository is attached", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const response = await POST(
+      request(
+        { action: "start", flowId: "create-workflow" },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "repository_required" });
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it("does not start onboarding without a verified user", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+    auth.getUserRequestAuth.mockReturnValue(null);
+    auth.requireUserAuth.mockResolvedValue(
+      NextResponse.json({ error: "request_auth_required" }, { status: 401 }),
+    );
+
+    const response = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "request_auth_required" });
+    expect(store.rows).toHaveLength(0);
+  });
+
+  it("continues a user-owned onboarding instance after a repository connects", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+    const started = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+    const instance = (await started.json()).instance as {
+      instanceId: string;
+      revision: number;
+    };
+
+    auth.getRequestAuth.mockReturnValue({ owner: "acme", repo: "widgets" });
+    const response = await POST(
+      request({
+        action: "submit",
+        instanceId: instance.instanceId,
+        stepId: "welcome",
+        actionId: "finish",
+        expectedRevision: instance.revision,
+        mutationId: "bootstrap-next",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).instance).toMatchObject({
+      instanceId: instance.instanceId,
+      currentStepId: "welcome",
+      status: "completed",
+      revision: 1,
+    });
+    expect(store.rows[0]).toMatchObject({
+      tenantId: "user:42",
+      actorId: "github:42",
+    });
+  });
+
+  it("lists only user-level GuidedFlows before a repository is attached", async () => {
+    auth.getRequestAuth.mockReturnValue(null);
+
+    const started = await POST(
+      request(
+        { action: "start", flowId: "onboarding" },
+        { includeRepo: false },
+      ),
+    );
+    expect(started.status).toBe(201);
+
+    const listed = await GET(request(undefined, { includeRepo: false }));
+    expect(listed.status).toBe(200);
+    const body = await listed.json();
+    expect(body.flows).toHaveLength(1);
+    expect(
+      body.definitions.map((definition: { id: string }) => definition.id),
+    ).toEqual(["onboarding"]);
+  });
+
+  it("binds an existing instance without changing its progress", async () => {
+    const started = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const instance = (await started.json()).instance as {
+      instanceId: string;
+      revision: number;
+    };
+
+    const response = await POST(
+      request({
+        action: "bind",
+        instanceId: instance.instanceId,
+        conversationId: "conversation-2",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).instance).toMatchObject({
+      instanceId: instance.instanceId,
+      revision: instance.revision,
+    });
+    expect(store.bindings.at(-1)).toMatchObject({
+      conversationId: "conversation-2",
+      instanceId: instance.instanceId,
+    });
   });
 
   it("creates and persists a custom renderer-backed flow definition", async () => {
@@ -195,6 +516,394 @@ describe("GuidedFlow route", () => {
         expect.objectContaining({ id: "review-a-release" }),
       ]),
     );
+  });
+
+  it("executes a command step before allowing manual continuation", async () => {
+    const created = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Initialize Kody",
+          steps: [
+            {
+              type: "command",
+              title: "Initialize Kody Engine",
+              explanation: "Run the standard initialization command.",
+              command: "/init",
+            },
+          ],
+        },
+      }),
+    );
+    expect(created.status).toBe(201);
+    const started = await POST(
+      request({ action: "start", flowId: "initialize-kody" }),
+    );
+    expect(started.status).toBe(201);
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    const premature = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "continue-before-run",
+      }),
+    );
+    expect(premature.status).toBe(409);
+    expect(await premature.json()).toEqual({ error: "command_not_completed" });
+
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        handled: true,
+        command: "/init",
+        result: { status: "completed", summary: "Engine ready" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const executed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 0,
+          actionId: "run",
+          mutationId: "run-init",
+        }),
+      );
+      expect(executed.status).toBe(200);
+      expect(await executed.json()).toMatchObject({
+        instance: { status: "active", revision: 1 },
+        view: {
+          rendererSlug: "guided-flow-command",
+          data: { status: "completed", summary: "Engine ready" },
+        },
+      });
+
+      const completed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 1,
+          actionId: "continue",
+          mutationId: "continue-after-run",
+        }),
+      );
+      expect(completed.status).toBe(200);
+      expect(await completed.json()).toMatchObject({
+        instance: { status: "completed", revision: 2 },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("executes an enabled control and persists the returned flow state", async () => {
+    const created = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Back-enabled lesson",
+          controls: ["back"],
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the lesson.",
+              rendererSlug: "approval-card",
+            },
+            {
+              title: "Review",
+              explanation: "Review the lesson.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    expect(created.status).toBe(201);
+
+    const started = await POST(
+      request({ action: "start", flowId: "back-enabled-lesson" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    const advanced = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "advance-before-back",
+      }),
+    );
+    const advancedPayload = await advanced.json();
+    expect(advancedPayload.view.ui).toMatchObject({ type: "stack" });
+
+    const backed = await POST(
+      request({
+        action: "control",
+        controlId: "back",
+        instanceId,
+        expectedRevision: 1,
+        mutationId: "back-control",
+      }),
+    );
+
+    expect(backed.status).toBe(200);
+    expect((await backed.json()).instance).toMatchObject({
+      currentStepId: "step-1",
+      revision: 2,
+      backStack: [],
+    });
+    expect(store.rows[0]).toMatchObject({
+      currentStepId: "step-1",
+      revision: 2,
+    });
+  });
+
+  it("rejects a control that the stored flow did not enable", async () => {
+    await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Forward-only lesson",
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the lesson.",
+              rendererSlug: "approval-card",
+            },
+            {
+              title: "Review",
+              explanation: "Review the lesson.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    const started = await POST(
+      request({ action: "start", flowId: "forward-only-lesson" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "advance-forward-only",
+      }),
+    );
+
+    const response = await POST(
+      request({
+        action: "control",
+        controlId: "back",
+        instanceId,
+        expectedRevision: 1,
+        mutationId: "disabled-back-control",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe("guided_flow_control_disabled");
+    expect(store.rows[0]).toMatchObject({
+      currentStepId: "step-2",
+      revision: 1,
+    });
+  });
+
+  it("requires repository write access to change shared definitions", async () => {
+    auth.verifyRepoWriteAccess.mockResolvedValueOnce(
+      NextResponse.json(
+        { error: "write_permission_required" },
+        { status: 403 },
+      ),
+    );
+
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Protected flow",
+          steps: [
+            {
+              title: "Protected step",
+              explanation: "Only repository writers may publish this.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(store.definitions).toEqual([]);
+  });
+
+  it("runs a nested flow and resumes the parent with the child result", async () => {
+    const child = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Addition exercise",
+          steps: [
+            {
+              title: "Choose the answer",
+              explanation: "What is two plus two?",
+              rendererSlug: "selection-list",
+            },
+          ],
+        },
+      }),
+    );
+    expect(child.status).toBe(201);
+
+    const parent = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Addition guide",
+          steps: [
+            {
+              title: "Introduction",
+              explanation: "Start the guide.",
+              rendererSlug: "approval-card",
+            },
+            {
+              type: "flow",
+              title: "Exercise",
+              explanation: "Complete the exercise.",
+              flowId: "addition-exercise",
+              flowVersion: 1,
+            },
+            {
+              title: "Summary",
+              explanation: "Review the result.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+    expect(parent.status).toBe(201);
+
+    const started = await POST(
+      request({ action: "start", flowId: "addition-guide" }),
+    );
+    const startedPayload = await started.json();
+    const instanceId = startedPayload.instance.instanceId as string;
+    expect(startedPayload).toMatchObject({
+      instance: {
+        flowId: "addition-guide",
+        currentStepId: "step-1",
+        revision: 0,
+      },
+    });
+
+    const childStep = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "nested-intro",
+      }),
+    );
+    expect(childStep.status).toBe(200);
+    expect(await childStep.json()).toMatchObject({
+      instance: {
+        instanceId,
+        flowId: "addition-exercise",
+        currentStepId: "step-1",
+        revision: 1,
+        stack: [
+          {
+            flowId: "addition-guide",
+            currentStepId: "step-2",
+          },
+        ],
+      },
+      flow: { id: "addition-exercise" },
+    });
+    expect(store.rows[0]).toMatchObject({
+      flowId: "addition-exercise",
+      stack: [{ flowId: "addition-guide" }],
+    });
+
+    const summary = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 1,
+        actionId: "continue",
+        result: { answer: "four", apiToken: "must-not-be-stored" },
+        mutationId: "nested-answer",
+      }),
+    );
+    expect(summary.status).toBe(200);
+    expect(await summary.json()).toMatchObject({
+      instance: {
+        instanceId,
+        flowId: "addition-guide",
+        currentStepId: "step-3",
+        revision: 2,
+        stack: [],
+        data: {
+          flowResults: {
+            "step-2": {
+              flowId: "addition-exercise",
+              status: "completed",
+              output: { answer: "four" },
+            },
+          },
+        },
+      },
+      flow: { id: "addition-guide" },
+    });
+    expect(store.submissions.at(-1)).toMatchObject({
+      instanceId,
+      revision: 2,
+      flowId: "addition-exercise",
+      stepId: "step-1",
+      actionId: "continue",
+      result: { answer: "four" },
+    });
+    expect(store.submissions.at(-1)?.result).not.toHaveProperty("apiToken");
+  });
+
+  it("rejects a nested flow definition that references itself", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Recursive flow",
+          steps: [
+            {
+              type: "flow",
+              title: "Again",
+              explanation: "Run this flow again.",
+              flowId: "recursive-flow",
+              flowVersion: 1,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "recursive_flow",
+    });
+    expect(store.definitions).toEqual([]);
   });
 
   it("ignores malformed stored definitions without hiding valid ones", async () => {
@@ -247,6 +956,56 @@ describe("GuidedFlow route", () => {
       error: "invalid_completion_route",
     });
     expect(store.definitions).toEqual([]);
+  });
+
+  it("saves a valid page owned by an authored step", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Configure a secret",
+          steps: [
+            {
+              title: "Add the secret",
+              explanation: "Complete this task on the Secrets page.",
+              routeId: "secrets",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      definition: {
+        steps: [{ routeId: "secrets" }],
+      },
+    });
+  });
+
+  it("rejects an unknown active-step page before saving a definition", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Broken step destination",
+          steps: [
+            {
+              title: "Open nowhere",
+              explanation: "This page does not exist.",
+              routeId: "definitely-not-a-dashboard-route",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "invalid_step_route",
+    });
   });
 
   it("completes a legacy flow even when its optional navigation is invalid", async () => {
@@ -376,14 +1135,16 @@ describe("GuidedFlow route", () => {
       },
     });
 
-    const resumedOldRun = await POST(
+    const restartedRun = await POST(
       request({ action: "start", flowId: "review-a-release" }),
     );
-    expect(resumedOldRun.status).toBe(200);
-    expect(await resumedOldRun.json()).toMatchObject({
-      instance: { instanceId, flowVersion: 1 },
-      flow: { title: "Review a release" },
+    expect(restartedRun.status).toBe(201);
+    const restartedPayload = await restartedRun.json();
+    expect(restartedPayload).toMatchObject({
+      instance: { flowVersion: 2, revision: 0 },
+      flow: { title: "Review the release" },
     });
+    expect(restartedPayload.instance.instanceId).not.toBe(instanceId);
 
     const protectedBuiltin = await POST(
       request({
@@ -565,7 +1326,7 @@ describe("GuidedFlow route", () => {
     }
   });
 
-  it("keeps the flow active and returns a safe code when workflow creation is rejected", async () => {
+  it("keeps a failed consumer effect retryable after the flow is committed", async () => {
     const started = await POST(
       request({ action: "start", flowId: "create-workflow" }),
     );
@@ -586,14 +1347,15 @@ describe("GuidedFlow route", () => {
       }),
     );
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: "workflow_exists",
-          message: "Workflow already exists.",
-        }),
-        { status: 409, headers: { "content-type": "application/json" } },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "workflow_exists",
+            message: "Workflow already exists.",
+          }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
     );
     const rejected = await POST(
       request({
@@ -616,7 +1378,20 @@ describe("GuidedFlow route", () => {
         { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
       ),
     );
-    expect((await current.json()).flow.instance.status).toBe("active");
+    expect((await current.json()).flow.instance.status).toBe("completed");
+    expect(store.effects).toMatchObject([{ status: "failed", attempts: 1 }]);
+    const retried = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "review",
+        expectedRevision: 1,
+        actionId: "approve",
+        mutationId: "m-rejected-approve",
+      }),
+    );
+    expect(retried.status).toBe(200);
+    expect(store.effects).toMatchObject([{ status: "completed", attempts: 2 }]);
   });
 
   it("records a completion ledger entry when any flow completes", async () => {
@@ -666,7 +1441,7 @@ describe("GuidedFlow route", () => {
     ]);
   });
 
-  it("still completes the flow when the completion ledger write fails", async () => {
+  it("does not commit a completion without its durable ledger and effect", async () => {
     store.failCompletionWrites = true;
     store.definitions = [
       {
@@ -700,10 +1475,13 @@ describe("GuidedFlow route", () => {
       }),
     );
 
-    expect(completed.status).toBe(200);
-    expect(await completed.json()).toMatchObject({
-      instance: { status: "completed" },
+    expect(completed.status).toBe(500);
+    expect(await completed.json()).toEqual({
+      error: "guided_flow_action_failed",
     });
+    expect(
+      store.rows.find((row) => row.instanceId === instanceId),
+    ).toMatchObject({ status: "active", revision: 0 });
   });
 
   it("does not accept oversized request bodies", async () => {

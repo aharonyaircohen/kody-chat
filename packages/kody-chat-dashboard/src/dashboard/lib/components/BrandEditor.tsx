@@ -20,11 +20,6 @@ import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { slugifyTitle } from "@kody-ade/base/slug";
-import {
-  CLIENT_AUTH_PROVIDERS,
-  type ClientAuthProvider,
-} from "../client-auth/allowlist";
-import { providerLabel } from "../client-auth/catalog";
 import type {
   BrandAgentOption,
   BrandLanguageOption,
@@ -35,13 +30,6 @@ import type {
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
-
-function splitLines(value: string): string[] {
-  return value
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 interface BrandEditorProps {
   initial: BrandRow | null;
@@ -73,17 +61,8 @@ export function BrandEditor({
   const [welcomeText, setWelcomeText] = useState(initial?.welcomeText ?? "");
   const [modelId, setModelId] = useState(initial?.modelId ?? "");
   const [agentSlug, setAgentSlug] = useState(initial?.agentSlug ?? "");
-  const [authRequired, setAuthRequired] = useState(
-    initial?.auth?.required ?? false,
-  );
-  const [authProviders, setAuthProviders] = useState<ClientAuthProvider[]>(
-    initial?.auth?.providers?.length ? initial.auth.providers : ["google"],
-  );
-  const [allowedList, setAllowedList] = useState(
-    [
-      ...(initial?.auth?.allowedEmails ?? []),
-      ...(initial?.auth?.allowedDomains ?? []),
-    ].join("\n"),
+  const [accessMode, setAccessMode] = useState<"public" | "delegated">(
+    initial?.access.mode ?? "public",
   );
   const [touchedSlug, setTouchedSlug] = useState(false);
 
@@ -252,62 +231,27 @@ export function BrandEditor({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={authRequired}
-                onChange={(event) => setAuthRequired(event.target.checked)}
-              />
-              Require sign-in
-            </label>
+            <Label htmlFor="brand-access" className="text-xs">
+              Access
+            </Label>
+            <select
+              id="brand-access"
+              value={accessMode}
+              onChange={(event) =>
+                setAccessMode(event.target.value as "public" | "delegated")
+              }
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="public">Public</option>
+              <option value="delegated">
+                Provided by the host application
+              </option>
+            </select>
+            <p className="mt-1 text-xs text-white/50">
+              Delegated access accepts only a verified Dashboard or host
+              application session.
+            </p>
           </div>
-
-          {authRequired && (
-            <div className="sm:col-span-2">
-              <Label className="text-xs">Sign-in methods</Label>
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
-                {CLIENT_AUTH_PROVIDERS.map((provider) => (
-                  <label
-                    key={provider}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={authProviders.includes(provider)}
-                      onChange={(event) =>
-                        setAuthProviders(
-                          event.target.checked
-                            ? [...authProviders, provider]
-                            : authProviders.filter((p) => p !== provider),
-                        )
-                      }
-                    />
-                    {providerLabel(provider)}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {authRequired && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="brand-auth-allowed" className="text-xs">
-                Who can access
-              </Label>
-              <Textarea
-                id="brand-auth-allowed"
-                value={allowedList}
-                onChange={(event) => setAllowedList(event.target.value)}
-                rows={3}
-                placeholder={"jane@acme.com\nacme.com"}
-                className="font-mono"
-              />
-              <p className="mt-1 text-xs text-white/50">
-                Emails or whole domains, one per line. Empty = any Google
-                account.
-              </p>
-            </div>
-          )}
 
           <div className="sm:col-span-2">
             <Label htmlFor="brand-welcome" className="text-xs">
@@ -340,16 +284,7 @@ export function BrandEditor({
                 welcomeText: welcomeText.trim() || undefined,
                 modelId: modelId.trim() || undefined,
                 agentSlug: agentSlug.trim() || undefined,
-                auth: {
-                  required: authRequired,
-                  providers: authProviders,
-                  allowedEmails: splitLines(allowedList).filter((entry) =>
-                    entry.includes("@"),
-                  ),
-                  allowedDomains: splitLines(allowedList).filter(
-                    (entry) => !entry.includes("@"),
-                  ),
-                },
+                access: { mode: accessMode },
                 isUpdate: !isNew,
               });
             }}

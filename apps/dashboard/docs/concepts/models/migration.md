@@ -3,14 +3,13 @@
 Status: **Required P0 work**
 
 The desired public model is Intent, Todo, Loop, Workflow, Capability, Agent, and
-Run. Operation, Goal, and a public Implementation model remain only in the
-published Engine contract and must not be restored to the Dashboard.
+Run. Retired planning and implementation models must not be restored.
 
 Required migration:
 
 1. Publish the simplified Agency contract under a new version.
 2. Choose one persisted Loop definition format and authority.
-3. Migrate or delete existing old Intent, Operation, Goal, and Loop records.
+3. Migrate or delete old incompatible records.
 4. Update Engine loaders and dispatch to the selected contract.
 5. Remove old readers, writers, types, and routes.
 6. Remove the `agency:intent` compatibility reader.

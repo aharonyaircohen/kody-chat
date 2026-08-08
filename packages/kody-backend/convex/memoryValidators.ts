@@ -15,8 +15,14 @@ export const memoryKindValidator = v.union(
   v.literal("preference"),
   v.literal("fact"),
   v.literal("decision"),
-  v.literal("goal"),
   v.literal("reference"),
+);
+
+// Goal was a historical storage kind. Keep old rows valid while the public
+// memory contract continues to accept only the current typed kinds above.
+export const storedMemoryKindValidator = v.union(
+  memoryKindValidator,
+  v.literal("goal"),
 );
 
 export const memoryStatusValidator = v.union(
@@ -48,7 +54,6 @@ export const memoryEvidenceValidator = v.object({
     v.literal("user-input"),
     v.literal("conversation"),
     v.literal("message"),
-    v.literal("goal"),
     v.literal("pull-request"),
     v.literal("document"),
     v.literal("engine-run"),

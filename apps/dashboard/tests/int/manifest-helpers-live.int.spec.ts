@@ -1,8 +1,8 @@
 /**
- * COMPLETE live verification of all five real manifest helpers against the
+ * Live verification of the real manifest helpers against the
  * tester sandbox repo. Unlike manifest-store-live.int.spec.ts (which drives
  * the generic core with a throwaway label), this exercises the actual
- * exported helpers — goals / push / notifications / inbox-feed — through
+ * exported helpers — push / notifications / inbox-feed — through
  * their real `kody:*` labels, every scenario, end to
  * end against the live GitHub API.
  *
@@ -19,11 +19,6 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  mutateGoalsManifest,
-  readGoalsManifestFresh,
-} from "@dashboard/lib/goals-server";
-import { GOALS_MANIFEST_LABEL } from "@dashboard/lib/goals";
 import {
   mutatePushManifest,
   readPushManifest,
@@ -95,7 +90,6 @@ describe.skipIf(!enabled)(
       octo = new Octokit({ auth: TOKEN });
       setGitHubContext(owner, repo, TOKEN);
       for (const label of [
-        GOALS_MANIFEST_LABEL,
         PUSH_SUBSCRIPTIONS_LABEL,
         NOTIFICATIONS_MANIFEST_LABEL,
         INBOX_FEED_LABEL,
@@ -140,34 +134,6 @@ describe.skipIf(!enabled)(
         clearGitHubContext();
       }
     }, 60_000);
-
-    it("goals: create/mutate → fresh read verifies; noop leaves it untouched", async () => {
-      const id = `livetest-goal-${tag}`;
-      const out = await mutateGoalsManifest((cur) => ({
-        next: {
-          version: 1,
-          goals: [
-            ...cur.goals,
-            { id, name: "live test goal", createdAt: new Date().toISOString() },
-          ],
-        },
-        result: id,
-      }));
-      expect("issueNumber" in out).toBe(true);
-
-      const ref = await readGoalsManifestFresh();
-      expect(ref.manifest.goals.some((g) => g.id === id)).toBe(true);
-
-      const before = (await readGoalsManifestFresh()).manifest.goals.length;
-      const noop = await mutateGoalsManifest(() => ({
-        kind: "noop" as const,
-        result: "skip",
-      }));
-      expect(noop).toEqual({ kind: "noop", result: "skip" });
-      expect((await readGoalsManifestFresh()).manifest.goals.length).toBe(
-        before,
-      );
-    }, 90_000);
 
     it("push: subscribe round-trips; noop leaves it untouched", async () => {
       const endpoint = `https://example.com/push/${tag}`;

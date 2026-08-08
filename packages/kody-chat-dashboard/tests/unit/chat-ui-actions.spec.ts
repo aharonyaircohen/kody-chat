@@ -40,6 +40,56 @@ describe("isDashboardNavigateDirective", () => {
 });
 
 describe("isRenderedViewDirective", () => {
+  it("accepts an opaque control dispatch without knowing its behavior", () => {
+    expect(
+      isRenderedViewDirective({
+        action: RENDER_VIEW_DIRECTIVE,
+        view: "renderer",
+        id: "guided-flow-view",
+        rendererSlug: "approval-card",
+        rendererName: "Approval card",
+        resultTarget: "guided-flow",
+        guidedFlow: { instanceId: "instance-1", stepId: "step-2", revision: 1 },
+        ui: {
+          type: "button",
+          label: "Back",
+          action: {
+            id: "guided-flow-control-back",
+            label: "Back",
+            response: "back",
+            dispatch: { type: "control", id: "back" },
+          },
+        },
+        data: {},
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects malformed control dispatch metadata", () => {
+    expect(
+      isRenderedViewDirective({
+        action: RENDER_VIEW_DIRECTIVE,
+        view: "renderer",
+        id: "guided-flow-view",
+        rendererSlug: "approval-card",
+        rendererName: "Approval card",
+        resultTarget: "guided-flow",
+        guidedFlow: { instanceId: "instance-1", stepId: "step-2", revision: 1 },
+        ui: {
+          type: "button",
+          label: "Back",
+          action: {
+            id: "guided-flow-control-back",
+            label: "Back",
+            response: "back",
+            dispatch: { type: "control" },
+          },
+        },
+        data: {},
+      }),
+    ).toBe(false);
+  });
+
   it("accepts a generic renderer view directive", () => {
     expect(
       isRenderedViewDirective({
@@ -93,6 +143,32 @@ describe("isRenderedViewDirective", () => {
         },
       }),
     ).toBe(true);
+  });
+
+  it("accepts a durable generic result and rejects malformed results", () => {
+    const completedView = {
+      action: RENDER_VIEW_DIRECTIVE,
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "question-select",
+      rendererName: "Question",
+      resultTarget: "chat",
+      ui: { type: "widget", widget: "question-select" },
+      data: {},
+      result: {
+        actionId: "correct",
+        data: { selectedOptionIds: ["option-1"] },
+        completedAt: "2026-08-01T12:00:00.000Z",
+      },
+    };
+
+    expect(isRenderedViewDirective(completedView)).toBe(true);
+    expect(
+      isRenderedViewDirective({
+        ...completedView,
+        result: { actionId: "correct" },
+      }),
+    ).toBe(false);
   });
 
   it("rejects unknown renderer block types and unsafe result targets", () => {

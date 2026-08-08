@@ -83,6 +83,11 @@ beforeEach(() => {
   convex.mutation.mockResolvedValue(undefined);
   convex.query.mockResolvedValue([]);
   mockRepoConfig404();
+  nock(GITHUB_API).persist().get("/user").reply(200, {
+    login: "alice",
+    id: 42,
+    avatar_url: "https://example.test/alice.png",
+  });
 });
 
 afterEach(() => {
@@ -130,7 +135,7 @@ describe("POST /api/kody/chat/trigger", () => {
           expect(payload.inputs.sessionId).toBe("sess-42");
           expect(payload.inputs.message).toBe("hello");
           expect(payload.inputs.dashboardUrl).toMatch(
-            /^https:\/\/dash\.test\?token=[a-f0-9]+$/,
+            /^https:\/\/dash\.test\/\?conversationTenantId=user%3A42&token=[a-f0-9]+$/,
           );
           return true;
         },

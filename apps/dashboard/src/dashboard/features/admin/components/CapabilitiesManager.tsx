@@ -17,10 +17,10 @@ import { useRunCapability } from "@dashboard/lib/hooks/useCapabilities";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 
 export interface CapabilityQueryScope {
   owner?: string | null;
@@ -51,6 +51,9 @@ function capabilityFiles(detail: CapabilityDetail): Map<string, string> {
   const root = detail.slug;
   return new Map([
     [`${root}/instructions.md`, detail.instructions],
+    ...(detail.contract
+      ? [[`${root}/contract.json`, detail.contract] as const]
+      : []),
     ...detail.skills.map(
       (skill) =>
         [
@@ -126,6 +129,7 @@ function capabilityWriteInput(
   return {
     slug: detail.slug,
     instructions: files.get(`${root}instructions.md`) ?? "",
+    contract: files.get(`${root}contract.json`) ?? null,
     skills: assets("skills"),
     tools: assets("tools"),
   };
@@ -249,10 +253,11 @@ export function CapabilitiesWorkspace({
         if (current.readOnly) throw new Error("This capability is read-only");
         if (
           normalized !== `${capabilitySlug}/instructions.md` &&
+          normalized !== `${capabilitySlug}/contract.json` &&
           !isCapabilityAssetPath(normalized, capabilitySlug)
         ) {
           throw new Error(
-            "Capability files must be instructions.md or files under skills/ and tools/",
+            "Capability files must be instructions.md, contract.json, or files under skills/ and tools/",
           );
         }
         const files = capabilityFiles(current);
@@ -294,12 +299,13 @@ export function CapabilitiesWorkspace({
   const protectedPaths = (listQuery.data ?? []).flatMap((item) => [
     item.slug,
     `${item.slug}/instructions.md`,
+    `${item.slug}/contract.json`,
     `${item.slug}/skills`,
     `${item.slug}/tools`,
   ]);
 
   return (
-    <FilesPage
+    <DashboardFilesPage
       title="Capabilities"
       routeBase={`${basePath}/files`}
       initialPath={initialPath}
@@ -362,6 +368,7 @@ function NewCapabilityFolder({ basePath }: { basePath: string }) {
         slug,
         instructions:
           "# Instructions\n\nExplain what this capability does and how it uses its one input value.\n",
+        contract: `${JSON.stringify({ input: {}, output: {} }, null, 2)}\n`,
         skills: [],
         tools: [],
       }),

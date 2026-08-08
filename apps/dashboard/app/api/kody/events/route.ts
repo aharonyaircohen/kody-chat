@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const headerAuth = getRequestAuth(req);
   const owner =
     headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
-  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "kody-chat";
   const octokit = await getUserOctokit(req);
 
   const history = await getEventHistory(runId, { owner, repo, octokit });
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   const headerAuth = getRequestAuth(req);
   const owner =
     headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
-  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "kody-chat";
   const octokit = await getUserOctokit(req);
 
   let entry;

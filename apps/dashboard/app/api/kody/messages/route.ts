@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern messages-channels-api
  * @ai-summary GET lists messaging channels (Discussions titled `#…` in the
- *   goals category). POST creates a new channel. When Discussions are off or
+ *   preferred category). POST creates a new channel. When Discussions are off or
  *   no category exists, GET returns `{ enabled: false, reason, channels: [] }`
  *   so the UI can render the disabled badge instead of the channel list.
  */

@@ -55,8 +55,10 @@ import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
 import { useCommentAttachments } from "@dashboard/lib/hooks/useCommentAttachments";
 import { AttachmentBar } from "@dashboard/lib/components/AttachmentBar";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
-import { DiscussionsDisabledBadge } from "@dashboard/features/goals/components/GoalDiscussion";
-import { type GoalDiscussionComment } from "@dashboard/lib/api";
+import {
+  type DiscussionComment,
+  type DiscussionDisabledReason,
+} from "@dashboard/lib/api";
 import { useMentionRoster } from "@dashboard/lib/hooks/useMentionRoster";
 
 interface Mention {
@@ -69,6 +71,31 @@ interface Mention {
 /** Consecutive messages from the same author within this window collapse
  *  into one visual group (Slack-style) — avatar/name shown once. */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function DiscussionsDisabledBadge({
+  reason,
+  message,
+}: {
+  reason: DiscussionDisabledReason;
+  message?: string;
+}) {
+  const detail =
+    message ??
+    (reason === "discussions_disabled"
+      ? "GitHub Discussions are disabled or require repository admin permission."
+      : reason === "category_missing"
+        ? "This repository has no GitHub Discussion categories."
+        : "The discussion channel could not be created.");
+  return (
+    <div className="inline-flex items-start gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
+      <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" />
+      <div>
+        <div className="font-medium text-foreground">Discussions off</div>
+        <p className="max-w-md leading-snug">{detail}</p>
+      </div>
+    </div>
+  );
+}
 
 function dayKey(iso: string): string {
   return new Date(iso).toDateString();
@@ -102,7 +129,6 @@ function MessageMarkdown({
     <MarkdownPreview
       dir="auto"
       content={body}
-      variant="compact"
       className={cn(
         "text-[15px] leading-relaxed break-words",
         onPrimary &&
@@ -118,7 +144,7 @@ function MessageItem({
   grouped,
   isMe,
 }: {
-  comment: GoalDiscussionComment;
+  comment: DiscussionComment;
   highlight?: boolean;
   /** Part of a run from the same author — hide avatar/name. */
   grouped?: boolean;
@@ -217,7 +243,7 @@ function MessageList({
   comments,
   highlightCommentId,
 }: {
-  comments: GoalDiscussionComment[];
+  comments: DiscussionComment[];
   highlightCommentId?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -494,7 +520,6 @@ function MessageComposer({
           <MarkdownPreview
             content={body || "*Nothing to preview*"}
             dir="auto"
-            variant="compact"
           />
         </div>
       ) : null}

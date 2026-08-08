@@ -20,6 +20,12 @@ import {
   type RenderedViewUiNode,
 } from "../../chat-ui-actions";
 import { WidgetHost } from "./WidgetHost";
+import type { WidgetHostEvent } from "./widget-host";
+import {
+  VIEW_RENDERER_MARKDOWN_CLASS,
+  VIEW_RENDERER_TEXT_CLASS,
+  VIEW_RENDERER_TITLE_CLASS,
+} from "../../view-renderers/typography";
 
 export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
   if (node.type === "checkbox") return true;
@@ -95,10 +101,12 @@ export function RenderedViewCard({
   view,
   disabled,
   onAction,
+  onWidgetEvent,
 }: {
   view: RenderedViewDirective;
   disabled: boolean;
   onAction: (action: RenderedViewAction) => void;
+  onWidgetEvent?: (event: WidgetHostEvent) => void;
 }) {
   const ui = getRenderedViewUi(view);
   const [formValues, setFormValues] = useState<
@@ -221,9 +229,9 @@ export function RenderedViewCard({
     if (node.type === "text") {
       if (node.variant === "title") {
         return (
-          <div key={key} className="font-medium text-foreground">
+          <h3 key={key} className={VIEW_RENDERER_TITLE_CLASS}>
             {node.value}
-          </div>
+          </h3>
         );
       }
       if (node.variant === "label") {
@@ -234,9 +242,9 @@ export function RenderedViewCard({
         );
       }
       return (
-        <div key={key} className="text-muted-foreground">
+        <p key={key} className={VIEW_RENDERER_TEXT_CLASS}>
           {node.value}
-        </div>
+        </p>
       );
     }
     if (node.type === "markdown") {
@@ -244,7 +252,7 @@ export function RenderedViewCard({
         <MarkdownPreview
           key={key}
           content={node.value}
-          className="chat-message-text break-words text-[15px] leading-7 prose-p:my-2 prose-li:my-1"
+          className={VIEW_RENDERER_MARKDOWN_CLASS}
         />
       );
     }
@@ -308,18 +316,19 @@ export function RenderedViewCard({
         <WidgetHost
           key={key}
           slug={node.widget}
+          version={node.version}
           data={node.data}
+          preview={node.preview}
           disabled={disabled}
-          onComplete={(actionId, result) =>
-            // Exactly a button click: same tracking + onAction path, so
-            // guided-flow steps advance and chat replies are sent as usual.
-            trackAction({
-              id: actionId,
-              label: actionId,
-              response: actionId,
-              ...(result ? { result } : {}),
-            })
-          }
+          onEvent={(event) => {
+            if (event.type === "submit-result") {
+              trackSystemEvent("ui.action.clicked", {
+                viewId: view.rendererSlug,
+                actionId: event.actionId,
+              });
+            }
+            onWidgetEvent?.(event);
+          }}
         />
       );
     }
@@ -342,7 +351,10 @@ export function RenderedViewCard({
   return (
     <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
       {validationError ? (
-        <div role="alert" className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+        <div
+          role="alert"
+          className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200"
+        >
           {validationError}
         </div>
       ) : null}

@@ -115,7 +115,7 @@ export const TODOS_NAV_ITEM: SettingsNavItem = {
   href: "/todos",
   label: "Todos",
   icon: CheckCircle2,
-  description: "Visible worklists for regular tasks, goals, and loops.",
+  description: "Visible worklists for regular tasks and loops.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
@@ -318,6 +318,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Workflow,
         description: "Visual capability flows.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/pipelines",
+        label: "Pipelines",
+        icon: Route,
+        description: "Ordered reusable Workflow sequences.",
+        tint: "text-violet-300 bg-violet-500/10",
       },
       {
         href: "/capabilities",

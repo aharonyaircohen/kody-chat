@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Octokit } from "@octokit/rest";
-import type { CmsStorageTransport } from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "../storage-transport";
 
 import type {
   CmsCollectionConfig,

@@ -23,6 +23,7 @@ import {
   writeViewRendererDefinitionFile,
   type ViewRendererDefinition,
 } from "../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
+import { viewRendererDefinitionVersion } from "../../../../src/dashboard/lib/view-renderers/definition";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -55,6 +56,7 @@ function toRow(
   return {
     slug: definition.slug,
     name: definition.name,
+    version: viewRendererDefinitionVersion(definition),
     description: definition.description ?? "",
     purpose: definition.purpose,
     rule: definition.rule ?? "",

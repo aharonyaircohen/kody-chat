@@ -6,6 +6,7 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 
 const scopeKind = v.union(
   v.literal("loop"),
+  v.literal("pipeline"),
   v.literal("workflow"),
   v.literal("capability"),
 );
@@ -16,6 +17,32 @@ const dispatchDecision = v.object({
   scheduledAt: v.optional(v.string()),
   nextEligibleAt: v.optional(v.string()),
 });
+
+const MAX_DISPATCH_LEASE_MS = 15 * 60 * 1000;
+
+function leaseWindow(now: string, leaseUntil: string) {
+  const nowMs = Date.parse(now);
+  const leaseUntilMs = Date.parse(leaseUntil);
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(leaseUntilMs) ||
+    leaseUntilMs <= nowMs ||
+    leaseUntilMs - nowMs > MAX_DISPATCH_LEASE_MS
+  ) {
+    throw new Error("Agency Dispatch lease is invalid");
+  }
+  return { nowMs, leaseUntilMs };
+}
+
+function hasActiveBoundedLease(entry: { leaseUntil?: string }, nowMs: number) {
+  if (!entry.leaseUntil) return false;
+  const leaseUntilMs = Date.parse(entry.leaseUntil);
+  return (
+    Number.isFinite(leaseUntilMs) &&
+    leaseUntilMs > nowMs &&
+    leaseUntilMs - nowMs <= MAX_DISPATCH_LEASE_MS
+  );
+}
 
 export const reserveDispatch = mutation({
   args: {
@@ -38,24 +65,33 @@ export const reserveDispatch = mutation({
     now: v.string(),
   },
   handler: async (ctx, args) => {
-    if (!Number.isInteger(args.maxConcurrentRuns) || args.maxConcurrentRuns < 1) {
+    const { nowMs } = leaseWindow(args.now, args.leaseUntil);
+    if (
+      !Number.isInteger(args.maxConcurrentRuns) ||
+      args.maxConcurrentRuns < 1
+    ) {
       throw new Error("Agency Dispatch concurrency limit is invalid");
     }
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     const reclaimable =
       existing?.status === "reserved" &&
-      existing.leaseUntil !== undefined &&
-      Date.parse(existing.leaseUntil) <= Date.parse(args.now);
+      !hasActiveBoundedLease(existing, nowMs);
     const retryable =
       existing?.status === "waiting-approval" ||
       existing?.status === "waiting-capacity";
     if (existing && !reclaimable && !retryable) {
-      return { acquired: false, dispatchId: existing._id, reason: "duplicate" as const };
+      return {
+        acquired: false,
+        dispatchId: existing._id,
+        reason: "duplicate" as const,
+      };
     }
 
     const active = await ctx.db
@@ -67,10 +103,8 @@ export const reserveDispatch = mutation({
           .eq("status", "reserved"),
       )
       .collect();
-    const activeCount = active.filter(
-      (entry) =>
-        entry.leaseUntil !== undefined &&
-        Date.parse(entry.leaseUntil) > Date.parse(args.now),
+    const activeCount = active.filter((entry) =>
+      hasActiveBoundedLease(entry, nowMs),
     ).length;
     if (activeCount >= args.maxConcurrentRuns) {
       const waiting = {
@@ -86,8 +120,16 @@ export const reserveDispatch = mutation({
         updatedAt: args.now,
       };
       if (existing) await ctx.db.patch(existing._id, waiting);
-      else await ctx.db.insert("agencyDispatches", { ...waiting, createdAt: args.now });
-      return { acquired: false, dispatchId: existing?._id, reason: "concurrency-limit" as const };
+      else
+        await ctx.db.insert("agencyDispatches", {
+          ...waiting,
+          createdAt: args.now,
+        });
+      return {
+        acquired: false,
+        dispatchId: existing?._id,
+        reason: "concurrency-limit" as const,
+      };
     }
 
     let approvalId: string | undefined;
@@ -109,7 +151,9 @@ export const reserveDispatch = mutation({
             (entry.expiresAt === undefined ||
               Date.parse(entry.expiresAt) > Date.parse(args.now)),
         )
-        .sort((left, right) => left.approvedAt.localeCompare(right.approvedAt))[0];
+        .sort((left, right) =>
+          left.approvedAt.localeCompare(right.approvedAt),
+        )[0];
       if (!approval) {
         const waiting = {
           tenantId: args.tenantId,
@@ -124,8 +168,16 @@ export const reserveDispatch = mutation({
           updatedAt: args.now,
         };
         if (existing) await ctx.db.patch(existing._id, waiting);
-        else await ctx.db.insert("agencyDispatches", { ...waiting, createdAt: args.now });
-        return { acquired: false, dispatchId: existing?._id, reason: "approval-required" as const };
+        else
+          await ctx.db.insert("agencyDispatches", {
+            ...waiting,
+            createdAt: args.now,
+          });
+        return {
+          acquired: false,
+          dispatchId: existing?._id,
+          reason: "approval-required" as const,
+        };
       }
       approvalId = approval.approvalId;
       await ctx.db.patch(approval._id, {
@@ -162,6 +214,38 @@ export const reserveDispatch = mutation({
   },
 });
 
+export const renewDispatch = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    idempotencyKey: v.string(),
+    reservationId: v.string(),
+    leaseUntil: v.string(),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    leaseWindow(args.now, args.leaseUntil);
+    const existing = await ctx.db
+      .query("agencyDispatches")
+      .withIndex("by_tenant_key", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
+      )
+      .unique();
+    if (!existing || existing.status !== "reserved") {
+      throw new Error("Agency Dispatch reservation is not active");
+    }
+    if (existing.reservationId !== args.reservationId) {
+      throw new Error("Agency Dispatch reservation is stale");
+    }
+    await ctx.db.patch(existing._id, {
+      leaseUntil: args.leaseUntil,
+      updatedAt: args.now,
+    });
+  },
+});
+
 export const recordSkippedDispatch = mutation({
   args: {
     serviceKey: v.optional(v.string()),
@@ -175,7 +259,9 @@ export const recordSkippedDispatch = mutation({
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     if (existing) return existing._id;
@@ -209,11 +295,14 @@ export const finishDispatch = mutation({
     const existing = await ctx.db
       .query("agencyDispatches")
       .withIndex("by_tenant_key", (q) =>
-        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("idempotencyKey", args.idempotencyKey),
       )
       .unique();
     if (!existing) throw new Error("Agency Dispatch reservation not found");
-    if (existing.status !== "reserved") throw new Error("Agency Dispatch is already terminal");
+    if (existing.status !== "reserved")
+      throw new Error("Agency Dispatch is already terminal");
     if (existing.reservationId !== args.reservationId) {
       throw new Error("Agency Dispatch reservation is stale");
     }
@@ -246,7 +335,50 @@ export const grantApproval = mutation({
       .unique();
     if (existing) throw new Error("Agency Approval already exists");
     const { serviceKey: _serviceKey, ...approval } = args;
-    return ctx.db.insert("agencyApprovals", { ...approval, status: "available" });
+    return ctx.db.insert("agencyApprovals", {
+      ...approval,
+      status: "available",
+    });
+  },
+});
+
+export const consumeApproval = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    approvalId: v.string(),
+    scopeKind,
+    scopeId: v.string(),
+    action: v.string(),
+    approvedBy: v.string(),
+    dispatchKey: v.string(),
+    consumedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const approval = await ctx.db
+      .query("agencyApprovals")
+      .withIndex("by_approval_id", (q) =>
+        q.eq("tenantId", args.tenantId).eq("approvalId", args.approvalId),
+      )
+      .unique();
+    if (
+      !approval ||
+      approval.status !== "available" ||
+      approval.scopeKind !== args.scopeKind ||
+      approval.scopeId !== args.scopeId ||
+      approval.action !== args.action ||
+      approval.approvedBy !== args.approvedBy ||
+      (approval.expiresAt !== undefined &&
+        Date.parse(approval.expiresAt) <= Date.parse(args.consumedAt))
+    ) {
+      return false;
+    }
+    await ctx.db.patch(approval._id, {
+      status: "consumed",
+      consumedAt: args.consumedAt,
+      dispatchKey: args.dispatchKey,
+    });
+    return true;
   },
 });
 
@@ -267,7 +399,7 @@ export const listApprovals = query({
           q
             .eq("tenantId", args.tenantId)
             .eq("scopeKind", args.scopeKind!)
-            .eq("scopeId", args.scopeId!)
+            .eq("scopeId", args.scopeId!),
         )
         .order("desc")
         .take(limit);

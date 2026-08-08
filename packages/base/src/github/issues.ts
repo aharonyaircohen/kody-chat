@@ -28,7 +28,7 @@ import {
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals manifest, capabilities detail).
+ *   endpoints that need fresher data (e.g. capabilities detail).
  * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
  *   GitHub returns 304 (free, doesn't count against the rate limit) when the
  *   issue is unchanged, and we just refresh the TTL on the existing payload.
@@ -113,7 +113,7 @@ export async function fetchIssue(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals/capabilities list).
+ *   endpoints that need fresher data (e.g. capabilities list).
  * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
  *   returns 304 (free, doesn't count against the rate limit) when the listing
  *   is unchanged, and the TTL is refreshed on the existing payload.
@@ -769,7 +769,7 @@ export async function addLabels(
  * Create a repo label if it does not already exist. Idempotent — a 422 from
  * GitHub ("already_exists") is treated as success. GitHub's addLabels endpoint
  * does NOT auto-create labels, so callers that attach ad-hoc labels (e.g.
- * `goal:<id>`) should ensure the label first.
+ * dashboard-owned labels should ensure the label first.
  */
 export async function ensureLabel(
   name: string,

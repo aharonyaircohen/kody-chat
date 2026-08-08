@@ -107,6 +107,22 @@ describe("parseKodyDirectChunk", () => {
     expect(parsed?.output).toBeNull();
   });
 
+  it("preserves incremental tool input text for committed output streaming", () => {
+    expect(
+      parseKodyDirectChunk(
+        JSON.stringify({
+          type: "tool-input-delta",
+          toolCallId: "final-1",
+          inputTextDelta: '{"content":"Hello',
+        }),
+      ),
+    ).toMatchObject({
+      type: "tool-input-delta",
+      toolCallId: "final-1",
+      inputTextDelta: '{"content":"Hello',
+    });
+  });
+
   it("degrades a mistyped field without dropping the chunk", () => {
     const parsed = parseKodyDirectChunk(
       JSON.stringify({ type: "text-delta", delta: 5 }),

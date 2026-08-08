@@ -12,7 +12,6 @@ vi.mock("@kody-ade/base/logger", () => ({
 }));
 
 import { createBugTools } from "../../app/api/kody/chat/tools/bug-tools";
-import { createPlannerTools } from "../../app/api/kody/chat/tools/planner-tools";
 import { createReleaseTools } from "../../app/api/kody/chat/tools/release-tools";
 import { createTaskTools } from "../../app/api/kody/chat/tools/task-tools";
 
@@ -162,58 +161,6 @@ describe("chat issue-creation tools", () => {
     });
 
     expect(result.url).toBe("/repo/acme/app/77");
-  });
-
-  it("returns the dashboard task URL for mission-planner issues", async () => {
-    const tools = createPlannerTools({
-      ...makeCtx(),
-      goalId: "mission-1",
-    }) as unknown as {
-      create_task_for_goal: TestTool;
-    };
-
-    const result = await tools.create_task_for_goal.execute({
-      title: "Add exports",
-      summary: "Users need exports.",
-      requirements: "Add a CSV export.",
-      category: "feature",
-    });
-
-    expect(result.url).toBe("/repo/acme/app/77");
-  });
-
-  it("adds preview context to mission-planner task issue bodies", async () => {
-    const tools = createPlannerTools({
-      ...makeCtx(),
-      goalId: "mission-1",
-      previewContext: "Current preview page:\nURL: https://preview.test/goal",
-    }) as unknown as {
-      create_task_for_goal: TestTool;
-    };
-
-    await tools.create_task_for_goal.execute({
-      title: "Match planner demo",
-      summary: "Users need this task to follow the demo.",
-      requirements: "Use the demo page as the UI reference.",
-      category: "feature",
-    });
-
-    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: expect.stringContaining(
-          "### View Example - Required Visual Contract",
-        ),
-      }),
-    );
-    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: expect.stringContaining(
-          "Current preview page:\nURL: https://preview.test/goal",
-        ),
-      }),
-    );
   });
 
   it("returns the dashboard task URL for release request issues", async () => {

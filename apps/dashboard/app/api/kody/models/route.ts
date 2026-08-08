@@ -13,40 +13,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import { readVariables } from "@kody-ade/base/variables/store";
 import {
-  invalidateVariablesCache,
-  readVariables,
-  writeVariables,
-  type VariablesDocument,
-} from "@kody-ade/base/variables/store";
-import {
-  ChatModelsSchema,
-  VAR_LLM_MODELS,
-  pickEngineDefaultModel,
-  engineModelSpec,
-} from "@kody-ade/base/variables/models";
-import {
-  getEngineConfig,
-  writeEngineModel,
-} from "@kody-ade/base/engine/config";
+  ModelsWriteSchema,
+  readManagedChatModels,
+  saveManagedChatModels,
+} from "@kody-ade/base/variables/mutations";
 import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
-
-const PutSchema = z.object({
-  models: ChatModelsSchema,
-  actorLogin: z.string().optional(),
-});
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -69,19 +53,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const { doc } = await readVariables(auth.owner, auth.repo);
-    const raw = doc.variables[VAR_LLM_MODELS]?.value;
-    if (!raw)
-      return NextResponse.json({ models: [] }, { headers: NO_STORE_HEADERS });
-    try {
-      const parsed = JSON.parse(raw);
-      const result = ChatModelsSchema.safeParse(parsed);
-      return NextResponse.json(
-        { models: result.success ? result.data : [] },
-        { headers: NO_STORE_HEADERS },
-      );
-    } catch {
-      return NextResponse.json({ models: [] }, { headers: NO_STORE_HEADERS });
-    }
+    return NextResponse.json(
+      { models: readManagedChatModels(doc) },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo },
@@ -110,34 +85,10 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const parsed = PutSchema.safeParse(body);
+  const parsed = ModelsWriteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "validation_error", details: parsed.error.format() },
-      { status: 400 },
-    );
-  }
-
-  // At most one default model (chat) and one engine default.
-  const defaultCount = parsed.data.models.filter((m) => m.default).length;
-  if (defaultCount > 1) {
-    return NextResponse.json(
-      {
-        error: "validation_error",
-        message: "Only one model may be marked as default.",
-      },
-      { status: 400 },
-    );
-  }
-  const engineDefaultCount = parsed.data.models.filter(
-    (m) => m.engineDefault,
-  ).length;
-  if (engineDefaultCount > 1) {
-    return NextResponse.json(
-      {
-        error: "validation_error",
-        message: "Only one model may be marked as the engine default.",
-      },
       { status: 400 },
     );
   }
@@ -151,56 +102,19 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc } = await readVariables(auth.owner, auth.repo, {
-      force: true,
+    const result = await saveManagedChatModels({
+      octokit,
+      owner: auth.owner,
+      repo: auth.repo,
+      models: parsed.data.models,
+      actorLogin,
     });
-    const next: VariablesDocument = {
-      ...doc,
-      variables: {
-        ...doc.variables,
-        [VAR_LLM_MODELS]: {
-          value: JSON.stringify(parsed.data.models),
-          updatedAt: new Date().toISOString(),
-          updatedBy: actorLogin,
-        },
-      },
-    };
-    await writeVariables(auth.owner, auth.repo, next);
-    invalidateVariablesCache(auth.owner, auth.repo);
-
-    // Sync the engine's model into kody.config.json (`agent.model`). This is
-    // the key the engine actually reads, so the picker is meaningless without
-    // it. Best-effort: the model list is already saved above, so a GitHub
-    // hiccup here shouldn't fail the whole request — surface it as a warning.
-    let engineSyncWarning: string | undefined;
-    const engineModel = pickEngineDefaultModel(parsed.data.models);
-    if (engineModel) {
-      try {
-        const spec = engineModelSpec(engineModel);
-        // Skip the commit when nothing changed (e.g. the user only edited a
-        // chat-only field) — keeps kody.config.json churn off the repo.
-        const { config } = await getEngineConfig(
-          octokit,
-          auth.owner,
-          auth.repo,
-          { force: true },
-        );
-        if (config.agent?.model !== spec) {
-          await writeEngineModel(octokit, auth.owner, auth.repo, spec);
-        }
-      } catch (err) {
-        engineSyncWarning = (err as Error).message;
-        logger.error(
-          { err, owner: auth.owner, repo: auth.repo },
-          "models: engine config sync failed",
-        );
-      }
-    }
-
     return NextResponse.json({
       ok: true,
-      models: parsed.data.models,
-      ...(engineSyncWarning ? { engineSyncWarning } : {}),
+      models: result.models,
+      ...(result.engineSyncWarning
+        ? { engineSyncWarning: result.engineSyncWarning }
+        : {}),
     });
   } catch (err) {
     logger.error(

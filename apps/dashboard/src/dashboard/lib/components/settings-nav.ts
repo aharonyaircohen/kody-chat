@@ -249,13 +249,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Knowledge",
     items: [
       {
-        href: "/knowledge-system",
-        label: "Knowledge System",
-        icon: Network,
-        description: "Explore this repository's connected knowledge graph.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
         href: "/docs",
         label: "Docs",
         icon: FileText,
@@ -397,6 +390,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Workflow,
         description: "Visual capability flows.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/pipelines",
+        label: "Pipelines",
+        icon: Route,
+        description: "Ordered reusable Workflow sequences.",
+        tint: "text-violet-300 bg-violet-500/10",
       },
       {
         href: "/capabilities",
@@ -634,6 +634,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/agents"),
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
+      navItemForHref("/pipelines"),
       navItemForHref("/capabilities"),
     ],
   },

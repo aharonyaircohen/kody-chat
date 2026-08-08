@@ -33,6 +33,7 @@
  */
 
 import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -241,7 +242,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
 
     // Creating a conversation restores the surface default (Kody Live on
     // Vibe), so choose the direct model only after the reset.
-    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    const chatSetup = chat.getByLabel("Chat setup").first();
     const authHeaders = {
       "x-kody-token": TEST_TOKEN,
       "x-kody-owner": owner,
@@ -279,9 +280,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
       "tester repo must have an enabled model with configured secret metadata",
     ).toBeTruthy();
 
-    await modelPicker.click();
-    const listbox = chat.locator('[role="listbox"]:visible').first();
-    await listbox.waitFor({ state: "visible", timeout: 5_000 });
+    const listbox = await openChatSetupSection(chat, "Model");
     const chatOption = listbox
       .locator('button[role="option"]')
       .filter({ hasText: configuredModel!.label })
@@ -291,7 +290,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
       "tester repo must have a chat model configured",
     ).toBeVisible({ timeout: 5_000 });
     await chatOption.click();
-    await expect(modelPicker).not.toContainText(/Kody Live|Brain/i);
+    await expect(chatSetup).not.toContainText(/Kody Live|Brain/i);
 
     // ── 3. Send the user's request. ─────────────────────────────────────
     // Once kody-direct is selected, the composer placeholder changes from
@@ -317,7 +316,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     await expect(submittedRequest).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(5_000);
     await expect(
-      modelPicker,
+      chatSetup,
       "an explicit direct-model choice must survive delayed chat hydration",
     ).not.toContainText(/Kody Live|Brain/i);
     await expect(
@@ -392,11 +391,13 @@ test.describe("Vibe — LIVE full flow against production", () => {
       }
       // A provider can occasionally finish its planning tool calls without
       // rendering either prose or an approval card. Exercise the real user
-      // recovery instead of waiting on a UI action that does not exist.
+      // recovery only after the active turn ends; the composer can remain
+      // enabled while a slow renderer response is still streaming.
       if (
         !approvalSubmitted &&
         !sentMissingActionRecovery &&
         Date.now() - approvalStartedAt >= 30_000 &&
+        !(await stop.isVisible()) &&
         (await input.isEnabled())
       ) {
         await input.fill(

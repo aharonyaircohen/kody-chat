@@ -12,10 +12,10 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import {
-  listVariables,
-  readVariables,
-  updateVariables,
-} from "@kody-ade/base/variables/store";
+  ConfigNameSchema,
+  RESERVED_VARIABLE_NAMES,
+  deleteVariable,
+} from "@kody-ade/base/variables/mutations";
 import { logger } from "@kody-ade/base/logger";
 
 interface RouteContext {
@@ -27,8 +27,11 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
   if (authError) return authError;
 
   const { name } = await context.params;
-  if (!name) {
+  if (!name || !ConfigNameSchema.safeParse(name).success) {
     return NextResponse.json({ error: "missing_name" }, { status: 400 });
+  }
+  if (RESERVED_VARIABLE_NAMES.has(name)) {
+    return NextResponse.json({ error: "reserved_name" }, { status: 400 });
   }
 
   const auth = getRequestAuth(req);
@@ -41,22 +44,15 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const existing = await readVariables(auth.owner, auth.repo, {
-      force: true,
+    const result = await deleteVariable({
+      owner: auth.owner,
+      repo: auth.repo,
+      name,
     });
-    if (!(name in existing.doc.variables)) {
+    if (!result.found) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const { doc: next } = await updateVariables(
-      auth.owner,
-      auth.repo,
-      (doc) => {
-        const nextVars = { ...doc.variables };
-        delete nextVars[name];
-        return { ...doc, variables: nextVars };
-      },
-    );
-    return NextResponse.json({ ok: true, variables: listVariables(next) });
+    return NextResponse.json({ ok: true, variables: result.variables });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo, name },

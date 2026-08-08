@@ -35,11 +35,9 @@ import { validateChatViewSpec } from "../../../../../src/dashboard/lib/view-rend
 import { buildChatViewDirective } from "../../../../../src/dashboard/lib/view-renderers/spec/expand";
 import { buildShowViewGuidance } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
 import {
-  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
-import { shouldRequireViewOutputForAssistantText } from "../../../../../src/dashboard/lib/view-renderers/chat-intent";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
   (a) => a.id,
@@ -225,7 +223,6 @@ export const dashboardNavigateTool = tool({
 });
 
 export function createUiTools(ctx: UiToolsCtx = {}) {
-  let interactiveFinalAnswerText: string | null = null;
   const definitions =
     ctx.viewRendererDefinitions && ctx.viewRendererDefinitions.length > 0
       ? ctx.viewRendererDefinitions
@@ -244,7 +241,8 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
   return {
     [FINAL_ANSWER_TOOL]: tool({
       description:
-        "Finish the turn with plain text when no chat UI renderer is needed. " +
+        "Commit user-visible plain text. Use it alone when no chat UI renderer is needed. " +
+        "When a short explanation should appear before a renderer, call final_answer and show_view together in the same response; the text appears first and the view follows. " +
         "Use this for ordinary answers, summaries, and status updates. " +
         "Do not use this for questions that ask the user to choose, approve, confirm, continue, cancel, or pick an action; use show_view instead.",
       inputSchema: z.object({
@@ -256,25 +254,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
             "The final user-visible answer. Write it as a short executive summary for a product manager: 3-6 plain sentences leading with the outcome, at most one small list. NEVER include raw JSON, schemas, code, id dumps, or step-by-step work here unless the user explicitly asked to see them — say where the data lives instead. Long content the user did not ask for is a failure.",
           ),
       }),
-      execute: async ({ content }) => {
-        // Nudge toward show_view at most once per turn: if the model
-        // insists on plain text after the first rejection, accept it —
-        // a wrongly-forced card (e.g. on a greeting) is worse than prose.
-        if (
-          interactiveFinalAnswerText === null &&
-          shouldRequireViewOutputForAssistantText({
-            assistantText: content,
-            definitions: ctx.viewRendererDefinitions ?? [],
-          })
-        ) {
-          interactiveFinalAnswerText = content;
-          return {
-            error: FINAL_ANSWER_REQUIRES_VIEW_ERROR,
-          };
-        }
-        interactiveFinalAnswerText = null;
-        return { content };
-      },
+      execute: async ({ content }) => ({ content }),
     }),
     switch_agent: switchAgentTool,
     dashboard_navigate: dashboardNavigateTool,
@@ -282,6 +262,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
     [SHOW_VIEW_TOOL]: tool({
       description:
         "Render an interactive UI card in the chat from a JSON spec. " +
+        "It may follow final_answer in the same response when useful explanatory text should remain visible above the card. " +
         "Use this whenever the reply asks the user to choose, approve, confirm, continue, cancel, or pick an action — and when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
         "Compose the spec only from the components listed below. " +
         "Put only data that belongs to the current interaction into the view; do not copy preview, page, repo, task, memory, or research context into it. " +

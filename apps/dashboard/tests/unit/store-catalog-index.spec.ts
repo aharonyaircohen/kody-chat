@@ -16,7 +16,9 @@ describe("Store catalog index", () => {
                   agent: "agents",
                   commands: "commands",
                   workflows: "workflows",
+                  pipelines: "pipelines",
                   loops: "loops",
+                  solutions: "solutions",
                 },
               }),
             ).toString("base64"),
@@ -42,8 +44,10 @@ describe("Store catalog index", () => {
       agents: ["sample"],
       commands: ["sample"],
       workflows: ["sample"],
+      pipelines: ["sample"],
       loops: ["sample"],
+      solutions: ["sample"],
     });
-    expect(getContent).toHaveBeenCalledTimes(6);
+    expect(getContent).toHaveBeenCalledTimes(8);
   });
 });

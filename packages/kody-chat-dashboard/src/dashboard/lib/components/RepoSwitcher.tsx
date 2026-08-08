@@ -9,13 +9,16 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Building2,
   Check,
   ChevronDown,
   FolderGit2,
   ExternalLink,
+  KeyRound,
   Plus,
   Star,
   Trash2,
@@ -25,6 +28,7 @@ import { useAuth, type KodyRepoEntry } from "../auth-context";
 import { repoSwitchRedirectPath } from "@kody-ade/base/routes";
 import { AddRepoForm } from "./AddRepoForm";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { UpdatePatDialog } from "./UpdatePatDialog";
 
 interface RepoGroup {
   owner: string;
@@ -54,9 +58,25 @@ export interface RepoSwitcherProps {
    * menu sized to the rail so it never clips).
    */
   variant?: "header" | "rail";
+  /** Icon-only rail trigger whose menu is portaled beside a collapsed rail. */
+  compact?: boolean;
 }
 
-export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
+function OptionalPortal({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: ReactNode;
+}) {
+  if (!enabled || typeof document === "undefined") return children;
+  return createPortal(children, document.body);
+}
+
+export function RepoSwitcher({
+  variant = "header",
+  compact = false,
+}: RepoSwitcherProps = {}) {
   const { auth, setCurrentRepo, removeRepo } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -64,14 +84,26 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
     index: number;
     entry: KodyRepoEntry;
   } | null>(null);
+  const [updatePatTarget, setUpdatePatTarget] = useState<{
+    index: number;
+    entry: KodyRepoEntry;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [compactMenuPosition, setCompactMenuPosition] = useState({
+    top: 0,
+    left: 0,
+  });
 
   useEffect(() => {
     if (!menuOpen) return;
     const onDocClick = (e: MouseEvent) => {
       if (!rootRef.current) return;
-      if (e.target instanceof Node && rootRef.current.contains(e.target))
-        return;
+      if (e.target instanceof Node) {
+        if (rootRef.current.contains(e.target)) return;
+        if (menuRef.current?.contains(e.target)) return;
+      }
       setMenuOpen(false);
       setAddOpen(false);
     };
@@ -89,6 +121,18 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!compact || !menuOpen) return;
+    const positionMenu = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setCompactMenuPosition({ top: rect.top, left: rect.right + 8 });
+    };
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    return () => window.removeEventListener("resize", positionMenu);
+  }, [compact, menuOpen]);
+
   // No-auth is NOT a hidden state: the dropdown stays visible and opens
   // straight onto the connect form. Hiding it left first-run users with
   // a static title and no obvious way to add a repository.
@@ -99,24 +143,36 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
   const rail = variant === "rail";
 
   return (
-    <div ref={rootRef} className={rail ? "relative flex w-full" : "relative inline-flex"}>
+    <div
+      ref={rootRef}
+      className={rail ? "relative flex w-full" : "relative inline-flex"}
+    >
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
+        aria-label={compact ? `Switch repository: ${title}` : undefined}
         title="Switch repository"
         className={
           rail
-            ? "group flex h-10 w-full min-w-0 items-center gap-3.5 rounded-md px-3.5 text-body-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            ? cn(
+                "group flex h-10 w-full min-w-0 items-center gap-3.5 rounded-md px-3.5 text-body-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground",
+                compact && "justify-center px-0",
+              )
             : "group inline-flex items-center gap-1.5 min-w-0 rounded-md px-1.5 -mx-1.5 py-0.5 hover:bg-white/[0.06] transition-colors"
         }
       >
         {rail ? (
           <>
             <FolderGit2 className="h-5 w-5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-left">{title}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+            {!compact && (
+              <>
+                <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+              </>
+            )}
           </>
         ) : (
           <>
@@ -129,15 +185,20 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
       </button>
 
       {menuOpen && (
-        <div
-          role="listbox"
-          aria-label="Connected repositories"
-          className={
-            rail
-              ? "absolute top-full left-0 right-0 z-50 mt-1 max-h-[60vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
-              : "absolute top-full left-0 mt-1.5 z-50 min-w-[20rem] max-w-[24rem] max-h-[75vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
-          }
-        >
+        <OptionalPortal enabled={compact}>
+          <div
+            ref={menuRef}
+            role="listbox"
+            aria-label="Connected repositories"
+            style={compact ? compactMenuPosition : undefined}
+            className={
+              compact
+                ? "fixed z-[100] w-80 max-h-[60vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+                : rail
+                  ? "absolute top-full left-0 right-0 z-50 mt-1 max-h-[60vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+                  : "absolute top-full left-0 mt-1.5 z-50 min-w-[20rem] max-w-[24rem] max-h-[75vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
+            }
+          >
           {repoGroups.map((group) => (
             <div
               key={group.owner}
@@ -219,6 +280,19 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
                     </a>
                     <button
                       type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setAddOpen(false);
+                        setUpdatePatTarget({ index, entry });
+                      }}
+                      title="Update PAT"
+                      aria-label={`Update PAT for ${entry.owner}/${entry.repo}`}
+                      className="rounded p-1 text-zinc-400 transition hover:bg-zinc-700 hover:text-zinc-100 md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setConfirmRemove({ index, entry })}
                       disabled={entry.isLogin}
                       title={
@@ -259,7 +333,8 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        </OptionalPortal>
       )}
 
       {confirmRemove && (
@@ -276,6 +351,10 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
           }}
         />
       )}
+      <UpdatePatDialog
+        target={updatePatTarget}
+        onOpenChange={(open) => !open && setUpdatePatTarget(null)}
+      />
     </div>
   );
 }

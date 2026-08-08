@@ -64,13 +64,13 @@ describe("kody workflow dispatch input mapping", () => {
         owner: "test-owner",
         repo: "test-repo",
         ref: "main",
-        action: "goal-manager",
+        action: "loop-manager",
         message: "web-release",
         storeRepoUrl: "https://github.com/acme/kody-store",
         storeRef: "main",
       }),
     ).resolves.toEqual({
-      implementation: "goal-manager",
+      implementation: "loop-manager",
       message: "web-release",
       storeRepoUrl: "https://github.com/acme/kody-store",
       storeRef: "main",
@@ -96,5 +96,22 @@ describe("kody workflow dispatch input mapping", () => {
         action: "repo-graph",
       }),
     ).resolves.toEqual({ implementation: "repo-graph" });
+  });
+
+  it("shares cached workflow input reads for repeated dispatches", async () => {
+    const octokit = octokitWithWorkflow(executableWorkflow);
+
+    await buildKodyWorkflowDispatchInputs(
+      octokit,
+      { owner: "cache-owner", repo: "cache-repo", ref: "main", action: "run" },
+      { cache: true },
+    );
+    await buildKodyWorkflowDispatchInputs(
+      octokit,
+      { owner: "cache-owner", repo: "cache-repo", ref: "main", action: "run" },
+      { cache: true },
+    );
+
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(1);
   });
 });

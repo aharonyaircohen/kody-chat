@@ -42,7 +42,7 @@ import {
   createInfrastructureRegistry,
 } from "@kody-ade/base/infrastructure/registry";
 import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
-import { chatRunRequest } from "@kody-ade/fly/runners/run-request";
+import { chatExecutionRequest } from "@kody-ade/fly/runners/execution-request-builders";
 
 function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {
   return {
@@ -124,7 +124,7 @@ describe("fly infrastructure providers", () => {
     const input = {
       repo: "acme/widgets",
       githubToken: "ghp_x",
-      runRequest: chatRunRequest("s1"),
+      runRequest: chatExecutionRequest("chat-s1", "s1"),
       flyToken: "fly-token",
     };
 
@@ -139,7 +139,7 @@ describe("fly infrastructure providers", () => {
 
     const out = await flyServerProvider.claimOrRun!(flyContext(), {
       taskId: "job-1",
-      runRequest: chatRunRequest("job-1"),
+      runRequest: chatExecutionRequest("chat-job-1", "job-1"),
     });
 
     expect(out).toEqual({ runner: "pool", machineId: "warm-1" });
@@ -148,7 +148,7 @@ describe("fly infrastructure providers", () => {
       expect.objectContaining({
         jobId: "job-1",
         repo: "acme/widgets",
-        runRequest: chatRunRequest("job-1"),
+        runRequest: chatExecutionRequest("chat-job-1", "job-1"),
       }),
     );
   });
@@ -163,7 +163,7 @@ describe("fly infrastructure providers", () => {
 
     const out = await flyServerProvider.claimOrRun!(flyContext(), {
       taskId: "job-2",
-      runRequest: chatRunRequest("job-2"),
+      runRequest: chatExecutionRequest("chat-job-2", "job-2"),
       idleExitMs: 1_000,
       hardCapMs: 5_000,
       dashboardUrl: "https://dash.test/ingest?token=t",
@@ -175,7 +175,7 @@ describe("fly infrastructure providers", () => {
       expect.objectContaining({
         repo: "acme/widgets",
         githubToken: "ghp_x",
-        runRequest: chatRunRequest("job-2"),
+        runRequest: chatExecutionRequest("chat-job-2", "job-2"),
         flyToken: "fly-token",
         perfTier: "medium",
         allSecrets: { MODEL_KEY: "secret" },
@@ -194,7 +194,7 @@ describe("fly infrastructure providers", () => {
     await expect(
       flyServerProvider.claimOrRun!(flyContext(), {
         taskId: "job-3",
-        runRequest: chatRunRequest("job-3"),
+        runRequest: chatExecutionRequest("chat-job-3", "job-3"),
       }),
     ).rejects.toThrow("fly api 422");
   });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 
@@ -35,7 +36,7 @@ test("shows OpenRouter Free in the chat header model picker", async ({
   await seedAuth(page);
 
   await page.goto(`${BASE_URL}/chat`);
-  await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
+  await expect(page).toHaveURL(/\/chat$/);
 
   const chat = page.locator('[aria-label="Kody chat"]').first();
   const conversations = chat.getByLabel("Toggle conversations");
@@ -45,15 +46,11 @@ test("shows OpenRouter Free in the chat header model picker", async ({
       .getByLabel("Close conversations")
       .click();
   }
-  const picker = chat.getByLabel("Model").first();
+  const picker = chat.getByLabel("Chat setup").first();
   await expect(picker).toBeVisible({ timeout: 15_000 });
-  await expect(picker).toContainText("OpenRouter Free");
-  await picker.click();
+  await expect(picker).toHaveAttribute("title", /OpenRouter Free/);
 
-  const listbox = chat
-    .locator('[role="listbox"]:visible')
-    .filter({ has: page.getByRole("option", { name: /OpenRouter Free/ }) })
-    .first();
+  const listbox = await openChatSetupSection(chat, "Model");
   const menu = listbox.locator("..");
   await expect(menu).toBeVisible();
   await expect(

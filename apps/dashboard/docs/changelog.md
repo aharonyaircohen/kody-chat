@@ -43,7 +43,7 @@ with `·`. The marker is the authoritative QA state for that entry:
 | **untested** | _(none)_                             | Merged, never QA'd. The capability's queue is "oldest bullet with no marker". |
 | **running**  | ` · 🔄 QA (#<tracking>)`             | A `qa-engineer` pass is in flight; `<tracking>` is its issue.                 |
 | **verified** | ` · ✅ QA <YYYY-MM-DD>`              | Pass came back PASS. Done — never re-tested.                                  |
-| **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` | Pass came back CONCERNS/FAIL; the tracking issue stays open for the fix goal. |
+| **issues**   | ` · ⚠️ QA <YYYY-MM-DD> (#<finding>)` | Pass came back CONCERNS/FAIL; the tracking issue stays open for the fix. |
 
 A `🔄` older than 2h with no report is treated as stuck and stripped back to
 untested, so QA never wedges. The marker swap is the _only_ signal that stops

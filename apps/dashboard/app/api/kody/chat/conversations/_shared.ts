@@ -1,26 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { tenantIdFor } from "@dashboard/lib/backend/convex-backend";
+import {
+  getRequestAuth,
+  requireUserAuth,
+  verifyActorLogin,
+} from "@kody-ade/base/auth";
+import { userTenantIdFor } from "@dashboard/lib/backend/convex-backend";
 
 export type ConversationRequestContext = Readonly<{
-  owner: string;
-  repo: string;
+  owner?: string;
+  repo?: string;
   tenantId: string;
+  actorLogin: string;
+  actorGithubId: number;
 }>;
 
 export async function requireConversationContext(
   req: NextRequest,
 ): Promise<ConversationRequestContext | NextResponse> {
-  const authError = await requireKodyAuth(req);
+  const authError = await requireUserAuth(req);
   if (authError instanceof NextResponse) return authError;
+  const actor = await verifyActorLogin(
+    req,
+    req.headers.get("x-kody-user-login") ?? undefined,
+  );
+  if (actor instanceof NextResponse) return actor;
   const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
   return {
-    owner: auth.owner,
-    repo: auth.repo,
-    tenantId: tenantIdFor(auth.owner, auth.repo),
+    ...(auth ? { owner: auth.owner, repo: auth.repo } : {}),
+    tenantId: userTenantIdFor(actor.identity.githubId),
+    actorLogin: actor.identity.login,
+    actorGithubId: actor.identity.githubId,
   };
 }
 

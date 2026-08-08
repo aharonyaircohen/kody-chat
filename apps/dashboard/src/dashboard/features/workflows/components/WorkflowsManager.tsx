@@ -9,6 +9,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ExternalLink,
@@ -34,8 +36,8 @@ import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
+  useApproveWorkflowRun,
   useRunWorkflowDefinition,
-  useStopWorkflowRun,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
   useWorkflowRunState,
@@ -43,12 +45,14 @@ import {
 import type { WorkflowDefinitionRecord } from "@dashboard/lib/workflow-definitions";
 import { workflowDefinitionGraph } from "@dashboard/lib/workflow-graph";
 import { cn } from "@dashboard/lib/utils";
+import { buildHeaders, handleResponse } from "@dashboard/lib/api";
 import { selectionPath } from "@dashboard/lib/selection-routing";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import { TrustLevelControl } from "@dashboard/lib/components/TrustLevelControl";
 import { WorkflowEditorDialog } from "@dashboard/features/workflows/components/WorkflowEditorDialog";
 import { WorkflowGraphCanvas } from "@dashboard/features/workflows/components/WorkflowGraphCanvas";
+import { WorkflowRunDialog } from "@dashboard/features/workflows/components/WorkflowRunDialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 
 const BASE_PATH = "/workflows";
@@ -91,6 +95,13 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useState<WorkflowDefinitionRecord | null>(null);
   const [deletingWorkflow, setDeletingWorkflow] =
     useState<WorkflowDefinitionRecord | null>(null);
+  const [runWorkflowDialog, setRunWorkflowDialog] =
+    useState<WorkflowDefinitionRecord | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<{
+    workflow: WorkflowDefinitionRecord;
+    input: Record<string, unknown>;
+    token: string;
+  } | null>(null);
   const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
   const {
@@ -107,7 +118,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const runWorkflow = useRunWorkflowDefinition();
-  const stopWorkflow = useStopWorkflowRun();
+  const approveWorkflow = useApproveWorkflowRun();
   const trust = useTrust();
 
   const filtered = useMemo(
@@ -204,11 +215,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               trustPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
-                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
-                setActiveRunIds((current) => ({
-                  ...current,
-                  [selectedWorkflow.id]: run.runId,
-                }));
+                setRunWorkflowDialog(selectedWorkflow);
               }}
               onResume={async (currentRunId) => {
                 const run = await runWorkflow.mutateAsync({
@@ -216,24 +223,15 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                   mode: "resume",
                   runId: currentRunId,
                 });
+                if (run.kind !== "accepted") return;
                 setActiveRunIds((current) => ({
                   ...current,
                   [selectedWorkflow.id]: run.runId,
                 }));
               }}
               onRetry={async () => {
-                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
-                setActiveRunIds((current) => ({
-                  ...current,
-                  [selectedWorkflow.id]: run.runId,
-                }));
+                setRunWorkflowDialog(selectedWorkflow);
               }}
-              onStop={(currentRunId) =>
-                stopWorkflow.mutateAsync({
-                  workflowId: selectedWorkflow.id,
-                  runId: currentRunId,
-                })
-              }
               runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
@@ -246,7 +244,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 runWorkflow.isPending &&
                 runWorkflow.variables === selectedWorkflow.id
               }
-              stopPending={stopWorkflow.isPending}
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
               onDelete={() => setDeletingWorkflow(selectedWorkflow)}
             />
@@ -305,6 +302,63 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           const created = await createWorkflow.mutateAsync(payload);
           setCreateOpen(false);
           selectWorkflow(created.id);
+        }}
+      />
+      <WorkflowRunDialog
+        workflow={runWorkflowDialog}
+        pending={runWorkflow.isPending}
+        onClose={() => setRunWorkflowDialog(null)}
+        onSubmit={async (input) => {
+          if (!runWorkflowDialog) return;
+          const workflow = runWorkflowDialog;
+          const result = await runWorkflow.mutateAsync({
+            id: workflow.id,
+            input,
+          });
+          setRunWorkflowDialog(null);
+          if (result.kind === "approval-required") {
+            setPendingApproval({
+              workflow,
+              input,
+              token: result.approvalToken,
+            });
+            return;
+          }
+          setActiveRunIds((current) => ({
+            ...current,
+            [workflow.id]: result.runId,
+          }));
+        }}
+      />
+      <ConfirmDialog
+        open={!!pendingApproval}
+        title={`Run ${pendingApproval?.workflow.workflow.name ?? "workflow"}?`}
+        description="This workflow requires your approval before Kody Engine can start it."
+        confirmLabel="Approve and run"
+        onClose={() => setPendingApproval(null)}
+        onConfirm={() => {
+          if (!pendingApproval) return;
+          const approval = pendingApproval;
+          void approveWorkflow
+            .mutateAsync({
+              id: approval.workflow.id,
+              approvalToken: approval.token,
+              input: approval.input,
+            })
+            .then((approvalId) =>
+              runWorkflow.mutateAsync({
+                id: approval.workflow.id,
+                approvalId,
+                input: approval.input,
+              }),
+            )
+            .then((run) => {
+              if (run.kind !== "accepted") return;
+              setActiveRunIds((current) => ({
+                ...current,
+                [approval.workflow.id]: run.runId,
+              }));
+            });
         }}
       />
       <ConfirmDialog
@@ -403,11 +457,9 @@ function WorkflowDetail({
   onRun,
   onResume,
   onRetry,
-  onStop,
   runId,
   onTrustLevelChange,
   runPending,
-  stopPending,
   onEdit,
   onDelete,
 }: {
@@ -418,11 +470,9 @@ function WorkflowDetail({
   onRun: () => void | Promise<void>;
   onResume: (runId: string) => void | Promise<void>;
   onRetry: () => void | Promise<void>;
-  onStop: (runId: string) => void | Promise<void>;
   runId?: string;
   onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   runPending: boolean;
-  stopPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -433,6 +483,34 @@ function WorkflowDetail({
     [workflow.workflow],
   );
   const { data: latestRun } = useWorkflowRunState(workflow.id, runId);
+  const { data: triggers = [] } = useQuery({
+    queryKey: ["workflow-event-triggers", workflow.id],
+    queryFn: async () =>
+      (
+        await handleResponse<{
+          triggers: Array<{
+            id: string;
+            name: string;
+            enabled: boolean;
+            event: string;
+            action:
+              | { type: "start-workflow"; workflowId: string }
+              | { type: "save-user-state" };
+          }>;
+        }>(
+          await fetch("/api/kody/triggers", {
+            headers: buildHeaders(),
+            cache: "no-store",
+          }),
+        )
+      ).triggers,
+  });
+  const workflowTriggers = triggers.filter(
+    (trigger) =>
+      trigger.enabled &&
+      trigger.action.type === "start-workflow" &&
+      trigger.action.workflowId === workflow.id,
+  );
   const latestRunId = latestRun?.runId;
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
@@ -447,25 +525,6 @@ function WorkflowDetail({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          {latestRun?.state.status === "running" && latestRunId ? (
-            latestRun.runner?.kind === "fly" ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => void onStop(latestRunId)}
-                disabled={stopPending}
-              >
-                Stop
-              </Button>
-            ) : (
-              <span
-                className="text-xs text-muted-foreground"
-                title="Shared runners cannot be stopped safely."
-              >
-                Stop unavailable on shared runner
-              </span>
-            )
-          ) : null}
           {latestRun &&
           latestRun.state.status !== "running" &&
           latestRun.state.status !== "done" ? (
@@ -570,6 +629,35 @@ function WorkflowDetail({
           runId={latestRun?.runId}
           runState={latestRun?.state}
         />
+      </section>
+
+      <section className="rounded-md border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm font-medium text-foreground">Starts when</div>
+          <Link
+            href="/triggers"
+            className="text-xs text-cyan-300 hover:text-cyan-200"
+          >
+            Manage event rules
+          </Link>
+        </div>
+        {workflowTriggers.length > 0 ? (
+          <ul className="space-y-2 text-sm">
+            {workflowTriggers.map((trigger) => (
+              <li key={trigger.id} className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>{trigger.event}</span>
+                <span className="text-xs text-muted-foreground">
+                  ({trigger.name})
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No event rules start this Workflow.
+          </p>
+        )}
       </section>
 
       <div className="text-xs text-muted-foreground">

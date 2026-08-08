@@ -10,7 +10,7 @@
  *
  *   Self-contained: signs the App JWT with node:crypto (no @octokit/auth-app
  *   dependency). Caches the minted token per repo (~50 min; GitHub tokens last
- *   60 min) and the resolved installation id per owner. Returns null whenever
+ *   60 min) and the resolved installation id per repo. Returns null whenever
  *   the App is unconfigured or not installed on the repo, so every caller can
  *   fall back to a vault/PAT token.
  */
@@ -73,7 +73,8 @@ async function resolveInstallationId(
   repo: string,
   jwt: string,
 ): Promise<number | null> {
-  const cached = installCache.get(owner.toLowerCase());
+  const key = `${owner}/${repo}`.toLowerCase();
+  const cached = installCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.id;
 
   const res = await fetch(
@@ -89,7 +90,7 @@ async function resolveInstallationId(
   if (!res.ok) return null; // 404 = App not installed on this repo
   const body = (await res.json()) as { id?: number };
   if (typeof body.id !== "number") return null;
-  installCache.set(owner.toLowerCase(), {
+  installCache.set(key, {
     id: body.id,
     expiresAt: Date.now() + INSTALL_TTL_MS,
   });

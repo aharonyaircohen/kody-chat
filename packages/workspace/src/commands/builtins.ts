@@ -118,47 +118,6 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "if I confirm — never dispatch automatically.",
   },
   {
-    slug: "goal",
-    description: "Create an AI Agency goal",
-    argumentHint: "<outcome>",
-    body:
-      'Create a new AI Agency goal for "$ARGUMENTS".\n\n' +
-      "Use the managed goal model: outcome, proof/evidence, route, facts, and blockers. " +
-      "Prefer managed-goal tools when available. Keep the first route simple.",
-  },
-  {
-    slug: "mission",
-    description: "Create a mission task group",
-    argumentHint: "<title>",
-    body:
-      'Create a new mission titled "$ARGUMENTS".\n\n' +
-      "A mission is the old task grouping under the task page: it collects concrete tasks toward one focused effort. " +
-      "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
-  },
-  {
-    slug: "meeting-summary",
-    description: "Summarize meeting notes into a saved report",
-    argumentHint: "[note title, or paste raw notes]",
-    body:
-      "Summarize meeting notes. Input: $ARGUMENTS.\n\n" +
-      "Finding the notes:\n" +
-      "- If the input is raw meeting notes, summarize the input directly.\n" +
-      "- Otherwise, use `cms_list_documents` on the `meeting-notes` " +
-      "collection: if the input names a note, summarize the matching " +
-      "entry (via `cms_get_document`); if the input is empty, summarize " +
-      "the most recent entry. If the collection is missing or empty, say " +
-      "so and stop.\n\n" +
-      "Produce a concise summary with these sections (omit empty ones):\n" +
-      "- **Summary** — 2–4 sentences on what the meeting covered.\n" +
-      "- **Decisions** — bullet list of decisions made.\n" +
-      "- **Action items** — bullet list as `owner — task (due date if given)`.\n" +
-      "- **Open questions** — unresolved points needing follow-up.\n\n" +
-      "Then call `publish_report` with slug `meeting-notes`, a title of the " +
-      'form "Meeting — <topic> (<date>)", and the summary as the markdown ' +
-      "body. Show the summary in chat and confirm it was saved to Reports. " +
-      "Do not create issues, goals, or tasks unless I ask.",
-  },
-  {
     slug: "analyze",
     description: "Analyze the current issue/PR/run on this page",
     body:

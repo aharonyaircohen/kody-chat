@@ -11,13 +11,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { readVault, listSecretMetadata } from "@kody-ade/base/vault/store";
 import {
-  readVault,
-  writeVault,
-  invalidateVaultCache,
-  listSecretMetadata,
-  type VaultDocument,
-} from "@kody-ade/base/vault/store";
+  SecretUpsertSchema,
+  upsertSecret,
+} from "@kody-ade/base/vault/mutations";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 
 interface Ctx {
@@ -25,12 +23,11 @@ interface Ctx {
   owner: string;
   repo: string;
   actorLogin?: string | null;
+  onSecretWritten?: (name: string) => void;
 }
 
-const NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
-
 export function createSecretTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { octokit, owner, repo, actorLogin, onSecretWritten } = ctx;
   const repoRef = `${owner}/${repo}`;
 
   return {
@@ -54,15 +51,7 @@ export function createSecretTools(ctx: Ctx) {
 
     set_secret: tool({
       description: `Create or overwrite a secret value in ${repoRef}'s encrypted backend vault (AES-256-GCM, committed to secrets.enc). Use for API keys, tokens, etc. Names are UPPER_SNAKE_CASE. The value is write-only — it cannot be read back through chat. Confirm the value with the user before calling.`,
-      inputSchema: z.object({
-        name: z
-          .string()
-          .regex(NAME_RE, "UPPER_SNAKE_CASE, start with a letter, ≤128 chars"),
-        value: z
-          .string()
-          .min(1)
-          .max(64 * 1024),
-      }),
+      inputSchema: SecretUpsertSchema,
       execute: async ({ name, value }) => {
         if (!isVaultConfigured())
           return {
@@ -70,30 +59,16 @@ export function createSecretTools(ctx: Ctx) {
             message: "KODY_MASTER_KEY is not set on the server.",
           };
         try {
-          const { doc, sha } = await readVault(octokit, owner, repo, {
-            force: true,
-          });
-          const next: VaultDocument = {
-            ...doc,
-            secrets: {
-              ...doc.secrets,
-              [name]: {
-                value,
-                updatedAt: new Date().toISOString(),
-                ...(actorLogin ? { updatedBy: actorLogin } : {}),
-              },
-            },
-          };
-          await writeVault(
+          const result = await upsertSecret({
             octokit,
             owner,
             repo,
-            next,
-            sha,
-            `chore(vault): upsert ${name}`,
-          );
-          invalidateVaultCache(owner, repo);
-          return { ok: true, name, secrets: listSecretMetadata(next) };
+            name,
+            value,
+            actorLogin,
+          });
+          onSecretWritten?.(name);
+          return { ok: true, name, secrets: result.secrets };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

@@ -464,7 +464,7 @@
   }
 
   /* ----- Neutral scales (zinc / slate / gray) -----
-     Goal, task and detail components are written dark-first with raw
+     Task and detail components are written dark-first with raw
      zinc/slate/gray utilities. On the warm light ground the light shades
      (zinc-50..300) render as near-white invisible text and the dark
      shades (zinc-700..950) read as heavy charcoal blocks. Remap the whole

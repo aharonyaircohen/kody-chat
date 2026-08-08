@@ -1,4 +1,5 @@
 import type { ChatViewDirective } from "../../../chat-ui-actions";
+import type { MachineAccess } from "../../../chat-types";
 
 export type ConversationCommand =
   | {
@@ -43,6 +44,12 @@ export type ConversationCommand =
       kind: "runtime";
       actorLogin: string;
       runtime: ConversationRuntime;
+      updatedAt: string;
+    }
+  | {
+      kind: "machine-access";
+      actorLogin: string;
+      machineAccess: MachineAccess;
       updatedAt: string;
     }
   | {
@@ -138,11 +145,12 @@ export class ConversationClient {
     const previous = this.queues.get(conversationId) ?? Promise.resolve();
     const next = previous.catch(() => undefined).then(operation);
     this.queues.set(conversationId, next);
-    void next.finally(() => {
+    const clearCompletedQueue = () => {
       if (this.queues.get(conversationId) === next) {
         this.queues.delete(conversationId);
       }
-    });
+    };
+    void next.then(clearCompletedQueue, clearCompletedQueue);
     return next;
   }
 
@@ -156,11 +164,13 @@ export class ConversationClient {
     );
   }
 
-  async remove(conversationId: string): Promise<void> {
-    await this.request(
-      `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}`,
-      { method: "DELETE" },
-    );
+  remove(conversationId: string): Promise<void> {
+    return this.enqueue(conversationId, async () => {
+      await this.request(
+        `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}`,
+        { method: "DELETE" },
+      );
+    });
   }
 }
 

@@ -15,7 +15,6 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   "terminal",
   "commands",
   "vibe",
-  "goals",
   "branding",
   "brands",
   "commands-page",

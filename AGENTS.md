@@ -14,8 +14,9 @@
 
 - Read [`docs/project-behavior.md`](docs/project-behavior.md) when changing
   routes, repository-scoped features, or user-facing dashboard behavior.
-- Read [`docs/ui-design-principles.md`](docs/ui-design-principles.md) before
-  creating or redesigning a dashboard page.
+- Before any user-facing UI change, read and apply the simplicity rule in
+  [`docs/ui-design-principles.md`](docs/ui-design-principles.md) before
+  designing or coding.
 - Keep the detailed rules in that document rather than duplicating them here.
 - Read [`docs/testing-policy.md`](docs/testing-policy.md) for the required
   verification layers and completion standard for every change.

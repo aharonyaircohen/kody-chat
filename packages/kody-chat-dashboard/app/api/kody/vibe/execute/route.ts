@@ -24,9 +24,9 @@ import {
   resolveServerContext,
 } from "@kody-ade/fly/runners/server-run";
 import {
-  issueRunRequest,
+  issueExecutionRequest,
   withStoreTarget,
-} from "@kody-ade/fly/runners/run-request";
+} from "@kody-ade/fly/runners/execution-request-builders";
 
 export const runtime = "nodejs";
 
@@ -71,16 +71,15 @@ export async function POST(req: NextRequest) {
   }
   const { owner, repo } = ctxResult.context;
   const octokit = ctxResult.context.octokit as VibeRepoOctokit;
-  const runRequest = withStoreTarget(
-    issueRunRequest(issueNumber),
-    ctxResult.context as Parameters<typeof withStoreTarget>[1],
-  );
-
   // sessionId is traceable but unused by the engine in agent mode —
   // entry.ts only consults SESSION_ID when argv is empty, and our
   // entrypoint passes `run --issue N` argv. Timestamp suffix keeps each
   // click distinguishable in logs even when the same issue is re-run.
   const sessionId = `vibe-issue-${issueNumber}-${Date.now()}`;
+  const runRequest = withStoreTarget(
+    issueExecutionRequest(sessionId, issueNumber),
+    ctxResult.context as Parameters<typeof withStoreTarget>[1],
+  );
 
   // Clone the repo's actual default branch, not the runner's hardcoded
   // "main" fallback. Repos using "dev" or "develop" as default would

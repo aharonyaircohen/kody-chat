@@ -9,6 +9,16 @@
 
 export { createLazyPanel } from "./lazy-panel";
 export {
+  createChatInputDispatcher,
+  type ChatInputDispatchResult,
+  type ChatOperationRegistration,
+} from "./input-dispatcher";
+export {
+  ChatOperationRequestError,
+  requestChatOperation,
+  type ChatOperationRequestResult,
+} from "./operation-client";
+export {
   CHAT_CAPABILITIES,
   CONTRIBUTION_CAPABILITIES,
   FULL_GRANT,
@@ -53,6 +63,10 @@ export type {
   ChatTransportStatus,
   ChatTurnInput,
 } from "./transport";
+export {
+  DASHBOARD_HOST_TOOL_NAMES,
+  type DashboardHostToolName,
+} from "./host-tool-contract";
 export {
   ChatToolRegistrationError,
   createChatServerToolRegistry,

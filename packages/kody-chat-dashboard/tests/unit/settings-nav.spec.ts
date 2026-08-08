@@ -90,10 +90,10 @@ describe("settings navigation", () => {
       "/agents",
       "/agent-loops",
       "/workflows",
+      "/pipelines",
       "/capabilities",
     ]);
     expect(navLabelForPath("/operations")).toBeNull();
-    expect(navLabelForPath("/agent-goals")).toBeNull();
     expect(navLabelForPath("/company-intents")).toBeNull();
   });
 

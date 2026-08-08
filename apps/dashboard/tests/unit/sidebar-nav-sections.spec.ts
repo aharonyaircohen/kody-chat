@@ -21,7 +21,6 @@ const sections: readonly SettingsNavSection[] = [
   {
     title: "Knowledge",
     items: [
-      item("/knowledge-system", "Knowledge System"),
       item("/docs", "Docs"),
       item("/context", "Context"),
       item("/file-spaces", "Manage Spaces"),
@@ -33,7 +32,6 @@ const sections: readonly SettingsNavSection[] = [
 describe("sidebar navigation extensions", () => {
   it("places custom document spaces immediately after Docs in Knowledge", () => {
     const extensions: SidebarNavExtensions = {
-      collectionItems: [],
       customSpaceItems: [
         item("/file-spaces/notes", "Notes"),
         item("/file-spaces/handbook", "Handbook"),
@@ -47,7 +45,6 @@ describe("sidebar navigation extensions", () => {
         .find((section) => section.title === "Knowledge")
         ?.items.map((navItem) => navItem.href),
     ).toEqual([
-      "/knowledge-system",
       "/docs",
       "/file-spaces/notes",
       "/file-spaces/handbook",
@@ -61,16 +58,15 @@ describe("sidebar navigation extensions", () => {
     ).toEqual(["/files"]);
   });
 
-  it("continues to append configured collections to Content", () => {
+  it("keeps CMS collections inside Entries instead of global navigation", () => {
     const result = extendSidebarNavSections(sections, {
       customSpaceItems: [],
-      collectionItems: [item("/content/entries/posts", "Posts")],
     });
 
     expect(
       result
         .find((section) => section.title === "Content")
         ?.items.map((navItem) => navItem.href),
-    ).toEqual(["/content/entries", "/content/entries/posts"]);
+    ).toEqual(["/content/entries"]);
   });
 });

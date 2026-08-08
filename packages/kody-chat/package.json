@@ -16,6 +16,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "pnpm build",
+    "test": "vitest run",
+    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "exports": {
@@ -42,7 +44,8 @@
     "@types/react-dom": "^19.2.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.0.16"
   },
   "repository": {
     "type": "git",

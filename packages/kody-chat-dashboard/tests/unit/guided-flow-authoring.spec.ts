@@ -6,10 +6,28 @@ import {
   validateGuidedFlowDraft,
   type GuidedFlowDraft,
 } from "../../src/dashboard/lib/guided-flows/authoring";
+import {
+  isCommandGuidedFlowStep,
+  isNestedGuidedFlowStep,
+  type GuidedFlowDefinition,
+  type GuidedFlowViewStepDefinition,
+} from "../../src/dashboard/lib/guided-flows/controller";
+
+function viewStep(
+  definition: GuidedFlowDefinition,
+  index: number,
+): GuidedFlowViewStepDefinition {
+  const step = definition.steps[index];
+  if (!step || isNestedGuidedFlowStep(step) || isCommandGuidedFlowStep(step)) {
+    throw new Error(`Expected view step ${index + 1}`);
+  }
+  return step;
+}
 
 const validDraft: GuidedFlowDraft = {
   title: "Review a release",
   completionRouteId: "workflows",
+  controls: ["back"],
   steps: [
     {
       title: "Confirm the release",
@@ -20,6 +38,52 @@ const validDraft: GuidedFlowDraft = {
 };
 
 describe("guided flow authoring", () => {
+  it("stores a command step as a raw chat command with generic actions", () => {
+    const definition = buildGuidedFlowDefinition({
+      title: "Initialize Kody",
+      steps: [
+        {
+          type: "command",
+          title: "Initialize Kody Engine",
+          explanation: "Run the standard initialization command.",
+          command: "/init",
+        },
+      ],
+    });
+    const step = definition.steps[0];
+
+    expect(step && isCommandGuidedFlowStep(step)).toBe(true);
+    expect(step).toEqual({
+      id: "step-1",
+      type: "command",
+      title: "Initialize Kody Engine",
+      explanation: "Run the standard initialization command.",
+      command: "/init",
+      actions: [
+        { id: "run", target: { type: "stay" } },
+        { id: "continue", target: { type: "complete" } },
+      ],
+    });
+  });
+
+  it("rejects command steps that do not contain one slash command", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Invalid command",
+        steps: [
+          {
+            type: "command",
+            title: "Run",
+            explanation: "Run it.",
+            command: "init",
+          },
+        ],
+      }),
+    ).toEqual({
+      steps: "Enter one valid slash command for every command step.",
+    });
+  });
+
   it("generates a simple sign-in form from a plain-language goal", () => {
     expect(
       deriveGuidedFlowRendererData(
@@ -59,7 +123,7 @@ describe("guided flow authoring", () => {
       ],
     });
 
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       actions: [
         { id: "confirm", label: "Confirm" },
         { id: "decline", label: "Decline" },
@@ -80,11 +144,53 @@ describe("guided flow authoring", () => {
         },
       ],
     });
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       fields: expect.arrayContaining([
         expect.objectContaining({ name: "clientId" }),
         expect.objectContaining({ name: "clientSecret" }),
       ]),
+    });
+  });
+
+  it("preserves the page owned by an authored step", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      steps: [
+        {
+          title: "Configure secrets",
+          explanation: "Add the required secret on its owning page.",
+          routeId: "secrets",
+          rendererSlug: "approval-card",
+        },
+      ],
+    });
+
+    expect(definition.steps[0]).toMatchObject({ routeId: "secrets" });
+  });
+
+  it("preserves dynamic page parameters without teaching the flow about routes", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      completionRouteId: "task",
+      completionRouteParameters: { issueNumber: "42" },
+      steps: [
+        {
+          title: "Open the task",
+          explanation: "Review the task.",
+          routeId: "task",
+          routeParameters: { issueNumber: "42" },
+          rendererSlug: "approval-card",
+        },
+      ],
+    });
+
+    expect(definition).toMatchObject({
+      completionRouteParameters: { issueNumber: "42" },
+      steps: [
+        expect.objectContaining({
+          routeParameters: { issueNumber: "42" },
+        }),
+      ],
     });
   });
 
@@ -94,6 +200,7 @@ describe("guided flow authoring", () => {
       version: 1,
       title: "Review a release",
       completionRouteId: "workflows",
+      controls: ["back"],
       steps: [
         {
           id: "step-1",
@@ -102,7 +209,6 @@ describe("guided flow authoring", () => {
           rendererSlug: "approval-card",
           rendererData: {
             title: "Confirm the release",
-            body: "Check the release details before continuing.",
             actions: [
               {
                 id: "continue",
@@ -112,10 +218,28 @@ describe("guided flow authoring", () => {
               },
             ],
           },
-          allowedActions: ["continue"],
+          actions: [{ id: "continue", target: { type: "complete" } }],
         },
       ],
     });
+  });
+
+  it("omits controls when the author did not enable any", () => {
+    const definition = buildGuidedFlowDefinition({
+      ...validDraft,
+      controls: [],
+    });
+
+    expect(definition).not.toHaveProperty("controls");
+  });
+
+  it("rejects duplicate controls", () => {
+    expect(
+      validateGuidedFlowDraft({
+        ...validDraft,
+        controls: ["back", "back"],
+      }),
+    ).toEqual({ controls: "Choose each control only once." });
   });
 
   it("uses the multi-select renderer's submit action for the final step", () => {
@@ -132,7 +256,7 @@ describe("guided flow authoring", () => {
 
     expect(definition.steps[0]).toMatchObject({
       rendererSlug: "multi-select-list",
-      allowedActions: ["submit"],
+      actions: [{ id: "submit", target: { type: "complete" } }],
     });
   });
 
@@ -154,12 +278,76 @@ describe("guided flow authoring", () => {
       ],
     });
 
-    expect(definition.steps[0].rendererData).toMatchObject({
+    expect(viewStep(definition, 0).rendererData).toMatchObject({
       items: [
         { id: "staging", label: "Staging" },
         { id: "production", label: "Production" },
       ],
     });
+  });
+
+  it("compiles widget authoring fields into the existing view-step model", () => {
+    const definition = buildGuidedFlowDefinition({
+      title: "Answer a question",
+      steps: [
+        {
+          title: "Choose the answer",
+          explanation: "Answer the question in the widget.",
+          rendererSlug: "question-select",
+          rendererVersion: 3,
+          rendererDataJson: JSON.stringify({
+            question: { exerciseId: "exercise-1", questionId: "question-2" },
+          }),
+          completionActionId: "correct",
+        },
+      ],
+    });
+
+    expect(viewStep(definition, 0)).toEqual({
+      id: "step-1",
+      title: "Choose the answer",
+      explanation: "Answer the question in the widget.",
+      rendererSlug: "question-select",
+      rendererVersion: 3,
+      rendererData: {
+        question: { exerciseId: "exercise-1", questionId: "question-2" },
+      },
+      actions: [{ id: "correct", target: { type: "complete" } }],
+    });
+  });
+
+  it("rejects invalid widget input without changing the runtime model", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Broken widget",
+        steps: [
+          {
+            title: "Widget",
+            explanation: "Use it.",
+            rendererSlug: "question-select",
+            rendererDataJson: "{broken",
+            completionActionId: "correct",
+          },
+        ],
+      }),
+    ).toEqual({ steps: "Enter valid JSON for every widget input." });
+  });
+
+  it("rejects an invalid widget finish signal", () => {
+    expect(
+      validateGuidedFlowDraft({
+        title: "Broken widget",
+        steps: [
+          {
+            title: "Widget",
+            explanation: "Use it.",
+            rendererSlug: "question-select",
+            rendererDataJson: "{}",
+            completionActionId: "Not valid",
+          },
+        ],
+      }),
+    ).toEqual({ steps: "Enter a valid finish signal for every widget." });
   });
 
   it("migrates legacy multi-select actions at the persistence boundary", () => {
@@ -186,8 +374,7 @@ describe("guided flow authoring", () => {
     });
 
     expect(definition.steps[0]).toMatchObject({
-      transitions: { submit: "step-2" },
-      allowedActions: ["submit"],
+      actions: [{ id: "submit", target: { type: "step", stepId: "step-2" } }],
     });
   });
 
@@ -200,12 +387,32 @@ describe("guided flow authoring", () => {
     });
   });
 
-  it("rejects unsupported renderer slugs", () => {
+  it("accepts custom renderer slugs and rejects malformed slugs", () => {
     expect(
       validateGuidedFlowDraft({
         ...validDraft,
-        steps: [{ ...validDraft.steps[0], rendererSlug: "unknown" }],
+        steps: [
+          {
+            title: "Custom",
+            explanation: "Custom.",
+            rendererSlug: "my-custom-renderer",
+          },
+        ],
       }),
-    ).toEqual({ steps: "Choose a supported renderer for every step." });
+    ).toEqual({});
+    expect(
+      validateGuidedFlowDraft({
+        ...validDraft,
+        steps: [
+          {
+            title: "Unknown",
+            explanation: "Unknown.",
+            rendererSlug: "not a valid slug",
+          },
+        ],
+      }),
+    ).toEqual({
+      steps: "Choose a valid renderer or nested flow for every step.",
+    });
   });
 });

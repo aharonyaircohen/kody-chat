@@ -35,6 +35,7 @@ function request(body: unknown): NextRequest {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   requireKodyAuth.mockResolvedValue(null);
   getRequestAuth.mockReturnValue({
     owner: "acme",
@@ -60,5 +61,28 @@ describe("POST /api/kody/chat/brain CMS context", () => {
       storeRepoUrl: "https://github.com/acme/kody-store",
       storeRef: "stable",
     });
+  });
+
+  it("adds the explicitly requested Dashboard feature guide to the Brain turn", async () => {
+    const res = await POST(
+      request({
+        chatId: "c1",
+        currentPage: "the Inbox page (/inbox)",
+        message: "Can a Workflow schedule itself every night?",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
+      message: expect.stringContaining(
+        "## Dashboard feature guide — Workflows",
+      ),
+    });
+    expect(streamBrainChat.mock.calls[0]![0].message).toContain(
+      "A Workflow cannot provide a schedule or recurring trigger",
+    );
+    expect(streamBrainChat.mock.calls[0]![0].message).toContain(
+      "Can a Workflow schedule itself every night?",
+    );
   });
 });

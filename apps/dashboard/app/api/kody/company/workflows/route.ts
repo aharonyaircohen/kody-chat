@@ -21,15 +21,12 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getEngineConfig, type KodyConfig } from "@kody-ade/base/engine/config";
-import {
-  getProjectedEngineConfig,
-  listProjectedWorkflows,
-  saveProjectedWorkflow,
-} from "@dashboard/lib/backend/repo-projection";
+import { reconcileProjectedStoreWorkflows } from "@dashboard/lib/backend/repo-projection";
 import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
   validateWorkflowDefinition,
+  workflowStepDefinitionSchema,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
@@ -39,27 +36,16 @@ import {
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
-
-const workflowTransitionSchema = z.object({
-  to: z.string().trim().min(1).max(80),
-  when: z.record(z.string(), z.unknown()).optional(),
-  default: z.boolean().optional(),
-  maxIterations: z.number().int().positive().optional(),
-});
-const workflowStepSchema = z.object({
-  id: z.string().trim().min(1).max(80),
-  capability: z.string().trim().min(1).max(80),
-  input: z.unknown().optional(),
-  next: z.array(workflowTransitionSchema).optional(),
-});
+import { workflowAutomationEligibility } from "@dashboard/features/workflows/server/workflow-execution-authorization";
 
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
   agent: z.string().trim().min(1).max(80).default("kody"),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
   startAt: z.string().trim().min(1).max(80).optional(),
-  steps: z.array(workflowStepSchema).min(1).optional(),
+  steps: z.array(workflowStepDefinitionSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
@@ -114,20 +100,6 @@ export async function GET(req: NextRequest) {
     headerAuth.storeRef,
   );
   try {
-    try {
-      const projected = await listProjectedWorkflows(
-        headerAuth.owner,
-        headerAuth.repo,
-      );
-      if (projected.length > 0) {
-        return NextResponse.json(
-          { workflows: projected },
-          { headers: { "Cache-Control": "no-store" } },
-        );
-      }
-    } catch {
-      // Bootstrap from GitHub when the projection is unavailable or empty.
-    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
@@ -137,7 +109,7 @@ export async function GET(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
-    const { config } = await getProjectedEngineConfig(
+    const { config } = await getEngineConfig(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
@@ -155,17 +127,21 @@ export async function GET(req: NextRequest) {
     const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
       a.id.localeCompare(b.id),
     );
-    await Promise.all(
-      workflows.map((workflow) =>
-        saveProjectedWorkflow(
-          headerAuth.owner,
-          headerAuth.repo,
-          workflow,
-        ).catch(() => undefined),
-      ),
-    );
+    await reconcileProjectedStoreWorkflows(
+      headerAuth.owner,
+      headerAuth.repo,
+      storeWorkflows,
+    ).catch(() => undefined);
+    const automationById = await workflowAutomationEligibility(workflows);
+    const workflowsWithAutomation = workflows.map((workflow) => ({
+      ...workflow,
+      automation: automationById.get(workflow.id) ?? {
+        eligible: false as const,
+        reason: "approval-required" as const,
+      },
+    }));
     return NextResponse.json(
-      { workflows },
+      { workflows: workflowsWithAutomation },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {

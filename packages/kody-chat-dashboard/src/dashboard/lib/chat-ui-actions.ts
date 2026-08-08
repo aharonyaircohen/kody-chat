@@ -82,15 +82,42 @@ export interface RenderedViewAction {
   response: string;
   variant?: "primary" | "secondary" | "danger";
   result?: Record<string, unknown>;
+  dispatch?: {
+    type: "control";
+    id: string;
+  };
 }
 
-export type RenderedViewDataValue =
+export type RenderedViewJsonValue =
   | string
   | number
   | boolean
   | null
+  | RenderedViewJsonValue[]
+  | { [key: string]: RenderedViewJsonValue };
+
+export type RenderedViewDataValue =
+  | RenderedViewJsonValue
   | RenderedViewAction[]
   | Array<Record<string, string | boolean>>;
+
+export function isRenderedViewJsonValue(
+  value: unknown,
+): value is RenderedViewJsonValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    (Array.isArray(value) && value.every(isRenderedViewJsonValue)) ||
+    (!!value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.values(value as Record<string, unknown>).every(
+        isRenderedViewJsonValue,
+      ))
+  );
+}
 
 export type RenderedViewUiNode =
   | {
@@ -137,7 +164,11 @@ export type RenderedViewUiNode =
        */
       type: "widget";
       widget: string;
+      /** Exact published widget bundle version. */
+      version?: number;
       data?: unknown;
+      /** Use the widget bundle's optional previewData export. */
+      preview?: boolean;
     };
 
 export interface RenderedViewDirective {
@@ -154,6 +185,12 @@ export interface RenderedViewDirective {
   };
   ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
+  /** Durable completion state for an interactive view instance. */
+  result?: {
+    actionId: string;
+    data?: Record<string, unknown>;
+    completedAt: string;
+  };
 }
 
 export type ChatViewDirective = RenderedViewDirective;
@@ -197,11 +234,19 @@ function isRenderedViewAction(value: unknown): value is RenderedViewAction {
     v.variant === "primary" ||
     v.variant === "secondary" ||
     v.variant === "danger";
+  const validDispatch =
+    v.dispatch === undefined ||
+    (!!v.dispatch &&
+      typeof v.dispatch === "object" &&
+      !Array.isArray(v.dispatch) &&
+      (v.dispatch as Record<string, unknown>).type === "control" &&
+      typeof (v.dispatch as Record<string, unknown>).id === "string");
   return (
     typeof v.id === "string" &&
     typeof v.label === "string" &&
     typeof v.response === "string" &&
-    validVariant
+    validVariant &&
+    validDispatch
   );
 }
 
@@ -209,10 +254,7 @@ function isRenderedViewDataValue(
   value: unknown,
 ): value is RenderedViewDataValue {
   return (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
+    isRenderedViewJsonValue(value) ||
     (Array.isArray(value) &&
       value.every(
         (item) =>
@@ -305,6 +347,24 @@ export function isRenderedViewDirective(
       typeof (flow as Record<string, unknown>).instanceId !== "string" ||
       typeof (flow as Record<string, unknown>).stepId !== "string" ||
       typeof (flow as Record<string, unknown>).revision !== "number"
+    ) {
+      return false;
+    }
+  }
+  if (v.result !== undefined) {
+    const result = v.result;
+    if (
+      !result ||
+      typeof result !== "object" ||
+      typeof (result as Record<string, unknown>).actionId !== "string" ||
+      typeof (result as Record<string, unknown>).completedAt !== "string"
+    ) {
+      return false;
+    }
+    const resultData = (result as Record<string, unknown>).data;
+    if (
+      resultData !== undefined &&
+      (!resultData || typeof resultData !== "object" || Array.isArray(resultData))
     ) {
       return false;
     }

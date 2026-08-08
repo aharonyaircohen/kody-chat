@@ -4,6 +4,7 @@ import type {
   SessionMeta,
 } from "../../../chat-types";
 import { isRenderedViewDirective } from "../../../chat-ui-actions";
+import { machineAccessForRuntime } from "../machine-access";
 
 type StoredMessage = {
   kind: "message";
@@ -26,11 +27,14 @@ type StoredHandoff = {
 export type ConversationDetail = {
   conversation: {
     conversationId: string;
+    scope?:
+      { kind: "global" } | { kind: "repository"; owner: string; repo: string };
     title: string;
     preview?: string;
     pinned: boolean;
     activeAgent: { slug: string; title: string };
     runtime: { kind: string; [key: string]: unknown };
+    machineAccess?: "none" | "local" | "brain";
     createdAt: string;
     updatedAt: string;
   };
@@ -134,7 +138,18 @@ export function mapConversationDetail(detail: ConversationDetail): {
       updatedAt: detail.conversation.updatedAt,
       messageCount: messages.length,
       pinned: detail.conversation.pinned,
+      repository:
+        detail.conversation.scope?.kind === "repository"
+          ? {
+              owner: detail.conversation.scope.owner,
+              repo: detail.conversation.scope.repo,
+            }
+          : undefined,
       agentKey: agentKeyForRuntime(detail.conversation.runtime),
+      machineAccess: machineAccessForRuntime(
+        detail.conversation.machineAccess,
+        detail.conversation.runtime,
+      ),
       agencyAgent: detail.conversation.activeAgent,
       agentHandoffs: handoffs,
       contextCheckpoint: checkpoint

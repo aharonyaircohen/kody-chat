@@ -1,6 +1,9 @@
+/** Minimal structural contract keeps the embeddable chat core package-agnostic. */
 export interface ChatProviderModel {
-  provider: string;
-  modelName: string;
+  toolChoice?: {
+    required?: boolean;
+    named?: boolean;
+  };
 }
 
 export interface ChatProviderCapabilities {
@@ -9,31 +12,15 @@ export interface ChatProviderCapabilities {
 }
 
 /**
- * Return only wire-level behavior that the chat turn needs to know.
- * Provider quirks stay here instead of leaking into the route or UI.
+ * Return only declared wire-level behavior that the chat turn needs to know.
+ * Unknown capabilities stay conservative; provider and model names are not
+ * treated as capability evidence.
  */
 export function getChatProviderCapabilities(
   model: ChatProviderModel,
 ): ChatProviderCapabilities {
-  const provider = model.provider.trim().toLowerCase();
-  const modelName = model.modelName.trim().toLowerCase();
-
-  if (
-    provider === "minimax" ||
-    modelName.startsWith("minimax-") ||
-    provider === "openrouter" ||
-    provider === "google" ||
-    provider === "gemini" ||
-    modelName.startsWith("gemini-")
-  ) {
-    return {
-      supportsRequiredToolChoice: false,
-      supportsNamedToolChoice: false,
-    };
-  }
-
   return {
-    supportsRequiredToolChoice: true,
-    supportsNamedToolChoice: true,
+    supportsRequiredToolChoice: model.toolChoice?.required === true,
+    supportsNamedToolChoice: model.toolChoice?.named === true,
   };
 }

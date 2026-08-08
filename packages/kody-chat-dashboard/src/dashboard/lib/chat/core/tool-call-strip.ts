@@ -76,10 +76,40 @@ const PROVIDER_INVOKE_BLOCK_RE =
   /<\s*invoke\b[^>]*>[\s\S]*?(?:<\s*\/\s*invoke\s*>\s*|$)/gi;
 
 /**
+ * MiniMax can emit its native tool token into a text or reasoning delta
+ * instead of returning an SDK tool call. The payload has no closing marker,
+ * so everything after the token belongs to the unexecuted invocation.
+ */
+const PROVIDER_TOOL_CALL_TOKEN_RE = /<\|tool_call\|?>[\s\S]*$/gi;
+
+/**
  * Provider channel separators can appear between streamed XML fragments,
  * for example `]<]minimax[>[`. They are transport noise, not answer text.
  */
 const PROVIDER_CHANNEL_SEPARATOR_RE = /\]<\][a-z0-9_-]+\[>\[/gi;
+
+/**
+ * Some providers serialize an output-tool call as ordinary assistant text
+ * instead of an SDK tool event. Only unwrap the complete, anchored envelope;
+ * prose that merely mentions `final_answer` must remain untouched.
+ */
+const PLAIN_FINAL_ANSWER_ENVELOPE_RE = /^\s*final_answer\s+([\s\S]+?)\s*$/i;
+
+function unwrapPlainFinalAnswerEnvelope(text: string): {
+  text: string;
+  unwrapped: boolean;
+} {
+  const match = PLAIN_FINAL_ANSWER_ENVELOPE_RE.exec(text);
+  if (!match) return { text, unwrapped: false };
+  try {
+    const payload = JSON.parse(match[1]!) as { content?: unknown };
+    return typeof payload.content === "string"
+      ? { text: payload.content, unwrapped: true }
+      : { text, unwrapped: false };
+  } catch {
+    return { text, unwrapped: false };
+  }
+}
 
 /**
  * Self-closing tag (`<name … />`) — capture the tag name so we can
@@ -102,7 +132,8 @@ const DANGLING_TAG_NAMES: readonly string[] = [
 function stripToolCallBlocks(text: string): string {
   return text
     .replace(TOOL_CALL_BLOCK_RE, "")
-    .replace(PROVIDER_INVOKE_BLOCK_RE, "");
+    .replace(PROVIDER_INVOKE_BLOCK_RE, "")
+    .replace(PROVIDER_TOOL_CALL_TOKEN_RE, "");
 }
 
 function stripSelfClosingToolTags(text: string): string {
@@ -323,13 +354,21 @@ function stripAllLeakedParagraphs(text: string): {
  * separators, dangling stream tails, and blank-line noise: those are
  * transport artifacts, not fabricated invocations.
  */
-export function containsToolCallMarkup(text: string): boolean {
-  if (!text) return false;
-  if (new RegExp(TOOL_CALL_BLOCK_RE.source, "i").test(text)) return true;
-  if (new RegExp(PROVIDER_INVOKE_BLOCK_RE.source, "i").test(text)) return true;
-  const selfClosing = new RegExp(SELF_CLOSING_TAG_RE.source, "g");
-  for (let m = selfClosing.exec(text); m; m = selfClosing.exec(text)) {
-    if (KNOWN_TOOL_NAMES.has(m[1])) return true;
+export function containsToolCallMarkup(
+  ...textParts: Array<string | null | undefined>
+): boolean {
+  for (const text of textParts) {
+    if (!text) continue;
+    if (new RegExp(TOOL_CALL_BLOCK_RE.source, "i").test(text)) return true;
+    if (new RegExp(PROVIDER_INVOKE_BLOCK_RE.source, "i").test(text))
+      return true;
+    if (new RegExp(PROVIDER_TOOL_CALL_TOKEN_RE.source, "i").test(text)) {
+      return true;
+    }
+    const selfClosing = new RegExp(SELF_CLOSING_TAG_RE.source, "g");
+    for (let m = selfClosing.exec(text); m; m = selfClosing.exec(text)) {
+      if (KNOWN_TOOL_NAMES.has(m[1])) return true;
+    }
   }
   return false;
 }
@@ -366,9 +405,12 @@ export function parseAssistantContent(raw: string): {
   if (!raw) return { reasoning: "", answer: "", strippedToolMarkup: false };
   const { reasoning, answer } = parseReasoning(raw);
   const sanitizedReasoning = stripToolCallMarkup(reasoning);
-  const strippedToolMarkup = containsToolCallMarkup(answer);
+  const unwrappedAnswer = unwrapPlainFinalAnswerEnvelope(answer);
+  // `final_answer` is a side-effect-free output channel, so unwrapping its
+  // provider envelope must not trigger the fabricated-action warning.
+  const strippedToolMarkup = containsToolCallMarkup(reasoning, answer);
   const { text, leaked } = stripLeakedReasoning(
-    stripToolCallMarkup(answer),
+    stripToolCallMarkup(unwrappedAnswer.text),
     sanitizedReasoning,
   );
   const combinedReasoning = leaked

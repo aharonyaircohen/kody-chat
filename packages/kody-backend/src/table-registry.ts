@@ -27,20 +27,15 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_run",
   },
   {
-    table: "workflowCheckpoints",
-    naturalKey: ["threadId", "checkpointNs", "checkpointId"],
-    upsertIndex: "by_checkpoint",
+    table: "workflowEventDeliveries",
+    naturalKey: ["deliveryId", "triggerId"],
+    upsertIndex: "by_key",
   },
+  { table: "pipelines", naturalKey: ["pipelineId"], upsertIndex: "by_tenant" },
   {
-    table: "workflowCheckpointWrites",
-    naturalKey: [
-      "threadId",
-      "checkpointNs",
-      "checkpointId",
-      "taskId",
-      "idx",
-    ],
-    upsertIndex: "by_write",
+    table: "pipelineRuns",
+    naturalKey: ["pipelineId", "runId"],
+    upsertIndex: "by_run",
   },
   {
     table: "guidedFlowInstances",
@@ -53,9 +48,24 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_completion",
   },
   {
+    table: "guidedFlowSubmissions",
+    naturalKey: ["actorId", "instanceId", "revision"],
+    upsertIndex: "by_instance_revision",
+  },
+  {
+    table: "guidedFlowBindings",
+    naturalKey: ["actorId", "conversationId"],
+    upsertIndex: "by_conversation",
+  },
+  {
     table: "guidedFlowDefinitions",
-    naturalKey: ["actorId", "flowId", "version"],
+    naturalKey: ["flowId", "version"],
     upsertIndex: "by_flow",
+  },
+  {
+    table: "guidedFlowEffects",
+    naturalKey: ["actorId", "effectId"],
+    upsertIndex: "by_effect",
   },
   {
     table: "userJourneys",
@@ -124,7 +134,11 @@ export const TABLES: readonly TableDef[] = [
   },
   { table: "reports", naturalKey: ["slug", "runId"], upsertIndex: "by_slug" },
   { table: "agents", naturalKey: ["slug"], upsertIndex: "by_tenant" },
-  { table: "viewRenderers", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  {
+    table: "viewRenderers",
+    naturalKey: ["slug", "version"],
+    upsertIndex: "by_renderer",
+  },
   {
     table: "widgets",
     naturalKey: ["slug", "version"],
@@ -132,6 +146,17 @@ export const TABLES: readonly TableDef[] = [
   },
   { table: "macros", naturalKey: ["macroId"], upsertIndex: "by_tenant" },
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
+  {
+    table: "clientLaunchNonces",
+    naturalKey: ["tokenId"],
+    upsertIndex: "by_token",
+  },
+  {
+    table: "clientLaunchRateLimits",
+    naturalKey: ["key"],
+    upsertIndex: "by_key",
+    global: true,
+  },
   {
     table: "memories",
     naturalKey: ["memoryId"],
@@ -145,10 +170,9 @@ export const TABLES: readonly TableDef[] = [
     global: true,
   },
   {
-    table: "knowledgeGraphs",
-    naturalKey: [],
-    upsertIndex: "by_tenant",
-    tenantSingleton: true,
+    table: "memoryLearningRuns",
+    naturalKey: ["sourceRunId"],
+    upsertIndex: "by_source",
   },
   { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
   {
@@ -156,7 +180,6 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["intentId", "seq"],
     upsertIndex: "by_intent",
   },
-  { table: "goals", naturalKey: ["goalId"], upsertIndex: "by_tenant" },
   {
     table: "notificationPrefs",
     naturalKey: ["login"],
@@ -215,27 +238,3 @@ export const IMPORTABLE_TABLES: readonly string[] = TABLES.map(
 export const REPO_SCOPED_TABLES: readonly string[] = TABLES.filter(
   (entry) => !entry.global,
 ).map((entry) => entry.table);
-
-/** Repository data that may be exported to the Knowledge Graph builder. */
-export const KNOWLEDGE_GRAPH_TABLES: readonly string[] = [
-  "definitionHeads",
-  "definitionVersions",
-  "catalog",
-  "workflows",
-  "workflowRuns",
-  "userJourneys",
-  "userJourneyVersions",
-  "userJourneyRuns",
-  "reports",
-  "agents",
-  "macros",
-  "agencyRecords",
-  "taskState",
-  "capabilityState",
-  "dailyLogs",
-  "agencyRuns",
-  "runEvents",
-  "manifests",
-  "inboxEntries",
-  "repoDocs",
-];

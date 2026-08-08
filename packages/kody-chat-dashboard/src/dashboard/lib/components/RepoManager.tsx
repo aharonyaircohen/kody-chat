@@ -34,10 +34,8 @@ export function RepoManager() {
     >
       <div className="space-y-6">
         <p className="text-sm text-white/60">
-          Welcome. Connect a GitHub repository with a personal access token to
-          start using the dashboard. The token stays in this browser only —
-          nothing is sent to a Kody backend. Once connected, switch or add more
-          repositories from the repo menu in the header.
+          Add repository context when you need repository pages, tools, and
+          agency. Your private Chat and its history stay the same.
         </p>
 
         <Card>

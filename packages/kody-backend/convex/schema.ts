@@ -7,7 +7,9 @@ import {
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
-  workflowRunnerValidator,
+  pipelineDefinitionValidator,
+  pipelineRunStatusValidator,
+  pipelineRunStepValidator,
   guidedFlowStatusValidator,
 } from "./validators";
 import {
@@ -15,15 +17,16 @@ import {
   conversationAttachmentValidator,
   conversationEntryValidator,
   conversationRuntimeValidator,
+  machineAccessValidator,
   conversationScopeValidator,
 } from "./conversationValidators";
 import {
   memoryActorValidator,
   memoryEvidenceValidator,
-  memoryKindValidator,
   memoryStatusValidator,
+  storedMemoryKindValidator,
 } from "./memoryValidators";
-import { agencyRunSubjectTypeValidator } from "./agencyValidators";
+import { storedAgencyRunSubjectTypeValidator } from "./agencyValidators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
 // tenantId) — the same scope the GitHub backend serves today. Per-user rows add
@@ -34,7 +37,7 @@ export default defineSchema({
     memoryId: v.string(),
     scopeKind: v.union(v.literal("user"), v.literal("repository")),
     scopeId: v.string(),
-    kind: memoryKindValidator,
+    kind: storedMemoryKindValidator,
     title: v.string(),
     summary: v.string(),
     body: v.string(),
@@ -46,12 +49,7 @@ export default defineSchema({
     expiresAt: v.optional(v.string()),
   })
     .index("by_memory", ["memoryId"])
-    .index("by_scope_status", [
-      "scopeKind",
-      "scopeId",
-      "status",
-      "updatedAt",
-    ])
+    .index("by_scope_status", ["scopeKind", "scopeId", "status", "updatedAt"])
     .searchIndex("search_memory", {
       searchField: "searchText",
       filterFields: ["scopeKind", "scopeId", "status", "kind"],
@@ -61,7 +59,7 @@ export default defineSchema({
     revisionId: v.string(),
     memoryId: v.string(),
     previousRevisionId: v.union(v.string(), v.null()),
-    kind: memoryKindValidator,
+    kind: storedMemoryKindValidator,
     title: v.string(),
     summary: v.string(),
     body: v.string(),
@@ -72,6 +70,23 @@ export default defineSchema({
   })
     .index("by_revision", ["revisionId"])
     .index("by_memory", ["memoryId", "createdAt"]),
+
+  memoryLearningRuns: defineTable({
+    tenantId: v.string(),
+    sourceRunId: v.string(),
+    claimedBy: v.string(),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    claimedAt: v.string(),
+    leaseUntil: v.string(),
+    completedAt: v.optional(v.string()),
+    failure: v.optional(v.string()),
+  })
+    .index("by_source", ["tenantId", "sourceRunId"])
+    .index("by_status", ["tenantId", "status", "claimedAt"]),
 
   workflows: defineTable({
     tenantId: v.string(),
@@ -86,83 +101,137 @@ export default defineSchema({
     workflowId: v.string(),
     runId: v.string(),
     state: workflowRunStateValidator,
-    runner: v.optional(workflowRunnerValidator),
     updatedAt: v.string(),
   })
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
 
-  workflowCheckpoints: defineTable({
+  workflowEventDeliveries: defineTable({
     tenantId: v.string(),
-    threadId: v.string(),
-    checkpointNs: v.string(),
-    checkpointId: v.string(),
-    parentCheckpointId: v.optional(v.string()),
-    checkpointType: v.string(),
-    checkpoint: v.string(),
-    metadataType: v.string(),
-    metadata: v.string(),
+    deliveryId: v.string(),
+    triggerId: v.string(),
+    workflowId: v.string(),
+    eventName: v.string(),
+    requestId: v.string(),
+    // Optional so existing deliveries remain readable during deployment.
+    sourceEventId: v.optional(v.string()),
+    sourceUrl: v.optional(v.string()),
+    input: v.any(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("dispatched"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    createdAt: v.string(),
     updatedAt: v.string(),
   })
-    .index("by_checkpoint", [
-      "tenantId",
-      "threadId",
-      "checkpointNs",
-      "checkpointId",
-    ])
-    .index("by_tenant_thread", ["tenantId", "threadId"]),
+    .index("by_key", ["tenantId", "deliveryId", "triggerId"])
+    .index("by_source_key", ["tenantId", "sourceEventId", "triggerId"])
+    .index("by_status", ["tenantId", "status", "updatedAt"])
+    .index("by_tenant", ["tenantId", "updatedAt"]),
 
-  workflowCheckpointWrites: defineTable({
+  pipelines: defineTable({
     tenantId: v.string(),
-    threadId: v.string(),
-    checkpointNs: v.string(),
-    checkpointId: v.string(),
-    taskId: v.string(),
-    idx: v.number(),
-    channel: v.string(),
-    valueType: v.string(),
-    value: v.string(),
+    pipelineId: v.string(),
+    definition: pipelineDefinitionValidator,
+    source: v.union(v.literal("local"), v.literal("store")),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "pipelineId"]),
+
+  pipelineRuns: defineTable({
+    tenantId: v.string(),
+    pipelineId: v.string(),
+    runId: v.string(),
+    status: pipelineRunStatusValidator,
+    input: v.record(v.string(), v.any()),
+    steps: v.array(pipelineRunStepValidator),
+    currentStepIndex: v.number(),
+    activeWorkflowRunId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.string(),
     updatedAt: v.string(),
   })
-    .index("by_write", [
-      "tenantId",
-      "threadId",
-      "checkpointNs",
-      "checkpointId",
-      "taskId",
-      "idx",
-    ])
-    .index("by_checkpoint", [
-      "tenantId",
-      "threadId",
-      "checkpointNs",
-      "checkpointId",
-    ])
-    .index("by_tenant_thread", ["tenantId", "threadId"]),
+    .index("by_run", ["tenantId", "pipelineId", "runId"])
+    .index("by_pipeline", ["tenantId", "pipelineId", "updatedAt"])
+    .index("by_active_workflow", ["tenantId", "activeWorkflowRunId"]),
 
   guidedFlowInstances: defineTable({
     tenantId: v.string(),
     actorId: v.string(),
     instanceId: v.string(),
     instanceKey: v.optional(v.string()),
+    rootFlowId: v.optional(v.string()),
+    activeKey: v.optional(v.string()),
     flowId: v.string(),
     flowVersion: v.number(),
     currentStepId: v.string(),
     status: guidedFlowStatusValidator,
     revision: v.number(),
     data: v.any(),
+    output: v.optional(v.any()),
     history: v.array(v.string()),
+    stack: v.optional(
+      v.array(
+        v.object({
+          flowId: v.string(),
+          flowVersion: v.number(),
+          currentStepId: v.string(),
+          data: v.any(),
+          history: v.array(v.string()),
+        }),
+      ),
+    ),
     updatedAt: v.string(),
     mutationId: v.optional(v.string()),
   })
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
-    .index("by_actor_status", ["tenantId", "actorId", "status"]),
+    .index("by_actor_status", ["tenantId", "actorId", "status"])
+    .index("by_active_key", ["tenantId", "actorId", "activeKey", "status"]),
+
+  guidedFlowSubmissions: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    revision: v.number(),
+    mutationId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    stepId: v.string(),
+    actionId: v.string(),
+    result: v.any(),
+    submittedAt: v.string(),
+  })
+    .index("by_instance_revision", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "revision",
+    ])
+    .index("by_instance_mutation", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "mutationId",
+    ]),
+
+  guidedFlowBindings: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    conversationId: v.string(),
+    instanceId: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_conversation", ["tenantId", "actorId", "conversationId"])
+    .index("by_instance", ["tenantId", "actorId", "instanceId"]),
 
   // Tenant widget bundles — precompiled browser components published from
   // the tenant repo (source/review in GitHub, serving copy here). One row
   // per published version; latest non-null wins.
   widgets: defineTable({
     tenantId: v.string(),
+    name: v.optional(v.string()),
     slug: v.string(),
     version: v.number(),
     bundle: v.string(),
@@ -175,15 +244,17 @@ export default defineSchema({
   // userState "guided-flow-definitions" blob array.
   guidedFlowDefinitions: defineTable({
     tenantId: v.string(),
-    actorId: v.string(),
+    // Legacy rows may still have actorId; all new definitions are shared by
+    // the repository tenant and omit it.
+    actorId: v.optional(v.string()),
     flowId: v.string(),
     version: v.number(),
     archived: v.optional(v.boolean()),
     definition: v.any(),
     updatedAt: v.string(),
   })
-    .index("by_flow", ["tenantId", "actorId", "flowId", "version"])
-    .index("by_actor", ["tenantId", "actorId"]),
+    .index("by_flow", ["tenantId", "flowId", "version"])
+    .index("by_tenant", ["tenantId"]),
 
   // Append-only ledger of finished guided flows — one row per completed
   // instance, the per-user progress record (e.g. lesson completions).
@@ -199,6 +270,35 @@ export default defineSchema({
     .index("by_completion", ["tenantId", "actorId", "instanceId"])
     .index("by_actor", ["tenantId", "actorId", "completedAt"])
     .index("by_flow", ["tenantId", "flowId", "completedAt"]),
+
+  // Durable consumer work emitted by a committed flow transition. Generic
+  // GuidedFlow state is saved first; consumer adapters claim these effects
+  // afterward and mark them complete idempotently.
+  guidedFlowEffects: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    effectId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    data: v.any(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_effect", ["tenantId", "actorId", "effectId"])
+    .index("by_instance_status", [
+      "tenantId",
+      "actorId",
+      "instanceId",
+      "status",
+    ]),
 
   userJourneys: defineTable({
     tenantId: v.string(),
@@ -265,7 +365,7 @@ export default defineSchema({
   agencyRuns: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    subjectType: agencyRunSubjectTypeValidator,
+    subjectType: storedAgencyRunSubjectTypeValidator,
     subjectId: v.string(),
     run: v.any(),
     updatedAt: v.string(),
@@ -276,7 +376,6 @@ export default defineSchema({
   runEvents: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    goalId: v.optional(v.string()),
     seq: v.number(),
     event: v.any(),
     time: v.string(),
@@ -317,6 +416,7 @@ export default defineSchema({
     pinned: v.boolean(),
     activeAgent: agentIdentityValidator,
     runtime: conversationRuntimeValidator,
+    machineAccess: v.optional(machineAccessValidator),
     createdBy: v.string(),
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -417,13 +517,6 @@ export default defineSchema({
     .index("by_intent", ["tenantId", "intentId", "seq"])
     .index("by_idempotency", ["tenantId", "intentId", "idempotencyKey"]),
 
-  goals: defineTable({
-    tenantId: v.string(),
-    goalId: v.string(),
-    state: v.any(),
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "goalId"]),
-
   agencyDispatches: defineTable({
     tenantId: v.string(),
     idempotencyKey: v.string(),
@@ -457,6 +550,7 @@ export default defineSchema({
     approvalId: v.string(),
     scopeKind: v.union(
       v.literal("loop"),
+      v.literal("pipeline"),
       v.literal("workflow"),
       v.literal("capability"),
     ),
@@ -554,9 +648,14 @@ export default defineSchema({
   viewRenderers: defineTable({
     tenantId: v.string(),
     slug: v.string(),
+    // Optional only so pre-versioning rows remain readable during migration.
+    version: v.optional(v.number()),
+    archived: v.optional(v.boolean()),
     definition: v.any(),
     updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId", "slug"]),
+  })
+    .index("by_tenant", ["tenantId", "slug"])
+    .index("by_renderer", ["tenantId", "slug", "version"]),
 
   macros: defineTable({
     tenantId: v.string(),
@@ -573,21 +672,22 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
-  // One generated Knowledge System bundle per consumer repository. Large
-  // Graphify artifacts live in Convex file storage; this row owns their
-  // tenant boundary, provenance, and replacement lifecycle.
-  knowledgeGraphs: defineTable({
+  // One-time delegated Brand Chat launch assertions. Expired rows are removed
+  // opportunistically by the consume mutation so replay protection works
+  // across every server instance without an unbounded ledger.
+  clientLaunchNonces: defineTable({
     tenantId: v.string(),
-    graphStorageId: v.id("_storage"),
-    reportStorageId: v.optional(v.id("_storage")),
-    htmlStorageId: v.optional(v.id("_storage")),
-    generatedAt: v.string(),
-    sourceRevision: v.optional(v.string()),
-    nodeCount: v.number(),
-    edgeCount: v.number(),
-    schemaVersion: v.number(),
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId"]),
+    tokenId: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["tenantId", "tokenId"])
+    .index("by_expiry", ["expiresAt"]),
+
+  clientLaunchRateLimits: defineTable({
+    key: v.string(),
+    windowStartedAt: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
 
   userState: defineTable({
     tenantId: v.string(),

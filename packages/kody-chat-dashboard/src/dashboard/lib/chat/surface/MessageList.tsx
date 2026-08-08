@@ -34,6 +34,10 @@ import {
 } from "../../components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
+import {
+  getIncompleteAssistantNotice,
+  isLikelyTransientAssistantStatus,
+} from "../core/silent-turn";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
 import {
   isRenderedViewDirective,
@@ -41,6 +45,7 @@ import {
   type RenderedViewDirective,
 } from "../../chat-ui-actions";
 import { RenderedViewCard } from "./RenderedViewCard";
+import type { WidgetHostEvent } from "./widget-host";
 import {
   resolveTextDirection,
   rtlAwareMarkdownClassName,
@@ -54,6 +59,19 @@ export function getMessageDirection(text: string) {
 }
 
 export const messageTextDirectionStyle = textIsolationStyle;
+
+export function shouldShowSilentAssistantNotice(input: {
+  isLoading: boolean;
+  hasAnswer: boolean;
+  hasView: boolean;
+  hasTransientStatus?: boolean;
+}): boolean {
+  return (
+    !input.isLoading &&
+    !input.hasView &&
+    (!input.hasAnswer || input.hasTransientStatus === true)
+  );
+}
 
 interface MessageListProps {
   /** Current surface mode — terminal mode swaps the container chrome. */
@@ -79,6 +97,8 @@ interface MessageListProps {
     view: RenderedViewDirective,
     action: RenderedViewAction,
   ) => void;
+  /** Forwards a validated widget event to the chat surface that owns it. */
+  onWidgetEvent: (view: RenderedViewDirective, event: WidgetHostEvent) => void;
   /** Mode-specific empty-transcript content, shown when no messages exist. */
   emptyState: ReactNode;
   /** Mounted terminal surfaces, rendered inside the scroll container. */
@@ -98,6 +118,27 @@ export function messageJustifyClass(
   return alignRight ? "justify-end" : "justify-start";
 }
 
+export function isRenderedViewMessageActive(
+  messages: readonly Message[],
+  messageIndex: number,
+  usedViewIds: ReadonlySet<string>,
+): boolean {
+  const message = messages[messageIndex];
+  if (
+    !message?.view ||
+    !isRenderedViewDirective(message.view) ||
+    message.view.result !== undefined ||
+    usedViewIds.has(message.view.id)
+  ) {
+    return false;
+  }
+
+  return messages
+    .slice(messageIndex + 1)
+    .filter((later) => !later.hidden)
+    .every((later) => later.role === "assistant" && !later.view);
+}
+
 export function MessageList({
   chatMode,
   messages,
@@ -109,6 +150,7 @@ export function MessageList({
   toolCalls,
   usedViewIds,
   onRenderedViewAction,
+  onWidgetEvent,
   emptyState,
   terminalSurfaces,
   roleLayout = "dashboard",
@@ -315,6 +357,8 @@ export function MessageList({
                         const isActive =
                           activeLoading && i === messages.length - 1;
                         const hasAnswer = answer.trim().length > 0;
+                        const hasTransientStatus =
+                          isLikelyTransientAssistantStatus(answer);
                         return (
                           <>
                             {reasoning && (
@@ -336,6 +380,23 @@ export function MessageList({
                                 className={`chat-message-text text-start prose-base break-words ${rtlAwareMarkdownClassName} [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                               />
                             )}
+                            {shouldShowSilentAssistantNotice({
+                              isLoading: !!msg.isLoading,
+                              hasAnswer,
+                              hasView: Boolean(msg.view),
+                              hasTransientStatus,
+                            }) && (
+                              <div
+                                role="alert"
+                                className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+                              >
+                                {getIncompleteAssistantNotice({
+                                  hasToolActivity:
+                                    (msg.toolCalls?.length ?? 0) > 0,
+                                  hasTransientStatus,
+                                })}
+                              </div>
+                            )}
                             {parsedAssistant?.strippedToolMarkup &&
                               !msg.isLoading && (
                                 <div
@@ -352,13 +413,22 @@ export function MessageList({
                                 view={msg.view}
                                 disabled={
                                   !!msg.isLoading ||
-                                  i !== messages.length - 1 ||
-                                  usedViewIds.has(msg.view.id)
+                                  !isRenderedViewMessageActive(
+                                    messages,
+                                    i,
+                                    usedViewIds,
+                                  )
                                 }
                                 onAction={(action) =>
                                   onRenderedViewAction(
                                     msg.view as RenderedViewDirective,
                                     action,
+                                  )
+                                }
+                                onWidgetEvent={(event) =>
+                                  onWidgetEvent(
+                                    msg.view as RenderedViewDirective,
+                                    event,
                                   )
                                 }
                               />
@@ -389,7 +459,6 @@ export function MessageList({
                           content={softFormatUserMessageForDisplay(msg.content)}
                           dir={messageDirection}
                           style={messageTextDirectionStyle}
-                          variant="compact"
                           className={`chat-message-text text-start prose-base break-words prose-invert ${rtlAwareMarkdownClassName} prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                         />
                       )}

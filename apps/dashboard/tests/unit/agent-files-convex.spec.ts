@@ -34,6 +34,7 @@ import {
 const RAW = [
   "---",
   "capabilities: [plan, review]",
+  "subagents: [security-reviewer, release-scout]",
   "---",
   "# Release Manager",
   "",
@@ -65,6 +66,7 @@ describe("agent files convex store", () => {
       source: "local",
       readOnly: false,
       capabilities: ["plan", "review"],
+      subagents: ["security-reviewer", "release-scout"],
     });
     expect(agents[0]!.body).toContain("Owns the release train.");
     const [ref, args] = convex.query.mock.calls[0]!;
@@ -94,10 +96,12 @@ describe("agent files convex store", () => {
       title: "Release Manager",
       body: "Owns the release train.",
       capabilities: ["plan"],
+      subagents: ["release-scout"],
     });
 
     expect(saved.title).toBe("Release Manager");
     expect(saved.capabilities).toEqual(["plan"]);
+    expect(saved.subagents).toEqual(["release-scout"]);
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("definitions:publish");
     const typed = args as {
@@ -114,6 +118,9 @@ describe("agent files convex store", () => {
     expect(typed.version).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(typed.bundle.files["agent.md"]).toContain("# Release Manager");
     expect(typed.bundle.files["agent.md"]).toContain("Owns the release train.");
+    expect(typed.bundle.files["agent.md"]).toContain(
+      "subagents: [release-scout]",
+    );
   });
 
   it("rejects invalid slugs on write", async () => {

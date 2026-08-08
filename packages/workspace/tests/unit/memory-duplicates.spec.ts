@@ -8,11 +8,12 @@ function memory(
   title: string,
   summary: string,
   body: string,
+  kind: Memory["kind"] = "fact",
 ): Readonly<Memory> {
   return {
     id,
     scope: { kind: "user", userId: "github:1" },
-    kind: "fact",
+    kind,
     content: { title, summary, body },
     currentRevisionId: `revision-${id}`,
     status: "active",
@@ -32,9 +33,12 @@ describe("memory duplicate matching", () => {
 
     expect(
       findDuplicateMemory([existing], {
-        title: "office location",
-        summary: "My office is in Tel Aviv",
-        body: "My office is in Tel Aviv",
+        kind: "fact",
+        content: {
+          title: "office location",
+          summary: "My office is in Tel Aviv",
+          body: "My office is in Tel Aviv",
+        },
       }),
     ).toBe(existing);
   });
@@ -49,9 +53,12 @@ describe("memory duplicate matching", () => {
 
     expect(
       findDuplicateMemory([existing], {
-        title: "Office location",
-        summary: "The user's office is in Tel Aviv",
-        body: "My office is in Tel Aviv.",
+        kind: "fact",
+        content: {
+          title: "Office location",
+          summary: "The user's office is in Tel Aviv",
+          body: "My office is in Tel Aviv.",
+        },
       }),
     ).toBe(existing);
   });
@@ -66,9 +73,33 @@ describe("memory duplicate matching", () => {
 
     expect(
       findDuplicateMemory([office], {
-        title: "Home location",
-        summary: "My home is in Jerusalem.",
-        body: "My home is in Jerusalem.",
+        kind: "fact",
+        content: {
+          title: "Home location",
+          summary: "My home is in Jerusalem.",
+          body: "My home is in Jerusalem.",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("does not merge different memory kinds that use similar wording", () => {
+    const decision = memory(
+      "decision",
+      "Typed memory decision",
+      "The repository must use typed memory.",
+      "Use typed memory for the repository memory implementation.",
+      "decision",
+    );
+
+    expect(
+      findDuplicateMemory([decision], {
+        kind: "reference",
+        content: {
+          title: "Ship typed memory",
+          summary: "The repository objective is to ship typed memory.",
+          body: "Ship typed memory proof by 2030-01-02.",
+        },
       }),
     ).toBeNull();
   });

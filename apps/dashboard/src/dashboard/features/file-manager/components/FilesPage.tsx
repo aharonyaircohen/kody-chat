@@ -18,7 +18,6 @@ import {
   type ReactNode,
 } from "react";
 import { FilesTransportProvider, type FilesTransport } from "../lib/transport";
-import { Octokit } from "@octokit/rest";
 import {
   Copy,
   Download,
@@ -28,6 +27,7 @@ import {
   FolderOpen,
   Search,
   Upload,
+  LoaderCircle,
   ChevronRight,
   PanelLeft,
   MoreHorizontal,
@@ -35,33 +35,21 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@dashboard/lib/utils";
-import { useAuth } from "@dashboard/lib/auth-context";
-import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
+import { cn } from "@kody-ade/base/utils/ui";
 import {
-  listDir,
-  readFile,
-  writeFile,
-  uploadFile,
+  base64ToBytes,
   type FileEntry,
   getHttpStatus,
 } from "../lib/repo-files";
-import {
-  deleteRepositoryPath,
-  duplicateRepositoryPath,
-  moveRepositoryPath,
-} from "../lib/repo-file-operations";
 import {
   buildBreadcrumbs,
   buildWorkspaceFileHref,
   confineRepoPathToRoot,
   currentFolderPath,
   duplicatePath,
-  githubFileUrl,
   isExpectedDeletedPath,
   joinRepoPath,
   normalizeRepoPath,
-  replacePathPrefix,
   shouldShowWorkspaceLocation,
   visibleAncestorDirectories,
   type BreadcrumbItem,
@@ -71,8 +59,9 @@ import {
 import { resolveRepoPathFromListings } from "../lib/repo-path-resolution";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
+import { FileLoadingState } from "./FileLoadingState";
 import { FileEditor } from "./FileEditor";
-import type { FileEditorViewMode } from "./FileEditor";
+import type { FileEditorMode } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
 import { FileSearch } from "./FileSearch";
 import { UploadZone } from "./UploadZone";
@@ -82,7 +71,7 @@ import {
 } from "../lib/file-upload-policy";
 import { uploadRepositoryFiles } from "../lib/upload-repository-files";
 import { fileSupportsTextEditing } from "../lib/file-preview";
-import { PageShell } from "@dashboard/lib/components/PageShell";
+import { FileWorkspaceShell } from "./FileWorkspaceShell";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import {
@@ -128,7 +117,7 @@ function treeEntryForPath(
   };
 }
 
-interface FilesPageProps {
+export interface FilesPageProps {
   initialPath?: string;
   title?: string;
   rootPath?: string;
@@ -142,13 +131,17 @@ interface FilesPageProps {
   showSearch?: boolean;
   showUpload?: boolean;
   uploadPolicy?: FileUploadPolicy;
-  defaultMarkdownViewMode?: FileEditorViewMode;
+  defaultFileMode?: FileEditorMode;
   /**
-   * Custom read-only storage backing this workspace. Default (unset)
-   * is the connected repo via the GitHub Contents API. Custom
-   * transports disable all write UI.
+   * Storage provider for this workspace. Each optional method enables its
+   * matching capability. When omitted, the connected GitHub repository is
+   * adapted to the same contract.
    */
-  transport?: FilesTransport;
+  transport: FilesTransport | null;
+  /** Converts a workspace-local href into the host application's href. */
+  resolveHref?: (href: string) => string;
+  /** Host-provided workspace identity shown beside the page title. */
+  subtitle?: string;
   /** Extra host-page actions rendered in the workspace header. */
   headerActions?: (ctx: {
     selectedPath: string | null;
@@ -170,16 +163,13 @@ export function FilesPage({
   showSearch = true,
   showUpload = true,
   uploadPolicy = DEFAULT_FILE_UPLOAD_POLICY,
-  defaultMarkdownViewMode = "edit",
+  defaultFileMode = "edit",
   transport,
+  resolveHref = (href) => href,
+  subtitle = "Browse and edit files",
   headerActions,
 }: FilesPageProps) {
-  const { auth } = useAuth();
-  const scopedHref = useRepoScopedHref();
-  const octokit = useMemo(
-    () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
-    [auth?.token],
-  );
+  const activeTransport = transport;
 
   const initialRepoPath = useMemo(
     () => normalizeRepoPath(initialPath),
@@ -210,24 +200,27 @@ export function FilesPage({
   const [treeOverlay, setTreeOverlay] =
     useState<FileTreeOverlay>(emptyTreeOverlay);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const openRequestRef = useRef(0);
   const openedInitialPathRef = useRef<string | null>(null);
+  const previousInitialPathRef = useRef<string | null>(null);
   const dragDepthRef = useRef(0);
   const deletedPathsRef = useRef<Set<string>>(new Set());
 
-  // GitHub remains the authority for each write. Permission metadata is not
-  // consistently present for every token type, so it must not hide controls.
-  // Custom transports are writeable only when they implement writeFile;
-  // structural git operations (folders, rename, upload) stay GitHub-only.
-  const writeable = transport
-    ? Boolean(transport.writeFile)
-    : Boolean(octokit && auth);
-  const fullFs = !transport;
-  const canDelete = transport ? Boolean(transport.deleteFile) : writeable;
+  const writeable = Boolean(activeTransport?.writeFile);
+  const canDelete = Boolean(activeTransport?.deleteFile);
+  const canCreateFolder = Boolean(activeTransport?.createFolder);
+  const canUpload = Boolean(activeTransport?.uploadFile);
+  const canMove = Boolean(activeTransport?.movePath);
+  const canDuplicate = Boolean(activeTransport?.duplicatePath);
+  const canSearch = showSearch && Boolean(activeTransport?.search);
+  const canViewHistory = Boolean(
+    activeTransport?.history && activeTransport?.readVersion,
+  );
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
-  }, [auth?.owner, auth?.repo]);
+  }, [activeTransport?.cacheKey]);
 
   // Build breadcrumbs from selected file path
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
@@ -292,7 +285,7 @@ export function FilesPage({
           ? normalizedPath.slice(workspaceRoot.length + 1)
           : normalizedPath;
       const workspaceHref = buildWorkspaceFileHref(routeBase, relativePath);
-      const href = scopedHref(workspaceHref);
+      const href = resolveHref(workspaceHref);
       if (typeof window !== "undefined" && window.location.pathname === href) {
         return;
       }
@@ -305,7 +298,7 @@ export function FilesPage({
         : window.History.prototype.pushState;
       updateHistory.call(window.history, null, "", href);
     },
-    [routeBase, scopedHref, workspaceRoot],
+    [routeBase, resolveHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -345,29 +338,28 @@ export function FilesPage({
         setSelectedFile(null);
         setViewMode("viewer");
       }
+      if (options.typeHint === "file") {
+        setSelectedFile(null);
+        setViewMode("viewer");
+      }
       if (updateRoute) {
         updateFileHref(normalizedPath, { replace: options.replace });
       }
 
-      if (!transport && (!octokit || !auth)) return;
+      if (!activeTransport) return;
 
       try {
         let resolvedPath = normalizedPath;
         if (normalizedPath.includes("%")) {
           const resolvedEntry = await resolveRepoPathFromListings(
             normalizedPath,
-            (directoryPath) =>
-              transport
-                ? transport.listDir(directoryPath)
-                : listDir(octokit!, auth!.owner, auth!.repo, directoryPath),
+            (directoryPath) => activeTransport.listDir(directoryPath),
           );
           if (!resolvedEntry) throw new Error("File not found");
           resolvedPath = resolvedEntry.path;
         }
 
-        const file = transport
-          ? await transport.readFile(resolvedPath)
-          : await readFile(octokit!, auth!.owner, auth!.repo, resolvedPath);
+        const file = await activeTransport.readFile(resolvedPath);
         if (requestId !== openRequestRef.current) return;
 
         if (file) {
@@ -390,11 +382,7 @@ export function FilesPage({
           return;
         }
 
-        if (transport) {
-          await transport.listDir(resolvedPath);
-        } else {
-          await listDir(octokit!, auth!.owner, auth!.repo, resolvedPath);
-        }
+        await activeTransport.listDir(resolvedPath);
         if (requestId !== openRequestRef.current) return;
         setOpeningPathType(null);
         setSelectedPath(resolvedPath);
@@ -423,14 +411,16 @@ export function FilesPage({
         setViewMode("viewer");
       }
     },
-    [transport, octokit, auth, updateFileHref, writeable],
+    [activeTransport, updateFileHref, writeable],
   );
 
   useEffect(() => {
-    if (!transport && (!octokit || !auth)) return;
-    const initialOpenKey = `${auth?.owner}/${auth?.repo}:${initialRepoPath}`;
+    if (!activeTransport) return;
+    const initialOpenKey = `${activeTransport.cacheKey ?? "workspace"}:${initialRepoPath}`;
 
     if (!initialRepoPath) {
+      if (previousInitialPathRef.current === initialRepoPath) return;
+      previousInitialPathRef.current = initialRepoPath;
       openedInitialPathRef.current = initialOpenKey;
       setSelectedPath(null);
       setSelectedFile(null);
@@ -438,10 +428,11 @@ export function FilesPage({
       return;
     }
 
+    previousInitialPathRef.current = initialRepoPath;
     if (openedInitialPathRef.current === initialOpenKey) return;
     openedInitialPathRef.current = initialOpenKey;
     void openRepoPath(initialRepoPath, { updateRoute: false });
-  }, [auth, initialRepoPath, octokit, openRepoPath, transport]);
+  }, [activeTransport, initialRepoPath, openRepoPath]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -527,21 +518,24 @@ export function FilesPage({
 
   const handleUploadFiles = useCallback(
     async (files: FileList | File[]) => {
-      if (!octokit || !auth) {
-        toast.error("Not authenticated");
+      if (!activeTransport?.uploadFile) {
+        toast.error("Uploads are not supported in this workspace");
         return;
       }
 
       const uploadList = Array.from(files).filter((file) => file.name);
       if (uploadList.length === 0) return;
 
+      setUploadingFiles((current) => [...current, ...uploadList]);
       const result = await uploadRepositoryFiles({
         files: uploadList,
         destinationDir: currentFolder,
         workspaceRoot,
         policy: uploadPolicy,
-        upload: (path, file, message) =>
-          uploadFile(octokit, auth.owner, auth.repo, path, file, message),
+        upload: async (path, file) => {
+          const uploaded = await activeTransport.uploadFile!(path, file);
+          return { sha: uploaded?.version ?? "" };
+        },
         onUploaded: ({ file, path, sha }) => {
           upsertTreeEntry(
             treeEntryForPath(path, "file", {
@@ -552,6 +546,11 @@ export function FilesPage({
         },
         onRejected: ({ file, error }) =>
           toast.error(`Failed to upload ${file.name}: ${error}`),
+      }).finally(() => {
+        const completedFiles = new Set(uploadList);
+        setUploadingFiles((current) =>
+          current.filter((file) => !completedFiles.has(file)),
+        );
       });
 
       if (result.uploaded.length > 0) {
@@ -565,8 +564,7 @@ export function FilesPage({
       }
     },
     [
-      octokit,
-      auth,
+      activeTransport,
       currentFolder,
       handleRefresh,
       uploadPolicy,
@@ -580,47 +578,47 @@ export function FilesPage({
 
   const handleDragEnter = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
+      if (!canUpload || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current += 1;
       setIsDraggingFiles(true);
     },
-    [fullFs, showUpload, writeable],
+    [canUpload, showUpload],
   );
 
   const handleDragOver = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
+      if (!canUpload || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
       setIsDraggingFiles(true);
     },
-    [fullFs, showUpload, writeable],
+    [canUpload, showUpload],
   );
 
   const handleDragLeave = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
+      if (!canUpload || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
       if (dragDepthRef.current === 0) setIsDraggingFiles(false);
     },
-    [fullFs, showUpload, writeable],
+    [canUpload, showUpload],
   );
 
   const handleDrop = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
+      if (!canUpload || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = 0;
       setIsDraggingFiles(false);
       void handleUploadFiles(e.dataTransfer.files);
     },
-    [fullFs, handleUploadFiles, showUpload, writeable],
+    [canUpload, handleUploadFiles, showUpload],
   );
 
   const handleNewFile = useCallback((dirPath: string) => {
@@ -635,7 +633,7 @@ export function FilesPage({
 
   const handleCreateFile = useCallback(
     async (name: string) => {
-      if (!transport && (!octokit || !auth)) return;
+      if (!activeTransport?.writeFile) return;
       const trimmedName = name.trim();
       if (
         newFileNameOnly &&
@@ -652,21 +650,10 @@ export function FilesPage({
       const path = joinRepoPath(newItemPath || workspaceRoot, fileName);
       if (!path) return;
       try {
-        let sha = "";
-        if (transport) {
-          if (!transport.writeFile) return;
-          await transport.writeFile(path, "");
-        } else {
-          const result = await writeFile(
-            octokit!,
-            auth!.owner,
-            auth!.repo,
-            path,
-            "",
-            `chore: create ${path}`,
-          );
-          sha = result.sha;
-        }
+        const result = await activeTransport.writeFile(path, "", {
+          expectedVersion: null,
+        });
+        const sha = result?.version ?? "";
         upsertTreeEntry(treeEntryForPath(path, "file", { sha }));
         upsertTreeAncestors(path, "file");
         deletedPathsRef.current.delete(path);
@@ -689,9 +676,7 @@ export function FilesPage({
       }
     },
     [
-      octokit,
-      auth,
-      transport,
+      activeTransport,
       newItemPath,
       upsertTreeEntry,
       upsertTreeAncestors,
@@ -706,25 +691,18 @@ export function FilesPage({
 
   const handleCreateFolder = useCallback(
     async (name: string) => {
-      if (!octokit || !auth) return;
-      // Creating an "empty" directory via Contents API isn't directly supported,
-      // but we can create a .gitkeep file inside it as a workaround
+      if (!activeTransport?.createFolder) return;
       const folderPath = joinRepoPath(newItemPath, name);
       if (!folderPath) return;
       const gitkeepPath = `${folderPath}/.gitkeep`;
       try {
-        const result = await writeFile(
-          octokit,
-          auth.owner,
-          auth.repo,
-          gitkeepPath,
-          "",
-          `chore: create ${folderPath}/`,
-        );
+        const result = await activeTransport.createFolder(folderPath);
         upsertTreeEntry(treeEntryForPath(folderPath, "dir"));
         upsertTreeAncestors(folderPath, "dir");
         upsertTreeEntry(
-          treeEntryForPath(gitkeepPath, "file", { sha: result.sha }),
+          treeEntryForPath(gitkeepPath, "file", {
+            sha: result?.version ?? "",
+          }),
         );
         deletedPathsRef.current.delete(folderPath);
         toast.success(`Created ${folderPath}/`);
@@ -742,8 +720,7 @@ export function FilesPage({
       }
     },
     [
-      octokit,
-      auth,
+      activeTransport,
       newItemPath,
       upsertTreeEntry,
       upsertTreeAncestors,
@@ -754,29 +731,18 @@ export function FilesPage({
 
   const handleDelete = useCallback(
     async (path: string, pathType: RepoPathType) => {
-      if (!octokit || !auth) return;
+      if (!activeTransport?.deleteFile) return;
       setShowDeleteConfirm({ path, pathType });
     },
-    [octokit, auth],
+    [activeTransport],
   );
 
   const handleConfirmDelete = useCallback(async () => {
-    if ((!transport && (!octokit || !auth)) || !showDeleteConfirm) return;
+    if (!activeTransport?.deleteFile || !showDeleteConfirm) return;
     const { path, pathType } = showDeleteConfirm;
     setBusyAction("Deleting...");
     try {
-      if (transport) {
-        if (!transport.deleteFile) return;
-        await transport.deleteFile(path);
-      } else {
-        await deleteRepositoryPath(
-          octokit!,
-          auth!.owner,
-          auth!.repo,
-          path,
-          pathType,
-        );
-      }
+      await activeTransport.deleteFile(path, pathType);
       toast.success(`Deleted ${path}`);
       deletedPathsRef.current.add(normalizeRepoPath(path));
       openRequestRef.current += 1;
@@ -795,9 +761,7 @@ export function FilesPage({
       setBusyAction(null);
     }
   }, [
-    transport,
-    octokit,
-    auth,
+    activeTransport,
     showDeleteConfirm,
     selectedPath,
     updateFileHref,
@@ -812,7 +776,7 @@ export function FilesPage({
 
   const moveRepoPath = useCallback(
     async (sourcePath: string, pathType: RepoPathType, targetPath: string) => {
-      if (!octokit || !auth) return false;
+      if (!activeTransport?.movePath) return false;
       const target = normalizeRepoPath(targetPath);
       const source = normalizeRepoPath(sourcePath);
       if (!target || target === source) return false;
@@ -821,68 +785,34 @@ export function FilesPage({
         return false;
       }
 
-      const result = await moveRepositoryPath(
-        octokit,
-        auth.owner,
-        auth.repo,
-        source,
-        pathType,
-        target,
-      );
-      const files = result.files;
-
-      upsertTreeAncestors(source, pathType);
-
-      if (pathType === "dir") {
-        upsertTreeEntry(treeEntryForPath(target, "dir"));
-      }
-      for (const file of files) {
-        const nextPath =
-          pathType === "dir"
-            ? replacePathPrefix(file.path, source, target)
-            : target;
-        upsertTreeEntry(
-          treeEntryForPath(nextPath, "file", {
-            sha: result.fileShas[nextPath] ?? "",
-            size: file.size,
-          }),
-        );
-      }
-
-      removeTreePath(source);
-      toast.success(`Moved ${source} to ${target}`);
+      await activeTransport.movePath({
+        sourcePath: source,
+        sourceType: pathType,
+        targetPath: target,
+      });
+      openRequestRef.current += 1;
+      setSelectedFile(null);
       setSelectedPath(target);
-      if (pathType === "dir") {
-        setSelectedFile(null);
-        setViewMode("viewer");
-      } else {
-        const movedFile = files[0]!;
-        setSelectedFile({
-          path: target,
-          sha: result.fileShas[target] ?? "",
-          size: movedFile.size,
-          isBinary: movedFile.isBinary,
-        });
-        setViewMode(
-          writeable &&
-            fileSupportsTextEditing(movedFile.path, movedFile.isBinary)
-            ? "editor"
-            : "viewer",
-        );
-      }
-      updateFileHref(target);
+      setOpeningPathType(pathType);
+      setViewMode("viewer");
+      removeTreePath(source);
+      upsertTreeEntry(treeEntryForPath(target, pathType));
+      upsertTreeAncestors(target, pathType);
+      deletedPathsRef.current.delete(target);
+      toast.success(`Moved ${source} to ${target}`);
       handleRefresh();
+      await openRepoPath(target, {
+        typeHint: pathType === "dir" ? "dir" : "file",
+      });
       return true;
     },
     [
-      octokit,
-      auth,
+      activeTransport,
+      removeTreePath,
       upsertTreeEntry,
       upsertTreeAncestors,
-      removeTreePath,
-      writeable,
-      updateFileHref,
       handleRefresh,
+      openRepoPath,
     ],
   );
 
@@ -932,35 +862,16 @@ export function FilesPage({
 
   const handleDuplicate = useCallback(
     async (path: string, pathType: RepoPathType) => {
-      if (!octokit || !auth) return;
+      if (!activeTransport?.duplicatePath) return;
       const source = normalizeRepoPath(path);
       const target = duplicatePath(source, pathType);
       setBusyAction("Duplicating...");
       try {
-        const result = await duplicateRepositoryPath(
-          octokit,
-          auth.owner,
-          auth.repo,
-          source,
-          pathType,
-          target,
-        );
-        const files = result.files;
-        if (pathType === "dir") {
-          upsertTreeEntry(treeEntryForPath(target, "dir"));
-        }
-        for (const file of files) {
-          const nextPath =
-            pathType === "dir"
-              ? replacePathPrefix(file.path, source, target)
-              : target;
-          upsertTreeEntry(
-            treeEntryForPath(nextPath, "file", {
-              sha: result.fileShas[nextPath] ?? "",
-              size: file.size,
-            }),
-          );
-        }
+        await activeTransport.duplicatePath({
+          sourcePath: source,
+          sourceType: pathType,
+          targetPath: target,
+        });
         toast.success(`Duplicated to ${target}`);
         handleRefresh();
         await openRepoPath(target, {
@@ -972,25 +883,19 @@ export function FilesPage({
         setBusyAction(null);
       }
     },
-    [octokit, auth, upsertTreeEntry, handleRefresh, openRepoPath],
+    [activeTransport, handleRefresh, openRepoPath],
   );
 
   const handleDownload = useCallback(
     async (path: string, pathType: RepoPathType) => {
-      if (!octokit || !auth || pathType !== "file") return;
+      if (!activeTransport || pathType === "dir") return;
       try {
-        const res = await octokit.rest.repos.getContent({
-          owner: auth.owner,
-          repo: auth.repo,
-          path,
-        });
-        const data = res.data;
-        if (Array.isArray(data) || data.type !== "file") {
-          throw new Error("File not found");
-        }
-        const content = (data.content ?? "").replace(/\s/g, "");
-        const bytes = Uint8Array.from(atob(content), (c) => c.charCodeAt(0));
-        const url = URL.createObjectURL(new Blob([bytes]));
+        const file = await activeTransport.readFile(path);
+        if (!file) throw new Error("File not found");
+        const bytes = base64ToBytes(file.base64Content);
+        const url = URL.createObjectURL(
+          new Blob([Uint8Array.from(bytes).buffer]),
+        );
         const a = document.createElement("a");
         a.href = url;
         a.download = path.split("/").pop() ?? "download";
@@ -1002,26 +907,17 @@ export function FilesPage({
         toast.error(err instanceof Error ? err.message : "Failed to download");
       }
     },
-    [octokit, auth],
+    [activeTransport],
   );
 
   const handleOpenOnGitHub = useCallback(
     (path: string, pathType: RepoPathType) => {
-      if (transport) {
-        const url = transport.externalUrl?.(path, pathType);
-        if (url) window.open(url, "_blank", "noopener,noreferrer");
-        return;
-      }
-      if (!auth) return;
-      window.open(
-        githubFileUrl(auth.owner, auth.repo, path, pathType),
-        "_blank",
-        "noopener,noreferrer",
-      );
+      const url = activeTransport?.externalUrl?.(path, pathType);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
     },
-    [auth, transport],
+    [activeTransport],
   );
-  const canOpenExternally = transport ? Boolean(transport.externalUrl) : true;
+  const canOpenExternally = Boolean(activeTransport?.externalUrl);
 
   const handleCopyPath = useCallback((path: string) => {
     navigator.clipboard.writeText(path).then(() => {
@@ -1037,12 +933,17 @@ export function FilesPage({
   );
 
   const renderMainContent = () => {
+    if (openingPathType === "file" && selectedPath && !selectedFile) {
+      return (
+        <FileLoadingState
+          fileName={selectedPath.split("/").pop() ?? selectedPath}
+        />
+      );
+    }
+
     if (viewMode === "search") {
       return (
         <FileSearch
-          octokit={octokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onResultClick={handleSearchResultClick}
           onClose={() =>
             setViewMode(
@@ -1065,9 +966,6 @@ export function FilesPage({
     if (viewMode === "upload") {
       return (
         <UploadZone
-          octokit={octokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onUploadComplete={(uploaded) => {
             upsertTreeEntry(
               treeEntryForPath(uploaded.path, "file", {
@@ -1088,9 +986,6 @@ export function FilesPage({
       return (
         <FileDiffViewer
           path={selectedFile.path}
-          octokit={octokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onClose={() =>
             setViewMode(
               writeable &&
@@ -1111,13 +1006,10 @@ export function FilesPage({
         <FileEditor
           path={selectedFile.path}
           sha={selectedFile.sha}
-          octokit={octokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }
-          defaultMarkdownViewMode={defaultMarkdownViewMode}
+          defaultMode={defaultFileMode}
         />
       );
     }
@@ -1127,10 +1019,7 @@ export function FilesPage({
         <FileViewer
           path={selectedFile.path}
           sha={selectedFile.sha}
-          octokit={octokit}
-          owner={auth?.owner ?? ""}
-          repo={auth?.repo ?? ""}
-          onViewDiff={handleViewDiff}
+          onViewDiff={canViewHistory ? handleViewDiff : undefined}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }
@@ -1167,7 +1056,7 @@ export function FilesPage({
                     <FilePlus className="h-4 w-4" />
                     New file
                   </Button>
-                  {fullFs ? (
+                  {canCreateFolder ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -1199,7 +1088,7 @@ export function FilesPage({
             <FolderOpen className="h-7 w-7 text-primary" />
           </div>
           <p className="mt-6 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            Repository workspace
+            File workspace
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
             Choose what you want to work on
@@ -1218,7 +1107,7 @@ export function FilesPage({
                 <FilePlus className="h-4 w-4" />
                 New file
               </Button>
-              {fullFs ? (
+              {canCreateFolder ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -1237,7 +1126,7 @@ export function FilesPage({
   };
 
   const hasSecondaryHeaderActions =
-    showSearch || Boolean(selectedPath) || (writeable && showUpload);
+    canSearch || Boolean(selectedPath) || (canUpload && showUpload);
 
   const actions = (
     <div className="flex items-center gap-2.5">
@@ -1264,7 +1153,7 @@ export function FilesPage({
                   <FilePlus className="h-4 w-4" />
                   New file
                 </DropdownMenuItem>
-                {fullFs ? (
+                {canCreateFolder ? (
                   <DropdownMenuItem
                     onClick={() => handleNewFolder(currentFolder)}
                   >
@@ -1275,7 +1164,7 @@ export function FilesPage({
                 {hasSecondaryHeaderActions ? <DropdownMenuSeparator /> : null}
               </>
             ) : null}
-            {showSearch ? (
+            {canSearch ? (
               <DropdownMenuItem onClick={() => setViewMode("search")}>
                 <Search className="h-4 w-4" />
                 Search
@@ -1299,30 +1188,34 @@ export function FilesPage({
                 Download
               </DropdownMenuItem>
             ) : null}
-            {(canDelete || (writeable && fullFs)) &&
+            {(canDelete || canMove || canDuplicate) &&
             selectedPath &&
             selectedPathType &&
             !isSelectedProtected ? (
               <>
                 <DropdownMenuSeparator />
-                {writeable && fullFs ? (
+                {canMove || canDuplicate ? (
                   <>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        handleRename(selectedPath, selectedPathType)
-                      }
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Rename or move
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        handleDuplicate(selectedPath, selectedPathType)
-                      }
-                    >
-                      <Copy className="h-4 w-4" />
-                      Duplicate
-                    </DropdownMenuItem>
+                    {canMove ? (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleRename(selectedPath, selectedPathType)
+                        }
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Rename or move
+                      </DropdownMenuItem>
+                    ) : null}
+                    {canDuplicate ? (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleDuplicate(selectedPath, selectedPathType)
+                        }
+                      >
+                        <Copy className="h-4 w-4" />
+                        Duplicate
+                      </DropdownMenuItem>
+                    ) : null}
                   </>
                 ) : null}
                 {canDelete ? (
@@ -1336,7 +1229,7 @@ export function FilesPage({
                 ) : null}
               </>
             ) : null}
-            {writeable && fullFs && showUpload ? (
+            {canUpload && showUpload ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setViewMode("upload")}>
@@ -1352,30 +1245,10 @@ export function FilesPage({
   );
 
   return (
-    <FilesTransportProvider value={transport ?? null}>
-      <PageShell
-        title={title}
-        titleContent={
-          <div className="min-w-0">
-            <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Repository workspace
-            </p>
-            <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
-              {title}
-            </h1>
-          </div>
-        }
-        subtitle={
-          auth
-            ? `${auth.owner}/${auth.repo}`
-            : "Browse and edit repository files"
-        }
-        backHref={null}
-        actions={actions}
-        width="full"
-        contentClassName="!p-0"
-      >
+    <FilesTransportProvider value={activeTransport ?? null}>
+      <FileWorkspaceShell title={title} subtitle={subtitle} actions={actions}>
         <div
+          data-testid="file-workspace-drop-target"
           className="relative flex h-full"
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
@@ -1394,22 +1267,19 @@ export function FilesPage({
                 }
                 selectedPath={selectedPath}
                 selectedPathType={selectedPathType}
-                octokit={octokit}
-                owner={auth?.owner ?? ""}
-                repo={auth?.repo ?? ""}
                 refreshKey={refreshKey}
                 onRefresh={handleRefresh}
                 onDelete={canDelete ? handleDelete : undefined}
-                onRename={writeable && fullFs ? handleRename : undefined}
-                onDuplicate={writeable && fullFs ? handleDuplicate : undefined}
+                onRename={canMove ? handleRename : undefined}
+                onDuplicate={canDuplicate ? handleDuplicate : undefined}
                 onDownload={handleDownload}
                 onOpenOnGitHub={
                   canOpenExternally ? handleOpenOnGitHub : undefined
                 }
                 onNewFile={writeable ? handleNewFile : undefined}
-                onNewFolder={writeable && fullFs ? handleNewFolder : undefined}
+                onNewFolder={canCreateFolder ? handleNewFolder : undefined}
                 onCopyPath={handleCopyPath}
-                onMove={writeable && fullFs ? handleMoveToFolder : undefined}
+                onMove={canMove ? handleMoveToFolder : undefined}
                 onCollapse={() => setPanelState("hidden")}
                 treeOverlay={visibleTreeOverlay}
                 rootPath={workspaceRoot}
@@ -1491,6 +1361,26 @@ export function FilesPage({
                   {currentFolder ? `/${currentFolder}` : "/"}
                 </p>
               </div>
+            </div>
+          ) : null}
+
+          {uploadingFiles.length > 0 ? (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label={
+                uploadingFiles.length === 1
+                  ? `Uploading ${uploadingFiles[0].name}`
+                  : `Uploading ${uploadingFiles.length} files`
+              }
+              className="absolute bottom-4 right-4 z-40 flex max-w-xs items-center gap-3 rounded-lg border border-border bg-background/95 px-4 py-3 text-sm shadow-lg"
+            >
+              <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary" />
+              <span className="truncate font-medium">
+                {uploadingFiles.length === 1
+                  ? `Uploading ${uploadingFiles[0].name}`
+                  : `Uploading ${uploadingFiles.length} files`}
+              </span>
             </div>
           ) : null}
         </div>
@@ -1668,7 +1558,7 @@ export function FilesPage({
             </DialogContent>
           </Dialog>
         )}
-      </PageShell>
+      </FileWorkspaceShell>
     </FilesTransportProvider>
   );
 }

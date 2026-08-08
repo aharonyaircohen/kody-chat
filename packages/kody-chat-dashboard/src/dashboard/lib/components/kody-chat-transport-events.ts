@@ -209,6 +209,12 @@ export function createTransportTurnHandler(
                 ...(event.description
                   ? { description: event.description }
                   : {}),
+                ...(event.activityKind
+                  ? { activityKind: event.activityKind }
+                  : {}),
+                ...(event.displayName
+                  ? { displayName: event.displayName }
+                  : {}),
               },
             ],
           };
@@ -238,7 +244,15 @@ export function createTransportTurnHandler(
             if (idx < 0) return copy;
             const existing = copy[idx].toolCalls ?? [];
             const next = existing.map((tc) =>
-              tc.id === event.id ? { ...tc, status: "error" as const } : tc,
+              tc.id === event.id
+                ? {
+                    ...tc,
+                    status: "error" as const,
+                    ...(tc.activityKind === "subagent" && event.errorText
+                      ? { result: event.errorText }
+                      : {}),
+                  }
+                : tc,
             );
             copy[idx] = {
               ...copy[idx],
@@ -271,7 +285,12 @@ export function createTransportTurnHandler(
           if (idx < 0) return copy;
           const existing = copy[idx].toolCalls ?? [];
           const next = existing.map((tc) =>
-            tc.id === event.id ? { ...tc, status: "success" as const } : tc,
+            tc.id === event.id
+              ? {
+                  ...tc,
+                  status: "success" as const,
+                }
+              : tc,
           );
           copy[idx] = { ...copy[idx], toolCalls: next };
           return copy;
@@ -305,10 +324,13 @@ export function createTransportTurnHandler(
             ) {
               return;
             }
-            // Unlike the others, the view attaches to the in-flight
-            // bubble immediately and supersedes streamed text.
+            // The view attaches immediately as another ordered message part.
+            // Renderer-only replies replace draft text; a view after committed
+            // text appends without erasing what the user already read.
             state.pendingView = directive.payload;
-            state.textBuf = "";
+            if (directive.presentation === "replace") {
+              state.textBuf = "";
+            }
             setMessages((prev) => {
               const copy = [...prev];
               let idx = copy.findIndex(

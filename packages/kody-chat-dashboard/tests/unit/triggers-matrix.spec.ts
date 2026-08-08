@@ -120,6 +120,15 @@ const TRIGGERS: TriggerConfig[] = [
   }),
   trg("t-err", "system.error", "selections", { sys_err: "payload.message" }),
   trg(
+    "t-state",
+    "state.entity.written",
+    "selections",
+    { state_written: "payload.namespace" },
+    {
+      conditions: [{ path: "source", op: "equals", value: "client" }],
+    },
+  ),
+  trg(
     "t-neg-cond",
     "page.viewed",
     "selections",
@@ -137,9 +146,15 @@ const TRIGGERS: TriggerConfig[] = [
       enabled: false,
     },
   ),
-  trg("t-neg-loop", "state.entity.written", "selections", {
-    neg_loop: "literal:BAD",
-  }),
+  trg(
+    "t-neg-loop",
+    "state.entity.written",
+    "selections",
+    { neg_loop: "literal:BAD" },
+    {
+      conditions: [{ path: "source", op: "equals", value: "system" }],
+    },
+  ),
 ];
 
 const EVENTS: Array<{ name: string; payload: Record<string, unknown> }> = [
@@ -154,6 +169,15 @@ const EVENTS: Array<{ name: string; payload: Record<string, unknown> }> = [
   { name: "auth.signed_in", payload: { kind: "operator" } },
   { name: "auth.signed_out", payload: { kind: "operator" } },
   { name: "model.save.proposed", payload: { namespace: "stats", keys: ["k"] } },
+  {
+    name: "state.entity.written",
+    payload: {
+      namespace: "progress",
+      namespaceVersion: 1,
+      keys: ["lesson"],
+      source: "client",
+    },
+  },
   { name: "system.error", payload: { area: "test", message: "boom" } },
 ];
 
@@ -223,6 +247,7 @@ describe("trigger matrix (all catalog events)", () => {
       au_in: "operator",
       au_out: "operator",
       m_prop: "stats",
+      state_written: "progress",
       sys_err: "boom",
     });
     const progress = await getUserState(ctx, "progress");

@@ -68,7 +68,25 @@ export function SessionSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [repositoryFilter, setRepositoryFilter] = useState("all");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const repositoryOptions = Array.from(
+    new Set(
+      sessions.flatMap((session) =>
+        session.repository
+          ? [`${session.repository.owner}/${session.repository.repo}`]
+          : [],
+      ),
+    ),
+  ).sort();
+  const visibleSessions = sessions.filter((session) => {
+    if (repositoryFilter === "all") return true;
+    if (repositoryFilter === "none") return !session.repository;
+    return session.repository
+      ? `${session.repository.owner}/${session.repository.repo}` ===
+          repositoryFilter
+      : false;
+  });
 
   // Focus input when editing starts
   useEffect(() => {
@@ -167,11 +185,25 @@ export function SessionSidebar({
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
         </button>
+        <select
+          aria-label="Filter conversations by repository"
+          value={repositoryFilter}
+          onChange={(event) => setRepositoryFilter(event.target.value)}
+          className="mt-2 w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+        >
+          <option value="all">All conversations</option>
+          <option value="none">No repository</option>
+          {repositoryOptions.map((repository) => (
+            <option key={repository} value={repository}>
+              {repository}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Session List */}
       <div className="flex-1 overflow-auto">
-        {sessions.length === 0 ? (
+        {visibleSessions.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             No conversations yet.
             <br />
@@ -179,7 +211,7 @@ export function SessionSidebar({
           </div>
         ) : (
           <ul className="divide-y">
-            {sessions.map((session) => (
+            {visibleSessions.map((session) => (
               <li
                 key={session.id}
                 className={cn(
@@ -241,6 +273,12 @@ export function SessionSidebar({
                     <span>{formatRelativeTime(session.updatedAt)}</span>
                     <span>•</span>
                     <span>{session.messageCount} messages</span>
+                    <span>•</span>
+                    <span className="truncate">
+                      {session.repository
+                        ? `${session.repository.owner}/${session.repository.repo}`
+                        : "No repository"}
+                    </span>
                     {session.status === "running" && (
                       <>
                         <span>•</span>

@@ -26,6 +26,8 @@ interface ToolCall {
    * chats don't populate it yet.
    */
   description?: string;
+  activityKind?: "subagent";
+  displayName?: string;
 }
 
 interface ToolCallCardProps {
@@ -106,7 +108,7 @@ export function ToolCallCard({ toolCall, className }: ToolCallCardProps) {
         <span className="text-sm">{status.icon}</span>
         <span className="flex-1 min-w-0">
           <span className="font-medium text-sm block truncate">
-            {formatToolName(toolCall.name)}
+            {toolCall.displayName ?? formatToolName(toolCall.name)}
           </span>
           {toolCall.description && (
             <span className="text-xs text-muted-foreground italic block truncate">
@@ -211,6 +213,43 @@ interface ThinkingPanelProps {
   persistKey?: string;
 }
 
+export function getThinkingPanelSummary({
+  toolCalls,
+  isStreaming = false,
+}: {
+  toolCalls: ToolCall[];
+  isStreaming?: boolean;
+}): string {
+  const subagents = toolCalls.filter(
+    (toolCall) => toolCall.activityKind === "subagent",
+  );
+  if (subagents.length > 0) {
+    const running =
+      isStreaming ||
+      subagents.some((toolCall) => toolCall.status === "running");
+    const failed = subagents.some((toolCall) => toolCall.status === "error");
+    const subject =
+      subagents.length === 1
+        ? (subagents[0].displayName ?? "Specialist")
+        : `${subagents.length} specialists`;
+    return failed
+      ? `${subject} failed`
+      : running
+        ? `${subject} working…`
+        : `${subject} completed`;
+  }
+
+  const running = toolCalls.some((toolCall) => toolCall.status === "running");
+  const errored = toolCalls.filter(
+    (toolCall) => toolCall.status === "error",
+  ).length;
+  const label = isStreaming || running ? "Thinking" : "Thought";
+  return (
+    `${label} — ${toolCalls.length} tool${toolCalls.length === 1 ? "" : "s"}` +
+    (errored > 0 ? `, ${errored} failed` : "")
+  );
+}
+
 export function ThinkingPanel({
   toolCalls,
   isStreaming,
@@ -225,10 +264,7 @@ export function ThinkingPanel({
 
   const running = toolCalls.some((tc) => tc.status === "running");
   const errored = toolCalls.filter((tc) => tc.status === "error").length;
-  const label = isStreaming || running ? "Thinking" : "Thought";
-  const summary =
-    `${label} — ${toolCalls.length} tool${toolCalls.length === 1 ? "" : "s"}` +
-    (errored > 0 ? `, ${errored} failed` : "");
+  const summary = getThinkingPanelSummary({ toolCalls, isStreaming });
 
   return (
     <div

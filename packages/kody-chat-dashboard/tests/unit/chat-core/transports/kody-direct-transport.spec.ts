@@ -126,6 +126,128 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("maps subagent activity into a visible running and completed Thought item", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "started",
+              agentTitle: "Agency Specialist",
+              task: "Explain AI Agency structure.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "reasoning",
+              agentTitle: "Agency Specialist",
+              reasoningDelta: "I checked the seven ",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "reasoning",
+              agentTitle: "Agency Specialist",
+              reasoningDelta: "Agency model definitions.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "completed",
+              agentTitle: "Agency Specialist",
+            },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "tool-call",
+        id: "subagent-agency-specialist",
+        toolName: "subagent",
+        input: { task: "Explain AI Agency structure." },
+        status: "running",
+        activityKind: "subagent",
+        displayName: "Agency Specialist",
+        description: "Working on delegated specialist research.",
+      },
+      {
+        type: "reasoning",
+        text: "Agency Specialist:\n",
+      },
+      {
+        type: "reasoning",
+        text: "I checked the seven ",
+      },
+      {
+        type: "reasoning",
+        text: "Agency model definitions.",
+      },
+      {
+        type: "tool-result",
+        id: "subagent-agency-specialist",
+        toolName: "subagent",
+        output: { status: "completed" },
+      },
+      { type: "done" },
+    ]);
+  });
+
+  it("preserves a safe specialist failure reason for the activity panel", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "started",
+              agentTitle: "Agency Specialist",
+              task: "Explain AI Agency structure.",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
+              phase: "failed",
+              agentTitle: "Agency Specialist",
+              errorText:
+                "The specialist timed out. Retry or choose another model. (trace a1b2c3d4)",
+            },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events.at(1)).toEqual({
+      type: "tool-result",
+      id: "subagent-agency-specialist",
+      toolName: "subagent",
+      output: { status: "failed" },
+      isError: true,
+      errorText:
+        "The specialist timed out. Retry or choose another model. (trace a1b2c3d4)",
+    });
+  });
+
   it("final_answer never becomes a chip; its output replaces the streamed text", async () => {
     const { restore } = installScriptedFetch([
       () =>
@@ -153,6 +275,282 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "draft..." },
       { type: "text-replace", text: "Final." },
+      { type: "done" },
+    ]);
+  });
+
+  it("does not expose provider draft text before an exclusive rendered-view output", async () => {
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "Continue?", variant: "title" },
+          {
+            type: "button",
+            label: "Approve",
+            action: {
+              id: "approve",
+              label: "Approve",
+              response: "approve",
+            },
+          },
+        ],
+      },
+      data: {},
+    };
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "text-delta",
+            delta: "Want me to continue?",
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "view-1",
+            toolName: "show_view",
+            input: {},
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "view-1",
+            output: renderedView,
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).not.toContainEqual({
+      type: "token",
+      text: "Want me to continue?",
+    });
+    expect(sink.events).toContainEqual({
+      type: "directive",
+      directive: {
+        kind: "rendered-view",
+        payload: renderedView,
+        presentation: "replace",
+      },
+    });
+  });
+
+  it("commits final_answer text after hiding provider draft text in exclusive mode", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({ type: "text-delta", delta: "draft..." }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-1",
+            toolName: "final_answer",
+            input: { content: "Final answer." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-1",
+            output: { content: "Final answer." },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "text-replace", text: "Final answer." },
+      { type: "done" },
+    ]);
+  });
+
+  it("streams final_answer content after the output tool commits the turn to text", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-start",
+            toolCallId: "final-stream",
+            toolName: "final_answer",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: '{"content":"Hello',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: " streamed",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-stream",
+            inputTextDelta: ' world."}',
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-stream",
+            toolName: "final_answer",
+            input: { content: "Hello streamed world." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-stream",
+            output: { content: "Hello streamed world." },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "Hello" },
+      { type: "token", text: " streamed" },
+      { type: "token", text: " world." },
+      { type: "text-replace", text: "Hello streamed world." },
+      { type: "done" },
+    ]);
+  });
+
+  it("marks a renderer after committed text as an appended message part", async () => {
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-after-text",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [{ type: "text", value: "Choose an option" }],
+      },
+      data: {},
+    };
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-before-view",
+            toolName: "final_answer",
+            input: { content: "Here is the context." },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-before-view",
+            output: { content: "Here is the context." },
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "view-after-text",
+            toolName: "show_view",
+            input: {},
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "view-after-text",
+            output: renderedView,
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toContainEqual({
+      type: "directive",
+      directive: {
+        kind: "rendered-view",
+        payload: renderedView,
+        presentation: "append",
+      },
+    });
+  });
+
+  it("decodes split JSON escapes without duplicating streamed final_answer text", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-start",
+            toolCallId: "final-escaped",
+            toolName: "final_answer",
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: '{"content":"Line 1\\',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: 'n\\"quoted\\" \\u26',
+          }),
+          chunk({
+            type: "tool-input-delta",
+            toolCallId: "final-escaped",
+            inputTextDelta: '3a"}',
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-escaped",
+            toolName: "final_answer",
+            input: { content: 'Line 1\n"quoted" ☺' },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-escaped",
+            output: { content: 'Line 1\n"quoted" ☺' },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "Line 1" },
+      { type: "token", text: '\n"quoted" ' },
+      { type: "token", text: "☺" },
+      { type: "text-replace", text: 'Line 1\n"quoted" ☺' },
       { type: "done" },
     ]);
   });
@@ -375,6 +773,33 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "partial" },
       { type: "error", message: "model overloaded", recoverable: true },
+      { type: "done" },
+    ]);
+  });
+
+  it("turns tool-protocol failures into a clear model operation notice", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "error",
+            errorText:
+              "[trace a1b2c3d4] No endpoints found that support tool use",
+          }),
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "error",
+        message:
+          "This model could not complete the requested operation with the available tools. Choose another model and try again. (trace a1b2c3d4)",
+        recoverable: true,
+      },
       { type: "done" },
     ]);
   });

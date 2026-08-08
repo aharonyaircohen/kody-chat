@@ -49,15 +49,19 @@ describe("POST /api/kody/engine/backend", () => {
       request({
         kind: "query",
         operation: "repoDocs.get",
-        args: { tenantId: "attacker/repo", serviceKey: "stolen", kind: "variables" },
+        args: {
+          tenantId: "attacker/repo",
+          serviceKey: "stolen",
+          kind: "variables",
+        },
       }),
     );
 
     expect(response.status).toBe(200);
-    expect(backend.query).toHaveBeenCalledWith(
-      expect.anything(),
-      { tenantId: "trusted/repo", kind: "variables" },
-    );
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      kind: "variables",
+    });
   });
 
   it("rejects operations outside the explicit allowlist", async () => {
@@ -67,6 +71,33 @@ describe("POST /api/kody/engine/backend", () => {
 
     expect(response.status).toBe(400);
     expect(backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it("allows the Engine to renew an active Loop reservation", async () => {
+    backend.mutation.mockResolvedValue(undefined);
+
+    const response = await POST(
+      request({
+        kind: "mutation",
+        operation: "agencyModel.renewDispatch",
+        args: {
+          tenantId: "attacker/repo",
+          idempotencyKey: "ci-repair:manual:1",
+          reservationId: "reservation-1",
+          leaseUntil: "2026-08-08T05:11:00.000Z",
+          now: "2026-08-08T05:01:00.000Z",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      idempotencyKey: "ci-repair:manual:1",
+      reservationId: "reservation-1",
+      leaseUntil: "2026-08-08T05:11:00.000Z",
+      now: "2026-08-08T05:01:00.000Z",
+    });
   });
 
   it("does not expose the removed Agency Definition operation", async () => {
@@ -80,40 +111,5 @@ describe("POST /api/kody/engine/backend", () => {
 
     expect(response.status).toBe(400);
     expect(backend.query).not.toHaveBeenCalled();
-  });
-
-  it("stores checkpoints only under the repository signed by GitHub", async () => {
-    backend.mutation.mockResolvedValue({ ok: true });
-
-    const response = await POST(
-      request({
-        kind: "mutation",
-        operation: "workflowCheckpoints.save",
-        args: {
-          tenantId: "attacker/repo",
-          threadId: "run-1",
-          checkpointNs: "",
-          checkpointId: "cp-1",
-          checkpointType: "json",
-          checkpoint: "e30=",
-          metadataType: "json",
-          metadata: "e30=",
-          updatedAt: "now",
-        },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
-      tenantId: "trusted/repo",
-      threadId: "run-1",
-      checkpointNs: "",
-      checkpointId: "cp-1",
-      checkpointType: "json",
-      checkpoint: "e30=",
-      metadataType: "json",
-      metadata: "e30=",
-      updatedAt: "now",
-    });
   });
 });

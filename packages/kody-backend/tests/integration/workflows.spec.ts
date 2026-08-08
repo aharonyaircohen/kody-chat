@@ -49,6 +49,53 @@ describe("workflows", () => {
     expect(list[0].definition.name).toBe("Deploy v2")
   })
 
+  it("preserves the Engine execution policy for every workflow step", async () => {
+    const t = setup()
+    const workflow = {
+      ...definition("Chore"),
+      capabilities: ["run", "review", "fix"],
+      startAt: "run",
+      report: {
+        type: "workflow-summary",
+        owner: "chore",
+        slug: "chore",
+        title: "Chore",
+      },
+      steps: [
+        {
+          id: "run",
+          capability: "run",
+          input: { issue: 3926 },
+          action: "run",
+          evidence: "facts.issue_number",
+          target: "issue" as const,
+          delivery: "pull-request" as const,
+          targetFact: "facts.issue_number",
+          reason: "Implement and deliver the requested change.",
+          runWhen: { "facts.ready": true },
+          continueOn: ["completed"],
+          saveReport: true,
+          report: { channel: "workflow" },
+          next: [{ to: "review" }],
+        },
+      ],
+    }
+
+    await t.mutation(api.workflows.save, {
+      tenantId: TENANT,
+      workflowId: "chore",
+      definition: workflow,
+      source: "store",
+      updatedAt: NOW,
+    })
+
+    const got = await t.query(api.workflows.get, {
+      tenantId: TENANT,
+      workflowId: "chore",
+    })
+    expect(got?.definition).toEqual(workflow)
+  })
+
   it("gets a single definition and returns null when missing", async () => {
     const t = setup()
     expect(await t.query(api.workflows.get, { tenantId: TENANT, workflowId: "nope" })).toBeNull()

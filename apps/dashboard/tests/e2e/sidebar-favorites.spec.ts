@@ -41,7 +41,16 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     ) {
       return;
     }
-    failedRequests.push(`${request.method()} ${request.url()}`);
+    if (
+      request.method() === "GET" &&
+      request.url().endsWith("/api/kody/chat/machines") &&
+      request.failure()?.errorText === "net::ERR_ABORTED"
+    ) {
+      return;
+    }
+    failedRequests.push(
+      `${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown failure"}`,
+    );
   });
   page.on("response", (response) => {
     if (response.status() >= 400) {
@@ -103,6 +112,13 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ models: [] }),
     }),
   );
+  await page.route("**/api/kody/chat/machines", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ local: false }),
+    }),
+  );
   await page.route("**/api/kody/guided-flows", (route) =>
     route.fulfill({
       status: 200,
@@ -139,7 +155,22 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ collections: [] }),
+      body: JSON.stringify({
+        cms: {
+          configured: true,
+          collections: [
+            { name: "posts", label: "Posts" },
+            { name: "users", label: "Users" },
+          ],
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/kody/file-spaces", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ spaces: [] }),
     }),
   );
   await page.route("**/api/kody/chat/conversations**", (route) => {
@@ -185,18 +216,11 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ boards: [] }),
     }),
   );
-  await page.route("**/api/kody/goals", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ goals: [] }),
-    }),
-  );
-
   await page.goto(CANONICAL_TASKS_URL);
   const navigation = page.getByRole("complementary", {
     name: "Primary navigation",
   });
+  const sidebar = page.locator('aside[aria-label="Primary navigation"]');
   await expect(navigation).toBeVisible();
 
   const saveFavorite = page.waitForResponse(
@@ -246,6 +270,96 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     .toContainEqual({
       favoriteHrefs: [],
     });
+
+  await navigation
+    .getByRole("button", { name: "Content", exact: true })
+    .click();
+  await expect(
+    navigation.getByRole("link", { name: "Entries", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Posts", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    navigation.getByRole("link", { name: "Users", exact: true }),
+  ).toHaveCount(0);
+
+  await navigation
+    .getByRole("button", { name: "Collapse sidebar", exact: true })
+    .click();
+  await expect(
+    navigation.getByRole("button", { name: "Work", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Tasks", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("button", { name: /^Notifications/ }),
+  ).toBeVisible();
+  const repoSwitcher = navigation.getByTitle("Switch repository");
+  await expect(repoSwitcher).toBeVisible();
+  await repoSwitcher.click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  await expect(
+    page.getByRole("listbox", { name: "Connected repositories" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  const reportAction = navigation.getByRole("button", {
+    name: "Report issue to Kody",
+    exact: true,
+  });
+  const sidebarVersion = sidebar.locator("[data-sidebar-version]");
+  await expect(reportAction).toBeVisible();
+  await expect(sidebarVersion).toBeVisible();
+  expect(
+    await reportAction.evaluate((element) => {
+      const version = document.querySelector("[data-sidebar-version]");
+      return Boolean(
+        version &&
+        element.compareDocumentPosition(version) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }),
+  ).toBe(true);
+
+  await navigation.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  const collapsedSearch = page.getByRole("menu", {
+    name: "Search",
+    exact: true,
+  });
+  const collapsedSearchInput = collapsedSearch.getByRole("searchbox", {
+    name: "Search navigation",
+  });
+  await expect(collapsedSearchInput).toBeVisible();
+  await collapsedSearchInput.fill("Vibe");
+  await expect(
+    collapsedSearch.getByRole("menuitem", { name: "Vibe", exact: true }),
+  ).toBeVisible();
+  await collapsedSearchInput.press("Escape");
+  await expect(collapsedSearch).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
+
+  await navigation.getByRole("button", { name: "Work", exact: true }).click();
+  await expect(sidebar).toHaveCSS("width", "72px");
+  const workPages = page.getByRole("menu", { name: "Work", exact: true });
+  await expect(workPages).toBeVisible();
+  await expect(
+    workPages.getByRole("menuitem", { name: "Tasks", exact: true }),
+  ).toBeVisible();
+  await expect(
+    workPages.getByRole("menuitem", { name: "Vibe", exact: true }),
+  ).toBeVisible();
+  await workPages.getByRole("menuitem", { name: "Tasks", exact: true }).click();
+  await expect(workPages).toHaveCount(0);
+  await expect(
+    navigation.getByRole("button", { name: "Expand sidebar", exact: true }),
+  ).toBeVisible();
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

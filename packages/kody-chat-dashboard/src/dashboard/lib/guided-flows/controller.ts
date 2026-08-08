@@ -1,63 +1,28 @@
-export type GuidedFlowStatus = "active" | "completed" | "cancelled";
+import type {
+  GuidedFlowActionDefinition,
+  GuidedFlowCommandStepDefinition,
+  GuidedFlowDefinition,
+  GuidedFlowInstance,
+  GuidedFlowNestedStepDefinition,
+  GuidedFlowStepDefinition,
+  GuidedFlowSubmit,
+} from "./model";
+import { sanitizeGuidedFlowData } from "./safe-data";
 
-export interface GuidedFlowTransitionMap {
-  readonly [actionId: string]: string;
-}
-
-export interface GuidedFlowStepDefinition {
-  readonly id: string;
-  readonly title: string;
-  readonly explanation: string;
-  readonly rendererSlug: string;
-  readonly rendererData?: Readonly<Record<string, unknown>>;
-  readonly authoringGoal?: string;
-  readonly routeId?: string;
-  readonly transitions?: GuidedFlowTransitionMap;
-  readonly allowedActions?: readonly string[];
-}
-
-export interface GuidedFlowDefinition {
-  readonly id: string;
-  readonly version: number;
-  readonly title: string;
-  readonly steps: readonly GuidedFlowStepDefinition[];
-  readonly completionRouteId?: string;
-}
-
-export interface GuidedFlowInstance {
-  readonly instanceId: string;
-  readonly instanceKey?: string;
-  readonly flowId: string;
-  readonly flowVersion: number;
-  readonly currentStepId: string;
-  readonly status: GuidedFlowStatus;
-  readonly revision: number;
-  readonly data: Readonly<Record<string, unknown>>;
-  readonly history: readonly string[];
-}
-
-export interface GuidedFlowSubmit {
-  readonly actionId: string;
-  readonly result?: Readonly<Record<string, unknown>>;
-}
-
-const SENSITIVE_DATA_KEY = /(password|secret|token|api.?key|private.?key)/i;
-
-function sanitizeResultValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sanitizeResultValue);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, nested]) =>
-      SENSITIVE_DATA_KEY.test(key) ? [] : [[key, sanitizeResultValue(nested)]],
-    ),
-  );
-}
-
-function sanitizeResult(
-  result: Readonly<Record<string, unknown>> | undefined,
-): Record<string, unknown> {
-  return (sanitizeResultValue(result ?? {}) as Record<string, unknown>) ?? {};
-}
+export type {
+  GuidedFlowDefinition,
+  GuidedFlowActionDefinition,
+  GuidedFlowActionTarget,
+  GuidedFlowCommandStepDefinition,
+  GuidedFlowFrame,
+  GuidedFlowInstance,
+  GuidedFlowNestedStepDefinition,
+  GuidedFlowStatus,
+  GuidedFlowStepBase,
+  GuidedFlowStepDefinition,
+  GuidedFlowSubmit,
+  GuidedFlowViewStepDefinition,
+} from "./model";
 
 function findStep(
   definition: GuidedFlowDefinition,
@@ -66,6 +31,17 @@ function findStep(
   const step = definition.steps.find((candidate) => candidate.id === stepId);
   if (!step) throw new Error(`Unknown GuidedFlow step "${stepId}"`);
   return step;
+}
+
+function findAction(
+  step: GuidedFlowStepDefinition,
+  actionId: string,
+): GuidedFlowActionDefinition {
+  const action = step.actions.find((candidate) => candidate.id === actionId);
+  if (!action) {
+    throw new Error(`Unknown action "${actionId}" from step "${step.id}"`);
+  }
+  return action;
 }
 
 export function getGuidedFlowStep(
@@ -112,7 +88,9 @@ export function createGuidedFlowInstance(
     status: "active",
     revision: 0,
     data: {},
-    history: [],
+    output: {},
+    backStack: [],
+    stack: [],
   };
 }
 
@@ -127,32 +105,54 @@ export function advanceGuidedFlow(
     throw new Error("GuidedFlow actionId is required");
 
   const step = findStep(definition, instance.currentStepId);
-  if (step.allowedActions && !step.allowedActions.includes(submit.actionId)) {
-    throw new Error(
-      `Unknown action "${submit.actionId}" from step "${step.id}"`,
-    );
-  }
-  const nextStepId = step.transitions?.[submit.actionId];
+  const action = findAction(step, submit.actionId);
+  const result = sanitizeGuidedFlowData(submit.result);
+  const stepResultKey = `${definition.id}@${definition.version}/${step.id}`;
+  const existingStepResults =
+    instance.data.stepResults &&
+    typeof instance.data.stepResults === "object" &&
+    !Array.isArray(instance.data.stepResults)
+      ? (instance.data.stepResults as Readonly<Record<string, unknown>>)
+      : {};
   const nextData = {
     ...instance.data,
+    ...result,
     actionId: submit.actionId,
-    ...sanitizeResult(submit.result),
+    stepResults: {
+      ...existingStepResults,
+      [stepResultKey]: {
+        actionId: submit.actionId,
+        result,
+      },
+    },
   };
 
-  if (!step.transitions || Object.keys(step.transitions).length === 0) {
+  if (action.target.type === "complete") {
     return {
       ...instance,
       status: "completed",
       revision: instance.revision + 1,
       data: nextData,
+      output: result,
     };
   }
 
-  if (!nextStepId) {
-    throw new Error(
-      `Unknown transition "${submit.actionId}" from step "${step.id}"`,
-    );
+  if (action.target.type === "cancel") {
+    return {
+      ...instance,
+      status: "cancelled",
+      revision: instance.revision + 1,
+      data: nextData,
+    };
   }
+  if (action.target.type === "stay") {
+    return {
+      ...instance,
+      revision: instance.revision + 1,
+      data: nextData,
+    };
+  }
+  const nextStepId = action.target.stepId;
   findStep(definition, nextStepId);
 
   return {
@@ -160,7 +160,7 @@ export function advanceGuidedFlow(
     currentStepId: nextStepId,
     revision: instance.revision + 1,
     data: nextData,
-    history: [...instance.history, step.id],
+    backStack: [...instance.backStack, step.id],
   };
 }
 
@@ -170,7 +170,7 @@ export function goBackGuidedFlow(
 ): GuidedFlowInstance {
   assertActive(instance);
   assertDefinitionMatches(definition, instance);
-  const previousStepId = instance.history.at(-1);
+  const previousStepId = instance.backStack.at(-1);
   if (!previousStepId)
     throw new Error("GuidedFlow is already at its first step");
   findStep(definition, previousStepId);
@@ -179,7 +179,7 @@ export function goBackGuidedFlow(
     ...instance,
     currentStepId: previousStepId,
     revision: instance.revision + 1,
-    history: instance.history.slice(0, -1),
+    backStack: instance.backStack.slice(0, -1),
   };
 }
 
@@ -192,4 +192,16 @@ export function cancelGuidedFlow(
     status: "cancelled",
     revision: instance.revision + 1,
   };
+}
+
+export function isNestedGuidedFlowStep(
+  step: GuidedFlowStepDefinition,
+): step is GuidedFlowNestedStepDefinition {
+  return step.type === "flow";
+}
+
+export function isCommandGuidedFlowStep(
+  step: GuidedFlowStepDefinition,
+): step is GuidedFlowCommandStepDefinition {
+  return step.type === "command";
 }

@@ -23,6 +23,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
+  verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import { emitSystemEvent } from "@kody-ade/base/events";
@@ -57,7 +58,7 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
   return {
     owner: (GITHUB_OWNER ?? "aharonyaircohen").trim(),
-    repo: (GITHUB_REPO ?? "Kody-Dashboard").trim(),
+    repo: (GITHUB_REPO ?? "kody-chat").trim(),
   };
 }
 
@@ -131,6 +132,12 @@ export async function POST(req: NextRequest) {
   if (messages.length === 0) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
+  const actor = await verifyActorLogin(
+    req,
+    req.headers.get("x-kody-user-login") ?? undefined,
+  );
+  if (actor instanceof NextResponse) return actor;
+  const conversationTenantId = `user:${actor.identity.githubId}`;
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
@@ -180,8 +187,13 @@ export async function POST(req: NextRequest) {
       // Fail-open plugin-tools bridge (phase 2 step 1): with zero registered
       // plugin server tools this is a byte-level no-op — the dispatched URL
       // is identical to the pre-bridge payload (pinned by int tests).
+      const dashboardWithTenant = new URL(dashboardUrl);
+      dashboardWithTenant.searchParams.set(
+        "conversationTenantId",
+        conversationTenantId,
+      );
       workflowInputs.dashboardUrl = maybeAppendPluginToolsToken(
-        appendIngestToken(dashboardUrl, taskId),
+        appendIngestToken(dashboardWithTenant.toString(), taskId),
         owner,
         repo,
       );

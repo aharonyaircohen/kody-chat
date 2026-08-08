@@ -2,9 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CORE_FILE_SURFACES = [
+const THEMED_FILE_SURFACES = [
   "FileContextMenu.tsx",
+  "FileDiffViewer.tsx",
   "FileEditor.tsx",
+  "FileSearch.tsx",
   "FileTree.tsx",
   "FileViewer.tsx",
   "UploadZone.tsx",
@@ -12,7 +14,7 @@ const CORE_FILE_SURFACES = [
 
 describe("file workspace themes", () => {
   it("uses shared theme colors instead of fixed dark surfaces", () => {
-    for (const file of CORE_FILE_SURFACES) {
+    for (const file of THEMED_FILE_SURFACES) {
       const source = readFileSync(
         resolve(
           process.cwd(),
@@ -32,15 +34,18 @@ describe("file workspace themes", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
-        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+        "src/dashboard/features/file-manager/components/FileWorkspaceShell.tsx",
       ),
       "utf8",
     );
 
-    expect(source).toContain('contentClassName="!p-0"');
+    expect(source).toContain(
+      '<main className="min-h-0 flex-1 overflow-y-auto">',
+    );
+    expect(source).not.toContain("px-5 py-7");
   });
 
-  it("shows compact editor actions only when they can do something", () => {
+  it("keeps file mode controls in the header without split mode", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
@@ -52,13 +57,44 @@ describe("file workspace themes", () => {
     expect(source).toContain('aria-label="Save changes"');
     expect(source).toContain('title="Discard unsaved changes"');
     expect(source).toContain('aria-label="Edit mode"');
-    expect(source).toContain('aria-label="Preview mode"');
-    expect(source).toContain('aria-label="Split mode"');
+    expect(source).toContain('aria-label="View mode"');
+    expect(source).not.toContain('aria-label="Split mode"');
     expect(source).not.toMatch(/<Edit3[^>]*\/>\s*Edit/);
-    expect(source).not.toMatch(/<Eye[^>]*\/>\s*Preview/);
-    expect(source).not.toMatch(/<Columns[^>]*\/>\s*Split/);
+    expect(source).not.toMatch(/<Eye[^>]*\/>\s*View/);
     expect(source).toContain("{isDirty ? (");
     expect(source).not.toContain("Close");
+  });
+
+  it("uses one shared document typography for Markdown", () => {
+    const editorSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FileEditor.tsx",
+      ),
+      "utf8",
+    );
+    const markdownEditorSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../packages/base/src/markdown/MarkdownEditor.tsx",
+      ),
+      "utf8",
+    );
+    const markdownPreviewSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../packages/base/src/markdown/MarkdownPreview.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(markdownPreviewSource).toContain(
+      '"prose prose-base max-w-none dark:prose-invert"',
+    );
+    expect(markdownPreviewSource).not.toContain("MarkdownPreviewVariant");
+    expect(markdownPreviewSource).not.toContain('variant === "compact"');
+    expect(markdownEditorSource).not.toContain("previewVariant");
+    expect(editorSource).toContain("<MarkdownEditor");
   });
 
   it("recovers local drafts and always leaves a file-panel restore control", () => {

@@ -11,17 +11,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   getRequestAuth,
-  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { clearGitHubContext, setGitHubContext } from "../github";
 import {
-  disableBrand,
-  deleteBrandFile,
   isValidBrandSlug,
   isBrandDeleted,
   readBrandFile,
+  removeBrand,
   writeBrandFile,
 } from "../brands";
 import {
@@ -42,31 +39,13 @@ const updateBrandSchema = z.object({
   welcomeText: z.string().trim().max(1000).nullable().optional(),
   modelId: z.string().trim().min(1).max(160).nullable().optional(),
   agentSlug: z.string().trim().min(1).max(80).nullable().optional(),
-  auth: z
+  access: z
     .object({
-      required: z.boolean().optional(),
-      providers: z.array(z.string().trim().max(40)).max(10).optional(),
-      allowedEmails: z.array(z.string().trim().max(320)).max(500).optional(),
-      allowedDomains: z.array(z.string().trim().max(255)).max(100).optional(),
+      mode: z.enum(["public", "delegated"]),
     })
-    .nullable()
     .optional(),
   actorLogin: z.string().optional(),
 });
-
-function setContext(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  if (auth) {
-    setGitHubContext(
-      auth.owner,
-      auth.repo,
-      auth.token,
-      auth.storeRepoUrl,
-      auth.storeRef,
-    );
-  }
-  return auth;
-}
 
 export async function GET(
   req: NextRequest,
@@ -75,7 +54,8 @@ export async function GET(
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  setContext(req);
+  const auth = getRequestAuth(req)!;
+  const scope = { owner: auth.owner, repo: auth.repo };
 
   try {
     const { slug: rawSlug } = await params;
@@ -83,10 +63,10 @@ export async function GET(
     if (!isValidBrandSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    if (await isBrandDeleted(slug)) {
+    if (await isBrandDeleted(scope, slug)) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const brand = await readBrandFile(slug);
+    const brand = await readBrandFile(scope, slug);
     if (brand) return NextResponse.json({ brand });
 
     const fallback = getBuiltinClientBrand(slug);
@@ -111,8 +91,6 @@ export async function GET(
       },
       { status: 500 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }
 
@@ -123,7 +101,8 @@ export async function PATCH(
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  setContext(req);
+  const auth = getRequestAuth(req)!;
+  const scope = { owner: auth.owner, repo: auth.repo };
 
   try {
     const { slug: rawSlug } = await params;
@@ -131,7 +110,7 @@ export async function PATCH(
     if (!isValidBrandSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    if (await isBrandDeleted(slug)) {
+    if (await isBrandDeleted(scope, slug)) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -141,24 +120,12 @@ export async function PATCH(
     const actorResult = await verifyActorLogin(req, parsed.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit brand files.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const existing = await readBrandFile(slug);
+    const existing = await readBrandFile(scope, slug);
     const base = existing ?? getBuiltinClientBrand(slug);
     if (!base) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const brand = await writeBrandFile({
+    const brand = await writeBrandFile(scope, {
       slug,
       name: parsed.name ?? base.name,
       accent: parsed.accent ?? base.accent,
@@ -178,7 +145,7 @@ export async function PATCH(
         parsed.agentSlug === undefined
           ? base.agentSlug
           : (parsed.agentSlug ?? undefined),
-      auth: parsed.auth === undefined ? base.auth : (parsed.auth ?? undefined),
+      access: parsed.access ?? base.access,
     });
 
     recordAudit(req, {
@@ -209,8 +176,6 @@ export async function PATCH(
       },
       { status: 500 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }
 
@@ -221,7 +186,8 @@ export async function DELETE(
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  setContext(req);
+  const auth = getRequestAuth(req)!;
+  const scope = { owner: auth.owner, repo: auth.repo };
 
   try {
     const { slug: rawSlug } = await params;
@@ -235,30 +201,13 @@ export async function DELETE(
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to delete brand files.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const existing = await readBrandFile(slug);
+    const existing = await readBrandFile(scope, slug);
     const fallback = getBuiltinClientBrand(slug);
     if (!existing && !fallback) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    if (existing) {
-      await deleteBrandFile(slug);
-    }
-    if (fallback) {
-      await disableBrand(slug);
-    }
+    await removeBrand(scope, slug, { disableFallback: Boolean(fallback) });
     recordAudit(req, {
       action: "brand.delete",
       resource: slug,
@@ -281,7 +230,5 @@ export async function DELETE(
       },
       { status: 500 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

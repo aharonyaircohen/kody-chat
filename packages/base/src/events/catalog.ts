@@ -26,8 +26,9 @@ export interface SystemEventDefinition<
 function defineEvent<S extends z.ZodType<Record<string, unknown>>>(
   description: string,
   schema: S,
+  version = 1,
 ): SystemEventDefinition<S> {
-  return { version: 1, description, schema };
+  return { version, description, schema };
 }
 
 /**
@@ -155,6 +156,57 @@ export const SYSTEM_EVENT_CATALOG = {
         sessionId: sessionId.optional(),
       })
       .strict(),
+  ),
+  "github.workflow_run.completed": defineEvent(
+    "A GitHub Actions workflow run finished.",
+    z
+      .object({
+        runId: z.number().int().positive(),
+        workflowId: z.number().int().positive().optional(),
+        workflowName: z.string().trim().min(1).max(200).optional(),
+        workflowPath: z
+          .string()
+          .trim()
+          .startsWith(".github/workflows/")
+          .max(500)
+          .optional(),
+        conclusion: z
+          .enum([
+            "success",
+            "failure",
+            "neutral",
+            "cancelled",
+            "skipped",
+            "timed_out",
+            "action_required",
+            "stale",
+          ])
+          .nullable(),
+        branch: z.string().trim().min(1).max(255).optional(),
+        headSha: z.string().trim().min(7).max(64).optional(),
+        pr: z.number().int().positive().optional(),
+        event: z.string().trim().min(1).max(100).optional(),
+        repository: z.string().trim().min(1).max(255),
+        actor: z.string().trim().min(1).max(255).optional(),
+        htmlUrl: z.string().url().max(1000).optional(),
+      })
+      .strict(),
+    2,
+  ),
+  "kody.workflow.completed": defineEvent(
+    "A Kody workflow run finished.",
+    z
+      .object({
+        workflowId: z.string().trim().min(1).max(200),
+        runId: z.string().trim().min(1).max(200),
+        status: z.enum(["success", "failed", "blocked"]),
+        summary: z.string().trim().min(1).max(1000).optional(),
+        repository: z.string().trim().min(1).max(255),
+        pr: z.number().int().positive().optional(),
+        headSha: z.string().trim().min(7).max(64).optional(),
+      })
+      .strict(),
+    2,
   ),
 } as const;
 

@@ -32,30 +32,6 @@ function stampOf(docs: unknown): string {
   return JSON.stringify(docs);
 }
 
-function useTenantStamp(
-  queryRef:
-    typeof backendApi.goals.liveList | typeof backendApi.intents.liveList,
-): string | undefined {
-  // CONVEX_LIVE_ENABLED is a build-time constant, so hook order is stable.
-  if (!CONVEX_LIVE_ENABLED) return undefined;
-  const auth = getStoredAuth();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const docs = useQuery(
-    queryRef,
-    auth ? { tenantId: `${auth.owner}/${auth.repo}` } : "skip",
-  );
-  return docs === undefined ? undefined : stampOf(docs);
-}
-
-/**
- * Change stamp for the tenant's goals table (goals.liveList). Defined when a
- * live subscription is active; changes whenever any goal doc changes. Callers
- * disable their refetchInterval and refetch on stamp change instead.
- */
-export function useGoalsLiveStamp(): string | undefined {
-  return useTenantStamp(backendApi.goals.liveList);
-}
-
 /**
  * Change stamp for one run's action state (actionStates.liveGet). Defined
  * when a live subscription is active (null-doc runs stamp as "null").
@@ -91,7 +67,6 @@ interface ChatEventDoc {
 interface WorkflowRunDoc {
   runId: string;
   state: unknown;
-  runner?: { kind: "pool" | "fly"; machineId: string };
 }
 
 /**
@@ -141,7 +116,7 @@ export function useWorkflowRunStateLive(
   const targetRunId =
     runId ??
     docs
-      .filter((doc) => /^run-[a-z0-9]+$/.test(doc.runId))
+      .filter((doc) => /^run-[a-z0-9_-]+$/i.test(doc.runId))
       .map((doc) => doc.runId)
       .sort()
       .at(-1);
@@ -152,12 +127,5 @@ export function useWorkflowRunStateLive(
   const state = doc
     ? normalizeWorkflowRunState(deepUnescapeKeys(doc.state))
     : null;
-  return state
-    ? {
-        workflowId,
-        runId: targetRunId,
-        state,
-        ...(doc?.runner ? { runner: doc.runner } : {}),
-      }
-    : null;
+  return state ? { workflowId, runId: targetRunId, state } : null;
 }

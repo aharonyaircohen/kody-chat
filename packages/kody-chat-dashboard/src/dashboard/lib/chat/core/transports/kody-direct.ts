@@ -25,11 +25,14 @@ import {
   isSwitchAgentDirective,
 } from "../../../chat-ui-actions";
 import {
+  CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   FINAL_ANSWER_TOOL,
   getToolErrorMessage,
+  isExclusiveToolOutputContract,
   isFinalAnswerOutput,
 } from "../../../chat-output-tools";
 import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
+import { normalizeModelOperationFailure } from "../silent-turn";
 
 /** `error` ChatEvent code emitted when the stream drops mid-turn. */
 export const KODY_DIRECT_ERROR_CODE_DROPPED = "kody-direct-dropped";
@@ -42,10 +45,63 @@ export interface KodyDirectTurnConfig {
   endpoint: string;
   /**
    * The full request body (messages, task, agentId, voiceMode, vibeMode,
-   * model, reasoningEffort, org/capability/report/goal context, …).
+   * model, reasoningEffort, org/capability/report context, …).
    * Assembled by the surface — it owns that state.
    */
   body: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Decode the available prefix of one JSON string property while its object is
+ * still streaming. Incomplete escape sequences are held until the next chunk.
+ */
+function readStreamingJsonStringProperty(
+  jsonPrefix: string,
+  property: string,
+): string | null {
+  const propertyMatch = new RegExp(
+    `"${property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\s*:\\s*"`,
+  ).exec(jsonPrefix);
+  if (!propertyMatch) return null;
+
+  let value = "";
+  for (
+    let index = propertyMatch.index + propertyMatch[0].length;
+    index < jsonPrefix.length;
+    index += 1
+  ) {
+    const char = jsonPrefix[index];
+    if (char === '"') return value;
+    if (char !== "\\") {
+      value += char;
+      continue;
+    }
+
+    const escaped = jsonPrefix[index + 1];
+    if (escaped === undefined) return value;
+    if (escaped === "u") {
+      const code = jsonPrefix.slice(index + 2, index + 6);
+      if (code.length < 4 || !/^[0-9a-f]{4}$/i.test(code)) return value;
+      value += String.fromCharCode(Number.parseInt(code, 16));
+      index += 5;
+      continue;
+    }
+    const decodedEscapes: Record<string, string> = {
+      '"': '"',
+      "\\": "\\",
+      "/": "/",
+      b: "\b",
+      f: "\f",
+      n: "\n",
+      r: "\r",
+      t: "\t",
+    };
+    const decoded = decodedEscapes[escaped];
+    if (decoded === undefined) return value;
+    value += decoded;
+    index += 1;
+  }
+  return value;
 }
 
 function isKodyDirectTurnConfig(value: unknown): value is KodyDirectTurnConfig {
@@ -75,15 +131,17 @@ async function readHttpError(res: Response): Promise<string> {
           ? body.message
           : null;
     if (message) {
-      return typeof body.traceId === "string" && body.traceId
-        ? `${message} (trace ${body.traceId})`
-        : message;
+      const responseMessage =
+        typeof body.traceId === "string" && body.traceId
+          ? `${message} (trace ${body.traceId})`
+          : message;
+      return normalizeModelOperationFailure(responseMessage);
     }
   } catch {
     // A proxy may return HTML or plain text; preserve that response below.
   }
 
-  return text;
+  return normalizeModelOperationFailure(text);
 }
 
 /**
@@ -118,11 +176,20 @@ export async function sendKodyDirectTurn(
   // chunks so we can identify the source tool when its
   // `tool-output-available` arrives (the output chunk omits the name).
   const toolNameById = new Map<string, string>();
+  const toolInputTextById = new Map<string, string>();
+  const streamedFinalAnswerById = new Map<string, string>();
+  const reasoningSubagentIds = new Set<string>();
   // Map of toolName → human-readable description, hydrated from the
   // `data-tools-index` event the route emits at the start of the stream
   // (issue #321). One event per turn — not one per call — so this map is
   // small and stable for the lifetime of the turn.
   const toolDescriptionByName = new Map<string, string>();
+  // When the route can require an output tool, raw provider text is only a
+  // draft. The semantic output arrives later through final_answer/show_view.
+  // Keep legacy/raw streams unchanged when the route does not declare this
+  // contract, including mocked and older-server responses.
+  let exclusiveToolOutput = false;
+  let hasVisibleTextOutput = false;
   // A healthy AI SDK UI stream always ends with a `finish` chunk followed
   // by the `[DONE]` sentinel. An EOF without either means the connection
   // dropped mid-turn (network blip, proxy kill, laptop sleep) — the server
@@ -136,7 +203,75 @@ export async function sendKodyDirectTurn(
       sawTerminal = true;
       return;
     }
-    if (chunk.type === "text-delta" && typeof chunk.delta === "string") {
+    if (
+      chunk.type === "data-subagent-activity" &&
+      chunk.data &&
+      typeof chunk.data.id === "string" &&
+      typeof chunk.data.agentTitle === "string"
+    ) {
+      const phase = chunk.data.phase;
+      if (phase === "started") {
+        ctx.emit({
+          type: "tool-call",
+          id: chunk.data.id,
+          toolName: "subagent",
+          input:
+            typeof chunk.data.task === "string"
+              ? { task: chunk.data.task }
+              : {},
+          status: "running",
+          activityKind: "subagent",
+          displayName: chunk.data.agentTitle,
+          description: "Working on delegated specialist research.",
+        });
+      } else if (
+        phase === "reasoning" &&
+        typeof chunk.data.reasoningDelta === "string" &&
+        chunk.data.reasoningDelta
+      ) {
+        if (!reasoningSubagentIds.has(chunk.data.id)) {
+          reasoningSubagentIds.add(chunk.data.id);
+          ctx.emit({
+            type: "reasoning",
+            text: `${chunk.data.agentTitle}:\n`,
+          });
+        }
+        ctx.emit({ type: "reasoning", text: chunk.data.reasoningDelta });
+      } else if (phase === "completed" || phase === "failed") {
+        const errorText =
+          typeof chunk.data.errorText === "string" &&
+          chunk.data.errorText.trim()
+            ? chunk.data.errorText
+            : "Specialist work failed";
+        ctx.emit({
+          type: "tool-result",
+          id: chunk.data.id,
+          toolName: "subagent",
+          output: { status: phase },
+          ...(phase === "failed" ? { isError: true, errorText } : {}),
+        });
+        if (
+          phase === "completed" &&
+          typeof chunk.data.reasoning === "string" &&
+          chunk.data.reasoning.trim()
+        ) {
+          ctx.emit({
+            type: "reasoning",
+            text: `${chunk.data.agentTitle}:\n${chunk.data.reasoning.trim()}\n\n`,
+          });
+        }
+      }
+    } else if (
+      chunk.type === CHAT_OUTPUT_CONTRACT_DATA_TYPE &&
+      isExclusiveToolOutputContract(chunk.data)
+    ) {
+      exclusiveToolOutput = true;
+    } else if (
+      chunk.type === "text-delta" &&
+      typeof chunk.delta === "string" &&
+      !exclusiveToolOutput
+    ) {
+      hasVisibleTextOutput = true;
       ctx.emit({ type: "token", text: chunk.delta });
     } else if (
       chunk.type === "reasoning-delta" &&
@@ -148,7 +283,11 @@ export async function sendKodyDirectTurn(
       // Counts as terminal: the user already sees why the turn ended, so
       // an EOF right after must not also report a dropped connection.
       sawTerminal = true;
-      ctx.emit({ type: "error", message: chunk.errorText, recoverable: true });
+      ctx.emit({
+        type: "error",
+        message: normalizeModelOperationFailure(chunk.errorText),
+        recoverable: true,
+      });
     } else if (
       chunk.type === "data-tools-index" &&
       chunk.data &&
@@ -176,6 +315,29 @@ export async function sendKodyDirectTurn(
       chunk.toolName !== undefined
     ) {
       toolNameById.set(chunk.toolCallId, chunk.toolName);
+    } else if (
+      chunk.type === "tool-input-delta" &&
+      chunk.toolCallId !== undefined &&
+      chunk.inputTextDelta !== undefined
+    ) {
+      const accumulated =
+        (toolInputTextById.get(chunk.toolCallId) ?? "") + chunk.inputTextDelta;
+      toolInputTextById.set(chunk.toolCallId, accumulated);
+      if (
+        exclusiveToolOutput &&
+        toolNameById.get(chunk.toolCallId) === FINAL_ANSWER_TOOL
+      ) {
+        const content = readStreamingJsonStringProperty(accumulated, "content");
+        const streamed = streamedFinalAnswerById.get(chunk.toolCallId) ?? "";
+        if (content !== null && content.startsWith(streamed)) {
+          const delta = content.slice(streamed.length);
+          if (delta) {
+            hasVisibleTextOutput = true;
+            ctx.emit({ type: "token", text: delta });
+            streamedFinalAnswerById.set(chunk.toolCallId, content);
+          }
+        }
+      }
     } else if (
       chunk.type === "tool-input-available" &&
       chunk.toolCallId !== undefined &&
@@ -208,6 +370,7 @@ export async function sendKodyDirectTurn(
       if (name === FINAL_ANSWER_TOOL) {
         // The final answer supersedes whatever streamed before it.
         if (isFinalAnswerOutput(chunk.output)) {
+          hasVisibleTextOutput = true;
           ctx.emit({ type: "text-replace", text: chunk.output.content });
         }
         return;
@@ -249,7 +412,11 @@ export async function sendKodyDirectTurn(
       if (isRenderedViewDirective(chunk.output)) {
         ctx.emit({
           type: "directive",
-          directive: { kind: "rendered-view", payload: chunk.output },
+          directive: {
+            kind: "rendered-view",
+            payload: chunk.output,
+            presentation: hasVisibleTextOutput ? "append" : "replace",
+          },
         });
       }
       ctx.emit({

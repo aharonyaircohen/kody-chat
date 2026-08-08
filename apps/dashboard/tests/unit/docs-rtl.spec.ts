@@ -16,14 +16,20 @@ const MARKDOWN_VIEWER_SOURCE = readFileSync(
   ),
   "utf8",
 );
+const MARKDOWN_EDITOR_SOURCE = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../packages/base/src/markdown/MarkdownEditor.tsx",
+  ),
+  "utf8",
+);
 
 describe("docs RTL rendering", () => {
   it("renders selected docs with automatic markdown direction", () => {
-    expect(FILE_EDITOR_SOURCE).toContain("<MarkdownPreview");
-    expect(FILE_EDITOR_SOURCE).toContain("{...autoDirProps}");
-    expect(FILE_EDITOR_SOURCE).toContain("text-start");
-    expect(FILE_EDITOR_SOURCE).toContain("rtlAwareMarkdownClassName");
-    expect(FILE_EDITOR_SOURCE).toContain("break-words text-start md:prose-lg");
+    expect(FILE_EDITOR_SOURCE).toContain("<MarkdownEditor");
+    expect(MARKDOWN_EDITOR_SOURCE).toContain("{...autoDirProps}");
+    expect(MARKDOWN_EDITOR_SOURCE).toContain("text-start");
+    expect(MARKDOWN_EDITOR_SOURCE).toContain("rtlAwareMarkdownClassName");
   });
 
   it("keeps standalone markdown docs RTL-aware too", () => {

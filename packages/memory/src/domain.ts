@@ -1,9 +1,5 @@
 export type MemoryKind =
-  | "preference"
-  | "fact"
-  | "decision"
-  | "goal"
-  | "reference";
+  "preference" | "fact" | "decision" | "reference";
 
 export type MemoryStatus = "active" | "superseded" | "expired";
 
@@ -33,7 +29,6 @@ export type EvidenceSource =
   | "user-input"
   | "conversation"
   | "message"
-  | "goal"
   | "pull-request"
   | "document"
   | "engine-run";
@@ -63,9 +58,11 @@ export interface MemoryRevision {
 }
 
 export interface MemoryPrincipal {
-  readonly userId: string;
+  readonly actor: Readonly<MemoryActor>;
   readonly tenantIds: readonly string[];
 }
+
+export type MemoryAction = "read" | "write" | "delete";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -74,7 +71,6 @@ const MEMORY_KINDS: readonly MemoryKind[] = [
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ];
 const MEMORY_STATUSES: readonly MemoryStatus[] = [
@@ -86,7 +82,6 @@ const EVIDENCE_SOURCES: readonly EvidenceSource[] = [
   "user-input",
   "conversation",
   "message",
-  "goal",
   "pull-request",
   "document",
   "engine-run",
@@ -177,11 +172,7 @@ function memoryScope(value: unknown): MemoryScope {
 
 function evidenceRef(value: unknown): Readonly<EvidenceRef> {
   const input = record(value, "Memory evidence");
-  exact(
-    input,
-    ["source", "id", "conversationId", "uri"],
-    "Memory evidence",
-  );
+  exact(input, ["source", "id", "conversationId", "uri"], "Memory evidence");
   if (!EVIDENCE_SOURCES.includes(input.source as EvidenceSource)) {
     throw new Error("Memory evidence source is invalid");
   }
@@ -256,9 +247,7 @@ export function createMemory(value: unknown): Readonly<Memory> {
   });
 }
 
-export function createMemoryRevision(
-  value: unknown,
-): Readonly<MemoryRevision> {
+export function createMemoryRevision(value: unknown): Readonly<MemoryRevision> {
   const input = record(value, "Memory revision");
   exact(
     input,
@@ -346,11 +335,16 @@ export function reviseMemory(
   return Object.freeze({ memory: updated, revision });
 }
 
-export function canAccessMemoryScope(
+export function canPerformMemoryAction(
   principal: Readonly<MemoryPrincipal>,
   scope: MemoryScope,
+  action: MemoryAction,
 ): boolean {
-  return scope.kind === "user"
-    ? scope.userId === principal.userId
-    : principal.tenantIds.includes(scope.tenantId);
+  if (principal.actor.kind === "system") return false;
+  const hasScopeAccess =
+    scope.kind === "user"
+      ? principal.actor.kind === "user" && scope.userId === principal.actor.id
+      : principal.tenantIds.includes(scope.tenantId);
+  if (!hasScopeAccess) return false;
+  return action !== "delete" || principal.actor.kind === "user";
 }

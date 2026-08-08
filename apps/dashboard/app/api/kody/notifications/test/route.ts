@@ -17,41 +17,7 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { sendNotification } from "@dashboard/lib/notifications/channels/send";
-
-const channelSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("slack-webhook"),
-    url: z.string().url().startsWith("https://hooks.slack.com/"),
-  }),
-  z.object({
-    type: z.literal("telegram-bot"),
-    botToken: z.string().min(1),
-    chatId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("discord-webhook"),
-    url: z
-      .string()
-      .url()
-      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
-  }),
-  z.object({
-    type: z.literal("generic-webhook"),
-    url: z.string().url().startsWith("https://"),
-    jsonTemplate: z.string().max(4000).optional(),
-    bodyFormat: z.enum(["json", "form"]).optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-  }),
-  z.object({
-    type: z.literal("web-push"),
-  }),
-]);
-
-const testSchema = z.object({
-  channel: channelSchema,
-  text: z.string().min(1).max(2000),
-  actorLogin: z.string().optional(),
-});
+import { NotificationTestSchema } from "@dashboard/lib/notifications";
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -59,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const parsed = testSchema.parse(payload);
+    const parsed = NotificationTestSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, parsed.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;

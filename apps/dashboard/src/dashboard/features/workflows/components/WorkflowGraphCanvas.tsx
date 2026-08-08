@@ -44,10 +44,12 @@ const NODE_WIDTH = 220;
 const NODE_HEIGHT = 68;
 const DECISION_WIDTH = 164;
 const DECISION_HEIGHT = 88;
+const TERMINAL_WIDTH = 112;
+const TERMINAL_HEIGHT = 48;
 
 interface WorkflowNodeData extends Record<string, unknown> {
   label: string;
-  kind: "capability" | "decision";
+  kind: "capability" | "decision" | "terminal";
   capability?: string;
   question?: string;
   start: boolean;
@@ -95,7 +97,7 @@ function isBackwardEdge(
 ): boolean {
   const capabilityPositions = new Map(
     graph.nodes
-      .filter((node) => node.kind !== "decision")
+      .filter((node) => node.kind !== "decision" && node.kind !== "terminal")
       .map((node, index) => [node.id, index]),
   );
   const sourceNode = graph.nodes.find((node) => node.id === edge.source);
@@ -172,8 +174,18 @@ async function layoutNodes(
     },
     children: graph.nodes.map((node) => ({
       id: node.id,
-      width: node.kind === "decision" ? DECISION_WIDTH : NODE_WIDTH,
-      height: node.kind === "decision" ? DECISION_HEIGHT : NODE_HEIGHT,
+      width:
+        node.kind === "decision"
+          ? DECISION_WIDTH
+          : node.kind === "terminal"
+            ? TERMINAL_WIDTH
+            : NODE_WIDTH,
+      height:
+        node.kind === "decision"
+          ? DECISION_HEIGHT
+          : node.kind === "terminal"
+            ? TERMINAL_HEIGHT
+            : NODE_HEIGHT,
     })),
     edges: graph.edges.map((edge) => ({
       id: edge.id,
@@ -191,7 +203,12 @@ async function layoutNodes(
   const completed = new Set(runState?.completedStepIds ?? []);
   return graph.nodes.map((node) => ({
     id: node.id,
-    type: node.kind === "decision" ? "decision" : "capability",
+    type:
+      node.kind === "decision"
+        ? "decision"
+        : node.kind === "terminal"
+          ? "terminal"
+          : "capability",
     position: positions.get(node.id) ?? { x: 0, y: 0 },
     data: {
       label:
@@ -200,8 +217,15 @@ async function layoutNodes(
               graph.edges.find((edge) => edge.source === node.id && edge.when)
                 ?.when,
             )
-          : (node.capability ?? node.id),
-      kind: node.kind === "decision" ? "decision" : "capability",
+          : node.kind === "terminal"
+            ? "End"
+            : (node.capability ?? node.id),
+      kind:
+        node.kind === "decision"
+          ? "decision"
+          : node.kind === "terminal"
+            ? "terminal"
+            : "capability",
       capability: node.capability,
       question:
         node.kind === "decision"
@@ -267,7 +291,20 @@ function DecisionNode({ data }: NodeProps<WorkflowFlowNode>) {
   );
 }
 
-const nodeTypes = { capability: CapabilityNode, decision: DecisionNode };
+function TerminalNode() {
+  return (
+    <div className="relative flex h-12 w-28 items-center justify-center rounded-full border border-emerald-400/50 bg-emerald-400/10 text-xs font-medium uppercase tracking-wide text-emerald-300 shadow-sm">
+      <Handle type="target" position={Position.Left} />
+      End
+    </div>
+  );
+}
+
+const nodeTypes = {
+  capability: CapabilityNode,
+  decision: DecisionNode,
+  terminal: TerminalNode,
+};
 
 export function WorkflowGraphCanvas({
   graph,
@@ -514,18 +551,20 @@ export function WorkflowGraphCanvas({
 
   const edgeIsLoop = selectedEdge ? isBackwardEdge(graph, selectedEdge) : false;
   const selectedNodeIsDecision = selectedNode?.kind === "decision";
+  const selectedNodeIsTerminal = selectedNode?.kind === "terminal";
   const selectedEdgeSource = selectedEdge
     ? graph.nodes.find((node) => node.id === selectedEdge.source)
     : undefined;
   const selectedEdgeIsDecisionBranch = selectedEdgeSource?.kind === "decision";
   const capabilityCount = graph.nodes.filter(
-    (node) => node.kind !== "decision",
+    (node) => node.kind !== "decision" && node.kind !== "terminal",
   ).length;
   const decisionCount = graph.nodes.filter(
     (node) => node.kind === "decision",
   ).length;
   const displayNodeName = (nodeId: string) => {
     const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+    if (node?.kind === "terminal") return "End";
     return node?.capability ?? node?.question ?? "next step";
   };
 
@@ -539,8 +578,10 @@ export function WorkflowGraphCanvas({
         </span>
         <span className="font-mono">
           {capabilityCount} steps
-          {decisionCount > 0 ? ` · ${decisionCount} decisions` : ""} ·{" "}
-          {graph.edges.length} paths
+          {decisionCount > 0
+            ? ` · ${decisionCount} decision${decisionCount === 1 ? "" : "s"}`
+            : ""}{" "}
+          · {graph.edges.length} paths
         </span>
       </div>
       <div
@@ -633,15 +674,21 @@ export function WorkflowGraphCanvas({
                                 edge.source === selectedNode.id && edge.when,
                             )?.when,
                           )
-                        : (selectedNode.capability ?? selectedNode.id)}
+                        : selectedNodeIsTerminal
+                          ? "End"
+                          : (selectedNode.capability ?? selectedNode.id)}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {selectedNodeIsDecision
                         ? "Choose what happens next"
-                        : "Workflow step"}
+                        : selectedNodeIsTerminal
+                          ? "Workflow complete"
+                          : "Workflow step"}
                     </div>
                   </div>
-                  {editable && !selectedNodeIsDecision ? (
+                  {editable &&
+                  !selectedNodeIsDecision &&
+                  !selectedNodeIsTerminal ? (
                     <Button
                       type="button"
                       variant={
@@ -703,7 +750,7 @@ export function WorkflowGraphCanvas({
                     </div>
                   </div>
                 ) : null}
-                {!selectedNodeIsDecision ? (
+                {!selectedNodeIsDecision && !selectedNodeIsTerminal ? (
                   <div className="space-y-2">
                     <div>
                       <Label htmlFor="workflow-capability-input">

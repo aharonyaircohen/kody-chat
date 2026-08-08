@@ -17,7 +17,7 @@
  */
 import { logger } from "@kody-ade/base/logger";
 import { derivePoolApiKey } from "./pool-keys";
-import type { KodyRunRequest } from "./run-request";
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 
 function poolBaseUrl(): string | null {
   const raw = process.env.FLY_POOL_URL?.trim();
@@ -35,7 +35,7 @@ export interface PoolJob {
   /** owner/name */
   repo: string;
   /** Canonical target/intent request. */
-  runRequest: KodyRunRequest;
+  runRequest: EngineExecutionRequest;
   idleExitMs?: number;
   hardCapMs?: number;
   ref?: string;

@@ -70,14 +70,14 @@ describe("CMS service GitHub adapter integration", () => {
     octokit = new FakeOctokit();
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "stable",
       "cms/adapters/github/index.mjs",
       readStoreFile("cms/adapters/github/index.mjs"),
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "stable",
       "cms/contract/index.mjs",
       readStoreFile("cms/contract/index.mjs"),
@@ -160,7 +160,7 @@ describe("CMS service GitHub adapter integration", () => {
     const req = request("transport-ref");
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "transport-ref",
       "cms/adapters/github/index.mjs",
       [
@@ -178,7 +178,7 @@ describe("CMS service GitHub adapter integration", () => {
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "transport-ref",
       "cms/contract/index.mjs",
       readStoreFile("cms/contract/index.mjs"),
@@ -321,7 +321,7 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "stable",
       "cms/adapters/mongodb/index.mjs",
       [
@@ -363,7 +363,7 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "injected-mongodb",
       "cms/adapters/mongodb/index.mjs",
       [
@@ -385,7 +385,7 @@ describe("CMS service GitHub adapter integration", () => {
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "injected-mongodb",
       "cms/contract/index.mjs",
       readStoreFile("cms/contract/index.mjs"),
@@ -414,21 +414,21 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "no-node-modules",
       "cms/adapters/github/index.mjs",
       readStoreFile("cms/adapters/github/index.mjs"),
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "no-node-modules",
       "cms/contract/index.mjs",
       readStoreFile("cms/contract/index.mjs"),
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "no-node-modules",
       "cms/adapters/mongodb/index.mjs",
       [
@@ -478,7 +478,7 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "incomplete-node-modules",
       "cms/adapters/mongodb/index.mjs",
       [
@@ -499,7 +499,7 @@ describe("CMS service GitHub adapter integration", () => {
     );
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "incomplete-node-modules",
       "cms/contract/index.mjs",
       readStoreFile("cms/contract/index.mjs"),
@@ -544,7 +544,7 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "stable",
       "cms/adapters/broken/index.mjs",
       [
@@ -580,7 +580,7 @@ describe("CMS service GitHub adapter integration", () => {
 
     octokit.seedText(
       "aharonyaircohen",
-      "kody-company-store",
+      "kody-ai-agency-catalog",
       "stable",
       "cms/adapters/rate-limited/index.mjs",
       [
@@ -703,7 +703,7 @@ function request(storeRef = "stable") {
       "x-kody-owner": "A-Guy-educ",
       "x-kody-repo": "A-Guy-Web",
       "x-kody-store-repo-url":
-        "https://github.com/aharonyaircohen/kody-company-store",
+        "https://github.com/aharonyaircohen/kody-ai-agency-catalog",
       "x-kody-store-ref": storeRef,
     },
   });

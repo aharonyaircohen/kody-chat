@@ -75,10 +75,34 @@ describe("workflow definition convex store", () => {
     expect(await readWorkflowDefinitionFile("release")).toBeNull();
   });
 
-  it("lists workflows sorted by id", async () => {
+  it("does not expose a Store projection as a local workflow", async () => {
+    convex.query.mockResolvedValue({
+      workflowId: "release",
+      definition: DEFINITION,
+      source: "store",
+      updatedAt: DEFINITION.updatedAt,
+    });
+
+    expect(await readWorkflowDefinitionFile("release")).toBeNull();
+  });
+
+  it("lists only local workflows sorted by id", async () => {
     convex.query.mockResolvedValue([
-      { workflowId: "zeta", definition: { ...DEFINITION, name: "zeta" } },
-      { workflowId: "alpha", definition: { ...DEFINITION, name: "alpha" } },
+      {
+        workflowId: "zeta",
+        definition: { ...DEFINITION, name: "zeta" },
+        source: "local",
+      },
+      {
+        workflowId: "store-copy",
+        definition: { ...DEFINITION, name: "store-copy" },
+        source: "store",
+      },
+      {
+        workflowId: "alpha",
+        definition: { ...DEFINITION, name: "alpha" },
+        source: "local",
+      },
     ]);
 
     const records = await listWorkflowDefinitionFiles();

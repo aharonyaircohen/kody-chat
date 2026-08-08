@@ -15,7 +15,7 @@ import {
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { setGitHubContext, clearGitHubContext } from "../github";
+import { setGitHubContext, clearGitHubContext, getOctokit } from "../github";
 import {
   listResolvedAgentFiles,
   writeAgentFile,
@@ -51,8 +51,15 @@ export async function GET(req: NextRequest) {
         { agent: [], error: "repository_context_required" },
         { status: 400, headers: NO_STORE_HEADERS },
       );
+    const octokit = getOctokit();
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const activeStoreSlugs = new Set(config.company?.activeAgents ?? []);
     return NextResponse.json(
-      { agent: await listResolvedAgentFiles() },
+      { agent: await listResolvedAgentFiles({ activeStoreSlugs }) },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {
@@ -91,6 +98,10 @@ const createAgentSchema = z.object({
   title: z.string().min(1),
   body: z.string().default(""),
   capabilities: z.array(z.string()).max(50).optional(),
+  subagents: z
+    .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
+    .max(20)
+    .optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -115,6 +126,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       capabilities,
+      subagents,
       actorLogin,
     } = createAgentSchema.parse(payload);
 
@@ -125,6 +137,16 @@ export async function POST(req: NextRequest) {
           error: "invalid_slug",
           message:
             "Agent slug must be lowercase letters, digits, dashes, or underscores.",
+        },
+        { status: 400 },
+      );
+    }
+    const assignedSubagents = [...new Set(subagents ?? [])];
+    if (assignedSubagents.includes(slug)) {
+      return NextResponse.json(
+        {
+          error: "invalid_subagent_assignment",
+          message: "An Agent cannot assign itself as a subagent.",
         },
         { status: 400 },
       );
@@ -149,6 +171,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       ...(capabilities ? { capabilities } : {}),
+      ...(assignedSubagents.length > 0 ? { subagents: assignedSubagents } : {}),
     });
     if (!headerAuth) {
       throw new Error("Repository context is required to save an agent");

@@ -25,16 +25,16 @@ notification code**.
 
 ### Channels are Discussions
 
-A channel is a GitHub Discussion in the repo's goals category whose title
+A channel is a GitHub Discussion in the repo's preferred category whose title
 starts with `#`. The list/create API
 ([`messages/route.ts`](../app/api/kody/messages/route.ts)) calls
 `fetchMessageChannels` (cached) and, when Discussions are off or no
 category exists, returns `{ enabled: false, reason, channels: [] }` so the
 UI renders a disabled badge instead of an empty list.
 
-A channel's message feed reuses the **goal-discussion comment** plumbing
+A channel's message feed reuses the **discussion comment** plumbing
 ([`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)):
-`fetchGoalDiscussionComments` to read, `postGoalDiscussionComment` to post.
+`fetchDiscussionComments` to read, `postDiscussionComment` to post.
 Posting therefore invalidates the right per-discussion comment cache and —
 because the comment is a real GitHub `discussion_comment` — fans @mentions
 out to push / Slack / inbox for free. `DELETE` removes the whole channel
@@ -244,7 +244,7 @@ why it needed no new dispatch code at all.
 | File                                                                               | Purpose                                                  |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | [`MessagesView.tsx`](../src/dashboard/lib/components/MessagesView.tsx)             | Channel rail + thread + composer; mark-seen effect       |
-| [`messages/route.ts`](../app/api/kody/messages/route.ts)                           | List / create channels (Discussions in goals category)   |
+| [`messages/route.ts`](../app/api/kody/messages/route.ts)                           | List / create channels (GitHub Discussions)              |
 | [`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)         | Channel feed: GET comments, POST message, DELETE channel |
 | [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts)     | Per-user unread state (GET / POST mark-seen)             |
 | [`channels-seen.ts`](../src/dashboard/lib/messages/channels-seen.ts)               | Read-state manifest types + parse/serialize              |

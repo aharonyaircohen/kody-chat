@@ -3,13 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   getRequestAuth,
+  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { recordAudit } from "@kody-ade/base/activity/audit";
 import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@kody-ade/base/engine/config";
+import {
   deleteCapabilityFile,
   isValidSlug,
+  readCapabilityFile,
   readResolvedCapabilityFile,
   writeCapabilityFolderFiles,
 } from "@kody-ade/agency/capabilities";
@@ -22,6 +28,7 @@ const fileSchema = z.object({
 
 const updateSchema = z.object({
   instructions: z.string().trim().min(1),
+  contract: z.string().nullable().optional(),
   skills: z.array(fileSchema).default([]),
   tools: z.array(fileSchema).default([]),
   actorLogin: z.string().optional(),
@@ -48,6 +55,7 @@ function capabilityFiles(input: z.infer<typeof updateSchema>) {
   const files: Record<string, string> = {
     "instructions.md": `${input.instructions.trim()}\n`,
   };
+  if (input.contract) files["contract.json"] = input.contract;
   for (const skill of input.skills) {
     files[`skills/${skill.path}`] = skill.content;
   }
@@ -177,8 +185,53 @@ export async function DELETE(
       new URL(req.url).searchParams.get("actorLogin") ?? undefined,
     );
     if (actorResult instanceof NextResponse) return actorResult;
-    if (!(await readResolvedCapabilityFile(slug))) {
-      return NextResponse.json({ success: true, alreadyMissing: true });
+    const local = await readCapabilityFile(slug);
+    if (!local) {
+      const octokit = await getUserOctokit(req);
+      if (!octokit) {
+        return NextResponse.json(
+          {
+            error: "no_user_token",
+            message:
+              "A signed-in GitHub token is required to update repository configuration.",
+          },
+          { status: 401 },
+        );
+      }
+      const { config } = await getEngineConfig(
+        octokit,
+        context.auth.owner,
+        context.auth.repo,
+        { force: true },
+      );
+      const activeCapabilities = config.company?.activeCapabilities ?? [];
+      if (!activeCapabilities.includes(slug)) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+      const nextActiveCapabilities = activeCapabilities.filter(
+        (value) => value !== slug,
+      );
+      await writeConfigPatch(
+        octokit,
+        context.auth.owner,
+        context.auth.repo,
+        {
+          activeCapabilities:
+            nextActiveCapabilities.length > 0
+              ? nextActiveCapabilities
+              : null,
+        },
+        `chore(kody): remove store capability ${slug}`,
+      );
+      recordAudit(req, {
+        action: "capability.removeStoreReference",
+        resource: slug,
+        detail: `removed Store capability ${slug} from this repo`,
+      });
+      return NextResponse.json({
+        success: true,
+        removedStoreReference: true,
+      });
     }
     await deleteCapabilityFile(slug);
     recordAudit(req, {

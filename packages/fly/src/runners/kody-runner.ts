@@ -5,7 +5,7 @@ import {
   claimOrRunServer,
   resolveServerContext,
 } from "./server-run";
-import type { KodyRunRequest } from "./run-request";
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 
 interface RepoMetadataOctokit {
   rest: {
@@ -35,7 +35,7 @@ export async function runScheduledKodyOnRunner(
   req: NextRequest,
   opts: {
     taskId: string;
-    runRequest: KodyRunRequest;
+  runRequest: EngineExecutionRequest;
   },
 ): Promise<ScheduledKodyRunResult> {
   const ctxResult = await resolveServerContext(req);

@@ -17,7 +17,7 @@ import {
   type ChatHostEffect,
 } from "../chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
-import { useAuth } from "../auth-context";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "@kody-ade/base/types";
 // Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
@@ -37,10 +37,6 @@ import {
   useSlashCommands,
   type SlashExpansionEffectPayload,
 } from "../chat/plugins/commands";
-import {
-  readGoalDirectEffect,
-  type GoalDirectEffectPayload,
-} from "../chat/plugins/goals";
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
@@ -75,11 +71,24 @@ import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "../voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
+import { useMachineAccessSelection } from "../chat/core/use-machine-access-selection";
+import { useLocalMachineAvailability } from "../chat/core/use-machine-availability";
+import {
+  modelEntriesForMachineAccess,
+  reconcileMachineSelection,
+} from "../chat/core/machine-access";
+import type { MachineAccess } from "../chat-types";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
+import type { ChatSetupSection } from "../chat/surface/ChatSetupControl";
+import {
+  isModelOutputRecoveryView,
+  MODEL_OUTPUT_RECOVERY_ACTION,
+} from "../chat/core/model-output-recovery";
 import { MessageList } from "../chat/surface/MessageList";
+import type { WidgetHostEvent } from "../chat/surface/widget-host";
 import { Composer } from "../chat/surface/Composer";
 import type { StaffMentionTrigger } from "../mentions/agent-mentions";
 import { EmptyState } from "../chat/surface/EmptyState";
@@ -91,17 +100,26 @@ import type {
   PreviewActDirective,
 } from "../chat-ui-actions";
 import { isRenderedViewDirective } from "../chat-ui-actions";
-import {
-  consumeGuidedFlowOpenRequest,
-  GUIDED_FLOW_OPEN_EVENT,
-  requestGuidedFlowOpen,
-  type GuidedFlowOpenRequest,
-} from "../guided-flows/events";
-import { buildGuidedFlowStatusView } from "../guided-flows/registry";
+import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
+import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
+import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
+import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
+import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
+import {
+  buildWidgetPreviewView,
+  consumeWidgetOpenRequest,
+  isWidgetPreviewView,
+  isWidgetOpenRequest,
+  setActiveWidgetConversationId,
+  WIDGET_OPEN_EVENT,
+  type WidgetOpenRequest,
+} from "../widgets/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 export function KodyChat({
+  guidedFlowRequest,
+  onGuidedFlowRequestHandled,
   context,
   actorLogin,
   onClose,
@@ -122,8 +140,6 @@ export function KodyChat({
   vibeMode,
   onIssueCreated,
   onIssueReportReady,
-  knownGoals,
-  onDirectToGoal,
   composerInjection,
   attachmentInjection,
   previewContext,
@@ -154,24 +170,13 @@ export function KodyChat({
     context?.kind === "task" ? context.task : null;
   const selectedCapability =
     context?.kind === "capability" ? context.capability : null;
-  // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
-  // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
-  const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
-  const plannerSessionId =
-    context?.kind === "goal-planner" ? context.sessionId : null;
-  const plannerExistingTasks =
-    context?.kind === "goal-planner" ? context.existingTasks : undefined;
-  const onPlannerTasksCreated =
-    context?.kind === "goal-planner" ? context.onTasksCreated : undefined;
-  const onPlannerExit =
-    context?.kind === "goal-planner" ? context.onExit : undefined;
   // Report mode: chat scoped to a markdown report on /reports. The agent
-  // is framed to advise: create issue, attach to a goal, or no action.
+  // is framed to advise: create an issue or take no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
 
-  // Per-scope (task / capability / planner / global) scope blocks flow through
+  // Per-scope (task / capability / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
-  // capability / ## Goal planning mode / ## Current report). The thread itself is
+  // capability / ## Current report). The thread itself is
   // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
@@ -188,61 +193,117 @@ export function KodyChat({
   // Add a picker selection as a chip. Keyed by id so a re-render with the same
   // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    const openGuidedFlow = (request: {
-      instanceId: string;
-      message: "started" | "resumed";
-    }) => {
-      const { instanceId, message } = request;
-
-      void fetch(
-        `/api/kody/guided-flows?instanceId=${encodeURIComponent(instanceId)}`,
-        { headers: authHeaders() },
-      )
-        .then(async (response) => {
-          if (!response.ok) return null;
-          return (await response.json()) as { flow?: { view?: unknown } };
-        })
-        .then((payload) => {
-          const view = payload?.flow?.view;
-          if (!isRenderedViewDirective(view)) return;
-          persistGuidedFlowMessageRef.current(
-            activeGuidedFlowSessionIdRef.current,
-            {
-              role: "assistant",
-              content:
-                message === "started"
-                  ? "GuidedFlow started. Follow the steps below."
-                  : "GuidedFlow resumed. Continue where you stopped.",
-              timestamp: new Date().toISOString(),
-              view,
-            },
+  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
+    sessionId: string | null;
+    message: Message;
+  } | null>(null);
+  const createGuidedFlowSessionRef = useRef<() => string>(() => "");
+  const activateGuidedFlowSessionRef = useRef<(sessionId: string) => void>(
+    () => undefined,
+  );
+  const openGuidedFlow = useCallback(
+    async (request: GuidedFlowOpenRequest): Promise<boolean> => {
+      const requestKey =
+        "flowId" in request
+          ? `flow:${request.flowId}:${request.instanceKey ?? ""}`
+          : `instance:${request.instanceId}`;
+      if (guidedFlowOpenInFlightRef.current.has(requestKey)) return false;
+      guidedFlowOpenInFlightRef.current.add(requestKey);
+      try {
+        const conversationId =
+          activeGuidedFlowSessionIdRef.current ??
+          createGuidedFlowSessionRef.current();
+        activeGuidedFlowSessionIdRef.current = conversationId;
+        const response =
+          "flowId" in request
+            ? await fetch("/api/kody/guided-flows", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...authHeaders(),
+                },
+                body: JSON.stringify({
+                  action: "start",
+                  flowId: request.flowId,
+                  conversationId,
+                  ...(request.instanceKey
+                    ? { instanceKey: request.instanceKey }
+                    : {}),
+                }),
+              })
+            : await fetch("/api/kody/guided-flows", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...authHeaders(),
+                },
+                body: JSON.stringify({
+                  action: "bind",
+                  instanceId: request.instanceId,
+                  conversationId,
+                }),
+              });
+        const payload = (await response.json().catch(() => null)) as {
+          error?: unknown;
+          view?: unknown;
+          compatibility?: { status?: unknown; code?: unknown };
+          flow?: {
+            view?: unknown;
+            compatibility?: { status?: unknown; code?: unknown };
+          };
+        } | null;
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : "guided_flow_action_failed",
           );
-        })
-        .catch(() => undefined);
-    };
+        }
+        const flowPayload = readGuidedFlowOpenPayload(payload);
+        if (flowPayload.compatibility?.status === "incompatible") {
+          throw new Error(
+            typeof flowPayload.compatibility.code === "string"
+              ? flowPayload.compatibility.code
+              : "renderer_contract_invalid",
+          );
+        }
+        const view = flowPayload.view;
+        if (!isRenderedViewDirective(view)) {
+          throw new Error("renderer_contract_invalid");
+        }
+        const message: Message = {
+          role: "assistant",
+          content:
+            request.message === "started"
+              ? "GuidedFlow started. Follow the steps below."
+              : "GuidedFlow resumed. Continue where you stopped.",
+          timestamp: new Date().toISOString(),
+          view,
+        };
+        activateGuidedFlowSessionRef.current(conversationId);
+        setResumedGuidedFlowMessage({ sessionId: conversationId, message });
+        persistGuidedFlowMessageRef.current(conversationId, message);
+        return true;
+      } catch (error) {
+        toast.error(
+          guidedFlowActionErrorMessage(
+            error instanceof Error ? error.message : undefined,
+          ),
+        );
+        return false;
+      } finally {
+        guidedFlowOpenInFlightRef.current.delete(requestKey);
+      }
+    },
+    [],
+  );
 
-    const handleGuidedFlowOpen = (event: Event) => {
-      const detail = (event as CustomEvent<Partial<GuidedFlowOpenRequest>>)
-        .detail;
-      if (
-        typeof detail?.instanceId !== "string" ||
-        (detail.message !== "started" && detail.message !== "resumed")
-      )
-        return;
-      consumeGuidedFlowOpenRequest();
-      openGuidedFlow({
-        instanceId: detail.instanceId,
-        message: detail.message,
-      });
-    };
-
-    window.addEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
-    const pendingRequest = consumeGuidedFlowOpenRequest();
-    if (pendingRequest) openGuidedFlow(pendingRequest);
-    return () =>
-      window.removeEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
-  }, []);
+  useEffect(() => {
+    if (!guidedFlowRequest) return;
+    void openGuidedFlow(guidedFlowRequest.request).finally(() => {
+      onGuidedFlowRequestHandled?.(guidedFlowRequest.id);
+    });
+  }, [guidedFlowRequest, onGuidedFlowRequestHandled, openGuidedFlow]);
 
   useEffect(() => {
     if (
@@ -301,10 +362,12 @@ export function KodyChat({
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
   const activeGuidedFlowSessionIdRef = useRef<string | null>(null);
+  const guidedFlowOpenInFlightRef = useRef<Set<string>>(new Set());
   const persistedGuidedFlowViewKeysRef = useRef<Set<string>>(new Set());
   const persistGuidedFlowMessageRef = useRef<
     (sessionId: string | null, message: Message) => void
   >(() => undefined);
+  const pendingGuidedFlowMessageRef = useRef<Message | null>(null);
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
@@ -312,9 +375,8 @@ export function KodyChat({
   // useState initializer, never re-registered on re-render.
   // KodyChat owns ONLY the registration mechanics; the HOST surface passes
   // its plugin list (Step 6 / M6 — per-surface imports, so /client sheds
-  // admin plugin code): ChatRailShell registers terminal + commands + vibe
-  // + goals on both of its mounts, GoalControl's planner dialog registers
-  // terminal + commands + vibe (it never routes goals), ClientChatSurface
+  // admin plugin code): ChatRailShell registers terminal + commands + vibe,
+  // ClientChatSurface
   // registers branding + commands under its minimal grant. Registration
   // order = array order (theme/slot merge order); middleware ordering is
   // registry-sorted by `order` regardless.
@@ -354,18 +416,6 @@ export function KodyChat({
       pendingSlashExpansionRef.current = null;
       return expansion;
     }, []);
-  // Goal-direct hand-off (Step 5d): same synchronous ref pattern — the
-  // goals plugin's mention middleware CONSUMES the message and dispatches
-  // this effect during runSendMiddleware; sendMessage's consumed branch
-  // reads it and runs the existing onDirectToGoal path (scope swap + rest
-  // of the message back into the composer).
-  const pendingGoalDirectRef = useRef<GoalDirectEffectPayload | null>(null);
-  const consumePendingGoalDirect =
-    useCallback((): GoalDirectEffectPayload | null => {
-      const goalDirect = pendingGoalDirectRef.current;
-      pendingGoalDirectRef.current = null;
-      return goalDirect;
-    }, []);
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
@@ -378,11 +428,6 @@ export function KodyChat({
     const slashExpansion = readSlashExpansionEffect(effect);
     if (slashExpansion) {
       pendingSlashExpansionRef.current = slashExpansion;
-      return;
-    }
-    const goalDirect = readGoalDirectEffect(effect);
-    if (goalDirect) {
-      pendingGoalDirectRef.current = goalDirect;
       return;
     }
     switch (effect.kind) {
@@ -439,9 +484,16 @@ export function KodyChat({
     useState<
       import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope
     >(desiredSessionScope);
+  const directHeadersKey = JSON.stringify(kodyDirectHeaders ?? {});
   const conversationRequestHeaders = useMemo(
-    () => ({ ...(auth ? authHeaders() : {}), ...kodyDirectHeaders }),
-    [auth, kodyDirectHeaders],
+    () => ({
+      ...buildAuthHeaders(auth),
+      ...kodyDirectHeaders,
+    }),
+    // Keep the conversation client stable when the auth provider recreates an
+    // equivalent object; replacing it rehydrates the session store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [auth?.owner, auth?.repo, auth?.token, auth?.user.login, directHeadersKey],
   );
   const sessionHook = useConversationSessions(
     sessionStoreScope,
@@ -449,7 +501,14 @@ export function KodyChat({
     effectiveActorLogin,
     effectiveActorLogin !== null,
   );
+  const { machineAccess, setMachineAccess } =
+    useMachineAccessSelection(sessionHook);
+  const localMachineAvailable = useLocalMachineAvailability(
+    conversationRequestHeaders,
+  );
   const createChatSession = sessionHook.createSession;
+  const setChatSessionMessages = sessionHook.setSessionMessages;
+  activateGuidedFlowSessionRef.current = sessionHook.switchSession;
 
   // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected
   // agent/model state, dropdown entries, default resolution, family snap,
@@ -461,8 +520,6 @@ export function KodyChat({
     setSelectedModelId,
     agentMenuOpen,
     setAgentMenuOpen,
-    reasoningMenuOpen,
-    setReasoningMenuOpen,
     setReasoningEffort,
     currentAgent,
     agentList,
@@ -480,16 +537,35 @@ export function KodyChat({
     brainModels,
     sessionHook,
   });
+  const [requestedSetupSection, setRequestedSetupSection] =
+    useState<ChatSetupSection | null>(null);
+  const createSelectedChatSession = useCallback(
+    (options?: { machineAccess?: MachineAccess }) =>
+      createChatSession({
+        ...(sessionHook.hydrated && chatModelsLoaded && currentEntry?.key
+          ? { agentKey: currentEntry.key }
+          : {}),
+        ...(options?.machineAccess
+          ? { machineAccess: options.machineAccess }
+          : {}),
+      }),
+    [
+      chatModelsLoaded,
+      createChatSession,
+      currentEntry?.key,
+      sessionHook.hydrated,
+    ],
+  );
+  createGuidedFlowSessionRef.current = createSelectedChatSession;
 
   // Read-only host snapshot handed to slot components and send middleware.
   // Minimal by design (plan H2 host-context channel) — grows per plugin
   // need, not speculatively. `slashCommands` feeds the commands plugin's
-  // slash-expansion middleware (Step 5b); `knownGoals` feeds the goals
-  // plugin's mention middleware (Step 5d): the manifests are static pure
-  // data, so the async-loaded lists travel via host context.
+  // slash-expansion middleware (Step 5b). Manifests are static pure data,
+  // so async-loaded lists travel via host context.
   const pluginHost = useMemo(
-    () => ({ pathname, agentId: selectedAgentId, slashCommands, knownGoals }),
-    [pathname, selectedAgentId, slashCommands, knownGoals],
+    () => ({ pathname, agentId: selectedAgentId, slashCommands }),
+    [pathname, selectedAgentId, slashCommands],
   );
   const brainAbortRef = useRef<AbortController | null>(null);
   const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
@@ -607,7 +683,7 @@ export function KodyChat({
     [auth, router],
   );
   const { data: repoAgents = [] } = useAgents();
-  const { createSession, setSessionAgencyAgent } = sessionHook;
+  const { setSessionAgencyAgent } = sessionHook;
   const selectedAgencyAgentSlug =
     sessionHook.activeSession?.agencyAgent?.slug ?? "kody";
   const repoAgentSlugs = useMemo(
@@ -634,7 +710,7 @@ export function KodyChat({
             ? { slug: "kody", title: "Kody" }
             : await kodyApi.agent.get(nextSlug);
         const activeSessionId =
-          sessionHook.activeSession?.id ?? createSession();
+          sessionHook.activeSession?.id ?? createSelectedChatSession();
         setSessionAgencyAgent(activeSessionId, {
           slug: resolvedAgent.slug,
           title: resolvedAgent.title,
@@ -649,7 +725,7 @@ export function KodyChat({
       repoAgents,
       selectedAgencyAgentSlug,
       sessionHook.activeSession?.id,
-      createSession,
+      createSelectedChatSession,
       setSessionAgencyAgent,
     ],
   );
@@ -728,7 +804,7 @@ export function KodyChat({
     lockedAgentId,
     pluginRegistry,
     activeSessionIdForReset,
-    createChatSession,
+    createChatSession: createSelectedChatSession,
     sessions: sessionHook.sessions,
     sessionsHydrated: sessionHook.hydrated,
     sessionStoreScope,
@@ -740,23 +816,74 @@ export function KodyChat({
     setContextChips,
   });
 
-  const selectChatEntry = useCallback(
+  const activeSelectionSessionId = sessionHook.activeSession?.id;
+  const persistSessionAgent = sessionHook.setSessionAgent;
+  const applyChatEntry = useCallback(
     (entry: (typeof agentList)[number]) => {
       setSelectedAgentId(entry.agentId);
       setSelectedModelId(entry.modelId);
-      const activeId = sessionHook.activeSession?.id;
-      if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
-      setAgentMenuOpen(false);
+      if (activeSelectionSessionId) {
+        persistSessionAgent(activeSelectionSessionId, entry.key);
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      sessionHook.activeSession?.id,
-      sessionHook.setSessionAgent,
-      setAgentMenuOpen,
+      activeSelectionSessionId,
+      persistSessionAgent,
       setSelectedAgentId,
       setSelectedModelId,
     ],
   );
+  const selectChatEntry = useCallback(
+    (entry: (typeof agentList)[number]) => {
+      applyChatEntry(entry);
+      setAgentMenuOpen(false);
+    },
+    [applyChatEntry, setAgentMenuOpen],
+  );
+  const selectMachineAccess = useCallback(
+    (next: MachineAccess) => {
+      setMachineAccess(next);
+      const compatibleEntries = modelEntriesForMachineAccess(agentList, next);
+      const currentIsCompatible = compatibleEntries.some(
+        (entry) =>
+          entry.agentId === selectedAgentId &&
+          (entry.modelId ?? null) === selectedModelId,
+      );
+      if (!currentIsCompatible && compatibleEntries[0]) {
+        selectChatEntry(compatibleEntries[0]);
+      }
+    },
+    [
+      agentList,
+      selectChatEntry,
+      selectedAgentId,
+      selectedModelId,
+      setMachineAccess,
+    ],
+  );
+  useEffect(() => {
+    if (!activeSelectionSessionId) return;
+    const reconciled = reconcileMachineSelection({
+      entries: agentList,
+      machineAccess,
+      selectedAgentId,
+      selectedModelId,
+    });
+    if (reconciled.machineAccess !== machineAccess) {
+      setMachineAccess(reconciled.machineAccess);
+    }
+    if (reconciled.replacementEntry) {
+      applyChatEntry(reconciled.replacementEntry);
+    }
+  }, [
+    activeSelectionSessionId,
+    agentList,
+    applyChatEntry,
+    machineAccess,
+    selectedAgentId,
+    selectedModelId,
+    setMachineAccess,
+  ]);
   // Client trace: record display-mode flips (ai ↔ terminal). Inspection
   // only — no behavior change (trace never throws, never logs).
   useEffect(() => {
@@ -774,14 +901,13 @@ export function KodyChat({
   );
 
   // Mode discriminator. Used to drive per-turn system-prompt scope blocks
-  // (## Current task / ## Current capability / ## Goal planning mode / ## Current
+  // (## Current task / ## Current capability / ## Current
   // report) and the context bar in the chat header. The thread itself is
   // the unified global store — these flags do NOT change which messages
   // render or which store receives writes.
   const isTaskMode = !!selectedTask;
   const isCapabilityMode = !!selectedCapability;
-  const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode = !isTaskMode && !isCapabilityMode && !isPlannerMode;
+  const isGlobalMode = !isTaskMode && !isCapabilityMode;
 
   useEffect(() => {
     if (autoOpenSessionSidebar && railFullscreen && isGlobalMode) {
@@ -791,30 +917,37 @@ export function KodyChat({
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
-  // (task, capability, planner, report) flows through the per-turn system
+  // (task, capability, report) flows through the per-turn system
   // prompt, not a separate message store.
   const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
-  const ensureChatSession = sessionHook.createSession;
   const activeChatSessionId = sessionHook.activeSession?.id;
   activeGuidedFlowSessionIdRef.current = activeChatSessionId ?? null;
+  useEffect(() => {
+    setActiveWidgetConversationId(activeChatSessionId ?? null);
+  }, [activeChatSessionId]);
 
-  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
-    sessionId: string | null;
-    message: Message;
-  } | null>(null);
+  useEffect(() => {
+    if (!activeChatSessionId || !pendingGuidedFlowMessageRef.current) return;
+    persistGuidedFlowMessageRef.current(
+      activeChatSessionId,
+      pendingGuidedFlowMessageRef.current,
+    );
+    pendingGuidedFlowMessageRef.current = null;
+  }, [activeChatSessionId]);
 
   useEffect(() => {
     if (!sessionHook.hydrated) return;
     const activeSessionId = activeChatSessionId;
     if (lockedAgentSlug || messages.length > 0) {
-      setResumedGuidedFlowMessage(null);
+      setResumedGuidedFlowMessage((current) =>
+        current?.message.view?.rendererSlug === "guided-flow-status"
+          ? null
+          : current,
+      );
       return;
     }
-    if (!activeSessionId) {
-      ensureChatSession();
-      return;
-    }
+    if (!activeSessionId) return;
 
     const initialParams = new URLSearchParams(window.location.search);
     if (
@@ -831,7 +964,16 @@ export function KodyChat({
         return (await response.json()) as {
           flows?: Array<{
             view?: unknown;
-            instance?: { instanceId?: unknown };
+            compatibility?: {
+              status?: unknown;
+              code?: unknown;
+              message?: unknown;
+            };
+            instance?: {
+              instanceId?: unknown;
+              revision?: unknown;
+              status?: unknown;
+            };
             flow?: {
               title?: unknown;
               stepIndex?: unknown;
@@ -842,34 +984,75 @@ export function KodyChat({
       })
       .then((payload) => {
         if (cancelled) return;
-        const activeFlow = payload?.flows?.find(
-          (flow) => flow.view && flow.instance && flow.flow,
-        );
-        const view = activeFlow?.view;
-        if (!isRenderedViewDirective(view)) return;
-        const instance = activeFlow?.instance;
-        const flow = activeFlow?.flow;
-        if (
-          typeof instance?.instanceId !== "string" ||
-          typeof flow?.title !== "string" ||
-          typeof flow.stepIndex !== "number" ||
-          typeof flow.stepCount !== "number"
-        )
-          return;
-        setResumedGuidedFlowMessage({
-          sessionId: activeSessionId,
-          message: {
-            role: "assistant",
-            content: "",
-            timestamp: new Date().toISOString(),
-            view: buildGuidedFlowStatusView({
-              instanceId: instance.instanceId,
-              sessionId: activeSessionId,
-              title: flow.title,
-              stepIndex: flow.stepIndex,
-              stepCount: flow.stepCount,
-            }),
-          },
+        const flows = (payload?.flows ?? []).flatMap((candidate) => {
+          const instance = candidate.instance;
+          const flow = candidate.flow;
+          if (
+            typeof instance?.instanceId !== "string" ||
+            typeof instance.revision !== "number" ||
+            instance.status !== "active" ||
+            typeof flow?.title !== "string" ||
+            typeof flow.stepIndex !== "number" ||
+            typeof flow.stepCount !== "number"
+          ) {
+            return [];
+          }
+          const compatibility =
+            candidate.compatibility?.status === "incompatible" &&
+            typeof candidate.compatibility.code === "string" &&
+            typeof candidate.compatibility.message === "string"
+              ? {
+                  status: "incompatible" as const,
+                  code: candidate.compatibility.code as
+                    | "step_unavailable"
+                    | "renderer_unavailable"
+                    | "renderer_version_unpinned"
+                    | "renderer_version_mismatch"
+                    | "renderer_data_invalid",
+                  message: candidate.compatibility.message,
+                }
+              : candidate.compatibility?.status === "compatible" ||
+                  isRenderedViewDirective(candidate.view)
+                ? ({ status: "compatible" } as const)
+                : null;
+          return compatibility
+            ? [
+                {
+                  instance: {
+                    instanceId: instance.instanceId,
+                    revision: instance.revision,
+                    status: "active" as const,
+                  },
+                  flow: {
+                    title: flow.title,
+                    stepIndex: flow.stepIndex,
+                    stepCount: flow.stepCount,
+                  },
+                  compatibility,
+                },
+              ]
+            : [];
+        });
+        if (flows.length === 0) return;
+        setResumedGuidedFlowMessage((current) => {
+          if (
+            current?.sessionId === activeSessionId &&
+            current.message.view?.rendererSlug !== "guided-flow-status"
+          ) {
+            return current;
+          }
+          return {
+            sessionId: activeSessionId,
+            message: {
+              role: "assistant",
+              content: "",
+              timestamp: new Date().toISOString(),
+              view: buildGuidedFlowResumeView({
+                sessionId: activeSessionId,
+                flows,
+              }),
+            },
+          };
         });
       })
       .catch(() => {
@@ -880,7 +1063,6 @@ export function KodyChat({
       cancelled = true;
     };
   }, [
-    ensureChatSession,
     lockedAgentSlug,
     messages.length,
     activeChatSessionId,
@@ -890,17 +1072,20 @@ export function KodyChat({
   useEffect(() => {
     if (!sessionHook.hydrated) return;
     if (lockedAgentSlug) return;
-    if (!activeChatSessionId) {
-      ensureChatSession();
-      return;
-    }
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("guidedFlow");
     const guidedFlowInstanceId = params.get("guidedFlowInstanceId");
     const instanceKey = params.get("instanceKey") ?? undefined;
     if (!flowId && !guidedFlowInstanceId) return;
+    if (!activeChatSessionId) {
+      createSelectedChatSession();
+      return;
+    }
 
-    window.history.replaceState({}, "", window.location.pathname);
+    const locationAfterLaunch = locationAfterGuidedFlowLaunch(
+      window.location.pathname,
+      window.location.search,
+    );
     let cancelled = false;
     const request = guidedFlowInstanceId
       ? fetch(
@@ -924,6 +1109,12 @@ export function KodyChat({
       .then((payload) => {
         const view = payload?.flow?.view ?? payload?.view;
         if (cancelled || !isRenderedViewDirective(view)) return;
+        if (
+          locationAfterLaunch !==
+          `${window.location.pathname}${window.location.search}`
+        ) {
+          router.replace(locationAfterLaunch, { scroll: false });
+        }
         persistGuidedFlowMessageRef.current(activeChatSessionId, {
           role: "assistant",
           content: guidedFlowInstanceId
@@ -940,15 +1131,23 @@ export function KodyChat({
     };
   }, [
     activeChatSessionId,
-    ensureChatSession,
+    createSelectedChatSession,
     lockedAgentSlug,
     pathname,
+    router,
     sessionHook.hydrated,
   ]);
 
+  const resumedGuidedFlowMessageIsPersisted =
+    resumedGuidedFlowMessage?.message.view !== undefined &&
+    messages.some(
+      (message) =>
+        message.view?.id === resumedGuidedFlowMessage.message.view?.id,
+    );
   const displayMessages =
     resumedGuidedFlowMessage !== null &&
-    resumedGuidedFlowMessage.sessionId === activeChatSessionId
+    resumedGuidedFlowMessage.sessionId === activeChatSessionId &&
+    !resumedGuidedFlowMessageIsPersisted
       ? [...messages, resumedGuidedFlowMessage.message]
       : messages;
 
@@ -964,22 +1163,13 @@ export function KodyChat({
     },
     [sessionHook],
   );
-  persistGuidedFlowMessageRef.current = (sessionId, message) => {
-    if (!sessionId) return;
-    const viewKey = message.view
-      ? `${sessionId}:${message.view.id}`
-      : `${sessionId}:${message.timestamp}`;
-    if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
-    persistedGuidedFlowViewKeysRef.current.add(viewKey);
-    setMessages((prev) => [...prev, message]);
-  };
   const setMessagesForSession = useCallback(
     (
       sessionId: string,
       updater: Message[] | ((prev: Message[]) => Message[]),
       options?: { persist?: boolean },
     ) => {
-      sessionHook.setSessionMessages(
+      setChatSessionMessages(
         sessionId,
         (prevChat: ChatMessage[]) => {
           const newMessages =
@@ -991,8 +1181,48 @@ export function KodyChat({
         options,
       );
     },
-    [sessionHook],
+    [setChatSessionMessages],
   );
+  useEffect(() => {
+    const openWidget = (request: WidgetOpenRequest) => {
+      const sessionId = request.conversationId ?? createSelectedChatSession();
+      const view = buildWidgetPreviewView(
+        request.widgetSlug,
+        `widget-preview:${request.widgetSlug}:${crypto.randomUUID()}`,
+      );
+      if (!view) return;
+      setMessagesForSession(sessionId, (previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content: "Widget opened.",
+          timestamp: new Date().toISOString(),
+          view,
+        },
+      ]);
+    };
+    const handleWidgetOpen = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isWidgetOpenRequest(detail)) return;
+      consumeWidgetOpenRequest();
+      openWidget(detail);
+    };
+
+    window.addEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
+    const pendingRequest = consumeWidgetOpenRequest();
+    if (pendingRequest) openWidget(pendingRequest);
+    return () =>
+      window.removeEventListener(WIDGET_OPEN_EVENT, handleWidgetOpen);
+  }, [createSelectedChatSession, setMessagesForSession]);
+  persistGuidedFlowMessageRef.current = (sessionId, message) => {
+    if (!sessionId) return;
+    const viewKey = message.view
+      ? `${sessionId}:${message.view.id}`
+      : `${sessionId}:${message.timestamp}`;
+    if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
+    persistedGuidedFlowViewKeysRef.current.add(viewKey);
+    setMessagesForSession(sessionId, (previous) => [...previous, message]);
+  };
   const activeLoading = messages.some((m) => m.isLoading);
   const { compactionStatus, setCompactionStatus } = useCompactionStatus(
     sessionHook.activeSession?.id,
@@ -1115,10 +1345,6 @@ export function KodyChat({
       reportItem("Task pipeline", selectedTask?.pipeline?.state),
       reportItem("Capability", selectedCapability?.slug),
       reportItem("Report", selectedReport?.slug),
-      reportItem(
-        "Goal",
-        plannerGoal ? `${plannerGoal.id}: ${plannerGoal.name}` : null,
-      ),
       reportItem("Org", selectedOrg?.org),
     ]);
 
@@ -1145,7 +1371,6 @@ export function KodyChat({
     liveState.errorMessage,
     messages,
     pathname,
-    plannerGoal,
     selectedCapability,
     selectedModelId,
     selectedOrg,
@@ -1166,14 +1391,14 @@ export function KodyChat({
   }, [onIssueReportReady, openIssueReport]);
 
   // Unified thread: the canonical conversation store owns the
-  // message list. Per-page scope (task / capability / planner / report) flows
+  // message list. Per-page scope (task / capability / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
 
   const executeClearHistory = () => {
     // Unified thread: the global session store owns the messages. Clearing
     // is just `clearActiveSession()` regardless of scope (task / capability /
-    // planner / report); the per-scope system-prompt blocks keep their
+    // report); the per-scope system-prompt blocks keep their
     // context on the next turn.
     sessionHook.clearActiveSession();
 
@@ -1195,7 +1420,7 @@ export function KodyChat({
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     const conversationId =
-      sessionHook.activeSession?.id ?? sessionHook.createSession();
+      sessionHook.activeSession?.id ?? createSelectedChatSession();
     const newAttachments: Attachment[] = [];
 
     for (const file of list) {
@@ -1330,15 +1555,12 @@ export function KodyChat({
           selectedAgentId,
           selectedModelId,
           effectiveReasoningEffort,
+          selectedMachineAccess: machineAccess,
           selectedTask,
           capabilitySlug,
           selectedCapability,
           selectedOrg,
           selectedReport,
-          isPlannerMode,
-          plannerGoal,
-          plannerExistingTasks,
-          onPlannerTasksCreated,
           onIssueCreated,
           vibeMode,
           context,
@@ -1381,10 +1603,6 @@ export function KodyChat({
       selectedTask,
       selectedCapability,
       capabilitySlug,
-      isPlannerMode,
-      plannerGoal,
-      plannerExistingTasks,
-      onPlannerTasksCreated,
       setMessagesForSession,
       messages,
       repoAgentSlugs,
@@ -1392,6 +1610,7 @@ export function KodyChat({
       selectedAgentId,
       selectedModelId,
       effectiveReasoningEffort,
+      machineAccess,
       lockedAgentSlug,
       kodyDirectHeaders,
       effectiveActorLogin,
@@ -1408,6 +1627,75 @@ export function KodyChat({
 
   const handleRenderedViewAction = useCallback(
     (view: RenderedViewDirective, action: RenderedViewAction) => {
+      if (view.rendererSlug === "guided-flow-status") {
+        if (action.id === "resume") {
+          const instanceId = action.result?.instanceId ?? view.data.instanceId;
+          if (typeof instanceId === "string" && instanceId.trim()) {
+            void openGuidedFlow({ instanceId, message: "resumed" }).then(
+              (opened) => {
+                if (opened) setResumedGuidedFlowMessage(null);
+              },
+            );
+          }
+        } else if (action.id === "cancel") {
+          const instanceId = action.result?.instanceId;
+          const expectedRevision = action.result?.expectedRevision;
+          if (
+            typeof instanceId === "string" &&
+            typeof expectedRevision === "number"
+          ) {
+            void fetch("/api/kody/guided-flows", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+              },
+              body: JSON.stringify({
+                action: "cancel",
+                instanceId,
+                expectedRevision,
+                mutationId: `${view.id}:cancel:${instanceId}`,
+              }),
+            })
+              .then(async (response) => {
+                const payload = (await response.json().catch(() => null)) as {
+                  error?: unknown;
+                } | null;
+                if (!response.ok) {
+                  throw new Error(
+                    typeof payload?.error === "string"
+                      ? payload.error
+                      : "guided_flow_action_failed",
+                  );
+                }
+                setResumedGuidedFlowMessage(null);
+              })
+              .catch((error) => {
+                toast.error(
+                  guidedFlowActionErrorMessage(
+                    error instanceof Error ? error.message : undefined,
+                  ),
+                );
+              });
+          }
+        }
+        return;
+      }
+
+      if (isModelOutputRecoveryView(view)) {
+        if (usedViewIds.has(view.id)) return;
+        if (action.id === MODEL_OUTPUT_RECOVERY_ACTION.chooseModel) {
+          setUsedViewIds((previous) => new Set(previous).add(view.id));
+          setRequestedSetupSection("model");
+          setAgentMenuOpen(true);
+          return;
+        }
+        if (action.id === MODEL_OUTPUT_RECOVERY_ACTION.cancel) {
+          setUsedViewIds((previous) => new Set(previous).add(view.id));
+          return;
+        }
+      }
+
       if (usedViewIds.has(view.id)) return;
       setUsedViewIds((prev) => {
         const next = new Set(prev);
@@ -1415,29 +1703,18 @@ export function KodyChat({
         return next;
       });
 
-      if (view.rendererSlug === "guided-flow-status") {
-        if (action.id === "resume") {
-          const instanceId = view.data.instanceId;
-          if (typeof instanceId === "string" && instanceId.trim()) {
-            requestGuidedFlowOpen(instanceId);
-          }
-        }
-        return;
-      }
-
       if (view.resultTarget === "guided-flow" && view.guidedFlow) {
         void (async () => {
           try {
+            const guidedFlowChange = guidedFlowChangeForViewAction(action);
             const response = await fetch("/api/kody/guided-flows", {
               method: "POST",
               headers: { "Content-Type": "application/json", ...authHeaders() },
               body: JSON.stringify({
-                action: action.id === "back" ? "back" : "submit",
+                ...guidedFlowChange,
                 instanceId: view.guidedFlow?.instanceId,
                 stepId: view.guidedFlow?.stepId,
                 expectedRevision: view.guidedFlow?.revision,
-                ...(action.id === "back" ? {} : { actionId: action.id }),
-                ...(action.result ? { result: action.result } : {}),
                 mutationId: view.id,
               }),
             });
@@ -1501,6 +1778,10 @@ export function KodyChat({
         return;
       }
 
+      // Direct widget play is self-contained: the widget owns its replies and
+      // completion must not start an unrelated model turn.
+      if (isWidgetPreviewView(view)) return;
+
       const resultPayload = JSON.stringify({
         kind: "view_result",
         view: "renderer",
@@ -1517,39 +1798,86 @@ export function KodyChat({
         },
       );
     },
-    [runDashboardNavigateFromDirective, sendText, setMessages, usedViewIds],
+    [
+      openGuidedFlow,
+      runDashboardNavigateFromDirective,
+      sendText,
+      setAgentMenuOpen,
+      setMessages,
+      usedViewIds,
+    ],
   );
 
-  // Planner auto-kickoff. The "Plan with chat" button is the user's consent
-  // to start; landing them on a blank prompt and asking them to type "go" is
-  // a wasted click. We fire Pass 1 automatically on first render of a fresh
-  // planner session. Guarded by a ref keyed on sessionId so re-renders,
-  // mode toggles, and the "New conversation" button can't re-trigger. The
-  // session's message count comes from the global store now (unified thread).
-  const plannerAutoKickedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isPlannerMode || !plannerSessionId || !plannerGoal) return;
-    if (plannerAutoKickedRef.current === plannerSessionId) return;
-    if (sessionHook.messages.length > 0) {
-      plannerAutoKickedRef.current = plannerSessionId;
-      return;
-    }
-    plannerAutoKickedRef.current = plannerSessionId;
-    // Defer one microtask so the chat's setMessages plumbing has committed
-    // for this session before sendText reads/writes it.
-    void Promise.resolve().then(() => {
-      sendText(
-        `Plan tasks for the goal "${plannerGoal.name}". Run Pass 1 now: ` +
-          "output the proposed task list (3–8 tasks), then wait for my approval.",
-      );
-    });
-  }, [
-    isPlannerMode,
-    plannerSessionId,
-    plannerGoal,
-    sessionHook.messages.length,
-    sendText,
-  ]);
+  const handleWidgetEvent = useCallback(
+    (view: RenderedViewDirective, event: WidgetHostEvent) => {
+      if (usedViewIds.has(view.id)) return;
+      if (event.type === "post-to-chat") {
+        setMessages((previous) => [
+          ...previous,
+          {
+            role: "assistant",
+            content: `**${view.rendererName} widget**\n\n${event.content}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+
+      if (event.type === "send-to-kody") {
+        if (activeLoading) return;
+        setMessages((previous) => [
+          ...previous,
+          {
+            role: "assistant",
+            content: `**${view.rendererName} widget asked Kody**\n\n${event.message}`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        void sendText(
+          `The widget ${JSON.stringify(view.rendererSlug)} sent this message to Kody:\n\n${event.message}`,
+          [],
+          { hidden: true },
+        );
+        return;
+      }
+
+      const action: RenderedViewAction = {
+        id: event.actionId,
+        label: event.actionId,
+        response: event.actionId,
+        ...(event.data ? { result: event.data } : {}),
+      };
+      if (view.resultTarget === "guided-flow") {
+        handleRenderedViewAction(view, action);
+      } else {
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.view?.id === view.id
+              ? {
+                  ...message,
+                  view: {
+                    ...message.view,
+                    result: {
+                      actionId: event.actionId,
+                      ...(event.data ? { data: event.data } : {}),
+                      completedAt: new Date().toISOString(),
+                    },
+                  },
+                }
+              : message,
+          ),
+        );
+        setUsedViewIds((previous) => new Set(previous).add(view.id));
+      }
+    },
+    [
+      activeLoading,
+      handleRenderedViewAction,
+      sendText,
+      setMessages,
+      usedViewIds,
+    ],
+  );
 
   // Generic switch-agent auto-kickoff. The switch handler stashes an
   // optional kickoff string in `pendingKickoff`; we wait here for the new
@@ -1600,8 +1928,6 @@ export function KodyChat({
       contextChips,
       isKodyWaiting,
       selectedTask,
-      plannerGoal,
-      onDirectToGoal,
       setInput,
       setContextChips,
       setAttachments,
@@ -1614,10 +1940,8 @@ export function KodyChat({
       handlePluginHostEffect,
       pendingTerminalIntentRef,
       pendingSlashExpansionRef,
-      pendingGoalDirectRef,
       consumePendingTerminalIntent,
       consumePendingSlashExpansion,
-      consumePendingGoalDirect,
       sendInputToTerminal,
       sendKodyTerminalPayloadToTerminal,
       previewActChainRef,
@@ -1877,7 +2201,6 @@ export function KodyChat({
       sessionsPanel={
         <SessionsPanel
           open={showSessionSidebar}
-          isGlobalMode={isGlobalMode}
           pinned={allowSessionSidebarPin && isDesktop && sessionSidebarPinned}
           railFullscreen={railFullscreen}
           standalonePresentation={standalonePresentation}
@@ -1885,10 +2208,11 @@ export function KodyChat({
           activeSessionId={sessionHook.activeSession?.id || null}
           modeBySessionId={vibeMode ? undefined : terminalModeBySessionId}
           onSwitchSession={(id) => {
+            setActiveWidgetConversationId(id);
             sessionHook.switchSession(id);
           }}
           onCreateSession={() => {
-            sessionHook.createSession();
+            setActiveWidgetConversationId(createSelectedChatSession());
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
@@ -1941,12 +2265,12 @@ export function KodyChat({
           compact={compactHeader}
           agentMenuOpen={agentMenuOpen}
           setAgentMenuOpen={setAgentMenuOpen}
+          requestedSetupSection={requestedSetupSection}
+          onRequestedSetupSectionHandled={() => setRequestedSetupSection(null)}
           messageCount={messages.length}
           currentReasoning={currentReasoning}
           effectiveReasoningEffort={effectiveReasoningEffort}
           setReasoningEffort={setReasoningEffort}
-          reasoningMenuOpen={reasoningMenuOpen}
-          setReasoningMenuOpen={setReasoningMenuOpen}
           agentList={agentList}
           selectedAgentId={selectedAgentId}
           selectedModelId={selectedModelId}
@@ -1954,6 +2278,17 @@ export function KodyChat({
           selectedAgencyAgentSlug={selectedAgencyAgentSlug}
           onSelectAgencyAgent={selectAgencyAgent}
           onSelectEntry={selectChatEntry}
+          machineAccess={machineAccess}
+          machineAvailability={{
+            local:
+              localMachineAvailable &&
+              agentList.some((entry) => entry.agentId === "kody"),
+            brain: agentList.some(
+              (entry) =>
+                entry.agentId === "brain" || entry.agentId === "brain-fly",
+            ),
+          }}
+          onSelectMachine={selectMachineAccess}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
             // Seed the new session with the current effective agent so a
@@ -1962,8 +2297,7 @@ export function KodyChat({
             // fall back to the global default on first render — which is
             // fine for the very first session but surprises users who
             // expect a "new chat" to start where the last one left off.
-            const seed = currentEntry?.key;
-            sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+            setActiveWidgetConversationId(createSelectedChatSession());
             setToolCalls([]);
           }}
           activeLoading={activeLoading}
@@ -1980,9 +2314,6 @@ export function KodyChat({
           selectedTask={selectedTask}
           isCapabilityMode={isCapabilityMode}
           selectedCapability={selectedCapability}
-          isPlannerMode={isPlannerMode}
-          plannerGoal={plannerGoal}
-          onPlannerExit={onPlannerExit}
           activeSessionTitle={sessionHook.activeSession?.title}
         />
       }
@@ -2012,6 +2343,7 @@ export function KodyChat({
             toolCalls={toolCalls}
             usedViewIds={usedViewIds}
             onRenderedViewAction={handleRenderedViewAction}
+            onWidgetEvent={handleWidgetEvent}
             roleLayout={messageRoleLayout}
             agentHandoffs={sessionHook.activeSession?.agentHandoffs}
             emptyState={
@@ -2022,8 +2354,6 @@ export function KodyChat({
                 selectedTask={selectedTask}
                 isCapabilityMode={isCapabilityMode}
                 selectedCapability={selectedCapability}
-                isPlannerMode={isPlannerMode}
-                plannerGoal={plannerGoal}
               />
             }
             terminalSurfaces={terminalSurfaces}

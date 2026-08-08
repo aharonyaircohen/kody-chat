@@ -93,6 +93,7 @@ test.describe("Route smoke", () => {
               accent: "#7c3aed",
               locale: "en",
               welcomeText: "Welcome to Acme",
+              access: { mode: "public" },
               source: "repo",
               htmlUrl:
                 "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",

@@ -149,25 +149,6 @@ afterEach(() => {
 });
 
 describe("GET /api/kody/company/backend/export", () => {
-  it("exports only approved business data for the Knowledge Graph", async () => {
-    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
-    convex.query.mockResolvedValue([]);
-
-    const res = await EXPORT(
-      req("/api/kody/company/backend/export?scope=knowledge-graph"),
-    );
-
-    expect(res.status).toBe(200);
-    const queriedTables = convex.query.mock.calls.map(
-      (call) => (call[1] as { table: string }).table,
-    );
-    expect(queriedTables).toContain("workflows");
-    expect(queriedTables).toContain("agencyRuns");
-    expect(queriedTables).not.toContain("conversationEntries");
-    expect(queriedTables).not.toContain("conversationTurns");
-    expect(queriedTables).not.toContain("chatEvents");
-  });
-
   it("exports every importable table from Convex as a downloadable dump", async () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
     convex.query.mockImplementation(

@@ -8,7 +8,6 @@ export const MEMORY_KINDS: readonly MemoryKind[] = [
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ];
 

@@ -119,6 +119,7 @@ describe("settings navigation", () => {
       "/agents",
       "/agent-loops",
       "/workflows",
+      "/pipelines",
       "/capabilities",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
@@ -155,6 +156,7 @@ describe("settings navigation", () => {
       "/agents",
       "/agent-loops",
       "/workflows",
+      "/pipelines",
       "/capabilities",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Store")).toEqual([
@@ -169,7 +171,6 @@ describe("settings navigation", () => {
       "/changelog",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Knowledge")).toEqual([
-      "/knowledge-system",
       "/docs",
       "/context",
       "/policies",

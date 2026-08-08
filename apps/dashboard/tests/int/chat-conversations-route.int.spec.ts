@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  requireKodyAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
+  requireUserAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
   getRequestAuth: vi.fn(() => ({
     owner: "acme",
     repo: "widgets",
     token: "token",
   })),
   verifyActorLogin: vi.fn(async () => ({
-    identity: { login: "alice" },
+    identity: { login: "alice", githubId: 42 },
   })),
   query: vi.fn(),
   mutation: vi.fn(),
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
-  requireKodyAuth: mocks.requireKodyAuth,
+  requireUserAuth: mocks.requireUserAuth,
   getRequestAuth: mocks.getRequestAuth,
   verifyActorLogin: mocks.verifyActorLogin,
 }));
@@ -35,6 +35,7 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
       appendEntry: "conversations.appendEntry",
       updateMessage: "conversations.updateMessage",
       updateRuntime: "conversations.updateRuntime",
+      updateMachineAccess: "conversations.updateMachineAccess",
       saveCheckpoint: "conversations.saveCheckpoint",
       updateMetadata: "conversations.updateMetadata",
       remove: "conversations.remove",
@@ -45,6 +46,7 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
     mutation: mocks.mutation,
   }),
   tenantIdFor: (owner: string, repo: string) => `${owner}/${repo}`,
+  userTenantIdFor: (githubId: number) => `user:${githubId}`,
 }));
 
 import { GET, POST } from "../../app/api/kody/chat/conversations/route";
@@ -53,14 +55,14 @@ import { POST as POST_COMMAND } from "../../app/api/kody/chat/conversations/[con
 describe("chat conversations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireKodyAuth.mockResolvedValue(null);
+    mocks.requireUserAuth.mockResolvedValue(null);
     mocks.getRequestAuth.mockReturnValue({
       owner: "acme",
       repo: "widgets",
       token: "token",
     });
     mocks.verifyActorLogin.mockResolvedValue({
-      identity: { login: "alice" },
+      identity: { login: "alice", githubId: 42 },
     });
   });
 
@@ -91,7 +93,7 @@ describe("chat conversations route", () => {
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.create",
       expect.objectContaining({
-        tenantId: "acme/widgets",
+        tenantId: "user:42",
         conversationId: "conversation-1",
         scope: {
           kind: "repository",
@@ -99,18 +101,58 @@ describe("chat conversations route", () => {
           repo: "widgets",
         },
         createdBy: "github:alice",
+        machineAccess: "none",
       }),
     );
   });
 
-  it("does not trust an unauthenticated repository context", async () => {
+  it("updates machine access without changing agent identity or runtime", async () => {
+    mocks.mutation.mockResolvedValue("conversation-1");
+    const request = new NextRequest(
+      "http://localhost/api/kody/chat/conversations/conversation-1/commands",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "machine-access",
+          actorLogin: "alice",
+          machineAccess: "local",
+          updatedAt: "2026-07-20T10:00:00.000Z",
+        }),
+      },
+    );
+
+    const response = await POST_COMMAND(request, {
+      params: Promise.resolve({ conversationId: "conversation-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith(
+      "conversations.updateMachineAccess",
+      {
+        tenantId: "user:42",
+        conversationId: "conversation-1",
+        machineAccess: "local",
+        updatedAt: "2026-07-20T10:00:00.000Z",
+      },
+    );
+    expect(mocks.mutation).not.toHaveBeenCalledWith(
+      "conversations.updateRuntime",
+      expect.anything(),
+    );
+  });
+
+  it("allows a contextless user conversation", async () => {
     mocks.getRequestAuth.mockReturnValueOnce(null as never);
+    mocks.query.mockResolvedValueOnce([]);
     const response = await GET(
       new NextRequest("http://localhost/api/kody/chat/conversations"),
     );
 
-    expect(response.status).toBe(400);
-    expect(mocks.query).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.query).toHaveBeenCalledWith("conversations.list", {
+      tenantId: "user:42",
+      surface: "global",
+    });
   });
 
   it("returns only the server-derived tenant conversation list", async () => {
@@ -125,13 +167,13 @@ describe("chat conversations route", () => {
       conversations: [{ conversationId: "conversation-1" }],
     });
     expect(mocks.query).toHaveBeenCalledWith("conversations.list", {
-      tenantId: "acme/widgets",
+      tenantId: "user:42",
       surface: "global",
     });
   });
 
   it("stops before storage when authentication fails", async () => {
-    mocks.requireKodyAuth.mockResolvedValueOnce(
+    mocks.requireUserAuth.mockResolvedValueOnce(
       NextResponse.json({ error: "unauthorized" }, { status: 401 }),
     );
 
@@ -172,7 +214,7 @@ describe("chat conversations route", () => {
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.appendEntry",
       expect.objectContaining({
-        tenantId: "acme/widgets",
+        tenantId: "user:42",
         conversationId: "conversation-1",
         entry: expect.objectContaining({
           author: { kind: "user", actorId: "github:alice" },

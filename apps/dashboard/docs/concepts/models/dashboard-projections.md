@@ -13,6 +13,6 @@ Every projection must name:
 - which mounted command performs edits;
 - how errors roll back optimistic UI.
 
-There is no current Operation or Goal health projection. Loop health can only
+There is no separate planning-aggregate health projection. Loop health can only
 be called live after Dashboard Loop definitions are connected to the Engine
 Runs that the page reads.

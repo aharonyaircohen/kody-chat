@@ -2,78 +2,89 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-workflow-run
- * @ai-summary POST /api/kody/company/workflows/:id/run manually dispatches
- *   kody.yml for one runnable workflow-capability.
+ * @ai-summary Authenticated HTTP adapter for starting one Workflow through the
+ * provider-neutral Kody Engine execution boundary.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
+  verifyActorLogin,
 } from "@kody-ade/base/auth";
+import { consumeStoredAgencyApproval } from "@kody-ade/agency/agency-approvals";
+import {
+  createWorkflowApprovalChallenge,
+  workflowRunAction,
+} from "@kody-ade/agency/workflow-run-approval";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
-import {
-  workflowRunRequest,
-  withStoreTarget,
-} from "@kody-ade/fly/runners/run-request";
 import {
   isWorkflowDefinitionId,
+  validateWorkflowInput,
   validateWorkflowDefinition,
-  type WorkflowDefinition,
 } from "@dashboard/lib/workflow-definitions";
-import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
-import {
-  readCompanyStoreWorkflowDefinitionFile,
-  readWorkflowDefinitionFile,
-} from "@dashboard/lib/workflow-definition-files";
-import { recordWorkflowRunRunner } from "@dashboard/lib/workflow-run-state-files";
+import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
+import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
+import { startWorkflow } from "@dashboard/features/workflows/server/start-workflow";
+import { workflowRequiresApproval } from "@dashboard/features/workflows/server/workflow-execution-authorization";
+import { getWorkflowApprovalSigningKey } from "@dashboard/features/workflows/server/workflow-approval-signing-key";
 
-function activeStringSet(values: string[] | undefined): Set<string> {
-  return new Set(
-    (values ?? []).filter(
-      (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
-    ),
-  );
+const RUN_ID = /^run-[a-zA-Z0-9_-]{1,123}$/;
+const APPROVAL_ID = /^approval-[a-zA-Z0-9_-]{1,123}$/;
+const MAX_INPUT_BYTES = 64_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function newWorkflowRunId(): string {
-  return `run-${Date.now().toString(36)}`;
-}
-
-async function dispatchKnowledgeSystemRefresh(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  auth: NonNullable<ReturnType<typeof getRequestAuth>>,
-) {
-  const repository = await octokit.rest.repos.get({
-    owner: auth.owner,
-    repo: auth.repo,
-  });
-  const ref = repository.data.default_branch || "main";
-  const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
-    owner: auth.owner,
-    repo: auth.repo,
-    ref,
-    action: "refresh-knowledge-system",
-    storeRepoUrl: auth.storeRepoUrl,
-    storeRef: auth.storeRef,
-  });
-  await octokit.rest.actions.createWorkflowDispatch({
-    owner: auth.owner,
-    repo: auth.repo,
-    workflow_id: "kody.yml",
-    ref,
-    inputs,
-  });
-  return ref;
+async function runOptions(
+  req: NextRequest,
+): Promise<
+  | {
+      ok: true;
+      requestId?: string;
+      resume?: boolean;
+      approvalId?: string;
+      input?: Record<string, unknown>;
+    }
+  | { ok: false }
+> {
+  try {
+    const body = await req.json();
+    if (
+      body?.input !== undefined &&
+      (!isRecord(body.input) ||
+        JSON.stringify(body.input).length > MAX_INPUT_BYTES)
+    ) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      ...(body?.mode === "resume" &&
+      typeof body.runId === "string" &&
+      RUN_ID.test(body.runId)
+        ? { requestId: body.runId }
+        : {}),
+      ...(body?.mode === "resume" &&
+      typeof body.runId === "string" &&
+      RUN_ID.test(body.runId)
+        ? { resume: true }
+        : {}),
+      ...(typeof body?.approvalId === "string" &&
+      APPROVAL_ID.test(body.approvalId)
+        ? { approvalId: body.approvalId }
+        : {}),
+      ...(body?.input !== undefined ? { input: body.input } : {}),
+    };
+  } catch {
+    return { ok: true };
+  }
 }
 
 export async function POST(
@@ -83,146 +94,138 @@ export async function POST(
   const authError = await requireKodyAuth(req);
   if (authError instanceof NextResponse) return authError;
 
-  const headerAuth = getRequestAuth(req);
-  if (!headerAuth) {
+  const auth = getRequestAuth(req);
+  if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
-
   const { id } = await params;
   if (!isWorkflowDefinitionId(id)) {
     return NextResponse.json({ error: "invalid_workflow_id" }, { status: 400 });
   }
 
   setGitHubContext(
-    headerAuth.owner,
-    headerAuth.repo,
-    headerAuth.token,
-    headerAuth.storeRepoUrl,
-    headerAuth.storeRef,
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
   );
   try {
-    let requestedRunId: string | undefined;
-    try {
-      const body = await req.json();
-      if (body?.mode === "resume" && typeof body.runId === "string") requestedRunId = body.runId;
-    } catch {
-      // Empty request body is the normal new-run path.
-    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json(
         {
           error: "no_user_token",
-          message: "A signed-in GitHub token is required to dispatch workflow.",
+          message: "A signed-in GitHub token is required to run a workflow.",
         },
         { status: 401 },
       );
     }
-
-    const { config } = await getEngineConfig(
-      octokit,
-      headerAuth.owner,
-      headerAuth.repo,
-      { force: true },
-    );
-    const activeWorkflows = activeStringSet(config.company?.activeWorkflows);
-
-    let workflow: { workflow: WorkflowDefinition } | null =
-      await readWorkflowDefinitionFile(
-      id,
-      headerAuth.owner,
-      headerAuth.repo,
-      );
-    if (!workflow && activeWorkflows.has(id)) {
-      workflow = await readCompanyStoreWorkflowDefinitionFile(id, octokit);
+    const actorResult = await verifyActorLogin(req, undefined);
+    if (actorResult instanceof NextResponse) return actorResult;
+    const actor = `github:${actorResult.identity.githubId}`;
+    const options = await runOptions(req);
+    if (!options.ok) {
+      return NextResponse.json({ error: "invalid_input" }, { status: 400 });
     }
-    if (!workflow) {
+    const result = await startWorkflow(
+      {
+        workflowId: id,
+        source: "dashboard",
+        actor,
+        requestId: options.requestId,
+        resume: options.resume,
+        approvalId: options.approvalId,
+        input: options.input,
+      },
+      {
+        createRequestId: () => `run-${randomUUID()}`,
+        now: () => new Date().toISOString(),
+        loadWorkflow: createCompanyWorkflowLoader({
+          octokit,
+          owner: auth.owner,
+          repo: auth.repo,
+        }),
+        validateDefinition: validateWorkflowDefinition,
+        validateInput: (schema, input) =>
+          validateWorkflowInput(input, schema),
+        requiresApproval: workflowRequiresApproval,
+        actionFor: workflowRunAction,
+        consumeApproval: (approval) =>
+          consumeStoredAgencyApproval({
+            owner: auth.owner,
+            repo: auth.repo,
+            approvalId: approval.approvalId,
+            scopeKind: "workflow",
+            scopeId: approval.workflowId,
+            action: approval.action,
+            approvedBy: approval.actor,
+            dispatchKey: approval.dispatchKey,
+            consumedAt: approval.consumedAt,
+          }),
+        dispatch: createGitHubActionsEngineGateway({
+          octokit,
+          owner: auth.owner,
+          repo: auth.repo,
+        }),
+      },
+    );
+
+    if (result.kind === "not-found") {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const validationIssues = validateWorkflowDefinition(workflow.workflow);
-    if (validationIssues.length > 0) {
+    if (result.kind === "invalid") {
       return NextResponse.json(
         {
           error: "invalid_workflow",
           message: "Workflow is invalid and was not dispatched.",
-          issues: validationIssues,
+          issues: result.issues,
+        },
+        { status: 409 },
+      );
+    }
+    if (result.kind === "approval-required") {
+      const challenge = createWorkflowApprovalChallenge({
+        owner: auth.owner,
+        repo: auth.repo,
+        actor,
+        workflowId: id,
+        input: options.input ?? {},
+        signingKey: getWorkflowApprovalSigningKey(),
+      });
+      return NextResponse.json(
+        {
+          error: "approval_required",
+          message: "This workflow requires explicit approval before it runs.",
+          approvalToken: challenge.token,
+          approvalExpiresAt: challenge.expiresAt,
         },
         { status: 409 },
       );
     }
 
-    const runId = requestedRunId && /^run-[a-z0-9]+$/.test(requestedRunId)
-      ? requestedRunId
-      : newWorkflowRunId();
-    if (id === "refresh-knowledge-system") {
-      const ref = await dispatchKnowledgeSystemRefresh(octokit, headerAuth);
-      recordAudit(req, {
-        action: "workflow.run",
-        resource: id,
-        detail: `manual GitHub dispatch for workflow ${id}`,
-      });
-      return NextResponse.json(
-        {
-          ok: true,
-          runner: "github",
-          ref,
-          workflow: id,
-          runId,
-          action: id,
-        },
-        { status: 202 },
-      );
-    }
-
-    const run = await runScheduledKodyOnRunner(req, {
-      taskId: `company-workflow-${id}-${runId}`,
-      runRequest: withStoreTarget(
-        workflowRunRequest(id, runId, workflow.workflow.agent),
-        headerAuth,
-      ),
-    });
-    if (!run.ok) {
-      return NextResponse.json(
-        {
-          error: "runner_failed",
-          message: run.error,
-        },
-        { status: run.status },
-      );
-    }
-    try {
-      await recordWorkflowRunRunner(
-        headerAuth.owner,
-        headerAuth.repo,
-        id,
-        runId,
-        { kind: run.runner, machineId: run.machineId },
-      );
-    } catch (trackingError) {
-      console.warn("[company-workflows/run] runner tracking unavailable", trackingError);
-    }
-
     recordAudit(req, {
       action: "workflow.run",
       resource: id,
-      detail: `manual runner dispatch for workflow ${id}`,
+      detail: `manual Engine dispatch for workflow ${id}`,
     });
-
-    return NextResponse.json({
-      ok: true,
-      runner: run.runner,
-      machineId: run.machineId,
-      ref: run.ref,
-      workflow: id,
-      runId,
-      action: id,
-    });
-  } catch (err: any) {
-    console.error("[company-workflows/run] dispatch failed", err);
+    return NextResponse.json(
+      {
+        ok: true,
+        execution: "kody-engine",
+        workflow: id,
+        runId: result.requestId,
+        acceptedAt: result.acceptedAt,
+      },
+      { status: 202 },
+    );
+  } catch (error) {
+    console.error("[company-workflows/run] dispatch failed", error);
     return NextResponse.json(
       {
         error: "dispatch_failed",
-        message: err?.message ?? "Failed to dispatch workflow",
+        message:
+          error instanceof Error ? error.message : "Failed to dispatch workflow",
       },
       { status: 500 },
     );

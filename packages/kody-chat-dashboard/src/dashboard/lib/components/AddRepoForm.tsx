@@ -5,10 +5,11 @@
  * @ai-summary GitHub repo + PAT connect form. Shared by two surfaces:
  *   the first-run connect screen (RepoManager, bootstrap mode) and the
  *   header RepoSwitcher's "Add repository" row. Validates the repo input
- *   and token, POSTs `/api/kody/repos/add` (server-side PAT validation +
- *   webhook registration), then pushes the entry into auth-context.
+ *   and token, POSTs `/api/kody/repos/add` (server-side PAT validation,
+ *   encrypted background access, and webhook registration), then pushes the
+ *   entry into auth-context.
  *   Presentation + the add call only — switching/removing repos lives in
- *   the switcher; the token never leaves this browser.
+ *   the switcher.
  */
 "use client";
 
@@ -23,7 +24,7 @@ import { useAuth } from "../auth-context";
 const TOKEN_DOC_URL =
   "https://github.com/settings/tokens/new?description=Kody+Dashboard&scopes=repo,workflow,admin:repo_hook";
 
-interface AddRepoResponse {
+export interface AddRepoResponse {
   ok: boolean;
   owner: string;
   repo: string;
@@ -43,6 +44,10 @@ interface AddRepoResponse {
     ok: boolean;
     created?: boolean;
     error?: string;
+  };
+  backgroundAccess: {
+    ok: true;
+    source: "github-app" | "encrypted-pat";
   };
   error?: string;
   message?: string;
@@ -89,7 +94,7 @@ interface AddRepoFormProps {
 }
 
 export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
-  const { addRepo } = useAuth();
+  const { addRepo, auth } = useAuth();
 
   const [repoInput, setRepoInput] = useState("");
   const [token, setToken] = useState("");
@@ -107,7 +112,7 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
       );
       return;
     }
-    const trimmedToken = token.trim();
+    const trimmedToken = (auth?.token ?? token).trim();
     if (!trimmedToken) {
       setError("Personal access token is required");
       return;
@@ -185,34 +190,38 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
         />
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="token" className="flex items-center gap-1.5">
-          <Lock className="w-3.5 h-3.5" />
-          Personal access token
-        </Label>
-        <Input
-          id="token"
-          type="password"
-          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          required
-        />
-        <p className="text-xs text-muted-foreground">
-          Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
-          <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-          <code className="bg-muted px-1 rounded">admin:repo_hook</code> scopes.{" "}
-          <a
-            href={TOKEN_DOC_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            Generate one here
-          </a>
-          .
-        </p>
-      </div>
+      {!auth ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="token" className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" />
+            Personal access token
+          </Label>
+          <Input
+            id="token"
+            type="password"
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
+            <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
+            <code className="bg-muted px-1 rounded">admin:repo_hook</code>{" "}
+            scopes.{" "}
+            <a
+              href={TOKEN_DOC_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Generate one here
+            </a>
+            . Kody uses its GitHub App when installed; otherwise it stores an
+            encrypted copy for background automation.
+          </p>
+        </div>
+      ) : null}
 
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">

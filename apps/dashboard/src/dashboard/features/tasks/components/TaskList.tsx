@@ -101,20 +101,6 @@ interface TaskListProps {
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   intakeMode?: boolean;
-  /** If true, each row is draggable (for goal-to-goal DnD). */
-  draggable?: boolean;
-  onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
-  onDragEndTask?: (task: KodyTask) => void;
-  /**
-   * Optional goal palette — tints dividers, hover state, and neutral-status
-   * rows with the enclosing goal's accent color. Active-status rows (building,
-   * review, failed, etc.) keep their meaningful colors.
-   */
-  accent?: {
-    divide: string;
-    rowBg: string;
-    rowHover: string;
-  };
 }
 
 // ── Status colors — single source of truth ──
@@ -253,10 +239,6 @@ export function TaskList({
   onToggleQueue,
   intakeMode = false,
   collaborators = [],
-  draggable,
-  onDragStartTask,
-  onDragEndTask,
-  accent,
 }: TaskListProps) {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
@@ -382,7 +364,7 @@ export function TaskList({
 
   return (
     <div
-      className={cn("divide-y", accent?.divide ?? "divide-white/[0.06]")}
+      className="divide-y divide-white/[0.06]"
       role="listbox"
       aria-label="Tasks"
     >
@@ -414,10 +396,6 @@ export function TaskList({
             closeIssueMutation.variables?.issueNumber === task.issueNumber
           }
           collaborators={collaborators}
-          draggable={draggable}
-          onDragStartTask={onDragStartTask}
-          onDragEndTask={onDragEndTask}
-          accent={accent}
         />
       ))}
     </div>
@@ -447,10 +425,6 @@ interface TaskRowProps {
   intakeMode?: boolean;
   isClosingIssue?: boolean;
   collaborators: { login: string; avatar_url: string }[];
-  draggable?: boolean;
-  onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
-  onDragEndTask?: (task: KodyTask) => void;
-  accent?: { divide: string; rowBg: string; rowHover: string };
 }
 
 const TaskRow = memo(function TaskRow({
@@ -476,10 +450,6 @@ const TaskRow = memo(function TaskRow({
   intakeMode = false,
   isClosingIssue = false,
   collaborators,
-  draggable,
-  onDragStartTask,
-  onDragEndTask,
-  accent,
 }: TaskRowProps) {
   const [confirmCloseIssue, setConfirmCloseIssue] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
@@ -550,22 +520,6 @@ const TaskRow = memo(function TaskRow({
       role="option"
       aria-selected={isSelected}
       tabIndex={0}
-      draggable={draggable}
-      onDragStart={(e) => {
-        if (!draggable) return;
-        e.dataTransfer.effectAllowed = "move";
-        // Payload — any consumer can read `task-id`
-        try {
-          e.dataTransfer.setData("text/plain", String(task.issueNumber));
-        } catch {
-          /* some browsers restrict setData during drag */
-        }
-        onDragStartTask?.(task, e);
-      }}
-      onDragEnd={() => {
-        if (!draggable) return;
-        onDragEndTask?.(task);
-      }}
       onClick={() => onClick(task)}
       onMouseEnter={() => onTaskHover?.(task)}
       onKeyDown={(e) => {
@@ -576,18 +530,14 @@ const TaskRow = memo(function TaskRow({
       }}
       className={cn(
         "group relative cursor-pointer transition-colors duration-100 border-s-2 border-s-transparent",
-        // Hover: palette-tinted if provided, otherwise the default neutral hover
-        accent?.rowHover ?? "hover:bg-white/[0.04]",
-        // Status-driven bg wins when set; otherwise fall back to the
-        // palette-tinted neutral row bg (so 'open' rows pick up the goal color)
-        colors.bg || accent?.rowBg || "",
+        "hover:bg-white/[0.04]",
+        colors.bg,
         isBacklogIntakeTask &&
           isAssignedBacklogTask &&
           "bg-blue-500/[0.05] border-s-blue-400/70",
         isSelected && cn("bg-white/[0.06] border-s-2", colors.border),
         isFocused && "ring-1 ring-blue-500/40 bg-blue-500/5",
         isHardStop && "ring-1 ring-red-500/30 ring-inset",
-        draggable && "cursor-grab active:cursor-grabbing",
       )}
     >
       {/* Main row */}

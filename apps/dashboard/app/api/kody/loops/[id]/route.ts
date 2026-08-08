@@ -7,8 +7,15 @@ import {
 import { createLoopDefinition } from "@kody-ade/agency-domain";
 import {
   deleteRepositoryLoop,
+  readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
+
+function isLegacyEventTrigger(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const type = (value as { type?: unknown }).type;
+  return type === "event" || type === "webhook" || type === "condition";
+}
 
 function context(req: NextRequest, id: string) {
   const auth = getRequestAuth(req);
@@ -28,10 +35,30 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_loop" }, { status: 400 });
   }
   try {
-    const loop = createLoopDefinition({ ...(await req.json()), id });
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    }
+    const body = await req.json();
+    const loop = createLoopDefinition({ ...body, id });
+    const existing = await readRepositoryLoop(
+      octokit,
+      resolved.owner,
+      resolved.repo,
+      id,
+    );
+    if (
+      isLegacyEventTrigger(loop.trigger) &&
+      existing?.trigger.type !== loop.trigger.type
+    ) {
+      return NextResponse.json(
+        {
+          error: "event_triggers_use_workflow_rules",
+          message:
+            "GitHub and event-driven starts are configured as event rules, not Loops.",
+        },
+        { status: 400 },
+      );
     }
     const updatedAt = "";
     await saveRepositoryLoop(

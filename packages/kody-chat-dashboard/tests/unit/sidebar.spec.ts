@@ -19,9 +19,9 @@ describe("Sidebar navigation items", () => {
     expect(SOURCE).toContain("pinnedItem: SettingsNavItem | null");
   });
 
-  it("scopes nav hrefs to the connected repo when authenticated", () => {
+  it("scopes nav hrefs only when a repository is connected", () => {
     expect(SOURCE).toContain(
-      "auth ? repoScopedHref(auth, href) : href",
+      "auth?.owner && auth.repo ? repoScopedHref(auth, href) : href",
     );
   });
 

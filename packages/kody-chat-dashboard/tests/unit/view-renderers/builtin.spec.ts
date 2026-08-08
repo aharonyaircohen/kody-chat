@@ -17,6 +17,7 @@ describe("builtin view renderers", () => {
     expect(BUILTIN_VIEW_RENDERER_DEFINITIONS.map((d) => d.slug).sort()).toEqual(
       [
         "approval-card",
+        "guided-flow-command",
         "guided-flow-status",
         "guided-form",
         "multi-select-list",
@@ -34,6 +35,18 @@ describe("builtin view renderers", () => {
       "Approval card",
     );
     expect(getBuiltinViewRendererDefinition("nope")).toBeNull();
+  });
+
+  it("renders approval supporting content as Markdown", () => {
+    const approval = getBuiltinViewRendererDefinition("approval-card");
+
+    expect(approval?.data?.body).toMatchObject({ type: "markdown" });
+    expect(approval?.ui).toMatchObject({
+      type: "stack",
+      children: expect.arrayContaining([
+        expect.objectContaining({ type: "markdown", value: "$body" }),
+      ]),
+    });
   });
 
   it("built-ins compile into catalog view components", () => {
@@ -54,6 +67,9 @@ describe("builtin view renderers", () => {
     );
     expect(catalog.definitionComponents.get("GuidedFlowStatus")?.slug).toBe(
       "guided-flow-status",
+    );
+    expect(catalog.definitionComponents.get("GuidedFlowCommand")?.slug).toBe(
+      "guided-flow-command",
     );
   });
 });

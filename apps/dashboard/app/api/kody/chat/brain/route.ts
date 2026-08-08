@@ -32,7 +32,9 @@ import {
 } from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
+import { logger } from "@kody-ade/base/logger";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
+import { withDashboardFeatureGuideContext } from "@dashboard/lib/feature-guides/brain-context";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -125,6 +127,20 @@ export async function POST(req: NextRequest) {
   // audience. Cached 60s in-process; `null` when the repo has none.
   const dashboardContext =
     !isResume && body.includeContext ? await loadContextForPrompt() : null;
+  let messageWithFeatureGuide = message ?? "";
+  if (!isResume) {
+    try {
+      messageWithFeatureGuide = await withDashboardFeatureGuideContext({
+        message: message ?? "",
+        currentPage: body.currentPage,
+      });
+    } catch (err) {
+      logger.warn(
+        { err, repo },
+        "chat/brain: feature guide load failed — proceeding without it",
+      );
+    }
+  }
   let agentIdentity: BrainAgentIdentity | undefined;
   if (!isResume && body.agentSlug) {
     const agent = await readResolvedAgentFile(body.agentSlug).catch(() => null);
@@ -147,7 +163,7 @@ export async function POST(req: NextRequest) {
     message: isResume
       ? ""
       : withDashboardContext(
-          withPageContext(message ?? "", body.currentPage),
+          withPageContext(messageWithFeatureGuide, body.currentPage),
           dashboardContext,
         ),
     taskContext: body.taskContext,

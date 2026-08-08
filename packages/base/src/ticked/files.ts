@@ -12,9 +12,10 @@ export interface TickFile {
   sha: string;
   updatedAt: string;
   htmlUrl: string;
-  source?: "local" | "store";
+  source?: "local" | "builtin" | "store";
   readOnly?: boolean;
   capabilities?: string[];
+  subagents?: string[];
 }
 
 export interface TickWriteOptions {
@@ -25,6 +26,7 @@ export interface TickWriteOptions {
   sha?: string;
   message?: string;
   capabilities?: string[];
+  subagents?: string[];
 }
 
 function deriveTitle(body: string, slug: string): string {

@@ -11,73 +11,43 @@ const auth = vi.hoisted(() => ({
     storeRef: "main",
   })),
   getUserOctokit: vi.fn(),
+  verifyActorLogin: vi.fn(async () => ({
+    identity: { login: "octo", avatar_url: "", githubId: 42 },
+  })),
 }));
-
 const githubClient = vi.hoisted(() => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));
-
-const audit = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-}));
-
-const engineConfig = vi.hoisted(() => ({
-  getEngineConfig: vi.fn(),
-}));
-
+const audit = vi.hoisted(() => ({ recordAudit: vi.fn() }));
+const engineConfig = vi.hoisted(() => ({ getEngineConfig: vi.fn() }));
 const workflowFiles = vi.hoisted(() => ({
   readWorkflowDefinitionFile: vi.fn(),
   readCompanyStoreWorkflowDefinitionFile: vi.fn(),
-  readCompanyStoreCapabilityWorkflowDefinitionFile: vi.fn(),
+}));
+const approvals = vi.hoisted(() => ({
+  consumeStoredAgencyApproval: vi.fn(async () => true),
 }));
 
-const runner = vi.hoisted(() => ({
-  runScheduledKodyOnRunner: vi.fn(async () => ({
-    ok: true,
-    runner: "fly",
-    machineId: "m-workflow",
-    ref: "main",
-  })),
+vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@dashboard/lib/github-client", () => githubClient);
+vi.mock("@dashboard/lib/activity/audit", () => audit);
+vi.mock("@dashboard/lib/cto/trust-store", () => ({
+  readTrust: vi.fn(async () => ({ capabilities: {}, subjects: {}, log: [] })),
 }));
-
-vi.mock("@kody-ade/base/auth", () => ({
-  requireKodyAuth: auth.requireKodyAuth,
-  getRequestAuth: auth.getRequestAuth,
-  getUserOctokit: auth.getUserOctokit,
-}));
-
-vi.mock("@dashboard/lib/github-client", () => ({
-  setGitHubContext: githubClient.setGitHubContext,
-  clearGitHubContext: githubClient.clearGitHubContext,
-}));
-
-vi.mock("@dashboard/lib/activity/audit", () => ({
-  recordAudit: audit.recordAudit,
-}));
-
-vi.mock("@kody-ade/base/engine/config", () => ({
-  getEngineConfig: engineConfig.getEngineConfig,
-}));
-
-vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
-  runScheduledKodyOnRunner: runner.runScheduledKodyOnRunner,
-}));
-
-vi.mock("@dashboard/lib/workflow-definition-files", () => ({
-  readWorkflowDefinitionFile: workflowFiles.readWorkflowDefinitionFile,
-  readCompanyStoreWorkflowDefinitionFile:
-    workflowFiles.readCompanyStoreWorkflowDefinitionFile,
-  readCompanyStoreCapabilityWorkflowDefinitionFile:
-    workflowFiles.readCompanyStoreCapabilityWorkflowDefinitionFile,
-}));
+vi.mock("@kody-ade/base/engine/config", () => engineConfig);
+vi.mock("@dashboard/lib/workflow-definition-files", () => workflowFiles);
+vi.mock("@kody-ade/agency/backend/agency-approvals-store", () => approvals);
 
 import { POST } from "../../app/api/kody/company/workflows/[id]/run/route";
 
-function req(id: string): NextRequest {
+function request(id: string, body?: unknown): NextRequest {
   return new NextRequest(
     `https://dash.test/api/kody/company/workflows/${id}/run`,
-    { method: "POST" },
+    {
+      method: "POST",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    },
   );
 }
 
@@ -94,28 +64,29 @@ function makeOctokit() {
           data: {
             encoding: "base64",
             content: Buffer.from(
-              "on:\n  workflow_dispatch:\n    inputs:\n      capability:\n        type: string\n",
+              "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n",
             ).toString("base64"),
           },
         })),
       },
       actions: {
-        createWorkflowDispatch: vi.fn(async () => ({ status: 204 })),
+        createWorkflowDispatch: vi.fn(async (_input: unknown) => ({
+          status: 204,
+        })),
       },
     },
   };
 }
 
-const runnableBugWorkflow = {
-  id: "bug",
-  path: "legacy/capabilities/bug/profile.json",
+const validWorkflow = {
+  id: "learn-from-runs",
+  path: "catalog/workflows/learn-from-runs/workflow.json",
   runnable: true,
   workflow: {
-    version: 1,
-    name: "bug",
-    capabilities: ["reproduce", "plan", "run", "review", "fix"],
-    createdAt: "1970-01-01T00:00:00.000Z",
-    updatedAt: "1970-01-01T00:00:00.000Z",
+    name: "Learn from Runs",
+    agent: "memory-steward",
+    capabilities: ["extract-run-learning"],
+    runWithoutApproval: true,
   },
   source: "store",
   readOnly: true,
@@ -124,181 +95,216 @@ const runnableBugWorkflow = {
 describe("POST /api/kody/company/workflows/:id/run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("KODY_SERVICE_KEY", "server-only-test-key");
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
-        defaultImplementation: "run",
-        company: {
-          activeCapabilities: [],
-          activeWorkflows: ["bug"],
-        },
+        company: { activeWorkflows: ["learn-from-runs"] },
       },
       sha: "config-sha",
     });
     workflowFiles.readWorkflowDefinitionFile.mockResolvedValue(null);
     workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue(
-      runnableBugWorkflow,
+      validWorkflow,
     );
   });
 
-  it("runs an active Store Workflow on the shared scheduled runner", async () => {
+  it("dispatches every Workflow through the provider-neutral Engine request", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
-    const res = await POST(req("bug"), params("bug"));
-
-    expect(res.status).toBe(200);
-    expect(runner.runScheduledKodyOnRunner).toHaveBeenCalledWith(
-      expect.any(NextRequest),
-      expect.objectContaining({
-        runRequest: expect.objectContaining({
-          target: { type: "workflow", id: "bug" },
-          intent: "run",
-        }),
+    const response = await POST(
+      request("learn-from-runs", {
+        input: { issue: 42 },
       }),
-    );
-    expect(audit.recordAudit).toHaveBeenCalledWith(expect.any(NextRequest), {
-      action: "workflow.run",
-      resource: "bug",
-      detail: "manual runner dispatch for workflow bug",
-    });
-    await expect(res.json()).resolves.toMatchObject({
-      ok: true,
-      runner: "fly",
-      machineId: "m-workflow",
-      ref: "main",
-      workflow: "bug",
-      action: "bug",
-    });
-  });
-
-  it("runs a local workflow definition with a durable workflow-run id", async () => {
-    const octokit = makeOctokit();
-    auth.getUserOctokit.mockResolvedValue(octokit);
-    engineConfig.getEngineConfig.mockResolvedValue({
-      config: {
-        defaultImplementation: "run",
-        company: {
-          activeCapabilities: [],
-          activeWorkflows: [],
-        },
-      },
-      sha: "config-sha",
-    });
-    workflowFiles.readWorkflowDefinitionFile.mockResolvedValue({
-      path: "workflows/release/workflow.json",
-      workflow: {
-        version: 1,
-        name: "release",
-        capabilities: ["plan", "run"],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-      sha: "workflow-sha",
-    });
-    workflowFiles.readCompanyStoreCapabilityWorkflowDefinitionFile.mockResolvedValue(
-      null,
+      params("learn-from-runs"),
     );
 
-    const res = await POST(req("release"), params("release"));
-
-    expect(res.status).toBe(200);
-    expect(runner.runScheduledKodyOnRunner).toHaveBeenCalledWith(
-      expect.any(NextRequest),
-      expect.objectContaining({
-        runRequest: expect.objectContaining({
-          target: { type: "workflow", id: "release" },
-          input: expect.objectContaining({
-            runId: expect.stringMatching(/^run-/),
-          }),
-        }),
-      }),
-    );
-    await expect(res.json()).resolves.toMatchObject({
-      ok: true,
-      workflow: "release",
-      runId: expect.stringMatching(/^run-/),
-    });
-  });
-
-  it("dispatches the knowledge refresh through GitHub instead of Fly", async () => {
-    const octokit = makeOctokit();
-    auth.getUserOctokit.mockResolvedValue(octokit);
-    engineConfig.getEngineConfig.mockResolvedValue({
-      config: {
-        defaultImplementation: "run",
-        company: {
-          activeCapabilities: [],
-          activeWorkflows: ["refresh-knowledge-system"],
-        },
-      },
-      sha: "config-sha",
-    });
-    workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue({
-      id: "refresh-knowledge-system",
-      path: "workflows/refresh-knowledge-system/workflow.json",
-      workflow: {
-        version: 1,
-        name: "refresh-knowledge-system",
-        capabilities: ["build-knowledge-graph"],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-      source: "store",
-      readOnly: true,
-    });
-
-    const res = await POST(
-      req("refresh-knowledge-system"),
-      params("refresh-knowledge-system"),
-    );
-
-    expect(res.status).toBe(202);
-    expect(runner.runScheduledKodyOnRunner).not.toHaveBeenCalled();
-    expect(octokit.rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
+    expect(response.status).toBe(202);
+    const dispatch = octokit.rest.actions.createWorkflowDispatch.mock
+      .calls[0]![0] as {
+      inputs: { runRequest: string };
+    };
+    expect(dispatch).toMatchObject({
       owner: "acme",
       repo: "widgets",
       workflow_id: "kody.yml",
       ref: "main",
-      inputs: expect.objectContaining({
-        capability: "refresh-knowledge-system",
-      }),
     });
-    await expect(res.json()).resolves.toMatchObject({
+    expect(JSON.parse(dispatch.inputs.runRequest)).toEqual({
+      requestId: expect.stringMatching(/^run-/),
+      target: { type: "workflow", id: "learn-from-runs" },
+      intent: "run",
+      source: "dashboard",
+      input: { issue: 42 },
+    });
+    await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      runner: "github",
-      workflow: "refresh-knowledge-system",
-      action: "refresh-knowledge-system",
+      execution: "kody-engine",
+      workflow: "learn-from-runs",
+      runId: expect.stringMatching(/^run-/),
+    });
+    expect(audit.recordAudit).toHaveBeenCalledWith(expect.any(NextRequest), {
+      action: "workflow.run",
+      resource: "learn-from-runs",
+      detail: "manual Engine dispatch for workflow learn-from-runs",
     });
   });
 
-  it("refuses to dispatch an invalid stored workflow", async () => {
-    auth.getUserOctokit.mockResolvedValue(makeOctokit());
-    engineConfig.getEngineConfig.mockResolvedValue({
-      config: { company: { activeCapabilities: [], activeWorkflows: [] } },
-      sha: "config-sha",
+  it("preserves the workflow run id when resuming", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    await POST(
+      request("learn-from-runs", {
+        mode: "resume",
+        runId: "run-existing",
+      }),
+      params("learn-from-runs"),
+    );
+
+    const dispatch = octokit.rest.actions.createWorkflowDispatch.mock
+      .calls[0]![0] as {
+      inputs: { runRequest: string };
+    };
+    expect(JSON.parse(dispatch.inputs.runRequest)).toMatchObject({
+      requestId: "run-existing",
     });
-    workflowFiles.readWorkflowDefinitionFile.mockResolvedValue({
-      path: "workflows/unsafe/workflow.json",
+  });
+
+  it("rejects invalid workflows before dispatch", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue({
+      ...validWorkflow,
       workflow: {
-        version: 1,
-        name: "unsafe",
-        capabilities: ["inspect"],
-        startAt: "inspect",
+        ...validWorkflow.workflow,
+        startAt: "extract",
         steps: [
-          { id: "inspect", capability: "inspect", next: [{ to: "missing" }] },
+          {
+            id: "extract",
+            capability: "extract-run-learning",
+            next: [{ to: "missing" }],
+          },
         ],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
       },
     });
 
-    const res = await POST(req("unsafe"), params("unsafe"));
+    const response = await POST(
+      request("learn-from-runs"),
+      params("learn-from-runs"),
+    );
 
-    expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toMatchObject({
-      error: "invalid_workflow",
-      issues: [{ code: "missing_transition_target" }],
+    expect(response.status).toBe(409);
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("requires explicit approval before dispatching an untrusted Workflow", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue({
+      ...validWorkflow,
+      workflow: {
+        ...validWorkflow.workflow,
+        runWithoutApproval: false,
+      },
     });
-    expect(runner.runScheduledKodyOnRunner).not.toHaveBeenCalled();
+    const response = await POST(
+      request("learn-from-runs", { approved: true }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "approval_required",
+      approvalToken: expect.any(String),
+    });
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("consumes a durable approval id before dispatching an untrusted Workflow", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue({
+      ...validWorkflow,
+      workflow: {
+        ...validWorkflow.workflow,
+        runWithoutApproval: false,
+      },
+    });
+
+    const response = await POST(
+      request("learn-from-runs", {
+        approvalId: "approval-one",
+        input: { issue: 42 },
+      }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(202);
+    expect(approvals.consumeStoredAgencyApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "widgets",
+        approvalId: "approval-one",
+        scopeKind: "workflow",
+        scopeId: "learn-from-runs",
+        approvedBy: "github:42",
+      }),
+    );
+  });
+
+  it("rejects a non-object workflow input", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+
+    const response = await POST(
+      request("learn-from-runs", {
+        input: [42],
+      }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_input",
+    });
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects input that does not satisfy the Workflow contract", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue({
+      ...validWorkflow,
+      workflow: {
+        ...validWorkflow.workflow,
+        inputSchema: {
+          type: "object",
+          properties: { issue: { type: "integer", minimum: 1 } },
+          required: ["issue"],
+          additionalProperties: false,
+        },
+      },
+    });
+
+    const response = await POST(
+      request("learn-from-runs", {
+        input: { issue: "not-an-integer" },
+      }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_workflow",
+      issues: [
+        {
+          code: "invalid_workflow_input",
+          path: "input.issue",
+        },
+      ],
+    });
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 });

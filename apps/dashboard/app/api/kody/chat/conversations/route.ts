@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getRequestAuth,
-  requireKodyAuth,
+  requireUserAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { z } from "zod";
 import {
   backendApi,
   getConvexClient,
-  tenantIdFor,
+  userTenantIdFor,
 } from "@dashboard/lib/backend/convex-backend";
 import { logger } from "@kody-ade/base/logger";
 
@@ -43,23 +43,19 @@ const createConversationSchema = z.object({
   title: z.string().trim().min(1).max(200),
   activeAgent: agentSchema,
   runtime: runtimeSchema,
+  machineAccess: z.enum(["none", "local", "brain"]).default("none"),
   actorLogin: z.string().trim().min(1).max(100),
   surface: z.enum(["global", "vibe-default"]),
 });
 
-function requireRepositoryContext(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-  return auth;
-}
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req);
+  const authError = await requireUserAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const auth = requireRepositoryContext(req);
-  if (auth instanceof NextResponse) return auth;
+  const actor = await verifyActorLogin(
+    req,
+    req.headers.get("x-kody-user-login") ?? undefined,
+  );
+  if (actor instanceof NextResponse) return actor;
 
   try {
     const surface =
@@ -68,7 +64,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         : "global";
     const conversations = await getConvexClient().query(
       backendApi.conversations.list,
-      { tenantId: tenantIdFor(auth.owner, auth.repo), surface },
+      { tenantId: userTenantIdFor(actor.identity.githubId), surface },
     );
     return NextResponse.json(
       { conversations },
@@ -84,10 +80,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req);
+  const authError = await requireUserAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const auth = requireRepositoryContext(req);
-  if (auth instanceof NextResponse) return auth;
+  const auth = getRequestAuth(req);
 
   const parsed = createConversationSchema.safeParse(
     await req.json().catch(() => null),
@@ -103,17 +98,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (actor instanceof NextResponse) return actor;
 
   const now = new Date().toISOString();
-  const tenantId = tenantIdFor(auth.owner, auth.repo);
+  const tenantId = userTenantIdFor(actor.identity.githubId);
   try {
     await getConvexClient().mutation(backendApi.conversations.create, {
       tenantId,
       conversationId: parsed.data.conversationId,
       surface: parsed.data.surface,
-      scope: { kind: "repository", owner: auth.owner, repo: auth.repo },
+      scope: auth
+        ? { kind: "repository", owner: auth.owner, repo: auth.repo }
+        : { kind: "global" },
       title: parsed.data.title,
       pinned: false,
       activeAgent: parsed.data.activeAgent,
       runtime: parsed.data.runtime,
+      machineAccess: parsed.data.machineAccess,
       createdBy: `github:${actor.identity.login}`,
       createdAt: now,
       updatedAt: now,

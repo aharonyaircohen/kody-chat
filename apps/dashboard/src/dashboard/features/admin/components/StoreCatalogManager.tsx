@@ -20,6 +20,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Route,
   Bot,
   Clock3,
   Trash2,
@@ -45,9 +46,36 @@ import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 
 export type CatalogKind =
-  "all" | "agent" | "workflow" | "capability" | "loop" | "command" | "feature";
+  | "all"
+  | "solution"
+  | "agent"
+  | "workflow"
+  | "pipeline"
+  | "capability"
+  | "loop"
+  | "command"
+  | "feature";
 
-type CatalogItemKind = Exclude<CatalogKind, "all">;
+type CatalogItemKind = Exclude<CatalogKind, "all" | "solution">;
+
+interface StoreSolutionNode {
+  kind: "loop" | "pipeline" | "workflow" | "agent" | "capability";
+  slug: string;
+  title: string;
+  installed: boolean;
+  children: StoreSolutionNode[];
+}
+
+interface StoreSolution {
+  slug: string;
+  title: string;
+  description: string;
+  kind: "solution";
+  htmlUrl: string;
+  installed: boolean;
+  status: "available" | "partial" | "installed";
+  tree: StoreSolutionNode[];
+}
 
 interface StoreCatalogItem {
   slug: string;
@@ -65,6 +93,7 @@ interface StoreCatalogItem {
 }
 
 interface StoreCatalogResponse {
+  solutions: StoreSolution[];
   items: StoreCatalogItem[];
 }
 
@@ -79,8 +108,10 @@ const KIND_FILTERS: Array<{
   icon: LucideIcon;
 }> = [
   { id: "all", label: "All", icon: Package },
+  { id: "solution", label: "Solutions", icon: Package },
   { id: "agent", label: "Agents", icon: Users },
   { id: "workflow", label: "Workflows", icon: Workflow },
+  { id: "pipeline", label: "Pipelines", icon: Route },
   { id: "capability", label: "Capabilities", icon: Layers },
   { id: "loop", label: "Loops", icon: Clock3 },
   { id: "command", label: "Commands", icon: Bot },
@@ -90,6 +121,7 @@ const KIND_FILTERS: Array<{
 const KIND_LABEL: Record<CatalogItemKind, string> = {
   agent: "Agent",
   workflow: "Workflow",
+  pipeline: "Pipeline",
   capability: "Capability",
   loop: "Loop",
   command: "Command",
@@ -119,6 +151,17 @@ const KIND_COLORS: Record<
     tint: "bg-slate-500/10",
     text: "text-slate-700 dark:text-slate-100",
   },
+  solution: {
+    tabActive:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-100",
+    icon: "text-emerald-600 dark:text-emerald-300",
+    iconHover: "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
+    borderHover: "hover:border-emerald-500/30",
+    tint: "bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-100",
+  },
   agent: {
     tabActive: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
     tabIdle:
@@ -139,6 +182,17 @@ const KIND_COLORS: Record<
     borderHover: "hover:border-indigo-500/30",
     tint: "bg-indigo-500/10",
     text: "text-indigo-700 dark:text-indigo-100",
+  },
+  pipeline: {
+    tabActive:
+      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
+    icon: "text-violet-600 dark:text-violet-300",
+    iconHover: "group-hover:text-violet-600 dark:group-hover:text-violet-300",
+    borderHover: "hover:border-violet-500/30",
+    tint: "bg-violet-500/10",
+    text: "text-violet-700 dark:text-violet-100",
   },
   capability: {
     tabActive:
@@ -187,11 +241,11 @@ const KIND_COLORS: Record<
 };
 
 const CATEGORY_FILTERS = KIND_FILTERS.filter(
-  (filter) => filter.id !== "all",
+  (filter) => filter.id !== "all" && filter.id !== "solution",
 ) as Array<{ id: CatalogItemKind; label: string; icon: LucideIcon }>;
 
 const DEFAULT_VIEW_STATE: StoreCatalogViewState = {
-  kind: "all",
+  kind: "solution",
   search: "",
 };
 
@@ -202,7 +256,7 @@ const CATALOG_KIND_IDS = new Set<CatalogKind>(
 function catalogKindFromParam(value: string | null): CatalogKind {
   return CATALOG_KIND_IDS.has(value as CatalogKind)
     ? (value as CatalogKind)
-    : "all";
+    : DEFAULT_VIEW_STATE.kind;
 }
 
 function viewStateFromSearchParams(
@@ -219,12 +273,25 @@ function readCurrentViewState(): StoreCatalogViewState {
   return viewStateFromSearchParams(new URLSearchParams(window.location.search));
 }
 
+function readInitialCatalogKind(selectedKey: string | null): CatalogKind {
+  const current = readCurrentViewState();
+  if (typeof window === "undefined") return current.kind;
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("filter") || !selectedKey) return current.kind;
+  const selectedKind = selectedKey.split(":", 1)[0] as CatalogKind;
+  return CATALOG_KIND_IDS.has(selectedKind) && selectedKind !== "all"
+    ? selectedKind
+    : current.kind;
+}
+
 export function storeCatalogPathWithViewState(
   path: string,
   viewState: StoreCatalogViewState,
 ): string {
   const params = new URLSearchParams();
-  if (viewState.kind !== "all") params.set("filter", viewState.kind);
+  if (viewState.kind !== DEFAULT_VIEW_STATE.kind) {
+    params.set("filter", viewState.kind);
+  }
   const q = viewState.search.trim();
   if (q) params.set("q", q);
   const query = params.toString();
@@ -234,6 +301,12 @@ export function storeCatalogPathWithViewState(
 function queryText(item: StoreCatalogItem): string {
   return [item.slug, item.title, item.description, displayKindLabel(item)]
     .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function solutionQueryText(solution: StoreSolution): string {
+  return [solution.slug, solution.title, solution.description]
     .join(" ")
     .toLowerCase();
 }
@@ -259,6 +332,7 @@ function displayKindColor(item: StoreCatalogItem) {
 
 function itemMatchesKind(item: StoreCatalogItem, kind: CatalogKind): boolean {
   if (kind === "all") return true;
+  if (kind === "solution") return false;
   return item.kind === kind;
 }
 
@@ -274,6 +348,20 @@ function storeCatalogItemPath(
   return viewState ? storeCatalogPathWithViewState(path, viewState) : path;
 }
 
+function storeSolutionKey(solution: StoreSolution): string {
+  return `solution:${solution.slug}`;
+}
+
+function storeSolutionPath(
+  solution: StoreSolution,
+  viewState: StoreCatalogViewState,
+): string {
+  return storeCatalogPathWithViewState(
+    selectionPath("/store-catalog", "solution", solution.slug),
+    viewState,
+  );
+}
+
 async function fetchCatalog(
   headers: Record<string, string>,
 ): Promise<StoreCatalogResponse> {
@@ -282,6 +370,7 @@ async function fetchCatalog(
     cache: "no-store",
   });
   const json = (await res.json().catch(() => ({}))) as {
+    solutions?: StoreSolution[];
     items?: StoreCatalogItem[];
     error?: string;
     message?: string;
@@ -292,8 +381,28 @@ async function fetchCatalog(
   }
 
   return {
+    solutions: json.solutions ?? [],
     items: json.items ?? [],
   };
+}
+
+async function mutateStoreSolution(
+  headers: Record<string, string>,
+  solution: StoreSolution,
+  remove: boolean,
+): Promise<void> {
+  const res = await fetch("/api/kody/store-catalog/import", {
+    method: remove ? "DELETE" : "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify({ kind: "solution", slug: solution.slug }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
 }
 
 async function addCatalogStoreReference(
@@ -393,8 +502,8 @@ export function StoreCatalogManager({
     auth?.storeRef ?? null,
   ] as const;
   const [search, setSearch] = useState(() => readCurrentViewState().search);
-  const [kind, setKind] = useState<CatalogKind>(
-    () => readCurrentViewState().kind,
+  const [kind, setKind] = useState<CatalogKind>(() =>
+    readInitialCatalogKind(selectedKey),
   );
 
   const catalog = useQuery({
@@ -404,7 +513,18 @@ export function StoreCatalogManager({
     staleTime: 30_000,
   });
 
+  const solutions = useMemo(
+    () => catalog.data?.solutions ?? [],
+    [catalog.data],
+  );
   const items = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
+  const filteredSolutions = useMemo(() => {
+    if (kind !== "solution") return [];
+    const q = search.trim().toLowerCase();
+    return solutions.filter(
+      (solution) => !q || solutionQueryText(solution).includes(q),
+    );
+  }, [kind, search, solutions]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
@@ -426,12 +546,19 @@ export function StoreCatalogManager({
       null,
     [filtered, selectedKey],
   );
-
+  const selectedSolution = useMemo(
+    () =>
+      solutions.find(
+        (solution) => storeSolutionKey(solution) === selectedKey,
+      ) ?? null,
+    [selectedKey, solutions],
+  );
   useEffect(() => {
     if (catalog.isLoading || !catalog.data) return;
     if (
       selectedKey &&
-      !items.some((item) => storeCatalogItemKey(item) === selectedKey)
+      !items.some((item) => storeCatalogItemKey(item) === selectedKey) &&
+      !solutions.some((solution) => storeSolutionKey(solution) === selectedKey)
     ) {
       router.replace(
         storeCatalogPathWithViewState("/store-catalog", { kind, search }),
@@ -445,6 +572,7 @@ export function StoreCatalogManager({
     router,
     search,
     selectedKey,
+    solutions,
   ]);
 
   const selectCatalogItem = (item: StoreCatalogItem | null) => {
@@ -452,6 +580,16 @@ export function StoreCatalogManager({
     router.push(
       item
         ? storeCatalogItemPath(item, viewState)
+        : storeCatalogPathWithViewState("/store-catalog", viewState),
+      { scroll: false },
+    );
+  };
+
+  const selectSolution = (solution: StoreSolution | null) => {
+    const viewState = { kind, search };
+    router.push(
+      solution
+        ? storeSolutionPath(solution, viewState)
         : storeCatalogPathWithViewState("/store-catalog", viewState),
       { scroll: false },
     );
@@ -506,6 +644,29 @@ export function StoreCatalogManager({
       });
     },
   });
+  const solutionMutation = useMutation({
+    mutationFn: ({
+      solution,
+      remove,
+    }: {
+      solution: StoreSolution;
+      remove: boolean;
+    }) => mutateStoreSolution(headers, solution, remove),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey });
+      await invalidateCatalogQueries(queryClient);
+      toast.success(
+        variables.remove
+          ? "Solution entry points removed"
+          : "Solution installed with its dependencies",
+      );
+    },
+    onError: (error: Error) => {
+      toast.error("Couldn't change Store solution", {
+        description: error.message,
+      });
+    },
+  });
   const pendingStoreItem =
     installMutation.variables ?? uninstallMutation.variables ?? null;
   const pendingStoreItemKey = pendingStoreItem
@@ -540,84 +701,178 @@ export function StoreCatalogManager({
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        <ListSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search store..."
-          ariaLabel="Search store catalog"
-          accent="emerald"
-        />
-        <div className="flex flex-wrap gap-1.5" role="tablist">
-          {KIND_FILTERS.map((filter) => {
-            const active = filter.id === kind;
-            const Icon = filter.icon;
-            const colors = KIND_COLORS[filter.id];
-            return (
-              // eslint-disable-next-line react/forbid-elements -- tab pill styled by dynamic per-kind tint classes; kit ghost hover styles would override the active tint
-              <button
-                key={filter.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => selectCatalogKind(filter.id)}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors",
-                  active ? colors.tabActive : colors.tabIdle,
-                )}
+      {kind === "solution" ? (
+        <section className="space-y-5">
+          <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-card p-6 md:p-8">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div className="max-w-3xl">
+                <span className="text-xs font-medium uppercase tracking-wider text-emerald-700 dark:text-emerald-200">
+                  Kody Store
+                </span>
+                <h2 className="mt-2 text-2xl font-semibold text-foreground md:text-3xl">
+                  Start with a complete Solution
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground md:text-base md:leading-7">
+                  Choose an outcome and install its workflows, loops, agents,
+                  and capabilities together. You can review the complete setup
+                  before anything is added to this repository.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => selectCatalogKind("all")}
+                className="shrink-0 gap-2"
               >
-                <Icon className="h-3.5 w-3.5" />
-                {filter.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                <Layers className="h-4 w-4" />
+                Browse components
+              </Button>
+            </div>
+          </div>
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search Solutions..."
+            ariaLabel="Search Store Solutions"
+            accent="emerald"
+          />
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Browse components
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Install individual Store parts instead of a complete Solution.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => selectCatalogKind("solution")}
+            >
+              Back to Solutions
+            </Button>
+          </div>
+          <div className="space-y-3">
+            <ListSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search components..."
+              ariaLabel="Search Store components"
+              accent="emerald"
+            />
+            <div className="flex flex-wrap gap-1.5" role="tablist">
+              {KIND_FILTERS.filter((filter) => filter.id !== "solution").map(
+                (filter) => {
+                  const active = filter.id === kind;
+                  const Icon = filter.icon;
+                  const colors = KIND_COLORS[filter.id];
+                  return (
+                    // eslint-disable-next-line react/forbid-elements -- tab pill styled by dynamic per-kind tint classes; kit ghost hover styles would override the active tint
+                    <button
+                      key={filter.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => selectCatalogKind(filter.id)}
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors",
+                        active ? colors.tabActive : colors.tabIdle,
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {filter.label}
+                    </button>
+                  );
+                },
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {catalog.isLoading ? (
         <EmptyState icon={<Package />} title="Loading store catalog..." />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && solutions.length === 0 ? (
         <EmptyState icon={<Package />} title="No store items found" />
-      ) : filtered.length === 0 ? (
+      ) : kind === "solution" && filteredSolutions.length === 0 ? (
+        <EmptyState icon={<Package />} title="No matching solutions" />
+      ) : kind !== "solution" && filtered.length === 0 ? (
         <EmptyState icon={<Package />} title="No matching store items" />
       ) : (
         <div className="space-y-8">
-          {grouped.map((group) => {
-            const GroupIcon = group.icon;
-            return (
-              <section
-                key={group.id}
-                aria-labelledby={`store-group-${group.id}`}
-                className="space-y-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <GroupIcon
-                      className={cn("h-4 w-4", KIND_COLORS[group.id].icon)}
-                    />
-                    <h2
-                      id={`store-group-${group.id}`}
-                      className="text-sm font-semibold text-foreground"
-                    >
-                      {group.label}
-                    </h2>
-                  </div>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {group.items.length}
-                  </span>
+          {kind === "solution" ? (
+            <section
+              aria-labelledby="store-group-solutions"
+              className="space-y-4"
+            >
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2
+                    id="store-group-solutions"
+                    className="text-lg font-semibold text-foreground"
+                  >
+                    Solutions
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Complete setups ready to review and install.
+                  </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                  {group.items.map((item) => (
-                    <CatalogCard
-                      key={`${item.kind}:${item.slug}`}
-                      item={item}
-                      onSelect={() => selectCatalogItem(item)}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+                <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+                  {filteredSolutions.length}
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                {filteredSolutions.map((solution) => (
+                  <SolutionCard
+                    key={solution.slug}
+                    solution={solution}
+                    onSelect={() => selectSolution(solution)}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {kind !== "solution"
+            ? grouped.map((group) => {
+                const GroupIcon = group.icon;
+                return (
+                  <section
+                    key={group.id}
+                    aria-labelledby={`store-group-${group.id}`}
+                    className="space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <GroupIcon
+                          className={cn("h-4 w-4", KIND_COLORS[group.id].icon)}
+                        />
+                        <h2
+                          id={`store-group-${group.id}`}
+                          className="text-sm font-semibold text-foreground"
+                        >
+                          {group.label}
+                        </h2>
+                      </div>
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {group.items.length}
+                      </span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                      {group.items.map((item) => (
+                        <CatalogCard
+                          key={`${item.kind}:${item.slug}`}
+                          item={item}
+                          onSelect={() => selectCatalogItem(item)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })
+            : null}
         </div>
       )}
 
@@ -639,7 +894,249 @@ export function StoreCatalogManager({
           />
         ) : null}
       </Dialog>
+
+      <Dialog
+        open={!!selectedSolution}
+        onOpenChange={(open) => {
+          if (!open) selectSolution(null);
+        }}
+      >
+        {selectedSolution ? (
+          <SolutionDetail
+            solution={selectedSolution}
+            busy={solutionMutation.isPending}
+            onChange={(remove) =>
+              solutionMutation.mutate({
+                solution: selectedSolution,
+                remove,
+              })
+            }
+          />
+        ) : null}
+      </Dialog>
     </PageShell>
+  );
+}
+
+function countSolutionNodes(nodes: StoreSolutionNode[]): number {
+  return nodes.reduce(
+    (total, node) => total + 1 + countSolutionNodes(node.children),
+    0,
+  );
+}
+
+function SolutionCard({
+  solution,
+  onSelect,
+}: {
+  solution: StoreSolution;
+  onSelect: () => void;
+}) {
+  const statusLabel =
+    solution.status === "installed"
+      ? "Installed"
+      : solution.status === "partial"
+        ? "Partially installed"
+        : "Available";
+  return (
+    // eslint-disable-next-line react/forbid-elements -- interactive multi-line Store card needs semantic button behavior without kit button's single-line layout
+    <button
+      type="button"
+      onClick={onSelect}
+      data-testid={`store-solution-row-${solution.slug}`}
+      className="group flex min-h-52 flex-col rounded-lg border border-border bg-card p-5 text-left transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200">
+          <Package className="h-5 w-5" />
+        </span>
+        <span
+          className={cn(
+            "rounded-md border px-2 py-1 text-xs font-medium",
+            solution.status === "installed"
+              ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100"
+              : solution.status === "partial"
+                ? "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-100"
+                : "border-border bg-background/50 text-muted-foreground",
+          )}
+        >
+          {statusLabel}
+        </span>
+      </div>
+      <h3 className="mt-4 text-lg font-semibold text-foreground">
+        {solution.title}
+      </h3>
+      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+        {solution.description}
+      </p>
+      <div className="mt-auto flex items-center justify-between gap-3 pt-5 text-xs text-muted-foreground">
+        <span>{countSolutionNodes(solution.tree)} included items</span>
+        <span className="font-medium text-emerald-700 dark:text-emerald-200">
+          View solution
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function SolutionDetail({
+  solution,
+  busy,
+  onChange,
+}: {
+  solution: StoreSolution;
+  busy: boolean;
+  onChange: (remove: boolean) => void;
+}) {
+  const installed = solution.status === "installed";
+  const statusLabel = installed
+    ? "Installed"
+    : solution.status === "partial"
+      ? "Partially installed"
+      : "Available";
+
+  return (
+    <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-5xl flex-col overflow-hidden border-border bg-card text-card-foreground">
+      <DialogHeader className="shrink-0 pr-8">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100">
+            <Package className="h-4 w-4" />
+          </span>
+          <DialogTitle className="truncate text-xl text-foreground">
+            {solution.title}
+          </DialogTitle>
+        </div>
+        <DialogDescription className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-mono">{solution.slug}</span>
+          <span className="font-medium text-emerald-700 dark:text-emerald-100">
+            Solution
+          </span>
+          <span>{statusLabel}</span>
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="space-y-5">
+            <section className="rounded-md border border-border bg-emerald-500/5 p-4">
+              <h3 className="text-sm font-medium text-foreground">
+                What this Solution does
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {solution.description}
+              </p>
+              <p className="mt-3 text-sm text-foreground/80">
+                Installing it also installs every dependency shown below.
+              </p>
+            </section>
+            <section className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground">
+                Complete setup
+              </h3>
+              <div className="overflow-hidden rounded-md border border-border bg-background/40">
+                <DependencyTree nodes={solution.tree} />
+              </div>
+            </section>
+          </div>
+
+          <aside className="space-y-3">
+            <InfoRow label="Type" value="Solution" />
+            <InfoRow
+              label="Included"
+              value={`${countSolutionNodes(solution.tree)} items`}
+            />
+            <InfoRow label="Status" value={statusLabel} />
+            <InfoRow label="Source">
+              <a
+                href={solution.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-w-0 items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Store source</span>
+              </a>
+            </InfoRow>
+          </aside>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 justify-end border-t border-border pt-3">
+        <Button
+          size="sm"
+          onClick={() => onChange(installed)}
+          disabled={busy}
+          variant={installed ? "outline" : "default"}
+          data-testid={`store-catalog-import-solution-${solution.slug}`}
+          className="gap-1"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : installed ? (
+            <Trash2 className="h-4 w-4" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          {busy
+            ? "Working..."
+            : installed
+              ? "Remove entry points"
+              : solution.status === "partial"
+                ? "Complete install"
+                : "Install solution"}
+        </Button>
+      </div>
+    </DialogContent>
+  );
+}
+
+function DependencyTree({
+  nodes,
+  depth = 0,
+}: {
+  nodes: StoreSolutionNode[];
+  depth?: number;
+}) {
+  return (
+    <ul className={cn(depth > 0 && "ml-5 border-l border-border")}>
+      {nodes.map((node) => {
+        const Icon =
+          node.kind === "loop"
+            ? Clock3
+            : node.kind === "workflow"
+              ? Workflow
+              : node.kind === "agent"
+                ? Users
+                : Layers;
+        return (
+          <li key={`${node.kind}:${node.slug}`}>
+            <div className="flex items-center gap-3 border-b border-border/60 px-3 py-3 md:px-4">
+              <Icon className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {node.title}
+                </div>
+                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                  {node.slug}
+                </div>
+              </div>
+              <span className="text-[11px] capitalize text-muted-foreground">
+                {node.kind}
+              </span>
+              {node.installed ? (
+                <CheckCircle2
+                  className="h-4 w-4 shrink-0 text-emerald-500"
+                  aria-label="Installed"
+                />
+              ) : null}
+            </div>
+            {node.children.length > 0 ? (
+              <DependencyTree nodes={node.children} depth={depth + 1} />
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

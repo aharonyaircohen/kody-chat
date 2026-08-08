@@ -5,23 +5,20 @@ import { setup } from "./helpers"
 const TENANT = "acme/app"
 
 describe("agencyRuns", () => {
-  it("stores goal runs produced by the Engine", async () => {
+  it("can read legacy goal runs without allowing new goal writes", async () => {
     const t = setup()
-
-    await t.mutation(api.agencyRuns.save, {
-      tenantId: TENANT,
-      runId: "goal:ci-health:run-1",
-      subjectType: "goal",
-      subjectId: "ci-health",
-      run: { status: "success" },
-      updatedAt: "2026-07-25T10:00:00.000Z",
-    } as never)
-
-    const runs = await t.query(api.agencyRuns.list, {
-      tenantId: TENANT,
-      limit: 10,
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencyRuns", {
+        tenantId: TENANT,
+        runId: "goal:ci-health:legacy",
+        subjectType: "goal",
+        subjectId: "ci-health",
+        run: { status: "success" },
+        updatedAt: "2026-07-18T00:08:56.156Z",
+      } as never)
     })
 
+    const runs = await t.query(api.agencyRuns.list, { tenantId: TENANT, limit: 10 })
     expect(runs).toHaveLength(1)
     expect(runs[0]?.subjectType).toBe("goal")
   })
@@ -61,27 +58,6 @@ describe("agencyRuns", () => {
 })
 
 describe("runEvents", () => {
-  it("stores the goal identity attached by the Engine", async () => {
-    const t = setup()
-
-    await t.mutation(api.runEvents.append, {
-      tenantId: TENANT,
-      runId: "goal:ci-health:run-1",
-      goalId: "ci-health",
-      event: { type: "goal.tick.start" },
-      time: "2026-07-25T10:00:00.000Z",
-    } as never)
-
-    const byRun = await t.query(api.runEvents.listByRun, {
-      tenantId: TENANT,
-      runId: "goal:ci-health:run-1",
-    })
-
-    expect((byRun[0] as { goalId?: string } | undefined)?.goalId).toBe(
-      "ci-health",
-    )
-  })
-
   it("appends ordered events and reads them by run", async () => {
     const t = setup()
     for (const type of ["run.started", "run.completed"]) {

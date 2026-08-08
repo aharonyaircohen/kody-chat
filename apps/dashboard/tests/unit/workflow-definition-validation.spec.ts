@@ -40,6 +40,45 @@ describe("validateWorkflowDefinition", () => {
     ).toEqual({ prefer: "ours" });
   });
 
+  it("preserves generic Engine execution policy on Store workflow steps", () => {
+    expect(
+      normalizeWorkflowDefinition({
+        name: "Chore",
+        agent: "kody",
+        capabilities: ["run"],
+        steps: [
+          {
+            id: "run",
+            capability: "run",
+            action: "run",
+            evidence: "facts.issue_number",
+            target: "issue",
+            delivery: "pull-request",
+            targetFact: "facts.issue_number",
+            reason: "Implement and deliver the requested change.",
+            runWhen: { "facts.ready": true },
+            continueOn: ["completed"],
+            saveReport: true,
+            report: { channel: "workflow" },
+          },
+        ],
+      })?.steps?.[0],
+    ).toEqual({
+      id: "run",
+      capability: "run",
+      action: "run",
+      evidence: "facts.issue_number",
+      target: "issue",
+      delivery: "pull-request",
+      targetFact: "facts.issue_number",
+      reason: "Implement and deliver the requested change.",
+      runWhen: { "facts.ready": true },
+      continueOn: ["completed"],
+      saveReport: true,
+      report: { channel: "workflow" },
+    });
+  });
+
   it("accepts a complete branch and bounded loop", () => {
     expect(
       validateWorkflowDefinition(
@@ -63,9 +102,63 @@ describe("validateWorkflowDefinition", () => {
     ).toEqual([]);
   });
 
+  it("preserves and accepts an explicit workflow end", () => {
+    const normalized = normalizeWorkflowDefinition({
+      name: "Review loop",
+      agent: "kody",
+      capabilities: ["review", "fix"],
+      startAt: "review",
+      steps: [
+        {
+          id: "review",
+          capability: "review",
+          next: [
+            {
+              to: "$end",
+              when: { "result.verdict": "pass" },
+            },
+            { to: "fix", default: true },
+          ],
+        },
+        {
+          id: "fix",
+          capability: "fix",
+          next: [{ to: "review", default: true, maxIterations: 3 }],
+        },
+      ],
+    });
+
+    expect(normalized?.steps?.[0]?.next?.[0]).toEqual({
+      to: "$end",
+      when: { "result.verdict": "pass" },
+    });
+    expect(normalized && validateWorkflowDefinition(normalized)).toEqual([]);
+  });
+
+  it("preserves workflow-level report publication settings", () => {
+    const report = {
+      type: "agency-observer",
+      version: 1,
+      owner: "agency-observer",
+      slug: "agency-observer",
+      title: "Agency Observer",
+    };
+    const normalized = normalizeWorkflowDefinition({
+      name: "Agency Observer",
+      agent: "kody",
+      capabilities: ["observe"],
+      steps: [{ id: "observe", capability: "observe" }],
+      report,
+    });
+
+    expect(normalized?.report).toEqual(report);
+  });
+
   it.each([
     [
-      workflow([{ id: "inspect", capability: "inspect", next: [{ to: "missing" }] }]),
+      workflow([
+        { id: "inspect", capability: "inspect", next: [{ to: "missing" }] },
+      ]),
       "missing_transition_target",
     ],
     [
@@ -94,16 +187,24 @@ describe("validateWorkflowDefinition", () => {
       ]),
       "unreachable_step",
     ],
-    [workflow([{ id: "inspect", capability: "not-declared" }]), "undeclared_capability"],
+    [
+      workflow([{ id: "inspect", capability: "not-declared" }]),
+      "undeclared_capability",
+    ],
   ] as const)("rejects invalid workflow %#", (value, code) => {
-    expect(validateWorkflowDefinition(value).map((issue) => issue.code)).toContain(code);
+    expect(
+      validateWorkflowDefinition(value).map((issue) => issue.code),
+    ).toContain(code);
   });
 
   it("rejects a capability that is not installed in the agency", () => {
     expect(
-      validateWorkflowDefinition(workflow([{ id: "inspect", capability: "inspect" }]), {
-        knownCapabilities: new Set(["publish"]),
-      }).map((issue) => issue.code),
+      validateWorkflowDefinition(
+        workflow([{ id: "inspect", capability: "inspect" }]),
+        {
+          knownCapabilities: new Set(["publish"]),
+        },
+      ).map((issue) => issue.code),
     ).toContain("unknown_capability");
   });
 });

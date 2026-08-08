@@ -3,7 +3,7 @@
  * @domain company-store
  * @pattern store-asset-resolution
  * @ai-summary Read-only company-store asset helpers. Runtime Kody resolves
- *   consumer repo assets first, then kody-company-store, then engine built-ins;
+ *   consumer repo assets first, then kody-ai-agency-catalog, then engine built-ins;
  *   dashboard mirrors the store layer without copying files into the repo.
  */
 
@@ -14,9 +14,10 @@ export type StoreAssetKind =
   | "capabilities"
   | "implementations"
   | "workflows"
+  | "pipelines"
   | "loops"
+  | "solutions"
   | "commands"
-  | "goals"
   | "shared"
   | "agent"
   | "agents";
@@ -24,9 +25,10 @@ type StoreManifestKind =
   | "capabilities"
   | "implementations"
   | "workflows"
+  | "pipelines"
   | "loops"
+  | "solutions"
   | "commands"
-  | "goals"
   | "shared"
   | "agent";
 export type AssetSource = "local" | "store";
@@ -61,7 +63,7 @@ interface StoreConfig {
   assetRoots?: Record<string, unknown>;
 }
 
-const DEFAULT_COMPANY_STORE = "aharonyaircohen/kody-company-store";
+const DEFAULT_COMPANY_STORE = "aharonyaircohen/kody-ai-agency-catalog";
 const DEFAULT_COMPANY_STORE_REF = "main";
 
 let manifestMemo: { key: string; value: Promise<StoreManifest | null> } | null =
@@ -104,7 +106,7 @@ export function getCompanyStoreTarget(): CompanyStoreTarget {
   if (!parsed) {
     return {
       owner: "aharonyaircohen",
-      repo: "kody-company-store",
+      repo: "kody-ai-agency-catalog",
       ref: getCompanyStoreRef(),
     };
   }
@@ -244,8 +246,6 @@ function defaultStoreAssetRoot(kind: StoreAssetKind): string {
     case "agents":
     case "agent":
       return "agents";
-    case "goals":
-      return "goals/templates";
     default:
       return kind;
   }

@@ -19,11 +19,10 @@ import {
   PanelLeftClose,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
-import { cn } from "@dashboard/lib/utils";
-import { listDir, type FileEntry } from "../lib/repo-files";
+import { cn } from "@kody-ade/base/utils/ui";
+import type { FileEntry } from "../lib/repo-files";
 import { useFilesTransport } from "../lib/transport";
 import { getFileIcon, getFileIconColor } from "../lib/repo-files-icons";
-import type { Octokit } from "@octokit/rest";
 import { FileContextMenu } from "./FileContextMenu";
 
 type SortKey = "name" | "size" | "lastModified";
@@ -40,9 +39,6 @@ interface FileTreeProps {
   onFolderSelect?: (path: string) => void;
   selectedPath: string | null;
   selectedPathType?: FileEntry["type"] | null;
-  octokit: Octokit | null;
-  owner: string;
-  repo: string;
   refreshKey?: number;
   onRefresh: () => void;
   onDelete?: (path: string, pathType: FileEntry["type"]) => void;
@@ -242,9 +238,6 @@ interface TreeNodeRowProps {
   onSelect: (path: string) => void;
   onFolderSelect?: (path: string) => void;
   selectedPath: string | null;
-  octokit: Octokit;
-  owner: string;
-  repo: string;
   sortKey: SortKey;
   onContextMenu: (
     e: React.MouseEvent,
@@ -267,9 +260,6 @@ function TreeNodeRow({
   onSelect,
   onFolderSelect,
   selectedPath,
-  octokit,
-  owner,
-  repo,
   sortKey,
   onContextMenu,
   onDragStartMove,
@@ -392,9 +382,6 @@ function TreeNodeRow({
           onSelect={onSelect}
           onFolderSelect={onFolderSelect}
           selectedPath={selectedPath}
-          octokit={octokit}
-          owner={owner}
-          repo={repo}
           sortKey={sortKey}
           onContextMenu={onContextMenu}
           onDragStartMove={onDragStartMove}
@@ -415,9 +402,6 @@ export function FileTree({
   onFolderSelect,
   selectedPath,
   selectedPathType = null,
-  octokit,
-  owner,
-  repo,
   refreshKey = 0,
   onRefresh,
   onDelete,
@@ -439,13 +423,10 @@ export function FileTree({
 }: FileTreeProps) {
   const normalizedRootPath = normalizeTreePath(rootPath);
   const transport = useFilesTransport();
-  const canLoad = transport ? true : Boolean(octokit);
+  const canLoad = Boolean(transport);
   const loadDir = useCallback(
-    (path: string) =>
-      transport
-        ? transport.listDir(path)
-        : listDir(octokit!, owner, repo, path),
-    [transport, octokit, owner, repo],
+    (path: string) => transport!.listDir(path),
+    [transport],
   );
   const loadVisibleDir = useCallback(
     async (path: string) => {
@@ -487,14 +468,12 @@ export function FileTree({
   } = useQuery({
     queryKey: [
       "files-tree",
-      owner,
-      repo,
       normalizedRootPath,
       refreshKey,
-      transport ? (transport.cacheKey ?? "transport") : "github",
+      transport?.cacheKey ?? "transport",
     ],
     queryFn: () => loadDir(normalizedRootPath),
-    enabled: canLoad,
+    enabled: Boolean(transport),
     // File mutations navigate between routes and can remount the tree. Always
     // verify the root listing on mount so a pre-mutation cache cannot restore
     // files or folders that were just moved or deleted.
@@ -518,7 +497,7 @@ export function FileTree({
     childrenMapRef.current = {};
     setLoadingPaths(new Set());
     setTreeError(null);
-  }, [normalizedRootPath, owner, repo]);
+  }, [normalizedRootPath, transport?.cacheKey]);
 
   useEffect(() => {
     const expandedPaths = [...openPathsRef.current];
@@ -614,7 +593,7 @@ export function FileTree({
     return () => {
       cancelled = true;
     };
-  }, [canLoad, loadVisibleDir, owner, repo, selectedPath, selectedPathType]);
+  }, [canLoad, loadVisibleDir, selectedPath, selectedPathType]);
 
   const handleToggle = useCallback(
     async (path: string) => {
@@ -855,16 +834,13 @@ export function FileTree({
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : rootError || treeError ? (
+        ) : rootError ? (
           <div
             className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-destructive"
             role="alert"
           >
             <FileQuestion className="h-8 w-8" />
-            <span>
-              {treeError ??
-                `Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}
-            </span>
+            <span>{`Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}</span>
             <Button
               type="button"
               variant="outline"
@@ -878,35 +854,57 @@ export function FileTree({
               Try again
             </Button>
           </div>
-        ) : rootNodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
-            <FileQuestion className="w-8 h-8 mb-2" />
-            <span>This folder is empty</span>
-          </div>
         ) : (
-          rootNodes.map((node) => (
-            <TreeNodeRow
-              key={node.entry.path}
-              node={node}
-              depth={0}
-              onToggle={handleToggle}
-              onSelect={handleSelect}
-              onFolderSelect={onFolderSelect}
-              selectedPath={selectedPath}
-              octokit={octokit!}
-              owner={owner}
-              repo={repo}
-              sortKey={sortKey}
-              onContextMenu={handleContextMenu}
-              onDragStartMove={onMove ? handleDragStartMove : undefined}
-              onDragEndMove={handleDragEndMove}
-              onDragOverFolder={handleDragOverFolder}
-              onDropOnFolder={handleDropOnFolder}
-              dropTargetPath={dropTargetPath}
-              protectedPaths={protectedPathSet}
-              variant={variant}
-            />
-          ))
+          <>
+            {treeError ? (
+              <div
+                className="mb-2 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                role="alert"
+              >
+                <FileQuestion className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{treeError}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="clear"
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-normal text-foreground hover:bg-muted"
+                  onClick={() => {
+                    setTreeError(null);
+                    onRefresh();
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+            {rootNodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
+                <FileQuestion className="w-8 h-8 mb-2" />
+                <span>This folder is empty</span>
+              </div>
+            ) : (
+              rootNodes.map((node) => (
+                <TreeNodeRow
+                  key={node.entry.path}
+                  node={node}
+                  depth={0}
+                  onToggle={handleToggle}
+                  onSelect={handleSelect}
+                  onFolderSelect={onFolderSelect}
+                  selectedPath={selectedPath}
+                  sortKey={sortKey}
+                  onContextMenu={handleContextMenu}
+                  onDragStartMove={onMove ? handleDragStartMove : undefined}
+                  onDragEndMove={handleDragEndMove}
+                  onDragOverFolder={handleDragOverFolder}
+                  onDropOnFolder={handleDropOnFolder}
+                  dropTargetPath={dropTargetPath}
+                  protectedPaths={protectedPathSet}
+                  variant={variant}
+                />
+              ))
+            )}
+          </>
         )}
       </div>
 

@@ -42,11 +42,35 @@ function firstRevision() {
 }
 
 describe("typed memories", () => {
+  it("preserves legacy goal memory rows without permitting new goal writes", async () => {
+    const t = setup();
+    const id = await t.run(async (ctx) =>
+      await ctx.db.insert("memories", {
+        memoryId: "legacy-goal",
+        scopeKind: "repository",
+        scopeId: TENANT,
+        kind: "goal",
+        title: "Legacy goal",
+        summary: "Imported before typed memory kinds.",
+        body: "Historical data",
+        searchText: "Legacy goal\nImported before typed memory kinds.\nHistorical data",
+        currentRevisionId: "legacy-revision",
+        status: "active",
+        createdAt: CREATED_AT,
+        updatedAt: CREATED_AT,
+      } as never),
+    );
+
+    await expect(t.run(async (ctx) => await ctx.db.get(id))).resolves.toMatchObject({
+      kind: "goal",
+    });
+  });
+
   it("creates and reads a user memory with its first revision atomically", async () => {
     const t = setup();
 
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: userMemory(),
       revision: firstRevision(),
@@ -54,13 +78,13 @@ describe("typed memories", () => {
 
     await expect(
       t.query(api.memories.get, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         memoryId: "memory-1",
       }),
     ).resolves.toEqual(userMemory());
     const revisions = await t.query(api.memories.listRevisions, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memoryId: "memory-1",
     });
@@ -70,7 +94,7 @@ describe("typed memories", () => {
   it("keeps user and repository scopes isolated", async () => {
     const t = setup();
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: userMemory(),
       revision: firstRevision(),
@@ -90,7 +114,7 @@ describe("typed memories", () => {
       kind: "decision" as const,
     };
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: repositoryMemory,
       revision: repositoryRevision,
@@ -98,21 +122,21 @@ describe("typed memories", () => {
 
     await expect(
       t.query(api.memories.list, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         scope: { kind: "user", userId: USER },
       }),
     ).resolves.toEqual([userMemory()]);
     await expect(
       t.query(api.memories.list, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         scope: { kind: "repository", tenantId: TENANT },
       }),
     ).resolves.toEqual([repositoryMemory]);
     await expect(
       t.query(api.memories.get, {
-        actorId: "user-2",
+        actor: { kind: "user", id: "user-2" },
         tenantId: TENANT,
         memoryId: "memory-1",
       }),
@@ -124,7 +148,7 @@ describe("typed memories", () => {
 
     await expect(
       t.mutation(api.memories.create, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         memory: {
           ...userMemory(),
@@ -135,7 +159,7 @@ describe("typed memories", () => {
     ).rejects.toThrow(/scope/i);
     await expect(
       t.mutation(api.memories.create, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         memory: {
           ...userMemory(),
@@ -149,7 +173,7 @@ describe("typed memories", () => {
   it("revises with compare-and-swap protection", async () => {
     const t = setup();
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: userMemory(),
       revision: firstRevision(),
@@ -176,7 +200,7 @@ describe("typed memories", () => {
       createdAt: REVISED_AT,
     };
     await t.mutation(api.memories.revise, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       expectedRevisionId: "revision-1",
       memory: revisedMemory,
@@ -185,7 +209,7 @@ describe("typed memories", () => {
 
     await expect(
       t.mutation(api.memories.revise, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         expectedRevisionId: "revision-1",
         memory: {
@@ -202,7 +226,7 @@ describe("typed memories", () => {
 
     await expect(
       t.mutation(api.memories.revise, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         expectedRevisionId: "revision-2",
         memory: {
@@ -224,7 +248,7 @@ describe("typed memories", () => {
   it("deletes the memory and all revision history", async () => {
     const t = setup();
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: userMemory(),
       revision: firstRevision(),
@@ -232,14 +256,14 @@ describe("typed memories", () => {
 
     await expect(
       t.mutation(api.memories.remove, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         memoryId: "memory-1",
       }),
     ).resolves.toBe(true);
     await expect(
       t.query(api.memories.get, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         memoryId: "memory-1",
       }),
@@ -254,7 +278,7 @@ describe("typed memories", () => {
   it("searches active memory text inside one authorized scope", async () => {
     const t = setup();
     await t.mutation(api.memories.create, {
-      actorId: USER,
+      actor: { kind: "user", id: USER },
       tenantId: TENANT,
       memory: userMemory(),
       revision: firstRevision(),
@@ -262,7 +286,7 @@ describe("typed memories", () => {
 
     await expect(
       t.query(api.memories.search, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         scope: { kind: "user", userId: USER },
         searchText: "short replies",
@@ -271,12 +295,70 @@ describe("typed memories", () => {
     ).resolves.toEqual([userMemory()]);
     await expect(
       t.query(api.memories.search, {
-        actorId: USER,
+        actor: { kind: "user", id: USER },
         tenantId: TENANT,
         scope: { kind: "repository", tenantId: OTHER_TENANT },
         searchText: "short replies",
         limit: 5,
       }),
     ).rejects.toThrow(/scope/i);
+  });
+
+  it("accepts engine-attributed repository revisions and rejects personal scope", async () => {
+    const t = setup();
+    const engineActor = { kind: "engine" as const, id: "memory-steward" };
+    const repositoryMemory = {
+      ...userMemory(),
+      scope: { kind: "repository" as const, tenantId: TENANT },
+      kind: "decision" as const,
+    };
+    const repositoryRevision = {
+      ...firstRevision(),
+      kind: "decision" as const,
+      evidence: [{ source: "engine-run" as const, id: "run-1" }],
+      actor: engineActor,
+    };
+
+    await t.mutation(api.memories.create, {
+      actor: engineActor,
+      tenantId: TENANT,
+      memory: repositoryMemory,
+      revision: repositoryRevision,
+    });
+
+    await expect(
+      t.query(api.memories.get, {
+        actor: engineActor,
+        tenantId: TENANT,
+        memoryId: "memory-1",
+      }),
+    ).resolves.toEqual(repositoryMemory);
+    await expect(
+      t.query(api.memories.list, {
+        actor: engineActor,
+        tenantId: TENANT,
+        scope: { kind: "user", userId: "memory-steward" },
+      }),
+    ).rejects.toThrow(/scope/i);
+    await expect(
+      t.mutation(api.memories.remove, {
+        actor: engineActor,
+        tenantId: TENANT,
+        memoryId: "memory-1",
+      }),
+    ).rejects.toThrow(/permission/i);
+    await expect(
+      t.mutation(api.memories.create, {
+        actor: { kind: "system", id: "memory-system" },
+        tenantId: TENANT,
+        memory: { ...repositoryMemory, id: "memory-2" },
+        revision: {
+          ...repositoryRevision,
+          id: "revision-2",
+          memoryId: "memory-2",
+          actor: { kind: "system", id: "memory-system" },
+        },
+      }),
+    ).rejects.toThrow(/permission/i);
   });
 });

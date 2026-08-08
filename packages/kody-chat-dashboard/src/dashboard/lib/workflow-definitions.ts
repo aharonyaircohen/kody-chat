@@ -7,33 +7,71 @@
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
+import { z } from "zod";
+import {
+  validateWorkflowInputSchema,
+  type WorkflowInputSchema,
+} from "./workflow-input-schema";
+
+export {
+  validateWorkflowInput,
+  validateWorkflowInputSchema,
+} from "./workflow-input-schema";
 
 export interface WorkflowDefinition {
   name: string;
   /** One Agent runs every step. Direct Capability runs use Kody. */
   agent: string;
   capabilities: string[];
+  /** JSON Schema describing the external input accepted by this Workflow. */
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  /** Report published once after the whole workflow run completes. */
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface WorkflowTransitionDefinition {
-  to: string;
-  when?: Record<string, unknown>;
-  default?: boolean;
-  maxIterations?: number;
-}
+export const workflowTransitionDefinitionSchema = z.object({
+  to: z.string().trim().min(1).max(80),
+  when: z.record(z.string(), z.unknown()).optional(),
+  default: z.boolean().optional(),
+  maxIterations: z.number().int().positive().optional(),
+});
 
-export interface WorkflowStepDefinition {
-  id: string;
-  capability: string;
+export type WorkflowTransitionDefinition = z.infer<
+  typeof workflowTransitionDefinitionSchema
+>;
+
+export const workflowStepDefinitionSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(80),
   /** One JSON-compatible value passed to this capability. */
-  input?: unknown;
-  next?: WorkflowTransitionDefinition[];
-}
+  input: z.unknown().optional(),
+  action: z.string().trim().min(1).max(80).optional(),
+  evidence: z.string().trim().min(1).optional(),
+  target: z.enum(["issue", "pr"]).optional(),
+  /** Wrapper-owned delivery policy applied after the capability succeeds. */
+  delivery: z.literal("pull-request").optional(),
+  targetFact: z.string().trim().min(1).optional(),
+  reason: z.string().trim().min(1).optional(),
+  next: z.array(workflowTransitionDefinitionSchema).optional(),
+  runWhen: z.record(z.string(), z.unknown()).optional(),
+  continueOn: z.array(z.string().trim().min(1)).optional(),
+  saveReport: z.boolean().optional(),
+  report: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type WorkflowStepDefinition = z.infer<
+  typeof workflowStepDefinitionSchema
+>;
+
+type WorkflowStepExecutionDefinition = Omit<
+  WorkflowStepDefinition,
+  "id" | "capability" | "input" | "next"
+>;
 
 export interface WorkflowDefinitionRecord {
   id: string;
@@ -52,8 +90,10 @@ export interface CreateWorkflowDefinitionInput {
   name: string;
   agent?: string;
   capabilities: string[];
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
 }
 
@@ -61,8 +101,10 @@ export interface UpdateWorkflowDefinitionInput {
   name?: string;
   agent?: string;
   capabilities?: string[];
+  inputSchema?: WorkflowInputSchema;
   startAt?: string;
   steps?: WorkflowStepDefinition[];
+  report?: Record<string, unknown>;
   runWithoutApproval?: boolean;
 }
 
@@ -75,6 +117,8 @@ export interface WorkflowValidationIssue {
 export interface WorkflowValidationOptions {
   knownCapabilities?: ReadonlySet<string>;
 }
+
+export const WORKFLOW_END_STEP_ID = "$end";
 
 const WORKFLOW_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
@@ -131,10 +175,69 @@ function normalizeWorkflowSteps(value: unknown): WorkflowStepDefinition[] {
       id,
       capability,
       ...(hasInput ? { input: raw.input } : {}),
+      ...normalizeWorkflowStepExecution(raw),
       ...(next.length > 0 ? { next } : {}),
     });
   }
   return steps;
+}
+
+function normalizeWorkflowStepExecution(
+  raw: Record<string, unknown>,
+): WorkflowStepExecutionDefinition {
+  const action =
+    typeof raw.action === "string" &&
+    CAPABILITY_ID_PATTERN.test(raw.action.trim())
+      ? raw.action.trim()
+      : undefined;
+  const evidence =
+    typeof raw.evidence === "string" && raw.evidence.trim()
+      ? raw.evidence.trim()
+      : undefined;
+  const target =
+    raw.target === "issue" || raw.target === "pr" ? raw.target : undefined;
+  const delivery = raw.delivery === "pull-request" ? raw.delivery : undefined;
+  const targetFact =
+    typeof raw.targetFact === "string" && raw.targetFact.trim()
+      ? raw.targetFact.trim()
+      : undefined;
+  const reason =
+    typeof raw.reason === "string" && raw.reason.trim()
+      ? raw.reason.trim()
+      : undefined;
+  const runWhen =
+    raw.runWhen &&
+    typeof raw.runWhen === "object" &&
+    !Array.isArray(raw.runWhen)
+      ? (raw.runWhen as Record<string, unknown>)
+      : undefined;
+  const continueOn = Array.isArray(raw.continueOn)
+    ? raw.continueOn
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.trim().length > 0,
+        )
+        .map((value) => value.trim())
+    : [];
+  const report =
+    raw.report &&
+    typeof raw.report === "object" &&
+    !Array.isArray(raw.report) &&
+    isJsonValue(raw.report)
+      ? (raw.report as Record<string, unknown>)
+      : undefined;
+  return {
+    ...(action ? { action } : {}),
+    ...(evidence ? { evidence } : {}),
+    ...(target ? { target } : {}),
+    ...(delivery ? { delivery } : {}),
+    ...(targetFact ? { targetFact } : {}),
+    ...(reason ? { reason } : {}),
+    ...(runWhen ? { runWhen } : {}),
+    ...(continueOn.length > 0 ? { continueOn } : {}),
+    ...(raw.saveReport === true ? { saveReport: true } : {}),
+    ...(report ? { report } : {}),
+  };
 }
 
 function normalizeWorkflowTransitions(
@@ -149,13 +252,15 @@ function normalizeWorkflowTransitions(
   for (const item of values) {
     if (typeof item === "string") {
       const to = item.trim();
-      if (WORKFLOW_ID_PATTERN.test(to)) transitions.push({ to });
+      if (to === WORKFLOW_END_STEP_ID || WORKFLOW_ID_PATTERN.test(to)) {
+        transitions.push({ to });
+      }
       continue;
     }
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const raw = item as Record<string, unknown>;
     const to = typeof raw.to === "string" ? raw.to.trim() : "";
-    if (!WORKFLOW_ID_PATTERN.test(to)) continue;
+    if (to !== WORKFLOW_END_STEP_ID && !WORKFLOW_ID_PATTERN.test(to)) continue;
     const maxIterations =
       typeof raw.maxIterations === "number" &&
       Number.isInteger(raw.maxIterations) &&
@@ -197,14 +302,30 @@ export function normalizeWorkflowDefinition(
     typeof raw.updatedAt === "string" && raw.updatedAt.trim()
       ? raw.updatedAt
       : createdAt;
+  const inputSchema =
+    raw.inputSchema &&
+    typeof raw.inputSchema === "object" &&
+    !Array.isArray(raw.inputSchema) &&
+    isJsonValue(raw.inputSchema)
+      ? (raw.inputSchema as Record<string, unknown>)
+      : undefined;
+  const report =
+    raw.report &&
+    typeof raw.report === "object" &&
+    !Array.isArray(raw.report) &&
+    isJsonValue(raw.report)
+      ? (raw.report as Record<string, unknown>)
+      : undefined;
 
   if (!name || capabilities.length === 0) return null;
   return {
     name,
     agent,
     capabilities,
+    ...(inputSchema ? { inputSchema } : {}),
     ...(startAt && WORKFLOW_ID_PATTERN.test(startAt) ? { startAt } : {}),
     ...(steps.length > 0 ? { steps } : {}),
+    ...(report ? { report } : {}),
     ...(raw.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt,
     updatedAt,
@@ -222,8 +343,10 @@ export function buildWorkflowDefinition(
       ? (input.agent ?? "kody").trim().toLowerCase()
       : "kody",
     capabilities: normalizeWorkflowCapabilities(input.capabilities),
+    ...(input.inputSchema ? { inputSchema: input.inputSchema } : {}),
     ...(input.startAt ? { startAt: input.startAt } : {}),
     ...(input.steps && input.steps.length > 0 ? { steps: input.steps } : {}),
+    ...(input.report ? { report: input.report } : {}),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -239,8 +362,10 @@ export function mergeWorkflowDefinition(
       name: input.name ?? existing.name,
       agent: input.agent ?? existing.agent,
       capabilities: input.capabilities ?? existing.capabilities,
+      inputSchema: input.inputSchema ?? existing.inputSchema,
       startAt: input.startAt ?? existing.startAt,
       steps: input.steps ?? existing.steps,
+      report: input.report ?? existing.report,
       runWithoutApproval:
         input.runWithoutApproval ?? existing.runWithoutApproval,
     },
@@ -257,7 +382,9 @@ export function validateWorkflowDefinition(
   workflow: WorkflowDefinition,
   options: WorkflowValidationOptions = {},
 ): WorkflowValidationIssue[] {
-  const issues: WorkflowValidationIssue[] = [];
+  const issues: WorkflowValidationIssue[] = [
+    ...validateWorkflowInputSchema(workflow.inputSchema),
+  ];
   const steps = workflow.steps ?? [];
   if (steps.length === 0) return issues;
   if (steps.length > 100)
@@ -319,6 +446,7 @@ export function validateWorkflowDefinition(
     );
 
   const adjacency = new Map<string, string[]>();
+  const explicitEndSources = new Set<string>();
   steps.forEach((step, stepIndex) => {
     const transitions = step.next ?? [];
     adjacency.set(step.id, []);
@@ -364,15 +492,18 @@ export function validateWorkflowDefinition(
 
     transitions.forEach((transition, transitionIndex) => {
       const path = `steps[${stepIndex}].next[${transitionIndex}]`;
+      if (transition.to === WORKFLOW_END_STEP_ID) {
+        explicitEndSources.add(step.id);
+      }
       const targetIndex = ids.indexOf(transition.to);
-      if (targetIndex < 0) {
+      if (transition.to !== WORKFLOW_END_STEP_ID && targetIndex < 0) {
         addIssue(
           issues,
           "missing_transition_target",
           `${path}.to`,
           `Step ${step.id} connects to missing step ${transition.to}.`,
         );
-      } else {
+      } else if (targetIndex >= 0) {
         adjacency.get(step.id)?.push(transition.to);
       }
       if (transition.default && transition.when)
@@ -438,7 +569,12 @@ export function validateWorkflowDefinition(
           `Step ${step.id} can never run.`,
         );
     });
-    if (![...reachable].some((id) => (adjacency.get(id) ?? []).length === 0))
+    if (
+      ![...reachable].some(
+        (id) =>
+          (adjacency.get(id) ?? []).length === 0 || explicitEndSources.has(id),
+      )
+    )
       addIssue(
         issues,
         "missing_terminal_step",

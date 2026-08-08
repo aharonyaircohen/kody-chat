@@ -36,8 +36,8 @@ export interface HealthReportInput {
   hasModelKey: boolean;
   /** Resolved by the route: KODY_MASTER_KEY present? */
   vaultConfigured: boolean;
-  /** Resolved by the route: vault has a GITHUB_TOKEN secret? */
-  hasVaultGithubToken: boolean;
+  /** Resolved by the route: can unattended work authenticate for this repo? */
+  hasBackgroundGithubAccess: boolean;
   now?: number;
   dashboardUrlHint?: string;
 }
@@ -69,7 +69,7 @@ export async function buildHealthReport(
   });
   const vault = buildVaultSignal({
     configured: input.vaultConfigured,
-    hasGithubToken: input.hasVaultGithubToken,
+    hasGithubToken: input.hasBackgroundGithubAccess,
   });
   const dispatch = buildDispatchSignal(recentDispatchFailures(now));
 

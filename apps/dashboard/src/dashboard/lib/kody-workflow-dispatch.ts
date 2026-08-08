@@ -1,4 +1,13 @@
+import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
+
 type WorkflowInputNames = Set<string> | null;
+
+const INPUT_NAMES_CACHE_TTL_MS = 60_000;
+const inputNamesCache = new Map<
+  string,
+  { names: WorkflowInputNames; expiresAt: number }
+>();
+const inputNamesInflight = new Map<string, Promise<WorkflowInputNames>>();
 
 interface OctokitContentReader {
   rest?: {
@@ -32,6 +41,7 @@ export interface KodyWorkflowDispatchInputRequest {
   dashboardUrl?: string;
   storeRepoUrl?: string;
   storeRef?: string;
+  executionRequest?: EngineExecutionRequest;
 }
 
 const KODY_WORKFLOW_PATH = ".github/workflows/kody.yml";
@@ -111,7 +121,7 @@ function isGitHubFileContent(data: unknown): data is GitHubFileContent {
   );
 }
 
-async function readWorkflowInputNames(
+async function fetchWorkflowInputNames(
   octokit: OctokitContentReader,
   request: Pick<KodyWorkflowDispatchInputRequest, "owner" | "repo" | "ref">,
 ): Promise<WorkflowInputNames> {
@@ -138,6 +148,35 @@ async function readWorkflowInputNames(
   }
 }
 
+async function readWorkflowInputNames(
+  octokit: OctokitContentReader,
+  request: Pick<KodyWorkflowDispatchInputRequest, "owner" | "repo" | "ref">,
+  useCache: boolean,
+): Promise<WorkflowInputNames> {
+  if (!useCache) return fetchWorkflowInputNames(octokit, request);
+
+  const key = `${request.owner}/${request.repo}@${request.ref}`.toLowerCase();
+  const cached = inputNamesCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.names;
+
+  const existing = inputNamesInflight.get(key);
+  if (existing) return existing;
+
+  const promise = fetchWorkflowInputNames(octokit, request)
+    .then((names) => {
+      inputNamesCache.set(key, {
+        names,
+        expiresAt: Date.now() + INPUT_NAMES_CACHE_TTL_MS,
+      });
+      return names;
+    })
+    .finally(() => {
+      inputNamesInflight.delete(key);
+    });
+  inputNamesInflight.set(key, promise);
+  return promise;
+}
+
 function supportsInput(inputNames: WorkflowInputNames, key: string): boolean {
   return inputNames === null || inputNames.has(key);
 }
@@ -160,7 +199,16 @@ function buildInputsForNames(
 ): Record<string, string> {
   const inputs: Record<string, string> = {};
 
-  if (request.action) {
+  if (request.executionRequest) {
+    if (!supportsInput(inputNames, "runRequest")) {
+      throw new Error(
+        "kody.yml workflow_dispatch must declare the runRequest input.",
+      );
+    }
+    inputs.runRequest = JSON.stringify(request.executionRequest);
+  }
+
+  if (request.action && !request.executionRequest) {
     const actionInput =
       inputNames === null
         ? "implementation"
@@ -193,7 +241,12 @@ function buildInputsForNames(
 export async function buildKodyWorkflowDispatchInputs(
   octokit: OctokitContentReader,
   request: KodyWorkflowDispatchInputRequest,
+  options: { cache?: boolean } = {},
 ): Promise<Record<string, string>> {
-  const inputNames = await readWorkflowInputNames(octokit, request);
+  const inputNames = await readWorkflowInputNames(
+    octokit,
+    request,
+    options.cache === true,
+  );
   return buildInputsForNames(inputNames, request);
 }

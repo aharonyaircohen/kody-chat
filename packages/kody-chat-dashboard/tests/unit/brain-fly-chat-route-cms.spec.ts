@@ -149,4 +149,28 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
       },
     });
   });
+
+  it("uses the Brain host without attaching the selected repo in host mode", async () => {
+    const res = await POST(
+      request({
+        chatId: "c1",
+        message: "inspect this host",
+        workspaceMode: "host",
+        includeContext: true,
+        currentPage: "/repo/acme/widgets/tasks/1",
+        taskContext: { id: "repo-task" },
+        capabilityContext: { slug: "repo-capability" },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const forwarded = streamBrainChat.mock.calls[0]![0];
+    expect(forwarded).not.toHaveProperty("repoScope");
+    expect(forwarded).not.toHaveProperty("repoToken");
+    expect(forwarded).not.toHaveProperty("taskContext");
+    expect(forwarded).not.toHaveProperty("capabilityContext");
+    expect(forwarded.message).toBe("inspect this host");
+    expect(loadContextForPrompt).not.toHaveBeenCalled();
+    expect(readResolvedAgentFile).toHaveBeenCalledWith("kody");
+  });
 });

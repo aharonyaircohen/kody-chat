@@ -11,11 +11,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   getRequestAuth,
-  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   isValidBrandSlug,
   listBrands,
@@ -44,39 +42,23 @@ const brandInputSchema = z.object({
   welcomeText: z.string().trim().max(1000).optional(),
   modelId: z.string().trim().min(1).max(160).optional(),
   agentSlug: z.string().trim().min(1).max(80).optional(),
-  auth: z
+  access: z
     .object({
-      required: z.boolean().optional(),
-      providers: z.array(z.string().trim().max(40)).max(10).optional(),
-      allowedEmails: z.array(z.string().trim().max(320)).max(500).optional(),
-      allowedDomains: z.array(z.string().trim().max(255)).max(100).optional(),
+      mode: z.enum(["public", "delegated"]),
     })
     .optional(),
   actorLogin: z.string().optional(),
 });
 
-function setContext(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  if (auth) {
-    setGitHubContext(
-      auth.owner,
-      auth.repo,
-      auth.token,
-      auth.storeRepoUrl,
-      auth.storeRef,
-    );
-  }
-  return auth;
-}
-
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  setContext(req);
+  const auth = getRequestAuth(req)!;
+  const scope = { owner: auth.owner, repo: auth.repo };
 
   try {
-    const brands = await listBrands();
+    const brands = await listBrands(scope);
     return NextResponse.json({ brands }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Brands] Error listing brands:", error);
@@ -96,8 +78,6 @@ export async function GET(req: NextRequest) {
       { brands: [], error: error?.message || "Failed to list brands" },
       { status: 500, headers: NO_STORE_HEADERS },
     );
-  } finally {
-    clearGitHubContext();
   }
 }
 
@@ -105,7 +85,8 @@ export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  setContext(req);
+  const auth = getRequestAuth(req)!;
+  const scope = { owner: auth.owner, repo: auth.repo };
 
   try {
     const payload = await req.json();
@@ -122,7 +103,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existing = await readBrandFile(slug);
+    const existing = await readBrandFile(scope, slug);
     if (existing) {
       return NextResponse.json(
         { error: "slug_taken", message: `Brand "${slug}" already exists.` },
@@ -133,19 +114,7 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, parsed.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit brand files.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const brand = await writeBrandFile({
+    const brand = await writeBrandFile(scope, {
       slug,
       name: parsed.name,
       accent: parsed.accent,
@@ -153,7 +122,7 @@ export async function POST(req: NextRequest) {
       welcomeText: parsed.welcomeText,
       modelId: parsed.modelId,
       agentSlug: parsed.agentSlug,
-      auth: parsed.auth,
+      access: parsed.access ?? { mode: "public" },
     });
 
     recordAudit(req, {
@@ -184,7 +153,5 @@ export async function POST(req: NextRequest) {
       },
       { status: 500 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

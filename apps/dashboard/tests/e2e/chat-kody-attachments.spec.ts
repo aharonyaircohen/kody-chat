@@ -8,6 +8,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.PW_LOCAL
   ? "http://127.0.0.1:3333"
@@ -243,10 +244,9 @@ test("stores attachment with the conversation and restores it after reload", asy
   await seedAuth(page);
   await page.goto(CHAT_URL);
   const chat = page.locator('[aria-label="Kody chat"]').first();
-  const model = chat.getByLabel("Model").first();
-  await model.click();
-  await chat
-    .locator('[role="listbox"]:visible button[role="option"]')
+  const modelMenu = await openChatSetupSection(chat, "Model");
+  await modelMenu
+    .locator('button[role="option"]')
     .filter({ hasText: "Kody Test" })
     .click();
 
@@ -261,10 +261,14 @@ test("stores attachment with the conversation and restores it after reload", asy
   await expect(chat.getByText("I see your image.")).toBeVisible();
 
   expect(capturedTurn).not.toBeNull();
-  const messages = (capturedTurn as unknown as {
-    messages: Array<{ role: string; content: unknown }>;
-  }).messages;
-  const user = [...messages].reverse().find((message) => message.role === "user");
+  const messages = (
+    capturedTurn as unknown as {
+      messages: Array<{ role: string; content: unknown }>;
+    }
+  ).messages;
+  const user = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
   expect(Array.isArray(user?.content)).toBe(true);
   expect(user?.content).toEqual(
     expect.arrayContaining([

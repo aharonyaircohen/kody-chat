@@ -1,8 +1,7 @@
 # Chat platform — how to build a plugin
 
-The dashboard chat is a pluggable platform (phase 1,
-[chat-platform-phase1.md](chat-platform-phase1.md)). Features on top of the
-chat core — terminal mode, slash commands, vibe, goals, branding — are
+The dashboard chat is a pluggable platform. Features on top of the
+chat core — terminal mode, slash commands, vibe, branding — are
 **plugins** that register slots, send middleware, display modes, theme,
 agents, session state and server tools into a per-mount registry. This doc is
 the practical guide: the contract, the server half, host wiring, layering
@@ -37,7 +36,7 @@ src/dashboard/lib/chat/
   platform/      # plugin contract, registry, capabilities, i18n, transport types, server tools
   surface/       # ChatSurface pieces: Composer, MessageList, SessionsPanel, HeaderControls,
                  # ChatPluginProvider + ChatPluginSlot mounts
-  plugins/       # terminal/ commands/ vibe/ goals/ branding/  ← one dir per plugin
+  plugins/       # terminal/ commands/ vibe/ branding/  ← one dir per plugin
 ```
 
 Public platform API: [`src/dashboard/lib/chat/platform/index.ts`](../src/dashboard/lib/chat/platform/index.ts).
@@ -105,7 +104,6 @@ chain and the send). The pinned precedence today:
 
 | order | middleware                                                                                                                 | plugin   | behavior                                                              |
 | ----- | -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------- |
-| 50    | goal mention ([`goals/mention-middleware.ts`](../src/dashboard/lib/chat/plugins/goals/mention-middleware.ts))              | goals    | consumes on a known-goal mention, dispatches `goals:direct`           |
 | 100   | terminal intent ([`terminal/intent-middleware.ts`](../src/dashboard/lib/chat/plugins/terminal/intent-middleware.ts))       | terminal | consumes `/terminal <intent>` , dispatches the terminal-intent effect |
 | 200   | slash expansion ([`commands/expansion-middleware.ts`](../src/dashboard/lib/chat/plugins/commands/expansion-middleware.ts)) | commands | expands `/<slug> args` via `expandSlashCommand`                       |
 
@@ -115,7 +113,7 @@ steps); the ordering contract is pinned by
 
 `ChatSendMiddlewareContext` carries the two host channels:
 
-- `host` — read-only context snapshot (e.g. `knownGoals`, `slashCommands`),
+- `host` — read-only context snapshot (e.g. `slashCommands`),
   supplied per mount by KodyChat's `pluginHost` memo;
 - `dispatchHostEffect(effect)` — effect channel to the host. Effects are
   `{ kind, payload }`; the host subscribes via `registry.onHostEffect`.
@@ -269,13 +267,12 @@ global self-registering side-effect registry). Current hosts:
 
 | Host                                                                                                                              | Plugins                                      | Grant                                     |
 | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------- |
-| [`ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx) (desktop rail + mobile sheet — same list on both mounts) | terminal, commands, vibe, goals, page panels | `FULL_GRANT` (default)                    |
-| [`GoalControl.tsx`](../src/dashboard/lib/components/GoalControl.tsx) (planner dialog)                                             | terminal, commands, vibe                     | `FULL_GRANT` (default)                    |
+| [`ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx) (desktop rail + mobile sheet — same list on both mounts) | terminal, commands, vibe, page panels | `FULL_GRANT` (default)                    |
 | [`ClientChatSurface.tsx`](../src/dashboard/lib/components/ClientChatSurface.tsx) (/client/[brandSlug])                            | branding, commands                           | `["theme", "middleware", "host-effects"]` |
 
 ### Bundle discipline (Step 7)
 
-Because ClientChatSurface never passes terminal/vibe/goals, the /client
+Because ClientChatSurface never passes terminal/vibe, the /client
 route chunk must not carry their code. Two mechanics keep that true:
 
 1. **App code never imports the terminal barrel**

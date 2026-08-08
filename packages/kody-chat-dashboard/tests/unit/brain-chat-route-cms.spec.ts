@@ -77,4 +77,28 @@ describe("POST /api/kody/chat/brain CMS context", () => {
       runtime: "codex app-server",
     });
   });
+
+  it("keeps general Brain machine access out of the selected repo", async () => {
+    await POST(
+      request({
+        chatId: "c1",
+        message: "inspect this host",
+        workspaceMode: "host",
+        includeContext: true,
+        currentPage: "/repo/acme/widgets/tasks/1",
+        taskContext: { id: "repo-task" },
+        capabilityContext: { slug: "repo-capability" },
+      }),
+    );
+
+    const forwarded = streamBrainChat.mock.calls.at(-1)![0];
+    expect(forwarded).not.toHaveProperty("repo");
+    expect(forwarded).not.toHaveProperty("repoToken");
+    expect(forwarded).not.toHaveProperty("storeRepoUrl");
+    expect(forwarded).not.toHaveProperty("storeRef");
+    expect(forwarded).not.toHaveProperty("taskContext");
+    expect(forwarded).not.toHaveProperty("capabilityContext");
+    expect(forwarded.message).toBe("inspect this host");
+    expect(loadContextForPrompt).not.toHaveBeenCalled();
+  });
 });

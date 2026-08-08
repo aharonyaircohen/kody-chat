@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain kody
  * @pattern github-client
- * @ai-summary GitHub Discussions for goal threads and messaging channels (GraphQL only, cached + in-flight dedup).
+ * @ai-summary GitHub Discussions for messaging channels (GraphQL only, cached + in-flight dedup).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Octokit } from "@octokit/rest";
@@ -16,17 +16,16 @@ import {
   getRepo,
   invalidateCache,
 } from "./core";
-// ============ Discussions (for Goal threads) ============
+// ============ Discussions ============
 //
-// Each goal can have a backing GitHub Discussion under a "Goals" category that
-// the dashboard ensures exists. Comments live as native discussion comments —
+// Comments live as native discussion comments —
 // threading, reactions, edits all come for free.
 //
 // All discussion ops are GraphQL only (no REST). GraphQL has no ETag/304 path,
 // so the rate-limit story matches `fetchOpenPRs`: TTL cache + in-flight dedup
 // + stale-on-error refresh.
 
-export interface GoalDiscussionComment {
+export interface DiscussionComment {
   id: string;
   databaseId: number;
   body: string;
@@ -36,7 +35,7 @@ export interface GoalDiscussionComment {
   author: { login: string; avatarUrl?: string } | null;
 }
 
-export interface GoalDiscussionRef {
+export interface DiscussionRef {
   /** GraphQL node ID (used for comment mutations). */
   id: string;
   /** Numeric discussion number, for the github.com URL. */
@@ -48,9 +47,8 @@ export interface GoalDiscussionRef {
 interface RepoDiscussionMeta {
   enabled: boolean;
   /**
-   * GraphQL node ID for the discussion category goal threads will be filed
-   * under. Picks (in order of preference): a category named "Goals" if the
-   * user opted in by creating one, "General" (the default catch-all created
+   * GraphQL node ID for the discussion category channels will be filed
+   * under. Picks (in order of preference): "General" (the default catch-all created
    * automatically when Discussions are enabled), then the first non-
    * announcements category, then any. Null only if no categories exist
    * (Discussions disabled, or all categories deleted manually).
@@ -64,24 +62,24 @@ const DISCUSSIONS_META_TTL = 10 * 60_000; // 10min — flips rarely, webhook inv
 const DISCUSSION_COMMENTS_TTL = 60_000; // 1min — UI-driven re-reads
 
 /**
- * Names tried in order when picking the discussion category to file goal
- * threads under. The first match wins. The dashboard never *creates* a
+ * Names tried in order when picking the discussion category. The first match
+ * wins. The dashboard never *creates* a
  * category — GitHub doesn't expose category creation in any public API —
  * so we rely on the defaults that get seeded when Discussions is enabled.
  *
- * Power users can opt into a dedicated bucket by creating one named "Goals"
- * (or any preferred-list name) on github.com.
+ * Power users can opt into a dedicated bucket by using any preferred-list
+ * name on github.com.
  */
-const PREFERRED_CATEGORY_NAMES = ["Goals", "General", "Ideas", "Show and tell"];
+const PREFERRED_CATEGORY_NAMES = ["General", "Ideas", "Show and tell"];
 
 const inflightDiscussionsMeta = new Map<string, Promise<RepoDiscussionMeta>>();
 const inflightDiscussionComments = new Map<
   string,
-  Promise<GoalDiscussionComment[]>
+  Promise<DiscussionComment[]>
 >();
 
 /**
- * Pick the best discussion category to file goal threads under, given the
+ * Pick the best discussion category, given the
  * repo's actual category list. Walks the preferred-name list first, then
  * falls back to the first non-announcements category, then any.
  */
@@ -115,7 +113,7 @@ export function invalidateDiscussionCache(): void {
 
 /**
  * Read the repo's discussion capability metadata: whether Discussions are
- * enabled at all, and (if so) the GraphQL node ID of the "Goals" category.
+ * enabled at all, and (if so) the GraphQL node ID of its preferred category.
  *
  * Caches the result for 10min in-process. Cross-instance cache is not needed
  * because the value flips at most once per repo lifecycle.
@@ -264,19 +262,19 @@ export async function fetchRepositoryId(): Promise<string> {
 }
 
 /**
- * Create a discussion under the goals category and return its IDs.
+ * Create a discussion under the preferred category and return its IDs.
  *
  * Uses `userOctokit` so the discussion is attributed to the human who
  * triggered the create — never the shared polling token.
  */
-export async function createGoalDiscussion(
+export async function createDiscussion(
   args: {
     title: string;
     body: string;
     categoryId: string;
   },
   userOctokit?: Octokit,
-): Promise<GoalDiscussionRef> {
+): Promise<DiscussionRef> {
   const octokit = userOctokit ?? getOctokit();
   const repoId = await fetchRepositoryId();
 
@@ -290,7 +288,7 @@ export async function createGoalDiscussion(
       };
     };
   }>(
-    `mutation CreateGoalDiscussion(
+    `mutation CreateDiscussion(
        $repoId: ID!,
        $categoryId: ID!,
        $title: String!,
@@ -328,10 +326,9 @@ export async function createGoalDiscussion(
 }
 
 /**
- * Update the discussion title/body — used when the goal name or description
- * changes.
+ * Update a discussion title/body.
  */
-export async function updateGoalDiscussion(
+export async function updateDiscussion(
   args: { discussionId: string; title?: string; body?: string },
   userOctokit?: Octokit,
 ): Promise<void> {
@@ -342,7 +339,7 @@ export async function updateGoalDiscussion(
   if (Object.keys(updates).length === 1) return; // nothing to change
 
   await octokit.graphql(
-    `mutation UpdateGoalDiscussion($discussionId: ID!, $title: String, $body: String) {
+    `mutation UpdateDiscussion($discussionId: ID!, $title: String, $body: String) {
        updateDiscussion(input: { discussionId: $discussionId, title: $title, body: $body }) {
          discussion { id }
        }
@@ -353,17 +350,16 @@ export async function updateGoalDiscussion(
 }
 
 /**
- * Close (lock) a discussion — used when a goal is removed. We never delete
- * to preserve history.
+ * Close (lock) a discussion without deleting its history.
  */
-export async function closeGoalDiscussion(
+export async function closeDiscussion(
   discussionId: string,
   userOctokit?: Octokit,
 ): Promise<void> {
   const octokit = userOctokit ?? getOctokit();
   try {
     await octokit.graphql(
-      `mutation CloseGoalDiscussion($discussionId: ID!) {
+      `mutation CloseDiscussion($discussionId: ID!) {
          closeDiscussion(input: { discussionId: $discussionId, reason: RESOLVED }) {
            discussion { id }
          }
@@ -377,20 +373,20 @@ export async function closeGoalDiscussion(
 }
 
 /**
- * Fetch comments on a goal's discussion. Cached + in-flight-deduped + stale-
+ * Fetch comments on a discussion. Cached + in-flight-deduped + stale-
  * on-error, mirroring the `fetchOpenPRs` pattern (GraphQL has no ETag).
  */
-export async function fetchGoalDiscussionComments(
+export async function fetchDiscussionComments(
   discussionNumber: number,
-): Promise<GoalDiscussionComment[]> {
+): Promise<DiscussionComment[]> {
   const cacheKey = `discussion-comments:${getOwner()}:${getRepo()}:${discussionNumber}`;
-  const cached = getCached<GoalDiscussionComment[]>(cacheKey);
+  const cached = getCached<DiscussionComment[]>(cacheKey);
   if (cached) return cached;
 
   const existing = inflightDiscussionComments.get(cacheKey);
   if (existing) return existing;
 
-  const stale = getStale<GoalDiscussionComment[]>(cacheKey);
+  const stale = getStale<DiscussionComment[]>(cacheKey);
   const octokit = getOctokit();
 
   const query = `
@@ -438,7 +434,7 @@ export async function fetchGoalDiscussionComments(
       });
 
       const nodes = data.repository.discussion?.comments.nodes ?? [];
-      const comments: GoalDiscussionComment[] = nodes.map((n) => ({
+      const comments: DiscussionComment[] = nodes.map((n) => ({
         id: n.id,
         databaseId: n.databaseId,
         body: n.body ?? "",
@@ -470,28 +466,27 @@ export async function fetchGoalDiscussionComments(
   return promise;
 }
 
-export interface GoalDiscussionThread {
+export interface DiscussionThread {
   title: string;
   body: string;
   state: "open" | "closed";
   htmlUrl: string;
   createdAt: string;
-  comments: GoalDiscussionComment[];
+  comments: DiscussionComment[];
 }
 
 /**
  * Fetch a discussion's title + body + comments in one GraphQL call.
  *
- * Powers the inbox's inline thread viewer for "goal" mentions (goals are
- * GitHub Discussions). On-demand only (one click) — not polled — so it
+ * Powers the inbox's inline thread viewer. On-demand only (one click) — not polled — so it
  * doesn't add to the GraphQL polling budget, but it still caches with the
- * same TTL as `fetchGoalDiscussionComments` to coalesce repeat opens.
+ * same TTL as `fetchDiscussionComments` to coalesce repeat opens.
  */
-export async function fetchGoalDiscussionThread(
+export async function fetchDiscussionThread(
   discussionNumber: number,
-): Promise<GoalDiscussionThread | null> {
+): Promise<DiscussionThread | null> {
   const cacheKey = `discussion-thread:${getOwner()}:${getRepo()}:${discussionNumber}`;
-  const cached = getCached<GoalDiscussionThread>(cacheKey);
+  const cached = getCached<DiscussionThread>(cacheKey);
   if (cached) return cached;
 
   const octokit = getOctokit();
@@ -550,7 +545,7 @@ export async function fetchGoalDiscussionThread(
   const d = data.repository.discussion;
   if (!d) return null;
 
-  const thread: GoalDiscussionThread = {
+  const thread: DiscussionThread = {
     title: d.title,
     body: d.body ?? "",
     state: d.closed ? "closed" : "open",
@@ -574,13 +569,13 @@ export async function fetchGoalDiscussionThread(
 }
 
 /**
- * Post a comment on a goal's discussion. Always uses `userOctokit` so the
+ * Post a comment on a discussion. Always uses `userOctokit` so the
  * comment is attributed to the actual user — never the shared polling token.
  */
-export async function postGoalDiscussionComment(
+export async function postDiscussionComment(
   args: { discussionId: string; body: string; discussionNumber?: number },
   userOctokit?: Octokit,
-): Promise<GoalDiscussionComment> {
+): Promise<DiscussionComment> {
   const octokit = userOctokit ?? getOctokit();
   const data = await octokit.graphql<{
     addDiscussionComment: {
@@ -595,7 +590,7 @@ export async function postGoalDiscussionComment(
       };
     };
   }>(
-    `mutation PostGoalDiscussionComment($discussionId: ID!, $body: String!) {
+    `mutation PostDiscussionComment($discussionId: ID!, $body: String!) {
        addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
          comment {
            id
@@ -633,14 +628,13 @@ export async function postGoalDiscussionComment(
 
 // ============ Messaging channels (team chat over Discussions) ============
 //
-// A messaging "channel" is just a GitHub Discussion in the same category
-// goals use, distinguished by a `#`-prefixed title (e.g. `#general`). GitHub
+// A messaging "channel" is a GitHub Discussion distinguished by a
+// `#`-prefixed title (e.g. `#general`). GitHub
 // exposes no API to create discussion *categories*, so we don't try — the
-// title prefix cleanly separates channels from goal threads (which are
-// titled `Goal: …`) even when both share the "General" category.
+// title prefix cleanly identifies channels in the "General" category.
 //
-// Reuses the goal-discussion comment ops (`fetchGoalDiscussionComments` /
-// `postGoalDiscussionComment`) for thread reads/writes — they're generic
+// Reuses the discussion comment ops (`fetchDiscussionComments` /
+// `postDiscussionComment`) for thread reads/writes — they're generic
 // over a discussion number/id, and posting already invalidates the right
 // per-discussion comment cache, so the messaging feed stays fresh without
 // extra plumbing.
@@ -759,7 +753,7 @@ export async function fetchMessageChannels(): Promise<MessageChannel[]> {
 }
 
 /**
- * Create a new messaging channel (a `#`-titled Discussion in the goals
+ * Create a new messaging channel (a `#`-titled Discussion in the preferred
  * category). Attributed to the human via `userOctokit`.
  */
 export async function createMessageChannel(
@@ -767,7 +761,7 @@ export async function createMessageChannel(
   userOctokit?: Octokit,
 ): Promise<MessageChannel> {
   const title = channelTitleFromName(args.name);
-  const created = await createGoalDiscussion(
+  const created = await createDiscussion(
     {
       title,
       body:
@@ -789,8 +783,7 @@ export async function createMessageChannel(
 }
 
 /**
- * Permanently delete a channel (its backing Discussion). Unlike goal
- * threads — which we only *close* to preserve history — a channel is
+ * Permanently delete a channel (its backing Discussion). A channel is
  * disposable team chat, so the user can remove it outright. Attributed
  * to the human via `userOctokit` (needs maintain/admin on the repo).
  */

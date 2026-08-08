@@ -47,7 +47,7 @@ export default async function CommandsDocsPage() {
           </RepoScopedLink>
         </div>
         <a
-          href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/docs/commands.md"
+          href="https://github.com/aharonyaircohen/kody-chat/blob/main/apps/dashboard/docs/commands.md"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-white"

@@ -11,9 +11,9 @@
  *
  * Body: { owner: string, repo: string, token: string }
  *
- * The PAT is *not* stored server-side — the client persists it in
- * localStorage alongside the rest of `kody_auth`. This endpoint only proves
- * the PAT works and ensures push-based cache invalidation is wired up.
+ * After GitHub validates the PAT, Kody stores an encrypted server-side copy
+ * under its reserved vault key so webhook work can continue without a browser.
+ * The client also persists the PAT in localStorage for interactive requests.
  *
  * Webhook registration failure does not fail the request — polling still
  * works as a fallback. The response includes `webhook.ok` so the UI can
@@ -21,8 +21,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { provisionBackgroundGitHubAccess } from "@kody-ade/base/auth/background-token-provisioning";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
+import { readRecentWebhookDelivery } from "@dashboard/lib/webhooks/delivery-store";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
@@ -60,6 +62,10 @@ interface AddRepoResponse {
     ok: boolean;
     created?: boolean;
     error?: string;
+  };
+  backgroundAccess: {
+    ok: true;
+    source: "github-app" | "encrypted-pat";
   };
 }
 
@@ -212,38 +218,83 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "network_error" }, { status: 502 });
   }
 
-  // 2) Best-effort webhook registration. Failure is non-fatal — polling still works.
-  const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
-  let webhook: AddRepoResponse["webhook"] = { ok: false };
+  // 2) Establish durable access for unattended webhook work. Repository
+  // connection is not complete until both browser and background callers can
+  // use the verified credential.
+  let backgroundAccess: AddRepoResponse["backgroundAccess"];
   try {
-    const result = await ensureWebhook({ token, owner, repo, hookUrl });
-    if (result.ok) {
-      webhook = { ok: true, created: result.created };
-      logger.info(
+    const result = await provisionBackgroundGitHubAccess({
+      owner,
+      repo,
+      token,
+      actorLogin: userData.login,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
         {
-          event: "webhook_registered_added_repo",
-          hookId: result.hookId,
-          created: result.created,
-          owner,
-          repo,
+          error: "background_access_unavailable",
+          message: "Secure background GitHub access is not configured.",
         },
-        "Webhook registered for added repo",
-      );
-    } else {
-      webhook = { ok: false, error: result.error };
-      logger.info(
-        {
-          event: "webhook_register_failed_added_repo",
-          owner,
-          repo,
-          status: result.status,
-          error: result.error,
-        },
-        "Webhook registration failed for added repo (non-fatal)",
+        { status: 503 },
       );
     }
-  } catch (err) {
-    webhook = { ok: false, error: String(err) };
+    backgroundAccess = result;
+  } catch {
+    logger.error(
+      { event: "background_access_provision_failed", owner, repo },
+      "Failed to provision background GitHub access",
+    );
+    return NextResponse.json(
+      {
+        error: "background_access_failed",
+        message: "Could not secure background GitHub access.",
+      },
+      { status: 502 },
+    );
+  }
+
+  // 3) Best-effort webhook registration. Failure is non-fatal — polling still works.
+  const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
+  let webhook: AddRepoResponse["webhook"] =
+    backgroundAccess.source === "github-app" ? { ok: true } : { ok: false };
+  if (backgroundAccess.source !== "github-app") {
+    try {
+      const result = await ensureWebhook({ token, owner, repo, hookUrl });
+      if (result.ok) {
+        webhook = { ok: true, created: result.created };
+        logger.info(
+          {
+            event: "webhook_registered_added_repo",
+            hookId: result.hookId,
+            created: result.created,
+            owner,
+            repo,
+          },
+          "Webhook registered for added repo",
+        );
+      } else {
+        const recentDelivery =
+          result.status === 403 || result.status === 404
+            ? await readRecentWebhookDelivery(owner, repo).catch(() => null)
+            : null;
+        webhook = recentDelivery
+          ? { ok: true, created: false }
+          : { ok: false, error: result.error };
+        logger.info(
+          {
+            event: "webhook_register_failed_added_repo",
+            owner,
+            repo,
+            status: result.status,
+            deliveryConfirmed: Boolean(recentDelivery),
+            error: result.error,
+          },
+          "Webhook registration failed for added repo (non-fatal)",
+        );
+      }
+    } catch (err) {
+      webhook = { ok: false, error: String(err) };
+    }
   }
 
   const response: AddRepoResponse = {
@@ -261,6 +312,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       avatar_url: userData.avatar_url,
       id: userData.id,
     },
+    backgroundAccess,
     webhook,
   };
 

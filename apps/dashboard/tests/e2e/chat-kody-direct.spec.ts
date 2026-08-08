@@ -11,6 +11,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
@@ -25,6 +26,11 @@ function parseRepo(url: string): { owner: string; repo: string } {
   } catch {
     return { owner: "test-owner", repo: "test-repo" };
   }
+}
+
+function chatUrl(): string {
+  const { owner, repo } = parseRepo(TEST_REPO);
+  return `${BASE_URL.replace(/\/$/, "")}/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/chat`;
 }
 
 async function injectAuth(page: Page): Promise<void> {
@@ -57,12 +63,11 @@ async function injectAuth(page: Page): Promise<void> {
 
 async function selectKodyAgent(page: Page): Promise<void> {
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Model").first();
+  const trigger = chat.getByLabel("Chat setup").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
 
-  await trigger.click();
-  const menu = chat.locator('[role="listbox"]:visible').first();
+  const menu = await openChatSetupSection(chat, "Model");
   const option = menu
     .locator('button[role="option"]')
     .filter({ hasText: "Kody Test" });
@@ -142,7 +147,7 @@ test.describe("Kody direct agent", () => {
       }),
     );
 
-    await page.goto(BASE_URL);
+    await page.goto(chatUrl());
     await page.waitForLoadState("domcontentloaded");
 
     const viewport = await page.viewportSize();
@@ -185,5 +190,196 @@ test.describe("Kody direct agent", () => {
           command.role === "assistant" && command.status === "pending",
       ),
     ).toBe(false);
+  });
+
+  test("shows a clear warning when the selected model cannot use operation tools", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/chat/kody", async (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"error","errorText":"[trace a1b2c3d4] No endpoints found that support tool use"}\n\n' +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      }),
+    );
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const input = chat.locator("textarea").first();
+    await expect(input).toBeEditable({ timeout: 10_000 });
+    await input.fill("remove the package release workflow");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByText(
+        "This model could not complete the requested operation with the available tools. Choose another model and try again. (trace a1b2c3d4)",
+        { exact: false },
+      ),
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("shows delegated specialist work in Thought and keeps the answer clean", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/chat/kody", async (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"started","agentTitle":"Agency Specialist","task":"Explain AI Agency structure."}}\n\n' +
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"reasoning","agentTitle":"Agency Specialist","reasoningDelta":"I compared each configured "}}\n\n' +
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"reasoning","agentTitle":"Agency Specialist","reasoningDelta":"Agency model and its responsibility."}}\n\n' +
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"completed","agentTitle":"Agency Specialist"}}\n\n' +
+          'data: {"type":"text-delta","delta":"Agency has seven focused models."}\n\n' +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      }),
+    );
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const input = chat.locator("textarea").first();
+    await expect(input).toBeEditable({ timeout: 10_000 });
+    await input.fill("Explain AI Agency structure.");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByRole("button", { name: /Agency Specialist completed/ }),
+    ).toBeVisible({ timeout: 15_000 });
+    await chat
+      .getByRole("button", { name: /Agency Specialist completed/ })
+      .click();
+    await expect(
+      chat.getByRole("button", { name: /Agency Specialist/ }),
+    ).toHaveCount(2);
+    await expect(
+      chat.getByRole("button", { name: /💭 Thought/ }),
+    ).toBeVisible();
+    await chat.getByRole("button", { name: /💭 Thought/ }).click();
+    await expect(
+      chat.getByText(
+        "I compared each configured Agency model and its responsibility.",
+      ),
+    ).toBeVisible();
+    await expect(
+      chat.getByText("Agency has seven focused models."),
+    ).toBeVisible();
+    await expect(chat.getByText(/Kody delegated this request/)).toHaveCount(0);
+    await expect(
+      chat.getByRole("button", { name: "Send message" }),
+    ).toBeVisible();
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
+      0,
+    );
+  });
+
+  test("a completed specialist without an answer settles visibly and restores the composer", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/chat/kody", async (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"started","agentTitle":"Agency Specialist","task":"Explain Agency."}}\n\n' +
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"completed","agentTitle":"Agency Specialist"}}\n\n' +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      }),
+    );
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const input = chat.locator("textarea").first();
+    await input.fill("Explain Agency.");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(chat.getByText(/no response/i)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      chat.getByRole("button", { name: "Send message" }),
+    ).toBeVisible();
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
+      0,
+    );
+  });
+
+  test("shows the specialist failure reason and does not remain thinking", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/chat/kody", async (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"started","agentTitle":"Agency Specialist","task":"Explain AI Agency structure."}}\n\n' +
+          'data: {"type":"data-subagent-activity","data":{"id":"agency-1","phase":"failed","agentTitle":"Agency Specialist","errorText":"The specialist timed out. Retry or choose another model. (trace a1b2c3d4)"}}\n\n' +
+          'data: {"type":"text-delta","delta":"Agency Specialist failed: The specialist timed out. Retry or choose another model. (trace a1b2c3d4)"}\n\n' +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      }),
+    );
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const input = chat.locator("textarea").first();
+    await expect(input).toBeEditable({ timeout: 10_000 });
+    await input.fill("Explain AI Agency structure.");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByRole("button", { name: /Agency Specialist failed/ }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      chat.getByText(
+        "Agency Specialist failed: The specialist timed out. Retry or choose another model. (trace a1b2c3d4)",
+      ),
+    ).toBeVisible();
+    await expect(chat.getByText("Thinking…", { exact: true })).toHaveCount(0);
+
+    await chat
+      .getByRole("button", { name: /Agency Specialist failed/ })
+      .click();
+    const specialistCard = chat.getByRole("button", {
+      name: /^❌ Agency Specialist/,
+    });
+    await specialistCard.click();
+    await expect(
+      specialistCard
+        .locator("..")
+        .getByText(/The specialist timed out\. Retry or choose another model/),
+    ).toBeVisible();
   });
 });

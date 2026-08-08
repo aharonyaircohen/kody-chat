@@ -225,8 +225,6 @@ describe("live UI service preflight", () => {
         return new Response(
           JSON.stringify({
             authenticated: true,
-            owner: "example",
-            repo: "kody-e2e-tester",
           }),
           { status: 200 },
         );
@@ -333,10 +331,10 @@ describe("live UI gate manifest", () => {
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(21);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(21);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(22);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(22);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      21,
+      22,
     );
   });
 

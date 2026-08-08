@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
     /** User-picked thinking level. Forwarded verbatim to Brain. */
     reasoningEffort?: string;
     agentSlug?: string;
+    workspaceMode?: "repository" | "host";
   };
   try {
     body = await req.json();
@@ -194,6 +195,7 @@ export async function POST(req: NextRequest) {
       storeRef: ctx.context.storeRef,
     });
     const repoToken = ctx.context.githubToken;
+    const useHostWorkspace = body.workspaceMode === "host";
 
     // First turn only: pull the dashboard's curated Context for the chat
     // audience. Cached 60s in-process; `null` when the repo has none.
@@ -204,7 +206,7 @@ export async function POST(req: NextRequest) {
     // chat — that would 500 the first message while every later message (which
     // omits includeContext) succeeds. Degrade to no-context instead.
     let dashboardContext: string | null = null;
-    if (!isResume && body.includeContext) {
+    if (!useHostWorkspace && !isResume && body.includeContext) {
       try {
         dashboardContext = await loadContextForPrompt();
       } catch (err) {
@@ -219,7 +221,7 @@ export async function POST(req: NextRequest) {
     if (!isResume) {
       try {
         const repoBrain = await readResolvedAgentFile(
-          body.agentSlug || REPO_BRAIN_AGENT_SLUG,
+          body.agentSlug || (useHostWorkspace ? "kody" : REPO_BRAIN_AGENT_SLUG),
         );
         if (repoBrain?.body.trim()) {
           agentIdentity = {
@@ -246,15 +248,20 @@ export async function POST(req: NextRequest) {
       // Context onto the user message (skip on resume — no new message).
       message: isResume
         ? ""
-        : withDashboardContext(
-            withPageContext(message ?? "", body.currentPage),
-            dashboardContext,
-          ),
-      taskContext: body.taskContext,
+        : useHostWorkspace
+          ? (message ?? "")
+          : withDashboardContext(
+              withPageContext(message ?? "", body.currentPage),
+              dashboardContext,
+            ),
+      ...(!useHostWorkspace && body.taskContext
+        ? { taskContext: body.taskContext }
+        : {}),
       attachments: body.attachments,
-      capabilityContext: body.capabilityContext,
-      repoScope,
-      repoToken,
+      ...(!useHostWorkspace && body.capabilityContext
+        ? { capabilityContext: body.capabilityContext }
+        : {}),
+      ...(!useHostWorkspace ? { repoScope, repoToken } : {}),
       dashboardUrl,
       ...(agentIdentity ? { agentIdentity } : {}),
       voiceMode: body.voiceMode === true,

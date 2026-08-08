@@ -10,15 +10,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { spawnRunner } from "@kody-ade/fly/plugin/runners/fly";
-import {
-  chatRunRequest,
-  goalRunRequest,
-} from "@kody-ade/fly/runners/run-request";
+import { chatExecutionRequest } from "@kody-ade/fly/runners/execution-request-builders";
 
 const BASE_INPUT = {
   repo: "acme/widgets",
   githubToken: "gh-pat",
-  runRequest: chatRunRequest("sess-1"),
+  runRequest: chatExecutionRequest("chat-sess-1", "sess-1"),
   flyToken: "fly-test-token",
 };
 
@@ -81,39 +78,6 @@ describe("spawnRunner", () => {
     expect(body.config.env.ALL_SECRETS).toBe(
       JSON.stringify({ MINIMAX_API_KEY: "k" }),
     );
-  });
-
-  it("spawns a goal request without legacy mode/action env", async () => {
-    const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) =>
-        new Response(JSON.stringify({ id: "m-1" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await spawnRunner({
-      repo: "acme/widgets",
-      githubToken: "gh-pat",
-      runRequest: goalRunRequest("weekly-docs"),
-      flyToken: "fly-test-token",
-    });
-
-    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body)) as {
-      config: { env: Record<string, string> };
-    };
-    expect(JSON.parse(body.config.env.KODY_RUN_REQUEST_JSON)).toMatchObject({
-      target: { type: "goal", id: "weekly-docs" },
-      intent: "manage",
-      source: "dashboard",
-    });
-    expect(body.config.env).not.toHaveProperty("KODY_RUN_MODE");
-    expect(body.config.env).not.toHaveProperty("GITHUB_EVENT_NAME");
-    expect(body.config.env).not.toHaveProperty("KODY_FORCE_ACTION");
-    expect(body.config.env).not.toHaveProperty("KODY_FORCE_MESSAGE");
-    expect(body.config.env).not.toHaveProperty("SESSION_ID");
-    expect(body.config.env).not.toHaveProperty("ISSUE_NUMBER");
   });
 
   it("wraps a timeout/network rejection in a clean error (no raw DOMException)", async () => {

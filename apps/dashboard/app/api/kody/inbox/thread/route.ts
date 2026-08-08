@@ -18,7 +18,7 @@ import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   fetchIssue,
   fetchPRComments,
-  fetchGoalDiscussionThread,
+  fetchDiscussionThread,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
@@ -63,10 +63,10 @@ export async function GET(req: NextRequest) {
       setGitHubContext(threadOwner, threadRepo, headerAuth.token);
     }
 
-    // Goals are GitHub Discussions — different API (GraphQL), same
+    // Discussion threads use GraphQL but share the same
     // normalized response shape so the client renders them identically.
     if (type === "Discussion") {
-      const d = await fetchGoalDiscussionThread(number);
+      const d = await fetchDiscussionThread(number);
       if (!d) {
         return NextResponse.json(
           { error: "Thread not found" },

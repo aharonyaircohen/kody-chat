@@ -1,6 +1,6 @@
 /**
  * A Capability is one small folder:
- * instructions.md, skills/, and tools/.
+ * instructions.md, optional contract.json, skills/, and tools/.
  *
  * Local folders are stored as one Convex document. Store folders are read
  * directly from the configured Company Store.
@@ -20,6 +20,7 @@ import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
 const INSTRUCTIONS_FILE = "instructions.md";
+const CONTRACT_FILE = "contract.json";
 const KIND_PREFIX = "capability:";
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -33,6 +34,8 @@ export interface CapabilityTool {
   content: string;
 }
 
+export type CapabilityExecution = "agent" | "script";
+
 export interface CapabilitySummary {
   slug: string;
   describe: string;
@@ -43,7 +46,9 @@ export interface CapabilitySummary {
 }
 
 export interface CapabilityDetail extends CapabilitySummary {
+  execution: CapabilityExecution;
   instructions: string;
+  contract: string | null;
   skills: CapabilitySkill[];
   capabilityTools: CapabilityTool[];
 }
@@ -110,11 +115,16 @@ function detailFromFiles(
 ): CapabilityDetail {
   assertSimpleCapabilityFolder(files);
   const instructions = files[INSTRUCTIONS_FILE]!;
+  const contract = files[CONTRACT_FILE]
+    ? parseCapabilityContract(files[CONTRACT_FILE])
+    : null;
   return {
     slug,
     describe: description(instructions, slug),
     ...options,
+    execution: contract?.execution ?? "agent",
     instructions,
+    contract: files[CONTRACT_FILE] ?? null,
     skills: Object.entries(files)
       .flatMap(([path, body]) =>
         path.startsWith("skills/") && path !== "skills/.gitkeep"
@@ -133,14 +143,7 @@ function detailFromFiles(
 }
 
 function summary(detail: CapabilityDetail): CapabilitySummary {
-  const {
-    slug,
-    describe,
-    updatedAt,
-    htmlUrl,
-    source,
-    readOnly,
-  } = detail;
+  const { slug, describe, updatedAt, htmlUrl, source, readOnly } = detail;
   return { slug, describe, updatedAt, htmlUrl, source, readOnly };
 }
 
@@ -321,17 +324,189 @@ export function assertSimpleCapabilityFolder(
     assertSafePath(path);
     if (
       path !== INSTRUCTIONS_FILE &&
+      path !== CONTRACT_FILE &&
       !path.startsWith("skills/") &&
       !path.startsWith("tools/")
     ) {
       throw new Error(
-        `Capability folder only allows instructions.md, skills/, and tools/; found ${path}`,
+        `Capability folder only allows instructions.md, contract.json, skills/, and tools/; found ${path}`,
       );
     }
   }
   if (typeof files[INSTRUCTIONS_FILE] !== "string") {
     throw new Error("Capability folder requires instructions.md");
   }
+  const contract = files[CONTRACT_FILE];
+  if (contract !== undefined) {
+    const parsed = parseCapabilityContract(contract);
+    if (
+      parsed.execution === "script" &&
+      (typeof files["tools/run.sh"] !== "string" ||
+        !files["tools/run.sh"].trim())
+    ) {
+      throw new Error(
+        'Script-backed Capability requires a non-empty "tools/run.sh" file',
+      );
+    }
+  }
+}
+
+function parseCapabilityContract(raw: string): {
+  execution?: CapabilityExecution;
+  requirements?: { browser?: boolean; qaCredentials?: boolean };
+  secrets?: string[];
+  timeoutMs?: number;
+  requiredSubagents?: string[];
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("contract.json must be valid JSON");
+  }
+  const value = asRecord(parsed);
+  if (!value || !asRecord(value.input) || !asRecord(value.output)) {
+    throw new Error("contract.json must contain input and output JSON schemas");
+  }
+  if (
+    value.execution !== undefined &&
+    value.execution !== "agent" &&
+    value.execution !== "script"
+  ) {
+    throw new Error('contract.json execution must be "agent" or "script"');
+  }
+  const requirementsValue =
+    value.requirements === undefined ? undefined : asRecord(value.requirements);
+  if (value.requirements !== undefined && !requirementsValue) {
+    throw new Error("contract.json requirements must be an object");
+  }
+  const requirementKeys = Object.keys(requirementsValue ?? {});
+  const unsupportedRequirements = requirementKeys.filter(
+    (key) => key !== "browser" && key !== "qaCredentials",
+  );
+  if (unsupportedRequirements.length > 0) {
+    throw new Error(
+      `contract.json requirements contains unsupported fields: ${unsupportedRequirements.join(", ")}`,
+    );
+  }
+  if (
+    requirementsValue?.browser !== undefined &&
+    typeof requirementsValue.browser !== "boolean"
+  ) {
+    throw new Error("contract.json requirements.browser must be boolean");
+  }
+  if (
+    requirementsValue?.qaCredentials !== undefined &&
+    typeof requirementsValue.qaCredentials !== "boolean"
+  ) {
+    throw new Error(
+      "contract.json requirements.qaCredentials must be boolean",
+    );
+  }
+  if (
+    requirementsValue?.qaCredentials === true &&
+    requirementsValue.browser !== true
+  ) {
+    throw new Error(
+      "contract.json requirements.qaCredentials requires browser",
+    );
+  }
+  const requirements = requirementsValue
+    ? {
+        ...(requirementsValue.browser === true ? { browser: true } : {}),
+        ...(requirementsValue.qaCredentials === true
+          ? { qaCredentials: true }
+          : {}),
+      }
+    : undefined;
+  const secrets =
+    value.secrets === undefined
+      ? undefined
+      : Array.isArray(value.secrets) &&
+          value.secrets.every(
+            (name) =>
+              typeof name === "string" && /^[A-Z][A-Z0-9_]*$/.test(name),
+          )
+        ? [...new Set(value.secrets as string[])]
+        : null;
+  if (secrets === null) {
+    throw new Error(
+      "contract.json secrets must contain valid environment variable names",
+    );
+  }
+  if (secrets && value.execution !== "script") {
+    throw new Error(
+      'contract.json secrets are supported only when execution is "script"',
+    );
+  }
+  const timeoutMs =
+    value.timeoutMs === undefined
+      ? undefined
+      : typeof value.timeoutMs === "number" &&
+          Number.isInteger(value.timeoutMs) &&
+          value.timeoutMs >= 1_000 &&
+          value.timeoutMs <= 6 * 60 * 60 * 1_000
+        ? value.timeoutMs
+        : null;
+  if (timeoutMs === null) {
+    throw new Error(
+      "contract.json timeoutMs must be an integer from 1000 to 21600000",
+    );
+  }
+  if (timeoutMs !== undefined && value.execution !== "script") {
+    throw new Error(
+      'contract.json timeoutMs is supported only when execution is "script"',
+    );
+  }
+  const requiredSubagents =
+    value.requiredSubagents === undefined
+      ? undefined
+      : Array.isArray(value.requiredSubagents) &&
+          value.requiredSubagents.length > 0 &&
+          value.requiredSubagents.every(
+            (name) =>
+              typeof name === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(name),
+          )
+        ? [...new Set(value.requiredSubagents as string[])]
+        : null;
+  if (requiredSubagents === null) {
+    throw new Error(
+      "contract.json requiredSubagents must contain valid specialist names",
+    );
+  }
+  if (requiredSubagents && value.execution !== "agent") {
+    throw new Error(
+      'contract.json requiredSubagents are supported only when execution is "agent"',
+    );
+  }
+  const unsupported = Object.keys(value).filter(
+    (key) =>
+      key !== "execution" &&
+      key !== "requirements" &&
+      key !== "secrets" &&
+      key !== "timeoutMs" &&
+      key !== "requiredSubagents" &&
+      key !== "input" &&
+      key !== "output",
+  );
+  if (unsupported.length > 0) {
+    throw new Error(
+      `contract.json contains unsupported fields: ${unsupported.join(", ")}`,
+    );
+  }
+  return {
+    ...(value.execution ? { execution: value.execution } : {}),
+    ...(requirements && Object.keys(requirements).length > 0
+      ? { requirements }
+      : {}),
+    ...(secrets ? { secrets } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(requiredSubagents ? { requiredSubagents } : {}),
+    input: value.input as Record<string, unknown>,
+    output: value.output as Record<string, unknown>,
+  };
 }
 
 export async function writeCapabilityFolderFiles(

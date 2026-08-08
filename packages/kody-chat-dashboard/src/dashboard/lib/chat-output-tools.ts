@@ -1,7 +1,7 @@
 export const FINAL_ANSWER_TOOL = "final_answer";
 export const SHOW_VIEW_TOOL = "show_view";
-export const FINAL_ANSWER_REQUIRES_VIEW_ERROR =
-  "final_answer requires show_view for this interactive response. If a renderer rule truly matches this interaction, call show_view with real data from it. If the reply is just conversational (greeting, explanation, open question), call final_answer again with the same content — never invent a demo or placeholder view.";
+export const CHAT_OUTPUT_CONTRACT_DATA_TYPE = "data-chat-output-contract";
+export const EXCLUSIVE_TOOL_OUTPUT_MODE = "exclusive-tool";
 export const CHAT_OUTPUT_TOOL_NAMES = [
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
@@ -13,6 +13,25 @@ export interface FinalAnswerOutput {
 
 export interface ToolErrorOutput {
   error: string;
+}
+
+/**
+ * Direct-chat output policy sent before model chunks.
+ *
+ * In exclusive-tool mode, provider text deltas are draft material. Exactly
+ * one output tool owns the visible reply: `final_answer` commits text and
+ * `show_view` commits a rendered view. This prevents an already-visible draft
+ * from disappearing when the model selects a renderer later in the turn.
+ */
+export interface ChatOutputContract {
+  mode: typeof EXCLUSIVE_TOOL_OUTPUT_MODE;
+}
+
+export function isExclusiveToolOutputContract(
+  value: unknown,
+): value is ChatOutputContract {
+  if (!value || typeof value !== "object") return false;
+  return (value as { mode?: unknown }).mode === EXCLUSIVE_TOOL_OUTPUT_MODE;
 }
 
 export function getFinalAnswerContent(input: unknown): string | null {
@@ -37,10 +56,6 @@ export function getToolErrorMessage(output: unknown): string | null {
 
 export function isToolErrorOutput(output: unknown): output is ToolErrorOutput {
   return getToolErrorMessage(output) !== null;
-}
-
-export function isFinalAnswerRequiresViewOutput(output: unknown): boolean {
-  return getToolErrorMessage(output) === FINAL_ANSWER_REQUIRES_VIEW_ERROR;
 }
 
 /**
@@ -75,22 +90,12 @@ export function selectChatOutputActiveTools<T extends string>({
   toolNames,
   requireViewOutput,
   allowPreRenderTools,
-  finalAnswerNeedsView,
 }: {
   toolNames: readonly T[];
   requireViewOutput: boolean;
   allowPreRenderTools: boolean;
-  finalAnswerNeedsView: boolean;
 }): T[] {
   const showViewOnly = toolNames.filter((name) => name === SHOW_VIEW_TOOL);
-  // After a rejected final_answer, keep final_answer callable alongside
-  // show_view — the nudge is one-shot; locking to show_view only forces
-  // the model to fabricate a view (e.g. a demo card for a greeting).
-  if (finalAnswerNeedsView) {
-    return toolNames.filter(
-      (name) => name === SHOW_VIEW_TOOL || name === FINAL_ANSWER_TOOL,
-    );
-  }
   if (requireViewOutput) {
     return allowPreRenderTools
       ? toolNames.filter((name) => name !== FINAL_ANSWER_TOOL)

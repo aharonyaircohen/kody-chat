@@ -6,7 +6,6 @@ const CATALOG_PATHS = [
   "capabilities/",
   "agents/",
   "workflows/",
-  "goals/",
 ];
 
 export function catalogCategoriesForChangedPaths(
@@ -35,7 +34,6 @@ export function catalogCategoriesForChangedPaths(
     }
     if (path.startsWith("agents/")) categories.add("agent");
     if (path.startsWith("workflows/")) categories.add("workflow-template");
-    if (path.startsWith("goals/")) categories.add("goal-template");
   }
   return [...categories];
 }

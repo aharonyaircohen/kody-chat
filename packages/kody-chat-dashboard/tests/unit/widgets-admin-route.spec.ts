@@ -30,6 +30,7 @@ const auth = vi.hoisted(() => {
 const store = vi.hoisted(() => ({
   rows: [] as Array<{
     tenantId: string;
+    name?: string;
     slug: string;
     version: number;
     bundleSize: number;
@@ -106,6 +107,7 @@ describe("GET /api/kody/widgets", () => {
     store.rows = [
       {
         tenantId: "acme/site",
+        name: "Quiz",
         slug: "quiz",
         version: 3,
         bundleSize: 1200,
@@ -123,9 +125,11 @@ describe("GET /api/kody/widgets", () => {
     const res = await GET(getRequest());
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toContain("no-store");
-    const json = (await res.json()) as { widgets: Array<{ slug: string }> };
+    const json = (await res.json()) as {
+      widgets: Array<{ name: string; slug: string }>;
+    };
     expect(json.widgets).toHaveLength(1);
-    expect(json.widgets[0].slug).toBe("quiz");
+    expect(json.widgets[0]).toMatchObject({ name: "Quiz", slug: "quiz" });
     expect(store.queries).toEqual([{ tenantId: "acme/site" }]);
   });
 
@@ -144,7 +148,7 @@ describe("POST /api/kody/widgets", () => {
     expect(store.mutations).toHaveLength(0);
   });
 
-  it("publishes a bundle and returns the new version", async () => {
+  it("derives the slug from the widget name and returns both identities", async () => {
     store.rows = [
       {
         tenantId: "acme/site",
@@ -155,24 +159,43 @@ describe("POST /api/kody/widgets", () => {
       },
     ];
     const res = await POST(
-      postRequest({ slug: "quiz", bundle: "export{}", commitSha: "deadbeef" }),
+      postRequest({
+        name: "Question Select",
+        bundle: "export{}",
+        commitSha: "deadbeef",
+      }),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ slug: "quiz", version: 3 });
+    expect(await res.json()).toEqual({
+      name: "Question Select",
+      slug: "question-select",
+      version: 1,
+    });
     expect(store.mutations).toHaveLength(1);
     expect(store.mutations[0]).toMatchObject({
       tenantId: "acme/site",
-      slug: "quiz",
+      slug: "question-select",
       bundle: "export{}",
       commitSha: "deadbeef",
     });
+    expect(store.mutations[0]).not.toHaveProperty("name");
     expect(typeof store.mutations[0].updatedAt).toBe("string");
   });
 
   it("omits commitSha from the publish when not provided", async () => {
     const res = await POST(postRequest({ slug: "quiz", bundle: "x" }));
     expect(res.status).toBe(200);
+    expect(store.mutations[0]).toMatchObject({
+      slug: "quiz",
+    });
+    expect(store.mutations[0]).not.toHaveProperty("name");
     expect(store.mutations[0]).not.toHaveProperty("commitSha");
+  });
+
+  it("400s when neither a widget name nor legacy slug is provided", async () => {
+    const res = await POST(postRequest({ bundle: "x" }));
+    expect(res.status).toBe(400);
+    expect(store.mutations).toHaveLength(0);
   });
 
   it("400s on an invalid slug", async () => {

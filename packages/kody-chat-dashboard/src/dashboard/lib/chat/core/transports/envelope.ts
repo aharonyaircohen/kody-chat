@@ -72,6 +72,7 @@ export const kodyDirectChunkSchema = z.object({
   data: lenientRecord,
   toolCallId: lenientString,
   toolName: lenientString,
+  inputTextDelta: lenientString,
   input: z.unknown().optional(),
   output: z.unknown().optional(),
 });

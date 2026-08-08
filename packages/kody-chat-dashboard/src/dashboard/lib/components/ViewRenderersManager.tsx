@@ -39,6 +39,11 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { MarkdownPreview } from "./MarkdownPreview";
 import {
+  VIEW_RENDERER_MARKDOWN_CLASS,
+  VIEW_RENDERER_TEXT_CLASS,
+  VIEW_RENDERER_TITLE_CLASS,
+} from "../view-renderers/typography";
+import {
   parseViewRendererDefinitionInput,
   serializeViewRendererDefinition,
   type RendererUiTemplateNode,
@@ -66,6 +71,7 @@ interface RendererRow {
         | "selection"
         | "fields"
         | "input"
+        | "json"
         | "value";
       optional?: boolean;
     }
@@ -874,7 +880,7 @@ function RendererPreviewNode({
   if (node.type === "text") {
     if (node.variant === "title") {
       return (
-        <h3 className="text-base font-semibold leading-6 text-white/90">
+        <h3 className={VIEW_RENDERER_TITLE_CLASS}>
           {node.value}
         </h3>
       );
@@ -887,14 +893,14 @@ function RendererPreviewNode({
       );
     }
     return (
-      <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>
+      <p className={VIEW_RENDERER_TEXT_CLASS}>{node.value}</p>
     );
   }
   if (node.type === "markdown") {
     return (
       <MarkdownPreview
         content={node.value}
-        className="chat-message-text break-words text-[15px] leading-7 prose-p:my-2 prose-li:my-1"
+        className={VIEW_RENDERER_MARKDOWN_CLASS}
       />
     );
   }

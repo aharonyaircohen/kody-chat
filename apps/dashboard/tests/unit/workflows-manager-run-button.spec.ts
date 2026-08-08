@@ -23,6 +23,10 @@ const WORKFLOW_EDITOR_SOURCE = readFileSync(
   ),
   "utf8",
 );
+const WORKFLOW_FILES_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/workflow-definition-files.ts"),
+  "utf8",
+);
 
 describe("WorkflowsManager run button", () => {
   it("uses the workflow-definition run hook", () => {
@@ -38,6 +42,9 @@ describe("WorkflowsManager run button", () => {
   it("only enables immediate run for runnable workflow records", () => {
     expect(SOURCE).toMatch(/workflow\.runnable === true/);
     expect(SOURCE).toMatch(/disabled=\{!runnable \|\| runPending\}/);
+    expect(WORKFLOW_FILES_SOURCE).toMatch(
+      /source: "store",[\s\S]*?readOnly: true,[\s\S]*?runnable: true/,
+    );
   });
 
   it("uses the visible trust-level control before running workflows", () => {
@@ -49,7 +56,10 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).not.toContain("RunModeBadge");
     expect(SOURCE).not.toContain("KodyTriggerControl");
     expect(SOURCE).not.toContain("applyRunModeToCapabilities(");
-    expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
+    expect(SOURCE).toContain("setRunWorkflowDialog(selectedWorkflow)");
+    expect(SOURCE).toMatch(
+      /runWorkflow\.mutateAsync\(\{\s*id: workflow\.id,\s*input,/,
+    );
   });
 
   it("gives the visual workflow editor enough dialog room", () => {

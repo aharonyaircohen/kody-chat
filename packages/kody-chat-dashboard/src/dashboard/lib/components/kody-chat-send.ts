@@ -34,7 +34,11 @@ import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
-import { trace, type createChatPluginRegistry } from "../chat/platform";
+import {
+  requestChatOperation,
+  trace,
+  type createChatPluginRegistry,
+} from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
@@ -79,7 +83,7 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { AttachmentRef, ChatContext } from "../chat-types";
+import type { AttachmentRef, ChatContext, MachineAccess } from "../chat-types";
 import type { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
 import { persistPendingAttachment } from "../attachment-store";
 import { prepareUiConversationTurn } from "../chat/core/conversation/prepare-ui-turn";
@@ -90,6 +94,7 @@ import {
 } from "../chat/core/agent-handoff";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
+import { SILENT_ASSISTANT_NOTICE } from "../chat/core/silent-turn";
 import {
   extractFirstStaffMentionCandidate,
   type StaffMentionTrigger,
@@ -103,7 +108,6 @@ import {
 import type { TerminalIntentEffectPayload } from "../chat/plugins/terminal/intent-middleware";
 import type { ChatTerminalMode } from "../chat/plugins/terminal/types";
 import type { SlashExpansionEffectPayload } from "../chat/plugins/commands";
-import type { GoalDirectEffectPayload } from "../chat/plugins/goals";
 import {
   isDashboardNavigateDirective,
   isPreviewActDirective,
@@ -305,7 +309,7 @@ export function finalizeKodyDirectTurn(params: {
       const m = copy[idx];
       const { reasoning, answer } = parseReasoning(m.content ?? "");
       const hadSuccessfulTools = (m.toolCalls ?? []).some(
-        (tc) => tc.status === "success",
+        (tc) => tc.status === "success" && tc.activityKind !== "subagent",
       );
       const shouldSurfaceToolError =
         !!lastToolErrorText &&
@@ -334,7 +338,7 @@ export function finalizeKodyDirectTurn(params: {
               ...m,
               isLoading: false,
               isError: true,
-              content: `${reasoning.trim() ? `<think>${reasoning}</think>\n\n` : ""}Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.`,
+              content: `${reasoning.trim() ? `<think>${reasoning}</think>\n\n` : ""}${SILENT_ASSISTANT_NOTICE}`,
             }
           : {
               ...m,
@@ -381,17 +385,13 @@ export interface SendTextDeps {
   selectedAgentId: AgentId;
   selectedModelId: string | null;
   effectiveReasoningEffort: string | null;
+  selectedMachineAccess: MachineAccess;
   selectedTask: KodyTask | null;
   capabilitySlug: string | null;
   selectedCapability:
     Extract<ChatContext, { kind: "capability" }>["capability"] | null;
   selectedOrg: Extract<ChatContext, { kind: "org" }> | null;
   selectedReport: Extract<ChatContext, { kind: "report" }>["report"] | null;
-  isPlannerMode: boolean;
-  plannerGoal: Extract<ChatContext, { kind: "goal-planner" }>["goal"] | null;
-  plannerExistingTasks:
-    Extract<ChatContext, { kind: "goal-planner" }>["existingTasks"] | undefined;
-  onPlannerTasksCreated: (() => void) | undefined;
   onIssueCreated: KodyChatProps["onIssueCreated"];
   onRenderedViewInvalidate?: never;
   vibeMode: KodyChatProps["vibeMode"];
@@ -488,14 +488,11 @@ async function runSendTextInner(
     selectedAgentId,
     selectedModelId,
     effectiveReasoningEffort,
+    selectedMachineAccess,
     selectedTask,
     selectedCapability,
     selectedOrg,
     selectedReport,
-    isPlannerMode,
-    plannerGoal,
-    plannerExistingTasks,
-    onPlannerTasksCreated,
     onIssueCreated,
     vibeMode,
     context,
@@ -552,8 +549,17 @@ async function runSendTextInner(
 
   const timestamp = new Date().toISOString();
   const currentMessageId = crypto.randomUUID();
+  const selectedEntryKey = agentList.find(
+    (entry) =>
+      entry.agentId === selectedAgentId &&
+      (entry.modelId ?? null) === selectedModelId,
+  )?.key;
   const uiSessionId =
-    sessionHook.activeSession?.id ?? sessionHook.createSession();
+    sessionHook.activeSession?.id ??
+    sessionHook.createSession({
+      ...(selectedEntryKey ? { agentKey: selectedEntryKey } : {}),
+      machineAccess: selectedMachineAccess,
+    });
   let turnMessages =
     sessionHook.activeSession?.id === uiSessionId
       ? messages
@@ -984,6 +990,7 @@ async function runSendTextInner(
         ...(effectiveReasoningEffort
           ? { reasoningEffort: effectiveReasoningEffort }
           : {}),
+        workspaceMode: "host",
       },
     } satisfies BrainTurnConfig;
     const brainTurn = createTransportTurnHandler({
@@ -1198,6 +1205,7 @@ async function runSendTextInner(
           ...(effectiveReasoningEffort
             ? { reasoningEffort: effectiveReasoningEffort }
             : {}),
+          machineAccess: selectedMachineAccess,
           ...(actorLogin ? { actorLogin } : {}),
           // The dashboard page the user is on, so "what am I viewing?"
           // resolves. Surfaced as a `## Current page` system section.
@@ -1228,20 +1236,6 @@ async function runSendTextInner(
                   slug: selectedReport.slug,
                   title: selectedReport.title,
                   body: selectedReport.body,
-                },
-              }
-            : {}),
-          ...(isPlannerMode && plannerGoal
-            ? {
-                goalPlanner: true,
-                goal: {
-                  id: plannerGoal.id,
-                  name: plannerGoal.name,
-                  description: plannerGoal.description,
-                  dueDate: plannerGoal.dueDate,
-                  ...(plannerExistingTasks
-                    ? { existingTasks: plannerExistingTasks }
-                    : {}),
                 },
               }
             : {}),
@@ -1365,18 +1359,6 @@ async function runSendTextInner(
         isDashboardNavigateDirective(pendingDashboardNavigate)
       ) {
         runDashboardNavigateFromDirective(pendingDashboardNavigate);
-      }
-      // Planner mode: a Pass 2 turn typically creates one or more issues
-      // via `create_task_for_goal`. We can't observe per-tool results
-      // from this stream protocol cheaply, so fire the host callback on
-      // every successful planner completion. The host (GoalControl)
-      // invalidates `useKodyTasks`; the cache layer dedups the cost.
-      if (isPlannerMode && onPlannerTasksCreated) {
-        try {
-          onPlannerTasksCreated();
-        } catch {
-          // Host callback errors should never break the chat.
-        }
       }
       // Issue-creation navigation: the unified chat thread does NOT
       // migrate per-issue. The conversation that created the issue
@@ -1644,8 +1626,6 @@ export interface SendMessageDeps {
   contextChips: Array<{ id: string; label: string; context: string }>;
   isKodyWaiting: boolean;
   selectedTask: KodyTask | null;
-  plannerGoal: Extract<ChatContext, { kind: "goal-planner" }>["goal"] | null;
-  onDirectToGoal: KodyChatProps["onDirectToGoal"];
   // Composer state writers
   setInput: (value: string) => void;
   setContextChips: (chips: SendMessageDeps["contextChips"]) => void;
@@ -1660,10 +1640,8 @@ export interface SendMessageDeps {
   handlePluginHostEffect: MiddlewareContext["dispatchHostEffect"];
   pendingTerminalIntentRef: MutableRefObject<TerminalIntentEffectPayload | null>;
   pendingSlashExpansionRef: MutableRefObject<SlashExpansionEffectPayload | null>;
-  pendingGoalDirectRef: MutableRefObject<GoalDirectEffectPayload | null>;
   consumePendingTerminalIntent: () => TerminalIntentEffectPayload | null;
   consumePendingSlashExpansion: () => SlashExpansionEffectPayload | null;
-  consumePendingGoalDirect: () => GoalDirectEffectPayload | null;
   // Terminal + preview
   sendInputToTerminal: () => void;
   sendKodyTerminalPayloadToTerminal: (payload: string) => boolean;
@@ -1680,8 +1658,6 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
     contextChips,
     isKodyWaiting,
     selectedTask,
-    plannerGoal,
-    onDirectToGoal,
     setInput,
     setContextChips,
     setAttachments,
@@ -1694,10 +1670,8 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
     handlePluginHostEffect,
     pendingTerminalIntentRef,
     pendingSlashExpansionRef,
-    pendingGoalDirectRef,
     consumePendingTerminalIntent,
     consumePendingSlashExpansion,
-    consumePendingGoalDirect,
     sendInputToTerminal,
     sendKodyTerminalPayloadToTerminal,
     previewActChainRef,
@@ -1715,71 +1689,72 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
   previewActChainRef.current = 0;
   const typedInput = input.trim();
 
-  // Built-in `/init` — deterministic engine install. Bypasses the LLM
-  // entirely: hits the install endpoint, renders the result as a chat
-  // message. Anchored to the start so "//init" or text containing
-  // "/init" still passes through to normal handling.
-  if (/^\/init(\s|$)/.test(typedInput)) {
-    setInput("");
-    setSlashMenuOpen(false);
-    setSlashSelectedIndex(0);
-    const force = /\s--force(\s|$)/.test(typedInput);
-    const now = new Date().toISOString();
-    setMessages((prev) => [
-      ...prev,
-      { role: "user" as const, content: typedInput, timestamp: now },
-      {
-        role: "assistant" as const,
-        content: "⚙️ Installing the Kody engine in this repo…",
-        timestamp: now,
-      },
-    ]);
-    try {
-      const res = await fetch("/api/kody/engine/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ force }),
-      });
-      const data = await res.json().catch(() => ({}));
-      const content =
-        res.ok && data.ok
-          ? [
-              `✅ ${data.summary}`,
-              data.workflow?.htmlUrl
-                ? `\nWorkflow: ${data.workflow.htmlUrl}`
-                : "",
-              Array.isArray(data.nextSteps) && data.nextSteps.length
-                ? `\n**Next steps**\n${data.nextSteps.map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}`
-                : "",
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : `❌ Install failed: ${data.error ?? data.message ?? res.statusText}`;
+  // Deterministic operations are resolved by the shared headless input
+  // dispatcher. Unknown slash inputs continue into prompt-shortcut expansion.
+  try {
+    const operation = typedInput.startsWith("/")
+      ? await requestChatOperation(typedInput, authHeaders())
+      : { handled: false as const };
+    if (operation.handled) {
+      const summary =
+        typeof operation.result.summary === "string"
+          ? operation.result.summary
+          : `${operation.command} completed.`;
+      const workflow = operation.result.workflow;
+      const workflowUrl =
+        workflow && typeof workflow === "object" && !Array.isArray(workflow)
+          ? (workflow as Readonly<Record<string, unknown>>).htmlUrl
+          : undefined;
+      const nextSteps = Array.isArray(operation.result.nextSteps)
+        ? operation.result.nextSteps.filter(
+            (step): step is string => typeof step === "string",
+          )
+        : [];
+      const content = [
+        `✅ ${summary}`,
+        typeof workflowUrl === "string" ? `\nWorkflow: ${workflowUrl}` : "",
+        nextSteps.length > 0
+          ? `\n**Next steps**\n${nextSteps
+              .map((step, index) => `${index + 1}. ${step}`)
+              .join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const now = new Date().toISOString();
+      setInput("");
+      setSlashMenuOpen(false);
+      setSlashSelectedIndex(0);
       setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant" as const,
-          content,
-          timestamp: new Date().toISOString(),
-        },
+        ...prev,
+        { role: "user" as const, content: typedInput, timestamp: now },
+        { role: "assistant" as const, content, timestamp: now },
       ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant" as const,
-          content: `❌ Install failed: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+      return;
     }
-    return;
+  } catch (error) {
+    if (typedInput.startsWith("/")) {
+      const now = new Date().toISOString();
+      setInput("");
+      setSlashMenuOpen(false);
+      setSlashSelectedIndex(0);
+      setMessages((prev) => [
+        ...prev,
+        { role: "user" as const, content: typedInput, timestamp: now },
+        {
+          role: "assistant" as const,
+          content: `❌ Command failed: ${
+            error instanceof Error ? error.message : "chat_operation_failed"
+          }`,
+          timestamp: now,
+        },
+      ]);
+      return;
+    }
   }
 
-  // Plugin send-middleware chain (Step 4). The goals plugin's
-  // goal-mention middleware (order 50, Step 5d) CONSUMES a message that
-  // mentions a known goal (`#<n>` / `goal:<n>`); the terminal plugin's
-  // terminal-intent middleware (order 100, Step 5a) rewrites
+  // Plugin send-middleware chain (Step 4). The terminal plugin's
+  // terminal-intent middleware rewrites
   // `/terminal <x>` to the Kody terminal prompt; the commands plugin's
   // slash-expansion middleware (order 200, Step 5b) expands
   // `/review` / `/explain foo` into the command body with $ARGUMENTS
@@ -1792,29 +1767,11 @@ export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
   // that consumes the message stops the send.
   pendingTerminalIntentRef.current = null;
   pendingSlashExpansionRef.current = null;
-  pendingGoalDirectRef.current = null;
   const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
     host: pluginHost,
     dispatchHostEffect: handlePluginHostEffect,
   });
   if (middlewareOutcome.consumedBy) {
-    // "Direct chat to a goal by id": re-scope this chat to the mentioned
-    // goal's planner and keep the rest of the message in the composer
-    // for the user to send into the now-goal-scoped thread. Consuming
-    // the mention on its own Enter keeps it race-free (the scope swap
-    // drives a re-render before anything is sent). A mention of the
-    // goal we're already in just strips the token (the `!==` guard
-    // skips a redundant re-scope).
-    const goalDirect = consumePendingGoalDirect();
-    if (goalDirect) {
-      if (goalDirect.goalId !== plannerGoal?.id) {
-        onDirectToGoal?.(goalDirect.goalId);
-      }
-      setInput(goalDirect.rest);
-      setSlashMenuOpen(false);
-      setSlashSelectedIndex(0);
-      return;
-    }
     setInput("");
     setSlashMenuOpen(false);
     setAgentMentionTrigger(null);

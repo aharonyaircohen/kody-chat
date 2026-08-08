@@ -4,7 +4,7 @@
  * @pattern attachment-bar
  * @ai-summary Paperclip button + uploaded-file chips + hidden file input,
  *   driven by useCommentAttachments. Dropped into every GitHub-backed comment
- *   composer (issues, PRs, goal discussions) for a consistent attach UX.
+ *   composer (issues, PRs, discussions) for a consistent attach UX.
  */
 "use client";
 

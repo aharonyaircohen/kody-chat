@@ -132,6 +132,27 @@ async function deleteBrandApi(
   }
 }
 
+async function launchBrandApi(
+  headers: Record<string, string>,
+  brand: BrandRow,
+  owner: string,
+  repo: string,
+): Promise<string> {
+  const res = await fetch("/api/client-session/dashboard-launch", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ owner, repo, brandSlug: brand.slug }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    error?: string;
+  };
+  if (!res.ok || !json.url) {
+    throw new Error(json.error || `HTTP ${res.status}`);
+  }
+  return json.url;
+}
+
 async function listBrandLanguagesApi(
   headers: Record<string, string>,
 ): Promise<BrandLanguageOption[]> {
@@ -264,6 +285,7 @@ export function BrandsManager({
   } | null>(null);
   const [deleting, setDeleting] = useState<BrandRow | null>(null);
   const [search, setSearch] = useState("");
+  const [launchingSlug, setLaunchingSlug] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -298,6 +320,29 @@ export function BrandsManager({
     const path = slug ? selectionPath("/brands", slug) : "/brands";
     if (replace) router.replace(path);
     else router.push(path);
+  };
+
+  const openBrand = async (brand: BrandRow) => {
+    const fallbackPath = brandSurfacePath(brand.slug, auth?.owner, auth?.repo);
+    if (brand.access.mode === "public") {
+      router.push(fallbackPath);
+      return;
+    }
+    if (!auth) {
+      toast.error("Dashboard authentication is required to launch this brand.");
+      return;
+    }
+    setLaunchingSlug(brand.slug);
+    try {
+      const url = await launchBrandApi(headers, brand, auth.owner, auth.repo);
+      router.push(url);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to launch brand chat",
+      );
+    } finally {
+      setLaunchingSlug(null);
+    }
   };
 
   return (
@@ -358,6 +403,8 @@ export function BrandsManager({
               onBack={() => selectBrand(null)}
               onEdit={() => setEditing({ brand: selectedBrand, isNew: false })}
               onDelete={() => setDeleting(selectedBrand)}
+              onOpen={() => void openBrand(selectedBrand)}
+              launching={launchingSlug === selectedBrand.slug}
             />
           ) : (
             <EmptyState
@@ -405,6 +452,7 @@ export function BrandsManager({
                   isActive={selectedSlug === brand.slug}
                   onSelect={() => selectBrand(brand.slug)}
                   onDelete={() => setDeleting(brand)}
+                  onOpen={() => void openBrand(brand)}
                 />
               </li>
             ))}
@@ -451,12 +499,14 @@ function BrandListRow({
   isActive,
   onSelect,
   onDelete,
+  onOpen,
 }: {
   brand: BrandRow;
   surfacePath: string;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onOpen: () => void;
 }) {
   return (
     <div
@@ -477,6 +527,12 @@ function BrandListRow({
             href={surfacePath}
             aria-label={`Open ${brand.name} client surface`}
             onClick={(event) => event.stopPropagation()}
+            onNavigate={(event) => {
+              if (brand.access.mode === "delegated") {
+                event.preventDefault();
+                onOpen();
+              }
+            }}
             className="truncate text-sm font-medium text-white/90 hover:text-cyan-200"
           >
             {brand.name}
@@ -488,6 +544,12 @@ function BrandListRow({
         <Link
           href={surfacePath}
           onClick={(event) => event.stopPropagation()}
+          onNavigate={(event) => {
+            if (brand.access.mode === "delegated") {
+              event.preventDefault();
+              onOpen();
+            }
+          }}
           aria-label={surfacePath}
           className="mt-1 block truncate font-mono text-xs text-muted-foreground underline decoration-white/20 underline-offset-2 hover:text-cyan-200 hover:decoration-cyan-300"
         >
@@ -522,12 +584,16 @@ function BrandDetail({
   onBack,
   onEdit,
   onDelete,
+  onOpen,
+  launching,
 }: {
   brand: BrandRow;
   surfacePath: string;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onOpen: () => void;
+  launching: boolean;
 }) {
   return (
     <article className="min-h-full">
@@ -571,8 +637,16 @@ function BrandDetail({
                 <Link
                   href={surfacePath}
                   aria-label={`Open ${brand.name} client surface`}
+                  onNavigate={(event) => {
+                    if (brand.access.mode === "delegated") {
+                      event.preventDefault();
+                      onOpen();
+                    }
+                  }}
                 >
-                  <ExternalLink className="h-4 w-4" />
+                  <ExternalLink
+                    className={cn("h-4 w-4", launching && "animate-pulse")}
+                  />
                 </Link>
               </Button>
               <Button variant="outline" size="sm" onClick={onEdit}>
@@ -615,27 +689,14 @@ function BrandDetail({
         </BrandDetailSection>
 
         <BrandDetailSection title="Access" icon={<Sparkles />}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <DetailField
-              label="Sign-in"
-              value={
-                brand.auth?.required ? "Google sign-in required" : "Public"
-              }
-            />
-            <DetailField
-              label="Allowed"
-              value={
-                brand.auth?.required
-                  ? [
-                      ...(brand.auth.allowedEmails ?? []),
-                      ...(brand.auth.allowedDomains ?? []).map(
-                        (domain) => `@${domain}`,
-                      ),
-                    ].join(", ") || "Any Google account"
-                  : "Everyone"
-              }
-            />
-          </div>
+          <DetailField
+            label="Mode"
+            value={
+              brand.access.mode === "delegated"
+                ? "Provided by the host application"
+                : "Public"
+            }
+          />
         </BrandDetailSection>
 
         <BrandDetailSection title="Appearance" icon={<Palette />}>

@@ -16,7 +16,7 @@ const auth = vi.hoisted(() => ({
     token: "ghp_test",
     owner: "A-Guy-educ",
     repo: "A-Guy-Web",
-    storeRepoUrl: "https://github.com/aharonyaircohen/kody-company-store",
+    storeRepoUrl: "https://github.com/aharonyaircohen/kody-ai-agency-catalog",
     storeRef: "stable",
   })),
   getUserOctokit: vi.fn(async () => ({

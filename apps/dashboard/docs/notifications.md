@@ -4,7 +4,7 @@ The dashboard's `/notifications` page configures rules that fire messages to ext
 
 ## How it works
 
-- One **manifest issue** per repo (label `kody:notifications-manifest`) holds all rules in a fenced JSON block. Same pattern as goals.
+- One **manifest issue** per repo (label `kody:notifications-manifest`) holds all rules in a fenced JSON block.
 - Mutations go through a per-repo mutex with verify-after-write CAS so concurrent edits can't silently overwrite each other.
 - The webhook receiver at [`app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts) hands every payload to [`notifications-dispatch.ts`](../src/dashboard/lib/notifications-dispatch.ts), which loads matching rules fresh and invokes the channel adapter under [`notifications/channels/`](../src/dashboard/lib/notifications/channels/).
 - Errors in dispatch are logged and swallowed — a failed Slack POST never causes GitHub to retry the webhook.

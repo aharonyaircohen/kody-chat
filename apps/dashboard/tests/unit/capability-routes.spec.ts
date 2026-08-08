@@ -59,6 +59,7 @@ vi.mock("@kody-ade/agency/backend/agency-model-store", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
+  getOctokit: h.getOctokit,
 }));
 
 vi.mock("@kody-ade/agency/capabilities", () => ({
@@ -185,7 +186,43 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.listCapabilityFiles).toHaveBeenCalled();
+    expect(h.getEngineConfig).toHaveBeenCalledWith(
+      { rest: {} },
+      "acme",
+      "widgets",
+    );
+    expect(h.resolveInstalledCapabilitySlugs).toHaveBeenCalledWith(
+      { rest: {} },
+      expect.objectContaining({
+        company: { activeCapabilities: ["store-on"] },
+      }),
+    );
+    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(["store-on"]),
+    });
+  });
+
+  it("does not expose Store capabilities in a new repository", async () => {
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: {} },
+      sha: null,
+    });
+    h.resolveInstalledCapabilitySlugs.mockResolvedValue(new Set());
+    h.listCapabilityFiles.mockImplementation(
+      async (options?: { activeStoreSlugs?: Set<string> }) =>
+        options?.activeStoreSlugs?.has("store-on")
+          ? [{ slug: "store-on", source: "store" }]
+          : [],
+    );
+
+    const res = await GET(request("https://dash.test/api/kody/capabilities"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.capabilities).toEqual([]);
+    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(),
+    });
   });
 });
 
@@ -202,12 +239,10 @@ describe("POST /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
-    h.readCapabilityFile
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        slug: "ship-feature",
-        describe: "Ship feature",
-      });
+    h.readCapabilityFile.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      slug: "ship-feature",
+      describe: "Ship feature",
+    });
   });
 
   it("creates capability files through the capability storage helper", async () => {
@@ -232,6 +267,12 @@ describe("POST /api/kody/capabilities", () => {
         slug: "ship-feature",
         files: {
           "instructions.md": "# Ship feature\n",
+          "contract.json":
+            JSON.stringify(
+              { execution: "agent", input: {}, output: {} },
+              null,
+              2,
+            ) + "\n",
         },
       }),
     );
@@ -336,6 +377,10 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("deletes the Convex capability projection", async () => {
+    h.readCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      describe: "Ship feature",
+    });
     h.readResolvedCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
@@ -360,6 +405,42 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
         resource: "ship-feature",
       }),
     );
+  });
+
+  it("detaches an active Store capability without deleting the Store item", async () => {
+    h.readCapabilityFile.mockResolvedValue(null);
+    h.readResolvedCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      source: "store",
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: {
+        company: { activeCapabilities: ["ship-feature", "review"] },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      request(
+        "https://dash.test/api/kody/capabilities/ship-feature?actorLogin=alice",
+        { method: "DELETE" },
+      ),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      success: true,
+      removedStoreReference: true,
+    });
+    expect(h.writeConfigPatch).toHaveBeenCalledWith(
+      { rest: {} },
+      "acme",
+      "widgets",
+      { activeCapabilities: ["review"] },
+      "chore(kody): remove store capability ship-feature",
+    );
+    expect(h.deleteCapabilityFile).not.toHaveBeenCalled();
   });
 
   it("replaces the capability folder", async () => {

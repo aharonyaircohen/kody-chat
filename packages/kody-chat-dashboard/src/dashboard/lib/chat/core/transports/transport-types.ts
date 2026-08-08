@@ -29,7 +29,15 @@ export type ChatDirective =
   | { kind: "switch-agent"; payload: SwitchAgentDirective }
   | { kind: "dashboard-navigate"; payload: DashboardNavigateDirective }
   | { kind: "preview-act"; payload: PreviewActDirective }
-  | { kind: "rendered-view"; payload: RenderedViewDirective };
+  | {
+      kind: "rendered-view";
+      payload: RenderedViewDirective;
+      /**
+       * `append` keeps committed text above the view. `replace` is for
+       * renderer-only replies and removes any draft text.
+       */
+      presentation: "append" | "replace";
+    };
 
 export type ChatTransportStatus =
   "idle" | "connecting" | "streaming" | "waiting-runner" | "restoring";
@@ -66,6 +74,8 @@ export type ChatEvent =
       /** Initial chip status. Brain reports completed calls (`success`). */
       status?: "running" | "success";
       description?: string;
+      activityKind?: "subagent";
+      displayName?: string;
       timestamp?: string;
     }
   | {

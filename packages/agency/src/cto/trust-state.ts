@@ -33,7 +33,7 @@ export const TRUST_LEVELS = [
 ] as const;
 export type TrustLevel = (typeof TRUST_LEVELS)[number];
 export type TrustDecision = "approve" | "reject" | "dismiss";
-export type TrustSubjectKind = "goal" | "loop" | "workflow" | "capability";
+export type TrustSubjectKind = "loop" | "pipeline" | "workflow" | "capability";
 export type TrustSubjectKey = `${TrustSubjectKind}:${string}`;
 
 /** Whole-capability trust stats. */
@@ -65,7 +65,7 @@ export interface TrustManifest {
   version: typeof TRUST_MANIFEST_VERSION;
   /** Trust stats keyed by capability slug. */
   capabilities: Record<string, TrustCapabilityStats>;
-  /** Repo-owned autonomy policy for managed goals, loops, and workflows. */
+  /** Repo-owned autonomy policy for loops and workflows. */
   subjects: Record<TrustSubjectKey, TrustCapabilityStats>;
   log: TrustDecisionLogEntry[];
 }
@@ -412,6 +412,24 @@ export function trustLevelForSubject(
   return "approval-required";
 }
 
+export type AutomationEligibility =
+  { eligible: true } | { eligible: false; reason: "approval-required" };
+
+/** Shared policy used by every UI and API boundary that enables automation. */
+export function automationEligibilityForSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+  fallbackCanRun = false,
+): AutomationEligibility {
+  const level = trustLevelForSubject(
+    manifest.subjects[subject],
+    fallbackCanRun,
+  );
+  return level === "approval-required"
+    ? { eligible: false, reason: "approval-required" }
+    : { eligible: true };
+}
+
 export function trustLevelForCapability(
   capabilityStats: TrustCapabilityStats | null | undefined,
   subjectStats: TrustCapabilityStats | null | undefined,
@@ -524,7 +542,7 @@ export function trustSubjectKey(
 }
 
 export function isTrustSubjectKey(value: string): value is TrustSubjectKey {
-  return /^(goal|loop|workflow|capability):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(
+  return /^(loop|pipeline|workflow|capability):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(
     value,
   );
 }

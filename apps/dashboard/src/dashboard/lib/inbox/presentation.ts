@@ -21,6 +21,7 @@ export const SOURCE_LABEL: Record<InboxSource, string> = {
   comment: "commented",
   subscribed: "subscribed thread",
   request: "requests your approval",
+  kody: "needs your attention",
   other: "activity",
 };
 
@@ -33,6 +34,7 @@ export const SOURCE_CHIP: Record<InboxSource, string> = {
   comment: "Comments",
   subscribed: "Subscribed",
   request: "Requests",
+  kody: "Kody",
   other: "Other",
 };
 
@@ -43,6 +45,7 @@ export const TYPE_LABEL: Record<string, string> = {
   Discussion: "Discussions",
   Commit: "Commits",
   Release: "Releases",
+  Workflow: "Workflows",
 };
 
 /** Singular labels for the per-row subline (vs TYPE_LABEL's plurals). */
@@ -52,6 +55,7 @@ export const TYPE_SINGULAR: Record<string, string> = {
   Discussion: "Discussion",
   Commit: "Commit",
   Release: "Release",
+  Workflow: "Workflow",
 };
 
 /** Stable display order for the type chips; unknown types fall to the end. */
@@ -61,6 +65,7 @@ export const TYPE_ORDER = [
   "Discussion",
   "Commit",
   "Release",
+  "Workflow",
 ];
 
 /**
@@ -95,6 +100,19 @@ export function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+  });
+}
+
+/** Exact local date and time for an inbox entry. */
+export function fullTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canAccessMemoryScope,
+  canPerformMemoryAction,
   createMemory,
   createMemoryRevision,
   reviseMemory,
@@ -104,30 +104,41 @@ describe("memory domain", () => {
     ).toThrow(/kind is invalid/i);
   });
 
-  it("authorizes only the matching user or repository", () => {
-    const principal = {
-      userId: "user-1",
+  it("applies one explicit permission policy for users, engines, and systems", () => {
+    const user = {
+      actor: { kind: "user" as const, id: "user-1" },
       tenantIds: ["acme/widgets"],
     };
+    const engine = {
+      actor: { kind: "engine" as const, id: "memory-steward" },
+      tenantIds: ["acme/widgets"],
+    };
+    const system = {
+      actor: { kind: "system" as const, id: "memory-system" },
+      tenantIds: ["acme/widgets"],
+    };
+    const personalScope = { kind: "user" as const, userId: "user-1" };
+    const repositoryScope = {
+      kind: "repository" as const,
+      tenantId: "acme/widgets",
+    };
 
-    expect(
-      canAccessMemoryScope(principal, { kind: "user", userId: "user-1" }),
-    ).toBe(true);
-    expect(
-      canAccessMemoryScope(principal, { kind: "user", userId: "user-2" }),
-    ).toBe(false);
-    expect(
-      canAccessMemoryScope(principal, {
-        kind: "repository",
-        tenantId: "acme/widgets",
-      }),
-    ).toBe(true);
-    expect(
-      canAccessMemoryScope(principal, {
-        kind: "repository",
-        tenantId: "other/private",
-      }),
-    ).toBe(false);
+    expect(canPerformMemoryAction(user, personalScope, "read")).toBe(true);
+    expect(canPerformMemoryAction(user, personalScope, "write")).toBe(true);
+    expect(canPerformMemoryAction(user, personalScope, "delete")).toBe(true);
+    expect(canPerformMemoryAction(user, repositoryScope, "delete")).toBe(true);
+
+    expect(canPerformMemoryAction(engine, repositoryScope, "read")).toBe(true);
+    expect(canPerformMemoryAction(engine, repositoryScope, "write")).toBe(true);
+    expect(canPerformMemoryAction(engine, repositoryScope, "delete")).toBe(
+      false,
+    );
+    expect(canPerformMemoryAction(engine, personalScope, "read")).toBe(false);
+
+    expect(canPerformMemoryAction(system, repositoryScope, "read")).toBe(false);
+    expect(canPerformMemoryAction(system, repositoryScope, "write")).toBe(
+      false,
+    );
   });
 
   it("records evidence and actor on an immutable revision", () => {
@@ -319,11 +330,11 @@ describe("memory domain", () => {
     const memory = createMemory({
       id: "memory-1",
       scope: { kind: "user", userId: "user-1" },
-      kind: "goal",
+      kind: "reference",
       content: {
-        title: "Temporary goal",
+        title: "Temporary reference",
         summary: "Ship the first memory release.",
-        body: "This goal expires after the release.",
+        body: "This reference expires after the release.",
       },
       currentRevisionId: "revision-1",
       status: "active",
@@ -335,7 +346,7 @@ describe("memory domain", () => {
       id: "revision-1",
       memoryId: "memory-1",
       previousRevisionId: "revision-0",
-      kind: "goal",
+      kind: "reference",
       content: memory.content,
       evidence: [
         {
@@ -350,9 +361,7 @@ describe("memory domain", () => {
     });
 
     expect(memory.expiresAt).toBe("2026-08-25T10:00:00.000Z");
-    expect(revision.evidence[0]?.uri).toBe(
-      "https://example.test/document-1",
-    );
+    expect(revision.evidence[0]?.uri).toBe("https://example.test/document-1");
   });
 
   it("rejects invalid revisions and revision ordering", () => {

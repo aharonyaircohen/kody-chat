@@ -32,7 +32,7 @@ const sourceFile = (file: string) =>
   );
 
 const directRepoOwnedLinkHref =
-  /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
+  /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
 
 describe("repo-scoped panel route surfaces", () => {
   it("keeps file-backed guidance pages on their route-owned workspaces", () => {
@@ -117,9 +117,8 @@ describe("repo-scoped panel route surfaces", () => {
   it("uses scoped imperative navigation for selection reset routes", () => {
     for (const file of [
       "AgentsControl.tsx",
-      // DocsView is now a thin wrapper around the file-manager FilesPage,
-      // which owns the repo-scoped navigation.
-      "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      // DashboardFilesPage owns host routing; the File Manager stays agnostic.
+      "src/dashboard/features/file-spaces/DashboardFilesPage.tsx",
       "PreviewWorkspace.tsx",
       "MessagesView.tsx",
       "TodoControl.tsx",

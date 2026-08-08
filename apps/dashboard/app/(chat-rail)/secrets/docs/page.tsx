@@ -46,7 +46,7 @@ export default async function SecretsDocsPage() {
           </RepoScopedLink>
         </div>
         <a
-          href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/docs/secrets-vault.md"
+          href="https://github.com/aharonyaircohen/kody-chat/blob/main/apps/dashboard/docs/secrets-vault.md"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-white"

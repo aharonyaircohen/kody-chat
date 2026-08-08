@@ -1,6 +1,10 @@
 import type { Octokit } from "@octokit/rest";
 
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
+import {
+  commitGitHubTreeMutation,
+  type GitHubTreeChange,
+} from "@kody-ade/base/github-tree-commit";
 import type {
   StorageAdapter,
   StorageEntry,
@@ -201,55 +205,65 @@ export function createGitHubStorageAdapter(
     async deleteDirectory(options) {
       const octokit = requireWritableGitHubClient(client);
       await ensureGitHubRef(octokit, options.target);
-      const baseCommit = await getBaseCommit(octokit, options.target);
-      const currentTree = await octokit.git.getTree({
-        owner: options.target.owner,
-        repo: options.target.repo,
-        tree_sha: baseCommit.treeSha,
-        recursive: "true",
-      });
-      if (currentTree.data.truncated) {
-        throw new Error("Storage tree is too large to delete safely");
-      }
-
       const prefix = `${options.path.replace(/\/+$/g, "")}/`;
-      const deletions = currentTree.data.tree
-        .filter(
-          (entry) =>
-            entry.type === "blob" &&
-            typeof entry.path === "string" &&
-            entry.path.startsWith(prefix),
-        )
-        .map((entry) => ({
-          path: entry.path!,
-          mode: "100644" as const,
-          type: "blob" as const,
-          sha: null,
-        }));
+      if (!options.target.ref) {
+        throw new Error("GitHub storage target ref is required");
+      }
+      const readDeletions = async (
+        treeSha: string,
+      ): Promise<GitHubTreeChange[]> => {
+        const currentTree = await octokit.git.getTree({
+          owner: options.target.owner,
+          repo: options.target.repo,
+          tree_sha: treeSha,
+          recursive: "true",
+        });
+        if (currentTree.data.truncated) {
+          throw new Error("Storage tree is too large to delete safely");
+        }
+        return currentTree.data.tree
+          .filter(
+            (
+              entry,
+            ): entry is typeof entry & {
+              path: string;
+              mode: "100644" | "100755" | "120000";
+              type: "blob";
+            } =>
+              entry.type === "blob" &&
+              typeof entry.path === "string" &&
+              ["100644", "100755", "120000"].includes(entry.mode ?? "") &&
+              entry.path.startsWith(prefix),
+          )
+          .map<GitHubTreeChange>((entry) => ({
+            path: entry.path,
+            mode: entry.mode,
+            type: entry.type,
+            sha: null,
+          }));
+      };
+      const base = await getBaseCommit(octokit, options.target);
+      const initialDeletions = await readDeletions(base.treeSha);
+      if (initialDeletions.length === 0) return { deleted: 0 };
 
-      if (deletions.length === 0) return { deleted: 0 };
-
-      const tree = await octokit.git.createTree({
-        owner: options.target.owner,
-        repo: options.target.repo,
-        base_tree: baseCommit.treeSha,
-        tree: deletions,
-      });
-      const commit = await octokit.git.createCommit({
-        owner: options.target.owner,
-        repo: options.target.repo,
-        message: options.message,
-        tree: tree.data.sha,
-        parents: [baseCommit.headSha],
-      });
-      await octokit.git.updateRef({
-        owner: options.target.owner,
-        repo: options.target.repo,
-        ref: `heads/${options.target.ref}`,
-        sha: commit.data.sha,
-      });
-
-      return { deleted: deletions.length };
+      let deleted = initialDeletions.length;
+      await commitGitHubTreeMutation(
+        octokit,
+        {
+          owner: options.target.owner,
+          repo: options.target.repo,
+          ref: options.target.ref,
+        },
+        {
+          message: options.message,
+          buildChanges: async ({ treeSha }) => {
+            const deletions = await readDeletions(treeSha);
+            deleted = deletions.length;
+            return deletions;
+          },
+        },
+      );
+      return { deleted };
     },
   };
 }
@@ -441,41 +455,17 @@ async function commitTree(
   target: GitHubStorageTarget,
   options: {
     message: string;
-    tree: Array<
-      | {
-          path: string;
-          mode: "100644";
-          type: "blob";
-          content: string;
-        }
-      | {
-          path: string;
-          mode: "100644";
-          type: "blob";
-          sha: string | null;
-        }
-    >;
+    tree: GitHubTreeChange[];
   },
 ): Promise<string> {
-  const baseCommit = await getBaseCommit(octokit, target);
-  const tree = await octokit.git.createTree({
-    owner: target.owner,
-    repo: target.repo,
-    base_tree: baseCommit.treeSha,
-    tree: options.tree,
-  });
-  const commit = await octokit.git.createCommit({
-    owner: target.owner,
-    repo: target.repo,
-    message: options.message,
-    tree: tree.data.sha,
-    parents: [baseCommit.headSha],
-  });
-  await octokit.git.updateRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.ref}`,
-    sha: commit.data.sha,
-  });
-  return commit.data.sha;
+  if (!target.ref) throw new Error("GitHub storage target ref is required");
+  const result = await commitGitHubTreeMutation(
+    octokit,
+    { owner: target.owner, repo: target.repo, ref: target.ref },
+    {
+      message: options.message,
+      buildChanges: () => options.tree,
+    },
+  );
+  return result.commitSha;
 }

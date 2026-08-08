@@ -82,7 +82,7 @@ export function MemoryFormDialog({
         <DialogHeader>
           <DialogTitle>{memory ? "Edit memory" : "New memory"}</DialogTitle>
           <DialogDescription>
-            Store one clear fact, preference, decision, goal, or reference.
+            Store one clear fact, preference, decision, or reference.
           </DialogDescription>
         </DialogHeader>
         <form key={memory?.currentRevisionId ?? "new"} onSubmit={submit}>

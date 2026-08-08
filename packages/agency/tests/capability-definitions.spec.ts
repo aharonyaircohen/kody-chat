@@ -25,7 +25,10 @@ vi.mock("@kody-ade/base/company-store/assets", () => ({
   companyStoreAssetPath: vi.fn(),
   listCompanyStoreAssetSlugs: storeAssets.listSlugs,
   listCompanyStoreDirectorySafe: storeAssets.listDirectory,
-  mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [...local, ...store],
+  mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [
+    ...local,
+    ...store,
+  ],
   readCompanyStoreText: storeAssets.readText,
 }));
 
@@ -40,6 +43,15 @@ import {
 
 const FILES = {
   "instructions.md": "Check CI and return the findings.\n",
+  "contract.json": JSON.stringify({
+    execution: "agent",
+    input: { type: "object" },
+    output: {
+      type: "object",
+      properties: { status: { type: "string" } },
+      required: ["status"],
+    },
+  }),
   "skills/ci/SKILL.md": "Use CI evidence.",
   "tools/check.sh": "#!/bin/sh\nexit 0\n",
 };
@@ -70,6 +82,7 @@ describe("simple capability folders", () => {
     expect(await readCapabilityFile("ci-health")).toMatchObject({
       slug: "ci-health",
       instructions: "Check CI and return the findings.\n",
+      contract: FILES["contract.json"],
       skills: [{ name: "ci/SKILL.md" }],
       capabilityTools: [{ name: "check.sh" }],
     });
@@ -96,10 +109,7 @@ describe("simple capability folders", () => {
     storeAssets.listSlugs.mockResolvedValue(["ci-health", "release"]);
 
     expect(
-      await listStoreCapabilityFiles(
-        {} as never,
-        new Set(["ci-health"]),
-      ),
+      await listStoreCapabilityFiles({} as never, new Set(["ci-health"])),
     ).toEqual([
       {
         slug: "release",
@@ -114,19 +124,154 @@ describe("simple capability folders", () => {
     expect(storeAssets.readText).not.toHaveBeenCalled();
   });
 
-  it("rejects profiles, contracts, and missing instructions", () => {
+  it("accepts contracts but rejects profiles and missing instructions", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
         "profile.json": "{}",
       }),
     ).toThrow(/only allows/i);
+    expect(() => assertSimpleCapabilityFolder(FILES)).not.toThrow();
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
         "contract.json": "{}",
       }),
-    ).toThrow(/only allows/i);
+    ).toThrow(/input.*output/i);
     expect(() => assertSimpleCapabilityFolder({})).toThrow(/instructions.md/i);
+  });
+
+  it("accepts explicit execution and requires the deterministic entrypoint", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          secrets: ["VERCEL_ACCESS_TOKEN"],
+          timeoutMs: 1_800_000,
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          timeoutMs: 999,
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/timeoutMs/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          secrets: ["bad-secret"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/secrets/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          secrets: ["VERCEL_ACCESS_TOKEN"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/script/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": undefined as never,
+      }),
+    ).toThrow(/tools\/run\.sh/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "automatic",
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/execution/i);
+  });
+
+  it("accepts required specialists only for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requiredSubagents: ["documentation-researcher"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requiredSubagents: ["Documentation Researcher"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/requiredSubagents/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          requiredSubagents: ["documentation-researcher"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/agent/i);
+  });
+
+  it("accepts browser and QA credential requirements for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: { browser: true, qaCredentials: true },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: { qaCredentials: true },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/requires browser/i);
   });
 });

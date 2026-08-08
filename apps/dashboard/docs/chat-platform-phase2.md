@@ -28,7 +28,7 @@ The tasks page migrates into a plugin: tools (server half), panel views,
 its settings. Old route keeps working (renders the panel view).
 
 **Step 4 — Migrate remaining pages one by one.**
-Previews, goals, secrets, inbox, activity, … — one plugin per page, one
+Previews, secrets, inbox, activity, … — one plugin per page, one
 commit each, each keeping its settings surface.
 
 **Step 5 — Retire the old shell/nav.**

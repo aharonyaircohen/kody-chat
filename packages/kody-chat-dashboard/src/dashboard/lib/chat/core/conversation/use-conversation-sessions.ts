@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AgencyAgentIdentity,
   ChatMessage,
+  MachineAccess,
   SessionMeta,
 } from "../../../chat-types";
 import type { ConversationCheckpoint } from "../conversation-compaction";
@@ -41,13 +42,20 @@ export interface UseConversationSessionsResult {
     options?: { persist?: boolean },
   ) => void;
   getSessionMessages: (sessionId: string) => ChatMessage[];
-  createSession: (opts?: { agentKey?: string }) => string;
+  createSession: (opts?: {
+    agentKey?: string;
+    machineAccess?: MachineAccess;
+  }) => string;
   switchSession: (sessionId: string) => void;
   renameSession: (sessionId: string, title: string) => void;
   deleteSession: (sessionId: string) => void;
   pinSession: (sessionId: string) => void;
   clearActiveSession: () => void;
   setSessionAgent: (sessionId: string, agentKey: string) => void;
+  setSessionMachineAccess: (
+    sessionId: string,
+    machineAccess: MachineAccess,
+  ) => void;
   setSessionAgencyAgent: (
     sessionId: string,
     agent: AgencyAgentIdentity,
@@ -110,6 +118,10 @@ export function preserveActiveSessionId(
 }
 
 function sessionFromList(value: Record<string, unknown>): SessionMeta {
+  const storedScope =
+    value.scope && typeof value.scope === "object"
+      ? (value.scope as Record<string, unknown>)
+      : null;
   return {
     id: String(value.conversationId),
     title: String(value.title ?? "New conversation"),
@@ -118,10 +130,20 @@ function sessionFromList(value: Record<string, unknown>): SessionMeta {
     updatedAt: String(value.updatedAt),
     messageCount: 0,
     pinned: value.pinned === true,
+    repository:
+      storedScope?.kind === "repository" &&
+      typeof storedScope.owner === "string" &&
+      typeof storedScope.repo === "string"
+        ? { owner: storedScope.owner, repo: storedScope.repo }
+        : undefined,
     agencyAgent:
       value.activeAgent && typeof value.activeAgent === "object"
         ? (value.activeAgent as AgencyAgentIdentity)
         : { slug: "kody", title: "Kody" },
+    machineAccess:
+      value.machineAccess === "local" || value.machineAccess === "brain"
+        ? value.machineAccess
+        : "none",
   };
 }
 
@@ -248,11 +270,18 @@ export function useConversationSessions(
     : [];
 
   const createSession = useCallback(
-    (opts?: { agentKey?: string }) => {
+    (opts?: { agentKey?: string; machineAccess?: MachineAccess }) => {
       const id = crypto.randomUUID();
       locallyCreatedSessionIdsRef.current.add(id);
       const now = new Date().toISOString();
       const login = actorLogin;
+      const repository =
+        requestHeaders?.["x-kody-owner"] && requestHeaders["x-kody-repo"]
+          ? {
+              owner: requestHeaders["x-kody-owner"],
+              repo: requestHeaders["x-kody-repo"],
+            }
+          : undefined;
       const session: SessionMeta = {
         id,
         title: "New conversation",
@@ -260,8 +289,10 @@ export function useConversationSessions(
         updatedAt: now,
         messageCount: 0,
         pinned: false,
+        repository,
         agentKey: opts?.agentKey,
         agencyAgent: { slug: "kody", title: "Kody" },
+        machineAccess: opts?.machineAccess ?? "none",
       };
       setSessions((previous) => {
         const next = [session, ...previous];
@@ -277,6 +308,7 @@ export function useConversationSessions(
             title: session.title,
             activeAgent: session.agencyAgent,
             runtime: runtimeForAgentKey(opts?.agentKey),
+            machineAccess: session.machineAccess,
             actorLogin: login,
             surface: scope,
           }),
@@ -284,7 +316,7 @@ export function useConversationSessions(
       }
       return id;
     },
-    [actorLogin, conversationClient, persist, scope],
+    [actorLogin, conversationClient, persist, requestHeaders, scope],
   );
 
   const persistMessageChanges = useCallback(
@@ -393,7 +425,6 @@ export function useConversationSessions(
           ),
           createdAt: message.timestamp,
         });
-        setPersistenceError(null);
       } catch (error) {
         setPersistenceError(
           error instanceof Error ? error.message : "Conversation save failed",
@@ -603,6 +634,33 @@ export function useConversationSessions(
     [actorLogin, conversationClient, persist],
   );
 
+  const setSessionMachineAccess = useCallback(
+    (sessionId: string, machineAccess: MachineAccess) => {
+      const updatedAt = new Date().toISOString();
+      setSessions((previous) => {
+        const next = previous.map((session) =>
+          session.id === sessionId
+            ? { ...session, machineAccess, updatedAt }
+            : session,
+        );
+        sessionsRef.current = next;
+        return next;
+      });
+      const login = actorLogin;
+      if (login) {
+        persist(
+          conversationClient.command(sessionId, {
+            kind: "machine-access",
+            actorLogin: login,
+            machineAccess,
+            updatedAt,
+          }),
+        );
+      }
+    },
+    [actorLogin, conversationClient, persist],
+  );
+
   const setSessionCheckpoint = useCallback(
     (sessionId: string, checkpoint: ConversationCheckpoint) => {
       setSessions((previous) =>
@@ -650,6 +708,7 @@ export function useConversationSessions(
     pinSession,
     clearActiveSession,
     setSessionAgent,
+    setSessionMachineAccess,
     setSessionAgencyAgent,
     setSessionCheckpoint,
   };

@@ -47,7 +47,7 @@ export default async function PushDocsPage() {
           </RepoScopedLink>
         </div>
         <a
-          href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/docs/push-notifications.md"
+          href="https://github.com/aharonyaircohen/kody-chat/blob/main/apps/dashboard/docs/push-notifications.md"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-white"

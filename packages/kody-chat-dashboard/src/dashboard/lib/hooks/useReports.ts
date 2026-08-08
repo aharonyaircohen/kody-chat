@@ -2,7 +2,7 @@
  * @fileType hook
  * @domain kody
  * @pattern reports-hooks
- * @ai-summary React Query hooks for goal/loop report families in the
+ * @ai-summary React Query hooks for report families in the
  *   configured Kody backend. Read-only — reports are produced by the engine.
  */
 "use client";

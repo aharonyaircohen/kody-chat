@@ -4,15 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(),
   verifyActorLogin: vi.fn(),
-  getUserOctokit: vi.fn(),
   getRequestAuth: vi.fn(),
-  setGitHubContext: vi.fn(),
-  clearGitHubContext: vi.fn(),
   listBrands: vi.fn(),
   readBrandFile: vi.fn(),
   writeBrandFile: vi.fn(),
-  deleteBrandFile: vi.fn(),
-  disableBrand: vi.fn(),
+  removeBrand: vi.fn(),
   isBrandDeleted: vi.fn(),
   recordAudit: vi.fn(),
 }));
@@ -20,21 +16,14 @@ const h = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: h.requireKodyAuth,
   verifyActorLogin: h.verifyActorLogin,
-  getUserOctokit: h.getUserOctokit,
   getRequestAuth: h.getRequestAuth,
-}));
-
-vi.mock("@kody-ade/workspace/github", () => ({
-  setGitHubContext: h.setGitHubContext,
-  clearGitHubContext: h.clearGitHubContext,
 }));
 
 vi.mock("../../src/brands", () => ({
   listBrands: h.listBrands,
   readBrandFile: h.readBrandFile,
   writeBrandFile: h.writeBrandFile,
-  deleteBrandFile: h.deleteBrandFile,
-  disableBrand: h.disableBrand,
+  removeBrand: h.removeBrand,
   isBrandDeleted: h.isBrandDeleted,
   isValidBrandSlug: (slug: string) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug),
 }));
@@ -44,11 +33,7 @@ vi.mock("@kody-ade/base/activity/audit", () => ({
 }));
 
 import { GET as GET_LIST, POST } from "../../src/routes/brands";
-import {
-  DELETE,
-  GET as GET_ONE,
-  PATCH,
-} from "../../src/routes/brands-slug";
+import { DELETE, GET as GET_ONE, PATCH } from "../../src/routes/brands-slug";
 
 type NextRequestInit = ConstructorParameters<typeof NextRequest>[1];
 
@@ -67,7 +52,6 @@ describe("brands API routes", () => {
     h.verifyActorLogin.mockResolvedValue({
       identity: { login: "alice", githubId: 1, avatarUrl: "" },
     });
-    h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.getRequestAuth.mockReturnValue({
       token: "ghp_test",
       owner: "acme",
@@ -118,6 +102,7 @@ describe("brands API routes", () => {
       "alice",
     );
     expect(h.writeBrandFile).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
       expect.objectContaining({
         slug: "acme",
         modelId: "sonnet-4",
@@ -151,6 +136,7 @@ describe("brands API routes", () => {
       welcomeText: "",
       modelId: "old-model",
       agentSlug: "old-agent",
+      access: { mode: "public" },
       sha: "sha",
     });
     h.writeBrandFile.mockResolvedValue({
@@ -174,6 +160,7 @@ describe("brands API routes", () => {
 
     expect(res.status).toBe(200);
     expect(h.writeBrandFile).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
       expect.objectContaining({
         slug: "acme",
         name: "Acme Support",
@@ -234,8 +221,11 @@ describe("brands API routes", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.deleteBrandFile).toHaveBeenCalledWith("custom");
-    expect(h.disableBrand).not.toHaveBeenCalled();
+    expect(h.removeBrand).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
+      "custom",
+      { disableFallback: false },
+    );
   });
 
   it("deletes a built-in fallback brand with a repo marker", async () => {
@@ -248,8 +238,11 @@ describe("brands API routes", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.deleteBrandFile).not.toHaveBeenCalled();
-    expect(h.disableBrand).toHaveBeenCalledWith("acme");
+    expect(h.removeBrand).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
+      "acme",
+      { disableFallback: true },
+    );
   });
 
   it("deletes a repo override for a built-in and keeps fallback hidden", async () => {
@@ -261,7 +254,10 @@ describe("brands API routes", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(h.deleteBrandFile).toHaveBeenCalledWith("acme");
-    expect(h.disableBrand).toHaveBeenCalledWith("acme");
+    expect(h.removeBrand).toHaveBeenCalledWith(
+      { owner: "acme", repo: "widgets" },
+      "acme",
+      { disableFallback: true },
+    );
   });
 });

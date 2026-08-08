@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -99,6 +99,7 @@ describe("external package boundary", () => {
       "./core",
       "./styles.css",
     ]);
+    expect(existsSync(resolve(releaseRoot, "src/model-catalog.ts"))).toBe(false);
   });
 
   it("declares public release metadata and React compatibility", () => {

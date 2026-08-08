@@ -52,7 +52,6 @@ describe("Agency Runs page", () => {
     expect(source).toContain('label: "Loops"');
     expect(source).toContain('label: "Workflows"');
     expect(source).toContain('label: "Capabilities"');
-    expect(source).not.toContain('label: "Goals"');
   });
 
   it("shows the Workflow Agent instead of an Implementation runtime", () => {
@@ -60,7 +59,7 @@ describe("Agency Runs page", () => {
     expect(source).not.toContain("Capability revision:");
   });
 
-  it("diagnoses a Todo handoff without reintroducing Goal", () => {
+  it("diagnoses a Todo handoff", () => {
     const diagnosis = agencyRunDiagnosis(
       run({
         status: "stuck",

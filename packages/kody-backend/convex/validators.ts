@@ -15,19 +15,77 @@ export const workflowTransitionValidator = v.object({
 export const workflowStepValidator = v.object({
   id: v.string(),
   capability: v.string(),
+  input: v.optional(v.any()),
+  action: v.optional(v.string()),
+  evidence: v.optional(v.string()),
+  target: v.optional(v.union(v.literal("issue"), v.literal("pr"))),
+  delivery: v.optional(v.literal("pull-request")),
+  targetFact: v.optional(v.string()),
+  reason: v.optional(v.string()),
   inputs: v.optional(v.record(v.string(), v.object({ from: v.string() }))),
   next: v.optional(v.array(workflowTransitionValidator)),
+  runWhen: v.optional(v.record(v.string(), v.any())),
+  continueOn: v.optional(v.array(v.string())),
+  saveReport: v.optional(v.boolean()),
+  report: v.optional(v.record(v.string(), v.any())),
 });
 
 export const workflowDefinitionValidator = v.object({
   name: v.string(),
   agent: v.string(),
   capabilities: v.optional(v.array(v.string())),
+  // JSON Schema is an open, nested document validated at the Workflow boundary.
+  inputSchema: v.optional(v.any()),
   startAt: v.optional(v.string()),
   steps: v.optional(v.array(workflowStepValidator)),
+  // Engine-owned workflow summary publication policy.
+  report: v.optional(v.record(v.string(), v.any())),
   runWithoutApproval: v.optional(v.boolean()),
   createdAt: v.optional(v.string()),
   updatedAt: v.optional(v.string()),
+});
+
+export const pipelineStepValidator = v.object({
+  id: v.string(),
+  workflow: v.string(),
+  inputMap: v.optional(v.record(v.string(), v.string())),
+});
+
+export const pipelineDefinitionValidator = v.object({
+  name: v.string(),
+  inputSchema: v.optional(v.any()),
+  steps: v.array(pipelineStepValidator),
+  runWithoutApproval: v.optional(v.boolean()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+export const pipelineRunStatusValidator = v.union(
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("cancelled"),
+);
+
+export const pipelineRunStepStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("cancelled"),
+);
+
+export const pipelineRunStepValidator = v.object({
+  id: v.string(),
+  workflowId: v.string(),
+  inputMap: v.optional(v.record(v.string(), v.string())),
+  status: pipelineRunStepStatusValidator,
+  workflowRunId: v.optional(v.string()),
+  startedAt: v.optional(v.string()),
+  completedAt: v.optional(v.string()),
+  output: v.optional(v.record(v.string(), v.any())),
 });
 
 export const workflowRunStatusValidator = v.union(
@@ -54,11 +112,6 @@ export const workflowRunStateValidator = v.object({
     ),
   ),
   blocker: v.optional(v.string()),
-});
-
-export const workflowRunnerValidator = v.object({
-  kind: v.union(v.literal("pool"), v.literal("fly")),
-  machineId: v.string(),
 });
 
 export const guidedFlowStatusValidator = v.union(
@@ -103,8 +156,8 @@ const intentControlsValidator = v.object({
   ),
   automation: v.object({
     authority: v.literal("full-auto"),
-    maxConcurrentGoals: v.number(),
     maxDailyActions: v.number(),
+    maxConcurrentGoals: v.optional(v.number()),
     requiresHumanFor: v.array(v.string()),
   }),
 });
@@ -139,9 +192,9 @@ const companyIntentBase = {
   principles: v.array(v.string()),
   metrics: v.array(v.string()),
   portfolio: v.object({
-    goals: v.array(v.string()),
     loops: v.array(v.string()),
     capabilities: v.array(v.string()),
+    goals: v.optional(v.array(v.string())),
   }),
   createdAt: v.string(),
   updatedAt: v.string(),
@@ -180,6 +233,7 @@ export const inboxEntryValidator = v.object({
     v.literal("team_mention"),
     v.literal("subscribed"),
     v.literal("request"),
+    v.literal("kody"),
     v.literal("other"),
   ),
   repoFullName: v.string(),

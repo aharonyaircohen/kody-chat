@@ -21,4 +21,11 @@ describe("sidebar navigation search", () => {
       "[&::-webkit-search-cancel-button]:appearance-none",
     );
   });
+
+  it("releases focus after keyboard navigation", () => {
+    expect(sidebarSource).toContain("e.currentTarget.blur()");
+    expect(sidebarSource.indexOf("e.currentTarget.blur()")).toBeLessThan(
+      sidebarSource.indexOf("router.push(scopedHref(firstMatch.href))"),
+    );
+  });
 });

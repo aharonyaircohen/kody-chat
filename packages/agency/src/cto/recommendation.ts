@@ -295,7 +295,7 @@ export function detectCtoRecommendation(
   if (!storedAction && !MARKER.test(haystack)) return null;
   // CTO recs land on issues (legacy task flow) or pull requests
   // (PR-health: fix-ci/sync/resolve). Block only non-issue/PR threads
-  // (e.g. Discussion) so a goal mention never misroutes as a rec.
+  // (e.g. Discussion) so a thread mention never misroutes as a rec.
   if (entry.threadType && !/issue|pullrequest/i.test(entry.threadType)) {
     return null;
   }

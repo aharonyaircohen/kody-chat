@@ -49,7 +49,9 @@ async function downloadAttachment(
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const token = process.env.GITHUB_TOKEN;
-    const headers: Record<string, string> = { "User-Agent": "Kody-Dashboard" };
+    const headers: Record<string, string> = {
+      "User-Agent": "kody-chat-dashboard",
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const res = await fetch(url, { headers, signal: controller.signal });

@@ -19,7 +19,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  NOTIFICATION_EVENTS,
+  NotificationPatchRuleSchema,
   type NotificationRule,
   type NotificationsManifest,
 } from "@dashboard/lib/notifications";
@@ -44,47 +44,8 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   );
 }
 
-const channelSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("slack-webhook"),
-    url: z.string().url().startsWith("https://hooks.slack.com/"),
-  }),
-  z.object({
-    type: z.literal("telegram-bot"),
-    botToken: z.string().min(1),
-    chatId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("discord-webhook"),
-    url: z
-      .string()
-      .url()
-      .regex(/^https:\/\/(?:discord\.com|discordapp\.com)\/api\/webhooks\//),
-  }),
-  z.object({
-    type: z.literal("generic-webhook"),
-    url: z.string().url().startsWith("https://"),
-    jsonTemplate: z.string().max(4000).optional(),
-    bodyFormat: z.enum(["json", "form"]).optional(),
-    headers: z.record(z.string(), z.string()).optional(),
-  }),
-  z.object({
-    type: z.literal("web-push"),
-  }),
-]);
-
-const patchRuleSchema = z.object({
-  name: z.string().min(1).max(120).optional(),
-  enabled: z.boolean().optional(),
-  event: z.enum(NOTIFICATION_EVENTS).optional(),
-  channel: channelSchema.optional(),
-  template: z.string().max(2000).nullable().optional(),
-  actorLogin: z.string().optional(),
-});
-
 type PatchOutcome =
-  | { ok: true; rule: NotificationRule }
-  | { ok: false; reason: "not_found" };
+  { ok: true; rule: NotificationRule } | { ok: false; reason: "not_found" };
 
 export async function PATCH(
   req: NextRequest,
@@ -101,7 +62,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const payload = await req.json();
-    const patch = patchRuleSchema.parse(payload);
+    const patch = NotificationPatchRuleSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, patch.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;

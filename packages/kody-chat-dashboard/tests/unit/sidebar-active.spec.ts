@@ -88,5 +88,8 @@ describe("sidebar active route matching", () => {
     expect(navLabelForPath("/store-catalog/capability/build-preview")).toBe(
       "Store Catalog",
     );
+    expect(navLabelForPath("/store-catalog/solution/web-release")).toBe(
+      "Store Catalog",
+    );
   });
 });

@@ -2,20 +2,22 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 
-import {
-  deleteCapabilityFile,
-  isValidSlug,
-  listLocalCapabilityFiles,
-  readCapabilityFile,
-  writeCapabilityFolderFiles,
-} from "@kody-ade/agency/capabilities";
-import { dashboardCapabilityUrl } from "../../../../../src/dashboard/lib/thread-link";
-
 interface Ctx {
   octokit: Octokit;
   owner: string;
   repo: string;
   actorLogin?: string | null;
+  listCapabilities(): Promise<unknown>;
+  readCapability(slug: string): Promise<unknown>;
+  saveCapability(input: {
+    slug: string;
+    instructions: string;
+    contract: string;
+    skills: Array<z.infer<typeof assetSchema>>;
+    tools: Array<z.infer<typeof assetSchema>>;
+  }): Promise<unknown>;
+  removeCapability(slug: string): Promise<unknown>;
+  runCapability(slug: string): Promise<unknown>;
 }
 
 const assetSchema = z.object({
@@ -23,20 +25,8 @@ const assetSchema = z.object({
   content: z.string(),
 });
 
-function files(input: {
-  instructions: string;
-  skills: Array<z.infer<typeof assetSchema>>;
-  tools: Array<z.infer<typeof assetSchema>>;
-}): Record<string, string> {
-  return {
-    "instructions.md": `${input.instructions.trim()}\n`,
-    ...Object.fromEntries(
-      input.skills.map((asset) => [`skills/${asset.path}`, asset.content]),
-    ),
-    ...Object.fromEntries(
-      input.tools.map((asset) => [`tools/${asset.path}`, asset.content]),
-    ),
-  };
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
 export function createCapabilityTools(ctx: Ctx) {
@@ -49,14 +39,14 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          "A Capability is one folder containing instructions.md, skills/, and tools/. It receives one JSON-compatible input and returns one JSON-compatible output. Explain their meaning in instructions.md.",
+          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh and may declare the exact secret names granted to that trusted process.',
       }),
     }),
 
     list_capabilities: tool({
-      description: `List Capabilities in ${repoRef}.`,
+      description: `List local and active Store Capabilities in ${repoRef} through the Dashboard API.`,
       inputSchema: z.object({}),
-      execute: async () => ({ capabilities: await listLocalCapabilityFiles() }),
+      execute: async () => ctx.listCapabilities(),
     }),
 
     read_capability: tool({
@@ -64,10 +54,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        const capability = await readCapabilityFile(slug);
-        return capability
-          ? { capability }
-          : { error: `capability "${slug}" not found` };
+        return ctx.readCapability(slug);
       },
     }),
 
@@ -76,6 +63,17 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         instructions: z.string().min(1),
+        contract: z
+          .object({
+            execution: z.enum(["agent", "script"]).default("agent"),
+            secrets: z
+              .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
+              .optional(),
+            timeoutMs: z.number().int().min(1_000).max(21_600_000).optional(),
+            input: z.record(z.string(), z.unknown()),
+            output: z.record(z.string(), z.unknown()),
+          })
+          .default({ execution: "agent", input: {}, output: {} }),
         skills: z.array(assetSchema).default([]),
         tools: z.array(assetSchema).default([]),
       }),
@@ -83,65 +81,31 @@ export function createCapabilityTools(ctx: Ctx) {
         if (!isValidSlug(input.slug)) {
           return { error: `invalid slug "${input.slug}"` };
         }
-        try {
-          const existing = await readCapabilityFile(input.slug);
-          await writeCapabilityFolderFiles({
-            slug: input.slug,
-            files: files(input),
-            isUpdate: Boolean(existing),
-          });
-          return {
-            ok: true,
-            action: existing ? "updated" : "created",
-            slug: input.slug,
-            htmlUrl: dashboardCapabilityUrl(input.slug),
-          };
-        } catch (error) {
-          return {
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
+        return ctx.saveCapability({
+          slug: input.slug,
+          instructions: input.instructions,
+          contract: `${JSON.stringify(input.contract, null, 2)}\n`,
+          skills: input.skills,
+          tools: input.tools,
+        });
       },
     }),
 
     delete_capability: tool({
-      description: `Delete one Capability from ${repoRef}.`,
+      description: `Remove one Capability from ${repoRef} through the Dashboard API. A local capability is deleted; a Store capability is only detached from this repo.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        if (!(await readCapabilityFile(slug))) {
-          return { error: `capability "${slug}" not found` };
-        }
-        await deleteCapabilityFile(slug);
-        return { ok: true, action: "deleted", slug };
+        return ctx.removeCapability(slug);
       },
     }),
 
     run_capability: tool({
-      description: `Run one Capability now as Kody in ${repoRef}.`,
+      description: `Run one local or active Store Capability now as Kody in ${repoRef} through the Dashboard API.`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        if (!(await readCapabilityFile(slug))) {
-          return { error: `capability "${slug}" not found` };
-        }
-        const repoMeta = await octokit.rest.repos.get({ owner, repo });
-        const ref = repoMeta.data.default_branch || "main";
-        await octokit.rest.actions.createWorkflowDispatch({
-          owner,
-          repo,
-          workflow_id: "kody.yml",
-          ref,
-          inputs: { capability: slug },
-        });
-        return {
-          ok: true,
-          workflowId: "kody.yml",
-          ref,
-          action: slug,
-          capability: slug,
-          agent: "Kody",
-        };
+        return ctx.runCapability(slug);
       },
     }),
 

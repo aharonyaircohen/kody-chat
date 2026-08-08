@@ -15,7 +15,6 @@ import {
   NoTokenError,
   SessionExpiredError,
 } from "../api";
-import { stopWorkflowRun } from "../api/workflow-run-controls";
 import type {
   CreateWorkflowDefinitionInput,
   UpdateWorkflowDefinitionInput,
@@ -150,23 +149,28 @@ export function useDeleteWorkflowDefinition() {
 
 export function useRunWorkflowDefinition() {
   return useMutation<
-    {
-      ok: boolean;
-      workflowId: string;
-      ref: string;
-      workflow: string;
-      runId: string;
-      action: string;
-    },
+    Awaited<ReturnType<typeof kodyApi.workflowDefinitions.run>>,
     Error,
-    string | { id: string; mode?: "resume"; runId?: string }
+    string | {
+      id: string;
+      mode?: "resume";
+      runId?: string;
+      approvalId?: string;
+      input?: Record<string, unknown>;
+    }
   >({
     mutationFn: (input) => typeof input === "string"
       ? kodyApi.workflowDefinitions.run(input)
-      : kodyApi.workflowDefinitions.run(input.id, { mode: input.mode, runId: input.runId }),
+      : kodyApi.workflowDefinitions.run(input.id, {
+          mode: input.mode,
+          runId: input.runId,
+          approvalId: input.approvalId,
+          input: input.input,
+        }),
     onSuccess: (data) => {
+      if (data.kind !== "accepted") return;
       toast.success("Workflow started", {
-        description: `Run ${data.runId} dispatched on ${data.ref}.`,
+        description: `Run ${data.runId} accepted by Kody Engine.`,
       });
     },
     onError: (error) => {
@@ -177,15 +181,18 @@ export function useRunWorkflowDefinition() {
   });
 }
 
-export function useStopWorkflowRun() {
-  const queryClient = useQueryClient();
-  return useMutation<void, Error, { workflowId: string; runId: string }>({
-    mutationFn: ({ workflowId, runId }) => stopWorkflowRun(workflowId, runId),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: workflowDefinitionQueryKeys.run(variables.workflowId, variables.runId) });
-      toast.success("Workflow stopped");
-    },
-    onError: (error) => toast.error("Failed to stop workflow", { description: error.message }),
+export function useApproveWorkflowRun() {
+  return useMutation<
+    string,
+    Error,
+    {
+      id: string;
+      approvalToken: string;
+      input: Record<string, unknown>;
+    }
+  >({
+    mutationFn: ({ id, approvalToken, input }) =>
+      kodyApi.workflowDefinitions.approveRun(id, approvalToken, input),
   });
 }
 

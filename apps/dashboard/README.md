@@ -36,6 +36,11 @@ pnpm dev
 
 Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where the [Kody Engine](https://github.com/aharonyaircohen/Kody-Engine) is installed. Add at least one LLM provider in the dashboard's Models manager (any OpenAI-compatible or Anthropic endpoint — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or a custom endpoint).
 
+To confirm that a connected repo is ready, follow the
+[Kody setup verification](./docs/engine-install.md#verify-the-setup). If the
+setup is missing or broken, send `/init` in dashboard chat to install or repair
+it, then repeat the verification.
+
 ---
 
 ## Features
@@ -81,7 +86,7 @@ The dashboard intentionally keeps the env surface tiny. **One** secret is requir
 
 A classic PAT with `repo` + `workflow` is the simplest setup. Create one at [github.com/settings/tokens](https://github.com/settings/tokens).
 
-The dashboard auto-registers a webhook on the connected repo at login (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). If the user's token lacks `admin:repo_hook` on the repo, registration fails silently and the dashboard falls back to polling.
+The dashboard auto-registers and reconciles the active repository's webhook (push-based cache invalidation, no shared secret — verified by GitHub's source IP CIDR list). Reconciliation runs once per repository and policy version, with a bounded retry after failure. If the user's token lacks `admin:repo_hook`, Kody shows a warning and falls back to polling.
 
 ---
 

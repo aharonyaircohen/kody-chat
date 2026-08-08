@@ -5,42 +5,49 @@
  * @ai-summary Mounts a tenant-published widget bundle inside a rendered
  *   view: dynamic-imports `/api/kody/widgets/<slug>` (auth via query params
  *   from the existing auth context) and calls the module's default export
- *   `mount(element, props)` with the v1 contract (data, theme, complete).
+ *   with data, theme, scoped CMS operations, and the small Kody action API.
  *   Shows a graceful "widget unavailable" box when loading or mounting
  *   fails. No tenant code ever runs on the server — browser-only.
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "../../auth-context";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildAuthHeaders, useAuth } from "../../auth-context";
 import { useTheme } from "../../../providers/Theme";
 import {
   buildWidgetBundleUrl,
+  createWidgetCmsClient,
+  normalizeWidgetSubmitResult,
+  normalizeWidgetTextRequest,
   resolveWidgetMount,
-  type WidgetMountProps,
+  resolveWidgetPreviewData,
+  type WidgetHostEvent,
 } from "./widget-host";
 
 /**
  * Indirect dynamic import so bundlers (webpack/turbopack) leave the
  * runtime-only URL alone instead of trying to resolve it at build time.
  */
-const importWidgetModule = new Function(
-  "url",
-  "return import(url);",
-) as (url: string) => Promise<unknown>;
+const importWidgetModule = new Function("url", "return import(url);") as (
+  url: string,
+) => Promise<unknown>;
 
 type WidgetHostStatus = "loading" | "ready" | "error";
 
 export function WidgetHost({
   slug,
+  version,
   data,
+  preview = false,
   disabled,
-  onComplete,
+  onEvent,
 }: {
   slug: string;
+  version?: number;
   data: unknown;
+  preview?: boolean;
   disabled: boolean;
-  onComplete: WidgetMountProps["complete"];
+  onEvent: (event: WidgetHostEvent) => void;
 }) {
   const { auth } = useAuth();
   const { theme } = useTheme();
@@ -49,14 +56,15 @@ export function WidgetHost({
 
   // Latest-value refs so the mounted widget's `complete` respects the
   // card's current disabled state without remounting the bundle.
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
   const disabledRef = useRef(disabled);
   disabledRef.current = disabled;
 
   const owner = auth?.owner;
   const repo = auth?.repo;
   const token = auth?.token;
+  const cmsAuthHeaders = useMemo(() => buildAuthHeaders(auth), [auth]);
   const resolvedTheme: "dark" | "light" = theme === "light" ? "light" : "dark";
 
   useEffect(() => {
@@ -69,7 +77,9 @@ export function WidgetHost({
     let cancelled = false;
     let cleanup: (() => void) | undefined;
     setStatus("loading");
-    importWidgetModule(buildWidgetBundleUrl(slug, { owner, repo, token }))
+    importWidgetModule(
+      buildWidgetBundleUrl(slug, { owner, repo, token }, version),
+    )
       .then((module) => {
         if (cancelled) return;
         const mount = resolveWidgetMount(module);
@@ -82,11 +92,35 @@ export function WidgetHost({
           return;
         }
         const result = mount(element, {
-          data,
+          data: preview ? resolveWidgetPreviewData(module) : data,
           theme: resolvedTheme,
-          complete: (actionId, actionResult) => {
-            if (disabledRef.current) return;
-            onCompleteRef.current(actionId, actionResult);
+          cms: createWidgetCmsClient(cmsAuthHeaders),
+          kody: {
+            postToChat: (request) => {
+              if (disabledRef.current) return;
+              const content = normalizeWidgetTextRequest(request, "content");
+              if (content) {
+                onEventRef.current({ type: "post-to-chat", content });
+              }
+            },
+            sendToKody: (request) => {
+              if (disabledRef.current) return;
+              const message = normalizeWidgetTextRequest(request, "message");
+              if (message) {
+                onEventRef.current({ type: "send-to-kody", message });
+              }
+            },
+            submitResult: (request) => {
+              if (disabledRef.current) return;
+              const result = normalizeWidgetSubmitResult(request);
+              if (result) {
+                onEventRef.current({
+                  type: "submit-result",
+                  actionId: result.actionId,
+                  ...(result.data ? { data: result.data } : {}),
+                });
+              }
+            },
           },
         });
         if (typeof result === "function") cleanup = result;
@@ -108,7 +142,17 @@ export function WidgetHost({
       }
       element.replaceChildren();
     };
-  }, [slug, data, owner, repo, token, resolvedTheme]);
+  }, [
+    slug,
+    version,
+    data,
+    preview,
+    owner,
+    repo,
+    token,
+    resolvedTheme,
+    cmsAuthHeaders,
+  ]);
 
   if (status === "error") {
     return (
@@ -121,11 +165,15 @@ export function WidgetHost({
     );
   }
   return (
-    <div data-widget-slug={slug}>
+    <div
+      data-widget-slug={slug}
+      aria-disabled={disabled || undefined}
+      className={disabled ? "pointer-events-none opacity-60" : undefined}
+    >
       {status === "loading" ? (
         <div className="text-xs text-muted-foreground">Loading widget…</div>
       ) : null}
-      <div ref={containerRef} />
+      <div ref={containerRef} inert={disabled || undefined} />
     </div>
   );
 }

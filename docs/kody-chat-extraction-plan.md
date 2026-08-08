@@ -62,7 +62,7 @@ first task. The real task is removing reverse dependencies.
 - Dashboard pages and administration surfaces
 - Product-specific persistence implementations
 - Kody-specific tool execution
-- Kody agents, goals, workflows, Vibe, Brain, and terminal integration
+- Kody agents, workflows, Vibe, Brain, and terminal integration
 - Host implementations passed into Kody Chat
 
 Kody-specific integrations may become a separate package later only if a
@@ -227,7 +227,7 @@ Move one integration at a time:
 
 1. Agents and model selection
 2. Commands and context
-3. Goals and workflows
+3. Workflows
 4. Vibe
 5. Brain
 6. Terminal

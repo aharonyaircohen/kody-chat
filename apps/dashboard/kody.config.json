@@ -11,7 +11,7 @@
   },
   "github": {
     "owner": "aharonyaircohen",
-    "repo": "Kody-Dashboard"
+    "repo": "kody-chat"
   },
   "agent": {
     "model": "minimax/MiniMax-M3"

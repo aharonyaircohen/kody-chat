@@ -125,11 +125,11 @@ vi.mock("ai", async (importOriginal) => {
   };
 });
 
-import { POST as kodyChatPOST } from "../../../../packages/kody-chat-dashboard/app/api/kody/chat/kody/route";
+import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
 import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
 import type { ChatToolServerContext } from "@kody-ade/kody-chat-dashboard/platform";
 
-function makeRequest(): NextRequest {
+function makeRequest(userText = "Inspect repository status"): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {
     method: "POST",
     headers: {
@@ -138,7 +138,7 @@ function makeRequest(): NextRequest {
       "x-kody-owner": "owner",
       "x-kody-repo": "repo",
     },
-    body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    body: JSON.stringify({ messages: [{ role: "user", content: userText }] }),
   });
 }
 
@@ -159,17 +159,21 @@ beforeAll(() => {
 });
 
 // The server tool registry is a module-scope singleton with no unregister,
-// so ordering is load-bearing: baseline (zero plugins) → fixture plugin →
+// so ordering is load-bearing: Dashboard host → fixture plugin →
 // collision plugin. vitest isolates modules per file, so this file owns a
 // fresh singleton.
 describe("kody route × chat plugin server tools (Step 4)", () => {
   let baselineToolNames: string[] = [];
 
-  it("zero plugins registered: streams with the built-in tool map only", async () => {
+  it("registers Dashboard-owned tools alongside the package built-ins", async () => {
     const { status, toolNames } = await postAndCaptureToolNames();
     expect(status).toBe(200);
     // Sanity: the built-in set is present and no plugin tool leaked in.
     expect(toolNames).toContain("fetch_url");
+    expect(toolNames).toContain("list_macros");
+    expect(toolNames).toContain("list_notification_rules");
+    expect(toolNames).toContain("export_company");
+    expect(toolNames).toContain("list_inbox");
     expect(toolNames).not.toContain("fixture_echo");
     expect(toolNames.length).toBeGreaterThan(5);
     baselineToolNames = toolNames;
@@ -211,12 +215,18 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
           return { echoed: (input as { message: string }).message };
         },
       },
+      remote_write: {
+        description: "Must still be removed by the Kody chat tool policy.",
+        inputSchema: z.object({}),
+        execute: async () => ({ ok: true }),
+      },
     }));
 
     const { status, toolNames, tools } = await postAndCaptureToolNames();
     expect(status).toBe(200);
     // Additive only: baseline built-ins all still present, plus the fixture.
     expect(toolNames).toEqual([...baselineToolNames, "fixture_echo"].sort());
+    expect(toolNames).not.toContain("remote_write");
 
     const fixtureTool = tools.fixture_echo as {
       description: string;
@@ -233,6 +243,10 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       owner: "owner",
       repo: "repo",
       token: "ghp_test",
+      extras: {
+        actorLogin: "plugin-tester",
+        actorGithubId: 1,
+      },
     });
 
     // Invalid input is rejected by the registry's zod wrapper BEFORE the

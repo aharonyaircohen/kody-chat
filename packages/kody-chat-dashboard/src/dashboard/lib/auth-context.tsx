@@ -126,6 +126,8 @@ export interface AuthContextValue {
   auth: KodyAuth | null;
   loading: boolean;
   logout: () => void;
+  /** Start a private user session before any repository is attached. */
+  signIn: (token: string, user: KodyUser) => void;
   /**
    * Push a new repo entry. When auth is null this *bootstraps* the auth
    * object — the caller must supply `user` (basic GitHub identity for the
@@ -136,6 +138,8 @@ export interface AuthContextValue {
     entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
     user?: KodyAuth["user"],
   ) => void;
+  /** Replace one repository's verified browser-owned PAT and identity. */
+  replaceRepoToken: (index: number, token: string, user: KodyUser) => boolean;
   /** Remove a repo by index. Removing the current repo falls back to index 0. Removing the only repo logs out. */
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
@@ -163,7 +167,9 @@ const AuthContext = createContext<AuthContextValue>({
   auth: null,
   loading: true,
   logout: () => {},
+  signIn: () => {},
   addRepo: () => {},
+  replaceRepoToken: () => false,
   removeRepo: () => {},
   setCurrentRepo: () => {},
   updateIntegrations: () => {},
@@ -181,7 +187,21 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     storeRepo?: string;
   };
 
-  if (!a.owner || !a.repo || !a.token || !a.user) return null;
+  if (!a.token || !a.user) return null;
+
+  if (!a.owner || !a.repo) {
+    return {
+      ...(a as KodyAuth),
+      repoUrl: "",
+      owner: "",
+      repo: "",
+      token: a.token,
+      user: a.user,
+      loggedInAt: a.loggedInAt ?? Date.now(),
+      repos: [],
+      currentRepoIndex: -1,
+    };
+  }
 
   // Already migrated.
   if (
@@ -265,6 +285,10 @@ function persist(next: KodyAuth): void {
 }
 
 function syncClientBrandRepoCookie(auth: KodyAuth): void {
+  if (!auth.owner || !auth.repo) {
+    clearClientBrandRepoCookie();
+    return;
+  }
   document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=${serializeClientBrandRepoCookie(
     {
       owner: auth.owner,
@@ -402,6 +426,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = "/";
   }, []);
 
+  const signIn = useCallback((token: string, user: KodyUser) => {
+    const next: KodyAuth = {
+      repoUrl: "",
+      owner: "",
+      repo: "",
+      token: token.trim(),
+      user,
+      loggedInAt: Date.now(),
+      repos: [],
+      currentRepoIndex: -1,
+    };
+    persist(next);
+    setStoredAuth(next);
+  }, []);
+
   const addRepo = useCallback(
     (
       entry: Omit<KodyRepoEntry, "addedAt" | "isLogin" | "user">,
@@ -480,7 +519,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             { ...nextEntry, user, addedAt: Date.now(), isLogin: false },
           ];
         }
-        const next: KodyAuth = { ...prev, repos: nextRepos };
+        const firstRepo = prev.repos.length === 0 ? nextRepos[0] : null;
+        const next: KodyAuth = firstRepo
+          ? {
+              ...prev,
+              repos: nextRepos,
+              currentRepoIndex: 0,
+              repoUrl: firstRepo.repoUrl,
+              owner: firstRepo.owner,
+              repo: firstRepo.repo,
+              token: firstRepo.token,
+            }
+          : { ...prev, repos: nextRepos };
         persist(next);
         return next;
       });
@@ -538,6 +588,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const replaceRepoToken = useCallback(
+    (index: number, token: string, user: KodyUser): boolean => {
+      const trimmedToken = token.trim();
+      if (!auth || !trimmedToken || index < 0 || index >= auth.repos.length) {
+        return false;
+      }
+
+      const repos = auth.repos.map((repo, repoIndex) =>
+        repoIndex === index ? { ...repo, token: trimmedToken, user } : repo,
+      );
+      const replacingActive = index === auth.currentRepoIndex;
+      const next: KodyAuth = {
+        ...auth,
+        repos,
+        ...(replacingActive ? { token: trimmedToken, user } : {}),
+      };
+      persist(next);
+      setStoredAuth(next);
+      return true;
+    },
+    [auth],
+  );
 
   const setCurrentRepo = useCallback(
     (
@@ -629,7 +702,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         auth,
         loading,
         logout,
+        signIn,
         addRepo,
+        replaceRepoToken,
         removeRepo,
         setCurrentRepo,
         updateIntegrations,

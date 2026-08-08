@@ -36,9 +36,6 @@ describe("repo-scoped route contract", () => {
     expect(routes.repoReports(repo, "release-health")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports/release-health",
     );
-    expect(routes.repoKnowledgeSystem(repo)).toBe(
-      "/repo/A-Guy-educ/A-Guy-Web/knowledge-system",
-    );
     expect(routes.repoTodos(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/todos");
     expect(routes.repoTodoList(repo, "launch-plan")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan",
@@ -71,6 +68,9 @@ describe("repo-scoped route contract", () => {
     );
     expect(repoScopedHref(repo, "/file-spaces/team-notes")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/file-spaces/team-notes",
+    );
+    expect(repoScopedHref(repo, "/views/widgets/question-select")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/views/widgets/question-select",
     );
     expect(repoScopedHref(repo, "/org")).toBe("/org");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(

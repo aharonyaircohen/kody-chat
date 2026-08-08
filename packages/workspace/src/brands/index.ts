@@ -13,14 +13,15 @@ import {
   type ClientBrand,
 } from "@kody-ade/base/client-brand";
 import {
-  findBrandFileFromList,
   isBrandDeleted,
   listDeletedBrandSlugs,
   listBrandFiles,
+  readBrandFile,
   type BrandFile,
+  type BrandScope,
 } from "./files";
 
-export type { BrandFile } from "./files";
+export type { BrandFile, BrandScope } from "./files";
 export {
   disableBrand,
   deleteBrandFile,
@@ -30,6 +31,7 @@ export {
   listDeletedBrandSlugs,
   listBrandFiles,
   readBrandFile,
+  removeBrand,
   writeBrandFile,
 } from "./files";
 
@@ -52,10 +54,10 @@ function builtInAsResolved(brand: ClientBrand): ResolvedBrand {
   };
 }
 
-export async function listBrands(): Promise<ResolvedBrand[]> {
+export async function listBrands(scope: BrandScope): Promise<ResolvedBrand[]> {
   const [repoBrands, deletedSlugs] = await Promise.all([
-    listBrandFiles(),
-    listDeletedBrandSlugs(),
+    listBrandFiles(scope),
+    listDeletedBrandSlugs(scope),
   ]);
   const repoSlugs = new Set(repoBrands.map((brand) => brand.slug));
   const builtins = BUILTIN_CLIENT_BRANDS.filter(
@@ -67,10 +69,11 @@ export async function listBrands(): Promise<ResolvedBrand[]> {
 }
 
 export async function readResolvedBrand(
+  scope: BrandScope,
   slug: string,
 ): Promise<BrandFile | ResolvedBrand | null> {
-  if (await isBrandDeleted(slug)) return null;
-  const repoBrand = await findBrandFileFromList(slug);
+  if (await isBrandDeleted(scope, slug)) return null;
+  const repoBrand = await readBrandFile(scope, slug);
   if (repoBrand) return repoBrand;
   const fallback = getBuiltinClientBrand(slug);
   return fallback ? builtInAsResolved(fallback) : null;

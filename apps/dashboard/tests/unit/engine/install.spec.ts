@@ -14,6 +14,12 @@ const convex = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
 }));
+const vault = vi.hoisted(() => ({
+  read: vi.fn(),
+}));
+const webhooks = vi.hoisted(() => ({
+  ensureWebhook: vi.fn(),
+}));
 
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
@@ -21,6 +27,10 @@ vi.mock("convex/browser", () => ({
     mutation = convex.mutation;
   },
 }));
+vi.mock("@kody-ade/base/vault/store", () => ({
+  readVault: vault.read,
+}));
+vi.mock("@dashboard/lib/webhooks/register", () => webhooks);
 
 import { _resetConvexClient } from "@kody-ade/base/backend/convex";
 import { invalidateVariablesCache } from "@kody-ade/base/variables/store";
@@ -64,11 +74,22 @@ beforeEach(() => {
   process.env.CONVEX_URL = "https://example.convex.cloud";
   invalidateVariablesCache("example", "my-repo");
   convex.query.mockResolvedValue(null); // no variables doc by default
+  vault.read.mockResolvedValue({
+    doc: { version: 1, secrets: {} },
+    sha: null,
+  });
+  webhooks.ensureWebhook.mockResolvedValue({
+    ok: true,
+    created: false,
+    hookId: 42,
+  });
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(KODY_WORKFLOW, { status: 200, statusText: "OK" }),
-    ),
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(KODY_WORKFLOW, { status: 200, statusText: "OK" }),
+      ),
   );
 });
 
@@ -137,6 +158,91 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("installEngine", () => {
+  it("reports a skipped local webhook without failing the engine install", async () => {
+    webhooks.ensureWebhook.mockResolvedValueOnce({
+      ok: false,
+      skipped: true,
+      error: "public_url_required",
+    });
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "http://localhost:3333/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.webhook).toEqual({
+      ok: false,
+      skipped: true,
+      error: "public_url_required",
+    });
+    expect(result.summary).toContain(
+      "Webhook skipped — configure a public HTTPS dashboard URL.",
+    );
+  });
+
+  it("preserves safe GitHub webhook failure context", async () => {
+    webhooks.ensureWebhook.mockResolvedValueOnce({
+      ok: false,
+      error: "patch hook failed",
+      status: 403,
+      detail: "Resource not accessible by personal access token",
+    });
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.webhook).toMatchObject({
+      ok: false,
+      error: "patch hook failed",
+      status: 403,
+      detail: "Resource not accessible by personal access token",
+    });
+    expect(result.summary).toContain(
+      "Webhook FAILED — Resource not accessible by personal access token (HTTP 403).",
+    );
+  });
+
+  it("keeps user vault secrets out of GitHub Actions", async () => {
+    vault.read.mockResolvedValue({
+      doc: {
+        version: 1,
+        secrets: {
+          OPENAI_API_KEY: {
+            value: "vault-only-value",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        },
+      },
+      sha: null,
+    });
+    const octokit = createMockOctokit();
+
+    const result = await installEngine({
+      octokit,
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(octokit.rest.actions.getRepoPublicKey).toHaveBeenCalledTimes(1);
+    expect(vault.read).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("vaultMirror");
+  });
+
   describe("kody.config.json creation", () => {
     it("creates kody.config.json at the repo root after the workflow", async () => {
       const octokit = createMockOctokit();

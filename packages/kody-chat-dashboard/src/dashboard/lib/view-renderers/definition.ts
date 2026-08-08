@@ -15,6 +15,7 @@ export const RendererActionDefaultSchema = z.object({
   label: z.string().trim().min(1).max(60),
   response: z.string().trim().min(1).max(500),
   variant: z.enum(["primary", "secondary", "danger"]).optional(),
+  result: z.record(z.string(), z.unknown()).optional(),
 });
 
 const RendererDefaultValueSchema = z.union([
@@ -24,6 +25,59 @@ const RendererDefaultValueSchema = z.union([
   z.null(),
   z.array(RendererActionDefaultSchema).max(20),
 ]);
+
+export type RendererValueSchema =
+  | {
+      kind: "string";
+      minLength?: number;
+      maxLength?: number;
+    }
+  | {
+      kind: "number";
+      integer?: boolean;
+    }
+  | {
+      kind: "boolean";
+    }
+  | {
+      kind: "object";
+      properties?: Record<string, RendererValueSchema>;
+      required?: string[];
+      additionalProperties?: boolean;
+    }
+  | {
+      kind: "array";
+      items: RendererValueSchema;
+      minItems?: number;
+      maxItems?: number;
+    };
+
+const RendererValueSchemaSchema: z.ZodType<RendererValueSchema> = z.lazy(() =>
+  z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("string"),
+      minLength: z.number().int().nonnegative().optional(),
+      maxLength: z.number().int().positive().optional(),
+    }),
+    z.object({
+      kind: z.literal("number"),
+      integer: z.boolean().optional(),
+    }),
+    z.object({ kind: z.literal("boolean") }),
+    z.object({
+      kind: z.literal("object"),
+      properties: z.record(z.string(), RendererValueSchemaSchema).optional(),
+      required: z.array(z.string().trim().min(1).max(80)).max(100).optional(),
+      additionalProperties: z.boolean().optional(),
+    }),
+    z.object({
+      kind: z.literal("array"),
+      items: RendererValueSchemaSchema,
+      minItems: z.number().int().nonnegative().optional(),
+      maxItems: z.number().int().positive().optional(),
+    }),
+  ]),
+);
 
 const RendererDataFieldSchema = z.object({
   description: z.string().trim().min(1).max(300).optional(),
@@ -35,10 +89,12 @@ const RendererDataFieldSchema = z.object({
       "selection",
       "fields",
       "input",
+      "json",
       "value",
     ])
     .optional(),
   optional: z.boolean().optional(),
+  valueSchema: RendererValueSchemaSchema.optional(),
 });
 
 export type RendererUiTemplateNode =
@@ -84,6 +140,8 @@ export type RendererUiTemplateNode =
   | {
       type: "widget";
       widget: string;
+      /** Exact published widget bundle version. */
+      version?: number;
       /** Inline value or a `$key` reference into the renderer data. */
       data?: unknown;
     };
@@ -133,6 +191,7 @@ const RendererUiTemplateNodeSchema: z.ZodType<RendererUiTemplateNode> = z.lazy(
       z.object({
         type: z.literal("widget"),
         widget: z.string().regex(VIEW_RENDERER_SLUG_RE),
+        version: z.number().int().positive().optional(),
         data: z.unknown().optional(),
       }),
     ]),
@@ -141,6 +200,7 @@ const RendererUiTemplateNodeSchema: z.ZodType<RendererUiTemplateNode> = z.lazy(
 const ViewRendererDefinitionSchema = z
   .object({
     slug: z.string().regex(VIEW_RENDERER_SLUG_RE),
+    version: z.number().int().positive().optional(),
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(300).optional(),
     purpose: z.string().regex(VIEW_RENDERER_SLUG_RE).optional(),
@@ -216,6 +276,12 @@ const LegacyViewRendererDefinitionSchema = z.object({
 export type ViewRendererDefinition = z.infer<
   typeof ViewRendererDefinitionSchema
 >;
+
+export function viewRendererDefinitionVersion(
+  definition: ViewRendererDefinition,
+): number {
+  return definition.version ?? 1;
+}
 
 type LegacyViewRendererDefinition = z.infer<
   typeof LegacyViewRendererDefinitionSchema

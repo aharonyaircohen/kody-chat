@@ -94,6 +94,40 @@ describe("ConversationClient", () => {
     await second;
   });
 
+  it("waits for a new conversation to finish saving before deleting it", async () => {
+    const releases: Array<() => void> = [];
+    fetcher.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          releases.push(() =>
+            resolve(new Response(JSON.stringify({ ok: true }))),
+          );
+        }),
+    );
+
+    const created = client.create({ conversationId: "new-conversation" });
+    const deleted = client.remove("new-conversation");
+
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/kody/chat/conversations",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    releases[0]();
+    await created;
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/kody/chat/conversations/new-conversation",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+
+    releases[1]();
+    await deleted;
+  });
+
   it("surfaces a failed persistence request", async () => {
     fetcher.mockResolvedValue(
       new Response(JSON.stringify({ error: "failed" }), { status: 500 }),
@@ -102,5 +136,30 @@ describe("ConversationClient", () => {
     await expect(client.remove("c1")).rejects.toThrow(
       "Conversation request failed (500)",
     );
+  });
+
+  it("serializes machine access as its own conversation command", async () => {
+    fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    await client.command("c1", {
+      kind: "machine-access",
+      actorLogin: "alice",
+      machineAccess: "local",
+      updatedAt: "2026-07-20T10:00:00.000Z",
+    });
+
+    const body = JSON.parse(
+      String(fetcher.mock.calls[0]?.[1]?.body),
+    ) as Record<string, unknown>;
+    expect(body).toEqual({
+      kind: "machine-access",
+      actorLogin: "alice",
+      machineAccess: "local",
+      updatedAt: "2026-07-20T10:00:00.000Z",
+    });
+    expect(body).not.toHaveProperty("runtime");
+    expect(body).not.toHaveProperty("agent");
   });
 });

@@ -7,11 +7,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { RENDER_VIEW_DIRECTIVE } from "@dashboard/lib/chat-ui-actions";
-import {
-  FINAL_ANSWER_REQUIRES_VIEW_ERROR,
-  FINAL_ANSWER_TOOL,
-  SHOW_VIEW_TOOL,
-} from "@dashboard/lib/chat-output-tools";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
@@ -159,32 +154,6 @@ const approvalRendererDefinition = {
         for: "$actions",
         as: "action",
         item: { type: "button", label: "$action.label", action: "$action" },
-      },
-    ],
-  },
-} as const;
-
-const reportSelectionRendererDefinition = {
-  slug: "selection-list",
-  name: "Selection list",
-  purpose: "selection-list",
-  rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
-  data: {
-    title: { type: "text", description: "Short title." },
-    body: { type: "text", optional: true },
-    items: { type: "selection", description: "Selectable items." },
-  },
-  type: "layout",
-  ui: {
-    type: "stack",
-    children: [
-      { type: "text", value: "$title", variant: "title" },
-      { type: "text", value: "$body" },
-      {
-        type: "list",
-        for: "$items",
-        as: "item",
-        item: { type: "button", label: "$item.label", action: "$item" },
       },
     ],
   },
@@ -459,58 +428,5 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
 
     expect(streamTextMock).toHaveBeenCalledTimes(1);
     expect(writer.merge).toHaveBeenCalledTimes(1);
-  });
-
-  it("forces show_view after a plain final answer asks for a user choice", async () => {
-    const { POST } = await import("../../app/api/kody/chat/kody/route");
-
-    const res = await POST(
-      makeRequest({
-        messages: [
-          {
-            role: "user",
-            content: "look into this bug",
-          },
-        ],
-      }),
-    );
-
-    expect(res.status).toBe(200);
-    const options = streamTextMock.mock.calls[0]?.[0];
-    const prepareStep = options?.prepareStep as
-      | ((input: {
-          steps: Array<{
-            toolResults: Array<{
-              toolName: string;
-              output: unknown;
-            }>;
-          }>;
-        }) => {
-          activeTools?: string[];
-          toolChoice?: unknown;
-        })
-      | undefined;
-
-    expect(prepareStep).toBeTypeOf("function");
-    expect(
-      prepareStep?.({
-        steps: [
-          {
-            toolResults: [
-              {
-                toolName: FINAL_ANSWER_TOOL,
-                output: { error: FINAL_ANSWER_REQUIRES_VIEW_ERROR },
-              },
-            ],
-          },
-        ],
-      }),
-    ).toEqual({
-      // One-shot nudge (converged with the package): final_answer stays
-      // callable so the model isn't forced to fabricate a placeholder
-      // view for conversational replies.
-      activeTools: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
-      toolChoice: "required",
-    });
   });
 });

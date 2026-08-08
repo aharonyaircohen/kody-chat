@@ -10,6 +10,7 @@
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { DashboardHome } from "@dashboard/lib/components/DashboardHome";
+import { WelcomeSetup } from "@dashboard/features/onboarding/components/WelcomeSetup";
 import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -26,7 +27,7 @@ export const metadata = buildKodyMetadata({
 
 export default function KodyPage() {
   return (
-    <AuthGuard>
+    <AuthGuard fallback={<WelcomeSetup />}>
       <DashboardHome />
     </AuthGuard>
   );

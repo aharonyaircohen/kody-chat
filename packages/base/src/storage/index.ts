@@ -26,7 +26,3 @@ export {
   type MongoStorageAdapterOptions,
   type MongoStorageTarget,
 } from "./mongo";
-export {
-  createCmsStorageTransport,
-  type CmsStorageTransport,
-} from "./cms-transport";

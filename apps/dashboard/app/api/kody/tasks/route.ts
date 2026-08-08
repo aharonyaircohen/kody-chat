@@ -307,12 +307,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Stacked-PR model (engine ≥ 0.4.39): no umbrella issue, no goal branch,
-    // no goal PR. Every goal-labelled issue IS a task — paired with its
-    // stacked PR via the existing Closes#N / digits-only-branch / "#N:" title
-    // heuristics built above. The old umbrella resolution block (which read
-    // `state.goalIssueNumber` to skip umbrella rows from pipeline-status
-    // fetch and pair them with `goal-<id>` branches) is gone.
+    // Each issue is paired with its stacked PR through the existing Closes#N,
+    // digits-only branch, or "#N:" title heuristics built above.
 
     const previewByPrNumber = new Map<number, string>();
     if (includeDetails) {

@@ -17,7 +17,7 @@ export const DEFAULT_SKILL_MEMORY: SkillEntry = {
 - \`update_memory\` — correct an existing entry while preserving its history.
 - \`remember\` — write one evidence-backed entry.
 
-Kinds are \`preference\`, \`fact\`, \`decision\`, \`goal\`, and \`reference\`. Scope is \`user\` for personal memory or \`repository\` for shared project memory.
+Kinds are \`preference\`, \`fact\`, \`decision\`, and \`reference\`. Scope is \`user\` for personal memory or \`repository\` for shared project memory.
 
 **Triggers:**
 - Explicit memory command ("remember X", "store this", "save this for later", or an equivalent translation) in any language → call \`remember\` directly and exactly once. Do not call \`recall_search\` before \`remember\`.
@@ -25,7 +25,7 @@ Kinds are \`preference\`, \`fact\`, \`decision\`, \`goal\`, and \`reference\`. S
 - User style or stable preference → personal \`preference\`.
 - Stable non-derivable information → \`fact\`.
 - Approved project choice → repository \`decision\`.
-- Durable target or deadline → repository \`goal\`. Use absolute dates.
+- Durable deadline → repository \`reference\`. Use absolute dates.
 - External pointer (Linear, Grafana) → \`reference\`.
 
 **Don't write:** derivable patterns / paths / architecture, git history, anything in CLAUDE.md, ephemeral state, duplicates (\`update_memory\`).

@@ -26,7 +26,6 @@ export type RepoRouteAuthSync =
 const REPO_OWNED_LEGACY_PREFIXES = [
   "/activity",
   "/agency",
-  "/agent-goals",
   "/agent-loops",
   "/agents",
   "/brands",
@@ -53,7 +52,6 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/inbox",
   "/instructions",
   "/jobs",
-  "/knowledge-system",
   "/memory",
   "/messages",
   "/models",
@@ -61,6 +59,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/operations",
   "/preview",
   "/policies",
+  "/pipelines",
   "/reports",
   "/runner",
   "/secrets",
@@ -69,6 +68,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/todos",
   "/variables",
   "/vibe",
+  "/views",
   "/workflows",
 ] as const;
 
@@ -150,8 +150,6 @@ export const routes = {
     repoSelectionPath(ref, "docs", path),
   repoReports: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "reports", slug),
-  repoKnowledgeSystem: (ref: RepoRef) =>
-    repoSelectionPath(ref, "knowledge-system"),
   repoTodos: (ref: RepoRef) => repoSelectionPath(ref, "todos"),
   repoTodoList: (ref: RepoRef, slug: string) =>
     repoSelectionPath(ref, "todos", slug),

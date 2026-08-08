@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Kody agency layer — agents, capabilities, workflows, loops, runs, and trust route handlers. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
+  "description": "Private Kody agency layer — agents, capabilities, workflows, loops, runs, persistence, and route handlers.",
   "exports": {
+    "./agency-approvals": "./src/agency-approvals.ts",
+    "./agency-runs": "./src/agency-runs.ts",
+    "./pipeline-run-approval": "./src/pipeline-run-approval.ts",
     "./capabilities": "./src/capabilities/index.ts",
     "./capabilities/*": "./src/capabilities/*.ts",
     "./cto/*": "./src/cto/*.ts",

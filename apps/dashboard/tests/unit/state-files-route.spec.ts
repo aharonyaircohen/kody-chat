@@ -35,12 +35,12 @@ describe("GET /api/kody/state-files", () => {
     backend.query.mockResolvedValue({ state: { event: "done" } });
     const res = await GET(
       new NextRequest(
-        "http://localhost/api/kody/state-files?path=logs/goals/ci-health/runs/run.jsonl",
+        "http://localhost/api/kody/state-files?path=logs/workflows/ci-health/runs/run.jsonl",
       ),
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
-      path: "logs/goals/ci-health/runs/run.jsonl",
+      path: "logs/workflows/ci-health/runs/run.jsonl",
       content: '{\n  "event": "done"\n}',
     });
     expect(backend.query).toHaveBeenCalledWith(refs.workflowGet, {

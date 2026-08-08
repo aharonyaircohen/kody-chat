@@ -11,9 +11,11 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const LOCAL_BASE_URL =
   process.env.RENDERER_E2E_BASE_URL ?? "http://127.0.0.1:3333";
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
-const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ?? "https://github.com/test-owner/test-repo";
+// This is a mocked browser-contract suite. Keep its repository identity
+// hermetic so a developer's live E2E environment cannot select a persisted
+// runner or conversation and disable the fixture composer.
+const TEST_TOKEN = "ghp_placeholder";
+const TEST_REPO = "https://github.com/test-owner/test-repo";
 
 function parseRepo(url: string): { owner: string; repo: string } {
   try {
@@ -223,6 +225,52 @@ function renderedApprovalView(
   };
 }
 
+function renderedModelOutputRecoveryView() {
+  const actions = [
+    {
+      id: "retry",
+      label: "Retry same model",
+      response: "Retry my last request with the same model.",
+      variant: "primary",
+    },
+    {
+      id: "choose-model",
+      label: "Choose another model",
+      response: "Choose another model.",
+      variant: "secondary",
+    },
+    {
+      id: "cancel",
+      label: "Cancel",
+      response: "Cancel this request.",
+      variant: "secondary",
+    },
+  ];
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "model-output-recovery-1",
+    rendererSlug: "model-output-recovery",
+    rendererName: "Model output recovery",
+    resultTarget: "chat",
+    data: { title: "Model could not complete", actions },
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "Model could not complete" },
+        {
+          type: "row",
+          children: actions.map((action) => ({
+            type: "button",
+            label: action.label,
+            action,
+          })),
+        },
+      ],
+    },
+  };
+}
+
 function renderedSelectionView() {
   return {
     action: "render_view",
@@ -367,6 +415,42 @@ async function mockChatStream(
   });
 }
 
+async function mockRecoveryChatStream(
+  page: Page,
+  onRequest?: (body: { model?: string }) => void,
+): Promise<void> {
+  let turn = 0;
+  await page.route("**/api/kody/chat/kody", async (route: Route) => {
+    turn += 1;
+    const body = route.request().postDataJSON() as { model?: string };
+    onRequest?.(body);
+    const output =
+      turn === 1
+        ? renderedModelOutputRecoveryView()
+        : { content: "Retried with the selected model." };
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache",
+      },
+      body: sseBody([
+        {
+          type: "tool-input-available",
+          toolCallId: `tool-recovery-${turn}`,
+          toolName: turn === 1 ? "show_view" : "final_answer",
+          input: turn === 1 ? { purpose: "model-output-recovery" } : output,
+        },
+        {
+          type: "tool-output-available",
+          toolCallId: `tool-recovery-${turn}`,
+          output,
+        },
+      ]),
+    });
+  });
+}
+
 async function openChat(
   page: Page,
   options: { defaultChatEntry?: string | null } = {},
@@ -428,6 +512,10 @@ test.describe("Kody chat renderer output", () => {
         },
         body: sseBody([
           {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
             type: "text-delta",
             delta: leakedQuestion,
           },
@@ -471,6 +559,73 @@ test.describe("Kody chat renderer output", () => {
 
     await expect(page.getByText("Peek at CHANGELOG.md first?")).toBeVisible();
     await expect(page.getByText(leakedQuestion)).toHaveCount(0);
+  });
+
+  test("keeps streamed answer text when a renderer follows it", async ({
+    page,
+  }) => {
+    const committedText = "I found two safe ways to continue.";
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
+            type: "tool-input-start",
+            toolCallId: "tool-final-before-view",
+            toolName: "final_answer",
+          },
+          {
+            type: "tool-input-delta",
+            toolCallId: "tool-final-before-view",
+            inputTextDelta: `{"content":"${committedText}"}`,
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-final-before-view",
+            toolName: "final_answer",
+            input: { content: committedText },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-final-before-view",
+            output: { content: committedText },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-view-after-text",
+            toolName: "show_view",
+            input: {
+              purpose: "approval-card",
+              data: { title: "Choose how to continue" },
+            },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-view-after-text",
+            output: renderedApprovalView({
+              title: "Choose how to continue",
+              body: "Select the next step.",
+            }),
+          },
+        ]),
+      });
+    });
+    await openChat(page);
+
+    await sendChatMessage(page, "show the explanation and choices");
+
+    await expect(page.getByText(committedText)).toBeVisible();
+    await expect(page.getByText("Choose how to continue")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
   });
 
   test("plain streamed text is rendered without client-side renderer guessing", async ({
@@ -714,6 +869,61 @@ test.describe("Kody chat renderer output", () => {
 
     await expect(page.getByText(/show_view requires data/i)).toBeVisible();
     await expect(page.getByText(unfinishedProse)).toHaveCount(0);
+  });
+
+  test("recovery card keeps model choice under user control", async ({
+    page,
+  }) => {
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page);
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Choose another model" }).click();
+
+    await expect(page.getByTestId("chat-setup-menu")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Model", expanded: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("option", { name: /Chat Model Pro/ }),
+    ).toBeVisible();
+  });
+
+  test("retry recovery keeps the selected model", async ({ page }) => {
+    const requestedModels: Array<string | undefined> = [];
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page, (body) => {
+      requestedModels.push(body.model);
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Retry same model" }).click();
+
+    await expect(
+      page.getByText("Retried with the selected model."),
+    ).toBeVisible();
+    expect(requestedModels).toEqual(["chat-model-pro", "chat-model-pro"]);
+  });
+
+  test("cancel recovery ends the interaction without another model request", async ({
+    page,
+  }) => {
+    let requestCount = 0;
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page, () => {
+      requestCount += 1;
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    await expect(
+      page.getByRole("button", { name: "Retry same model" }),
+    ).toBeDisabled();
+    expect(requestCount).toBe(1);
   });
 
   test("provider invoke markup does not leak into the visible chat", async ({

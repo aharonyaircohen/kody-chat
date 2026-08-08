@@ -21,24 +21,12 @@ export async function resolveClientBrand(
   context?: ClientBrandResolveContext | null,
 ): Promise<ClientBrand | null> {
   const normalized = normalizeClientBrandSlug(slug);
-  let clearContext: (() => void) | null = null;
-  try {
-    const { findBrandFileFromList, isBrandDeleted } = await import("@kody-ade/workspace/brands");
-    if (context?.owner && context.repo) {
-      const { clearGitHubContext, setGitHubContext } = await import(
-        "./github-client"
-      );
-      setGitHubContext(
-        context.owner,
-        context.repo,
-        context.token,
-        context.storeRepoUrl,
-        context.storeRef,
-      );
-      clearContext = clearGitHubContext;
-    }
-    if (await isBrandDeleted(normalized)) return null;
-    const repoBrand = await findBrandFileFromList(normalized);
+  if (context?.owner && context.repo) {
+    const { isBrandDeleted, readBrandFile } =
+      await import("@kody-ade/workspace/brands");
+    const scope = { owner: context.owner, repo: context.repo };
+    if (await isBrandDeleted(scope, normalized)) return null;
+    const repoBrand = await readBrandFile(scope, normalized);
     if (repoBrand) {
       return {
         slug: repoBrand.slug,
@@ -54,14 +42,9 @@ export async function resolveClientBrand(
         ...(repoBrand.agentSlug !== undefined
           ? { agentSlug: repoBrand.agentSlug }
           : {}),
-        ...(repoBrand.auth !== undefined ? { auth: repoBrand.auth } : {}),
+        access: repoBrand.access,
       };
     }
-  } catch {
-    // Public /client routes may not have a repo auth context. Keep the
-    // existing fallback behavior rather than breaking the client surface.
-  } finally {
-    clearContext?.();
   }
   return getBuiltinClientBrand(normalized);
 }

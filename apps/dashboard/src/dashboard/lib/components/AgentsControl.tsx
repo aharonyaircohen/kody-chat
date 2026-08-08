@@ -62,25 +62,9 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
-/**
- * Kody — the built-in chat agentIdentity placeholder. Shown while no
- * `agents/kody.md` file exists; the first edit creates that file, and from
- * then on Kody is a regular editable agent like any other. Never removable.
- */
-const BUILTIN_KODY_AGENT: Agent = {
-  slug: KODY_CHAT_AGENT,
-  title: "Kody",
-  body:
-    "Kody is the built-in assistant agentIdentity — the agent the in-process " +
-    "chat runs as. It is always available and can't be edited or removed here. " +
-    "Attach Context entries to Kody to inject them into every chat turn.",
-  updatedAt: "",
-  htmlUrl: "",
-};
-
-/** True for built-in const agent (no file, no edit/delete). */
-function isBuiltinAgent(slug: string): boolean {
-  return slug === KODY_CHAT_AGENT;
+/** Code-owned definitions can be locally overridden but never deleted. */
+function isCodeOwnedAgent(member: Agent): boolean {
+  return member.source === "builtin";
 }
 
 interface AgentsControlProps {
@@ -117,16 +101,8 @@ export function AgentsControlInner({
   const rawStaff = useMemo(() => fetchedStaff ?? [], [fetchedStaff]);
   const staffLoaded = fetchedStaff !== undefined;
 
-  // Kody is always first and never removable. A real `agents/kody.md` file
-  // wins over the built-in placeholder — editing Kody creates that file, so
-  // it behaves like a regular agent from the first save.
-  const agent = useMemo(() => {
-    const fileKody = rawStaff.find((m) => isBuiltinAgent(m.slug));
-    return [
-      fileKody ?? BUILTIN_KODY_AGENT,
-      ...rawStaff.filter((m) => !isBuiltinAgent(m.slug)),
-    ];
-  }, [rawStaff]);
+  // The API owns the complete resolved roster and keeps Kody first.
+  const agent = rawStaff;
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<Agent | null>(null);
@@ -331,20 +307,27 @@ export function AgentsControlInner({
                               Store
                             </span>
                           ) : null}
+                          {member.source === "builtin" ? (
+                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                              Built-in
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
                             {member.slug}
                           </span>
-                          <span>·</span>
-                          {isBuiltinAgent(member.slug) ? (
-                            <span>Built-in</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(member.updatedAt).toLocaleDateString()}
-                            </span>
-                          )}
+                          {!isCodeOwnedAgent(member) ? (
+                            <>
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(
+                                  member.updatedAt,
+                                ).toLocaleDateString()}
+                              </span>
+                            </>
+                          ) : null}
                         </div>
                       </button>
                     </li>
@@ -395,6 +378,7 @@ export function AgentsControlInner({
         {editingMember ? (
           <EditStaffDialog
             member={editingMember}
+            availableAgents={agent}
             onClose={() => setEditingMember(null)}
             onSaved={() => setEditingMember(null)}
           />
@@ -459,7 +443,7 @@ function StaffDetail({
   onSendTask: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
-  const isBuiltin = isBuiltinAgent(member.slug);
+  const isBuiltin = isCodeOwnedAgent(member);
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -516,24 +500,8 @@ function StaffDetail({
                 )}
               </div>
             </div>
-            {isBuiltin && !member.updatedAt ? (
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="inline-flex items-center rounded border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-[11px] font-medium text-teal-300">
-                  Built-in
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="w-9 px-0"
-                  title="Edit — saves agents/kody.md, making Kody a regular agent"
-                  aria-label="Edit agent"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
+              {member.slug !== KODY_CHAT_AGENT ? (
                 <Button
                   size="sm"
                   onClick={onSendTask}
@@ -543,20 +511,22 @@ function StaffDetail({
                 >
                   <Send className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="w-9 px-0"
-                  title={
-                    member.readOnly
-                      ? "Edit — saves a repo copy that overrides the Store version"
-                      : "Edit agent"
-                  }
-                  aria-label="Edit agent"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="w-9 px-0"
+                title={
+                  member.readOnly
+                    ? "Edit — saves a repo override"
+                    : "Edit agent"
+                }
+                aria-label="Edit agent"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              {!isBuiltin ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -575,14 +545,29 @@ function StaffDetail({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
-              </div>
-            )}
+              ) : null}
+            </div>
           </header>
 
           {/* Description card inside the hero when present */}
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-              <MarkdownPreview content={member.body} variant="compact" />
+              <MarkdownPreview content={member.body} />
+            </div>
+          ) : null}
+          {member.subagents?.length ? (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium">Subagents</h2>
+              <div className="flex flex-wrap gap-2">
+                {member.subagents.map((slug) => (
+                  <span
+                    key={slug}
+                    className="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 font-mono text-xs text-emerald-300"
+                  >
+                    {slug}
+                  </span>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>
@@ -660,7 +645,7 @@ function CreateAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New agent</DialogTitle>
           <DialogDescription>
@@ -771,20 +756,73 @@ function CapabilitiesChecklist({
   );
 }
 
+/** Public Agents this Agent can invoke as isolated subagents. */
+function SubagentsChecklist({
+  ownerSlug,
+  options,
+  selected,
+  onToggle,
+}: {
+  ownerSlug: string;
+  options: Agent[];
+  selected: string[];
+  onToggle: (slug: string, on: boolean) => void;
+}) {
+  const candidates = options.filter((agent) => agent.slug !== ownerSlug);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Subagents</Label>
+      <p className="text-xs text-muted-foreground">
+        Assigned public Agents can receive focused work and return their result
+        to this Agent.
+      </p>
+      <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+        {candidates.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No other Agents are available.
+          </div>
+        ) : (
+          candidates.map((agent) => (
+            <label
+              key={agent.slug}
+              className="flex items-start gap-2 rounded px-1 py-1 text-sm"
+            >
+              <Checkbox
+                aria-label={`Assign ${agent.title} as subagent`}
+                checked={selected.includes(agent.slug)}
+                onCheckedChange={(on) => onToggle(agent.slug, on === true)}
+              />
+              <span className="min-w-0">
+                <span className="font-medium">{agent.title}</span>
+                <span className="ml-2 font-mono text-muted-foreground">
+                  {agent.slug}
+                </span>
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditStaffDialog({
   member,
+  availableAgents,
   onClose,
   onSaved,
 }: {
   member: Agent;
+  availableAgents: Agent[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateAgent(member.slug, githubUser?.login);
   const createMutation = useCreateAgent(githubUser?.login);
-  // The built-in Kody placeholder has no file yet (updatedAt "") — the
-  // first save CREATES agents/kody.md, making it a regular agent.
+  // Code-owned definitions have no persisted file; the first save creates a
+  // local definition that overrides the built-in.
   const isFileless = !member.updatedAt && !member.htmlUrl;
 
   const [title, setTitle] = useState(member.title);
@@ -792,15 +830,21 @@ function EditStaffDialog({
   const [capabilities, setCapabilities] = useState<string[]>(
     member.capabilities ?? [],
   );
+  const [subagents, setSubagents] = useState<string[]>(member.subagents ?? []);
 
   useEffect(() => {
     setTitle(member.title);
     setBody(member.body || "");
     setCapabilities(member.capabilities ?? []);
+    setSubagents(member.subagents ?? []);
   }, [member]);
 
   const toggleCapability = (slug: string, on: boolean) =>
     setCapabilities((current) =>
+      on ? [...new Set([...current, slug])] : current.filter((s) => s !== slug),
+    );
+  const toggleSubagent = (slug: string, on: boolean) =>
+    setSubagents((current) =>
       on ? [...new Set([...current, slug])] : current.filter((s) => s !== slug),
     );
 
@@ -812,7 +856,13 @@ function EditStaffDialog({
       return;
     if (isFileless) {
       createMutation.mutate(
-        { slug: member.slug, title: title.trim(), body, capabilities },
+        {
+          slug: member.slug,
+          title: title.trim(),
+          body,
+          capabilities,
+          subagents,
+        },
         { onSuccess: () => onSaved() },
       );
       return;
@@ -821,11 +871,15 @@ function EditStaffDialog({
       title?: string;
       body?: string;
       capabilities?: string[];
+      subagents?: string[];
     } = {};
     if (title !== member.title) patch.title = title.trim();
     if (body !== member.body) patch.body = body;
     if (!sameCapabilities(capabilities, member.capabilities ?? [])) {
       patch.capabilities = capabilities;
+    }
+    if (!sameCapabilities(subagents, member.subagents ?? [])) {
+      patch.subagents = subagents;
     }
     if (Object.keys(patch).length === 0) {
       onSaved();
@@ -836,7 +890,7 @@ function EditStaffDialog({
 
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit agent `{member.slug}`</DialogTitle>
           <DialogDescription>
@@ -862,6 +916,12 @@ function EditStaffDialog({
           <CapabilitiesChecklist
             selected={capabilities}
             onToggle={toggleCapability}
+          />
+          <SubagentsChecklist
+            ownerSlug={member.slug}
+            options={availableAgents}
+            selected={subagents}
+            onToggle={toggleSubagent}
           />
         </div>
 

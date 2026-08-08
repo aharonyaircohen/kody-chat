@@ -31,7 +31,7 @@ One doc per dashboard-managed store / capability.
 
 - ✅ [Tasks board](tasks.md) — the lanes, what drives a card's column
   (engine `kodyState` comment, **not** `kody:*` labels), and the
-  feature/bug/chore/spec/goal lifecycle.
+  feature/bug/chore/spec lifecycle.
 - ✅ [Reports](reports.md) — markdown reports from capabilities, including
   structured findings and optional suggested actions (`dispatch`,
   `create-task`, `dismiss`).
@@ -105,7 +105,7 @@ not behavior bugs — but two are real seams worth a look.
 
 - **Dashboard and Engine Agency contracts differ under the same package
   version.** The Dashboard source is simplified while the Engine-installed
-  `@kody-ade/agency-domain@0.5.1` still contains Operation, Goal, and the older
+  `@kody-ade/agency-domain@0.5.1` still contains older planning contracts and the
   Loop contract. Dashboard-created simple Loops are not consumed by that
   scheduler. See [AI Agency model](concepts/company-model.md).
 

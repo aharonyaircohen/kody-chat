@@ -12,7 +12,7 @@ Status: **Current Dashboard verified; Engine contract split remains**
 - Stored content: Markdown body with generic guidance frontmatter
 
 `loadGuidanceForPrompt("intent", agentSlug)` combines applicable Intents for a
-prompt. Intents are not converted into Operations, Goals, Workflows, or Loops.
+prompt. Intents are not converted into execution definitions.
 
 ## Known debt
 

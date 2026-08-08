@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { DASHBOARD_HOST_TOOL_NAMES } from "../../../src/dashboard/lib/chat/platform";
 import { existsSync, readFileSync } from "fs";
 import {
   loadChatDefaults,
@@ -118,6 +119,8 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
+      "app/api/kody/chat/tools/workflow-tools.ts",
+      "app/api/kody/chat/tools/agency-lifecycle-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
@@ -125,16 +128,9 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/variables-tools.ts",
       "app/api/kody/chat/tools/secrets-tools.ts",
       "app/api/kody/chat/tools/models-tools.ts",
-      "app/api/kody/chat/tools/reports-tools.ts",
-      "app/api/kody/chat/tools/notifications-tools.ts",
-      "app/api/kody/chat/tools/company-tools.ts",
       "app/api/kody/chat/tools/webhooks-tools.ts",
-      "app/api/kody/chat/tools/inbox-tools.ts",
       "app/api/kody/chat/tools/release-tools.ts",
-      "app/api/kody/chat/tools/planner-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/memory-tools.ts",
-      "app/api/kody/chat/tools/macros-tools.ts",
-      "app/api/kody/chat/tools/remote-tools.ts",
       "app/api/kody/chat/tools/feature-tools.ts",
       "app/api/kody/chat/tools/ui-tools.ts",
       "app/api/kody/chat/tools/guided-flow-tools.ts",
@@ -145,6 +141,7 @@ describe("chat-defaults bundle", () => {
     // `export const uiTools = { name: tool, ... }`. The map keys
     // are the model's tool names.
     const toolKeys = new Set<string>();
+    for (const name of DASHBOARD_HOST_TOOL_NAMES) toolKeys.add(name);
     for (const f of toolFiles) {
       const src = readFileSync(f, "utf8");
       // Inline: "  name: tool({"
@@ -199,6 +196,55 @@ describe("chat-defaults bundle", () => {
   it("allowlists view tools so Kody can render chat UI", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("final_answer");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
+  });
+
+  it("discovers and runs workflows without hardcoded workflow routing", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toEqual(
+      expect.arrayContaining([
+        "list_workflows",
+        "read_workflow",
+        "run_workflow",
+      ]),
+    );
+    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
+      "run_documentation_agency",
+    );
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("list_workflows");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("read_workflow");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain("run_workflow");
+    expect(DEFAULT_SKILLS["run-workflow"]?.body).toContain(
+      "Do not hardcode workflow IDs",
+    );
+    expect(CRITICAL_REMINDERS_MD).not.toContain(
+      "Create a complete usage guide for this AI agency",
+    );
+  });
+
+  it("reads existing Agency documentation before answering Agency questions", () => {
+    const skill = DEFAULT_SKILLS["read-agency-documentation"];
+    const analyzer = DEFAULT_WORKFLOWS.find(
+      (workflow) => workflow.slug === "kody-analyzer",
+    );
+
+    expect(DEFAULT_CHAT_CAPABILITY.skills).toContain(
+      "read-agency-documentation",
+    );
+    expect(analyzer?.body).toContain("read-agency-documentation");
+    expect(skill?.body).toContain("AI Agency");
+    expect(skill?.body).toContain("Workflow");
+    expect(skill?.body).toContain("Capability");
+    expect(skill?.body).toContain("cms_list_collections");
+    expect(skill?.body).toContain("cms_get_document");
+    expect(skill?.body).toContain("If the CMS does not contain");
+    expect(skill?.body).toContain("github_search_code");
+    expect(skill?.body).toContain("github_get_file");
+    expect(skill?.body).toContain("complete relevant document");
+    expect(skill?.body).toContain(
+      "Once authoritative documentation has been found",
+    );
+    expect(skill?.body).toContain("stop discovery");
+    expect(skill?.body).toContain("Do not repeat searches");
+    expect(skill?.body).toContain("Do not create or copy documentation");
   });
 
   it("documents show_view as spec-based rendering with strict validation", () => {
@@ -259,7 +305,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 9 skills — including create-workflow", () => {
+  it("exposes 11 skills — including documentation reading and generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
@@ -267,7 +313,9 @@ describe("chat-defaults bundle", () => {
       "create-workflow",
       "diagnose-pr",
       "memory",
+      "read-agency-documentation",
       "report-advise",
+      "run-workflow",
       "todo-planner",
       "vibe",
     ]);
@@ -349,7 +397,7 @@ describe("composeChatPrompt", () => {
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
-    // Goals / missions namespace block.
+    // Todo namespace block.
     expect(prompt).toContain("## Todos");
     // Workflows header + all 4 workflows.
     expect(prompt).toContain("## Workflows");

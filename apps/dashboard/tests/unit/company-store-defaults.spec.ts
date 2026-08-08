@@ -16,10 +16,10 @@ describe("Company Store defaults", () => {
     delete process.env.KODY_COMPANY_STORE_REF;
   });
 
-  it("defaults to the main kody-company-store catalog", () => {
+  it("defaults to the main kody-ai-agency-catalog catalog", () => {
     expect(getCompanyStoreTarget()).toEqual({
       owner: "aharonyaircohen",
-      repo: "kody-company-store",
+      repo: "kody-ai-agency-catalog",
       ref: "main",
     });
   });

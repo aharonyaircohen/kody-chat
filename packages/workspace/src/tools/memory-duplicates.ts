@@ -1,4 +1,4 @@
-import type { Memory, MemoryContent } from "@kody-ade/memory";
+import type { Memory, MemoryContent, MemoryKind } from "@kody-ade/memory";
 
 const MIN_MEANINGFUL_TOKENS = 4;
 const DUPLICATE_TOKEN_OVERLAP = 0.8;
@@ -39,16 +39,21 @@ function contentValues(content: Readonly<MemoryContent>): readonly string[] {
 
 export function findDuplicateMemory(
   candidates: readonly Readonly<Memory>[],
-  content: Readonly<MemoryContent>,
+  incoming: Readonly<{
+    kind: MemoryKind;
+    content: Readonly<MemoryContent>;
+  }>,
 ): Readonly<Memory> | null {
-  const incomingValues = contentValues(content);
+  const incomingValues = contentValues(incoming.content);
   return (
-    candidates.find((candidate) =>
-      contentValues(candidate.content).some((existingValue) =>
-        incomingValues.some((incomingValue) =>
-          hasDuplicateMeaning(existingValue, incomingValue),
+    candidates.find(
+      (candidate) =>
+        candidate.kind === incoming.kind &&
+        contentValues(candidate.content).some((existingValue) =>
+          incomingValues.some((incomingValue) =>
+            hasDuplicateMeaning(existingValue, incomingValue),
+          ),
         ),
-      ),
     ) ?? null
   );
 }

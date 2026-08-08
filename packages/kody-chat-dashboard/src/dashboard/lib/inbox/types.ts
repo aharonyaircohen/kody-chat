@@ -39,6 +39,8 @@ export const INBOX_SOURCES = [
   "subscribed",
   /** An agent asks the operator to approve running a capability. */
   "request",
+  /** A Kody workflow or Capability needs operator attention. */
+  "kody",
   "other",
 ] as const;
 

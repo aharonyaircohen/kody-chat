@@ -11,6 +11,37 @@ import type { ViewRendererDefinition } from "./definition";
 
 const BUILTIN_SOURCES: readonly string[] = [
   JSON.stringify({
+    slug: "guided-flow-command",
+    name: "Guided Flow command",
+    purpose: "guided-flow-command",
+    description: "Runs a registered Chat operation from a Guided Flow.",
+    rule: "Reserved for the Guided Flow runtime command step.",
+    data: {
+      title: { type: "text", description: "Step heading." },
+      body: { type: "markdown", description: "Step instructions." },
+      command: { type: "text", description: "Raw slash command." },
+      status: { type: "text", description: "Execution status." },
+      summary: { type: "text", description: "Execution result." },
+      actions: { type: "actions", description: "Run and continue actions." },
+    },
+    type: "layout",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "$title" },
+        { type: "markdown", value: "$body" },
+        { type: "text", variant: "label", value: "$command" },
+        { type: "text", value: "$summary" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
+  }),
+  JSON.stringify({
     slug: "approval-card",
     name: "Approval card",
     purpose: "approval-card",
@@ -20,9 +51,10 @@ const BUILTIN_SOURCES: readonly string[] = [
     data: {
       title: { type: "text", description: "Card heading shown at the top." },
       body: {
-        type: "text",
+        type: "markdown",
         optional: true,
-        description: "Optional supporting text shown under the title.",
+        description:
+          "Optional Markdown supporting content shown under the title.",
       },
       actions: {
         type: "actions",
@@ -51,7 +83,7 @@ const BUILTIN_SOURCES: readonly string[] = [
       type: "stack",
       children: [
         { type: "text", variant: "title", value: "$title" },
-        { type: "text", value: "$body" },
+        { type: "markdown", value: "$body" },
         {
           type: "row",
           for: "$actions",

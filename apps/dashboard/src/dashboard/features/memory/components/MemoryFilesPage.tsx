@@ -7,10 +7,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import {
-  FilesPage,
   type FileEntry,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { useAuth } from "@dashboard/lib/auth-context";
 import {
@@ -258,9 +258,29 @@ export function MemoryFilesPage({
     [repositoryScope, router],
   );
 
+  const handleSavedMemory = useCallback(
+    (savedMemory: Readonly<Memory>) => {
+      queryClient.setQueryData<readonly Readonly<Memory>[]>(
+        queryKey,
+        (current = []) => {
+          const existingIndex = current.findIndex(
+            (memory) => memory.id === savedMemory.id,
+          );
+          if (existingIndex < 0) return [...current, savedMemory];
+          return current.map((memory, index) =>
+            index === existingIndex ? savedMemory : memory,
+          );
+        },
+      );
+      routeToMemory(savedMemory);
+      void invalidate();
+    },
+    [invalidate, queryClient, queryKey, routeToMemory],
+  );
+
   return (
     <AuthGuard>
-      <FilesPage
+      <DashboardFilesPage
         title="Memory"
         routeBase="/memory"
         initialPath={activePathRef.current}
@@ -268,7 +288,7 @@ export function MemoryFilesPage({
         headerActions={memoryActions}
         showSearch={false}
         showUpload={false}
-        defaultMarkdownViewMode="preview"
+        defaultFileMode="view"
       />
 
       <MemoryFormDialog
@@ -276,8 +296,7 @@ export function MemoryFilesPage({
         onOpenChange={setCreating}
         onSaved={(memory) => {
           setCreating(false);
-          void invalidate();
-          routeToMemory(memory);
+          handleSavedMemory(memory);
         }}
       />
       <MemoryFormDialog
@@ -288,8 +307,7 @@ export function MemoryFilesPage({
         memory={editing}
         onSaved={(memory) => {
           setEditing(null);
-          void invalidate();
-          routeToMemory(memory);
+          handleSavedMemory(memory);
         }}
       />
       <MemorySearchDialog

@@ -33,16 +33,23 @@ const store = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@kody-ade/backend/api", () => ({
-  api: { widgets: { latest: "widgets.latest" } },
+  api: {
+    widgets: {
+      latest: "widgets.latest",
+      getVersion: "widgets.getVersion",
+    },
+  },
 }));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
     query: async (operation: string, args: Record<string, unknown>) => {
       if (store.failQueries) throw new Error("backend unavailable");
-      expect(operation).toBe("widgets.latest");
       store.queries.push({ ...args });
       const matches = store.rows.filter(
-        (row) => row.tenantId === args.tenantId && row.slug === args.slug,
+        (row) =>
+          row.tenantId === args.tenantId &&
+          row.slug === args.slug &&
+          (operation !== "widgets.getVersion" || row.version === args.version),
       );
       return (
         matches.reduce<(typeof matches)[number] | null>(
@@ -130,6 +137,33 @@ describe("GET /api/kody/widgets/[slug]", () => {
     );
     expect(res.status).toBe(200);
     expect(store.queries).toEqual([{ tenantId: "acme/site", slug: "quiz" }]);
+  });
+
+  it("serves the exact widget version pinned by a renderer", async () => {
+    store.rows = [
+      {
+        tenantId: "acme/site",
+        slug: "quiz",
+        version: 1,
+        bundle: "export default () => {}; // v1",
+        updatedAt: "2026-07-20T00:00:00.000Z",
+      },
+      {
+        tenantId: "acme/site",
+        slug: "quiz",
+        version: 2,
+        bundle: "export default () => {}; // v2",
+        updatedAt: "2026-07-21T00:00:00.000Z",
+      },
+    ];
+    const res = await GET(
+      ...queryRequest("quiz", "owner=acme&repo=site&token=tok&version=1"),
+    );
+
+    expect(await res.text()).toContain("v1");
+    expect(store.queries).toEqual([
+      { tenantId: "acme/site", slug: "quiz", version: 1 },
+    ]);
   });
 
   it("returns 304 when If-None-Match carries the current version ETag", async () => {

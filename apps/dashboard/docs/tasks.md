@@ -102,7 +102,7 @@ pipeline have had their say. While the engine's `kodyState` comment says
 add or remove — and if that `running` state is stale (the run already died),
 the card is stuck and its preview is suppressed until the engine rewrites the
 comment. The fix is always to correct the engine state (e.g. the engine's
-`finalizeGoal` / finalize step rewriting `kodyState`), never to relabel.
+the finalize step rewriting `kodyState`), never to relabel.
 
 ## Task types & their lifecycle
 
@@ -114,11 +114,6 @@ The flow type lives in `kody-flow:*` labels and is parsed into `kodyFlow`
   to one PR. No multi-stage orchestration.
 - **`spec`** — the only multi-stage flow: it fans out across phases before
   converging.
-- **Goals** — not a `kody-flow`; a goal runs **N phase tasks** whose changes
-  **consolidate into one PR against the `dev` branch**. Per-phase PRs are
-  closed unmerged by design; merging the consolidated PR is what ships the
-  goal. (See [goals.md](./goals.md) if present, and the goal-label handling in
-  the actions route via `GOAL_LABEL_PREFIX`.)
 
 `kodyState.core.phase` itself is the engine's own enum
 (`idle → research → planning → implementing → reviewing → shipped` / `failed`),
@@ -133,12 +128,12 @@ This trips people up, so it's worth being precise:
 | State                         | Stored as                                                          | Read by                                                        |
 | ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
 | Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments` |
-| Goal/job file state, cursors  | Documents in the **Convex backend**                                | Backend readers such as `repoDocs` and typed runtime queries   |
+| Job file state and cursors    | Documents in the **Convex backend**                                | Backend readers such as `repoDocs` and typed runtime queries   |
 | Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                              |
 
 So the broad rule "all machine-written engine state goes to the configured Kody
 backend, never the consumer default branch" holds for **file-based** state —
-goal `state.json`, per-job cursors, activity. The per-_task_ `kodyState` the
+per-job cursors and activity. The per-_task_ `kodyState` the
 board uses for lane derivation is the exception: it rides as **issue comment**,
 which GitHub stores repo-level independent of any branch. The board reads it
 via `fetchComments`, not by reading file state from the backend. Both "the
@@ -226,7 +221,6 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 | [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                                   | GET list (derivation orchestration) + POST create.               |
 | [`/api/kody/tasks/[taskId]/actions/route.ts`](../app/api/kody/tasks/[taskId]/actions/route.ts) | Per-task actions (rerun/execute/abort/fix/approve-ui/…).         |
 | [`/api/kody/tasks/approve/route.ts`](../app/api/kody/tasks/approve/route.ts)                   | Atomic approve → squash-merge → cleanup gate.                    |
-| [`/api/kody/tasks/closed/route.ts`](../app/api/kody/tasks/closed/route.ts)                     | Lightweight closed-task list (no derivation), per goal label.    |
 | [`components/TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx)                      | Lane icons/labels, card list.                                    |
 | [`components/TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx)                  | Per-task detail + action buttons.                                |
 | [`components/TaskTypeBadge.tsx`](../src/dashboard/lib/components/TaskTypeBadge.tsx)            | Feature/Bug/Refactor/Spec type badge.                            |
@@ -258,8 +252,8 @@ chip.
 **Where does task state live — the `Kody backend` branch or the issue?**
 
 Per-_task_ state is an issue **comment** (repo-global, not branch-scoped).
-The configured Kody backend holds **file-based** state — goal `state.json`,
-per-job cursors, activity. Both are engine-written; only the file-based half
+The configured Kody backend holds **file-based** state — per-job cursors and
+activity. Both are engine-written; only the file-based half
 sits on the branch.
 
 **Why is the close/reset action so heavy?**

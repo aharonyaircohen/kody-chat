@@ -10,7 +10,7 @@ package replaced GitHub-as-database for Kody's own state.
 - `convex/schema.ts` — all tables, partitioned by `tenantId` (currently the "owner/name" of the business repo), plus
   `login`/`userKey` for per-user rows. Two global tables (`actionStates`,
   `eventLog`) replace the Kody-Dashboard store repo.
-  (intents/goals/agents), `repoStore` (config docs/reports/macros/renderers),
+  (intents/agents), `repoStore` (config docs/reports/macros/renderers),
   `users` (user-state/prefs/inbox), `engine` (action state/event log),
   `importExport` (migration surface).
 - `convex/_generated/` — placeholder stubs typed from the schema; `npx convex

@@ -11,7 +11,6 @@ const kindSchema = z.enum([
   "preference",
   "fact",
   "decision",
-  "goal",
   "reference",
 ]);
 const updateSchema = z

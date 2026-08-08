@@ -212,6 +212,155 @@ describe("kody-direct send→stream→persist", () => {
     expect(handler.state.lastToolErrorText).toBeNull();
   });
 
+  it("never publishes provider draft text before committing a rendered view", async () => {
+    const d = (p: Record<string, unknown>) => `data: ${JSON.stringify(p)}\n\n`;
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [
+          { type: "text", value: "Continue?", variant: "title" },
+          {
+            type: "button",
+            label: "Approve",
+            action: {
+              id: "approve",
+              label: "Approve",
+              response: "approve",
+            },
+          },
+        ],
+      },
+      data: {},
+    };
+    restoreFetch = installFetch([
+      sseResponse([
+        d({
+          type: "data-chat-output-contract",
+          data: { mode: "exclusive-tool" },
+        }),
+        d({ type: "text-delta", delta: "Want me to continue?" }),
+        d({
+          type: "tool-input-available",
+          toolCallId: "view-1",
+          toolName: "show_view",
+          input: {},
+        }),
+        d({
+          type: "tool-output-available",
+          toolCallId: "view-1",
+          output: renderedView,
+        }),
+        d({ type: "finish" }),
+      ]),
+    ]);
+
+    const { store, setMessages: applyMessages } = messageStore(
+      seedTurn("continue?"),
+    );
+    const snapshots: Message[][] = [];
+    const setMessages = (updater: (prev: Message[]) => Message[]) => {
+      applyMessages(updater);
+      snapshots.push(structuredClone(store.messages));
+    };
+    const { handler } = makeHandler(setMessages);
+
+    await sendKodyDirectTurn(
+      { endpoint: "/api/kody/chat/kody", body: { messages: [] } },
+      { authHeaders: {}, emit: handler.handleEvent },
+    );
+
+    expect(
+      snapshots.some((messages) =>
+        messages.some((message) =>
+          message.content.includes("Want me to continue?"),
+        ),
+      ),
+    ).toBe(false);
+    expect(store.messages[1]).toMatchObject({
+      role: "assistant",
+      content: "",
+      view: renderedView,
+    });
+  });
+
+  it("keeps committed streamed text when a rendered view follows it", async () => {
+    const d = (p: Record<string, unknown>) => `data: ${JSON.stringify(p)}\n\n`;
+    const renderedView = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-after-text",
+      rendererSlug: "decision-card",
+      rendererName: "Decision card",
+      resultTarget: "chat",
+      ui: {
+        type: "stack",
+        children: [{ type: "text", value: "Choose an option" }],
+      },
+      data: {},
+    };
+    restoreFetch = installFetch([
+      sseResponse([
+        d({
+          type: "data-chat-output-contract",
+          data: { mode: "exclusive-tool" },
+        }),
+        d({
+          type: "tool-input-start",
+          toolCallId: "final-before-view",
+          toolName: "final_answer",
+        }),
+        d({
+          type: "tool-input-delta",
+          toolCallId: "final-before-view",
+          inputTextDelta: '{"content":"Here is the context."}',
+        }),
+        d({
+          type: "tool-input-available",
+          toolCallId: "final-before-view",
+          toolName: "final_answer",
+          input: { content: "Here is the context." },
+        }),
+        d({
+          type: "tool-output-available",
+          toolCallId: "final-before-view",
+          output: { content: "Here is the context." },
+        }),
+        d({
+          type: "tool-input-available",
+          toolCallId: "view-after-text",
+          toolName: "show_view",
+          input: {},
+        }),
+        d({
+          type: "tool-output-available",
+          toolCallId: "view-after-text",
+          output: renderedView,
+        }),
+        d({ type: "finish" }),
+      ]),
+    ]);
+
+    const { store, setMessages } = messageStore(seedTurn("show both"));
+    const { handler } = makeHandler(setMessages);
+
+    await sendKodyDirectTurn(
+      { endpoint: "/api/kody/chat/kody", body: { messages: [] } },
+      { authHeaders: {}, emit: handler.handleEvent },
+    );
+
+    expect(store.messages[1]).toMatchObject({
+      role: "assistant",
+      content: "Here is the context.",
+      view: renderedView,
+    });
+  });
+
   it("collects deferred directives and captures created issues without touching the bubble", async () => {
     const d = (p: Record<string, unknown>) => `data: ${JSON.stringify(p)}\n\n`;
     const switchAgent = {

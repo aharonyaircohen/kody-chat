@@ -3,13 +3,23 @@ import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
 
 export const DASHBOARD_TASK_ROUTE_ID = "task" as const;
 
+export interface DashboardNavigationParameter {
+  key: string;
+  label: string;
+  type: "text" | "positive-integer";
+  placeholder?: string;
+  validationMessage?: string;
+}
+
 export interface DashboardNavigationTarget {
   routeId: string;
   href: string;
   label: string;
+  resolvedLabel?: string;
   description: string;
   aliases: readonly string[];
   when: string;
+  parameters?: readonly DashboardNavigationParameter[];
 }
 
 export interface ResolvedDashboardNavigation {
@@ -103,6 +113,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["workflows", "queues", "steps"],
     when: "Use when the user asks to inspect or manage workflows.",
   },
+  "/pipelines": {
+    aliases: ["pipelines", "workflow sequences", "workflow queues"],
+    when: "Use when the user asks to connect or manage multiple workflows.",
+  },
   "/activity": {
     aliases: ["activity", "runs", "health", "logs"],
     when: "Use when the user asks for run health, activity, or failures.",
@@ -129,10 +143,31 @@ const TASK_TARGET: DashboardNavigationTarget = {
   routeId: DASHBOARD_TASK_ROUTE_ID,
   href: "/:issueNumber",
   label: "Task detail",
+  resolvedLabel: "Task #{issueNumber}",
   description: "Open a specific task or issue by number.",
   aliases: ["task", "issue", "ticket", "pr task"],
   when: "Use when the user asks to open a specific task or issue number. Requires issueNumber.",
+  parameters: [
+    {
+      key: "issueNumber",
+      label: "Task number",
+      type: "positive-integer",
+      placeholder: "42",
+      validationMessage: "Task navigation requires a positive issueNumber.",
+    },
+  ],
 };
+
+const HIDDEN_TARGETS: readonly DashboardNavigationTarget[] = [
+  {
+    routeId: "findings",
+    href: "/findings",
+    label: "Findings",
+    description: "Open repository findings.",
+    aliases: ["findings", "issues found"],
+    when: "Use when the user asks to inspect repository findings.",
+  },
+];
 
 function routeIdForHref(href: string): string {
   if (href === "/") return "dashboard";
@@ -154,6 +189,7 @@ function targetFromItem(item: SettingsNavItem): DashboardNavigationTarget {
 export const DASHBOARD_NAVIGATION_TARGETS: readonly DashboardNavigationTarget[] =
   [
     TASK_TARGET,
+    ...HIDDEN_TARGETS,
     ...ALL_NAV_ITEMS.map(targetFromItem).filter((target, index, all) => {
       return all.findIndex((item) => item.routeId === target.routeId) === index;
     }),
@@ -168,13 +204,17 @@ export function dashboardNavigationCatalogForPrompt(): string {
     const aliases = target.aliases.length
       ? ` Aliases: ${target.aliases.join(", ")}.`
       : "";
-    return `- ${target.routeId}: ${target.label} -> ${target.href}. ${target.when}${aliases}`;
+    const parameters = target.parameters?.length
+      ? ` Parameters: ${target.parameters.map((parameter) => parameter.key).join(", ")}.`
+      : "";
+    return `- ${target.routeId}: ${target.label} -> ${target.href}. ${target.when}${parameters}${aliases}`;
   }).join("\n");
 }
 
 export function resolveDashboardNavigationTarget(input: {
   routeId: string;
   issueNumber?: number;
+  parameters?: Readonly<Record<string, string | number>>;
   reason: string;
 }): ResolvedDashboardNavigation | { error: string } {
   const routeId = input.routeId.trim();
@@ -185,26 +225,39 @@ export function resolveDashboardNavigationTarget(input: {
     };
   }
 
-  if (target.routeId === DASHBOARD_TASK_ROUTE_ID) {
+  const values: Record<string, string> = {};
+  for (const parameter of target.parameters ?? []) {
+    const rawValue =
+      input.parameters?.[parameter.key] ??
+      (parameter.key === "issueNumber" ? input.issueNumber : undefined);
+    const value = String(rawValue ?? "").trim();
     if (
-      typeof input.issueNumber !== "number" ||
-      !Number.isInteger(input.issueNumber) ||
-      input.issueNumber <= 0
+      !value ||
+      (parameter.type === "positive-integer" &&
+        (!/^\d+$/.test(value) || Number(value) <= 0))
     ) {
-      return { error: "Task navigation requires a positive issueNumber." };
+      return {
+        error:
+          parameter.validationMessage ??
+          `${target.label} navigation requires a valid ${parameter.label.toLowerCase()}.`,
+      };
     }
-    return {
-      routeId: target.routeId,
-      href: `/${input.issueNumber}`,
-      label: `Task #${input.issueNumber}`,
-      reason: input.reason,
-    };
+    values[parameter.key] = value;
   }
+
+  const fillTemplate = (template: string) =>
+    Object.entries(values).reduce(
+      (result, [key, value]) =>
+        result
+          .replaceAll(`{${key}}`, value)
+          .replaceAll(`:${key}`, encodeURIComponent(value)),
+      template,
+    );
 
   return {
     routeId: target.routeId,
-    href: target.href,
-    label: target.label,
+    href: fillTemplate(target.href),
+    label: fillTemplate(target.resolvedLabel ?? target.label),
     reason: input.reason,
   };
 }

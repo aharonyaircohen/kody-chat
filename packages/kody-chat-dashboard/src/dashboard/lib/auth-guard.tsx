@@ -4,10 +4,9 @@
  *
  * AuthGuard — historically redirected to `/login` when no PAT was saved.
  * With the login route removed, gating now lives inside `KodyDashboard`
- * itself: it preserves the chrome (header + chat rail) and renders the
- * `<RepoManager />` empty-state in the task pane when no credentials
- * exist. This component is kept as a passthrough so its call sites stay
- * stable, and so the loading flash during auth hydration is centralised.
+ * itself: it preserves the chrome and renders either the caller-owned
+ * first-run fallback or `<RepoManager />` when no credentials exist. This
+ * component keeps the loading flash during auth hydration centralised.
  */
 "use client";
 
@@ -15,7 +14,13 @@ import { useAuth } from "./auth-context";
 import { RepoManager } from "./components/RepoManager";
 import { Loader2 } from "lucide-react";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard({
+  children,
+  fallback,
+}: {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}) {
   const { auth, loading } = useAuth();
 
   if (loading) {
@@ -26,7 +31,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!auth) return <RepoManager />;
+  if (!auth) return fallback ?? <RepoManager />;
 
   return <>{children}</>;
 }

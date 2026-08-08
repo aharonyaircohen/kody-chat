@@ -47,7 +47,7 @@ function getDefaultOwner(): string {
   return process.env.GITHUB_OWNER ?? "aharonyaircohen";
 }
 function getDefaultRepo(): string {
-  return process.env.GITHUB_REPO ?? "Kody-Dashboard";
+  return process.env.GITHUB_REPO ?? "kody-chat";
 }
 function getDefaultBranch(): string {
   return process.env.KODY_STORE_BRANCH ?? "main";

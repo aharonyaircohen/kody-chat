@@ -8,15 +8,13 @@
  * `.github/workflows/kody.yml` in the target repo, (best-effort) writes the
  * user's PAT as the
  * `KODY_TOKEN` Actions secret so the engine has GitHub auth at runtime,
- * (best-effort) decrypts the per-repo vault from the backend and
- * mirrors every entry into the consumer repo's Actions secrets so the
- * engine has provider API keys at runtime, and (best-effort) registers
- * the dashboard webhook so push-based cache invalidation works from
- * day one.
+ * and (best-effort) registers the dashboard webhook so push-based cache
+ * invalidation works from day one. Runtime secrets remain in Kody's encrypted
+ * vault; Engine reads only declared secrets through GitHub Actions OIDC.
  *
  * Idempotent: re-running on a configured repo syncs the workflow to the
- * bundled template, refreshes `KODY_TOKEN`, re-mirrors the vault, and
- * refreshes the webhook subscription.
+ * bundled template, refreshes `KODY_TOKEN`, and refreshes the webhook
+ * subscription.
  *
  * Secret writes need `repo:secrets:write` on the PAT (a normal `repo`-
  * scoped fine-grained PAT covers this). When that fails we soft-fail and
@@ -26,8 +24,10 @@ import type { Octokit } from "@octokit/rest";
 import sodium from "libsodium-wrappers";
 import { logger } from "@kody-ade/base/logger";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
-import { ensureWebhook } from "@dashboard/lib/webhooks/register";
-import { readVault } from "@kody-ade/base/vault/store";
+import {
+  ensureWebhook,
+  type EnsureWebhookResult,
+} from "@dashboard/lib/webhooks/register";
 import { readVariables } from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
@@ -37,12 +37,13 @@ import {
   type ChatModel,
 } from "@kody-ade/base/variables/models";
 import { writeEngineModel } from "@kody-ade/base/engine/config";
+import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
 export const WORKFLOW_TEMPLATE_SOURCE =
   "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
-export const WORKFLOW_PATH = ".github/workflows/kody.yml";
+export const WORKFLOW_PATH = KODY_ENGINE_WORKFLOW_PATH;
 
 export interface InstallEngineInput {
   octokit: Octokit;
@@ -68,26 +69,15 @@ export interface InstallEngineResult {
     commitSha: string | null;
     templateSource: string;
   };
-  webhook: {
-    ok: boolean;
-    created?: boolean;
-    hookId?: number;
-    error?: string;
-  };
+  webhook: EnsureWebhookResult;
   kodyTokenSecret: {
     ok: boolean;
     name: string;
     error?: string;
   };
-  vaultMirror: {
-    /** True when the vault was read AND at least one entry mirrored, OR the vault is empty. */
-    ok: boolean;
-    /** Secret names successfully written. */
-    written: string[];
-    /** Secret names that failed to write, with their error. */
-    failed: Array<{ name: string; error: string }>;
-    /** Set when reading or decrypting the vault itself failed. */
-    error?: string;
+  runtimeSecrets: {
+    source: "kody-vault";
+    authentication: "github-oidc";
   };
   nextSteps: string[];
   summary: string;
@@ -170,71 +160,6 @@ async function setRepoActionsSecret(
       error: err instanceof Error ? err.message : "set_repo_secret_failed",
     };
   }
-}
-
-/**
- * Reserved Actions secret names — GitHub forbids creating these. We skip
- * silently if the vault happens to hold one (defense-in-depth; the UI
- * shouldn't allow it).
- */
-const RESERVED_SECRET_PREFIXES = ["GITHUB_", "ACTIONS_"];
-const VALID_SECRET_NAME = /^[A-Z_][A-Z0-9_]*$/;
-
-function isMirrorable(name: string): boolean {
-  if (!VALID_SECRET_NAME.test(name)) return false;
-  if (RESERVED_SECRET_PREFIXES.some((p) => name.startsWith(p))) return false;
-  return true;
-}
-
-/**
- * Decrypt the per-repo vault and mirror every secret into the consumer
- * repo's Actions secrets so the engine sees them at runtime via
- * `toJSON(secrets)`. Soft-fail end-to-end: a vault read failure or a
- * per-entry write failure never aborts the install.
- */
-async function mirrorVaultToActionsSecrets(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<InstallEngineResult["vaultMirror"]> {
-  let doc: { secrets: Record<string, { value: string }> };
-  try {
-    const result = await readVault(octokit, owner, repo);
-    doc = result.doc;
-  } catch (err) {
-    return {
-      ok: false,
-      written: [],
-      failed: [],
-      error:
-        err instanceof Error
-          ? `vault_read_failed: ${err.message}`
-          : "vault_read_failed",
-    };
-  }
-
-  const entries = Object.entries(doc.secrets).filter(
-    ([name, entry]) => entry?.value && isMirrorable(name),
-  );
-  if (entries.length === 0) {
-    return { ok: true, written: [], failed: [] };
-  }
-
-  const written: string[] = [];
-  const failed: Array<{ name: string; error: string }> = [];
-  for (const [name, entry] of entries) {
-    const res = await setRepoActionsSecret(
-      octokit,
-      owner,
-      repo,
-      name,
-      entry.value,
-    );
-    if (res.ok) written.push(name);
-    else failed.push({ name, error: res.error });
-  }
-
-  return { ok: failed.length === 0, written, failed };
 }
 
 async function readExisting(
@@ -354,17 +279,10 @@ export async function installEngine(
             error: kodyTokenResult.error,
           };
 
-    const vaultMirror = await mirrorVaultToActionsSecrets(octokit, owner, repo);
-
     let webhook: InstallEngineResult["webhook"];
     try {
       const result = await ensureWebhook({ token, owner, repo, hookUrl });
-      webhook = {
-        ok: result.ok,
-        created: result.created,
-        hookId: result.hookId,
-        error: result.error,
-      };
+      webhook = result;
     } catch (err) {
       webhook = {
         ok: false,
@@ -380,9 +298,8 @@ export async function installEngine(
         workflowCommitSha,
         webhookOk: webhook.ok,
         kodyTokenSecretOk: kodyTokenSecret.ok,
-        vaultMirrorOk: vaultMirror.ok,
-        vaultMirroredCount: vaultMirror.written.length,
-        vaultMirrorFailedCount: vaultMirror.failed.length,
+        runtimeSecretSource: "kody-vault",
+        runtimeSecretAuthentication: "github-oidc",
       },
       "installEngine: installed engine workflow",
     );
@@ -391,30 +308,6 @@ export async function installEngine(
       'Pick "Kody Live" (or "Kody Live Fly") in the chat agent dropdown to ' +
         "verify the workflow runs. First dispatch cold-starts in ~30s.",
     ];
-    if (vaultMirror.written.length === 0 && !vaultMirror.error) {
-      nextSteps.unshift(
-        "Your repo vault is empty — Kody has no LLM key to call out with. " +
-          "Open Settings → Secrets in the dashboard and add at least one " +
-          "provider key (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), then " +
-          "re-run /init so it gets mirrored to the consumer repo.",
-      );
-    }
-    if (vaultMirror.error) {
-      nextSteps.unshift(
-        `Couldn't read the repo vault (${vaultMirror.error}). LLM provider ` +
-          `keys were not synced to the consumer repo. Open Settings → Secrets ` +
-          `to repopulate the vault, then re-run /init.`,
-      );
-    }
-    if (vaultMirror.failed.length > 0) {
-      const list = vaultMirror.failed.map((f) => f.name).join(", ");
-      nextSteps.unshift(
-        `Some vault entries failed to write as Actions secrets (${list}). ` +
-          `The PAT used here likely lacks \`repo:secrets:write\` for those. ` +
-          `Either re-mint the PAT and re-run /init, or set them by hand: ` +
-          `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
-      );
-    }
     if (!kodyTokenSecret.ok) {
       nextSteps.unshift(
         `Couldn't auto-set the \`${KODY_TOKEN_SECRET}\` Actions secret ` +
@@ -426,20 +319,34 @@ export async function installEngine(
           `https://github.com/${owner}/${repo}/settings/secrets/actions/new`,
       );
     }
+    if (!webhook.ok) {
+      if (webhook.skipped) {
+        nextSteps.push(
+          "Webhook setup was skipped because the dashboard has no public HTTPS URL. " +
+            "Set NEXT_PUBLIC_SERVER_URL to the deployed dashboard URL, then re-run /init.",
+        );
+      } else if (webhook.status === 403 || webhook.status === 404) {
+        nextSteps.push(
+          "GitHub denied the webhook update. Give the PAT Webhooks: write permission " +
+            "(or admin:repo_hook for a classic PAT), then re-run /init.",
+        );
+      } else {
+        nextSteps.push(
+          `Webhook setup failed (${webhook.detail ?? webhook.error}). Re-run /init after correcting the dashboard URL or PAT permissions.`,
+        );
+      }
+    }
 
     const tokenSummary = kodyTokenSecret.ok
       ? `${KODY_TOKEN_SECRET} secret ${workflowAction === "created" ? "set" : "refreshed"}.`
       : `${KODY_TOKEN_SECRET} secret FAILED — ${kodyTokenSecret.error ?? "unknown"}.`;
-    const vaultSummary = vaultMirror.error
-      ? `Vault sync FAILED — ${vaultMirror.error}.`
-      : vaultMirror.written.length === 0
-        ? `Vault sync: empty vault — nothing to mirror.`
-        : vaultMirror.failed.length === 0
-          ? `Vault sync: ${vaultMirror.written.length} secret(s) mirrored.`
-          : `Vault sync: ${vaultMirror.written.length} mirrored, ${vaultMirror.failed.length} failed.`;
+    const vaultSummary =
+      "Runtime secrets stay in Kody vault and use GitHub OIDC.";
     const webhookSummary = webhook.ok
-      ? `Webhook ${workflowAction === "created" ? "registered" : "refreshed"}.`
-      : `Webhook FAILED — ${webhook.error ?? "unknown"}.`;
+      ? `Webhook ${webhook.created ? "registered" : "refreshed"}.`
+      : webhook.skipped
+        ? "Webhook skipped — configure a public HTTPS dashboard URL."
+        : `Webhook FAILED — ${webhook.detail ?? webhook.error}${webhook.status ? ` (HTTP ${webhook.status})` : ""}.`;
     const workflowSummary =
       workflowAction === "created"
         ? `Engine workflow created at ${WORKFLOW_PATH}.`
@@ -459,7 +366,10 @@ export async function installEngine(
       },
       webhook,
       kodyTokenSecret,
-      vaultMirror,
+      runtimeSecrets: {
+        source: "kody-vault",
+        authentication: "github-oidc",
+      },
       nextSteps,
       summary,
     };

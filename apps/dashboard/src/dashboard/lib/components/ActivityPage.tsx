@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Copy,
   Check,
+  Zap,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
@@ -53,9 +54,10 @@ import type {
 } from "../activity/feed";
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 import { repoScopedHref } from "@kody-ade/base/routes";
+import { WorkflowEventsView } from "./WorkflowEvents";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed";
+type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed" | "events";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -1027,10 +1029,10 @@ function LogView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         Dashboard actions (capability runs/edits, task actions, vault writes,
-        agent/prompt/goal changes) attributed to the verified GitHub user who
-        made them. Persisted durably in the repo&apos;s audit-log issue (newest{" "}
-        {150} kept) and merged with this instance&apos;s in-memory ring —
-        survives redeploys and is shared across instances.
+        agent/prompt changes) attributed to the verified GitHub user who made
+        them. Persisted durably in the repo&apos;s audit-log issue (newest {150}{" "}
+        kept) and merged with this instance&apos;s in-memory ring — survives
+        redeploys and is shared across instances.
       </p>
     </div>
   );
@@ -1121,42 +1123,46 @@ export function ActivityPage() {
       <HealthBanner />
 
       <div className="mb-4 flex items-center gap-1">
-        {(["log", "auto", "runs", "runLogs", "feed"] as ActivityTab[]).map(
-          (t) => (
-            <Button
-              key={t}
-              type="button"
-              variant="ghost"
-              size="clear"
-              onClick={() => setTab(t)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                tab === t
-                  ? "bg-white/[0.08] text-white hover:bg-white/[0.08] hover:text-white"
-                  : "text-white/50 hover:text-white hover:bg-white/[0.04]",
-              )}
-            >
-              {t === "runs" ? (
-                <ActivityIcon className="w-3.5 h-3.5" />
-              ) : t === "auto" ? (
-                <Bot className="w-3.5 h-3.5" />
-              ) : t === "runLogs" ? (
-                <Clock className="w-3.5 h-3.5" />
-              ) : (
-                <ScrollText className="w-3.5 h-3.5" />
-              )}
-              {t === "log"
-                ? "Log"
-                : t === "auto"
-                  ? "Auto"
-                  : t === "runs"
-                    ? "Runs"
-                    : t === "runLogs"
-                      ? "Run Logs"
+        {(
+          ["log", "auto", "runs", "runLogs", "feed", "events"] as ActivityTab[]
+        ).map((t) => (
+          <Button
+            key={t}
+            type="button"
+            variant="ghost"
+            size="clear"
+            onClick={() => setTab(t)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              tab === t
+                ? "bg-white/[0.08] text-white hover:bg-white/[0.08] hover:text-white"
+                : "text-white/50 hover:text-white hover:bg-white/[0.04]",
+            )}
+          >
+            {t === "runs" ? (
+              <ActivityIcon className="w-3.5 h-3.5" />
+            ) : t === "auto" ? (
+              <Bot className="w-3.5 h-3.5" />
+            ) : t === "runLogs" ? (
+              <Clock className="w-3.5 h-3.5" />
+            ) : t === "events" ? (
+              <Zap className="w-3.5 h-3.5" />
+            ) : (
+              <ScrollText className="w-3.5 h-3.5" />
+            )}
+            {t === "log"
+              ? "Log"
+              : t === "auto"
+                ? "Auto"
+                : t === "runs"
+                  ? "Runs"
+                  : t === "runLogs"
+                    ? "Run Logs"
+                    : t === "events"
+                      ? "Events"
                       : "Feed"}
-            </Button>
-          ),
-        )}
+          </Button>
+        ))}
       </div>
 
       {tab === "log" && <LogView active={tab === "log"} />}
@@ -1166,6 +1172,8 @@ export function ActivityPage() {
       {tab === "runLogs" && <RunLogsView active={tab === "runLogs"} />}
 
       {tab === "feed" && <FeedView active={tab === "feed"} />}
+
+      {tab === "events" && <WorkflowEventsView />}
 
       {tab === "runs" && alert && (
         <div

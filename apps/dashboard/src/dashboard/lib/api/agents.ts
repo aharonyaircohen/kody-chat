@@ -9,13 +9,15 @@ export interface Agent {
   body: string;
   /** Capability slugs attached to this agent (loaded into its chat). */
   capabilities?: string[];
+  /** Public Agents this Agent may delegate work to. */
+  subagents?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Runtime resolution source. Local repo agent win over store agent. */
-  source?: "local" | "store";
-  /** Store-linked agent are visible and dispatchable, but not editable locally. */
+  source?: "local" | "builtin" | "store";
+  /** Code- and Store-owned agents are overridden by saving a local copy. */
   readOnly?: boolean;
 }
 
@@ -42,6 +44,7 @@ export const staffApi = {
     title: string;
     body: string;
     capabilities?: string[];
+    subagents?: string[];
     actorLogin?: string;
   }): Promise<Agent> => {
     const res = await fetch(`${API_BASE}/agents`, {
@@ -59,6 +62,7 @@ export const staffApi = {
       title?: string;
       body?: string;
       capabilities?: string[];
+      subagents?: string[];
       actorLogin?: string;
     },
   ): Promise<Agent> => {

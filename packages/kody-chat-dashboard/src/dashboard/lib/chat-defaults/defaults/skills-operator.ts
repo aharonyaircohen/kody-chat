@@ -22,11 +22,11 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
   slug: "create-capability",
   title: "create-capability",
-  body: `A Capability is exactly one folder with \`instructions.md\`, \`skills/\`, and \`tools/\`. It receives one JSON-compatible input and returns one JSON-compatible output. Explain both in \`instructions.md\`. First call \`read_capability_creation_guide\`. Never first turn.
+  body: `A Capability is exactly one folder with \`instructions.md\`, \`contract.json\`, \`skills/\`, and \`tools/\`. It receives one JSON-compatible input and returns one JSON-compatible output. Choose \`execution: "script"\` for exact repeatable work and provide \`tools/run.sh\`; otherwise choose \`execution: "agent"\`. Declare execution, input, and output in \`contract.json\`; explain the work in \`instructions.md\`. First call \`read_capability_creation_guide\`. Never first turn.
 
-Sufficiency: folder name, clear instructions, one input, one output, needed tools, and optional skills. A direct Capability uses Kody; a Workflow chooses one Agent for all its steps. Show the four-folder contents, then call \`create_or_update_capability\` only after the user approves.
+Sufficiency: folder name, clear instructions, one input, one output, needed tools, and optional skills. A direct Capability uses Kody; a Workflow chooses one Agent for all its steps. Show the folder contents, then call \`create_or_update_capability\` only after the user approves.
 
-Do not put an Agent, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in a Capability folder.`,
+Do not put an Agent identity, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in a Capability folder.`,
 };
 
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
@@ -38,5 +38,11 @@ export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
 export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
   slug: "create-workflow",
   title: "create-workflow",
-  body: `A workflow is one validated ordered run of existing capabilities. Research the request and current capabilities first, show the proposed graph and handoffs, then create an approved issue and call \`run_workflow_creator\`. Never write workflow files from chat and never call the creator on the first turn.`,
+  body: `A Workflow is one validated ordered run of existing Capabilities. Research the request and current Capabilities first, show the proposed graph and handoffs, then call \`create_or_update_workflow\` only after the user approves. The tool uses the same validated Dashboard API as the visual editor. Never call it on the first turn.`,
+};
+
+export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {
+  slug: "run-workflow",
+  title: "run-workflow",
+  body: `Use \`list_workflows\` to discover active workflows, then \`read_workflow\` to verify the selected definition. Select by the workflow's declared purpose, steps, capabilities, and \`inputSchema\`—not by a hardcoded phrase. Ask at most one question only when a required input is missing; never invent missing input. Call \`run_workflow\` with the selected ID and exact input. If it returns an approval card, stop and let the user choose. After the user clicks Approve, call \`run_workflow\` again with the exact same ID and input. Approval is server-verified and is never a model-generated argument. Do not hardcode workflow IDs, duplicate workflow logic in Chat, or create an issue unless the selected workflow requires one.`,
 };

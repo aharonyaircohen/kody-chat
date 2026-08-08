@@ -80,7 +80,7 @@ describe("expandChatViewSpec", () => {
       type: "stack",
       children: [
         { type: "text", value: "Create the lesson?", variant: "title" },
-        { type: "text", value: "" },
+        { type: "markdown", value: "" },
         {
           type: "row",
           children: [
