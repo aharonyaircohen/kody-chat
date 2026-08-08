@@ -7,6 +7,7 @@ import { resolveActiveRepo } from "@kody-ade/base/active-repo";
 import { useAuth } from "@dashboard/lib/auth-context";
 import {
   getReconciliationScope,
+  getWebhookReconciliationNotice,
   isAutomaticReconciliationOrigin,
   shouldReconcileWebhook,
 } from "./reconciliation";
@@ -62,12 +63,12 @@ export function WebhookRegistrationReconciler() {
         const body = await registerActiveWebhook(repo);
 
         if (!body.ok) {
-          if (!cancelled && body.error !== "public_url_required") {
-            toast.error("GitHub webhook setup needs attention", {
-              description:
-                body.message ||
-                `Kody will use polling for ${repo.owner}/${repo.repo} until it is repaired.`,
-            });
+          const notice = getWebhookReconciliationNotice(
+            body,
+            `${repo.owner}/${repo.repo}`,
+          );
+          if (!cancelled && notice) {
+            toast.error(notice.title, { description: notice.description });
           }
           return;
         }
@@ -75,9 +76,13 @@ export function WebhookRegistrationReconciler() {
         writeReconciliationRecord(successfulReconciliationRecord(scope, now));
       } catch (error) {
         if (!cancelled) {
-          toast.error("GitHub webhook setup needs attention", {
-            description: `Kody will use polling for ${repo.owner}/${repo.repo} until it is repaired.`,
-          });
+          const notice = getWebhookReconciliationNotice(
+            {},
+            `${repo.owner}/${repo.repo}`,
+          );
+          if (notice) {
+            toast.error(notice.title, { description: notice.description });
+          }
           console.warn("Webhook reconciliation failed", {
             scope,
             error: String(error),

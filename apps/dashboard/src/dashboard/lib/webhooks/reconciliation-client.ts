@@ -45,6 +45,8 @@ export type WebhookRegistrationResponse = {
   ok: boolean;
   error?: string;
   message?: string;
+  status?: number;
+  skipped?: boolean;
 };
 
 export async function registerActiveWebhook(
@@ -68,12 +70,16 @@ export async function registerActiveWebhook(
     ok?: boolean;
     error?: string;
     message?: string;
+    status?: number;
+    skipped?: boolean;
   };
 
   return {
     ok: response.ok && body.ok === true,
     error: body.error,
     message: body.message,
+    status: body.status,
+    skipped: body.skipped,
   };
 }
 

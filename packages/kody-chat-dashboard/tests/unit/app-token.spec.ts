@@ -109,6 +109,39 @@ describe("app-token", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // never reaches token mint
   });
 
+  it("checks App installation access separately for repositories under the same owner", async () => {
+    vi.stubEnv("GITHUB_APP_ID", "3813056");
+    vi.stubEnv("GITHUB_APP_PRIVATE_KEY", PEM);
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const value = String(url);
+      if (value.endsWith("/repos/acme/installed/installation")) {
+        return okJson({ id: 135742721 });
+      }
+      if (value.endsWith("/repos/acme/not-installed/installation")) {
+        return okJson({ message: "Not Found" }, 404);
+      }
+      if (value.endsWith("/app/installations/135742721/access_tokens")) {
+        return okJson({ token: "ghs_installationtoken" }, 201);
+      }
+      return okJson({ message: "Unexpected request" }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getInstallationToken } =
+      await import("@kody-ade/base/auth/app-token");
+
+    await expect(getInstallationToken("acme", "installed")).resolves.toBe(
+      "ghs_installationtoken",
+    );
+    await expect(
+      getInstallationToken("acme", "not-installed"),
+    ).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/repos/acme/not-installed/installation"),
+      expect.any(Object),
+    );
+  });
+
   it("accepts a base64-encoded private key", async () => {
     vi.stubEnv("GITHUB_APP_ID", "3813056");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", Buffer.from(PEM).toString("base64"));

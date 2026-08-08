@@ -34,6 +34,9 @@ const background = vi.hoisted(() => ({
   })),
   createUserOctokit: vi.fn(() => ({}) as never),
 }));
+const deliveryHealth = vi.hoisted(() => ({
+  recordWebhookDelivery: vi.fn(async () => {}),
+}));
 const ipv = vi.hoisted(() => ({
   getClientIp: vi.fn(() => "140.82.115.42"),
   isFromGitHub: vi.fn(async () => true),
@@ -53,6 +56,9 @@ const side = vi.hoisted(() => ({
 
 vi.mock("@dashboard/lib/github-client", () => gh);
 vi.mock("@dashboard/lib/webhooks/github-ip", () => ipv);
+vi.mock("@dashboard/lib/webhooks/delivery-store", () => ({
+  recordWebhookDelivery: deliveryHealth.recordWebhookDelivery,
+}));
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
@@ -220,6 +226,27 @@ describe("POST /api/webhooks/github — invalidation routing", () => {
 });
 
 describe("POST /api/webhooks/github — side effects", () => {
+  it("records an authenticated repository delivery for health checks", async () => {
+    await POST(
+      makeReq(
+        "issue_comment",
+        {
+          action: "created",
+          repository: { full_name: "acme/widgets" },
+          issue: { number: 5 },
+        },
+        { delivery: "delivery-health-1" },
+      ),
+    );
+
+    expect(deliveryHealth.recordWebhookDelivery).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "widgets",
+      deliveryId: "delivery-health-1",
+      event: "issue_comment",
+    });
+  });
+
   it("passes a completed workflow run to configured Workflow triggers", async () => {
     await POST(
       makeReq("workflow_run", {

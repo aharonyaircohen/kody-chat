@@ -11,6 +11,7 @@
  */
 import type { Octokit } from "@octokit/rest";
 import type { HealthSignal } from "./types";
+import { readRecentWebhookDelivery } from "@dashboard/lib/webhooks/delivery-store";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const SAMPLE = 20; // last N deliveries to judge
@@ -108,11 +109,24 @@ export async function probeWebhookHealth(
       };
     }
   } catch {
-    signal = {
-      ...base,
-      level: "degraded",
-      detail: "Could not read webhook delivery history.",
-    };
+    let recentDelivery = null;
+    try {
+      recentDelivery = await readRecentWebhookDelivery(owner, repo);
+    } catch {
+      // The receiver-owned record is a fallback for tokens that cannot inspect
+      // repository hooks. Preserve the degraded result if Convex is unavailable.
+    }
+    signal = recentDelivery
+      ? {
+          ...base,
+          level: "ok",
+          detail: `Kody received a verified delivery at ${recentDelivery.lastReceivedAt}.`,
+        }
+      : {
+          ...base,
+          level: "degraded",
+          detail: "Could not read webhook delivery history.",
+        };
   }
 
   cache.set(key, { signal, expiresAt: Date.now() + CACHE_TTL_MS });

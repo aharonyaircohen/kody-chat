@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { provisionBackgroundGitHubAccess } from "@kody-ade/base/auth/background-token-provisioning";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
+import { readRecentWebhookDelivery } from "@dashboard/lib/webhooks/delivery-store";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
@@ -254,36 +255,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // 3) Best-effort webhook registration. Failure is non-fatal — polling still works.
   const hookUrl = `${getPublicBaseUrl(req)}/api/webhooks/github`;
-  let webhook: AddRepoResponse["webhook"] = { ok: false };
-  try {
-    const result = await ensureWebhook({ token, owner, repo, hookUrl });
-    if (result.ok) {
-      webhook = { ok: true, created: result.created };
-      logger.info(
-        {
-          event: "webhook_registered_added_repo",
-          hookId: result.hookId,
-          created: result.created,
-          owner,
-          repo,
-        },
-        "Webhook registered for added repo",
-      );
-    } else {
-      webhook = { ok: false, error: result.error };
-      logger.info(
-        {
-          event: "webhook_register_failed_added_repo",
-          owner,
-          repo,
-          status: result.status,
-          error: result.error,
-        },
-        "Webhook registration failed for added repo (non-fatal)",
-      );
+  let webhook: AddRepoResponse["webhook"] =
+    backgroundAccess.source === "github-app" ? { ok: true } : { ok: false };
+  if (backgroundAccess.source !== "github-app") {
+    try {
+      const result = await ensureWebhook({ token, owner, repo, hookUrl });
+      if (result.ok) {
+        webhook = { ok: true, created: result.created };
+        logger.info(
+          {
+            event: "webhook_registered_added_repo",
+            hookId: result.hookId,
+            created: result.created,
+            owner,
+            repo,
+          },
+          "Webhook registered for added repo",
+        );
+      } else {
+        const recentDelivery =
+          result.status === 403 || result.status === 404
+            ? await readRecentWebhookDelivery(owner, repo).catch(() => null)
+            : null;
+        webhook = recentDelivery
+          ? { ok: true, created: false }
+          : { ok: false, error: result.error };
+        logger.info(
+          {
+            event: "webhook_register_failed_added_repo",
+            owner,
+            repo,
+            status: result.status,
+            deliveryConfirmed: Boolean(recentDelivery),
+            error: result.error,
+          },
+          "Webhook registration failed for added repo (non-fatal)",
+        );
+      }
+    } catch (err) {
+      webhook = { ok: false, error: String(err) };
     }
-  } catch (err) {
-    webhook = { ok: false, error: String(err) };
   }
 
   const response: AddRepoResponse = {

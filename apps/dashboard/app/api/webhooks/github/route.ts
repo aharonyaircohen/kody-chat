@@ -37,6 +37,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
+import { recordWebhookDelivery } from "@dashboard/lib/webhooks/delivery-store";
 import { logger } from "@kody-ade/base/logger";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { createUserOctokit } from "@kody-ade/base/github/core";
@@ -497,6 +498,49 @@ function scheduleConfiguredWorkflows(
   }
 }
 
+function scheduleDeliveryRecord(
+  eventType: string,
+  deliveryId: string,
+  payload: unknown,
+): void {
+  if (typeof payload !== "object" || payload === null) return;
+  const repository = (payload as Record<string, unknown>).repository;
+  if (typeof repository !== "object" || repository === null) return;
+  const fullName = (repository as Record<string, unknown>).full_name;
+  if (typeof fullName !== "string") return;
+  const separator = fullName.indexOf("/");
+  if (separator <= 0 || separator === fullName.length - 1) return;
+  const owner = fullName.slice(0, separator);
+  const repo = fullName.slice(separator + 1);
+
+  const work = async () => {
+    try {
+      await recordWebhookDelivery({
+        owner,
+        repo,
+        deliveryId,
+        event: eventType,
+      });
+    } catch (error) {
+      logger.warn(
+        {
+          event: "webhook_delivery_record_failed",
+          owner,
+          repo,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Could not record verified webhook delivery",
+      );
+    }
+  };
+
+  try {
+    after(work);
+  } catch {
+    void work();
+  }
+}
+
 // ============ Handler ============
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -546,6 +590,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Durable delivery claiming happens in the after-response task. A retry
   // can safely reclaim a failed delivery, while the webhook ACK stays fast.
   scheduleConfiguredWorkflows(eventType, deliveryId, payload);
+  scheduleDeliveryRecord(eventType, deliveryId, payload);
 
   if (deliveryId && rememberDelivery(deliveryId)) {
     return NextResponse.json({ ok: true, dedup: true }, { status: 200 });

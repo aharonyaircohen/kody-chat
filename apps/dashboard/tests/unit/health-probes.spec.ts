@@ -11,6 +11,14 @@ import {
 import { buildHealthReport } from "@dashboard/lib/health/report";
 import { __resetDispatchFailures } from "@dashboard/lib/health/dispatch-failures";
 
+const deliveryHealth = vi.hoisted(() => ({
+  readRecentWebhookDelivery: vi.fn(),
+}));
+
+vi.mock("@dashboard/lib/webhooks/delivery-store", () => ({
+  readRecentWebhookDelivery: deliveryHealth.readRecentWebhookDelivery,
+}));
+
 /** Build a fetch stub returning the given JSON body + ok flag. */
 function jsonFetch(body: unknown, ok = true, status = 200): typeof fetch {
   return vi.fn(
@@ -28,6 +36,8 @@ beforeEach(() => {
   __resetGitHubStatusCache();
   __resetWebhookCache();
   __resetDispatchFailures();
+  deliveryHealth.readRecentWebhookDelivery.mockReset();
+  deliveryHealth.readRecentWebhookDelivery.mockResolvedValue(null);
 });
 
 describe("probeGitHubActionsStatus (glue)", () => {
@@ -139,6 +149,29 @@ describe("probeWebhookHealth (glue)", () => {
     };
     expect((await probeWebhookHealth(boom, "o", "r")).level).toBe("degraded");
   });
+
+  it("uses a verified receiver delivery when the PAT cannot inspect hooks", async () => {
+    const denied: any = {
+      rest: {
+        repos: {
+          listWebhooks: vi.fn(async () => {
+            throw new Error("Not Found");
+          }),
+        },
+      },
+      request: vi.fn(),
+    };
+    deliveryHealth.readRecentWebhookDelivery.mockResolvedValueOnce({
+      lastReceivedAt: "2026-08-08T13:56:55.336Z",
+      event: "issue_comment",
+      deliveryId: "delivery-live",
+    });
+
+    const signal = await probeWebhookHealth(denied, "acme", "widgets");
+
+    expect(signal.level).toBe("ok");
+    expect(signal.detail).toContain("verified delivery");
+  });
 });
 
 describe("buildHealthReport (aggregator)", () => {
@@ -196,7 +229,7 @@ describe("buildHealthReport (aggregator)", () => {
     modelSpec: "minimax/x",
     hasModelKey: true,
     vaultConfigured: true,
-    hasVaultGithubToken: true,
+    hasBackgroundGithubAccess: true,
   };
 
   it("rolls up to down when Actions is out", async () => {

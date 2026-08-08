@@ -6,7 +6,7 @@
  * GitHub API concerns do not leak into each other.
  */
 
-export const RECONCILIATION_VERSION = "v1";
+export const RECONCILIATION_VERSION = "v2";
 export const RECONCILIATION_RETRY_MS = 60 * 60 * 1000;
 
 export type WebhookReconciliationRecord = {
@@ -15,6 +15,42 @@ export type WebhookReconciliationRecord = {
   status: "ok" | "failed";
   attemptedAt: number;
 };
+
+export type WebhookReconciliationFailure = {
+  error?: string;
+  status?: number;
+  skipped?: boolean;
+};
+
+export type WebhookReconciliationNotice = {
+  title: string;
+  description: string;
+};
+
+export function getWebhookReconciliationNotice(
+  failure: WebhookReconciliationFailure,
+  repository: string,
+): WebhookReconciliationNotice | undefined {
+  if (
+    failure.skipped ||
+    failure.error === "public_url_required" ||
+    failure.error === "preview_environment"
+  ) {
+    return undefined;
+  }
+
+  if (failure.status === 403 || failure.status === 404) {
+    return {
+      title: "GitHub webhook permission required",
+      description: `The connected GitHub token cannot manage webhooks for ${repository}. Give it repository access and Webhooks read and write permission, then reconnect the repository. Kody will keep checking for updates meanwhile.`,
+    };
+  }
+
+  return {
+    title: "GitHub webhook check failed",
+    description: `Kody could not check webhook access for ${repository}. Existing webhook deliveries may still work; Kody will retry automatically and keep checking for updates.`,
+  };
+}
 
 export function getReconciliationScope(owner: string, repo: string): string {
   return `${owner.trim().toLowerCase()}/${repo.trim().toLowerCase()}`;

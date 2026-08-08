@@ -42,4 +42,9 @@ describe("webhook registration reconciler", () => {
     expect(componentSource).toMatch(/readReconciliationRecord/);
     expect(componentSource).not.toMatch(/localStorage/);
   });
+
+  it("uses the shared notice policy instead of claiming the webhook is broken", () => {
+    expect(componentSource).toMatch(/getWebhookReconciliationNotice/);
+    expect(componentSource).not.toMatch(/until it is repaired/);
+  });
 });

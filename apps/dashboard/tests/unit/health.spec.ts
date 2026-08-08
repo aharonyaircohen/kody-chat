@@ -156,9 +156,13 @@ describe("vault signal", () => {
     expect(
       buildVaultSignal({ configured: true, hasGithubToken: false }).level,
     ).toBe("degraded");
-    expect(
-      buildVaultSignal({ configured: true, hasGithubToken: true }).level,
-    ).toBe("ok");
+    const available = buildVaultSignal({
+      configured: true,
+      hasGithubToken: true,
+    });
+    expect(available.level).toBe("ok");
+    expect(available.label).toBe("Background GitHub access");
+    expect(available.detail).toBe("Background GitHub access is configured.");
   });
 });
 

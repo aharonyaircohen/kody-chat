@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   ensureWebhook: vi.fn(),
   provisionBackgroundGitHubAccess: vi.fn(),
+  readRecentWebhookDelivery: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/webhooks/register", () => ({
@@ -12,6 +13,10 @@ vi.mock("@dashboard/lib/webhooks/register", () => ({
 
 vi.mock("@kody-ade/base/auth/background-token-provisioning", () => ({
   provisionBackgroundGitHubAccess: dependencies.provisionBackgroundGitHubAccess,
+}));
+
+vi.mock("@dashboard/lib/webhooks/delivery-store", () => ({
+  readRecentWebhookDelivery: dependencies.readRecentWebhookDelivery,
 }));
 
 vi.mock("@kody-ade/base/auth/oauth-url", () => ({
@@ -44,6 +49,7 @@ describe("POST /api/kody/repos/add background access", () => {
       created: false,
       hookId: 42,
     });
+    dependencies.readRecentWebhookDelivery.mockResolvedValue(null);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string | URL | Request) => {
@@ -102,5 +108,42 @@ describe("POST /api/kody/repos/add background access", () => {
       message: "Secure background GitHub access is not configured.",
     });
     expect(dependencies.ensureWebhook).not.toHaveBeenCalled();
+  });
+
+  it("does not add a duplicate repository webhook when the GitHub App owns delivery", async () => {
+    dependencies.provisionBackgroundGitHubAccess.mockResolvedValue({
+      ok: true,
+      source: "github-app",
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      webhook: { ok: true },
+      backgroundAccess: { ok: true, source: "github-app" },
+    });
+    expect(dependencies.ensureWebhook).not.toHaveBeenCalled();
+  });
+
+  it("accepts an existing recently delivered webhook the PAT cannot manage", async () => {
+    dependencies.ensureWebhook.mockResolvedValue({
+      ok: false,
+      error: "list hooks failed",
+      status: 404,
+    });
+    dependencies.readRecentWebhookDelivery.mockResolvedValue({
+      lastReceivedAt: "2026-08-08T13:56:55.336Z",
+      event: "issue_comment",
+      deliveryId: "delivery-live",
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      webhook: { ok: true, created: false },
+      backgroundAccess: { ok: true, source: "encrypted-pat" },
+    });
   });
 });

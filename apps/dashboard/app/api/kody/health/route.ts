@@ -25,6 +25,7 @@ import {
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { buildHealthReport } from "@dashboard/lib/health/report";
 import { keyNameForModelSpec } from "@dashboard/lib/health/model-health";
 import type { RunLite } from "@dashboard/lib/health/runs-health";
@@ -61,8 +62,8 @@ export async function GET(req: NextRequest) {
 
     // Vault standing (the webhook background-write dependency).
     const vaultConfigured = isVaultConfigured();
-    const hasVaultGithubToken = vaultConfigured
-      ? Boolean(await getSecret("GITHUB_TOKEN", { req, vaultOnly: true }))
+    const hasBackgroundGithubAccess = vaultConfigured
+      ? Boolean(await resolveBackgroundToken(owner, repo))
       : false;
 
     const report = await buildHealthReport({
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
       modelSpec,
       hasModelKey,
       vaultConfigured,
-      hasVaultGithubToken,
+      hasBackgroundGithubAccess,
       dashboardUrlHint: process.env.NEXT_PUBLIC_SERVER_URL || undefined,
     });
 

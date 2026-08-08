@@ -3,6 +3,7 @@ import {
   RECONCILIATION_RETRY_MS,
   RECONCILIATION_VERSION,
   getReconciliationScope,
+  getWebhookReconciliationNotice,
   isAutomaticReconciliationOrigin,
   shouldReconcileWebhook,
   type WebhookReconciliationRecord,
@@ -94,5 +95,35 @@ describe("webhook reconciliation policy", () => {
     expect(
       isAutomaticReconciliationOrigin("https://kody.example.com", ""),
     ).toBe(true);
+  });
+
+  it("explains missing GitHub webhook permission without claiming the hook is broken", () => {
+    expect(
+      getWebhookReconciliationNotice(
+        { error: "list hooks failed", status: 404 },
+        "acme/service",
+      ),
+    ).toEqual({
+      title: "GitHub webhook permission required",
+      description:
+        "The connected GitHub token cannot manage webhooks for acme/service. Give it repository access and Webhooks read and write permission, then reconnect the repository. Kody will keep checking for updates meanwhile.",
+    });
+  });
+
+  it("does not show an error when automatic registration is intentionally skipped", () => {
+    expect(
+      getWebhookReconciliationNotice(
+        { error: "preview_environment", skipped: true },
+        "acme/service",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("describes an unknown failure as a check failure, not a broken webhook", () => {
+    expect(getWebhookReconciliationNotice({}, "acme/service")).toEqual({
+      title: "GitHub webhook check failed",
+      description:
+        "Kody could not check webhook access for acme/service. Existing webhook deliveries may still work; Kody will retry automatically and keep checking for updates.",
+    });
   });
 });

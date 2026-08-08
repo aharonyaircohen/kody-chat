@@ -2,19 +2,17 @@
  * @fileType utility
  * @domain kody
  * @pattern health-probe-vault
- * @ai-summary Probes the per-repo secrets vault. The webhook background path
- *   (inbox writes, notifications) bootstraps its GitHub token from the vault's
- *   GITHUB_TOKEN secret; if KODY_MASTER_KEY is unset or that secret is absent,
- *   those writes silently no-op (the empty-inbox failure mode). Pure builder +
- *   thin orchestration; the route supplies the resolved booleans.
+ * @ai-summary Reports whether unattended GitHub work has a usable credential
+ *   for this repository. The credential can come from the GitHub App, Kody's
+ *   encrypted repository store, or the legacy vault fallback.
  */
 import type { HealthSignal } from "./types";
 
 /**
  * Build the vault HealthSignal from resolved inputs. Pure — unit-tested.
  *  - master key unset      ⇒ degraded: vault disabled, falls back to env.
- *  - configured, no token  ⇒ degraded: webhook background writes will no-op.
- *  - configured + token    ⇒ ok.
+ *  - configured, no access ⇒ degraded: webhook background writes will no-op.
+ *  - configured + access   ⇒ ok.
  */
 export function buildVaultSignal(input: {
   configured: boolean;
@@ -22,14 +20,14 @@ export function buildVaultSignal(input: {
 }): HealthSignal {
   const base: Pick<HealthSignal, "id" | "label"> = {
     id: "vault",
-    label: "Secrets vault",
+    label: "Background GitHub access",
   };
   if (!input.configured) {
     return {
       ...base,
       level: "degraded",
       detail:
-        "Vault not configured (KODY_MASTER_KEY unset) — secrets fall back to env vars.",
+        "Encrypted credential storage is not configured (KODY_MASTER_KEY unset).",
     };
   }
   if (!input.hasGithubToken) {
@@ -37,12 +35,12 @@ export function buildVaultSignal(input: {
       ...base,
       level: "degraded",
       detail:
-        "Vault has no GITHUB_TOKEN — webhook-driven inbox/notification writes will be skipped.",
+        "No background GitHub credential is available for webhook-driven work.",
     };
   }
   return {
     ...base,
     level: "ok",
-    detail: "Vault configured with a GITHUB_TOKEN.",
+    detail: "Background GitHub access is configured.",
   };
 }
