@@ -25,24 +25,24 @@ describe("deliverWorkflowInboxAlert", () => {
     await deliverWorkflowInboxAlert({
       owner: "acme",
       repo: "shop",
-      workflowId: "review-merge",
+      workflowId: "review-fix",
       runId: "run-7",
       summary: "UI Review could not log in because the credentials were rejected.",
-      url: "https://dashboard.example/repo/acme/shop/workflows/review-merge",
+      url: "https://dashboard.example/repo/acme/shop/workflows/review-fix",
       octokit: {} as never,
     });
 
     expect(h.appendInboxFeed).toHaveBeenCalledWith([
       expect.objectContaining({
-        id: "kody-workflow:alice:review-merge:run-7",
+        id: "kody-workflow:alice:review-fix:run-7",
         login: "alice",
         source: "kody",
         threadType: "Workflow",
-        title: "Review Merge needs attention",
+        title: "Review Fix needs attention",
         snippet: "UI Review could not log in because the credentials were rejected.",
       }),
       expect.objectContaining({
-        id: "kody-workflow:bob:review-merge:run-7",
+        id: "kody-workflow:bob:review-fix:run-7",
         login: "bob",
       }),
     ]);
@@ -54,10 +54,10 @@ describe("deliverWorkflowInboxAlert", () => {
     await deliverWorkflowInboxAlert({
       owner: "acme",
       repo: "shop",
-      workflowId: "review-merge",
+      workflowId: "review-fix",
       runId: "run-7",
       summary: "Blocked",
-      url: "https://dashboard.example/repo/acme/shop/workflows/review-merge",
+      url: "https://dashboard.example/repo/acme/shop/workflows/review-fix",
       octokit: {} as never,
     });
 

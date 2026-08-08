@@ -16,7 +16,7 @@ describe("pipeline runs", () => {
       steps: [
         {
           id: "review",
-          workflowId: "review-merge",
+          workflowId: "review-fix",
           status: "pending" as const,
         },
         { id: "merge", workflowId: "merge", status: "pending" as const },
@@ -67,7 +67,7 @@ describe("pipeline runs", () => {
       pipelineId: "review-and-merge",
       runId: "run-failed",
       input: { pr: 42 },
-      steps: [{ id: "review", workflowId: "review-merge", status: "pending" }],
+      steps: [{ id: "review", workflowId: "review-fix", status: "pending" }],
       now: NOW,
     });
     await t.mutation(api.pipelineRuns.markDispatched, {
@@ -103,7 +103,7 @@ describe("pipeline runs", () => {
       pipelineId: "review-and-merge",
       runId: "run-blocked",
       input: { pr: 42 },
-      steps: [{ id: "review", workflowId: "review-merge", status: "pending" }],
+      steps: [{ id: "review", workflowId: "review-fix", status: "pending" }],
       now: NOW,
     });
     await t.mutation(api.pipelineRuns.markDispatched, {

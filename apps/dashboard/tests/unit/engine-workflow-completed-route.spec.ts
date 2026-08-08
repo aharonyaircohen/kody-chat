@@ -71,7 +71,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
   it("notifies repository operators when a workflow is blocked", async () => {
     const response = await POST(
       request({
-        workflowId: "review-merge",
+        workflowId: "review-fix",
         runId: "workflow-run-8",
         status: "blocked",
         summary:
@@ -84,10 +84,10 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     expect(h.deliverWorkflowInboxAlert).toHaveBeenCalledWith({
       owner: "acme",
       repo: "shop",
-      workflowId: "review-merge",
+      workflowId: "review-fix",
       runId: "workflow-run-8",
       summary: "UI Review could not run because LOGIN_PASSWORD is missing.",
-      url: "http://localhost/repo/acme/shop/workflows/review-merge",
+      url: "http://localhost/repo/acme/shop/workflows/review-fix",
       octokit: { authenticated: true },
     });
     expect(h.dispatchWorkflowTriggers).toHaveBeenCalledWith(
@@ -102,7 +102,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
   it("does not add an Inbox alert for a successful workflow", async () => {
     const response = await POST(
       request({
-        workflowId: "review-merge",
+        workflowId: "review-fix",
         runId: "workflow-run-9",
         status: "success",
       }),
@@ -119,7 +119,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
 
     const response = await POST(
       request({
-        workflowId: "review-merge",
+        workflowId: "review-fix",
         runId: "workflow-run-10",
         status: "blocked",
         summary: "QA credentials are missing.",

@@ -195,7 +195,7 @@ describe("resolveActionData", () => {
         event: "github.workflow_run.completed",
         action: {
           type: "start-workflow",
-          workflowId: "review-merge",
+          workflowId: "review-fix",
           inputMap: {
             pr: "payload.pr",
             headSha: "payload.headSha",

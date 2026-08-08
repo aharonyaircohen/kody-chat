@@ -10,14 +10,14 @@ describe("Pipeline definitions", () => {
     const pipeline = buildPipelineDefinition({
       name: "Review then merge",
       steps: [
-        { id: "review", workflow: "review-merge" },
+        { id: "review", workflow: "review-fix" },
         { id: "merge", workflow: "merge" },
       ],
     });
 
     expect(
       validatePipelineDefinition(pipeline, {
-        knownWorkflows: new Set(["review-merge", "merge"]),
+        knownWorkflows: new Set(["review-fix", "merge"]),
       }),
     ).toEqual([]);
   });
@@ -26,14 +26,14 @@ describe("Pipeline definitions", () => {
     const pipeline = buildPipelineDefinition({
       name: "Broken",
       steps: [
-        { id: "same", workflow: "review-merge" },
+        { id: "same", workflow: "review-fix" },
         { id: "same", workflow: "missing" },
       ],
     });
 
     expect(
       validatePipelineDefinition(pipeline, {
-        knownWorkflows: new Set(["review-merge"]),
+        knownWorkflows: new Set(["review-fix"]),
       }).map((issue) => issue.code),
     ).toEqual(["duplicate_step_id", "unknown_workflow"]);
   });

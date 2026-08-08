@@ -127,7 +127,7 @@ describe("POST /api/kody/triggers workflow policy", () => {
       pipelineId: "guarded-pipeline",
       definition: {
         name: "Guarded Pipeline",
-        steps: [{ id: "review", workflow: "review-merge" }],
+        steps: [{ id: "review", workflow: "review-fix" }],
         createdAt: "2026-08-08T00:00:00.000Z",
         updatedAt: "2026-08-08T00:00:00.000Z",
       },

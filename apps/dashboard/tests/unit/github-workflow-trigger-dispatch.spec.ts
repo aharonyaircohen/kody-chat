@@ -28,7 +28,7 @@ vi.mock("@dashboard/features/pipelines/server/company-pipeline-loader", () => ({
     vi.fn(async () => ({
       pipeline: {
         name: "Review and Merge",
-        steps: [{ id: "review", workflow: "review-merge" }],
+        steps: [{ id: "review", workflow: "review-fix" }],
         createdAt: "2026-08-08T00:00:00.000Z",
         updatedAt: "2026-08-08T00:00:00.000Z",
       },
