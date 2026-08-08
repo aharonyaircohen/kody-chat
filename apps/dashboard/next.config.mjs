@@ -76,6 +76,8 @@ const nextConfig = {
   // server trace so deployed chat routes see the same files as local chat.
   outputFileTracingIncludes: {
     "/api/kody/chat/kody": ["./src/dashboard/features/**/guide.md"],
+    "/api/kody/chat/brain": ["./src/dashboard/features/**/guide.md"],
+    "/api/kody/chat/brain-fly": ["./src/dashboard/features/**/guide.md"],
   },
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`

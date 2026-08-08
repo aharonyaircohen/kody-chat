@@ -38,6 +38,8 @@ describe("feature guide runtime wiring", () => {
 
     expect(config).toContain("outputFileTracingIncludes");
     expect(config).toContain("src/dashboard/features/**/guide.md");
+    expect(config).toContain('"/api/kody/chat/brain"');
+    expect(config).toContain('"/api/kody/chat/brain-fly"');
   });
 
   it("adds the automatically resolved guide to the shared Agent prompt", () => {

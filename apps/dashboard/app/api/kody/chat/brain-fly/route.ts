@@ -52,6 +52,7 @@ import {
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
+import { withDashboardFeatureGuideContext } from "@dashboard/lib/feature-guides/brain-context";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.
@@ -216,6 +217,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let messageWithFeatureGuide = message ?? "";
+    if (!isResume) {
+      try {
+        messageWithFeatureGuide = await withDashboardFeatureGuideContext({
+          message: message ?? "",
+          currentPage: body.currentPage,
+        });
+      } catch (err) {
+        logger.warn(
+          { err, owner: ctx.context.owner, repo: ctx.context.repo },
+          "chat/brain-fly: feature guide load failed — proceeding without it",
+        );
+      }
+    }
+
     let agentIdentity: BrainAgentIdentity | undefined;
     if (!isResume) {
       try {
@@ -249,7 +265,7 @@ export async function POST(req: NextRequest) {
       message: isResume
         ? ""
         : withDashboardContext(
-            withPageContext(message ?? "", body.currentPage),
+            withPageContext(messageWithFeatureGuide, body.currentPage),
             dashboardContext,
           ),
       taskContext: body.taskContext,
