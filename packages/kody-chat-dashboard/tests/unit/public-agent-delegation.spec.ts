@@ -347,7 +347,7 @@ describe("public Agent delegation", () => {
       result: "Agency task complete.",
       reasoning: "I checked the Agency definitions before answering.",
       reference: "Intent is plain-language direction only.",
-      evidence: 'Evidence item 1: {"agents":["kody"]}',
+      evidence: 'Evidence item 1 (inspect_agency): {"agents":["kody"]}',
     });
 
     expect(reasoningDeltas).toEqual([
@@ -462,8 +462,34 @@ describe("public Agent delegation", () => {
         },
       ]),
     ).toBe(
-      'Evidence item 1: {"path":"src/index.ts","content":"export const ok = true"}',
+      'Evidence item 1 (github_get_file): {"path":"src/index.ts","content":"export const ok = true"}',
     );
+  });
+
+  it("puts the latest focused tool evidence first when a broad result is large", () => {
+    const evidence = collectPublicAgentEvidence([
+      {
+        toolResults: [
+          {
+            toolName: "github_list_tree",
+            output: { tree: "x".repeat(40_000) },
+          },
+        ],
+      },
+      {
+        toolResults: [
+          {
+            toolName: "github_get_file",
+            output: { path: "package.json", content: "next payload" },
+          },
+        ],
+      },
+    ]);
+
+    expect(evidence).toMatch(
+      /^Evidence item 2 \(github_get_file\): \{"path":"package.json","content":"next payload"\}/,
+    );
+    expect(evidence).toContain("Evidence item 1 (github_list_tree):");
   });
 
   it("preserves the authoritative reference when a specialist model call fails", async () => {
@@ -548,7 +574,8 @@ describe("public Agent delegation", () => {
       sessionId: "evidence-child-session",
       reasoning: "Inspected the repository.",
       reference: "Repository claims require current evidence.",
-      evidence: 'Evidence item 1: {"directories":["packages"]}',
+      evidence:
+        'Evidence item 1 (inspect_repository): {"directories":["packages"]}',
     });
   });
 
@@ -663,7 +690,8 @@ describe("public Agent delegation", () => {
       agent: "repo-scout",
       sessionId: "fabricated-tool-session",
       result: "The repository contains a packages directory.",
-      evidence: 'Evidence item 1: {"directories":["packages"]}',
+      evidence:
+        'Evidence item 1 (inspect_repository): {"directories":["packages"]}',
     });
     expect(stream).toHaveBeenCalledTimes(2);
     expect(stream.mock.calls[1]![0]).toEqual(

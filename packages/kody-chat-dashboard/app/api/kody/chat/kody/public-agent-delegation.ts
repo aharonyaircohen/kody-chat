@@ -44,6 +44,7 @@ export interface PublicAgentFailure {
 }
 
 const MAX_PUBLIC_AGENT_EVIDENCE_CHARS = 40_000;
+const MAX_PUBLIC_AGENT_EVIDENCE_ITEM_CHARS = 12_000;
 const MAX_PUBLIC_AGENT_REASONING_CHARS = 40_000;
 const MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS = 3_000;
 const PUBLIC_AGENT_TASK_TIMEOUT_MS = 35_000;
@@ -139,13 +140,19 @@ export function collectPublicAgentEvidence(
     toolResults?: readonly { toolName?: string; output?: unknown }[];
   }[],
 ): string {
-  const evidence = steps
+  const evidenceItems = steps
     .flatMap((step) => step.toolResults ?? [])
-    .map(
-      (toolResult, index) =>
-        `Evidence item ${index + 1}: ${serializeEvidence(toolResult.output)}`,
-    )
-    .join("\n\n");
+    .map((toolResult, index) => ({ toolResult, index }))
+    .reverse()
+    .map(({ toolResult, index }) => {
+      const toolLabel = toolResult.toolName?.trim()
+        ? ` (${toolResult.toolName.trim()})`
+        : "";
+      return `Evidence item ${index + 1}${toolLabel}: ${serializeEvidence(
+        toolResult.output,
+      ).slice(0, MAX_PUBLIC_AGENT_EVIDENCE_ITEM_CHARS)}`;
+    });
+  const evidence = evidenceItems.join("\n\n");
   return evidence.slice(0, MAX_PUBLIC_AGENT_EVIDENCE_CHARS);
 }
 
