@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import {
   buildCompanyStoreHtmlUrl,
@@ -15,6 +17,7 @@ import {
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 import { listStoreCatalogSlugs } from "@dashboard/lib/store-catalog-index";
+import { runnableStoreDefinitionSlugs } from "@dashboard/lib/store-installation-status";
 import {
   listStoreSolutions,
   loadStoreSolutionCatalog,
@@ -87,10 +90,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const octokit = getOctokit();
-    const [localLoops, engine] = await Promise.all([
-      listRepositoryLoops(octokit, auth.owner, auth.repo),
-      getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
-    ]);
+    const tenantId = `${auth.owner}/${auth.repo}`;
+    const backend = createBackendClient();
+    const [localLoops, engine, agentDefinitions, capabilityDefinitions] =
+      await Promise.all([
+        listRepositoryLoops(octokit, auth.owner, auth.repo),
+        getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
+        backend.query(backendApi.definitions.listCurrent, {
+          tenantId,
+          kind: "agent",
+        }),
+        backend.query(backendApi.definitions.listCurrent, {
+          tenantId,
+          kind: "capability",
+        }),
+      ]);
     const config = engine.config.company;
     const active = {
       agent: new Set(config?.activeAgents ?? []),
@@ -100,6 +114,14 @@ export async function GET(req: NextRequest) {
       feature: new Set(config?.activeFeatures ?? []),
       loop: new Set(localLoops.map((item) => item.id)),
     };
+    const runnableAgents = runnableStoreDefinitionSlugs(
+      active.agent,
+      agentDefinitions,
+    );
+    const runnableCapabilities = runnableStoreDefinitionSlugs(
+      active.capability,
+      capabilityDefinitions,
+    );
     const {
       capabilities,
       agents,
@@ -132,8 +154,8 @@ export async function GET(req: NextRequest) {
 
     const solutions: CatalogSolution[] = solutionRecords.map((solution) => {
       const resolved = resolveStoreSolutionTree(solution, solutionCatalog, {
-        agents: active.agent,
-        capabilities: active.capability,
+        agents: runnableAgents,
+        capabilities: runnableCapabilities,
         workflows: active.workflow,
         loops: active.loop,
       });
@@ -156,7 +178,7 @@ export async function GET(req: NextRequest) {
         description: `Capability folder: ${slug}`,
         kind: "capability" as const,
         htmlUrl: buildCompanyStoreHtmlUrl("capabilities", slug),
-        installed: active.capability.has(slug),
+        installed: runnableCapabilities.has(slug),
         uninstallBlockedBy: [],
       })),
       ...agents.map((slug) => ({
@@ -165,7 +187,7 @@ export async function GET(req: NextRequest) {
         description: `Agent: ${slug}`,
         kind: "agent" as const,
         htmlUrl: buildCompanyStoreBlobUrl(`agents/${slug}.md`),
-        installed: active.agent.has(slug),
+        installed: runnableAgents.has(slug),
         uninstallBlockedBy: workflowBlockers(slug),
       })),
       ...commands.map((slug) => ({

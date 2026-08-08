@@ -38,4 +38,11 @@ describe("simple Store catalog", () => {
     expect(source).toContain("resolveStoreSolutionTree");
     expect(source).toContain("solutions");
   });
+
+  it("requires active Agents and Capabilities to exist in the execution backend", () => {
+    expect(source).toContain("backendApi.definitions.listCurrent");
+    expect(source).toContain("runnableStoreDefinitionSlugs");
+    expect(source).toContain("runnableAgents");
+    expect(source).toContain("runnableCapabilities");
+  });
 });
