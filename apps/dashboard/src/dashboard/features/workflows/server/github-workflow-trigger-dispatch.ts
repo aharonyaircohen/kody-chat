@@ -213,7 +213,7 @@ export async function dispatchWorkflowTriggers(input: {
         pipelineId: trigger.action.pipelineId,
         pipelineRunId,
         pipeline: loaded.pipeline,
-        pipelineInput,
+        facts: pipelineInput,
       });
     } catch (error) {
       logger.warn(

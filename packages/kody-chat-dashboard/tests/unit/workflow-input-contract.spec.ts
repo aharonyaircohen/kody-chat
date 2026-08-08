@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeWorkflowDefinition,
+  workflowInputFromFacts,
   validateWorkflowInput,
 } from "../../src/dashboard/lib/workflow-definitions";
 
@@ -39,6 +40,18 @@ describe("workflow input contract", () => {
       { code: "invalid_workflow_input", path: "input" },
     ]);
     expect(validateWorkflowInput({ issue: 42 }, inputSchema)).toEqual([]);
+  });
+
+  it("selects only declared Workflow inputs from shared Pipeline facts", () => {
+    expect(
+      workflowInputFromFacts(
+        { issue: 42, verdict: "pass", internalRunId: "run-1" },
+        inputSchema,
+      ),
+    ).toEqual({ issue: 42 });
+    expect(
+      workflowInputFromFacts({ issue: 42, verdict: "pass" }, undefined),
+    ).toEqual({ issue: 42, verdict: "pass" });
   });
 
   it("enforces nested, enum, array, and string constraints", () => {

@@ -183,7 +183,7 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       expect.objectContaining({
         pipelineId: "review-and-merge",
         pipelineRunId: expect.stringMatching(/^run-trigger-/),
-        pipelineInput: { pr: 3943 },
+      facts: { pr: 3943 },
       }),
     );
     expect(h.startWorkflow).not.toHaveBeenCalled();

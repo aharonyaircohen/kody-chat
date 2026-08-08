@@ -15,7 +15,7 @@ import { Label } from "@kody-ade/base/ui/label";
 import type { PipelineDefinitionInput, PipelineDefinitionRecord } from "@dashboard/lib/pipeline-definitions";
 import type { WorkflowDefinitionRecord } from "@dashboard/lib/workflow-definitions";
 
-type Step = { id: string; workflow: string; inputMap?: Record<string, string> };
+type Step = { id: string; workflow: string };
 
 export function PipelineEditorDialog(props: {
   open: boolean;

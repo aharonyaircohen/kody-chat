@@ -136,7 +136,11 @@ describe("POST /api/kody/engine/workflow-completed", () => {
         workflowId: "ci-repair",
         runId: "workflow-run-7",
         status: "success",
-        output: { pr: 3947, headSha: "abcdef1234567" },
+        output: {
+          pr: 3947,
+          headSha: "abcdef1234567",
+          verdict: "pass",
+        },
       }),
     );
 
@@ -157,8 +161,18 @@ describe("POST /api/kody/engine/workflow-completed", () => {
             runId: "workflow-run-7",
             status: "success",
             pr: 3947,
+            verdict: "pass",
           }),
         }),
+      }),
+    );
+    expect(h.advancePipelineForWorkflowCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: {
+          pr: 3947,
+          headSha: "abcdef1234567",
+          verdict: "pass",
+        },
       }),
     );
     expect(h.clearGitHubContext).toHaveBeenCalledTimes(1);

@@ -5,13 +5,13 @@ import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
 import {
-  resolvePipelineStepInput,
   type PipelineDefinition,
   type PipelineStepDefinition,
 } from "@dashboard/lib/pipeline-definitions";
 import {
   validateWorkflowDefinition,
   validateWorkflowInput,
+  workflowInputFromFacts,
 } from "@dashboard/lib/workflow-definitions";
 import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
 import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
@@ -36,7 +36,7 @@ export async function startPipelineExecution(input: {
   pipelineId: string;
   pipelineRunId: string;
   pipeline: PipelineDefinition;
-  pipelineInput: Record<string, unknown>;
+  facts: Record<string, unknown>;
 }): Promise<{ claimed: boolean; acceptedAt: string }> {
   const acceptedAt = new Date().toISOString();
   const reservation = await createBackendClient().mutation(
@@ -45,11 +45,10 @@ export async function startPipelineExecution(input: {
       tenantId: `${input.owner}/${input.repo}`,
       pipelineId: input.pipelineId,
       runId: input.pipelineRunId,
-      input: input.pipelineInput,
+      facts: input.facts,
       steps: input.pipeline.steps.map((step) => ({
         id: step.id,
         workflowId: step.workflow,
-        ...(step.inputMap ? { inputMap: step.inputMap } : {}),
         status: "pending" as const,
       })),
       now: acceptedAt,
@@ -70,7 +69,7 @@ export async function startPipelineExecution(input: {
       pipelineRunId: input.pipelineRunId,
       stepIndex: 0,
       step: input.pipeline.steps[0]!,
-      pipelineInput: input.pipelineInput,
+      facts: input.facts,
     });
   } catch (error) {
     await failPipelineDispatch({
@@ -93,15 +92,22 @@ export async function dispatchPipelineStep(input: {
   pipelineRunId: string;
   stepIndex: number;
   step: PipelineStepDefinition;
-  pipelineInput: Record<string, unknown>;
-  previousOutput?: Record<string, unknown>;
+  facts: Record<string, unknown>;
 }): Promise<{ workflowRunId: string }> {
   const workflowRunId = childRunId(input.pipelineRunId, input.step.id);
-  const workflowInput = resolvePipelineStepInput({
-    step: input.step,
-    pipelineInput: input.pipelineInput,
-    previousOutput: input.previousOutput,
+  const loadWorkflow = createCompanyWorkflowLoader({
+    octokit: input.octokit,
+    owner: input.owner,
+    repo: input.repo,
   });
+  const loaded = await loadWorkflow(input.step.workflow);
+  if (!loaded) {
+    throw new Error(`Pipeline Workflow ${input.step.workflow} was not found.`);
+  }
+  const workflowInput = workflowInputFromFacts(
+    input.facts,
+    loaded.workflow.inputSchema,
+  );
   const result = await startWorkflow(
     {
       workflowId: input.step.workflow,
@@ -113,11 +119,10 @@ export async function dispatchPipelineStep(input: {
     {
       createRequestId: () => workflowRunId,
       now: () => new Date().toISOString(),
-      loadWorkflow: createCompanyWorkflowLoader({
-        octokit: input.octokit,
-        owner: input.owner,
-        repo: input.repo,
-      }),
+      loadWorkflow: async (workflowId) =>
+        workflowId === input.step.workflow
+          ? loaded
+          : await loadWorkflow(workflowId),
       validateDefinition: validateWorkflowDefinition,
       validateInput: (schema, value) => validateWorkflowInput(value, schema),
       // The Pipeline approval is the authority for its declared child runs.
@@ -187,7 +192,6 @@ export async function advancePipelineForWorkflowCompletion(input: {
   const step: PipelineStepDefinition = {
     id: next.step.id,
     workflow: next.step.workflowId,
-    ...(next.step.inputMap ? { inputMap: next.step.inputMap } : {}),
   };
   try {
     await dispatchPipelineStep({
@@ -198,8 +202,7 @@ export async function advancePipelineForWorkflowCompletion(input: {
       pipelineRunId: next.runId,
       stepIndex: next.stepIndex,
       step,
-      pipelineInput: next.input,
-      previousOutput: next.previousOutput,
+      facts: next.facts,
     });
   } catch (error) {
     await failPipelineDispatch({

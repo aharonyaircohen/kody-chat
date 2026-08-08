@@ -12,7 +12,7 @@ describe("pipeline runs", () => {
       tenantId: TENANT,
       pipelineId: "review-and-merge",
       runId: "run-1",
-      input: { pr: 42 },
+      facts: { pr: 42 },
       steps: [
         {
           id: "review",
@@ -47,8 +47,14 @@ describe("pipeline runs", () => {
     expect(next).toMatchObject({
       kind: "next",
       stepIndex: 1,
-      previousOutput: { pr: 42, headSha: "abc" },
+      facts: { pr: 42, headSha: "abc" },
     });
+    const advanced = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: args.pipelineId,
+      runId: args.runId,
+    });
+    expect(advanced?.facts).toEqual({ pr: 42, headSha: "abc" });
     await expect(
       t.mutation(api.pipelineRuns.advance, {
         tenantId: TENANT,
@@ -66,7 +72,7 @@ describe("pipeline runs", () => {
       tenantId: TENANT,
       pipelineId: "review-and-merge",
       runId: "run-failed",
-      input: { pr: 42 },
+      facts: { pr: 42 },
       steps: [{ id: "review", workflowId: "review-fix", status: "pending" }],
       now: NOW,
     });
@@ -102,7 +108,7 @@ describe("pipeline runs", () => {
       tenantId: TENANT,
       pipelineId: "review-and-merge",
       runId: "run-blocked",
-      input: { pr: 42 },
+      facts: { pr: 42 },
       steps: [{ id: "review", workflowId: "review-fix", status: "pending" }],
       now: NOW,
     });

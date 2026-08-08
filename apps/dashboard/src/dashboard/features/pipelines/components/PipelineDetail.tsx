@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -16,6 +16,7 @@ import { Button } from "@kody-ade/base/ui/button";
 import type { TrustLevel } from "@dashboard/lib/cto/trust-state";
 import { usePipelineRuns } from "@dashboard/lib/hooks/usePipelines";
 import type { PipelineDefinitionRecord } from "@dashboard/lib/pipeline-definitions";
+import type { WorkflowDefinitionRecord } from "@dashboard/lib/workflow-definitions";
 import { buildHeaders, handleResponse } from "@dashboard/lib/api";
 import { TrustLevelControl } from "@dashboard/lib/components/TrustLevelControl";
 
@@ -28,6 +29,7 @@ interface PipelineTrigger {
 
 export function PipelineDetail(props: {
   pipeline: PipelineDefinitionRecord;
+  workflows: WorkflowDefinitionRecord[];
   onBack(): void;
   onRun(): void;
   onEdit(): void;
@@ -39,6 +41,16 @@ export function PipelineDetail(props: {
   const runs = usePipelineRuns(props.pipeline.id);
   const latest = runs.data?.[0];
   const [triggers, setTriggers] = useState<PipelineTrigger[]>([]);
+  const workflowNames = useMemo(
+    () =>
+      new Map(
+        props.workflows.map((workflow) => [
+          workflow.id,
+          workflow.workflow.name,
+        ]),
+      ),
+    [props.workflows],
+  );
 
   useEffect(() => {
     void fetch("/api/kody/triggers", {
@@ -144,7 +156,7 @@ export function PipelineDetail(props: {
                 href={`/workflows/${step.workflow}`}
                 className="text-sm hover:underline"
               >
-                {step.workflow}
+                {workflowNames.get(step.workflow) ?? step.workflow}
               </Link>
               {index < props.pipeline.pipeline.steps.length - 1 ? (
                 <ArrowDown className="ml-auto h-4 w-4 text-muted-foreground" />
@@ -170,7 +182,9 @@ export function PipelineDetail(props: {
                 key={step.id}
                 className="flex items-center justify-between text-sm"
               >
-                <span>{step.workflowId}</span>
+                <span>
+                  {workflowNames.get(step.workflowId) ?? step.workflowId}
+                </span>
                 <span className="capitalize text-muted-foreground">
                   {step.status}
                 </span>

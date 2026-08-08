@@ -37,7 +37,8 @@ export const reserve = serviceMutation({
     tenantId: v.string(),
     pipelineId: v.string(),
     runId: v.string(),
-    input: v.record(v.string(), v.any()),
+    facts: v.optional(v.record(v.string(), v.any())),
+    input: v.optional(v.record(v.string(), v.any())),
     steps: v.array(pipelineRunStepValidator),
     now: v.string(),
   },
@@ -57,7 +58,7 @@ export const reserve = serviceMutation({
       pipelineId: args.pipelineId,
       runId: args.runId,
       status: "running",
-      input: args.input,
+      facts: args.facts ?? args.input ?? {},
       steps: args.steps,
       currentStepIndex: 0,
       createdAt: args.now,
@@ -197,10 +198,12 @@ export const advance = serviceMutation({
     }
     const nextIndex = run.currentStepIndex + 1;
     const next = steps[nextIndex];
+    const facts = { ...(run.facts ?? run.input ?? {}), ...args.output };
     if (!next) {
       await ctx.db.patch(run._id, {
         status: "done",
         steps,
+        facts,
         activeWorkflowRunId: undefined,
         updatedAt: args.now,
       });
@@ -208,6 +211,7 @@ export const advance = serviceMutation({
     }
     await ctx.db.patch(run._id, {
       steps,
+      facts,
       currentStepIndex: nextIndex,
       activeWorkflowRunId: undefined,
       updatedAt: args.now,
@@ -218,7 +222,9 @@ export const advance = serviceMutation({
       runId: run.runId,
       stepIndex: nextIndex,
       step: next,
-      input: run.input,
+      facts,
+      // Temporary compatibility for a Dashboard deployed before this backend.
+      input: facts,
       previousOutput: args.output,
     };
   },

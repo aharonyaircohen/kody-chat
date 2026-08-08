@@ -14,15 +14,9 @@ import {
 } from "./workflow-input-schema";
 
 const ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
-const INPUT_SOURCE = /^(input|previous)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+$/;
-
 export const pipelineStepDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   workflow: z.string().trim().min(1).max(80),
-  /** Workflow input key -> Pipeline input or previous Workflow output path. */
-  inputMap: z
-    .record(z.string().trim().min(1).max(100), z.string().trim().min(1).max(200))
-    .optional(),
 });
 
 export type PipelineStepDefinition = z.infer<
@@ -123,7 +117,6 @@ export function buildPipelineDefinition(
     steps: input.steps.map((step) => ({
       id: step.id.trim(),
       workflow: step.workflow.trim(),
-      ...(step.inputMap ? { inputMap: { ...step.inputMap } } : {}),
     })),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,
@@ -201,42 +194,6 @@ export function validatePipelineDefinition(
         message: `Workflow ${step.workflow} is not available in this agency.`,
       });
     }
-    for (const [key, source] of Object.entries(step.inputMap ?? {})) {
-      if (!key.trim() || !INPUT_SOURCE.test(source)) {
-        issues.push({
-          code: "invalid_input_mapping",
-          path: `steps[${index}].inputMap.${key}`,
-          message: "Input mappings must read from input.* or previous.*.",
-        });
-      }
-    }
   });
   return issues;
-}
-
-function readPath(source: Record<string, unknown>, path: string): unknown {
-  return path.split(".").reduce<unknown>((value, part) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return undefined;
-    }
-    return (value as Record<string, unknown>)[part];
-  }, source);
-}
-
-export function resolvePipelineStepInput(input: {
-  step: PipelineStepDefinition;
-  pipelineInput: Record<string, unknown>;
-  previousOutput?: Record<string, unknown>;
-}): Record<string, unknown> {
-  if (!input.step.inputMap) return { ...input.pipelineInput };
-  const source = {
-    input: input.pipelineInput,
-    previous: input.previousOutput ?? {},
-  };
-  return Object.fromEntries(
-    Object.entries(input.step.inputMap).flatMap(([key, path]) => {
-      const value = readPath(source, path);
-      return value === undefined ? [] : [[key, value]];
-    }),
-  );
 }

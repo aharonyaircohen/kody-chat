@@ -16,6 +16,7 @@ import {
 export {
   validateWorkflowInput,
   validateWorkflowInputSchema,
+  workflowInputFromFacts,
 } from "./workflow-input-schema";
 
 export interface WorkflowDefinition {

@@ -25,13 +25,7 @@ const requestSchema = z
     runId: z.string().trim().min(1).max(200),
     status: z.enum(["success", "failed", "blocked"]),
     summary: z.string().trim().min(1).max(1000).optional(),
-    output: z
-      .object({
-        pr: z.number().int().positive().optional(),
-        headSha: z.string().trim().min(7).max(64).optional(),
-      })
-      .strict()
-      .default({}),
+    output: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();
 
@@ -88,12 +82,12 @@ export async function POST(request: Request) {
     brand: { owner, repo },
     source: "server",
     payload: {
+      ...output,
       workflowId,
       runId,
       status,
       ...(summary ? { summary } : {}),
       repository: identity.repository,
-      ...output,
     },
   };
 

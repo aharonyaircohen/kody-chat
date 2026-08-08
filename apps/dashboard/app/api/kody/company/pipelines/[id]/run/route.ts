@@ -101,7 +101,7 @@ export async function POST(
       pipelineId: id,
       pipelineRunId: runId,
       pipeline: loaded.pipeline,
-      pipelineInput,
+      facts: pipelineInput,
     });
     return NextResponse.json({ ok: true, pipeline: id, runId, acceptedAt: started.acceptedAt }, { status: 202 });
   } catch (error) {

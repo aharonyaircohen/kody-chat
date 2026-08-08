@@ -157,6 +157,7 @@ export function PipelinesManager({ selectedId }: { selectedId?: string }) {
           selected ? (
             <PipelineDetail
               pipeline={selected}
+              workflows={workflows}
               onBack={() => select(null)}
               onRun={() => setRunning(selected)}
               onEdit={() => setEditing(selected)}

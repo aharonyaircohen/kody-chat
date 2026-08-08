@@ -57,3 +57,23 @@ export function validateWorkflowInput(
     message: issue.message,
   }));
 }
+
+/** Selects the fields a strict Workflow declares from shared Pipeline facts. */
+export function workflowInputFromFacts(
+  facts: Record<string, unknown>,
+  schema: WorkflowInputSchema | undefined,
+): Record<string, unknown> {
+  if (
+    schema?.type !== "object" ||
+    schema.additionalProperties !== false ||
+    !schema.properties ||
+    typeof schema.properties !== "object" ||
+    Array.isArray(schema.properties)
+  ) {
+    return { ...facts };
+  }
+  const declared = new Set(Object.keys(schema.properties));
+  return Object.fromEntries(
+    Object.entries(facts).filter(([key]) => declared.has(key)),
+  );
+}

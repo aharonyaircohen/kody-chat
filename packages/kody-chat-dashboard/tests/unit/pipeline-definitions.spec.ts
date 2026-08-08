@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPipelineDefinition,
-  resolvePipelineStepInput,
   validatePipelineDefinition,
 } from "../../src/dashboard/lib/pipeline-definitions";
 
@@ -38,17 +37,18 @@ describe("Pipeline definitions", () => {
     ).toEqual(["duplicate_step_id", "unknown_workflow"]);
   });
 
-  it("maps Pipeline and previous Workflow values into the next Workflow", () => {
-    expect(
-      resolvePipelineStepInput({
-        step: {
+  it("drops legacy mappings because Pipeline facts flow automatically", () => {
+    const pipeline = buildPipelineDefinition({
+      name: "Review then merge",
+      steps: [
+        {
           id: "merge",
           workflow: "merge",
-          inputMap: { pr: "previous.pr", headSha: "input.headSha" },
-        },
-        pipelineInput: { headSha: "abcdef1" },
-        previousOutput: { pr: 42 },
-      }),
-    ).toEqual({ pr: 42, headSha: "abcdef1" });
+          inputMap: { pr: "previous.pr" },
+        } as never,
+      ],
+    });
+
+    expect(pipeline.steps).toEqual([{ id: "merge", workflow: "merge" }]);
   });
 });
