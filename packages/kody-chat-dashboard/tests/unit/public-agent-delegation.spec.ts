@@ -134,6 +134,15 @@ describe("public Agent delegation", () => {
         ],
       }),
     );
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            content: expect.stringContaining("Repository draft."),
+          }),
+        ],
+      }),
+    );
   });
 
   it("does not give Kody an unsupported specialist draft as a factual source", async () => {
