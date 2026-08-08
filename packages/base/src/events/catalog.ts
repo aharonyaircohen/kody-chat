@@ -26,8 +26,9 @@ export interface SystemEventDefinition<
 function defineEvent<S extends z.ZodType<Record<string, unknown>>>(
   description: string,
   schema: S,
+  version = 1,
 ): SystemEventDefinition<S> {
-  return { version: 1, description, schema };
+  return { version, description, schema };
 }
 
 /**
@@ -182,12 +183,15 @@ export const SYSTEM_EVENT_CATALOG = {
           ])
           .nullable(),
         branch: z.string().trim().min(1).max(255).optional(),
+        headSha: z.string().trim().min(7).max(64).optional(),
+        pr: z.number().int().positive().optional(),
         event: z.string().trim().min(1).max(100).optional(),
         repository: z.string().trim().min(1).max(255),
         actor: z.string().trim().min(1).max(255).optional(),
         htmlUrl: z.string().url().max(1000).optional(),
       })
       .strict(),
+    2,
   ),
 } as const;
 

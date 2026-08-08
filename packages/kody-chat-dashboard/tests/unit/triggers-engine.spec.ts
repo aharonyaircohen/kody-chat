@@ -181,4 +181,30 @@ describe("resolveActionData", () => {
       eventName: "github.workflow_run.completed",
     });
   });
+
+  it("maps a completed PR workflow into a reusable review workflow", () => {
+    const event = envelope("github.workflow_run.completed", {
+      conclusion: "success",
+      workflowId: 12,
+      runId: 42,
+      pr: 73,
+      headSha: "abc1234",
+    });
+    const data = resolveActionData(
+      trigger({
+        event: "github.workflow_run.completed",
+        action: {
+          type: "start-workflow",
+          workflowId: "review-merge",
+          inputMap: {
+            pr: "payload.pr",
+            headSha: "payload.headSha",
+          },
+        },
+      }),
+      event,
+    );
+
+    expect(data).toEqual({ pr: 73, headSha: "abc1234" });
+  });
 });

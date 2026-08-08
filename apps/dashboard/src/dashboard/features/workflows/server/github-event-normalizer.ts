@@ -13,8 +13,10 @@ interface WorkflowRunPayload {
     workflow_id?: number | null;
     conclusion?: string | null;
     head_branch?: string | null;
+    head_sha?: string | null;
     event?: string | null;
     html_url?: string | null;
+    pull_requests?: Array<{ number?: number | null }> | null;
   };
   repository?: { full_name?: string };
   sender?: { id?: number; login?: string };
@@ -65,6 +67,18 @@ export function normalizeGitHubWebhookEvent(input: {
   if (!owner || !repo) return null;
 
   const name: SystemEventName = "github.workflow_run.completed";
+  const pullRequestNumbers = [
+    ...new Set(
+      (Array.isArray(run.pull_requests) ? run.pull_requests : [])
+        .map((pullRequest) => pullRequest?.number)
+        .filter(
+          (number): number is number =>
+            typeof number === "number" &&
+            Number.isSafeInteger(number) &&
+            number > 0,
+        ),
+    ),
+  ];
   const candidate = {
     runId: run.id,
     ...(typeof run.workflow_id === "number"
@@ -74,6 +88,8 @@ export function normalizeGitHubWebhookEvent(input: {
     ...(run.path ? { workflowPath: run.path } : {}),
     conclusion: run.conclusion ?? null,
     ...(run.head_branch ? { branch: run.head_branch } : {}),
+    ...(run.head_sha ? { headSha: run.head_sha } : {}),
+    ...(pullRequestNumbers.length === 1 ? { pr: pullRequestNumbers[0] } : {}),
     ...(run.event ? { event: run.event } : {}),
     repository: repositoryName,
     ...(payload.sender?.login ? { actor: payload.sender.login } : {}),
