@@ -7,10 +7,7 @@ import {
 } from "../src/agent-files";
 import { listBuiltinAgentFiles } from "../src/builtin-agents";
 
-const agent = (
-  slug: string,
-  source: "local" | "store",
-): AgentFile => ({
+const agent = (slug: string, source: "local" | "store"): AgentFile => ({
   slug,
   title: `${source} ${slug}`,
   body: "test",
@@ -57,5 +54,15 @@ describe("built-in Agent resolution", () => {
         agent("store-only", "store"),
       ])?.source,
     ).toBe("store");
+  });
+
+  it("does not let a legacy Store-sourced backend row override a built-in", () => {
+    const result = mergeResolvedAgentFiles({
+      local: [agent("kody", "store")],
+      builtin: listBuiltinAgentFiles(),
+      store: [],
+    });
+
+    expect(result.find(({ slug }) => slug === "kody")?.source).toBe("builtin");
   });
 });

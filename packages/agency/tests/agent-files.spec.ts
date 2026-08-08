@@ -58,9 +58,7 @@ describe("Store agent repository activation", () => {
     store.listSlugs.mockResolvedValue(["active", "inactive"]);
     store.readText.mockImplementation(
       async (_octokit: unknown, path: string) =>
-        path === "agents/active.md"
-          ? "# Active agent\n"
-          : "# Inactive agent\n",
+        path === "agents/active.md" ? "# Active agent\n" : "# Inactive agent\n",
     );
     store.updatedAt.mockResolvedValue("2026-07-26T00:00:00.000Z");
     store.query.mockResolvedValue([]);
@@ -91,6 +89,27 @@ describe("Store agent repository activation", () => {
   });
 
   it("does not fetch a Store definition shadowed by a built-in", async () => {
+    const agents = await listResolvedAgentFiles({
+      activeStoreSlugs: new Set(["kody"]),
+    });
+
+    expect(agents.find(({ slug }) => slug === "kody")?.source).toBe("builtin");
+    expect(store.listSlugs).not.toHaveBeenCalled();
+  });
+
+  it("treats a persisted Store row as Store data, not a local override", async () => {
+    store.query.mockResolvedValue([
+      {
+        slug: "kody",
+        source: "store",
+        bundle: {
+          schemaVersion: 1,
+          files: { "agent.md": "# Store Kody\n\nLegacy Store identity.\n" },
+        },
+        updatedAt: "2026-08-06T00:00:00.000Z",
+      },
+    ]);
+
     const agents = await listResolvedAgentFiles({
       activeStoreSlugs: new Set(["kody"]),
     });
