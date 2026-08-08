@@ -89,7 +89,10 @@ interface GitHubWorkflowOption {
 
 interface KodyWorkflowOption {
   id: string;
-  workflow: { name: string };
+  workflow: {
+    name: string;
+    inputSchema?: { properties?: Record<string, unknown> };
+  };
   runnable?: boolean;
   automation:
     { eligible: true } | { eligible: false; reason: "approval-required" };
@@ -197,6 +200,17 @@ function withPullRequestOnlyCondition(
   return enabled
     ? [...remaining, { path: "pr", op: "exists", value: "" }]
     : remaining;
+}
+
+function defaultWorkflowInputMap(
+  workflow: KodyWorkflowOption | undefined,
+): EditorState["map"] {
+  const properties = workflow?.workflow.inputSchema?.properties;
+  if (!properties) return [];
+  return Object.keys(properties).map((key) => ({
+    key,
+    source: `payload.${key}`,
+  }));
 }
 
 function editorFromTrigger(trigger: TriggerRow): EditorState {
@@ -390,8 +404,15 @@ export function TriggersManager() {
             ]
           : [];
       const conditions = [...workflowConditions, ...advancedConditions];
+      const selectedWorkflow = workflowDefinitionsQuery.data?.find(
+        (workflow) => workflow.id === state.workflowId,
+      );
+      const mapRowsToSave =
+        state.actionType === "start-workflow" && state.map.length === 0
+          ? defaultWorkflowInputMap(selectedWorkflow)
+          : state.map;
       const map = Object.fromEntries(
-        state.map
+        mapRowsToSave
           .filter((entry) => entry.key.trim() && entry.source.trim())
           .map((entry) => [entry.key.trim(), entry.source.trim()]),
       );

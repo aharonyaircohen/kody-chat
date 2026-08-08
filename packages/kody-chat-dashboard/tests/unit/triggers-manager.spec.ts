@@ -142,6 +142,12 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).toContain('path: "pr", op: "exists"');
     expect(SOURCE).toContain("withPullRequestOnlyCondition(");
   });
+
+  it("maps only declared workflow inputs from the event payload", () => {
+    expect(SOURCE).toContain("defaultWorkflowInputMap(");
+    expect(SOURCE).toContain("workflow.inputSchema?.properties");
+    expect(SOURCE).toContain("`payload.${key}`");
+  });
 });
 
 describe("TriggersManager validation and errors", () => {
