@@ -40,13 +40,15 @@
       "release-prepare",
       "release-validate",
       "release-promote",
-      "vercel-production-deploy"
+      "vercel-production-deploy",
+      "ui-review"
     ],
     "activeWorkflows": [
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
-      "web-release"
+      "web-release",
+      "review-merge"
     ]
   },
   "access": {
