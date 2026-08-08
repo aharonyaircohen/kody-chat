@@ -33,7 +33,7 @@ export const TRUST_LEVELS = [
 ] as const;
 export type TrustLevel = (typeof TRUST_LEVELS)[number];
 export type TrustDecision = "approve" | "reject" | "dismiss";
-export type TrustSubjectKind = "loop" | "workflow" | "capability";
+export type TrustSubjectKind = "loop" | "pipeline" | "workflow" | "capability";
 export type TrustSubjectKey = `${TrustSubjectKind}:${string}`;
 
 /** Whole-capability trust stats. */
@@ -542,7 +542,7 @@ export function trustSubjectKey(
 }
 
 export function isTrustSubjectKey(value: string): value is TrustSubjectKey {
-  return /^(loop|workflow|capability):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(
+  return /^(loop|pipeline|workflow|capability):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(
     value,
   );
 }

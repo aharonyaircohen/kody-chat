@@ -8,11 +8,12 @@ import {
 } from "@kody-ade/base/company-store/assets";
 import { readStoreLoop } from "@dashboard/lib/store-loops";
 import { readCompanyStoreWorkflowDefinitionFile } from "@dashboard/lib/workflow-definition-files";
+import { readCompanyStorePipelineDefinitionFile } from "@dashboard/lib/pipeline-definition-files";
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,127}$/;
 
 const entrypointSchema = z.object({
-  kind: z.enum(["loop", "workflow"]),
+  kind: z.enum(["loop", "pipeline", "workflow"]),
   id: z.string().regex(SLUG),
 });
 
@@ -29,7 +30,7 @@ const solutionSchema = z
 export type StoreSolutionManifest = z.infer<typeof solutionSchema>;
 export type StoreSolutionStatus = "available" | "partial" | "installed";
 export type StoreSolutionNodeKind =
-  "loop" | "workflow" | "agent" | "capability";
+  "loop" | "pipeline" | "workflow" | "agent" | "capability";
 
 export interface StoreSolutionRecord extends StoreSolutionManifest {
   htmlUrl: string;
@@ -55,6 +56,10 @@ export interface StoreSolutionCatalog {
       capabilities: readonly string[];
     }
   >;
+  pipelines: ReadonlyMap<
+    string,
+    { id: string; name: string; workflows: readonly string[] }
+  >;
   loops: ReadonlyMap<
     string,
     {
@@ -68,6 +73,7 @@ export interface StoreSolutionCatalogSlugs {
   agents: readonly string[];
   capabilities: readonly string[];
   workflows: readonly string[];
+  pipelines: readonly string[];
   loops: readonly string[];
 }
 
@@ -75,6 +81,7 @@ export interface StoreSolutionInstalledSets {
   agents: ReadonlySet<string>;
   capabilities: ReadonlySet<string>;
   workflows: ReadonlySet<string>;
+  pipelines: ReadonlySet<string>;
   loops: ReadonlySet<string>;
 }
 
@@ -128,10 +135,15 @@ export async function loadStoreSolutionCatalog(
   octokit: Octokit,
   slugs: StoreSolutionCatalogSlugs,
 ): Promise<StoreSolutionCatalog> {
-  const [workflowRecords, loopRecords] = await Promise.all([
+  const [workflowRecords, pipelineRecords, loopRecords] = await Promise.all([
     Promise.all(
       slugs.workflows.map((slug) =>
         readCompanyStoreWorkflowDefinitionFile(slug, octokit),
+      ),
+    ),
+    Promise.all(
+      slugs.pipelines.map((slug) =>
+        readCompanyStorePipelineDefinitionFile(slug, octokit),
       ),
     ),
     Promise.all(slugs.loops.map((slug) => readStoreLoop(octokit, slug))),
@@ -149,6 +161,18 @@ export async function loadStoreSolutionCatalog(
             name: record.workflow.name || record.id,
             agent: record.workflow.agent,
             capabilities: record.workflow.capabilities,
+          },
+        ]),
+    ),
+    pipelines: new Map(
+      pipelineRecords
+        .filter((record) => record !== null)
+        .map((record) => [
+          record.id,
+          {
+            id: record.id,
+            name: record.pipeline.name,
+            workflows: record.pipeline.steps.map((step) => step.workflow),
           },
         ]),
     ),
@@ -185,7 +209,7 @@ export function resolveStoreSolutionTree(
   };
 
   const resolve = (
-    kind: "loop" | "workflow" | "capability",
+    kind: "loop" | "pipeline" | "workflow" | "capability",
     slug: string,
     ancestors: ReadonlySet<string>,
   ): StoreSolutionNode => {
@@ -238,6 +262,24 @@ export function resolveStoreSolutionTree(
         workflow.name || titleFromSlug(slug),
         active.workflows.has(slug),
         children,
+      );
+    }
+
+    if (kind === "pipeline") {
+      const pipeline = catalog.pipelines.get(slug);
+      if (!pipeline) {
+        throw new Error(
+          `Store Solution "${solution.id}" references missing Pipeline "${slug}".`,
+        );
+      }
+      return node(
+        "pipeline",
+        slug,
+        pipeline.name || titleFromSlug(slug),
+        active.pipelines.has(slug),
+        pipeline.workflows.map((workflow) =>
+          resolve("workflow", workflow, nextAncestors),
+        ),
       );
     }
 

@@ -113,6 +113,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["workflows", "queues", "steps"],
     when: "Use when the user asks to inspect or manage workflows.",
   },
+  "/pipelines": {
+    aliases: ["pipelines", "workflow sequences", "workflow queues"],
+    when: "Use when the user asks to connect or manage multiple workflows.",
+  },
   "/activity": {
     aliases: ["activity", "runs", "health", "logs"],
     when: "Use when the user asks for run health, activity, or failures.",

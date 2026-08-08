@@ -70,6 +70,7 @@ export interface KodyConfig {
     activeCapabilities?: string[];
     activeCommands?: string[];
     activeWorkflows?: string[];
+    activePipelines?: string[];
     /** Dashboard-native features (engine ignores this list). */
     activeFeatures?: string[];
   };
@@ -573,6 +574,7 @@ function setCompanyField(
     | "activeCapabilities"
     | "activeCommands"
     | "activeWorkflows"
+    | "activePipelines"
     | "activeFeatures",
   value: string[],
 ): void {
@@ -637,6 +639,7 @@ export interface ConfigPatch {
   activeCapabilities?: string[] | null;
   activeCommands?: string[] | null;
   activeWorkflows?: string[] | null;
+  activePipelines?: string[] | null;
   activeFeatures?: string[] | null;
   defaultBranch?: string | null;
   perImplementation?: Record<string, string> | null;
@@ -737,6 +740,13 @@ export async function writeConfigPatch(
           ? cleanSlugList(patch.activeWorkflows)
           : [];
         setCompanyField(next, "activeWorkflows", list);
+      }
+
+      if (patch.activePipelines !== undefined) {
+        const list = patch.activePipelines
+          ? cleanSlugList(patch.activePipelines)
+          : [];
+        setCompanyField(next, "activePipelines", list);
       }
 
       if (patch.activeFeatures !== undefined) {

@@ -20,6 +20,10 @@ import {
 } from "@dashboard/lib/workflow-definitions";
 import { workflowRequiresApproval } from "./workflow-execution-authorization";
 import { workflowRunAction } from "@kody-ade/agency/workflow-run-approval";
+import { createCompanyPipelineLoader } from "@dashboard/features/pipelines/server/company-pipeline-loader";
+import { pipelineRequiresApproval } from "@dashboard/features/pipelines/server/pipeline-execution-authorization";
+import { startPipelineExecution } from "@dashboard/features/pipelines/server/pipeline-orchestrator";
+import { validatePipelineDefinition } from "@dashboard/lib/pipeline-definitions";
 
 const MAX_INPUT_BYTES = 64_000;
 
@@ -147,7 +151,8 @@ export async function dispatchWorkflowTriggers(input: {
   }
   const matchingTriggers = triggers.filter(
     (trigger) =>
-      trigger.action.type === "start-workflow" &&
+      (trigger.action.type === "start-workflow" ||
+        trigger.action.type === "start-pipeline") &&
       triggerMatches(trigger, input.event),
   );
   if (matchingTriggers.length === 0) return;
@@ -169,6 +174,57 @@ export async function dispatchWorkflowTriggers(input: {
       "github workflow trigger skipped because the source run never acquired a runner",
     );
     return;
+  }
+  for (const trigger of matchingTriggers) {
+    if (trigger.action.type !== "start-pipeline") continue;
+    const pipelineInput = resolveActionData(trigger, input.event);
+    if (JSON.stringify(pipelineInput).length > MAX_INPUT_BYTES) {
+      logger.warn(
+        { trigger: trigger.id, pipeline: trigger.action.pipelineId },
+        "Pipeline trigger skipped: input too large",
+      );
+      continue;
+    }
+    const pipelineRunId = requestIdFor(sourceEventId, trigger.id).replace(
+      /^github-/,
+      "run-trigger-",
+    );
+    try {
+      const loaded = await createCompanyPipelineLoader({
+        octokit: input.octokit,
+        owner: brand.owner,
+        repo: brand.repo,
+      })(trigger.action.pipelineId);
+      if (!loaded) throw new Error("Pipeline not found");
+      const issues = [
+        ...validatePipelineDefinition(loaded.pipeline),
+        ...validateWorkflowInput(pipelineInput, loaded.pipeline.inputSchema),
+      ];
+      if (issues.length) {
+        throw new Error(issues.map((issue) => issue.message).join("; "));
+      }
+      if (await pipelineRequiresApproval(trigger.action.pipelineId, loaded.pipeline)) {
+        throw new Error("Pipeline requires approval");
+      }
+      await startPipelineExecution({
+        octokit: input.octokit,
+        owner: brand.owner,
+        repo: brand.repo,
+        pipelineId: trigger.action.pipelineId,
+        pipelineRunId,
+        pipeline: loaded.pipeline,
+        pipelineInput,
+      });
+    } catch (error) {
+      logger.warn(
+        {
+          trigger: trigger.id,
+          pipeline: trigger.action.pipelineId,
+          error: errorMessage(error),
+        },
+        "Pipeline trigger failed; continuing with remaining triggers",
+      );
+    }
   }
   for (const trigger of matchingTriggers) {
     if (trigger.action.type !== "start-workflow") continue;

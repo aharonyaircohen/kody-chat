@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   resolveBackgroundToken: vi.fn(),
   dispatchWorkflowTriggers: vi.fn(),
   deliverWorkflowInboxAlert: vi.fn(),
+  advancePipelineForWorkflowCompletion: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));
@@ -32,6 +33,13 @@ vi.mock(
   "@dashboard/features/workflows/server/workflow-inbox-alert",
   () => ({ deliverWorkflowInboxAlert: h.deliverWorkflowInboxAlert }),
 );
+vi.mock(
+  "@dashboard/features/pipelines/server/pipeline-orchestrator",
+  () => ({
+    advancePipelineForWorkflowCompletion:
+      h.advancePipelineForWorkflowCompletion,
+  }),
+);
 
 import { POST } from "../../app/api/kody/engine/workflow-completed/route";
 
@@ -57,6 +65,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     h.resolveBackgroundToken.mockResolvedValue({ token: "background-token" });
     h.dispatchWorkflowTriggers.mockResolvedValue(undefined);
     h.deliverWorkflowInboxAlert.mockResolvedValue(undefined);
+    h.advancePipelineForWorkflowCompletion.mockResolvedValue(undefined);
   });
 
   it("notifies repository operators when a workflow is blocked", async () => {

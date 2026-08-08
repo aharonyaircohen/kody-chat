@@ -106,6 +106,17 @@ interface KodyWorkflowOption {
     { eligible: true } | { eligible: false; reason: "approval-required" };
 }
 
+interface KodyPipelineOption {
+  id: string;
+  pipeline: {
+    name: string;
+    inputSchema?: { properties?: Record<string, unknown> };
+  };
+  runnable?: boolean;
+  automation:
+    { eligible: true } | { eligible: false; reason: "approval-required" };
+}
+
 interface TriggerRow {
   id: string;
   name: string;
@@ -121,6 +132,11 @@ interface TriggerRow {
     | {
         type: "start-workflow";
         workflowId: string;
+        inputMap: Record<string, string>;
+      }
+    | {
+        type: "start-pipeline";
+        pipelineId: string;
         inputMap: Record<string, string>;
       };
 }
@@ -160,9 +176,10 @@ interface EditorState {
   name: string;
   enabled: boolean;
   event: string;
-  actionType: "" | "save-user-state" | "start-workflow";
+  actionType: "" | "save-user-state" | "start-workflow" | "start-pipeline";
   namespace: string;
   workflowId: string;
+  pipelineId: string;
   githubWorkflowId: number | null;
   githubWorkflowName: string;
   githubWorkflowConclusion: WorkflowConclusion | "";
@@ -212,10 +229,11 @@ function withPullRequestOnlyCondition(
     : remaining;
 }
 
-function defaultWorkflowInputMap(
-  workflow: KodyWorkflowOption | undefined,
+function defaultInputMap(
+  target:
+    KodyWorkflowOption["workflow"] | KodyPipelineOption["pipeline"] | undefined,
 ): EditorState["map"] {
-  const properties = workflow?.workflow.inputSchema?.properties;
+  const properties = target?.inputSchema?.properties;
   if (!properties) return [];
   return Object.keys(properties).map((key) => ({
     key,
@@ -226,6 +244,7 @@ function defaultWorkflowInputMap(
 function editorFromTrigger(trigger: TriggerRow): EditorState {
   const action = trigger.action;
   const isWorkflow = action.type === "start-workflow";
+  const isPipeline = action.type === "start-pipeline";
   const githubWorkflowIdCondition = trigger.conditions.find(
     (condition) => condition.path === "workflowId" && condition.op === "equals",
   );
@@ -277,6 +296,7 @@ function editorFromTrigger(trigger: TriggerRow): EditorState {
     actionType: trigger.action.type,
     namespace: action.type === "save-user-state" ? action.namespace : "",
     workflowId: isWorkflow ? action.workflowId : "",
+    pipelineId: isPipeline ? action.pipelineId : "",
     githubWorkflowId,
     githubWorkflowName,
     githubWorkflowConclusion,
@@ -291,7 +311,7 @@ function editorFromTrigger(trigger: TriggerRow): EditorState {
       ),
     ),
     map: mapRows(
-      action.type === "start-workflow" ? action.inputMap : action.map,
+      action.type === "save-user-state" ? action.map : action.inputMap,
     ),
     isNew: false,
   };
@@ -306,6 +326,7 @@ function emptyEditor(defaultNamespace: string): EditorState {
     actionType: "",
     namespace: defaultNamespace,
     workflowId: "",
+    pipelineId: "",
     githubWorkflowId: null,
     githubWorkflowName: "",
     githubWorkflowConclusion: "",
@@ -374,7 +395,11 @@ export function TriggersManager() {
   });
   const workflowDefinitionsQuery = useQuery({
     queryKey: ["kody-workflow-definitions", owner, repo] as const,
-    enabled: !!auth && !!editor && editor.actionType === "start-workflow",
+    enabled:
+      !!auth &&
+      !!editor &&
+      (editor.actionType === "start-workflow" ||
+        editor.event === KODY_WORKFLOW_COMPLETED_EVENT),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: () =>
@@ -382,6 +407,17 @@ export function TriggersManager() {
         "/api/kody/company/workflows",
         headers,
       ).then((json) => json.workflows ?? []),
+  });
+  const pipelineDefinitionsQuery = useQuery({
+    queryKey: ["kody-pipeline-definitions", owner, repo] as const,
+    enabled: !!auth && !!editor && editor.actionType === "start-pipeline",
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    queryFn: () =>
+      fetchJson<{ pipelines: KodyPipelineOption[] }>(
+        "/api/kody/company/pipelines",
+        headers,
+      ).then((json) => json.pipelines ?? []),
   });
 
   const invalidate = () =>
@@ -392,7 +428,11 @@ export function TriggersManager() {
       if (!state.event || !state.actionType) {
         throw new Error("Choose a trigger and an action");
       }
-      if (state.actionType !== actionTypeForEvent(state.event)) {
+      const actionSupported = WORKFLOW_COMPLETED_EVENTS.has(state.event)
+        ? state.actionType === "start-workflow" ||
+          state.actionType === "start-pipeline"
+        : state.actionType === "save-user-state";
+      if (!actionSupported) {
         throw new Error("Choose the action supported by this trigger");
       }
       const advancedConditions = state.conditions
@@ -458,9 +498,16 @@ export function TriggersManager() {
       const selectedWorkflow = workflowDefinitionsQuery.data?.find(
         (workflow) => workflow.id === state.workflowId,
       );
+      const selectedPipeline = pipelineDefinitionsQuery.data?.find(
+        (pipeline) => pipeline.id === state.pipelineId,
+      );
       const mapRowsToSave =
-        state.actionType === "start-workflow" && state.map.length === 0
-          ? defaultWorkflowInputMap(selectedWorkflow)
+        state.actionType !== "save-user-state" && state.map.length === 0
+          ? defaultInputMap(
+              state.actionType === "start-workflow"
+                ? selectedWorkflow?.workflow
+                : selectedPipeline?.pipeline,
+            )
           : state.map;
       const map = Object.fromEntries(
         mapRowsToSave
@@ -483,11 +530,17 @@ export function TriggersManager() {
                     workflowId: state.workflowId.trim(),
                     inputMap: map,
                   }
-                : {
-                    type: "save-user-state",
-                    namespace: state.namespace,
-                    map,
-                  },
+                : state.actionType === "start-pipeline"
+                  ? {
+                      type: "start-pipeline",
+                      pipelineId: state.pipelineId.trim(),
+                      inputMap: map,
+                    }
+                  : {
+                      type: "save-user-state",
+                      namespace: state.namespace,
+                      map,
+                    },
           },
         }),
       });
@@ -540,6 +593,14 @@ export function TriggersManager() {
   );
   const selectedKodyWorkflowIsEligible = kodyWorkflows.some(
     (workflow) => workflow.id === editor?.workflowId,
+  );
+  const pipelineDefinitions = pipelineDefinitionsQuery.data ?? [];
+  const kodyPipelines = pipelineDefinitions.filter(
+    (pipeline) =>
+      pipeline.runnable !== false && pipeline.automation.eligible === true,
+  );
+  const selectedKodyPipelineIsEligible = kodyPipelines.some(
+    (pipeline) => pipeline.id === editor?.pipelineId,
   );
   const selectedGithubWorkflowValue = editor
     ? editor.githubWorkflowId !== null
@@ -603,7 +664,9 @@ export function TriggersManager() {
                       When {EVENT_LABELS[trigger.event] ?? trigger.event}; then{" "}
                       {trigger.action.type === "start-workflow"
                         ? "start a Kody workflow"
-                        : "save event data"}
+                        : trigger.action.type === "start-pipeline"
+                          ? "start a Kody pipeline"
+                          : "save event data"}
                     </div>
                   </div>
                 </div>
@@ -859,8 +922,10 @@ export function TriggersManager() {
                         ...editor,
                         actionType: value,
                         ...(value === "save-user-state"
-                          ? { workflowId: "" }
-                          : { namespace: "" }),
+                          ? { workflowId: "", pipelineId: "" }
+                          : value === "start-workflow"
+                            ? { namespace: "", pipelineId: "" }
+                            : { namespace: "", workflowId: "" }),
                       })
                     }
                     disabled={!editor.event}
@@ -870,9 +935,14 @@ export function TriggersManager() {
                     </SelectTrigger>
                     <SelectContent>
                       {WORKFLOW_COMPLETED_EVENTS.has(editor.event) ? (
-                        <SelectItem value="start-workflow">
-                          Start a Kody workflow
-                        </SelectItem>
+                        <>
+                          <SelectItem value="start-workflow">
+                            Start a Kody workflow
+                          </SelectItem>
+                          <SelectItem value="start-pipeline">
+                            Start a Kody pipeline
+                          </SelectItem>
+                        </>
                       ) : editor.event ? (
                         <SelectItem value="save-user-state">
                           Save event data
@@ -925,6 +995,50 @@ export function TriggersManager() {
                       </p>
                     ) : null}
                   </div>
+                ) : editor.actionType === "start-pipeline" ? (
+                  <div className="space-y-1">
+                    <Label>Kody pipeline to start</Label>
+                    <Select
+                      value={editor.pipelineId}
+                      onValueChange={(value) =>
+                        setEditor({ ...editor, pipelineId: value })
+                      }
+                      disabled={
+                        pipelineDefinitionsQuery.isLoading ||
+                        kodyPipelines.length === 0
+                      }
+                    >
+                      <SelectTrigger aria-label="Kody pipeline to start">
+                        <SelectValue
+                          placeholder={
+                            pipelineDefinitionsQuery.isLoading
+                              ? "Loading pipelines…"
+                              : "Select a pipeline"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {kodyPipelines.map((pipeline) => (
+                          <SelectItem key={pipeline.id} value={pipeline.id}>
+                            {pipeline.pipeline.name} ({pipeline.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!pipelineDefinitionsQuery.isLoading &&
+                    kodyPipelines.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No pipelines can run automatically. Allow one from{" "}
+                        <a
+                          className="underline underline-offset-2"
+                          href={`/repo/${owner}/${repo}/pipelines`}
+                        >
+                          Pipelines
+                        </a>
+                        .
+                      </p>
+                    ) : null}
+                  </div>
                 ) : editor.actionType === "save-user-state" ? (
                   <div className="space-y-1">
                     <Label>Save event data to</Label>
@@ -959,13 +1073,17 @@ export function TriggersManager() {
                     !editor.name.trim() ||
                     !editor.event ||
                     !editor.actionType ||
-                    editor.actionType !== actionTypeForEvent(editor.event) ||
                     (editor.actionType === "save-user-state"
                       ? !editor.namespace
-                      : !editor.workflowId.trim() ||
-                        !selectedKodyWorkflowIsEligible ||
-                        (editor.event === KODY_WORKFLOW_COMPLETED_EVENT &&
-                          !editor.kodySourceWorkflowId))
+                      : editor.actionType === "start-workflow"
+                        ? !editor.workflowId.trim() ||
+                          !selectedKodyWorkflowIsEligible ||
+                          (editor.event === KODY_WORKFLOW_COMPLETED_EVENT &&
+                            !editor.kodySourceWorkflowId)
+                        : !editor.pipelineId.trim() ||
+                          !selectedKodyPipelineIsEligible ||
+                          (editor.event === KODY_WORKFLOW_COMPLETED_EVENT &&
+                            !editor.kodySourceWorkflowId))
                   }
                 >
                   {saveMutation.isPending ? (

@@ -392,6 +392,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
+        href: "/pipelines",
+        label: "Pipelines",
+        icon: Route,
+        description: "Ordered reusable Workflow sequences.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
@@ -627,6 +634,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/agents"),
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
+      navItemForHref("/pipelines"),
       navItemForHref("/capabilities"),
     ],
   },

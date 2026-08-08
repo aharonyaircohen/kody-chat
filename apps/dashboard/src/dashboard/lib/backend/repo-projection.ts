@@ -5,6 +5,7 @@ import { listCatalogEntries, saveCatalogEntry } from "./catalog";
 import { backendApi, getConvexClient, tenantIdFor } from "./convex-backend";
 import type { WorkflowDefinitionRecord } from "../workflow-definitions";
 import type { CapabilitySummary } from "@kody-ade/agency/capabilities/files";
+import type { PipelineDefinitionRecord } from "../pipeline-definitions";
 
 export async function getProjectedEngineConfig(
   _octokit: Octokit,
@@ -103,6 +104,61 @@ export async function reconcileProjectedStoreWorkflows(
         workflowId: workflow.id,
       }),
     ),
+  ]);
+}
+
+export async function listProjectedPipelines(
+  owner: string,
+  repo: string,
+): Promise<PipelineDefinitionRecord[]> {
+  const docs = (await getConvexClient().query(backendApi.pipelines.list, {
+    tenantId: tenantIdFor(owner, repo),
+  })) as Array<{
+    pipelineId: string;
+    definition: PipelineDefinitionRecord["pipeline"];
+    source: "local" | "store";
+    updatedAt: string;
+  }>;
+  return docs.map((doc) => ({
+    id: doc.pipelineId,
+    path: `convex:pipelines/${doc.pipelineId}`,
+    pipeline: doc.definition,
+    source: doc.source,
+    updatedAt: doc.updatedAt,
+    readOnly: doc.source === "store",
+    runnable: true,
+  }));
+}
+
+export async function reconcileProjectedStorePipelines(
+  owner: string,
+  repo: string,
+  pipelines: readonly PipelineDefinitionRecord[],
+): Promise<void> {
+  const projected = await listProjectedPipelines(owner, repo);
+  const desired = new Set(pipelines.map((pipeline) => pipeline.id));
+  await Promise.all([
+    ...pipelines.map((pipeline) =>
+      getConvexClient().mutation(backendApi.pipelines.save, {
+        tenantId: tenantIdFor(owner, repo),
+        pipelineId: pipeline.id,
+        definition: pipeline.pipeline,
+        source: "store" as const,
+        updatedAt:
+          pipeline.updatedAt ?? pipeline.pipeline.updatedAt ?? new Date().toISOString(),
+      }),
+    ),
+    ...projected
+      .filter(
+        (pipeline) =>
+          pipeline.source === "store" && !desired.has(pipeline.id),
+      )
+      .map((pipeline) =>
+        getConvexClient().mutation(backendApi.pipelines.remove, {
+          tenantId: tenantIdFor(owner, repo),
+          pipelineId: pipeline.id,
+        }),
+      ),
   ]);
 }
 

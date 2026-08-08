@@ -20,6 +20,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Route,
   Bot,
   Clock3,
   Trash2,
@@ -49,6 +50,7 @@ export type CatalogKind =
   | "solution"
   | "agent"
   | "workflow"
+  | "pipeline"
   | "capability"
   | "loop"
   | "command"
@@ -57,7 +59,7 @@ export type CatalogKind =
 type CatalogItemKind = Exclude<CatalogKind, "all" | "solution">;
 
 interface StoreSolutionNode {
-  kind: "loop" | "workflow" | "agent" | "capability";
+  kind: "loop" | "pipeline" | "workflow" | "agent" | "capability";
   slug: string;
   title: string;
   installed: boolean;
@@ -109,6 +111,7 @@ const KIND_FILTERS: Array<{
   { id: "solution", label: "Solutions", icon: Package },
   { id: "agent", label: "Agents", icon: Users },
   { id: "workflow", label: "Workflows", icon: Workflow },
+  { id: "pipeline", label: "Pipelines", icon: Route },
   { id: "capability", label: "Capabilities", icon: Layers },
   { id: "loop", label: "Loops", icon: Clock3 },
   { id: "command", label: "Commands", icon: Bot },
@@ -118,6 +121,7 @@ const KIND_FILTERS: Array<{
 const KIND_LABEL: Record<CatalogItemKind, string> = {
   agent: "Agent",
   workflow: "Workflow",
+  pipeline: "Pipeline",
   capability: "Capability",
   loop: "Loop",
   command: "Command",
@@ -178,6 +182,17 @@ const KIND_COLORS: Record<
     borderHover: "hover:border-indigo-500/30",
     tint: "bg-indigo-500/10",
     text: "text-indigo-700 dark:text-indigo-100",
+  },
+  pipeline: {
+    tabActive:
+      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
+    icon: "text-violet-600 dark:text-violet-300",
+    iconHover: "group-hover:text-violet-600 dark:group-hover:text-violet-300",
+    borderHover: "hover:border-violet-500/30",
+    tint: "bg-violet-500/10",
+    text: "text-violet-700 dark:text-violet-100",
   },
   capability: {
     tabActive:

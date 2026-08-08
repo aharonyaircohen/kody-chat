@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   resolveActionData: vi.fn(),
   mutation: vi.fn(),
   startWorkflow: vi.fn(),
+  startPipelineExecution: vi.fn(),
   listJobsForWorkflowRun: vi.fn(),
 }));
 
@@ -21,6 +22,25 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 vi.mock("@dashboard/features/workflows/server/company-workflow-loader", () => ({
   createCompanyWorkflowLoader: vi.fn(() => vi.fn()),
+}));
+vi.mock("@dashboard/features/pipelines/server/company-pipeline-loader", () => ({
+  createCompanyPipelineLoader: vi.fn(() =>
+    vi.fn(async () => ({
+      pipeline: {
+        name: "Review and Merge",
+        steps: [{ id: "review", workflow: "review-merge" }],
+        createdAt: "2026-08-08T00:00:00.000Z",
+        updatedAt: "2026-08-08T00:00:00.000Z",
+      },
+    })),
+  ),
+}));
+vi.mock(
+  "@dashboard/features/pipelines/server/pipeline-execution-authorization",
+  () => ({ pipelineRequiresApproval: vi.fn(async () => false) }),
+);
+vi.mock("@dashboard/features/pipelines/server/pipeline-orchestrator", () => ({
+  startPipelineExecution: h.startPipelineExecution,
 }));
 vi.mock(
   "@dashboard/features/workflows/server/github-actions-engine-gateway",
@@ -44,6 +64,9 @@ vi.mock("@kody-ade/agency/workflow-run-approval", () => ({
 vi.mock("@dashboard/lib/workflow-definitions", () => ({
   validateWorkflowDefinition: vi.fn(() => []),
   validateWorkflowInput: vi.fn(() => []),
+}));
+vi.mock("@dashboard/lib/pipeline-definitions", () => ({
+  validatePipelineDefinition: vi.fn(() => []),
 }));
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn() },
@@ -97,6 +120,10 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       requestId: "github-request",
       acceptedAt: "2026-08-04T07:00:00.000Z",
     });
+    h.startPipelineExecution.mockResolvedValue({
+      claimed: true,
+      acceptedAt: "2026-08-04T07:00:00.000Z",
+    });
     h.listJobsForWorkflowRun.mockResolvedValue({
       data: {
         jobs: [
@@ -127,6 +154,39 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it("starts an allowed Pipeline with a stable run id", async () => {
+    h.getTriggers.mockResolvedValue([
+      {
+        id: "review-after-ci",
+        name: "Review after CI",
+        enabled: true,
+        event: "github.workflow_run.completed",
+        conditions: [],
+        action: {
+          type: "start-pipeline",
+          pipelineId: "review-and-merge",
+          inputMap: { pr: "payload.pr" },
+        },
+      },
+    ]);
+    h.resolveActionData.mockReturnValue({ pr: 3943 });
+
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId: "delivery-1",
+      octokit,
+    });
+
+    expect(h.startPipelineExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipelineId: "review-and-merge",
+        pipelineRunId: expect.stringMatching(/^run-trigger-/),
+        pipelineInput: { pr: 3943 },
+      }),
+    );
+    expect(h.startWorkflow).not.toHaveBeenCalled();
   });
 
   it("uses a stable source id for a completed Kody workflow run", async () => {

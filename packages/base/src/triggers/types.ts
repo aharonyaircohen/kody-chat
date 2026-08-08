@@ -42,6 +42,13 @@ export const triggerActionSchema = z.discriminatedUnion("type", [
     /** Workflow input key → event value source. */
     inputMap: eventValueMapSchema,
   }),
+  z.object({
+    type: z.literal("start-pipeline"),
+    /** Pipeline definition to start when the rule matches. */
+    pipelineId: z.string().trim().min(1).max(200),
+    /** Pipeline input key -> event value source. */
+    inputMap: eventValueMapSchema,
+  }),
 ]);
 
 export const triggerConfigSchema = z.object({

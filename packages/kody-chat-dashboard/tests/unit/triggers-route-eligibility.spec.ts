@@ -64,6 +64,22 @@ function request(workflowId = "guarded") {
   });
 }
 
+function pipelineRequest(pipelineId = "guarded-pipeline") {
+  return new NextRequest("https://dashboard.example.com/api/kody/triggers", {
+    method: "POST",
+    body: JSON.stringify({
+      trigger: {
+        id: "after-review",
+        name: "After review",
+        enabled: true,
+        event: "kody.workflow.completed",
+        conditions: [],
+        action: { type: "start-pipeline", pipelineId, inputMap: {} },
+      },
+    }),
+  });
+}
+
 describe("POST /api/kody/triggers workflow policy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -102,6 +118,29 @@ describe("POST /api/kody/triggers workflow policy", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
       error: "workflow_not_found",
+    });
+    expect(dependencies.mutateTriggers).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Pipeline that requires approval", async () => {
+    dependencies.query.mockResolvedValue({
+      pipelineId: "guarded-pipeline",
+      definition: {
+        name: "Guarded Pipeline",
+        steps: [{ id: "review", workflow: "review-merge" }],
+        createdAt: "2026-08-08T00:00:00.000Z",
+        updatedAt: "2026-08-08T00:00:00.000Z",
+      },
+      source: "local",
+      updatedAt: "2026-08-08T00:00:00.000Z",
+    });
+
+    const response = await POST(pipelineRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "pipeline_not_automation_eligible",
+      reason: "approval-required",
     });
     expect(dependencies.mutateTriggers).not.toHaveBeenCalled();
   });

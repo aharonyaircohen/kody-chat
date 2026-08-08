@@ -12,6 +12,7 @@ export interface StoreCatalogSlugs {
   agents: string[];
   commands: string[];
   workflows: string[];
+  pipelines: string[];
   loops: string[];
   solutions: string[];
 }
@@ -19,16 +20,17 @@ export interface StoreCatalogSlugs {
 export async function listStoreCatalogSlugs(
   octokit: Octokit,
 ): Promise<StoreCatalogSlugs> {
-  const [capabilities, agents, commands, workflows, loops, solutions] =
+  const [capabilities, agents, commands, workflows, pipelines, loops, solutions] =
     await Promise.all([
       listCompanyStoreAssetSlugs(octokit, "capabilities", isCatalogSlug),
       listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isCatalogSlug),
       listCompanyStoreMarkdownAssetSlugs(octokit, "commands", isCatalogSlug),
       listCompanyStoreAssetSlugs(octokit, "workflows", isCatalogSlug),
+      listCompanyStoreAssetSlugs(octokit, "pipelines", isCatalogSlug),
       listCompanyStoreAssetSlugs(octokit, "loops", isCatalogSlug),
       listCompanyStoreAssetSlugs(octokit, "solutions", isCatalogSlug),
     ]);
-  return { capabilities, agents, commands, workflows, loops, solutions };
+  return { capabilities, agents, commands, workflows, pipelines, loops, solutions };
 }
 
 function isCatalogSlug(slug: string): boolean {

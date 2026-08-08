@@ -98,6 +98,7 @@ export interface EngineEditableConfig {
   activeCapabilities?: string[];
   activeCommands?: string[];
   activeWorkflows?: string[];
+  activePipelines?: string[];
   state: {
     repo?: string;
     path?: string;

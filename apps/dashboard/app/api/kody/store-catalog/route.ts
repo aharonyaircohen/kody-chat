@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type CatalogKind =
-  "agent" | "workflow" | "capability" | "loop" | "command" | "feature";
+  "agent" | "pipeline" | "workflow" | "capability" | "loop" | "command" | "feature";
 
 type CatalogItem = {
   slug: string;
@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
       capability: new Set(config?.activeCapabilities ?? []),
       command: new Set(config?.activeCommands ?? []),
       workflow: new Set(config?.activeWorkflows ?? []),
+      pipeline: new Set(config?.activePipelines ?? []),
       feature: new Set(config?.activeFeatures ?? []),
       loop: new Set(localLoops.map((item) => item.id)),
     };
@@ -127,6 +128,7 @@ export async function GET(req: NextRequest) {
       agents,
       commands,
       workflows: workflowSlugs,
+      pipelines: pipelineSlugs,
       loops,
       solutions: solutionSlugs,
     } = await listStoreCatalogSlugs(octokit);
@@ -136,6 +138,7 @@ export async function GET(req: NextRequest) {
         agents,
         capabilities,
         workflows: workflowSlugs,
+        pipelines: pipelineSlugs,
         loops,
       }),
     ]);
@@ -157,6 +160,7 @@ export async function GET(req: NextRequest) {
         agents: runnableAgents,
         capabilities: runnableCapabilities,
         workflows: active.workflow,
+        pipelines: active.pipeline,
         loops: active.loop,
       });
       return {
@@ -206,6 +210,15 @@ export async function GET(req: NextRequest) {
         kind: "workflow" as const,
         htmlUrl: buildCompanyStoreHtmlUrl("workflows", slug),
         installed: active.workflow.has(slug),
+        uninstallBlockedBy: [],
+      })),
+      ...pipelineSlugs.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Pipeline: ${slug}`,
+        kind: "pipeline" as const,
+        htmlUrl: buildCompanyStoreHtmlUrl("pipelines", slug),
+        installed: active.pipeline.has(slug),
         uninstallBlockedBy: [],
       })),
       ...loops.map((slug) => ({

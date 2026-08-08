@@ -31,6 +31,7 @@ import {
   trustSubjectKey,
 } from "@kody-ade/agency/cto/trust-state";
 import { normalizeWorkflowDefinition } from "../../../../src/dashboard/lib/workflow-definitions";
+import { normalizePipelineDefinition } from "../../../../src/dashboard/lib/pipeline-definitions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -109,6 +110,38 @@ export async function POST(req: NextRequest) {
       clearGitHubContext();
     }
   }
+  if (trigger.action.type === "start-pipeline") {
+    const pipelineRecord = (await createBackendClient().query(
+      api.pipelines.get,
+      {
+        tenantId: `${auth.owner}/${auth.repo}`,
+        pipelineId: trigger.action.pipelineId,
+      },
+    )) as { definition?: unknown } | null;
+    const pipeline = normalizePipelineDefinition(pipelineRecord?.definition);
+    if (!pipeline) {
+      return NextResponse.json(
+        { error: "pipeline_not_found" },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
+    }
+    setGitHubContext(auth.owner, auth.repo, auth.token);
+    try {
+      const eligibility = automationEligibilityForSubject(
+        await readTrust(),
+        trustSubjectKey("pipeline", trigger.action.pipelineId),
+        pipeline.runWithoutApproval === true,
+      );
+      if (!eligibility.eligible) {
+        return NextResponse.json(
+          { error: "pipeline_not_automation_eligible", reason: eligibility.reason },
+          { status: 409, headers: NO_STORE_HEADERS },
+        );
+      }
+    } finally {
+      clearGitHubContext();
+    }
+  }
 
   await mutateTriggers(octokit, auth.owner, auth.repo, (existing) => [
     ...existing.filter((candidate) => candidate.id !== trigger.id),
@@ -120,7 +153,9 @@ export async function POST(req: NextRequest) {
     detail:
       trigger.action.type === "start-workflow"
         ? `${trigger.event} → workflow:${trigger.action.workflowId}`
-        : `${trigger.event} → state:${trigger.action.namespace}`,
+        : trigger.action.type === "start-pipeline"
+          ? `${trigger.event} → pipeline:${trigger.action.pipelineId}`
+          : `${trigger.event} → state:${trigger.action.namespace}`,
   });
   return NextResponse.json({ trigger }, { headers: NO_STORE_HEADERS });
 }

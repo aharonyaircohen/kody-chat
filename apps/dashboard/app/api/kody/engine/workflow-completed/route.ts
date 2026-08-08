@@ -14,6 +14,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { dispatchWorkflowTriggers } from "@dashboard/features/workflows/server/github-workflow-trigger-dispatch";
 import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/workflow-inbox-alert";
+import { advancePipelineForWorkflowCompletion } from "@dashboard/features/pipelines/server/pipeline-orchestrator";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -99,6 +100,14 @@ export async function POST(request: Request) {
   setGitHubContext(owner, repo, background.token);
   try {
     const octokit = createUserOctokit(background.token);
+    await advancePipelineForWorkflowCompletion({
+      octokit,
+      owner,
+      repo,
+      workflowRunId: runId,
+      status,
+      output,
+    });
     await dispatchWorkflowTriggers({
       event,
       deliveryId,

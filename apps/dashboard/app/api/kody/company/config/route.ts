@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
+      activePipelines: config.company?.activePipelines ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
@@ -95,6 +96,7 @@ const PatchSchema = z
     activeCapabilities: z.array(slugSchema).max(200).nullable().optional(),
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeWorkflows: z.array(slugSchema).max(200).nullable().optional(),
+    activePipelines: z.array(slugSchema).max(200).nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // Thinking level for the engine. Server-side validation enforces
     // the canonical vocabulary (off|low|medium|high); unknown values
@@ -115,6 +117,7 @@ const PatchSchema = z
       b.activeCapabilities !== undefined ||
       b.activeCommands !== undefined ||
       b.activeWorkflows !== undefined ||
+      b.activePipelines !== undefined ||
       b.defaultBranch !== undefined ||
       b.reasoningEffort !== undefined,
     { message: "no_fields" },
@@ -160,6 +163,7 @@ export async function PATCH(req: NextRequest) {
     activeAgents,
     activeCapabilities,
     activeWorkflows,
+    activePipelines,
     defaultBranch,
     reasoningEffort,
   } = parsed.data;
@@ -183,6 +187,7 @@ export async function PATCH(req: NextRequest) {
         activeCapabilities,
         activeCommands,
         activeWorkflows,
+        activePipelines,
         defaultBranch,
         reasoningEffort,
       },
@@ -200,6 +205,7 @@ export async function PATCH(req: NextRequest) {
       activeCapabilities: config.company?.activeCapabilities ?? [],
       activeCommands: config.company?.activeCommands ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
+      activePipelines: config.company?.activePipelines ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });

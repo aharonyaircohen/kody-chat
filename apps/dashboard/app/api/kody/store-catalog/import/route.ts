@@ -41,6 +41,8 @@ import {
   type WorkflowDefinition,
 } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
+import type { PipelineDefinition } from "@dashboard/lib/pipeline-definitions";
+import { listCompanyStorePipelineDefinitionFiles } from "@dashboard/lib/pipeline-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
 import {
   loadStoreSolutionCatalog,
@@ -62,6 +64,7 @@ type ImportKind =
   | "agent"
   | "capability"
   | "workflow"
+  | "pipeline"
   | "loop"
   | "command"
   | "feature"
@@ -70,6 +73,7 @@ type ActiveField =
   | "activeAgents"
   | "activeCapabilities"
   | "activeWorkflows"
+  | "activePipelines"
   | "activeCommands"
   | "activeFeatures";
 type ActivateResult = {
@@ -86,6 +90,7 @@ const requestSchema = z.object({
     "agent",
     "capability",
     "workflow",
+    "pipeline",
     "loop",
     "command",
     "feature",
@@ -101,12 +106,13 @@ const fieldByKind: Record<
   agent: "activeAgents",
   capability: "activeCapabilities",
   workflow: "activeWorkflows",
+  pipeline: "activePipelines",
   command: "activeCommands",
   feature: "activeFeatures",
 };
 
 function validSlug(kind: ImportKind, slug: string): boolean {
-  return kind === "workflow"
+  return kind === "workflow" || kind === "pipeline"
     ? isWorkflowDefinitionId(slug)
     : /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
@@ -124,6 +130,7 @@ async function resolvedStoreSolution(octokit: Octokit, slug: string) {
     agents: new Set(),
     capabilities: new Set(),
     workflows: new Set(),
+    pipelines: new Set(),
     loops: new Set(),
   });
   return solution;
@@ -183,6 +190,32 @@ async function removeStoreWorkflowProjection(
   });
 }
 
+async function saveStorePipelineProjection(
+  owner: string,
+  repo: string,
+  slug: string,
+  pipeline: PipelineDefinition,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.pipelines.save, {
+    tenantId: `${owner}/${repo}`,
+    pipelineId: slug,
+    definition: pipeline,
+    source: "store",
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function removeStorePipelineProjection(
+  owner: string,
+  repo: string,
+  slug: string,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.pipelines.remove, {
+    tenantId: `${owner}/${repo}`,
+    pipelineId: slug,
+  });
+}
+
 async function readStoreWorkflow(
   octokit: Octokit,
   slug: string,
@@ -191,6 +224,16 @@ async function readStoreWorkflow(
     (entry) => entry.id === slug,
   );
   return record?.workflow ?? null;
+}
+
+async function readStorePipeline(
+  octokit: Octokit,
+  slug: string,
+): Promise<PipelineDefinition | null> {
+  const record = (await listCompanyStorePipelineDefinitionFiles(octokit)).find(
+    (entry) => entry.id === slug,
+  );
+  return record?.pipeline ?? null;
 }
 
 async function readStoreTree(
@@ -289,7 +332,7 @@ async function assertExists(
   octokit: Octokit,
   kind: ImportKind,
   slug: string,
-): Promise<WorkflowDefinition | StoreLoop | null> {
+): Promise<WorkflowDefinition | PipelineDefinition | StoreLoop | null> {
   if (kind === "agent") {
     const found = (await listStoreAgentFiles(octokit)).some(
       (entry) => entry.slug === slug,
@@ -310,6 +353,14 @@ async function assertExists(
       });
     }
     return workflow;
+  } else if (kind === "pipeline") {
+    const pipeline = await readStorePipeline(octokit, slug);
+    if (!pipeline) {
+      throw Object.assign(new Error("Store Pipeline not found."), {
+        status: 404,
+      });
+    }
+    return pipeline;
   } else if (kind === "loop") {
     const loop = await readStoreLoop(octokit, slug);
     if (!loop) {
@@ -352,6 +403,25 @@ async function activeWorkflowBlockers(
     }));
 }
 
+async function activePipelineBlockers(
+  octokit: Octokit,
+  activePipelineIds: string[] | undefined,
+  workflowSlug: string,
+) {
+  const active = new Set(activePipelineIds ?? []);
+  return (await listCompanyStorePipelineDefinitionFiles(octokit))
+    .filter(
+      (entry) =>
+        active.has(entry.id) &&
+        entry.pipeline.steps.some((step) => step.workflow === workflowSlug),
+    )
+    .map((entry) => ({
+      kind: "pipeline" as const,
+      slug: entry.id,
+      title: entry.pipeline.name || entry.id,
+    }));
+}
+
 async function activate(
   octokit: Octokit,
   owner: string,
@@ -373,9 +443,9 @@ async function activate(
       status: imported ? ("imported" as const) : ("already_local" as const),
     };
   }
-  const workflow = await assertExists(octokit, kind, slug);
+  const asset = await assertExists(octokit, kind, slug);
   if (kind === "loop") {
-    const storeLoop = workflow as StoreLoop;
+    const storeLoop = asset as StoreLoop;
     await activate(
       octokit,
       owner,
@@ -394,20 +464,26 @@ async function activate(
     );
     return { imported: true, status: "imported" as const };
   }
+  if (kind === "pipeline") {
+    const pipeline = asset as PipelineDefinition;
+    for (const step of pipeline.steps) {
+      await activate(octokit, owner, repo, "workflow", step.workflow);
+    }
+  }
   const { config, sha } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
   const company = config.company;
   const patch: ConfigPatch = {};
   const agentSlugs =
-    kind === "workflow" && workflow
-      ? [(workflow as WorkflowDefinition).agent]
+    kind === "workflow" && asset
+      ? [(asset as WorkflowDefinition).agent]
       : kind === "agent"
         ? [slug]
         : [];
   const capabilitySlugs =
-    kind === "workflow" && workflow
-      ? (workflow as WorkflowDefinition).capabilities
+    kind === "workflow" && asset
+      ? (asset as WorkflowDefinition).capabilities
       : kind === "capability"
         ? [slug]
         : [];
@@ -420,8 +496,8 @@ async function activate(
     capabilitySlugs,
   );
 
-  if (kind === "workflow" && workflow) {
-    const workflowDefinition = workflow as WorkflowDefinition;
+  if (kind === "workflow" && asset) {
+    const workflowDefinition = asset as WorkflowDefinition;
     patch.activeWorkflows = append(company?.activeWorkflows, [slug]);
     patch.activeCapabilities = append(
       company?.activeCapabilities,
@@ -430,6 +506,8 @@ async function activate(
     patch.activeAgents = append(company?.activeAgents, [
       workflowDefinition.agent,
     ]);
+  } else if (kind === "pipeline" && asset) {
+    patch.activePipelines = append(company?.activePipelines, [slug]);
   } else {
     const field = fieldByKind[kind];
     const next = append(company?.[field] as string[] | undefined, [slug]);
@@ -442,12 +520,19 @@ async function activate(
   });
   if (!changed) {
     await saveProjectedEngineConfig(owner, repo, config, sha);
-    if (kind === "workflow" && workflow) {
+    if (kind === "workflow" && asset) {
       await saveStoreWorkflowProjection(
         owner,
         repo,
         slug,
-        workflow as WorkflowDefinition,
+        asset as WorkflowDefinition,
+      );
+    } else if (kind === "pipeline" && asset) {
+      await saveStorePipelineProjection(
+        owner,
+        repo,
+        slug,
+        asset as PipelineDefinition,
       );
     }
     return { imported: false, status: "already_local" as const };
@@ -460,12 +545,19 @@ async function activate(
     patch,
     `chore(kody): add store ${kind} ${slug}`,
   );
-  if (kind === "workflow" && workflow) {
+  if (kind === "workflow" && asset) {
     await saveStoreWorkflowProjection(
       owner,
       repo,
       slug,
-      workflow as WorkflowDefinition,
+      asset as WorkflowDefinition,
+    );
+  } else if (kind === "pipeline" && asset) {
+    await saveStorePipelineProjection(
+      owner,
+      repo,
+      slug,
+      asset as PipelineDefinition,
     );
   }
   return { imported: true, status: "imported" as const };
@@ -516,6 +608,8 @@ async function deactivate(
     await saveProjectedEngineConfig(owner, repo, config, sha);
     if (kind === "workflow") {
       await removeStoreWorkflowProjection(owner, repo, slug);
+    } else if (kind === "pipeline") {
+      await removeStorePipelineProjection(owner, repo, slug);
     } else if (kind === "agent" || kind === "capability") {
       await retireStoreDefinition(owner, repo, kind, slug);
     }
@@ -536,6 +630,19 @@ async function deactivate(
       );
     }
   }
+  if (kind === "workflow") {
+    const blockers = await activePipelineBlockers(
+      octokit,
+      config.company?.activePipelines,
+      slug,
+    );
+    if (blockers.length) {
+      throw Object.assign(
+        new Error(`workflow "${slug}" is used by an active Pipeline.`),
+        { status: 409, blockers },
+      );
+    }
+  }
 
   const patch = {
     [field]: next.length ? next : null,
@@ -549,6 +656,8 @@ async function deactivate(
   );
   if (kind === "workflow") {
     await removeStoreWorkflowProjection(owner, repo, slug);
+  } else if (kind === "pipeline") {
+    await removeStorePipelineProjection(owner, repo, slug);
   } else if (kind === "agent" || kind === "capability") {
     await retireStoreDefinition(owner, repo, kind, slug);
   }

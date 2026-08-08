@@ -7,6 +7,9 @@ import {
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
+  pipelineDefinitionValidator,
+  pipelineRunStatusValidator,
+  pipelineRunStepValidator,
   guidedFlowStatusValidator,
 } from "./validators";
 import {
@@ -128,6 +131,31 @@ export default defineSchema({
     .index("by_source_key", ["tenantId", "sourceEventId", "triggerId"])
     .index("by_status", ["tenantId", "status", "updatedAt"])
     .index("by_tenant", ["tenantId", "updatedAt"]),
+
+  pipelines: defineTable({
+    tenantId: v.string(),
+    pipelineId: v.string(),
+    definition: pipelineDefinitionValidator,
+    source: v.union(v.literal("local"), v.literal("store")),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "pipelineId"]),
+
+  pipelineRuns: defineTable({
+    tenantId: v.string(),
+    pipelineId: v.string(),
+    runId: v.string(),
+    status: pipelineRunStatusValidator,
+    input: v.record(v.string(), v.any()),
+    steps: v.array(pipelineRunStepValidator),
+    currentStepIndex: v.number(),
+    activeWorkflowRunId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_run", ["tenantId", "pipelineId", "runId"])
+    .index("by_pipeline", ["tenantId", "pipelineId", "updatedAt"])
+    .index("by_active_workflow", ["tenantId", "activeWorkflowRunId"]),
 
   guidedFlowInstances: defineTable({
     tenantId: v.string(),
@@ -522,6 +550,7 @@ export default defineSchema({
     approvalId: v.string(),
     scopeKind: v.union(
       v.literal("loop"),
+      v.literal("pipeline"),
       v.literal("workflow"),
       v.literal("capability"),
     ),

@@ -45,6 +45,49 @@ export const workflowDefinitionValidator = v.object({
   updatedAt: v.optional(v.string()),
 });
 
+export const pipelineStepValidator = v.object({
+  id: v.string(),
+  workflow: v.string(),
+  inputMap: v.optional(v.record(v.string(), v.string())),
+});
+
+export const pipelineDefinitionValidator = v.object({
+  name: v.string(),
+  inputSchema: v.optional(v.any()),
+  steps: v.array(pipelineStepValidator),
+  runWithoutApproval: v.optional(v.boolean()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+export const pipelineRunStatusValidator = v.union(
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("cancelled"),
+);
+
+export const pipelineRunStepStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("cancelled"),
+);
+
+export const pipelineRunStepValidator = v.object({
+  id: v.string(),
+  workflowId: v.string(),
+  inputMap: v.optional(v.record(v.string(), v.string())),
+  status: pipelineRunStepStatusValidator,
+  workflowRunId: v.optional(v.string()),
+  startedAt: v.optional(v.string()),
+  completedAt: v.optional(v.string()),
+  output: v.optional(v.record(v.string(), v.any())),
+});
+
 export const workflowRunStatusValidator = v.union(
   v.literal("running"),
   v.literal("blocked"),

@@ -6,6 +6,7 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 
 const scopeKind = v.union(
   v.literal("loop"),
+  v.literal("pipeline"),
   v.literal("workflow"),
   v.literal("capability"),
 );

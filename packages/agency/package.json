@@ -7,6 +7,7 @@
   "exports": {
     "./agency-approvals": "./src/agency-approvals.ts",
     "./agency-runs": "./src/agency-runs.ts",
+    "./pipeline-run-approval": "./src/pipeline-run-approval.ts",
     "./capabilities": "./src/capabilities/index.ts",
     "./capabilities/*": "./src/capabilities/*.ts",
     "./cto/*": "./src/cto/*.ts",

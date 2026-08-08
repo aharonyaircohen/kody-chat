@@ -31,6 +31,12 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["deliveryId", "triggerId"],
     upsertIndex: "by_key",
   },
+  { table: "pipelines", naturalKey: ["pipelineId"], upsertIndex: "by_tenant" },
+  {
+    table: "pipelineRuns",
+    naturalKey: ["pipelineId", "runId"],
+    upsertIndex: "by_run",
+  },
   {
     table: "guidedFlowInstances",
     naturalKey: ["actorId", "instanceId"],

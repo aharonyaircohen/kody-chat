@@ -2054,6 +2054,7 @@ export interface EngineEditableConfig {
   activeCapabilities?: string[];
   activeCommands?: string[];
   activeWorkflows?: string[];
+  activePipelines?: string[];
   defaultBranch: string;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.
    * Loose string here — the route validates the canonical vocabulary

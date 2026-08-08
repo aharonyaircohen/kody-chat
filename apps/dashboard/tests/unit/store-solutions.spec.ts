@@ -8,6 +8,7 @@ import {
 const catalog: StoreSolutionCatalog = {
   agents: new Set(["kody"]),
   capabilities: new Set(["prepare", "deploy"]),
+  pipelines: new Map(),
   workflows: new Map([
     [
       "web-release",
@@ -45,6 +46,7 @@ describe("Store Solution dependency trees", () => {
       capabilities: new Set(),
       workflows: new Set(),
       loops: new Set(),
+      pipelines: new Set(),
     });
 
     expect(resolved.status).toBe("available");
@@ -95,6 +97,7 @@ describe("Store Solution dependency trees", () => {
       capabilities: new Set(["prepare"]),
       workflows: new Set(["web-release"]),
       loops: new Set(),
+      pipelines: new Set(),
     });
     expect(partial.status).toBe("partial");
 
@@ -103,6 +106,7 @@ describe("Store Solution dependency trees", () => {
       capabilities: new Set(["prepare", "deploy"]),
       workflows: new Set(["web-release"]),
       loops: new Set(["daily-web-release-loop"]),
+      pipelines: new Set(),
     });
     expect(installed.status).toBe("installed");
   });
@@ -120,6 +124,7 @@ describe("Store Solution dependency trees", () => {
           capabilities: new Set(),
           workflows: new Set(),
           loops: new Set(),
+          pipelines: new Set(),
         },
       ),
     ).toThrow(
