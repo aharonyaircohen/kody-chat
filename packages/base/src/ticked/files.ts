@@ -12,7 +12,7 @@ export interface TickFile {
   sha: string;
   updatedAt: string;
   htmlUrl: string;
-  source?: "local" | "store";
+  source?: "local" | "builtin" | "store";
   readOnly?: boolean;
   capabilities?: string[];
   subagents?: string[];

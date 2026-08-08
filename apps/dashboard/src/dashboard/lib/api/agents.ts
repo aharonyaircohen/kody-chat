@@ -16,8 +16,8 @@ export interface Agent {
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Runtime resolution source. Local repo agent win over store agent. */
-  source?: "local" | "store";
-  /** Store-linked agent are visible and dispatchable, but not editable locally. */
+  source?: "local" | "builtin" | "store";
+  /** Code- and Store-owned agents are overridden by saving a local copy. */
   readOnly?: boolean;
 }
 

@@ -105,14 +105,14 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
       repo: REPO,
     }),
   );
+  await page.route("**/api/webhooks/register", (route) =>
+    json(route, { success: true }),
+  );
 
   await page.goto(`/repo/${OWNER}/${REPO}/agents/kody`, {
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "Kody" })).toBeVisible();
-  await expect(
-    page.getByText("Agency Specialist", { exact: true }).first(),
-  ).toBeVisible();
   await page.getByRole("button", { name: "Edit agent" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit agent `kody`" });
   await expect(dialog).toContainText("Subagents");
@@ -120,5 +120,95 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
   await dialog.getByRole("button", { name: "Save changes" }).click();
 
   await expect.poll(() => savedSubagents).toEqual(["agency-specialist"]);
+  expect(failures).toEqual([]);
+});
+
+test("code-owned Kody shows its six assigned built-in specialists", async ({
+  page,
+}) => {
+  const failures: string[] = [];
+  const specialistSlugs = [
+    "context-scout",
+    "repository-analyst",
+    "operations-specialist",
+    "agency-architect",
+    "system-admin",
+    "ui-vibe-specialist",
+  ];
+  const agents = [
+    {
+      slug: "kody",
+      title: "Kody",
+      body: "Coordinates focused specialist work.",
+      subagents: specialistSlugs,
+      source: "builtin",
+      readOnly: true,
+      updatedAt: "",
+      htmlUrl: "",
+    },
+    ...specialistSlugs.map((slug) => ({
+      slug,
+      title: slug
+        .split("-")
+        .map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`)
+        .join(" "),
+      body: `Owns ${slug} work.`,
+      source: "builtin",
+      readOnly: true,
+      updatedAt: "",
+      htmlUrl: "",
+    })),
+  ];
+
+  page.on("pageerror", (error) => failures.push(`page: ${error.message}`));
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failures.push(`response: ${response.status()} ${response.url()}`);
+    }
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") failures.push(`console: ${message.text()}`);
+  });
+  await seedAuth(page);
+  await mockDashboardShellRequests(page);
+  await page.route("**/api/kody/commands", (route) =>
+    json(route, { commands: [] }),
+  );
+  await page.route("**/api/kody/guided-flows", (route) =>
+    json(route, { flows: [] }),
+  );
+  await page.route("**/api/kody/chat/conversations**", (route) =>
+    json(route, { conversations: [] }),
+  );
+  await page.route("**/api/kody/agents**", (route) =>
+    json(route, { agent: agents }),
+  );
+  await page.route("**/api/kody/capabilities", (route) =>
+    json(route, { capabilities: [] }),
+  );
+  await page.route("**/api/kody/auth/me", (route) =>
+    json(route, {
+      authenticated: true,
+      user: { login: "agents-e2e", avatar_url: "", githubId: 1 },
+      owner: OWNER,
+      repo: REPO,
+    }),
+  );
+  await page.route("**/api/webhooks/register", (route) =>
+    json(route, { success: true }),
+  );
+
+  await page.goto(`/repo/${OWNER}/${REPO}/agents/kody`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByRole("heading", { name: "Kody" })).toBeVisible();
+  for (const slug of specialistSlugs) {
+    await expect(page.getByText(slug, { exact: true }).last()).toBeVisible();
+  }
+  await expect(page.getByText("Built-in", { exact: true })).toHaveCount(7);
+  await expect(page.getByRole("button", { name: "Delete agent" })).toHaveCount(
+    0,
+  );
+
   expect(failures).toEqual([]);
 });

@@ -145,7 +145,11 @@ import { createPositionTools } from "../tools/position-tools";
 import { applyReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning-adapter";
 import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
-import { readCapabilityFile } from "@kody-ade/agency/capabilities";
+import {
+  readCapabilityFile,
+  readResolvedCapabilityFile,
+} from "@kody-ade/agency/capabilities";
+import { readBuiltinAgentCapability } from "@kody-ade/agency/builtin-agents";
 import { loadRelevantMemoryForPrompt } from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
@@ -1539,8 +1543,9 @@ async function handleKodyDirectPost(
       loadCapabilities: async (agent) =>
         (
           await Promise.all(
-            (agent.capabilities ?? []).map((slug) =>
-              readCapabilityFile(slug).catch(() => null),
+            (agent.capabilities ?? []).map(async (slug) =>
+              readBuiltinAgentCapability(slug) ??
+              readResolvedCapabilityFile(slug).catch(() => null),
             ),
           )
         ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),

@@ -4,6 +4,7 @@ const store = vi.hoisted(() => ({
   listSlugs: vi.fn(),
   readText: vi.fn(),
   updatedAt: vi.fn(),
+  query: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/github/core", () => ({
@@ -41,12 +42,15 @@ vi.mock("@kody-ade/backend/api", () => ({
 
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
-    query: vi.fn(),
+    query: store.query,
     mutation: vi.fn(),
   }),
 }));
 
-import { listStoreAgentFiles } from "../src/agent-files";
+import {
+  listResolvedAgentFiles,
+  listStoreAgentFiles,
+} from "../src/agent-files";
 
 describe("Store agent repository activation", () => {
   beforeEach(() => {
@@ -59,6 +63,7 @@ describe("Store agent repository activation", () => {
           : "# Inactive agent\n",
     );
     store.updatedAt.mockResolvedValue("2026-07-26T00:00:00.000Z");
+    store.query.mockResolvedValue([]);
   });
 
   it("loads only Store agents activated for the repository", async () => {
@@ -74,5 +79,23 @@ describe("Store agent repository activation", () => {
       { rest: {} },
       "agents/active.md",
     );
+  });
+
+  it("does not require Store access when the repository activates no Store agents", async () => {
+    const agents = await listResolvedAgentFiles({
+      activeStoreSlugs: new Set(),
+    });
+
+    expect(agents).toHaveLength(7);
+    expect(store.listSlugs).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch a Store definition shadowed by a built-in", async () => {
+    const agents = await listResolvedAgentFiles({
+      activeStoreSlugs: new Set(["kody"]),
+    });
+
+    expect(agents.find(({ slug }) => slug === "kody")?.source).toBe("builtin");
+    expect(store.listSlugs).not.toHaveBeenCalled();
   });
 });

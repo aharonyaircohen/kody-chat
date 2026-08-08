@@ -113,7 +113,7 @@ describe("GET /api/kody/agents", () => {
     });
   });
 
-  it("does not expose Store agents in a new repository", async () => {
+  it("exposes built-in Agents but no Store agents in a new repository", async () => {
     h.getEngineConfig.mockResolvedValue({
       config: { company: {} },
       sha: null,
@@ -122,14 +122,20 @@ describe("GET /api/kody/agents", () => {
       async (options?: { activeStoreSlugs?: Set<string> }) =>
         options?.activeStoreSlugs?.has("store-on")
           ? [{ slug: "store-on", source: "store" }]
-          : [],
+          : [
+              { slug: "kody", source: "builtin" },
+              { slug: "repository-analyst", source: "builtin" },
+            ],
     );
 
     const res = await GET(listRequest());
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.agent).toEqual([]);
+    expect(json.agent).toEqual([
+      { slug: "kody", source: "builtin" },
+      { slug: "repository-analyst", source: "builtin" },
+    ]);
     expect(h.listResolvedAgentFiles).toHaveBeenCalledWith({
       activeStoreSlugs: new Set(),
     });

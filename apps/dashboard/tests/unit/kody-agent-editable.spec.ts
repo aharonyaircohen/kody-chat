@@ -1,7 +1,5 @@
 /**
- * @fileoverview Kody is a regular editable agent: the built-in entry is only
- * a placeholder until agents/kody.md exists — the first edit creates the
- * file (create API), and a real file entry replaces the placeholder.
+ * @fileoverview Code-owned Agents remain editable through local overrides.
  * @testFramework vitest
  * @domain agents
  */
@@ -20,17 +18,16 @@ describe("Kody agent editability", () => {
     expect(SOURCE).not.toContain("never editable");
   });
 
-  it("the placeholder offers Edit and the first save creates kody.md", () => {
-    expect(SOURCE).toContain(
-      "Edit — saves agents/kody.md, making Kody a regular agent",
-    );
+  it("the built-in offers Edit and the first save creates a local override", () => {
+    expect(SOURCE).toContain("Edit — saves a repo override");
     expect(SOURCE).toContain("isFileless");
     expect(SOURCE).toMatch(
       /createMutation\.mutate\(\s*\{\s*slug:\s*member\.slug,/,
     );
   });
 
-  it("a real kody.md file wins over the built-in placeholder", () => {
-    expect(SOURCE).toContain("fileKody ?? BUILTIN_KODY_AGENT");
+  it("uses the API-resolved roster as the single source of truth", () => {
+    expect(SOURCE).toContain("const agent = rawStaff");
+    expect(SOURCE).not.toContain("BUILTIN_KODY_AGENT");
   });
 });

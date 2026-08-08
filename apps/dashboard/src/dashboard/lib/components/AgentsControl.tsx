@@ -62,25 +62,9 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
 
-/**
- * Kody — the built-in chat agentIdentity placeholder. Shown while no
- * `agents/kody.md` file exists; the first edit creates that file, and from
- * then on Kody is a regular editable agent like any other. Never removable.
- */
-const BUILTIN_KODY_AGENT: Agent = {
-  slug: KODY_CHAT_AGENT,
-  title: "Kody",
-  body:
-    "Kody is the built-in assistant agentIdentity — the agent the in-process " +
-    "chat runs as. It is always available and can't be edited or removed here. " +
-    "Attach Context entries to Kody to inject them into every chat turn.",
-  updatedAt: "",
-  htmlUrl: "",
-};
-
-/** True for built-in const agent (no file, no edit/delete). */
-function isBuiltinAgent(slug: string): boolean {
-  return slug === KODY_CHAT_AGENT;
+/** Code-owned definitions can be locally overridden but never deleted. */
+function isCodeOwnedAgent(member: Agent): boolean {
+  return member.source === "builtin";
 }
 
 interface AgentsControlProps {
@@ -117,16 +101,8 @@ export function AgentsControlInner({
   const rawStaff = useMemo(() => fetchedStaff ?? [], [fetchedStaff]);
   const staffLoaded = fetchedStaff !== undefined;
 
-  // Kody is always first and never removable. A real `agents/kody.md` file
-  // wins over the built-in placeholder — editing Kody creates that file, so
-  // it behaves like a regular agent from the first save.
-  const agent = useMemo(() => {
-    const fileKody = rawStaff.find((m) => isBuiltinAgent(m.slug));
-    return [
-      fileKody ?? BUILTIN_KODY_AGENT,
-      ...rawStaff.filter((m) => !isBuiltinAgent(m.slug)),
-    ];
-  }, [rawStaff]);
+  // The API owns the complete resolved roster and keeps Kody first.
+  const agent = rawStaff;
 
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<Agent | null>(null);
@@ -331,20 +307,27 @@ export function AgentsControlInner({
                               Store
                             </span>
                           ) : null}
+                          {member.source === "builtin" ? (
+                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                              Built-in
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                           <span className="font-mono opacity-80">
                             {member.slug}
                           </span>
-                          <span>·</span>
-                          {isBuiltinAgent(member.slug) ? (
-                            <span>Built-in</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {new Date(member.updatedAt).toLocaleDateString()}
-                            </span>
-                          )}
+                          {!isCodeOwnedAgent(member) ? (
+                            <>
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(
+                                  member.updatedAt,
+                                ).toLocaleDateString()}
+                              </span>
+                            </>
+                          ) : null}
                         </div>
                       </button>
                     </li>
@@ -460,7 +443,7 @@ function StaffDetail({
   onSendTask: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
-  const isBuiltin = isBuiltinAgent(member.slug);
+  const isBuiltin = isCodeOwnedAgent(member);
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -517,24 +500,8 @@ function StaffDetail({
                 )}
               </div>
             </div>
-            {isBuiltin && !member.updatedAt ? (
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="inline-flex items-center rounded border border-teal-500/30 bg-teal-500/10 px-2 py-1 text-[11px] font-medium text-teal-300">
-                  Built-in
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="w-9 px-0"
-                  title="Edit — saves agents/kody.md, making Kody a regular agent"
-                  aria-label="Edit agent"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
+              {member.slug !== KODY_CHAT_AGENT ? (
                 <Button
                   size="sm"
                   onClick={onSendTask}
@@ -544,20 +511,22 @@ function StaffDetail({
                 >
                   <Send className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="w-9 px-0"
-                  title={
-                    member.readOnly
-                      ? "Edit — saves a repo copy that overrides the Store version"
-                      : "Edit agent"
-                  }
-                  aria-label="Edit agent"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEdit}
+                className="w-9 px-0"
+                title={
+                  member.readOnly
+                    ? "Edit — saves a repo override"
+                    : "Edit agent"
+                }
+                aria-label="Edit agent"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              {!isBuiltin ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -576,8 +545,8 @@ function StaffDetail({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
-              </div>
-            )}
+              ) : null}
+            </div>
           </header>
 
           {/* Description card inside the hero when present */}
@@ -852,8 +821,8 @@ function EditStaffDialog({
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateAgent(member.slug, githubUser?.login);
   const createMutation = useCreateAgent(githubUser?.login);
-  // The built-in Kody placeholder has no file yet (updatedAt "") — the
-  // first save CREATES agents/kody.md, making it a regular agent.
+  // Code-owned definitions have no persisted file; the first save creates a
+  // local definition that overrides the built-in.
   const isFileless = !member.updatedAt && !member.htmlUrl;
 
   const [title, setTitle] = useState(member.title);
