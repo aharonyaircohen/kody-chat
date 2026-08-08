@@ -49,7 +49,8 @@
       "maintain-memory-quality",
       "web-release",
       "review-merge",
-      "merge"
+      "merge",
+      "review-fix"
     ],
     "activePipelines": [
       "review-and-merge"
