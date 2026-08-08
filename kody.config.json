@@ -50,6 +50,9 @@
       "web-release",
       "review-merge",
       "merge"
+    ],
+    "activePipelines": [
+      "review-and-merge"
     ]
   },
   "access": {
