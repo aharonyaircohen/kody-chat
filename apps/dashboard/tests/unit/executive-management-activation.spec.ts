@@ -18,7 +18,7 @@ describe("kody-chat company activation", () => {
     expect(config).not.toHaveProperty("state");
   });
 
-  it("activates CI repair, the installed memory agency, and release workflows", () => {
+  it("matches the workflows and capabilities installed for this repository", () => {
     const config = JSON.parse(
       readFileSync(resolve(repoRoot, "kody.config.json"), "utf8"),
     );
@@ -41,12 +41,15 @@ describe("kody-chat company activation", () => {
       "release-validate",
       "release-promote",
       "vercel-production-deploy",
+      "ui-review",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
       "web-release",
+      "merge",
+      "review-fix",
     ]);
   });
 

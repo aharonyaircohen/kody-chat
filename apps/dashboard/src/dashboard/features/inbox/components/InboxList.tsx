@@ -466,6 +466,20 @@ export function InboxList() {
     >
       <OperatorsWarningBanner />
 
+      <div
+        role="status"
+        aria-label="UI review acceptance marker"
+        className="mb-4 rounded-lg border border-sky-400/30 bg-sky-400/[0.06] px-4 py-3"
+      >
+        <p className="text-sm font-medium text-sky-100">
+          UI review acceptance test
+        </p>
+        <p className="mt-1 text-xs text-sky-100/70">
+          This temporary banner confirms that the reviewer opened this pull
+          request&apos;s signed-in Inbox page.
+        </p>
+      </div>
+
       {scopeMissing && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-3 text-sm">
           <div className="flex items-start gap-2">
