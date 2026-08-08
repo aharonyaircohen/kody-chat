@@ -59,6 +59,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/operations",
   "/preview",
   "/policies",
+  "/pipelines",
   "/reports",
   "/runner",
   "/secrets",

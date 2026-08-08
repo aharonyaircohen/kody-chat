@@ -113,15 +113,16 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).not.toContain('htmlFor="trigger-workflow"');
   });
 
-  it("only offers the action supported by the selected trigger", () => {
+  it("only offers actions supported by the selected trigger", () => {
     expect(SOURCE).toContain("function actionTypeForEvent(event: string)");
     expect(SOURCE).toContain("actionType: actionTypeForEvent(value),");
     expect(SOURCE).toContain(
       "editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (",
     );
     expect(SOURCE).toContain(
-      "editor.actionType !== actionTypeForEvent(editor.event)",
+      'state.actionType === "start-pipeline"',
     );
+    expect(SOURCE).toContain('value="start-pipeline"');
     expect(SOURCE).toContain('"kody.workflow.completed"');
     expect(SOURCE).toContain('aria-label="Kody workflow that finished"');
   });
@@ -146,8 +147,8 @@ describe("TriggersManager editor", () => {
   });
 
   it("maps only declared workflow inputs from the event payload", () => {
-    expect(SOURCE).toContain("defaultWorkflowInputMap(");
-    expect(SOURCE).toContain("workflow.inputSchema?.properties");
+    expect(SOURCE).toContain("defaultInputMap(");
+    expect(SOURCE).toContain("target?.inputSchema?.properties");
     expect(SOURCE).toContain("`payload.${key}`");
   });
 });

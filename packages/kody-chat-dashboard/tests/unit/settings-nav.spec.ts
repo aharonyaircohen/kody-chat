@@ -90,6 +90,7 @@ describe("settings navigation", () => {
       "/agents",
       "/agent-loops",
       "/workflows",
+      "/pipelines",
       "/capabilities",
     ]);
     expect(navLabelForPath("/operations")).toBeNull();

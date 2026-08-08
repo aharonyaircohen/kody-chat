@@ -6,7 +6,7 @@ const source = readFileSync("app/api/kody/store-catalog/route.ts", "utf8");
 describe("simple Store catalog", () => {
   it("lists only current Store asset kinds", () => {
     expect(source).toContain(
-      '"agent" | "workflow" | "capability" | "loop" | "command" | "feature"',
+      '"agent" | "pipeline" | "workflow" | "capability" | "loop" | "command" | "feature"',
     );
     expect(source).not.toContain('"implementation"');
     expect(source).toContain("listStoreCatalogSlugs");
