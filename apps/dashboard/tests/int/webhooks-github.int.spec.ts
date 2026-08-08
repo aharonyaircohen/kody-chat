@@ -21,6 +21,8 @@ const gh = vi.hoisted(() => ({
   invalidateWorkflowCache: vi.fn(),
   invalidatePRBehindCache: vi.fn(),
   invalidateDiscussionCache: vi.fn(),
+  setGitHubContext: vi.fn(),
+  clearGitHubContext: vi.fn(),
 }));
 const workflow = vi.hoisted(() => ({
   dispatchGitHubWorkflowTriggers: vi.fn(async () => {}),
@@ -239,6 +241,12 @@ describe("POST /api/webhooks/github — side effects", () => {
         }),
       }),
     );
+    expect(gh.setGitHubContext).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      "background-token",
+    );
+    expect(gh.clearGitHubContext).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the webhook successful when configured workflow dispatch fails", async () => {
@@ -256,6 +264,7 @@ describe("POST /api/webhooks/github — side effects", () => {
 
     expect(response.status).toBe(200);
     expect(gh.invalidateWorkflowCache).toHaveBeenCalledTimes(1);
+    expect(gh.clearGitHubContext).toHaveBeenCalledTimes(1);
   });
 
   it("ACKs before a slow configured workflow dispatch finishes", async () => {

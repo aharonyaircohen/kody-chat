@@ -27,12 +27,14 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
+  clearGitHubContext,
   invalidateIssueCache,
   invalidatePRCache,
   invalidateBranchCache,
   invalidateWorkflowCache,
   invalidatePRBehindCache,
   invalidateDiscussionCache,
+  setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@kody-ade/base/logger";
@@ -452,11 +454,16 @@ async function dispatchConfiguredWorkflows(
     );
     return;
   }
-  await dispatchGitHubWorkflowTriggers({
-    event,
-    deliveryId,
-    octokit: createUserOctokit(background.token),
-  });
+  setGitHubContext(event.brand.owner, event.brand.repo, background.token);
+  try {
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId,
+      octokit: createUserOctokit(background.token),
+    });
+  } finally {
+    clearGitHubContext();
+  }
 }
 
 function scheduleConfiguredWorkflows(
