@@ -103,6 +103,19 @@ export function relativeTime(iso: string): string {
   });
 }
 
+/** Exact local date and time for an inbox entry. */
+export function fullTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 /** Agent-request title minus the machine prefix (`[slug] …` / `slug: …`). */
 export function questionFromTitle(title: string): string {
   return title
