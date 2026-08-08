@@ -55,6 +55,19 @@ export interface PublicAgentAssignment {
 export type PublicAgentRouteDecision =
   { mode: "self" } | { mode: "delegate"; assignments: PublicAgentAssignment[] };
 
+/** The parent chat owns user-facing renderer interactions and approvals. */
+export function shouldDelegatePublicAgentChat(input: {
+  clientSurface: boolean;
+  assignedSubagentCount: number;
+  requireInteractiveAction: boolean;
+}): boolean {
+  return (
+    !input.clientSurface &&
+    input.assignedSubagentCount > 0 &&
+    !input.requireInteractiveAction
+  );
+}
+
 /** Short social turns do not need a routing model call or research tools. */
 export function isClearlyConversationalTurn(userText: string): boolean {
   const normalized = userText.trim().toLowerCase().replace(/\s+/g, " ");

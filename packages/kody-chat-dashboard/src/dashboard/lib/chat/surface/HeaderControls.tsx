@@ -30,7 +30,7 @@ import {
 import type { ModelReasoning } from "../core/reasoning-adapter";
 import type { ChatDropdownEntry } from "../platform/agent-entries";
 import { ChatPluginSlot } from "./ChatPluginProvider";
-import { ChatSetupControl } from "./ChatSetupControl";
+import { ChatSetupControl, type ChatSetupSection } from "./ChatSetupControl";
 
 interface HeaderControlsProps {
   currentEntry: ChatDropdownEntry | null;
@@ -41,6 +41,8 @@ interface HeaderControlsProps {
   compact?: boolean;
   agentMenuOpen: boolean;
   setAgentMenuOpen: Dispatch<SetStateAction<boolean>>;
+  requestedSetupSection?: ChatSetupSection | null;
+  onRequestedSetupSectionHandled?: () => void;
   messageCount: number;
   currentReasoning: ModelReasoning | null;
   effectiveReasoningEffort: string | null;
@@ -107,6 +109,8 @@ export function HeaderControls(props: HeaderControlsProps) {
         <ChatSetupControl
           open={props.agentMenuOpen}
           setOpen={props.setAgentMenuOpen}
+          requestedSection={props.requestedSetupSection}
+          onRequestedSectionHandled={props.onRequestedSetupSectionHandled}
           currentModelName={props.currentEntry?.name ?? props.currentAgent.name}
           modelEntries={modelEntriesForMachineAccess(
             props.agentList,

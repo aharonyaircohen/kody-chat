@@ -114,6 +114,14 @@ export const ChatAdapterSchema = z.enum([
 ]);
 export type ChatAdapter = z.infer<typeof ChatAdapterSchema>;
 
+export const ChatToolChoiceCapabilitiesSchema = z.object({
+  required: z.boolean().optional().default(false),
+  named: z.boolean().optional().default(false),
+});
+export type ChatToolChoiceCapabilities = z.infer<
+  typeof ChatToolChoiceCapabilitiesSchema
+>;
+
 const ChatModelConfigSchema = z.object({
   /** Stable id, also the React key. Free-form; the UI defaults to
    * `<provider>/<modelName>` but the user can change it. */
@@ -152,6 +160,12 @@ const ChatModelConfigSchema = z.object({
    * let a model run a longer research chain; the function-level
    * `maxDuration` (300s) still bounds wall-clock time regardless. */
   maxSteps: z.number().int().min(1).max(500).optional(),
+  /**
+   * Optional wire capabilities declared by model metadata. Unknown
+   * capabilities stay false so the chat route validates actual structured
+   * output instead of guessing from a provider or model name.
+   */
+  toolChoice: ChatToolChoiceCapabilitiesSchema.optional(),
   /**
    * Optional override of the auto-detected thinking config. Most users
    * never set this — the chat route's `defaultReasoningForModel`

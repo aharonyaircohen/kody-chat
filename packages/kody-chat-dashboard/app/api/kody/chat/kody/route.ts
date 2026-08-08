@@ -124,6 +124,10 @@ import {
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
+import {
+  buildModelOutputRecoveryView,
+  MODEL_OUTPUT_RECOVERY_RENDERER,
+} from "../../../../../src/dashboard/lib/chat/core/model-output-recovery";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
@@ -182,6 +186,7 @@ import {
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
 import { isClearlyConversationalTurn } from "./public-agent-routing";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
+import { shouldDelegatePublicAgentChat } from "./public-agent-routing";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -1550,7 +1555,13 @@ async function handleKodyDirectPost(
   const assignedSubagentRoster = resolvedAgentRoster.filter((candidate) =>
     assignedSubagentSlugs.includes(candidate.slug),
   );
-  if (!clientSurface && assignedSubagentRoster.length > 0) {
+  if (
+    shouldDelegatePublicAgentChat({
+      clientSurface: Boolean(clientSurface),
+      assignedSubagentCount: assignedSubagentRoster.length,
+      requireInteractiveAction,
+    })
+  ) {
     const specialistChat = await handleConfiguredPublicAgentChat({
       userText: latestUserText ?? "",
       assignedAgents: assignedSubagentRoster,
@@ -2066,7 +2077,10 @@ This turn includes an image from the user. For questions about what is visible i
           type: "data-tools-index",
           data: toolDescriptionByName,
         });
-        if (providerCapabilities.supportsRequiredToolChoice !== false) {
+        if (
+          requireViewOutput ||
+          providerCapabilities.supportsRequiredToolChoice !== false
+        ) {
           // Required tool choice makes raw provider prose non-final. Tell the
           // transport to expose only the semantic final_answer/show_view
           // result, so a renderer can never erase text the user already saw.
@@ -2111,10 +2125,33 @@ This turn includes an image from the user. For questions about what is visible i
               steps.map((step) => step.text ?? "").join(""),
             ).answer.trim();
             if (
+              requireViewOutput &&
+              !producedOutputTool &&
+              retryCount >= MAX_SILENT_TURN_RETRIES
+            ) {
+              const toolCallId = `model-output-recovery-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: SHOW_VIEW_TOOL,
+                input: { purpose: MODEL_OUTPUT_RECOVERY_RENDERER },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: buildModelOutputRecoveryView({
+                  id: toolCallId,
+                  modelLabel: resolvedModel.label || resolvedModel.modelName,
+                }),
+              });
+              return;
+            }
+            if (
               !shouldRetryToollessTurn({
                 producedOutputTool,
                 visibleAnswer,
                 enforceToolOutput:
+                  requireViewOutput ||
                   providerCapabilities.supportsRequiredToolChoice !== false,
                 retryCount,
                 maxRetries: MAX_SILENT_TURN_RETRIES,

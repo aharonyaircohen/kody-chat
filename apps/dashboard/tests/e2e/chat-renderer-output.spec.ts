@@ -225,6 +225,52 @@ function renderedApprovalView(
   };
 }
 
+function renderedModelOutputRecoveryView() {
+  const actions = [
+    {
+      id: "retry",
+      label: "Retry same model",
+      response: "Retry my last request with the same model.",
+      variant: "primary",
+    },
+    {
+      id: "choose-model",
+      label: "Choose another model",
+      response: "Choose another model.",
+      variant: "secondary",
+    },
+    {
+      id: "cancel",
+      label: "Cancel",
+      response: "Cancel this request.",
+      variant: "secondary",
+    },
+  ];
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "model-output-recovery-1",
+    rendererSlug: "model-output-recovery",
+    rendererName: "Model output recovery",
+    resultTarget: "chat",
+    data: { title: "Model could not complete", actions },
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "Model could not complete" },
+        {
+          type: "row",
+          children: actions.map((action) => ({
+            type: "button",
+            label: action.label,
+            action,
+          })),
+        },
+      ],
+    },
+  };
+}
+
 function renderedSelectionView() {
   return {
     action: "render_view",
@@ -362,6 +408,42 @@ async function mockChatStream(
         {
           type: "tool-output-available",
           toolCallId: `tool-${turn}`,
+          output,
+        },
+      ]),
+    });
+  });
+}
+
+async function mockRecoveryChatStream(
+  page: Page,
+  onRequest?: (body: { model?: string }) => void,
+): Promise<void> {
+  let turn = 0;
+  await page.route("**/api/kody/chat/kody", async (route: Route) => {
+    turn += 1;
+    const body = route.request().postDataJSON() as { model?: string };
+    onRequest?.(body);
+    const output =
+      turn === 1
+        ? renderedModelOutputRecoveryView()
+        : { content: "Retried with the selected model." };
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache",
+      },
+      body: sseBody([
+        {
+          type: "tool-input-available",
+          toolCallId: `tool-recovery-${turn}`,
+          toolName: turn === 1 ? "show_view" : "final_answer",
+          input: turn === 1 ? { purpose: "model-output-recovery" } : output,
+        },
+        {
+          type: "tool-output-available",
+          toolCallId: `tool-recovery-${turn}`,
           output,
         },
       ]),
@@ -787,6 +869,61 @@ test.describe("Kody chat renderer output", () => {
 
     await expect(page.getByText(/show_view requires data/i)).toBeVisible();
     await expect(page.getByText(unfinishedProse)).toHaveCount(0);
+  });
+
+  test("recovery card keeps model choice under user control", async ({
+    page,
+  }) => {
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page);
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Choose another model" }).click();
+
+    await expect(page.getByTestId("chat-setup-menu")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Model", expanded: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("option", { name: /Chat Model Pro/ }),
+    ).toBeVisible();
+  });
+
+  test("retry recovery keeps the selected model", async ({ page }) => {
+    const requestedModels: Array<string | undefined> = [];
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page, (body) => {
+      requestedModels.push(body.model);
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Retry same model" }).click();
+
+    await expect(
+      page.getByText("Retried with the selected model."),
+    ).toBeVisible();
+    expect(requestedModels).toEqual(["chat-model-pro", "chat-model-pro"]);
+  });
+
+  test("cancel recovery ends the interaction without another model request", async ({
+    page,
+  }) => {
+    let requestCount = 0;
+    await page.unroute("**/api/kody/chat/kody");
+    await mockRecoveryChatStream(page, () => {
+      requestCount += 1;
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    await expect(
+      page.getByRole("button", { name: "Retry same model" }),
+    ).toBeDisabled();
+    expect(requestCount).toBe(1);
   });
 
   test("provider invoke markup does not leak into the visible chat", async ({

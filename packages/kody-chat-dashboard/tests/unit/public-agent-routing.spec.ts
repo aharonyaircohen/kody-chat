@@ -6,6 +6,7 @@ import {
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
   routePublicAgentTask,
+  shouldDelegatePublicAgentChat,
 } from "../../app/api/kody/chat/kody/public-agent-routing";
 
 const assignedAgents = [
@@ -37,6 +38,23 @@ const assignedAgents = [
 ];
 
 describe("public Agent routing", () => {
+  it("keeps renderer-required interactions with the parent chat owner", () => {
+    expect(
+      shouldDelegatePublicAgentChat({
+        clientSurface: false,
+        assignedSubagentCount: 2,
+        requireInteractiveAction: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDelegatePublicAgentChat({
+        clientSurface: false,
+        assignedSubagentCount: 2,
+        requireInteractiveAction: false,
+      }),
+    ).toBe(true);
+  });
+
   it("builds routing guidance entirely from assigned Agent definitions", () => {
     const prompt = buildPublicAgentRoutingPrompt(assignedAgents);
 

@@ -77,6 +77,11 @@ import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
+import type { ChatSetupSection } from "../chat/surface/ChatSetupControl";
+import {
+  isModelOutputRecoveryView,
+  MODEL_OUTPUT_RECOVERY_ACTION,
+} from "../chat/core/model-output-recovery";
 import { MessageList } from "../chat/surface/MessageList";
 import type { WidgetHostEvent } from "../chat/surface/widget-host";
 import { Composer } from "../chat/surface/Composer";
@@ -557,6 +562,8 @@ export function KodyChat({
     brainModels,
     sessionHook,
   });
+  const [requestedSetupSection, setRequestedSetupSection] =
+    useState<ChatSetupSection | null>(null);
   const createSelectedChatSession = useCallback(
     (options?: { machineAccess?: MachineAccess }) =>
       createChatSession({
@@ -1700,6 +1707,20 @@ export function KodyChat({
         return;
       }
 
+      if (isModelOutputRecoveryView(view)) {
+        if (usedViewIds.has(view.id)) return;
+        if (action.id === MODEL_OUTPUT_RECOVERY_ACTION.chooseModel) {
+          setUsedViewIds((previous) => new Set(previous).add(view.id));
+          setRequestedSetupSection("model");
+          setAgentMenuOpen(true);
+          return;
+        }
+        if (action.id === MODEL_OUTPUT_RECOVERY_ACTION.cancel) {
+          setUsedViewIds((previous) => new Set(previous).add(view.id));
+          return;
+        }
+      }
+
       if (usedViewIds.has(view.id)) return;
       setUsedViewIds((prev) => {
         const next = new Set(prev);
@@ -1806,6 +1827,7 @@ export function KodyChat({
       openGuidedFlow,
       runDashboardNavigateFromDirective,
       sendText,
+      setAgentMenuOpen,
       setMessages,
       usedViewIds,
     ],
@@ -2268,6 +2290,8 @@ export function KodyChat({
           compact={compactHeader}
           agentMenuOpen={agentMenuOpen}
           setAgentMenuOpen={setAgentMenuOpen}
+          requestedSetupSection={requestedSetupSection}
+          onRequestedSetupSectionHandled={() => setRequestedSetupSection(null)}
           messageCount={messages.length}
           currentReasoning={currentReasoning}
           effectiveReasoningEffort={effectiveReasoningEffort}

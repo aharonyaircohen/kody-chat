@@ -372,6 +372,7 @@ describe("surface scoping — kody in-process route", () => {
         id: "mock/model",
         provider: "mock",
         modelName: "mock-model",
+        toolChoice: { required: true, named: true },
       },
     });
 

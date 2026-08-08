@@ -1,3 +1,5 @@
+import type { ChatModel } from "@kody-ade/base/variables/models";
+
 /**
  * @fileType utility
  * @domain chat
@@ -5,19 +7,6 @@
  * @ai-summary Kody product model policy, kept out of the public embeddable
  *   chat package.
  */
-
-export interface ChatModelCatalogEntry {
-  id: string;
-  label: string;
-  provider: string;
-  protocol: "anthropic" | "openai";
-  baseURL: string;
-  modelName: string;
-  apiKeySecret: string;
-  enabled?: boolean;
-  default?: boolean;
-  engineDefault?: boolean;
-}
 
 export const KODY_OPENROUTER_FREE_CHAT_MODEL = Object.freeze({
   id: "openrouter/free",
@@ -30,7 +19,7 @@ export const KODY_OPENROUTER_FREE_CHAT_MODEL = Object.freeze({
   enabled: true,
   default: true,
   engineDefault: false,
-} as const satisfies ChatModelCatalogEntry);
+} as const satisfies ChatModel);
 
 export interface CatalogModel {
   id: string;

@@ -8,7 +8,7 @@ import { RepoScopedLink } from "../../components/RepoScopedLink";
 import type { ModelReasoning } from "../core/reasoning-adapter";
 import type { ChatDropdownEntry } from "../platform/agent-entries";
 
-type Section = "agent" | "model" | "effort" | "machine";
+export type ChatSetupSection = "agent" | "model" | "effort" | "machine";
 
 const MACHINE_LABELS: Record<MachineAccess, string> = {
   none: "No access",
@@ -24,6 +24,8 @@ const MACHINE_SUMMARY_LABELS: Record<MachineAccess, string> = {
 interface ChatSetupControlProps {
   open: boolean;
   setOpen: (open: boolean) => void;
+  requestedSection?: ChatSetupSection | null;
+  onRequestedSectionHandled?: () => void;
   currentModelName: string;
   modelEntries: readonly ChatDropdownEntry[];
   selectedAgentId: AgentId;
@@ -96,10 +98,16 @@ function Choice({
 }
 
 export function ChatSetupControl(props: ChatSetupControlProps) {
-  const [section, setSection] = useState<Section | null>(null);
+  const { onRequestedSectionHandled, open, requestedSection } = props;
+  const [section, setSection] = useState<ChatSetupSection | null>(null);
   useEffect(() => {
-    if (!props.open) setSection(null);
-  }, [props.open]);
+    if (!open) setSection(null);
+  }, [open]);
+  useEffect(() => {
+    if (!open || !requestedSection) return;
+    setSection(requestedSection);
+    onRequestedSectionHandled?.();
+  }, [onRequestedSectionHandled, open, requestedSection]);
 
   const agencyAgents = [
     { slug: "kody", title: "Kody" },
@@ -121,7 +129,7 @@ export function ChatSetupControl(props: ChatSetupControlProps) {
     MACHINE_SUMMARY_LABELS[props.machineAccess],
   ].join(" · ");
   const summary = `${primarySummary} · ${secondarySummary}`;
-  const toggleSection = (next: Section) =>
+  const toggleSection = (next: ChatSetupSection) =>
     setSection((current) => (current === next ? null : next));
 
   return (

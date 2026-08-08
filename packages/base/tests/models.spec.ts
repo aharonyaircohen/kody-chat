@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  ChatModelSchema,
-  PROVIDER_PRESETS,
-} from "../src/variables/models";
+import { ChatModelSchema, PROVIDER_PRESETS } from "../src/variables/models";
 
 const baseModel = {
   id: "google/gemini-next",
@@ -15,6 +12,18 @@ const baseModel = {
 };
 
 describe("chat model adapters", () => {
+  it("preserves declared tool-choice capabilities", () => {
+    expect(
+      ChatModelSchema.parse({
+        ...baseModel,
+        protocol: "openai",
+        toolChoice: { required: true, named: false },
+      }),
+    ).toMatchObject({
+      toolChoice: { required: true, named: false },
+    });
+  });
+
   it("uses the native Google adapter for new Google models", () => {
     expect(PROVIDER_PRESETS.google.adapter).toBe("google");
     expect(
