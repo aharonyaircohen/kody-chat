@@ -6,6 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "../feature-catalog";
 import { useLiveRunner } from "./kody-chat-live-runner";
 import {
+  compactReportItems,
+  reportItem,
+  reportValue,
+} from "./kody-chat-helpers";
+import {
   createChatPluginRegistry,
   FULL_GRANT,
   trace,
@@ -111,36 +116,6 @@ import {
   type WidgetOpenRequest,
 } from "../widgets/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
-
-function reportValue(value: unknown, max = 1_000): string | null {
-  if (value === null || value === undefined || value === "") return null;
-  const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value)
-        ? value.join(", ")
-        : typeof value === "object"
-          ? JSON.stringify(value)
-          : String(value);
-  const compact = raw.replace(/\s+/g, " ").trim();
-  if (!compact) return null;
-  return compact.length > max ? `${compact.slice(0, max - 3)}...` : compact;
-}
-
-function reportItem(
-  label: string,
-  value: unknown,
-  max?: number,
-): { label: string; value: string } | null {
-  const normalized = reportValue(value, max);
-  return normalized ? { label, value: normalized } : null;
-}
-
-function compactReportItems(
-  items: Array<{ label: string; value: string } | null>,
-): Array<{ label: string; value: string }> {
-  return items.filter(Boolean) as Array<{ label: string; value: string }>;
-}
 
 export function KodyChat({
   guidedFlowRequest,

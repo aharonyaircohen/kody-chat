@@ -36,6 +36,24 @@ export function cleanTerminalText(value: string): string {
   return output;
 }
 
+export async function copyTerminalSelection(
+  text: string,
+  clipboard: Pick<Clipboard, "writeText"> | undefined,
+  notify: { success(message: string): void; error(message: string): void },
+): Promise<void> {
+  if (!text.trim()) return;
+  if (!clipboard) {
+    notify.error("Clipboard is not available");
+    return;
+  }
+  try {
+    await clipboard.writeText(text);
+    notify.success("Terminal selection copied");
+  } catch (err) {
+    notify.error(err instanceof Error ? err.message : "Copy failed");
+  }
+}
+
 export function usefulCapturedOutput(value: string): string {
   const lines = cleanTerminalText(value)
     .split("\n")
