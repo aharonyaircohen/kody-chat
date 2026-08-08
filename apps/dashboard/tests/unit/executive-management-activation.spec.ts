@@ -39,8 +39,6 @@ describe("kody-chat company activation", () => {
       "detect-stale-memory",
       "release-prepare",
       "release-validate",
-      "release-merge",
-      "npm-publish",
       "release-promote",
       "vercel-production-deploy",
     ]);
@@ -48,7 +46,6 @@ describe("kody-chat company activation", () => {
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
-      "package-release",
       "web-release",
     ]);
   });
