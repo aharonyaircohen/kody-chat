@@ -54,6 +54,43 @@ describe("workflowRuns", () => {
     })
     expect(run?.state.completedStepIds).toEqual(["a"])
   })
+
+  it("persists the Engine workflow input, definition, and step evidence", async () => {
+    const t = setup()
+    await t.mutation(api.workflowRuns.save, {
+      tenantId: TENANT,
+      workflowId: "quality-run",
+      runId: "quality-1",
+      state: {
+        status: "running",
+        input: { testId: "direct-kody-chat" },
+        definitionHash: "sha256:workflow",
+        currentStepId: "quality-check",
+        completedStepIds: [],
+        transitionCounts: {},
+        steps: {
+          "quality-check": {
+            capability: "quality-check",
+            status: "running",
+            input: { targetUrl: "https://dashboard.example" },
+            startedAt: NOW,
+          },
+        },
+        facts: {},
+        evidence: {},
+        artifacts: [],
+      },
+      updatedAt: NOW,
+    })
+
+    const run = await t.query(api.workflowRuns.get, {
+      tenantId: TENANT,
+      workflowId: "quality-run",
+      runId: "quality-1",
+    })
+    expect(run?.state.input).toEqual({ testId: "direct-kody-chat" })
+    expect(run?.state.steps?.["quality-check"]?.status).toBe("running")
+  })
 })
 
 describe("workflowRuns schema enforcement", () => {

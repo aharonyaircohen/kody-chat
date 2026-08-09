@@ -97,9 +97,29 @@ export const workflowRunStatusValidator = v.union(
 
 export const workflowRunStateValidator = v.object({
   status: workflowRunStatusValidator,
+  input: v.optional(v.record(v.string(), v.any())),
+  definitionHash: v.optional(v.string()),
   currentStepId: v.optional(v.string()),
   completedStepIds: v.array(v.string()),
   transitionCounts: v.optional(v.record(v.string(), v.number())),
+  steps: v.optional(
+    v.record(
+      v.string(),
+      v.object({
+        capability: v.optional(v.string()),
+        status: v.union(
+          v.literal("running"),
+          v.literal("completed"),
+          v.literal("blocked"),
+          v.literal("failed"),
+        ),
+        input: v.optional(v.any()),
+        output: v.optional(v.any()),
+        startedAt: v.optional(v.string()),
+        completedAt: v.optional(v.string()),
+      }),
+    ),
+  ),
   facts: v.optional(v.record(v.string(), v.any())),
   evidence: v.optional(v.record(v.string(), v.boolean())),
   artifacts: v.optional(
