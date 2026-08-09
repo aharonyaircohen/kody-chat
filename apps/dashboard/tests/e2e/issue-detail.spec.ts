@@ -122,6 +122,26 @@ test.describe("Issue detail flow", () => {
     );
     await expect(page.locator("#task-panel-comments:visible")).toBeVisible();
   });
+
+  test("task-scoped chat can open and close conversation history", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/${ISSUE_NUMBER}`);
+
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+    await expect(
+      chat.getByPlaceholder(`Ask about task #${ISSUE_NUMBER}...`),
+    ).toBeVisible();
+
+    const toggle = chat.getByRole("button", { name: "Toggle conversations" });
+    await toggle.click();
+
+    const sidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sidebar).toBeVisible();
+    await sidebar.getByRole("button", { name: "Close conversations" }).click();
+    await expect(sidebar).toBeHidden();
+  });
 });
 
 test("history shows a closed unfinished task as closed, not completed", async ({
