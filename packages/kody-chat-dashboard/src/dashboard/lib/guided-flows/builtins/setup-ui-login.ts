@@ -6,7 +6,6 @@ export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
   id: SETUP_UI_LOGIN_FLOW_ID,
   version: 1,
   title: "Set up UI login",
-  completionRouteId: "chat",
   controls: ["back"],
   steps: [
     {
@@ -94,7 +93,7 @@ export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
       id: "ready",
       title: "UI login is ready to test",
       explanation:
-        "The credentials are saved. The next UI Review of a signed-in page will test them. If they are missing or rejected, the review will stop and Kody will add an Inbox alert.\n\nSelect **Finish** to return to Chat.",
+        "The credentials are saved. The next UI Review of a signed-in page will test them. If they are missing or rejected, the review will stop and Kody will add an Inbox alert.\n\nSelect **Finish** to complete this guide.",
       rendererSlug: "approval-card",
       rendererData: {
         title: "UI login is configured",

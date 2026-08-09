@@ -130,7 +130,6 @@ describe("guided flow registry", () => {
       id: "setup-ui-login",
       title: "Set up UI login",
       version: 1,
-      completionRouteId: "chat",
       controls: ["back"],
       steps: [
         {
@@ -169,6 +168,7 @@ describe("guided flow registry", () => {
         },
       ],
     });
+    expect(setup?.completionRouteId).toBeUndefined();
     expect(setup?.steps[1]?.explanation).toContain("LOGIN_USER");
     expect(setup?.steps[2]?.explanation).toContain("LOGIN_PASSWORD");
     expect(

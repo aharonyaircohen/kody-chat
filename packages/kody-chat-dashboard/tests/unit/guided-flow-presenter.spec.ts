@@ -6,6 +6,7 @@ import {
   createGuidedFlowInstance,
   type GuidedFlowDefinition,
 } from "../../src/dashboard/lib/guided-flows/controller";
+import { getGuidedFlowDefinition } from "../../src/dashboard/lib/guided-flows/registry";
 
 const DEFINITION: GuidedFlowDefinition = {
   id: "navigation-flow",
@@ -121,6 +122,30 @@ describe("GuidedFlow presenter navigation", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
 
     expect(presentGuidedFlow(DEFINITION, started).navigation).toBeUndefined();
+  });
+
+  it("keeps the user in place after completing UI login setup", () => {
+    const definition = getGuidedFlowDefinition("setup-ui-login");
+    expect(definition).not.toBeNull();
+
+    const started = createGuidedFlowInstance(definition!, "instance-1");
+    const atUsername = advanceGuidedFlow(definition!, started, {
+      actionId: "setup",
+    });
+    const atPassword = advanceGuidedFlow(definition!, atUsername, {
+      actionId: "continue",
+    });
+    const atReady = advanceGuidedFlow(definition!, atPassword, {
+      actionId: "continue",
+    });
+    const completed = advanceGuidedFlow(definition!, atReady, {
+      actionId: "finish",
+    });
+
+    expect(completed.status).toBe("completed");
+    expect(
+      presentGuidedFlow(definition!, completed).navigation,
+    ).toBeUndefined();
   });
 
   it("renders the step explanation once as the instruction source", () => {
