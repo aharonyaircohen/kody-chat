@@ -180,6 +180,8 @@ export async function POST(req: NextRequest) {
           owner: auth.owner,
           repo: auth.repo,
           dashboardUrl: targetUrl,
+          storeRepoUrl: auth.storeRepoUrl,
+          storeRef: auth.storeRef,
         }),
       },
     );

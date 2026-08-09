@@ -13,7 +13,7 @@ describe("GitHubActionsEngineGateway", () => {
             data: {
               encoding: "base64",
               content: Buffer.from(
-                "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n",
+                "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n      storeRepoUrl:\n        type: string\n      storeRef:\n        type: string\n",
               ).toString("base64"),
             },
           })),
@@ -26,6 +26,8 @@ describe("GitHubActionsEngineGateway", () => {
       owner: "acme",
       repo: "widgets",
       dashboardUrl: "https://dashboard.example.test",
+      storeRepoUrl: "https://github.com/acme/company-store.git",
+      storeRef: "stable",
       now: () => new Date("2026-07-27T12:00:00.000Z"),
     });
     const request = {
@@ -47,6 +49,8 @@ describe("GitHubActionsEngineGateway", () => {
       inputs: {
         runRequest: JSON.stringify(request),
         dashboardUrl: "https://dashboard.example.test",
+        storeRepoUrl: "acme/company-store",
+        storeRef: "stable",
       },
     });
 

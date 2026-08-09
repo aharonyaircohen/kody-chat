@@ -5,11 +5,14 @@ const h = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
   startWorkflow: vi.fn(),
+  createGateway: vi.fn(() => "dispatch"),
   requireKodyAuth: vi.fn(async () => null),
   getRequestAuth: vi.fn(() => ({
     owner: "acme",
     repo: "widgets",
     token: "token",
+    storeRepoUrl: "https://github.com/acme/company-store",
+    storeRef: "stable",
   })),
   getUserOctokit: vi.fn(async () => ({
     rest: {
@@ -53,7 +56,7 @@ vi.mock("@dashboard/features/workflows/server/company-workflow-loader", () => ({
 }));
 vi.mock(
   "@dashboard/features/workflows/server/github-actions-engine-gateway",
-  () => ({ createGitHubActionsEngineGateway: vi.fn(() => "dispatch") }),
+  () => ({ createGitHubActionsEngineGateway: h.createGateway }),
 );
 vi.mock("@dashboard/features/workflows/server/start-workflow", () => ({
   startWorkflow: h.startWorkflow,
@@ -133,6 +136,12 @@ describe("POST /api/kody/quality/runs", () => {
         input: expect.objectContaining({ testId: "direct-kody-chat" }),
       }),
       expect.any(Object),
+    );
+    expect(h.createGateway).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeRepoUrl: "https://github.com/acme/company-store",
+        storeRef: "stable",
+      }),
     );
     expect(h.mutation).toHaveBeenCalledWith(
       "quality.updateRun",
