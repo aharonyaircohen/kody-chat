@@ -12,6 +12,8 @@ interface CompanyWorkflowLoaderOptions {
   repo: string;
 }
 
+const SYSTEM_WORKFLOW_IDS = new Set(["quality-run"]);
+
 function activeWorkflowIds(values: string[] | undefined): Set<string> {
   return new Set(
     (values ?? []).filter(
@@ -35,7 +37,10 @@ export function createCompanyWorkflowLoader({
     // Webhook bursts must reuse the normal 60s config cache. A forced GitHub
     // read here would spend one API request per matching event.
     const { config } = await getEngineConfig(octokit, owner, repo);
-    if (!activeWorkflowIds(config.company?.activeWorkflows).has(workflowId)) {
+    if (
+      !SYSTEM_WORKFLOW_IDS.has(workflowId) &&
+      !activeWorkflowIds(config.company?.activeWorkflows).has(workflowId)
+    ) {
       return null;
     }
     return readCompanyStoreWorkflowDefinitionFile(workflowId, octokit);

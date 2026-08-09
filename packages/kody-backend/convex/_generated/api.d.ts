@@ -40,6 +40,7 @@ import type * as memoryValidators from "../memoryValidators.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as pipelineRuns from "../pipelineRuns.js";
 import type * as pipelines from "../pipelines.js";
+import type * as quality from "../quality.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
 import type * as runEvents from "../runEvents.js";
@@ -93,6 +94,7 @@ declare const fullApi: ApiFromModules<{
   notificationPrefs: typeof notificationPrefs;
   pipelineRuns: typeof pipelineRuns;
   pipelines: typeof pipelines;
+  quality: typeof quality;
   repoDocs: typeof repoDocs;
   reports: typeof reports;
   runEvents: typeof runEvents;

@@ -27,6 +27,10 @@ const ROUTE_FOR: Record<string, string> = {
   snippets: "app/(chat-rail)/snippets/page.tsx",
   triggers: "app/(chat-rail)/triggers/page.tsx",
   "user-journeys": "app/(chat-rail)/user-journeys/page.tsx",
+  "quality-actions": "app/(chat-rail)/quality/actions/page.tsx",
+  "quality-journeys": "app/(chat-rail)/quality/journeys/page.tsx",
+  "quality-scenarios": "app/(chat-rail)/quality/scenarios/page.tsx",
+  "quality-runs": "app/(chat-rail)/quality/runs/page.tsx",
 };
 
 const PAGES_DIR = join(

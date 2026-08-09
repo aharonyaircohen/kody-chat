@@ -13,7 +13,7 @@ describe("GitHubActionsEngineGateway", () => {
             data: {
               encoding: "base64",
               content: Buffer.from(
-                "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n",
+                "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n",
               ).toString("base64"),
             },
           })),
@@ -25,6 +25,7 @@ describe("GitHubActionsEngineGateway", () => {
       octokit,
       owner: "acme",
       repo: "widgets",
+      dashboardUrl: "https://dashboard.example.test",
       now: () => new Date("2026-07-27T12:00:00.000Z"),
     });
     const request = {
@@ -43,7 +44,10 @@ describe("GitHubActionsEngineGateway", () => {
       repo: "widgets",
       workflow_id: "kody.yml",
       ref: "main",
-      inputs: { runRequest: JSON.stringify(request) },
+      inputs: {
+        runRequest: JSON.stringify(request),
+        dashboardUrl: "https://dashboard.example.test",
+      },
     });
 
     await gateway({ ...request, requestId: "run-memory-2" });
