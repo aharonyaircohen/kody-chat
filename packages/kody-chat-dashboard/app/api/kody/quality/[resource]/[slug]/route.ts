@@ -9,6 +9,67 @@ export const revalidate = 0;
 
 const headers = { "Cache-Control": "no-store, max-age=0" };
 
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ resource: string; slug: string }> },
+) {
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json(
+      { error: "missing_repo_context" },
+      { status: 400, headers },
+    );
+  }
+  const { resource, slug } = await context.params;
+  if (resource !== "runs") {
+    return NextResponse.json({ error: "not_found" }, { status: 404, headers });
+  }
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_json" },
+      { status: 400, headers },
+    );
+  }
+  const runId =
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as { runId?: unknown }).runId === "string"
+      ? (body as { runId: string }).runId.trim()
+      : "";
+  const archived =
+    typeof body === "object" && body !== null
+      ? (body as { archived?: unknown }).archived
+      : undefined;
+  if (!runId || typeof archived !== "boolean") {
+    return NextResponse.json(
+      { error: "validation_error" },
+      { status: 400, headers },
+    );
+  }
+
+  try {
+    await createBackendClient().mutation(backendApi.quality.setRunArchived, {
+      tenantId: `${auth.owner}/${auth.repo}`,
+      runId,
+      runSlug: slug,
+      archived,
+      updatedAt: new Date().toISOString(),
+    });
+    return NextResponse.json({ ok: true, archived }, { headers });
+  } catch (error) {
+    console.error("[quality] archive failed", { slug, error });
+    return NextResponse.json(
+      { error: "quality_run_not_found" },
+      { status: 404, headers },
+    );
+  }
+}
+
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ resource: string; slug: string }> },

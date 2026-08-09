@@ -26,6 +26,7 @@ vi.mock("@kody-ade/backend/api", () => ({
       removeAction: "quality.removeAction",
       removeJourney: "quality.removeJourney",
       removeScenario: "quality.removeScenario",
+      setRunArchived: "quality.setRunArchived",
     },
   },
 }));
@@ -34,7 +35,10 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 
 import { GET, POST } from "../../../app/api/kody/quality/[resource]/route";
-import { DELETE } from "../../../app/api/kody/quality/[resource]/[slug]/route";
+import {
+  DELETE,
+  PATCH,
+} from "../../../app/api/kody/quality/[resource]/[slug]/route";
 
 function request(method: string, body?: unknown) {
   return new NextRequest("http://localhost/api/kody/quality/actions", {
@@ -112,5 +116,35 @@ describe("Quality routes", () => {
       tenantId: "acme/widgets",
       slug: "send-message",
     });
+  });
+
+  it("archives a Quality Run without deleting its evidence", async () => {
+    const response = await PATCH(
+      new NextRequest(
+        "http://localhost/api/kody/quality/runs/reply-persists-run",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: "run-1", archived: true }),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          resource: "runs",
+          slug: "reply-persists-run",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith(
+      "quality.setRunArchived",
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        runId: "run-1",
+        runSlug: "reply-persists-run",
+        archived: true,
+      }),
+    );
   });
 });

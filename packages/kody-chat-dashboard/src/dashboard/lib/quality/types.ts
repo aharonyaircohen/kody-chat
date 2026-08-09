@@ -19,6 +19,7 @@ export type QualityRun = {
   startedAt?: string;
   finishedAt?: string;
   error?: string;
+  archived?: boolean;
   createdAt: string;
   updatedAt: string;
   latestEvent?: {

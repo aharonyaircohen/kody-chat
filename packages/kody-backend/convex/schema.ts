@@ -856,6 +856,7 @@ export default defineSchema({
     startedAt: v.optional(v.string()),
     finishedAt: v.optional(v.string()),
     error: v.optional(v.string()),
+    archived: v.optional(v.boolean()),
     createdAt: v.string(),
     updatedAt: v.string(),
   })

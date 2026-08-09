@@ -104,6 +104,13 @@ describe("quality", () => {
     };
     await t.mutation(api.quality.appendRunEvent, event);
     await t.mutation(api.quality.appendRunEvent, event);
+    await t.mutation(api.quality.setRunArchived, {
+      tenantId: TENANT,
+      runId: "run-1",
+      runSlug: "reply-persists-20260809",
+      archived: true,
+      updatedAt: "2026-08-09T12:03:00.000Z",
+    });
 
     const detail = await t.query(api.quality.getRun, {
       tenantId: TENANT,
@@ -111,10 +118,12 @@ describe("quality", () => {
     });
     expect(detail?.events).toHaveLength(1);
     expect(detail?.run.status).toBe("queued");
+    expect(detail?.run.archived).toBe(true);
     const runs = await t.query(api.quality.listRuns, { tenantId: TENANT });
     expect(runs[0]).toMatchObject({
       runId: "run-1",
       latestEvent: { type: "runner_started" },
+      archived: true,
     });
   });
 });

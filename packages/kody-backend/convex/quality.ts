@@ -38,9 +38,7 @@ async function findBySlug(
 ) {
   return await ctx.db
     .query(table)
-    .withIndex("by_tenant", (q) =>
-      q.eq("tenantId", tenantId).eq("slug", slug),
-    )
+    .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("slug", slug))
     .unique();
 }
 
@@ -277,6 +275,31 @@ export const updateRun = mutation({
     if (!run) throw new ConvexError("Quality Run not found");
     const { tenantId: _tenantId, runId: _runId, ...patch } = args;
     await ctx.db.patch(run._id, patch);
+    return run._id;
+  },
+});
+
+export const setRunArchived = mutation({
+  args: {
+    tenantId: v.string(),
+    runId: v.string(),
+    runSlug: v.string(),
+    archived: v.boolean(),
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("qualityRuns")
+      .withIndex("by_run", (q) =>
+        q.eq("tenantId", args.tenantId).eq("runId", args.runId),
+      )
+      .unique();
+    if (!run || run.runSlug !== args.runSlug)
+      throw new ConvexError("Quality Run not found");
+    await ctx.db.patch(run._id, {
+      archived: args.archived,
+      updatedAt: args.updatedAt,
+    });
     return run._id;
   },
 });

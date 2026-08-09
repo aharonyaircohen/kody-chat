@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Activity,
+  Archive,
+  ArchiveRestore,
   Footprints,
   Pencil,
   Play,
@@ -81,7 +83,9 @@ function recordSummary(record: QualityRecord, map: QualityMap): string {
 }
 
 function scenarioHealth(scenario: QualityScenario, map: QualityMap) {
-  const latest = map.runs.find((run) => run.scenarioSlug === scenario.slug);
+  const latest = map.runs.find(
+    (run) => run.scenarioSlug === scenario.slug && !run.archived,
+  );
   return qualityRunHealth({
     scenarioStatus: scenario.status,
     scenarioUpdatedAt: scenario.updatedAt,
@@ -131,12 +135,14 @@ function Detail({
   onEdit,
   onDelete,
   onRun,
+  onArchive,
 }: {
   record: QualityRecord;
   map: QualityMap;
   onEdit?: () => void;
   onDelete?: () => void;
   onRun?: () => void;
+  onArchive?: () => void;
 }) {
   const fields: Array<[string, string]> =
     "outcome" in record
@@ -222,6 +228,16 @@ function Detail({
               Edit
             </Button>
           ) : null}
+          {onArchive ? (
+            <Button variant="outline" size="sm" onClick={onArchive}>
+              {"runSlug" in record && record.archived ? (
+                <ArchiveRestore className="mr-1.5 h-4 w-4" />
+              ) : (
+                <Archive className="mr-1.5 h-4 w-4" />
+              )}
+              {"runSlug" in record && record.archived ? "Restore" : "Archive"}
+            </Button>
+          ) : null}
           {onDelete ? (
             <Button variant="destructive" size="sm" onClick={onDelete}>
               <Trash2 className="mr-1.5 h-4 w-4" />
@@ -265,12 +281,15 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
   const [editing, setEditing] = useState<QualityRecord | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<QualityRecord | null>(null);
+  const [archiving, setArchiving] = useState<QualityRecord | null>(null);
+  const [leavingArchivedRun, setLeavingArchivedRun] = useState(false);
   const [startingRun, setStartingRun] = useState(
     resource === "runs" && !!searchParams.get("scenario"),
   );
   const headers = useMemo(() => (auth ? buildAuthHeaders(auth) : {}), [auth]);
   const basePath = `/quality/${resource}`;
   const canonicalBasePath = auth ? repoScopedHref(auth, basePath) : basePath;
+  const showArchived = searchParams.get("archived") === "1";
   const selectionMarker = `${basePath}/`;
   const selectionIndex = pathname.indexOf(selectionMarker);
   const selectedSlug =
@@ -293,7 +312,12 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
     runs: [],
     currentSourceCommit: null,
   };
-  const records = recordsFor(resource, map);
+  const records = recordsFor(resource, map).filter(
+    (record) =>
+      resource !== "runs" ||
+      showArchived ||
+      !("runSlug" in record && record.archived),
+  );
   const selected =
     records.find((record) => recordSlug(record) === selectedSlug) ?? null;
   const filtered = records.filter((record) =>
@@ -352,6 +376,46 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
     onError: (error: Error) =>
       toast.error("Could not delete", { description: error.message }),
   });
+  const setArchived = useMutation({
+    mutationFn: async (record: QualityRecord) => {
+      if (!("runSlug" in record)) {
+        throw new Error("Only Quality Runs can be archived");
+      }
+      const archived = !record.archived;
+      const response = await fetch(
+        `/api/kody/quality/runs/${encodeURIComponent(record.runSlug)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ runId: record.runId, archived }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to update Quality Run");
+      }
+      return { record, archived };
+    },
+    onSuccess: async (result) => {
+      setArchiving(null);
+      if (result.archived) {
+        setLeavingArchivedRun(true);
+        router.push(canonicalBasePath);
+      }
+      await queryClient.invalidateQueries({
+        queryKey: ["quality", auth?.owner, auth?.repo],
+      });
+      toast.success(
+        result.archived ? "Quality Run archived" : "Quality Run restored",
+      );
+    },
+    onError: (error: Error) =>
+      toast.error("Could not update Quality Run", {
+        description: error.message,
+      }),
+  });
   const run = useMutation({
     mutationFn: async (scenarioSlug: string) => {
       const response = await fetch("/api/kody/quality/runs", {
@@ -402,10 +466,33 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
         hasSelection={!!selected}
         actions={
           resource === "runs" ? (
-            <Button size="sm" onClick={() => setStartingRun(true)}>
-              <Play className="mr-1.5 h-4 w-4" />
-              New Quality Run
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={showArchived}
+                aria-label={showArchived ? "Hide archived" : "Show archived"}
+                disabled={leavingArchivedRun}
+                onClick={() =>
+                  router.replace(
+                    showArchived ? canonicalBasePath : `${pathname}?archived=1`,
+                  )
+                }
+              >
+                <Archive className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">
+                  {showArchived ? "Hide archived" : "Show archived"}
+                </span>
+              </Button>
+              <Button
+                size="sm"
+                aria-label="New Quality Run"
+                onClick={() => setStartingRun(true)}
+              >
+                <Play className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">New Quality Run</span>
+              </Button>
+            </div>
           ) : (
             <Button size="sm" onClick={() => setCreating(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
@@ -424,6 +511,9 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               }
               onDelete={
                 resource === "runs" ? undefined : () => setDeleting(selected)
+              }
+              onArchive={
+                resource === "runs" ? () => setArchiving(selected) : undefined
               }
               onRun={
                 resource === "scenarios" &&
@@ -463,11 +553,17 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
                   variant="ghost"
                   size="clear"
                   className="w-full px-4 py-3 text-left"
-                  onClick={() =>
+                  onClick={() => {
+                    const destination = selectionPath(
+                      canonicalBasePath,
+                      recordSlug(record),
+                    );
                     router.push(
-                      selectionPath(canonicalBasePath, recordSlug(record)),
-                    )
-                  }
+                      "runSlug" in record && record.archived
+                        ? `${destination}?archived=1`
+                        : destination,
+                    );
+                  }}
                 >
                   <span className="block truncate text-sm font-medium">
                     {recordName(record, map)}
@@ -506,6 +602,24 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
         onClose={() => setDeleting(null)}
         onConfirm={() => {
           if (deleting) remove.mutate(deleting);
+        }}
+      />
+      <ConfirmDialog
+        open={!!archiving}
+        title={`${archiving && "runSlug" in archiving && archiving.archived ? "Restore" : "Archive"} ${archiving ? recordName(archiving, map) : "Quality Run"}?`}
+        description={
+          archiving && "runSlug" in archiving && archiving.archived
+            ? "This run will return to the normal list."
+            : "This run will leave the normal list. Its result and evidence will be kept."
+        }
+        confirmLabel={
+          archiving && "runSlug" in archiving && archiving.archived
+            ? "Restore"
+            : "Archive"
+        }
+        onClose={() => setArchiving(null)}
+        onConfirm={() => {
+          if (archiving) setArchived.mutate(archiving);
         }}
       />
       {resource === "runs" ? (

@@ -170,3 +170,50 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
     .click();
   await expect(page.getByText("No Actions yet")).toBeVisible();
 });
+
+test("archives and restores a Quality Run while keeping its evidence", async ({
+  page,
+}) => {
+  let runs = qualityMap.runs.map((run) => ({ ...run, archived: false }));
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as {
+        runId: string;
+        archived: boolean;
+      };
+      runs = runs.map((run) =>
+        run.runId === body.runId ? { ...run, archived: body.archived } : run,
+      );
+      return json(route, { ok: true, archived: body.archived });
+    }
+    return json(route, { ...qualityMap, runs });
+  });
+
+  await page.goto("/repo/acme/widgets/quality/runs");
+  await page
+    .getByRole("button", { name: /Reply persists after reload local · passed/ })
+    .click();
+  await expect(
+    page.getByRole("link", { name: "Open Quality evidence" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Archive", exact: true })
+    .last()
+    .click();
+  await expect(page.getByText("Quality Run archived")).toBeVisible();
+  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/quality\/runs$/);
+  await expect(page.getByText("No Quality Runs yet")).toBeVisible();
+
+  await page.getByRole("button", { name: "Show archived" }).click();
+  await page
+    .getByRole("button", { name: /Reply persists after reload local · passed/ })
+    .click();
+  await expect(
+    page.getByRole("link", { name: "Open Quality evidence" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Restore" }).click();
+  await page.getByRole("button", { name: "Restore" }).last().click();
+  await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
+});
