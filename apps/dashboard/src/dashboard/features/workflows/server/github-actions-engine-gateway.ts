@@ -34,6 +34,7 @@ interface GitHubActionsEngineGatewayOptions {
   octokit: GitHubActionsClient;
   owner: string;
   repo: string;
+  dashboardUrl?: string;
   now?: () => Date;
 }
 
@@ -77,6 +78,7 @@ export function createGitHubActionsEngineGateway({
   octokit,
   owner,
   repo,
+  dashboardUrl,
   now = () => new Date(),
 }: GitHubActionsEngineGatewayOptions) {
   return async function dispatch(
@@ -90,6 +92,7 @@ export function createGitHubActionsEngineGateway({
         repo,
         ref,
         executionRequest: request,
+        dashboardUrl,
       },
       { cache: true },
     );

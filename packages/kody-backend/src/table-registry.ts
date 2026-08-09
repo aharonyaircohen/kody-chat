@@ -87,6 +87,15 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["runId", "seq"],
     upsertIndex: "by_run",
   },
+  { table: "qualityActions", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  { table: "qualityJourneys", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  { table: "qualityScenarios", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  { table: "qualityRuns", naturalKey: ["runId"], upsertIndex: "by_run" },
+  {
+    table: "qualityRunEvents",
+    naturalKey: ["runId", "seq"],
+    upsertIndex: "by_run",
+  },
   {
     table: "chatEvents",
     naturalKey: ["sessionId", "seq"],

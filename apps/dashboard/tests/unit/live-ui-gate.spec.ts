@@ -10,6 +10,7 @@ import {
   redactDiagnosticText,
   runLiveServicePreflight,
   sanitizeDiagnosticUrl,
+  selectLiveJourneys,
   summarizePlaywrightReport,
   validateLiveGateEnvironment,
 } from "../../scripts/live-ui-gate/core.mjs";
@@ -317,6 +318,21 @@ describe("live UI diagnostic redaction", () => {
 });
 
 describe("live UI gate manifest", () => {
+  it("selects one exact journey by its stable test id", () => {
+    expect(selectLiveJourneys(LIVE_UI_JOURNEYS, "direct-kody-chat")).toEqual([
+      expect.objectContaining({
+        id: "direct-kody-chat",
+        file: "tests/e2e/direct-chat-real.e2e.spec.ts",
+      }),
+    ]);
+  });
+
+  it("rejects an unknown stable test id", () => {
+    expect(() => selectLiveJourneys(LIVE_UI_JOURNEYS, "missing-test")).toThrow(
+      "Unknown Quality test id: missing-test",
+    );
+  });
+
   it("wires every implemented live journey into the gate", () => {
     expect(LIVE_UI_SPECS).toEqual([
       "tests/e2e/memory-real.e2e.spec.ts",
@@ -361,6 +377,14 @@ describe("live UI gate manifest", () => {
       "--reporter=list,json,html",
       "--output=test-results/live-ui-gate/run/artifacts",
     ]);
+  });
+
+  it("filters a Quality Run to the exact Playwright test title", () => {
+    expect(
+      buildPlaywrightArguments(["tests/e2e/direct-chat-real.e2e.spec.ts"], {
+        grep: "sends a real direct-model turn",
+      }),
+    ).toContain("--grep=sends a real direct-model turn");
   });
 
   it("is exposed as blocking gate and preflight package scripts", () => {
