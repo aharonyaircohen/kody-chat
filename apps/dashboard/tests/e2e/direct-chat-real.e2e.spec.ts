@@ -129,7 +129,9 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     await expect(newConversation).toBeEnabled({ timeout: 15_000 });
     await newConversation.click();
 
-    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    const chatSetup = chat.getByRole("button", { name: "Chat setup" });
+    await chatSetup.click();
+    const modelPicker = chat.getByRole("button", { name: "Model" });
     await modelPicker.click();
     await chat
       .locator('[role="listbox"]:visible')
@@ -138,7 +140,7 @@ test.describe("Direct Kody chat — real model and persistence", () => {
       .filter({ hasText: configuredModel!.label })
       .first()
       .click();
-    await expect(modelPicker).toContainText(configuredModel!.label);
+    await expect(chatSetup).toContainText(configuredModel!.label);
 
     const marker = `DIRECT_E2E_${Date.now()}`;
     const input = chat.locator("textarea").first();
