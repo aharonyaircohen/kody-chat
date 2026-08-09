@@ -61,7 +61,11 @@ import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useAgents } from "../hooks/useAgents";
 import { kodyApi } from "../integration-api";
 import { useChatDataSources } from "./kody-chat-data";
-import { useAgentSelection } from "./kody-chat-selection";
+import {
+  resolveDefaultAgentEntry,
+  useAgentSelection,
+} from "./kody-chat-selection";
+import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "../voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
@@ -578,6 +582,31 @@ export function KodyChat({
       chatModelsLoaded,
       createChatSession,
       currentEntry?.key,
+      sessionHook.hydrated,
+    ],
+  );
+  const createDefaultChatSession = useCallback(
+    () => {
+      const defaultEntry = resolveDefaultAgentEntry({
+        defaultChatEntryKey: readDefaultChatEntry(),
+        chatModels,
+        brainConfigured,
+        agentList,
+      });
+      return createChatSession({
+        ...(sessionHook.hydrated &&
+        chatModelsLoaded &&
+        defaultEntry?.key
+          ? { agentKey: defaultEntry.key }
+          : {}),
+      });
+    },
+    [
+      agentList,
+      brainConfigured,
+      chatModelsLoaded,
+      chatModels,
+      createChatSession,
       sessionHook.hydrated,
     ],
   );
@@ -2237,7 +2266,7 @@ export function KodyChat({
             sessionHook.switchSession(id);
           }}
           onCreateSession={() => {
-            setActiveWidgetConversationId(createSelectedChatSession());
+            setActiveWidgetConversationId(createDefaultChatSession());
           }}
           onDeleteSession={sessionHook.deleteSession}
           onRenameSession={sessionHook.renameSession}
@@ -2316,13 +2345,7 @@ export function KodyChat({
           onSelectMachine={selectMachineAccess}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
-            // Seed the new session with the current effective agent so a
-            // fresh conversation inherits the agent the user is currently
-            // on. Without this, the new session would have no agentKey and
-            // fall back to the global default on first render — which is
-            // fine for the very first session but surprises users who
-            // expect a "new chat" to start where the last one left off.
-            setActiveWidgetConversationId(createSelectedChatSession());
+            setActiveWidgetConversationId(createDefaultChatSession());
             setToolCalls([]);
           }}
           activeLoading={activeLoading}

@@ -371,7 +371,7 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.locator("textarea").first()).toBeEditable();
   });
 
-  test("sidebar New conversation inherits the selected model", async ({
+  test("New conversation restores the configured default model", async ({
     page,
   }) => {
     const createdRuntimes: Array<{ kind?: string; modelId?: string }> = [];
@@ -420,7 +420,21 @@ test.describe("Admin Kody chat regression", () => {
       /GPT X/,
     );
 
-    await sidebar.getByRole("button", { name: "New conversation" }).click();
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "Claude Y" })
+      .click();
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /Claude Y/,
+    );
+    expect(createdRuntimes).toEqual([]);
+
+    await chat
+      .getByTestId("chat-header-controls")
+      .getByRole("button", { name: "New conversation" })
+      .click();
 
     await expect
       .poll(() => createdRuntimes)
