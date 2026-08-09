@@ -42,7 +42,8 @@
       "release-promote",
       "vercel-production-deploy",
       "ui-review",
-      "prepare-ci-repair"
+      "prepare-ci-repair",
+      "quality-check"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -50,7 +51,8 @@
       "maintain-memory-quality",
       "web-release",
       "merge",
-      "review-fix"
+      "review-fix",
+      "quality-run"
     ],
     "activePipelines": [
       "review-and-merge"
