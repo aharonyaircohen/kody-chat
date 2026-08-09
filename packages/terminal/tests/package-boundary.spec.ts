@@ -17,6 +17,14 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe("Terminal package boundary", () => {
+  it("owns its optional native PTY runtime", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(packageRoot, "package.json"), "utf8"),
+    ) as { optionalDependencies?: Record<string, string> };
+
+    expect(manifest.optionalDependencies).toHaveProperty("node-pty");
+  });
+
   it("does not depend on the Fly implementation", () => {
     const manifest = JSON.parse(
       readFileSync(join(packageRoot, "package.json"), "utf8"),

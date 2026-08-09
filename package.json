@@ -12,5 +12,10 @@
     "build": "pnpm -r build",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
+  }
 }

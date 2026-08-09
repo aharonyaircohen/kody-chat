@@ -86,6 +86,7 @@ const nextConfig = {
   // fails to resolve `fs` and the whole layout 500s. Point it at an empty
   // stub for the browser — the require is never reached at runtime client-side.
   turbopack: {
+    root: new URL("../..", import.meta.url).pathname,
     resolveAlias: {
       fs: { browser: "./src/dashboard/lib/empty-module.js" },
       // github-client's per-request context lazily requires async_hooks; the

@@ -9,8 +9,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type LocalTerminalEvent =
   | {
@@ -122,7 +122,6 @@ const MAX_SESSION_AGE_MS = 2 * 60 * 60_000;
 const IDLE_SESSION_TIMEOUT_MS = 30 * 60_000;
 const MAX_EVENTS = 800;
 const MAX_EVENT_CHARS = 600_000;
-const require = createRequire(import.meta.url);
 let tmuxAvailableCache: boolean | null = null;
 
 function getStore(): LocalTerminalStore {
@@ -284,7 +283,7 @@ function ensureNodePtyHelperImplementation(): void {
   if (process.platform !== "darwin" && process.platform !== "linux") return;
 
   try {
-    const pkgPath = require.resolve(NODE_PTY_PACKAGE_JSON);
+    const pkgPath = fileURLToPath(import.meta.resolve(NODE_PTY_PACKAGE_JSON));
     const root = dirname(pkgPath);
     const candidates = [
       join(
