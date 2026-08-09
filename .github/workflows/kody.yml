@@ -94,6 +94,9 @@ jobs:
       - env:
           GH_PAT: ${{ secrets.GH_PAT }}
           KODY_TOKEN: ${{ secrets.KODY_TOKEN }}
+          E2E_GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+          KODY_SERVICE_KEY: ${{ secrets.KODY_SERVICE_KEY }}
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY }}
           KODY_APP_ID: ${{ secrets.KODY_APP_ID }}
           KODY_APP_PRIVATE_KEY: ${{ secrets.KODY_APP_PRIVATE_KEY }}
           SESSION_ID: ${{ inputs.sessionId }}
@@ -101,6 +104,11 @@ jobs:
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
           KODY_PUBLIC_DASHBOARD_URL: ${{ inputs.dashboardUrl }}
+          KODY_PUBLIC_E2E_GITHUB_REPO: https://github.com/${{ github.repository }}
+          KODY_PUBLIC_LIVE_MUTATION_TARGET: ${{ github.repository }}
+          KODY_PUBLIC_LIVE_CONFIRM_MUTATIONS: ${{ github.repository }}
+          KODY_PUBLIC_CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          KODY_PUBLIC_RUN_REAL_E2E: "1"
           KODY_RUN_REQUEST_JSON: ${{ inputs.runRequest }}
           KODY_DEFINITIONS_ROOT: ${{ inputs.storeRepoUrl != '' && format('{0}/.kody-engine/company-store', github.workspace) || '' }}
           KODY_DEFINITIONS_ROOT_CWD: ${{ inputs.storeRepoUrl != '' && github.workspace || '' }}
