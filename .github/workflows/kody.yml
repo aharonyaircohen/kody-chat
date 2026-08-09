@@ -91,6 +91,14 @@ jobs:
         with:
           node-version: 22
 
+      - name: Prepare Quality Run browser
+        if: ${{ inputs.runRequest != '' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          npm install --global pnpm@10
+          pnpm install --frozen-lockfile
+          pnpm --filter kody-dashboard exec playwright install --with-deps chromium
+
       - env:
           GH_PAT: ${{ secrets.GH_PAT }}
           KODY_TOKEN: ${{ secrets.KODY_TOKEN }}

@@ -12,6 +12,7 @@ import {
   buildPlaywrightArguments,
   runLiveServicePreflight,
   selectLiveJourneys,
+  summarizePlaywrightReport,
   validateLiveGateEnvironment,
 } from "./core.mjs";
 import {
@@ -149,8 +150,10 @@ if (!existsSync(reportPath)) {
   process.exit();
 }
 
+let observedSummary;
 try {
   const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  observedSummary = summarizePlaywrightReport(report);
   const summary = assertLiveGateReport(report, selectedJourneys);
   const completeSummary = {
     ...summary,
@@ -180,6 +183,19 @@ try {
     process.stdout.write(`KODY_QUALITY_RESULT=${JSON.stringify(result)}\n`);
   }
 } catch (error) {
+  if (requestedTestId && observedSummary) {
+    const result = {
+      testId: requestedTestId,
+      artifactPath: relative(join(dashboardRoot, "../.."), artifactDir),
+      passed: observedSummary.passed,
+      failed: Math.max(
+        1,
+        observedSummary.failed + observedSummary.skipped + observedSummary.flaky,
+      ),
+      sourceCommit: metadata.commit,
+    };
+    process.stdout.write(`KODY_QUALITY_RESULT=${JSON.stringify(result)}\n`);
+  }
   const message = error instanceof Error ? error.message : "invalid report";
   fail(message);
 }
