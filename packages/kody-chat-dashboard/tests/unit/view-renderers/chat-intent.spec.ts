@@ -3,6 +3,7 @@
  * @domain view-renderers
  */
 import { describe, expect, it } from "vitest";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../src/dashboard/lib/view-renderers/builtin";
 import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import {
   shouldAllowPreRenderToolCallsForTurn,
@@ -177,6 +178,36 @@ describe("view renderer chat intent", () => {
       shouldRequireViewOutputForTurn({
         userText: "summarize all reports",
         definitions: [choiceRenderer],
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps matching explanation requests as plain answers", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "Explain AI Agency structure.",
+        definitions: [
+          {
+            ...approvalRenderer,
+            purpose: "agency",
+            rule: "Use for Agency requests.",
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("uses the built-in form for creation requests that need user values", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "can u create new todo",
+        definitions: BUILTIN_VIEW_RENDERER_DEFINITIONS,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "Explain how to create a Todo.",
+        definitions: BUILTIN_VIEW_RENDERER_DEFINITIONS,
       }),
     ).toBe(false);
   });

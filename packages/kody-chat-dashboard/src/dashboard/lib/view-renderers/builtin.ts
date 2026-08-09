@@ -194,7 +194,7 @@ const BUILTIN_SOURCES: readonly string[] = [
     name: "Guided form",
     purpose: "guided-form",
     description: "Small validated form used by a GuidedFlow step.",
-    rule: "Use this purpose when a guided step needs a few user-entered values before continuing.",
+    rule: "Use this purpose to create or edit something when a few user-entered values are needed before continuing.",
     data: {
       title: { type: "text", description: "Form heading." },
       body: { type: "text", optional: true, description: "Form explanation." },

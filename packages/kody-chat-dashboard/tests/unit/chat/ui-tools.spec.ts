@@ -68,6 +68,29 @@ describe("ui tools", () => {
     expect(tools[FINAL_ANSWER_TOOL]).toBeTruthy();
   });
 
+  it("rejects final text that still asks the user for interaction", async () => {
+    const tools = createUiTools() as Record<string, unknown>;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      execute: (value: { content: string }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      finalAnswer.execute({
+        content:
+          "I can create the Todo list if you provide the name you want.",
+      }),
+    ).resolves.toEqual({
+      error: expect.stringContaining("show_view"),
+    });
+    await expect(
+      finalAnswer.execute({
+        content: "Agency connects Agents, Capabilities, and Workflows.",
+      }),
+    ).resolves.toEqual({
+      content: "Agency connects Agents, Capabilities, and Workflows.",
+    });
+  });
+
   it("navigates only to known dashboard routes", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const dashboardNavigate = tools.dashboard_navigate as {

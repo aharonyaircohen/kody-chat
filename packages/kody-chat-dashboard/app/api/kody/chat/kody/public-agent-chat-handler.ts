@@ -6,6 +6,7 @@ import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentRouteDecision } from "./public-agent-routing";
 import {
   writePublicAgentResponse,
+  type PublicAgentResponseWriter,
   type PublicAgentResponseOutcome,
 } from "./public-agent-response";
 
@@ -36,6 +37,12 @@ interface HandlePublicAgentChatOptions {
     decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
     results: readonly PublicAgentTaskResult[],
   ): Promise<string>;
+  present?: (
+    decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
+    results: readonly PublicAgentTaskResult[],
+    parentTools: Record<string, unknown>,
+    writer: PublicAgentResponseWriter,
+  ) => Promise<string>;
   startDurableTurn?: () => PublicAgentDurableTurn;
   formatStreamError(error: unknown): string;
   onDurableStartFailure?: (error: unknown) => void;
@@ -63,6 +70,7 @@ export async function handlePublicAgentChat({
   route,
   orchestrate,
   synthesize,
+  present,
   startDurableTurn,
   formatStreamError,
   onDurableStartFailure,
@@ -103,6 +111,12 @@ export async function handlePublicAgentChat({
         messageId,
         activities,
         runOrchestration,
+        ...(present
+          ? {
+              present: (results, parentTools, responseWriter) =>
+                present(decision, results, parentTools, responseWriter),
+            }
+          : {}),
         synthesize: (results) => synthesize(decision, results),
         startDurableTurn,
         onDurableStartFailure,

@@ -97,6 +97,10 @@ function isDirectAgentAsk(text: string): boolean {
   return Boolean(match && !/\b(?:me|user)\b/i.test(match[1] ?? ""));
 }
 
+function isInformationalRequest(text: string): boolean {
+  return /^\s*(?:explain|describe|summarize|what|why|how)\b/i.test(text);
+}
+
 export function shouldRequireViewOutputForTurn({
   userText,
   definitions,
@@ -109,6 +113,7 @@ export function shouldRequireViewOutputForTurn({
   // "Ask the Repository Specialist to ..." is an instruction to execute an
   // assigned Agent, not a request for Kody to ask the user for approval.
   if (isDirectAgentAsk(text)) return false;
+  if (isInformationalRequest(text)) return false;
   const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(

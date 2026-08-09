@@ -95,6 +95,24 @@ describe("validateChatViewSpec", () => {
     expect(result).toMatchObject({ success: true });
   });
 
+  it("accepts editable fields for the built-in guided form", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "form",
+      elements: {
+        form: {
+          type: "GuidedForm",
+          props: {
+            title: "Create Todo list",
+            fields: [{ name: "name", label: "Name", value: "" }],
+            submitLabel: "Create",
+          },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ success: true });
+  });
+
   it("rejects unknown component types and names the valid ones", () => {
     const result = validateChatViewSpec(catalog, {
       root: "a",

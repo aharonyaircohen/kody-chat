@@ -43,6 +43,15 @@ const CHILDREN_SCHEMA = z
   .max(50)
   .optional();
 
+const SPEC_FIELD_SCHEMA = z
+  .object({
+    name: z.string().trim().min(1).max(128),
+    label: z.string().trim().min(1).max(256),
+    value: z.string().max(10_000).optional(),
+    inputType: z.enum(["text", "password"]).optional(),
+  })
+  .strict();
+
 /** `approval-card` → `ApprovalCard`. */
 export function componentNameForSlug(slug: string): string {
   return slug
@@ -89,6 +98,8 @@ function propsSchemaForDataField(
     case "markdown":
     case "input":
       return z.string().max(10_000);
+    case "fields":
+      return z.array(SPEC_FIELD_SCHEMA).min(1).max(30);
     default:
       return z.union([z.string().max(10_000), z.number(), z.boolean()]);
   }

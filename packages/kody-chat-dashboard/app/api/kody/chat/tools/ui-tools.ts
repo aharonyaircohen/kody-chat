@@ -37,6 +37,7 @@ import { buildShowViewGuidance } from "../../../../../src/dashboard/lib/view-ren
 import {
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
+  finalAnswerRequestsInteraction,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
@@ -254,7 +255,13 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
             "The final user-visible answer. Write it as a short executive summary for a product manager: 3-6 plain sentences leading with the outcome, at most one small list. NEVER include raw JSON, schemas, code, id dumps, or step-by-step work here unless the user explicitly asked to see them — say where the data lives instead. Long content the user did not ask for is a failure.",
           ),
       }),
-      execute: async ({ content }) => ({ content }),
+      execute: async ({ content }) =>
+        finalAnswerRequestsInteraction(content)
+          ? {
+              error:
+                "This answer still asks the user for input or a decision. Use show_view with an editable form, choice, or confirmation control instead.",
+            }
+          : { content },
     }),
     switch_agent: switchAgentTool,
     dashboard_navigate: dashboardNavigateTool,

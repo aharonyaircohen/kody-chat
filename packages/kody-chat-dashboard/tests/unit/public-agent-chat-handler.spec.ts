@@ -31,6 +31,7 @@ describe("public Agent chat handler", () => {
         wrapTool: (_name, candidate) => candidate,
         maxSteps: 8,
         providerCapabilities: { supportsRequiredToolChoice: true },
+        requireViewOutput: false,
         telemetry: {
           traceId: "trace-runtime",
           startedAt: Date.now(),
@@ -120,6 +121,63 @@ describe("public Agent chat handler", () => {
         childSessionIds: ["child-session"],
         returnedFailure: false,
       }),
+    );
+  });
+
+  it("returns delegated results to the parent presentation callback", async () => {
+    const decision = {
+      mode: "delegate" as const,
+      assignments: [{ agent: "agency-specialist", task: "Create a Todo" }],
+    };
+    const showView = { description: "render a form" };
+    const present = vi.fn(async (_decision, _results, parentTools, writer) => {
+      expect(parentTools).toEqual({ show_view: showView });
+      writer.write({
+        type: "tool-input-available",
+        toolCallId: "todo-form",
+        toolName: "show_view",
+        input: { purpose: "guided-form" },
+      });
+      writer.write({
+        type: "tool-output-available",
+        toolCallId: "todo-form",
+        output: { action: "render_view" },
+      });
+      return "Presented a Todo form.";
+    });
+
+    const handled = await handlePublicAgentChat({
+      traceId: "trace-present",
+      assignedAgents: agents,
+      route: vi.fn(async () => decision),
+      orchestrate: vi.fn(async () => ({
+        parentTools: { show_view: showView },
+        results: [
+          {
+            status: "completed" as const,
+            agent: "agency-specialist",
+            result: "A Todo needs a name.",
+            reference: "Todos are managed by Agency.",
+          },
+        ],
+      })),
+      present,
+      synthesize: vi.fn(),
+      formatStreamError: (error) => String(error),
+    });
+
+    expect(handled.mode).toBe("delegated");
+    if (handled.mode !== "delegated") return;
+    const streamBody = await handled.response.text();
+    expect(streamBody).toContain("show_view");
+    expect(streamBody).not.toContain('"type":"text-start"');
+    expect(present).toHaveBeenCalledWith(
+      decision,
+      expect.arrayContaining([
+        expect.objectContaining({ agent: "agency-specialist" }),
+      ]),
+      { show_view: showView },
+      expect.objectContaining({ write: expect.any(Function) }),
     );
   });
 });

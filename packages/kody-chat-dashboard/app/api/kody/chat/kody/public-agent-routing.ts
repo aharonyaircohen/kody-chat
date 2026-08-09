@@ -55,17 +55,12 @@ export interface PublicAgentAssignment {
 export type PublicAgentRouteDecision =
   { mode: "self" } | { mode: "delegate"; assignments: PublicAgentAssignment[] };
 
-/** The parent chat owns user-facing renderer interactions and approvals. */
-export function shouldDelegatePublicAgentChat(input: {
+/** Whether this parent chat has an assigned specialist roster to route across. */
+export function shouldRoutePublicAgentChat(input: {
   clientSurface: boolean;
   assignedSubagentCount: number;
-  requireInteractiveAction: boolean;
 }): boolean {
-  return (
-    !input.clientSurface &&
-    input.assignedSubagentCount > 0 &&
-    !input.requireInteractiveAction
-  );
+  return !input.clientSurface && input.assignedSubagentCount > 0;
 }
 
 /** Short social turns do not need a routing model call or research tools. */

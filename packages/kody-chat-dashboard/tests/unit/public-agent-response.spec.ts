@@ -15,6 +15,72 @@ const activities = [
 ];
 
 describe("public Agent response", () => {
+  it("hands completed specialist work back to the parent presenter", async () => {
+    const events: unknown[] = [];
+    const showView = { description: "render a form" };
+    const present = vi.fn(async (_results, parentTools, writer) => {
+      expect(parentTools).toEqual({ show_view: showView });
+      writer.write({
+        type: "tool-input-available",
+        toolCallId: "todo-form",
+        toolName: "show_view",
+        input: { purpose: "guided-form" },
+      });
+      writer.write({
+        type: "tool-output-available",
+        toolCallId: "todo-form",
+        output: { action: "render_view" },
+      });
+      return "Presented a Todo form.";
+    });
+    const synthesize = vi.fn();
+
+    await expect(
+      writePublicAgentResponse({
+        writer: { write: (event) => events.push(event) },
+        traceId: "trace-present",
+        messageId: "message-present",
+        activities,
+        runOrchestration: vi.fn(async () => ({
+          parentTools: { show_view: showView },
+          results: [
+            {
+              status: "completed" as const,
+              agent: "agency-specialist",
+              sessionId: "todo-child-session",
+              result: "A Todo list needs a name before creation.",
+              reference: "Todos are managed by Agency.",
+            },
+          ],
+        })),
+        present,
+        synthesize,
+      }),
+    ).resolves.toMatchObject({
+      text: "Presented a Todo form.",
+      returnedFailure: false,
+      childSessionIds: ["todo-child-session"],
+    });
+
+    expect(present).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ agent: "agency-specialist" }),
+      ]),
+      { show_view: showView },
+      expect.objectContaining({ write: expect.any(Function) }),
+    );
+    expect(synthesize).not.toHaveBeenCalled();
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool-input-available",
+        toolName: "show_view",
+      }),
+    );
+    expect(events).not.toContainEqual(
+      expect.objectContaining({ type: "text-start" }),
+    );
+  });
+
   it("streams specialist progress, the final answer, and durable completion", async () => {
     const events: unknown[] = [];
     const complete = vi.fn(async () => undefined);
@@ -31,7 +97,7 @@ describe("public Agent response", () => {
         agent: "agency-specialist",
         delta: "Checking Agency…",
       });
-      return { results: [result] };
+      return { parentTools: {}, results: [result] };
     });
 
     await expect(
@@ -104,6 +170,7 @@ describe("public Agent response", () => {
         messageId: "message-2",
         activities,
         runOrchestration: vi.fn(async () => ({
+          parentTools: {},
           results: [
             {
               status: "failed" as const,
@@ -154,6 +221,7 @@ describe("public Agent response", () => {
         messageId: "message-3",
         activities,
         runOrchestration: vi.fn(async () => ({
+          parentTools: {},
           results: [
             {
               status: "completed" as const,
@@ -171,6 +239,45 @@ describe("public Agent response", () => {
       text: "I could not prepare a reliable answer from the available specialist evidence.",
     });
     expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("falls back to grounded text when parent presentation fails", async () => {
+    const events: unknown[] = [];
+    const onSynthesisFailure = vi.fn();
+    const synthesize = vi.fn(async () => "Grounded Agency answer.");
+
+    await expect(
+      writePublicAgentResponse({
+        writer: { write: (event) => events.push(event) },
+        traceId: "trace-presentation-fallback",
+        messageId: "message-presentation-fallback",
+        activities,
+        runOrchestration: vi.fn(async () => ({
+          parentTools: { show_view: {} },
+          results: [
+            {
+              status: "completed" as const,
+              agent: "agency-specialist",
+              result: "Grounded Agency result.",
+              reference: "Agency reference.",
+            },
+          ],
+        })),
+        present: vi.fn(async () => {
+          throw new Error("renderer provider unavailable");
+        }),
+        synthesize,
+        onSynthesisFailure,
+      }),
+    ).resolves.toMatchObject({ text: "Grounded Agency answer." });
+
+    expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
+    expect(synthesize).toHaveBeenCalledOnce();
+    expect(events).toContainEqual({
+      type: "text-delta",
+      id: "message-presentation-fallback",
+      delta: "Grounded Agency answer.",
+    });
   });
 
   it("fails every activity and the durable turn when orchestration throws", async () => {
@@ -222,7 +329,10 @@ describe("public Agent response", () => {
         traceId: "trace-5",
         messageId: "message-5",
         activities,
-        runOrchestration: vi.fn(async () => ({ results: [] })),
+        runOrchestration: vi.fn(async () => ({
+          parentTools: {},
+          results: [],
+        })),
         synthesize,
       }),
     ).resolves.toMatchObject({

@@ -15,6 +15,21 @@ export interface ToolErrorOutput {
   error: string;
 }
 
+/** A final answer cannot be final when it still asks the user to act. */
+export function finalAnswerRequestsInteraction(content: string): boolean {
+  const text = content.trim();
+  return (
+    /\b(?:would|could|can|do|will) you\b[^.!?]{0,180}\?/i.test(text) ||
+    /\bif you (?:can )?(?:provide|share|choose|select|confirm|approve|pick|enter)\b/i.test(
+      text,
+    ) ||
+    /(?:^|[.!?]\s+)(?:please\s+)?(?:provide|share|choose|select|confirm|approve|pick|enter)\b/i.test(
+      text,
+    ) ||
+    /\b(?:let me know|tell me)\b/i.test(text)
+  );
+}
+
 /**
  * Direct-chat output policy sent before model chunks.
  *

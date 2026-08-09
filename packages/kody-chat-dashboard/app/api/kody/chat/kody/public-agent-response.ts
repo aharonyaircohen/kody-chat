@@ -29,9 +29,21 @@ type PublicAgentStreamEvent =
       };
     }
   | { type: "text-start" | "text-end"; id: string }
-  | { type: "text-delta"; id: string; delta: string };
+  | { type: "text-delta"; id: string; delta: string }
+  | {
+      type: "tool-input-available";
+      toolCallId: string;
+      toolName: string;
+      input: unknown;
+    }
+  | {
+      type: "tool-output-available";
+      toolCallId: string;
+      output: unknown;
+    }
+  | { type: "data-chat-output-contract"; data: { mode: "exclusive-tool" } };
 
-interface PublicAgentResponseWriter {
+export interface PublicAgentResponseWriter {
   write(event: PublicAgentStreamEvent): void;
 }
 
@@ -47,7 +59,15 @@ interface WritePublicAgentResponseOptions {
   activities: readonly PublicAgentActivity[];
   runOrchestration(
     onReasoningDelta: (event: { agent: string; delta: string }) => void,
-  ): Promise<{ results: PublicAgentTaskResult[] }>;
+  ): Promise<{
+    parentTools: Record<string, unknown>;
+    results: PublicAgentTaskResult[];
+  }>;
+  present?: (
+    results: readonly PublicAgentTaskResult[],
+    parentTools: Record<string, unknown>,
+    writer: PublicAgentResponseWriter,
+  ) => Promise<string>;
   synthesize(results: readonly PublicAgentTaskResult[]): Promise<string>;
   startDurableTurn?: () => PublicAgentDurableTurn;
   onDurableStartFailure?: (error: unknown) => void;
@@ -72,6 +92,7 @@ export async function writePublicAgentResponse({
   messageId,
   activities,
   runOrchestration,
+  present,
   synthesize,
   startDurableTurn,
   onDurableStartFailure,
@@ -109,7 +130,10 @@ export async function writePublicAgentResponse({
       (activity) => [activity.assignment.agent, activity] as const,
     ),
   );
-  let orchestration: { results: PublicAgentTaskResult[] };
+  let orchestration: {
+    parentTools: Record<string, unknown>;
+    results: PublicAgentTaskResult[];
+  };
   try {
     orchestration = await runOrchestration(({ agent, delta }) => {
       const activity = activitiesByAgent.get(agent);
@@ -129,6 +153,7 @@ export async function writePublicAgentResponse({
     onOrchestrationFailure?.(error);
     const detail = error instanceof Error ? error.message : String(error);
     orchestration = {
+      parentTools: {},
       results: activities.map((activity) => ({
         status: "failed",
         agent: activity.assignment.agent,
@@ -208,6 +233,7 @@ export async function writePublicAgentResponse({
   const returnedFailure = allSpecialistsFailed && !canRecoverEmptyResults;
 
   let text: string;
+  let presentationWritten = false;
   if (returnedFailure) {
     text = activities
       .map(
@@ -216,17 +242,34 @@ export async function writePublicAgentResponse({
       )
       .join("\n\n");
   } else {
-    try {
-      text = await synthesize(results);
-    } catch (error) {
-      onSynthesisFailure?.(error);
-      text = PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE;
+    if (present) {
+      try {
+        text = await present(results, orchestration.parentTools, writer);
+        presentationWritten = true;
+      } catch (error) {
+        onSynthesisFailure?.(error);
+        try {
+          text = await synthesize(results);
+        } catch (synthesisError) {
+          onSynthesisFailure?.(synthesisError);
+          text = PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE;
+        }
+      }
+    } else {
+      try {
+        text = await synthesize(results);
+      } catch (error) {
+        onSynthesisFailure?.(error);
+        text = PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE;
+      }
     }
   }
 
-  writer.write({ type: "text-start", id: messageId });
-  writer.write({ type: "text-delta", id: messageId, delta: text });
-  writer.write({ type: "text-end", id: messageId });
+  if (!presentationWritten) {
+    writer.write({ type: "text-start", id: messageId });
+    writer.write({ type: "text-delta", id: messageId, delta: text });
+    writer.write({ type: "text-end", id: messageId });
+  }
   if (durableTurn) {
     try {
       if (returnedFailure) {

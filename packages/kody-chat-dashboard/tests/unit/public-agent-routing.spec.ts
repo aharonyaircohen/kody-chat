@@ -6,7 +6,7 @@ import {
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
   routePublicAgentTask,
-  shouldDelegatePublicAgentChat,
+  shouldRoutePublicAgentChat,
 } from "../../app/api/kody/chat/kody/public-agent-routing";
 
 const assignedAgents = [
@@ -38,21 +38,25 @@ const assignedAgents = [
 ];
 
 describe("public Agent routing", () => {
-  it("keeps renderer-required interactions with the parent chat owner", () => {
+  it("lets specialist routing run before parent-owned presentation", () => {
     expect(
-      shouldDelegatePublicAgentChat({
+      shouldRoutePublicAgentChat({
         clientSurface: false,
         assignedSubagentCount: 2,
-        requireInteractiveAction: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRoutePublicAgentChat({
+        clientSurface: true,
+        assignedSubagentCount: 2,
       }),
     ).toBe(false);
     expect(
-      shouldDelegatePublicAgentChat({
+      shouldRoutePublicAgentChat({
         clientSurface: false,
-        assignedSubagentCount: 2,
-        requireInteractiveAction: false,
+        assignedSubagentCount: 0,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("builds routing guidance entirely from assigned Agent definitions", () => {
@@ -230,7 +234,10 @@ describe("public Agent routing", () => {
     ).resolves.toEqual({
       mode: "delegate",
       assignments: [
-        { agent: "agency-specialist", task: "Explain AI Agency structure." },
+        {
+          agent: "agency-specialist",
+          task: "Explain AI Agency structure.",
+        },
       ],
     });
     expect(generate).not.toHaveBeenCalled();
@@ -254,7 +261,9 @@ describe("public Agent routing", () => {
     const generate = vi.fn(async () => ({
       text: JSON.stringify({
         mode: "delegate",
-        assignments: [{ agent: "knowledge-specialist", task: "Explain Views" }],
+        assignments: [
+          { agent: "knowledge-specialist", task: "Explain Views" },
+        ],
       }),
     }));
 
@@ -274,6 +283,7 @@ describe("public Agent routing", () => {
         },
       ],
     });
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it("keeps Kody in control when the routing model fails", async () => {

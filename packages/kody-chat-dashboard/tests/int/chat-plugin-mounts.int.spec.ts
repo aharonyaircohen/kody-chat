@@ -22,6 +22,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../src/dashboard/lib/view-renderers/builtin";
+import type { ViewRendererDefinition } from "../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
@@ -83,13 +85,16 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
+const loadViewRendererContextForPromptMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    rules: null as string | null,
+    definitions: [] as ViewRendererDefinition[],
+  })),
+);
 vi.mock(
   "../../src/dashboard/lib/view-renderers/standalone-renderer-store",
   () => ({
-    loadViewRendererContextForPrompt: vi.fn(async () => ({
-      rules: null,
-      definitions: [],
-    })),
+    loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
   }),
 );
 
@@ -146,9 +151,15 @@ type SpecialistStreamFixture = {
 let nextSpecialistStream: SpecialistStreamFixture | null = null;
 let nextSpecialistStreams: SpecialistStreamFixture[] = [];
 const generateTextMock = vi.hoisted(() =>
-  vi.fn(async (): Promise<{ text: string; reasoningText?: string }> => ({
-    text: '{"mode":"self","assignments":[]}',
-  })),
+  vi.fn(
+    async (): Promise<{
+      text: string;
+      reasoningText?: string;
+      steps?: Array<Record<string, unknown>>;
+    }> => ({
+      text: '{"mode":"self","assignments":[]}',
+    }),
+  ),
 );
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
@@ -291,6 +302,19 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
   });
 
   it("routes to and executes Kody's assigned public Agent before the parent turn", async () => {
+    loadViewRendererContextForPromptMock.mockResolvedValueOnce({
+      rules: "Use the Agency renderer for Agency requests.",
+      definitions: [
+        {
+          slug: "agency-summary",
+          name: "Agency Summary",
+          purpose: "agency",
+          rule: "Use for Agency structure.",
+          type: "layout" as const,
+          ui: { type: "text" as const, value: "Agency" },
+        },
+      ],
+    });
     listResolvedAgentFilesMock.mockResolvedValueOnce([
       {
         slug: "kody",
@@ -346,13 +370,18 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       }),
     );
     expect(
-      (streamTextCalls.at(streamTextCallCountBefore)?.messages as Array<{
-        content: string;
-      }>)[0]?.content,
+      (
+        streamTextCalls.at(streamTextCallCountBefore)?.messages as Array<{
+          content: string;
+        }>
+      )[0]?.content,
     ).toContain("## Agent definition");
     expect(generateTextMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        tools: undefined,
+        tools: expect.objectContaining({
+          final_answer: expect.any(Object),
+          show_view: expect.any(Object),
+        }),
         messages: [
           expect.objectContaining({
             content: expect.stringContaining(
@@ -410,6 +439,55 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       "Agency connects Agents to focused Capabilities and Workflows.",
     );
     expect(responseBody).not.toContain("User Safety");
+  });
+
+  it("hands a delegated Todo request back to Kody's form renderer", async () => {
+    loadViewRendererContextForPromptMock.mockResolvedValueOnce({
+      rules: "Use an interactive form for Todo creation.",
+      definitions: [
+        ...BUILTIN_VIEW_RENDERER_DEFINITIONS,
+        {
+          slug: "todo-form",
+          name: "Todo form",
+          purpose: "todo",
+          rule: "Use for Todo creation.",
+          type: "layout" as const,
+          data: { title: { type: "text" as const } },
+          ui: { type: "text" as const, value: "$title" },
+        },
+      ],
+    });
+    listResolvedAgentFilesMock.mockResolvedValueOnce([
+      {
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates assigned specialists.",
+        subagents: ["agency-specialist"],
+        updatedAt: "",
+        htmlUrl: "",
+      },
+      {
+        slug: "agency-specialist",
+        title: "Agency Specialist",
+        body: "Manages Agents, Workflows, Capabilities, and Todos.",
+        updatedAt: "",
+        htmlUrl: "",
+      },
+    ]);
+    nextSpecialistStream = {
+      text: "A Todo list requires a name before creation.",
+    };
+
+    const { status, response } = await postAndCaptureToolNames(
+      "can u create new todo",
+    );
+    const responseBody = await response.text();
+
+    expect(status).toBe(200);
+    expect(responseBody).toContain('"toolName":"show_view"');
+    expect(responseBody).toContain('"action":"render_view"');
+    expect(responseBody).toContain("Create Todo");
+    expect(responseBody).not.toContain("create or update todo list");
   });
 
   it("lets Kody answer from the authoritative Agent definition when the specialist returns no text", async () => {
@@ -473,7 +551,6 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
         "The operation was aborted because the request timed out",
       ),
     };
-
     const streamTextCallCountBefore = streamTextCalls.length;
     const { status, response } = await postAndCaptureToolNames(
       "Explain AI Agency structure.",

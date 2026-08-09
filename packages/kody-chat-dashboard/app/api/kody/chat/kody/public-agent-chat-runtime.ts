@@ -12,6 +12,7 @@ import {
   handlePublicAgentChat,
   type PublicAgentChatResult,
 } from "./public-agent-chat-handler";
+import { presentPublicAgentResponse } from "./public-agent-presentation";
 import {
   orchestratePublicAgentTurn,
   type PublicAgentCapability,
@@ -41,7 +42,11 @@ interface HandleConfiguredPublicAgentChatOptions {
   wrapTool(name: string, candidate: unknown): unknown;
   repository?: { owner: string; repo: string } | null;
   maxSteps: number;
-  providerCapabilities: { supportsRequiredToolChoice: boolean };
+  providerCapabilities: {
+    supportsRequiredToolChoice: boolean;
+    supportsNamedToolChoice?: boolean;
+  };
+  requireViewOutput: boolean;
   startDurableTurn?: () => {
     complete(text: string): Promise<void>;
     fail(errorCode: string): Promise<void>;
@@ -62,6 +67,7 @@ export async function handleConfiguredPublicAgentChat({
   repository,
   maxSteps,
   providerCapabilities,
+  requireViewOutput,
   startDurableTurn,
   telemetry,
 }: HandleConfiguredPublicAgentChatOptions): Promise<PublicAgentChatResult> {
@@ -121,6 +127,23 @@ export async function handleConfiguredPublicAgentChat({
         assignedAgents,
         results,
         model,
+      }),
+    present: (decision, results, parentTools, writer) =>
+      presentPublicAgentResponse({
+        userText,
+        assignments: decision.assignments,
+        assignedAgents,
+        results,
+        model,
+        tools: Object.fromEntries(
+          Object.entries(parentTools).map(([name, candidate]) => [
+            name,
+            wrapTool(name, candidate),
+          ]),
+        ),
+        writer,
+        providerCapabilities,
+        requireViewOutput,
       }),
     startDurableTurn,
     formatStreamError: (error) =>

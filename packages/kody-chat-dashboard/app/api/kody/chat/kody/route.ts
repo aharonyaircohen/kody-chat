@@ -186,7 +186,7 @@ import {
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
 import { isClearlyConversationalTurn } from "./public-agent-routing";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
-import { shouldDelegatePublicAgentChat } from "./public-agent-routing";
+import { shouldRoutePublicAgentChat } from "./public-agent-routing";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -1556,10 +1556,9 @@ async function handleKodyDirectPost(
     assignedSubagentSlugs.includes(candidate.slug),
   );
   if (
-    shouldDelegatePublicAgentChat({
+    shouldRoutePublicAgentChat({
       clientSurface: Boolean(clientSurface),
       assignedSubagentCount: assignedSubagentRoster.length,
-      requireInteractiveAction,
     })
   ) {
     const specialistChat = await handleConfiguredPublicAgentChat({
@@ -1582,6 +1581,7 @@ async function handleKodyDirectPost(
       repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
       maxSteps: Math.min(resolvedModel.maxSteps ?? 8, 8),
       providerCapabilities,
+      requireViewOutput: requireInteractiveAction,
       ...(durableIdentity
         ? { startDurableTurn: () => startDurableTurn(durableIdentity) }
         : {}),
