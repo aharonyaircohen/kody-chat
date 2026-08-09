@@ -10,7 +10,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type CatalogKind =
-  "agent" | "capability" | "loop" | "workflow" | "command" | "solution";
+  | "agent"
+  | "capability"
+  | "loop"
+  | "trigger"
+  | "workflow"
+  | "command"
+  | "solution";
 
 interface CatalogItem {
   slug: string;
@@ -66,6 +72,13 @@ const catalogSeeds: CatalogItem[] = [
     title: "Daily Triage",
     description: "Repeats triage on a schedule.",
     kind: "loop",
+    htmlUrl: null,
+  },
+  {
+    slug: "ci-repair-on-ci-failure",
+    title: "CI Repair on CI failure",
+    description: "Starts CI Repair when repository CI fails.",
+    kind: "trigger",
     htmlUrl: null,
   },
   {
@@ -468,6 +481,7 @@ test.describe("Store", () => {
       { kind: "capability", slug: "release-watch" },
       { kind: "workflow", slug: "bug-flow" },
       { kind: "loop", slug: "daily-triage" },
+      { kind: "trigger", slug: "ci-repair-on-ci-failure" },
       { kind: "workflow", slug: "release-workflow" },
       { kind: "command", slug: "factory" },
     ]);

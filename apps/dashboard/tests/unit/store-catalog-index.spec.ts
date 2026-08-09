@@ -18,6 +18,7 @@ describe("Store catalog index", () => {
                   workflows: "workflows",
                   pipelines: "pipelines",
                   loops: "loops",
+                  triggers: "triggers",
                   solutions: "solutions",
                 },
               }),
@@ -46,8 +47,9 @@ describe("Store catalog index", () => {
       workflows: ["sample"],
       pipelines: ["sample"],
       loops: ["sample"],
+      triggers: ["sample"],
       solutions: ["sample"],
     });
-    expect(getContent).toHaveBeenCalledTimes(8);
+    expect(getContent).toHaveBeenCalledTimes(9);
   });
 });

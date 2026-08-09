@@ -12,6 +12,7 @@ describe("simple Store activation", () => {
       "agent",
       "capability",
       "workflow",
+      "trigger",
       "loop",
       "command",
       "feature",
@@ -21,6 +22,13 @@ describe("simple Store activation", () => {
     }
     expect(source).not.toContain('"implementation"');
     expect(source).toContain("readStoreLoop");
+    expect(source).toContain("readStoreTrigger");
+  });
+
+  it("activating a Trigger activates its target before saving the Trigger", () => {
+    expect(source).toMatch(
+      /if \(kind === "trigger"\)[\s\S]*await activate\([\s\S]*storeTrigger\.target\.kind[\s\S]*storeTrigger\.target\.id[\s\S]*mutateTriggers/,
+    );
   });
 
   it("activating a Workflow also activates its one Agent and Capabilities", () => {
