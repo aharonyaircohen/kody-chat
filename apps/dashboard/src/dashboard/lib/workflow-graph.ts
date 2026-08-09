@@ -1,5 +1,6 @@
 import type {
   WorkflowDefinition,
+  WorkflowInputBinding,
   WorkflowStepDefinition,
 } from "./workflow-definitions";
 import { WORKFLOW_END_STEP_ID } from "./workflow-definitions";
@@ -11,6 +12,7 @@ export interface WorkflowGraphNode {
   capability?: string;
   question?: string;
   input?: unknown;
+  inputs?: Record<string, WorkflowInputBinding>;
 }
 
 export interface WorkflowGraphEdge {
@@ -223,6 +225,7 @@ export function workflowDefinitionGraph(
       ...(Object.prototype.hasOwnProperty.call(step, "input")
         ? { input: step.input }
         : {}),
+      ...(step.inputs ? { inputs: step.inputs } : {}),
     }));
     const usedIds = new Set(baseNodes.map((node) => node.id));
     const nodes: WorkflowGraphNode[] = [...baseNodes];
@@ -326,6 +329,7 @@ export function graphWorkflowDefinition(
       ...(Object.prototype.hasOwnProperty.call(node, "input")
         ? { input: node.input }
         : {}),
+      ...(node.inputs ? { inputs: node.inputs } : {}),
       ...(outgoing.length > 0
         ? {
             next: outgoing.map((edge) => ({

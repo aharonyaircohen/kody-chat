@@ -542,11 +542,65 @@ export function WorkflowGraphCanvas({
       return;
     }
     try {
-      updateNode({ ...selectedNode, input: JSON.parse(trimmed) });
+      const { inputs: _inputs, ...nextNode } = selectedNode;
+      updateNode({ ...nextNode, input: JSON.parse(trimmed) });
       setFormError(null);
     } catch {
       setFormError("Capability input must be valid JSON.");
     }
+  };
+
+  const updateCapabilityInputBinding = (
+    previousTarget: string,
+    target: string,
+    from: string,
+  ) => {
+    if (!selectedNode) return;
+    const nextTarget = target.trim();
+    const nextFrom = from.trim();
+    if (!nextTarget || !nextFrom) {
+      setFormError("Each input connection needs a field and a source.");
+      return;
+    }
+    const nextInputs = Object.fromEntries(
+      Object.entries(selectedNode.inputs ?? {}).filter(
+        ([field]) => field !== previousTarget,
+      ),
+    );
+    nextInputs[nextTarget] = { from: nextFrom };
+    const { input: _input, ...nextNode } = selectedNode;
+    updateNode({ ...nextNode, inputs: nextInputs });
+    setFormError(null);
+  };
+
+  const addCapabilityInputBinding = () => {
+    if (!selectedNode) return;
+    const current = selectedNode.inputs ?? {};
+    let target = "input";
+    let suffix = 2;
+    while (Object.prototype.hasOwnProperty.call(current, target)) {
+      target = `input${suffix}`;
+      suffix += 1;
+    }
+    const { input: _input, ...nextNode } = selectedNode;
+    updateNode({
+      ...nextNode,
+      inputs: { ...current, [target]: { from: "workflow.input.input" } },
+    });
+  };
+
+  const removeCapabilityInputBinding = (target: string) => {
+    if (!selectedNode) return;
+    const nextInputs = Object.fromEntries(
+      Object.entries(selectedNode.inputs ?? {}).filter(
+        ([field]) => field !== target,
+      ),
+    );
+    const { inputs: _inputs, ...nextNode } = selectedNode;
+    updateNode({
+      ...nextNode,
+      ...(Object.keys(nextInputs).length > 0 ? { inputs: nextInputs } : {}),
+    });
   };
 
   const edgeIsLoop = selectedEdge ? isBackwardEdge(graph, selectedEdge) : false;
@@ -556,6 +610,9 @@ export function WorkflowGraphCanvas({
     ? graph.nodes.find((node) => node.id === selectedEdge.source)
     : undefined;
   const selectedEdgeIsDecisionBranch = selectedEdgeSource?.kind === "decision";
+  const selectedStepRun = selectedNode
+    ? runState?.steps[selectedNode.id]
+    : undefined;
   const capabilityCount = graph.nodes.filter(
     (node) => node.kind !== "decision" && node.kind !== "terminal",
   ).length;
@@ -751,31 +808,117 @@ export function WorkflowGraphCanvas({
                   </div>
                 ) : null}
                 {!selectedNodeIsDecision && !selectedNodeIsTerminal ? (
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     <div>
-                      <Label htmlFor="workflow-capability-input">
-                        Capability input
-                      </Label>
+                      <Label>Input connections</Label>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        One JSON value. If empty, the previous step&apos;s
-                        output is passed automatically.
+                        Choose exactly where each capability input comes from.
+                        Leave empty to pass the Workflow input unchanged.
                       </p>
                     </div>
-                    <Textarea
-                      key={`${selectedNode.id}:${JSON.stringify(selectedNode.input)}`}
-                      id="workflow-capability-input"
-                      defaultValue={
-                        selectedNode.input === undefined
-                          ? ""
-                          : JSON.stringify(selectedNode.input, null, 2)
-                      }
-                      readOnly={!editable}
-                      placeholder='{"request":"what to do"}'
-                      className="min-h-24 font-mono text-xs"
-                      onBlur={(event) =>
-                        updateCapabilityInput(event.target.value)
-                      }
-                    />
+                    <div className="space-y-2">
+                      {Object.entries(selectedNode.inputs ?? {}).map(
+                        ([target, binding]) => (
+                          <div
+                            key={`${selectedNode.id}:${target}`}
+                            className="grid gap-2 rounded border border-border bg-background p-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_auto] sm:items-end"
+                          >
+                            <div className="space-y-1">
+                              <Label>Capability field</Label>
+                              <Input
+                                defaultValue={target}
+                                readOnly={!editable}
+                                onBlur={(event) =>
+                                  updateCapabilityInputBinding(
+                                    target,
+                                    event.target.value,
+                                    binding.from,
+                                  )
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Gets data from</Label>
+                              <Input
+                                defaultValue={binding.from}
+                                readOnly={!editable}
+                                className="font-mono text-xs"
+                                onBlur={(event) =>
+                                  updateCapabilityInputBinding(
+                                    target,
+                                    target,
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </div>
+                            {editable ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() =>
+                                  removeCapabilityInputBinding(target)
+                                }
+                              >
+                                Remove
+                              </Button>
+                            ) : null}
+                          </div>
+                        ),
+                      )}
+                      {editable ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addCapabilityInputBinding}
+                        >
+                          Add input connection
+                        </Button>
+                      ) : null}
+                    </div>
+                    <details className="rounded border border-border bg-background p-3">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Advanced fixed input
+                      </summary>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Use one fixed JSON value instead of input connections.
+                      </p>
+                      <Textarea
+                        key={`${selectedNode.id}:${JSON.stringify(selectedNode.input)}`}
+                        id="workflow-capability-input"
+                        defaultValue={
+                          selectedNode.input === undefined
+                            ? ""
+                            : JSON.stringify(selectedNode.input, null, 2)
+                        }
+                        readOnly={!editable}
+                        placeholder='{"request":"what to do"}'
+                        className="mt-2 min-h-24 font-mono text-xs"
+                        onBlur={(event) =>
+                          updateCapabilityInput(event.target.value)
+                        }
+                      />
+                    </details>
+                    {selectedStepRun ? (
+                      <div className="space-y-2 rounded border border-border bg-background p-3 text-xs">
+                        <div className="font-medium">This run</div>
+                        <div>
+                          <div className="text-muted-foreground">Received</div>
+                          <pre className="mt-1 overflow-auto whitespace-pre-wrap font-mono">
+                            {JSON.stringify(selectedStepRun.input, null, 2)}
+                          </pre>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Returned</div>
+                          <pre className="mt-1 overflow-auto whitespace-pre-wrap font-mono">
+                            {JSON.stringify(selectedStepRun.output, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

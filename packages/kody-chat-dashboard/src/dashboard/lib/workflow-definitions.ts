@@ -46,11 +46,21 @@ export type WorkflowTransitionDefinition = z.infer<
   typeof workflowTransitionDefinitionSchema
 >;
 
+export const workflowInputBindingSchema = z
+  .object({ from: z.string().trim().min(1) })
+  .strict();
+
+export type WorkflowInputBinding = z.infer<typeof workflowInputBindingSchema>;
+
 export const workflowStepDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   capability: z.string().trim().min(1).max(80),
   /** One JSON-compatible value passed to this capability. */
   input: z.unknown().optional(),
+  /** Explicit field mappings from Workflow data into this capability. */
+  inputs: z
+    .record(z.string().trim().min(1), workflowInputBindingSchema)
+    .optional(),
   action: z.string().trim().min(1).max(80).optional(),
   evidence: z.string().trim().min(1).optional(),
   target: z.enum(["issue", "pr"]).optional(),
@@ -71,7 +81,7 @@ export type WorkflowStepDefinition = z.infer<
 
 type WorkflowStepExecutionDefinition = Omit<
   WorkflowStepDefinition,
-  "id" | "capability" | "input" | "next"
+  "id" | "capability" | "input" | "inputs" | "next"
 >;
 
 export interface WorkflowDefinitionRecord {
@@ -126,6 +136,8 @@ const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 const WORKFLOW_DATA_PATH =
   /^(facts|evidence|artifacts|result|workflow|lastOutcome)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+$/;
+const WORKFLOW_INPUT_SOURCE =
+  /^(?:workflow\.(?:input|facts|evidence)(?:\.[A-Za-z_][A-Za-z0-9_-]*)+|steps\.[A-Za-z][A-Za-z0-9_-]*\.result(?:\.[A-Za-z_][A-Za-z0-9_-]*)+)$/;
 
 export function isWorkflowDefinitionId(value: string): boolean {
   return WORKFLOW_ID_PATTERN.test(value);
@@ -171,16 +183,40 @@ function normalizeWorkflowSteps(value: unknown): WorkflowStepDefinition[] {
     )
       continue;
     const hasInput = Object.prototype.hasOwnProperty.call(raw, "input");
+    const inputs = normalizeWorkflowStepInputs(raw.inputs);
     const next = normalizeWorkflowTransitions(raw.next);
     steps.push({
       id,
       capability,
       ...(hasInput ? { input: raw.input } : {}),
+      ...(Object.keys(inputs).length > 0 ? { inputs } : {}),
       ...normalizeWorkflowStepExecution(raw),
       ...(next.length > 0 ? { next } : {}),
     });
   }
   return steps;
+}
+
+function normalizeWorkflowStepInputs(
+  value: unknown,
+): Record<string, WorkflowInputBinding> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([field, binding]) => {
+      const target = field.trim();
+      if (
+        !target ||
+        !binding ||
+        typeof binding !== "object" ||
+        Array.isArray(binding)
+      )
+        return [];
+      const from = (binding as Record<string, unknown>).from;
+      return typeof from === "string" && from.trim()
+        ? [[target, { from: from.trim() }]]
+        : [];
+    }),
+  );
 }
 
 function normalizeWorkflowStepExecution(
@@ -435,6 +471,33 @@ export function validateWorkflowDefinition(
         `steps[${index}].input`,
         "Capability input must be one JSON value.",
       );
+    if (
+      Object.prototype.hasOwnProperty.call(step, "input") &&
+      step.inputs &&
+      Object.keys(step.inputs).length > 0
+    )
+      addIssue(
+        issues,
+        "conflicting_step_inputs",
+        `steps[${index}]`,
+        "A capability step cannot use both a fixed input and input mappings.",
+      );
+    for (const [field, binding] of Object.entries(step.inputs ?? {})) {
+      if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(field))
+        addIssue(
+          issues,
+          "invalid_input_name",
+          `steps[${index}].inputs.${field}`,
+          "Capability input field is invalid.",
+        );
+      if (!WORKFLOW_INPUT_SOURCE.test(binding.from))
+        addIssue(
+          issues,
+          "invalid_input_source",
+          `steps[${index}].inputs.${field}.from`,
+          "Input source must read Workflow data or a named step result.",
+        );
+    }
   });
 
   const startAt = workflow.startAt ?? ids[0];
@@ -451,6 +514,17 @@ export function validateWorkflowDefinition(
   steps.forEach((step, stepIndex) => {
     const transitions = step.next ?? [];
     adjacency.set(step.id, []);
+    for (const [field, binding] of Object.entries(step.inputs ?? {})) {
+      if (!binding.from.startsWith("steps.")) continue;
+      const sourceStep = binding.from.split(".")[1];
+      if (sourceStep && !idSet.has(sourceStep))
+        addIssue(
+          issues,
+          "missing_input_step",
+          `steps[${stepIndex}].inputs.${field}.from`,
+          `Input source references missing step ${sourceStep}.`,
+        );
+    }
     if (transitions.length > 20)
       addIssue(
         issues,

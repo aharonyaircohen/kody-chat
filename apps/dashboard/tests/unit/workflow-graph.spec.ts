@@ -70,6 +70,37 @@ describe("workflow graph", () => {
     ]);
   });
 
+  it("round-trips explicit generic step input mappings", () => {
+    const graph = workflowDefinitionGraph({
+      name: "Repair",
+      agent: "kody",
+      capabilities: ["inspect", "repair"],
+      startAt: "inspect",
+      steps: [
+        { id: "inspect", capability: "inspect", next: [{ to: "repair" }] },
+        {
+          id: "repair",
+          capability: "repair",
+          inputs: {
+            request: { from: "workflow.input.request" },
+            findings: { from: "steps.inspect.result.findings" },
+          },
+        },
+      ],
+      createdAt: "2026-07-15T00:00:00Z",
+      updatedAt: "2026-07-15T00:00:00Z",
+    });
+
+    expect(graph.nodes[1]?.inputs).toEqual({
+      request: { from: "workflow.input.request" },
+      findings: { from: "steps.inspect.result.findings" },
+    });
+    expect(
+      graphWorkflowDefinition("Repair", graph.nodes, graph.edges, graph.startAt)
+        .steps?.[1]?.inputs,
+    ).toEqual(graph.nodes[1]?.inputs);
+  });
+
   it("turns conditional paths into a visual decision node", () => {
     const graph = workflowDefinitionGraph({
       name: "Release",

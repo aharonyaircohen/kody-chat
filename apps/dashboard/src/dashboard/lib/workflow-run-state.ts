@@ -1,5 +1,14 @@
 export type WorkflowRunStatus = "running" | "blocked" | "failed" | "done";
 
+export interface WorkflowRunStepState {
+  capability: string;
+  status: "running" | "done" | "failed";
+  input?: unknown;
+  output?: unknown;
+  startedAt: string;
+  completedAt?: string;
+}
+
 export interface WorkflowRunState {
   status: WorkflowRunStatus;
   currentStepId?: string;
@@ -8,6 +17,7 @@ export interface WorkflowRunState {
   facts: Record<string, unknown>;
   evidence: Record<string, boolean>;
   artifacts: Array<{ label: string; url?: string; path?: string }>;
+  steps: Record<string, WorkflowRunStepState>;
   blocker?: string;
 }
 
@@ -75,6 +85,7 @@ export function normalizeWorkflowRunState(
             typeof (item as { path?: unknown }).path === "string"),
       )
     : [];
+  const steps = normalizeWorkflowRunSteps(value.steps);
 
   return {
     status: value.status,
@@ -86,6 +97,53 @@ export function normalizeWorkflowRunState(
     facts,
     evidence,
     artifacts: artifacts.map((artifact) => ({ ...artifact })),
+    steps,
     ...(typeof value.blocker === "string" ? { blocker: value.blocker } : {}),
   };
+}
+
+function normalizeWorkflowRunSteps(
+  raw: unknown,
+): Record<string, WorkflowRunStepState> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw).flatMap(([id, candidate]) => {
+      if (
+        !candidate ||
+        typeof candidate !== "object" ||
+        Array.isArray(candidate)
+      )
+        return [];
+      const value = candidate as Record<string, unknown>;
+      if (
+        typeof value.capability !== "string" ||
+        (value.status !== "running" &&
+          value.status !== "done" &&
+          value.status !== "failed") ||
+        typeof value.startedAt !== "string" ||
+        (value.completedAt !== undefined &&
+          typeof value.completedAt !== "string")
+      )
+        return [];
+      return [
+        [
+          id,
+          {
+            capability: value.capability,
+            status: value.status,
+            ...(Object.prototype.hasOwnProperty.call(value, "input")
+              ? { input: value.input }
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(value, "output")
+              ? { output: value.output }
+              : {}),
+            startedAt: value.startedAt,
+            ...(typeof value.completedAt === "string"
+              ? { completedAt: value.completedAt }
+              : {}),
+          } satisfies WorkflowRunStepState,
+        ],
+      ];
+    }),
+  );
 }

@@ -2,6 +2,34 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeWorkflowRunState } from "@dashboard/lib/workflow-run-state";
 
+describe("normalizeWorkflowRunState", () => {
+  it("preserves the exact input and output recorded for each step", () => {
+    const state = normalizeWorkflowRunState({
+      status: "done",
+      completedStepIds: ["inspect", "repair"],
+      steps: {
+        inspect: {
+          capability: "inspect",
+          status: "done",
+          input: { request: "repair it" },
+          output: { findings: "exact failure text" },
+          startedAt: "2026-08-09T10:00:00.000Z",
+          completedAt: "2026-08-09T10:01:00.000Z",
+        },
+      },
+    });
+
+    expect(state?.steps.inspect).toEqual({
+      capability: "inspect",
+      status: "done",
+      input: { request: "repair it" },
+      output: { findings: "exact failure text" },
+      startedAt: "2026-08-09T10:00:00.000Z",
+      completedAt: "2026-08-09T10:01:00.000Z",
+    });
+  });
+});
+
 describe("workflow run state", () => {
   it("keeps durable progress and drops invalid values", () => {
     expect(

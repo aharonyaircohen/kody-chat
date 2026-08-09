@@ -40,6 +40,49 @@ describe("validateWorkflowDefinition", () => {
     ).toEqual({ prefer: "ours" });
   });
 
+  it("preserves explicit generic step input mappings", () => {
+    expect(
+      normalizeWorkflowDefinition({
+        name: "Repair",
+        agent: "kody",
+        capabilities: ["inspect", "repair"],
+        steps: [
+          { id: "inspect", capability: "inspect" },
+          {
+            id: "repair",
+            capability: "repair",
+            inputs: {
+              request: { from: "workflow.input.request" },
+              findings: { from: "steps.inspect.result.findings" },
+            },
+          },
+        ],
+      })?.steps?.[1]?.inputs,
+    ).toEqual({
+      request: { from: "workflow.input.request" },
+      findings: { from: "steps.inspect.result.findings" },
+    });
+  });
+
+  it("rejects an invalid or missing input source", () => {
+    expect(
+      validateWorkflowDefinition(
+        workflow([
+          {
+            id: "inspect",
+            capability: "inspect",
+            inputs: {
+              request: { from: "automatic.previous.output" },
+              findings: { from: "steps.missing.result.findings" },
+            },
+          },
+        ]),
+      ).map((issue) => issue.code),
+    ).toEqual(
+      expect.arrayContaining(["invalid_input_source", "missing_input_step"]),
+    );
+  });
+
   it("preserves generic Engine execution policy on Store workflow steps", () => {
     expect(
       normalizeWorkflowDefinition({
