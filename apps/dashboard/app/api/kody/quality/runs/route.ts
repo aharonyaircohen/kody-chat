@@ -155,9 +155,7 @@ export async function POST(req: NextRequest) {
         requestId: runId,
         input: {
           qualityRunId: runId,
-          scenarioSlug: scenario.slug,
           testId: scenario.testId,
-          environment,
           targetUrl,
           sourceCommit,
         },

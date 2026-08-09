@@ -133,7 +133,12 @@ describe("POST /api/kody/quality/runs", () => {
     expect(h.startWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: "quality-run",
-        input: expect.objectContaining({ testId: "direct-kody-chat" }),
+        input: {
+          qualityRunId: expect.stringMatching(/^run-/),
+          testId: "direct-kody-chat",
+          targetUrl: "http://localhost:3333",
+          sourceCommit: "abc123",
+        },
       }),
       expect.any(Object),
     );
@@ -163,12 +168,6 @@ describe("POST /api/kody/quality/runs", () => {
     expect(h.mutation).toHaveBeenCalledWith(
       "quality.createRun",
       expect.objectContaining({ environment: "production" }),
-    );
-    expect(h.startWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ environment: "production" }),
-      }),
-      expect.any(Object),
     );
   });
 
