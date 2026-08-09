@@ -100,7 +100,7 @@ jobs:
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
-          KODY_RUN_DASHBOARD_URL: ${{ inputs.dashboardUrl }}
+          KODY_PUBLIC_DASHBOARD_URL: ${{ inputs.dashboardUrl }}
           KODY_RUN_REQUEST_JSON: ${{ inputs.runRequest }}
           KODY_DEFINITIONS_ROOT: ${{ inputs.storeRepoUrl != '' && format('{0}/.kody-engine/company-store', github.workspace) || '' }}
           KODY_DEFINITIONS_ROOT_CWD: ${{ inputs.storeRepoUrl != '' && github.workspace || '' }}
