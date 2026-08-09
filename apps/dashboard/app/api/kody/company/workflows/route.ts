@@ -37,6 +37,7 @@ import {
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
 import { workflowAutomationEligibility } from "@dashboard/features/workflows/server/workflow-execution-authorization";
+import { effectiveActiveWorkflowIds } from "@dashboard/features/workflows/built-in-workflows";
 
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
@@ -66,13 +67,6 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   return NextResponse.json(
     { error: fallback, message: error?.message ?? fallback },
     { status },
-  );
-}
-
-function activeWorkflowSlugs(config: KodyConfig): string[] {
-  return (config.company?.activeWorkflows ?? []).filter(
-    (slug): slug is string =>
-      typeof slug === "string" && slug.trim().length > 0,
   );
 }
 
@@ -114,7 +108,9 @@ export async function GET(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
-    const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
+    const activeWorkflowIds = effectiveActiveWorkflowIds(
+      config.company?.activeWorkflows,
+    );
     const storeWorkflowIds = activeWorkflowIds;
     const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
     const storeWorkflows =

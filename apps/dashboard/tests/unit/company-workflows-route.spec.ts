@@ -17,6 +17,9 @@ const backendValidatorSource = readFileSync(
 describe("Workflow API boundary", () => {
   it("reads Workflows only from the Workflow stores", () => {
     expect(listSource).toContain("listCompanyStoreWorkflowDefinitionFiles");
+    expect(listSource).toContain("effectiveActiveWorkflowIds");
+    expect(detailSource).toContain("effectiveActiveWorkflowIds");
+    expect(detailSource).toContain("isBuiltInWorkflow");
     expect(listSource).toContain("reconcileProjectedStoreWorkflows");
     expect(listSource).not.toContain("if (projected.length > 0)");
     expect(listSource).not.toContain(

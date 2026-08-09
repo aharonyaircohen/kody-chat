@@ -47,6 +47,12 @@ describe("WorkflowsManager run button", () => {
     );
   });
 
+  it("shows built-in workflows without offering removal", () => {
+    expect(SOURCE).toContain("isBuiltInWorkflow");
+    expect(SOURCE).toContain("BuiltInWorkflowBadge");
+    expect(SOURCE).toMatch(/!builtIn[\s\S]*?Remove/);
+  });
+
   it("uses the visible trust-level control before running workflows", () => {
     expect(SOURCE).toContain("TrustLevelControl");
     expect(SOURCE).toContain("trustLevelForSubject");

@@ -54,6 +54,7 @@ import { WorkflowEditorDialog } from "@dashboard/features/workflows/components/W
 import { WorkflowGraphCanvas } from "@dashboard/features/workflows/components/WorkflowGraphCanvas";
 import { WorkflowRunDialog } from "@dashboard/features/workflows/components/WorkflowRunDialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { isBuiltInWorkflow } from "@dashboard/features/workflows/built-in-workflows";
 
 const BASE_PATH = "/workflows";
 
@@ -437,7 +438,9 @@ function WorkflowRow({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {workflow.source === "store" || workflow.readOnly === true ? (
+          {isBuiltInWorkflow(workflow.id) ? (
+            <BuiltInWorkflowBadge />
+          ) : workflow.source === "store" || workflow.readOnly === true ? (
             <StoreWorkflowBadge />
           ) : null}
         </div>
@@ -477,6 +480,7 @@ function WorkflowDetail({
   onDelete: () => void;
 }) {
   const storeBacked = workflow.source === "store" || workflow.readOnly === true;
+  const builtIn = isBuiltInWorkflow(workflow.id);
   const runnable = workflow.runnable === true;
   const graph = useMemo(
     () => workflowDefinitionGraph(workflow.workflow),
@@ -602,15 +606,17 @@ function WorkflowDetail({
               Edit
             </Button>
           ) : null}
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onDelete}
-            aria-label={`${storeBacked ? "Remove" : "Delete"} workflow ${workflow.id}`}
-          >
-            <Trash2 className="h-4 w-4" />
-            {storeBacked ? "Remove" : "Delete"}
-          </Button>
+          {!builtIn ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onDelete}
+              aria-label={`${storeBacked ? "Remove" : "Delete"} workflow ${workflow.id}`}
+            >
+              <Trash2 className="h-4 w-4" />
+              {storeBacked ? "Remove" : "Delete"}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -671,6 +677,14 @@ function StoreWorkflowBadge() {
   return (
     <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
       Store
+    </span>
+  );
+}
+
+function BuiltInWorkflowBadge() {
+  return (
+    <span className="shrink-0 rounded border border-violet-500/20 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-200">
+      Built in
     </span>
   );
 }

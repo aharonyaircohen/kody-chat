@@ -5,22 +5,12 @@ import {
   readWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
 import type { WorkflowDefinition } from "@dashboard/lib/workflow-definitions";
+import { effectiveActiveWorkflowIds } from "@dashboard/features/workflows/built-in-workflows";
 
 interface CompanyWorkflowLoaderOptions {
   octokit: Octokit;
   owner: string;
   repo: string;
-}
-
-const SYSTEM_WORKFLOW_IDS = new Set(["quality-run"]);
-
-function activeWorkflowIds(values: string[] | undefined): Set<string> {
-  return new Set(
-    (values ?? []).filter(
-      (value): value is string =>
-        typeof value === "string" && value.trim().length > 0,
-    ),
-  );
 }
 
 export function createCompanyWorkflowLoader({
@@ -38,8 +28,9 @@ export function createCompanyWorkflowLoader({
     // read here would spend one API request per matching event.
     const { config } = await getEngineConfig(octokit, owner, repo);
     if (
-      !SYSTEM_WORKFLOW_IDS.has(workflowId) &&
-      !activeWorkflowIds(config.company?.activeWorkflows).has(workflowId)
+      !effectiveActiveWorkflowIds(config.company?.activeWorkflows).has(
+        workflowId,
+      )
     ) {
       return null;
     }

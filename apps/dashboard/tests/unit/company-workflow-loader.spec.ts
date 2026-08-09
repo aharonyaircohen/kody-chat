@@ -38,4 +38,18 @@ describe("company workflow loader", () => {
     });
     expect(h.readStore).toHaveBeenCalledWith("quality-run", {});
   });
+
+  it("keeps the normal repository override behavior", async () => {
+    h.readLocal.mockResolvedValue({ workflow: { name: "Repository Quality" } });
+    const load = createCompanyWorkflowLoader({
+      octokit: {} as never,
+      owner: "acme",
+      repo: "widgets",
+    });
+
+    await expect(load("quality-run")).resolves.toEqual({
+      workflow: { name: "Repository Quality" },
+    });
+    expect(h.readStore).not.toHaveBeenCalled();
+  });
 });

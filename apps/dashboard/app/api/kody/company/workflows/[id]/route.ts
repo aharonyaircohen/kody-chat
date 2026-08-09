@@ -39,6 +39,10 @@ import {
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
 import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+import {
+  effectiveActiveWorkflowIds,
+  isBuiltInWorkflow,
+} from "@dashboard/features/workflows/built-in-workflows";
 
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
@@ -113,7 +117,9 @@ async function activeStoreReferenceSets(
   });
   return {
     activeCapabilities: stringSet(config.company?.activeCapabilities),
-    activeWorkflows: stringSet(config.company?.activeWorkflows),
+    activeWorkflows: effectiveActiveWorkflowIds(
+      config.company?.activeWorkflows,
+    ),
   };
 }
 
@@ -310,6 +316,15 @@ export async function DELETE(
       context.headerAuth.repo,
     );
     if (!existing) {
+      if (isBuiltInWorkflow(id)) {
+        return NextResponse.json(
+          {
+            error: "built_in_workflow_required",
+            message: "Built-in workflows cannot be removed.",
+          },
+          { status: 409 },
+        );
+      }
       const active = await activeStoreReferenceSets(
         context.octokit,
         context.headerAuth.owner,
