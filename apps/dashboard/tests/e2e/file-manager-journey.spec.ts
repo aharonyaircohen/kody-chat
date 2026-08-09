@@ -474,7 +474,24 @@ function collectRuntimeFailures(
     const isCancelledMachineProbe =
       url.pathname === "/api/kody/chat/machines" &&
       request.failure()?.errorText === "net::ERR_ABORTED";
-    if (isOptionalMonacoWorker || isCancelledMachineProbe) return;
+    const isCancelledEngineProbe =
+      url.pathname === "/api/kody/engine/status" &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    const isCancelledDevFont =
+      url.pathname.startsWith("/__nextjs_font/") &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    const isCancelledTelemetry =
+      url.pathname === "/api/kody/system-events" &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    if (
+      isOptionalMonacoWorker ||
+      isCancelledMachineProbe ||
+      isCancelledEngineProbe ||
+      isCancelledDevFont ||
+      isCancelledTelemetry
+    ) {
+      return;
+    }
     failures.push(
       `${request.method()} ${request.url()} failed (${request.failure()?.errorText ?? "unknown error"})`,
     );
