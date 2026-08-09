@@ -41,7 +41,8 @@
       "release-validate",
       "release-promote",
       "vercel-production-deploy",
-      "ui-review"
+      "ui-review",
+      "prepare-ci-repair"
     ],
     "activeWorkflows": [
       "ci-repair",
