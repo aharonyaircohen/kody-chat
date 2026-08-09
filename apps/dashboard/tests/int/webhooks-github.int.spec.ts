@@ -251,7 +251,7 @@ describe("POST /api/webhooks/github — side effects", () => {
     await POST(
       makeReq("workflow_run", {
         action: "completed",
-        workflow_run: { id: 77, conclusion: "failure" },
+        workflow_run: { id: 77, run_attempt: 2, conclusion: "failure" },
         repository: { full_name: "acme/widgets" },
       }),
     );
@@ -263,6 +263,7 @@ describe("POST /api/webhooks/github — side effects", () => {
           brand: { owner: "acme", repo: "widgets" },
           payload: expect.objectContaining({
             runId: 77,
+            runAttempt: 2,
             conclusion: "failure",
           }),
         }),

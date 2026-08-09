@@ -156,6 +156,21 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     );
   });
 
+  it("treats each GitHub run attempt as a separate source event", async () => {
+    await dispatchGitHubWorkflowTriggers({
+      event: {
+        ...event,
+        payload: { ...event.payload, runAttempt: 2 },
+      },
+      deliveryId: "delivery-attempt-2",
+      octokit,
+    });
+
+    expect(h.mutation.mock.calls[0]?.[1]).toMatchObject({
+      sourceEventId: "github.workflow_run.completed:42:attempt:2",
+    });
+  });
+
   it("starts an allowed Pipeline with a stable run id", async () => {
     h.getTriggers.mockResolvedValue([
       {
@@ -183,7 +198,7 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       expect.objectContaining({
         pipelineId: "review-and-merge",
         pipelineRunId: expect.stringMatching(/^run-trigger-/),
-      facts: { pr: 3943 },
+        facts: { pr: 3943 },
       }),
     );
     expect(h.startWorkflow).not.toHaveBeenCalled();

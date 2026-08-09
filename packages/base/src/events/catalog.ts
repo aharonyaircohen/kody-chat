@@ -164,6 +164,7 @@ export const SYSTEM_EVENT_CATALOG = {
     z
       .object({
         runId: z.number().int().positive(),
+        runAttempt: z.number().int().positive().optional(),
         workflowId: z.number().int().positive().optional(),
         workflowName: z.string().trim().min(1).max(200).optional(),
         workflowPath: z
@@ -193,7 +194,7 @@ export const SYSTEM_EVENT_CATALOG = {
         htmlUrl: z.string().url().max(1000).optional(),
       })
       .strict(),
-    2,
+    3,
   ),
   "kody.workflow.completed": defineEvent(
     "A Kody workflow run finished.",

@@ -11,6 +11,7 @@ describe("normalizeGitHubWebhookEvent", () => {
         action: "completed",
         workflow_run: {
           id: 42,
+          run_attempt: 2,
           workflow_id: 7,
           name: "CI",
           path: ".github/workflows/ci.yml",
@@ -29,7 +30,7 @@ describe("normalizeGitHubWebhookEvent", () => {
     expect(event).toEqual({
       id: "delivery-1",
       name: "github.workflow_run.completed",
-      version: 2,
+      version: 3,
       occurredAt: "2026-08-04T07:00:00.000Z",
       userId: "github:99",
       sessionId: null,
@@ -37,6 +38,7 @@ describe("normalizeGitHubWebhookEvent", () => {
       source: "server",
       payload: {
         runId: 42,
+        runAttempt: 2,
         workflowId: 7,
         workflowName: "CI",
         workflowPath: ".github/workflows/ci.yml",

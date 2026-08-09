@@ -8,6 +8,7 @@ interface WorkflowRunPayload {
   action?: string;
   workflow_run?: {
     id?: number;
+    run_attempt?: number | null;
     name?: string | null;
     path?: string | null;
     workflow_id?: number | null;
@@ -81,6 +82,9 @@ export function normalizeGitHubWebhookEvent(input: {
   ];
   const candidate = {
     runId: run.id,
+    ...(typeof run.run_attempt === "number"
+      ? { runAttempt: run.run_attempt }
+      : {}),
     ...(typeof run.workflow_id === "number"
       ? { workflowId: run.workflow_id }
       : {}),

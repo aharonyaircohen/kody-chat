@@ -36,10 +36,15 @@ function requestIdFor(sourceEventId: string, triggerId: string): string {
 }
 
 function sourceEventIdFor(event: SystemEventEnvelope): string {
-  const payload = event.payload as { runId?: unknown };
-  return typeof payload.runId === "number" || typeof payload.runId === "string"
-    ? `${event.name}:${payload.runId}`
-    : event.id;
+  const payload = event.payload as { runId?: unknown; runAttempt?: unknown };
+  if (typeof payload.runId !== "number" && typeof payload.runId !== "string") {
+    return event.id;
+  }
+  const runId = `${event.name}:${payload.runId}`;
+  return event.name === "github.workflow_run.completed" &&
+    typeof payload.runAttempt === "number"
+    ? `${runId}:attempt:${payload.runAttempt}`
+    : runId;
 }
 
 function errorMessage(error: unknown): string {
@@ -203,7 +208,12 @@ export async function dispatchWorkflowTriggers(input: {
       if (issues.length) {
         throw new Error(issues.map((issue) => issue.message).join("; "));
       }
-      if (await pipelineRequiresApproval(trigger.action.pipelineId, loaded.pipeline)) {
+      if (
+        await pipelineRequiresApproval(
+          trigger.action.pipelineId,
+          loaded.pipeline,
+        )
+      ) {
         throw new Error("Pipeline requires approval");
       }
       await startPipelineExecution({
