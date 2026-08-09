@@ -128,7 +128,7 @@ describe("guided flow registry", () => {
 
     expect(setup).toMatchObject({
       id: "setup-ui-login",
-      title: "Set up UI testing",
+      title: "Set up UI login",
       version: 1,
       completionRouteId: "chat",
       controls: ["back"],

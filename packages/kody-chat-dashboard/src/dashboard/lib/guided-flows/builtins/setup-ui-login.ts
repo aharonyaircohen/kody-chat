@@ -5,7 +5,7 @@ export const SETUP_UI_LOGIN_FLOW_ID = "setup-ui-login";
 export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
   id: SETUP_UI_LOGIN_FLOW_ID,
   version: 1,
-  title: "Set up UI testing",
+  title: "Set up UI login",
   completionRouteId: "chat",
   controls: ["back"],
   steps: [
@@ -16,7 +16,7 @@ export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
         "UI Review needs a test account only when the pages it checks require login. The login is stored for the active repository and is never shown in Chat.\n\nSet it up now, or skip this guide if the app is public or has no user interface.",
       rendererSlug: "approval-card",
       rendererData: {
-        title: "Does UI testing need a login?",
+        title: "Set up UI login",
         actions: [
           {
             id: "setup",
@@ -97,7 +97,7 @@ export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
         "The credentials are saved. The next UI Review of a signed-in page will test them. If they are missing or rejected, the review will stop and Kody will add an Inbox alert.\n\nSelect **Finish** to return to Chat.",
       rendererSlug: "approval-card",
       rendererData: {
-        title: "UI testing is configured",
+        title: "UI login is configured",
         actions: [
           {
             id: "finish",
