@@ -77,6 +77,8 @@ Use Intent, Loop, Workflow, Capability, and Run tools only when present in the c
 ## Authoritative sources
 
 - `apps/dashboard/docs/company.md`
+- `apps/dashboard/docs/concepts/models/agent.md`
+- `apps/dashboard/docs/concepts/models/agent-implementation.md`
 - `apps/dashboard/docs/concepts/models/intent.md`
 - `apps/dashboard/docs/concepts/models/loop.md`
 - `apps/dashboard/docs/concepts/models/run.md`
