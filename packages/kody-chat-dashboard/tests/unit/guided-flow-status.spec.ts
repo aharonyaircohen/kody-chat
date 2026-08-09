@@ -123,6 +123,61 @@ describe("guided flow registry", () => {
     ).toEqual([initEngine]);
   });
 
+  it("registers UI login setup as an optional guided flow", () => {
+    const setup = getGuidedFlowDefinition("setup-ui-login");
+
+    expect(setup).toMatchObject({
+      id: "setup-ui-login",
+      title: "Set up UI testing",
+      version: 1,
+      completionRouteId: "chat",
+      controls: ["back"],
+      steps: [
+        {
+          id: "choose",
+          actions: [
+            {
+              id: "setup",
+              target: { type: "step", stepId: "save-username" },
+            },
+            { id: "skip", target: { type: "complete" } },
+          ],
+        },
+        {
+          id: "save-username",
+          routeId: "variables",
+          actions: [
+            {
+              id: "continue",
+              target: { type: "step", stepId: "save-password" },
+            },
+          ],
+        },
+        {
+          id: "save-password",
+          routeId: "secrets",
+          actions: [
+            {
+              id: "continue",
+              target: { type: "step", stepId: "ready" },
+            },
+          ],
+        },
+        {
+          id: "ready",
+          actions: [{ id: "finish", target: { type: "complete" } }],
+        },
+      ],
+    });
+    expect(setup?.steps[1]?.explanation).toContain("LOGIN_USER");
+    expect(setup?.steps[2]?.explanation).toContain("LOGIN_PASSWORD");
+    expect(
+      listGuidedFlowDefinitions().filter(
+        (definition) => definition.id === "setup-ui-login",
+      ),
+    ).toEqual([setup]);
+  });
+
   it("keeps the built-in Init Engine definition authoritative over legacy stored copies", () => {
     const builtIn = getGuidedFlowDefinition(INITIALIZE_KODY_ENGINE_FLOW_ID);
     expect(builtIn).not.toBeNull();
