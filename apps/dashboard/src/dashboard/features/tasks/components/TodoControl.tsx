@@ -615,7 +615,6 @@ export function TodoControlInner({
                             <span>
                               {stats.done}/{stats.total} done
                             </span>
-                            <span className="font-mono">{list.slug}</span>
                             <span className="inline-flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {new Date(list.updatedAt).toLocaleDateString()}

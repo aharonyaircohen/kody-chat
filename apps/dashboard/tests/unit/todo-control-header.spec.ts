@@ -125,6 +125,12 @@ describe("todo list header", () => {
     );
   });
 
+  it("does not show todo list slugs in the list panel", () => {
+    expect(TODO_CONTROL_SOURCE).not.toContain(
+      '<span className="font-mono">{list.slug}</span>',
+    );
+  });
+
   it("removes duplicate todo stats from the filter header", () => {
     expect(TODO_CONTROL_SOURCE).toContain(
       "flex flex-wrap items-center justify-between gap-2",
