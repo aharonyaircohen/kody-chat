@@ -472,7 +472,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Column derivation lives in @dashboard/lib/tasks/derive-column.
-        // Order: closed-issue → engine-canonical (shipped/failed) → live
+        // Order: engine-canonical outcome → closed issue outcome → live
         // pipeline (when fresh) → stale-pipeline + active-run override →
         // label/PR fallback. See tests/unit/derive-column.spec.ts.
         const kodyState = kodyStateByIssueNumber.get(issue.number) ?? null;

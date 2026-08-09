@@ -125,13 +125,35 @@ describe("deriveTaskColumn — engine state wins over stray active run", () => {
   });
 });
 
-describe("deriveTaskColumn — closed issue is terminal", () => {
-  it("closed issues always land in 'done' regardless of stale building labels", () => {
+describe("deriveTaskColumn — closed issue preserves its outcome", () => {
+  it("keeps a closed failed issue failed instead of marking it done", () => {
+    const result = deriveTaskColumn({
+      issue: issue({
+        state: "closed",
+        labels: [{ name: "kody:failed", color: "" }],
+      }),
+      kodyState: failedState(),
+    });
+    expect(result).toBe("failed");
+  });
+
+  it("keeps a closed unfinished issue distinct from completed work", () => {
     const result = deriveTaskColumn({
       issue: issue({
         state: "closed",
         labels: [{ name: "kody:building", color: "" }],
       }),
+    });
+    expect(result).toBe("open");
+  });
+
+  it("keeps a closed completed issue done", () => {
+    const result = deriveTaskColumn({
+      issue: issue({
+        state: "closed",
+        labels: [{ name: "kody:done", color: "" }],
+      }),
+      kodyState: shippedState(),
     });
     expect(result).toBe("done");
   });

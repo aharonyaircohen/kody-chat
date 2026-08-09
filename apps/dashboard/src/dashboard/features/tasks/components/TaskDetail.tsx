@@ -250,13 +250,16 @@ function TabButton({
 // Status badge with pipeline state indicator
 function StatusBadge({
   column,
+  taskState,
   pipelineState,
 }: {
   column: ColumnId;
+  taskState: KodyTask["state"];
   pipelineState?: string;
 }) {
   const colors = columnColors[column];
-  const isRunning = pipelineState === "running";
+  const isClosedWithoutOutcome = taskState === "closed" && column === "open";
+  const isRunning = taskState === "open" && pipelineState === "running";
 
   return (
     <span
@@ -267,9 +270,13 @@ function StatusBadge({
       )}
     >
       {isRunning && <Loader2 className="w-3 h-3 animate-spin" />}
-      {pipelineState === "completed" && <CheckCircle className="w-3 h-3" />}
-      {pipelineState === "failed" && <XCircle className="w-3 h-3" />}
-      {columnLabels[column]}
+      {taskState === "open" && pipelineState === "completed" && (
+        <CheckCircle className="w-3 h-3" />
+      )}
+      {taskState === "open" && pipelineState === "failed" && (
+        <XCircle className="w-3 h-3" />
+      )}
+      {isClosedWithoutOutcome ? "Closed" : columnLabels[column]}
     </span>
   );
 }
@@ -1205,6 +1212,7 @@ export function TaskDetail({
 
           <StatusBadge
             column={task.column}
+            taskState={task.state}
             pipelineState={task.pipeline?.state}
           />
 
@@ -1264,6 +1272,7 @@ export function TaskDetail({
           <div className="flex items-center gap-3">
             <StatusBadge
               column={task.column}
+              taskState={task.state}
               pipelineState={task.pipeline?.state}
             />
             <span className="text-xs text-muted-foreground/60 flex items-center gap-1">

@@ -171,8 +171,6 @@ export function getColumnForIssue(
 export function deriveTaskColumn(input: DeriveColumnInput): ColumnId {
   const { issue, workflowRun, associatedPR, kodyState, pipelineStatus } = input;
 
-  if (issue.state === "closed") return "done";
-
   // Canonical engine state wins over a stray active workflow run.
   // Without this guard, an unrelated run whose display_title contains
   // `#<issueNumber>` or the taskId can flip a shipped task back to
@@ -184,6 +182,29 @@ export function deriveTaskColumn(input: DeriveColumnInput): ColumnId {
     kodyState?.core.status === "failed"
   ) {
     return "failed";
+  }
+
+  if (issue.state === "closed") {
+    const labelNames = issue.labels.map((label) => label.name.toLowerCase());
+    const workflowFailed =
+      workflowRun?.status === "completed" &&
+      (workflowRun.conclusion === "failure" ||
+        workflowRun.conclusion === "timed_out" ||
+        workflowRun.conclusion === "cancelled");
+    if (
+      labelNames.includes("kody:failed") ||
+      labelNames.includes("failed") ||
+      workflowFailed ||
+      pipelineStatus?.state === "failed" ||
+      pipelineStatus?.state === "timeout"
+    ) {
+      return "failed";
+    }
+    const completed =
+      labelNames.includes("kody:done") ||
+      labelNames.includes("released") ||
+      !!associatedPR?.merged_at;
+    return completed ? "done" : "open";
   }
 
   const hasActiveRun =

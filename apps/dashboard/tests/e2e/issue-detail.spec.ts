@@ -18,27 +18,37 @@ const task = {
   title: ISSUE_TITLE,
   body: "A deterministic issue used by the browser gate.",
   state: "open",
-  labels: [],
-  column: "open",
+  labels: [] as string[],
+  column: "building",
   kodyPhase: null,
   kodyFlow: null,
   createdAt: "2026-07-22T00:00:00.000Z",
   updatedAt: "2026-07-22T00:00:00.000Z",
 };
 
-async function seedAuthenticatedFixture(page: Page): Promise<void> {
+async function seedAuthenticatedFixture(
+  page: Page,
+  fixtureTask = task,
+): Promise<void> {
   await page.route("**/api/kody/tasks/issue-4242**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ task, assignees: [], comments: [] }),
+      body: JSON.stringify({
+        task: fixtureTask,
+        assignees: [],
+        comments: [],
+      }),
     }),
   );
   await page.route("**/api/kody/tasks**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ tasks: [task], counts: { open: 1 } }),
+      body: JSON.stringify({
+        tasks: [fixtureTask],
+        counts: { history: fixtureTask.state === "closed" ? 1 : 0 },
+      }),
     }),
   );
   await page.route("**/api/kody/chat/conversations**", (route) =>
@@ -112,4 +122,27 @@ test.describe("Issue detail flow", () => {
     );
     await expect(page.locator("#task-panel-comments:visible")).toBeVisible();
   });
+});
+
+test("history shows a closed unfinished task as closed, not completed", async ({
+  page,
+}) => {
+  await seedAuthenticatedFixture(page, {
+    ...task,
+    state: "closed",
+    column: "open",
+    labels: ["kody:building"],
+  });
+
+  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/tasks?view=history`);
+
+  await expect(page.getByRole("button", { name: "History (1)" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText("Closed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Done", { exact: true })).toHaveCount(0);
+
+  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/${ISSUE_NUMBER}`);
+  await expect(page.getByText("Closed", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Done", { exact: true })).toHaveCount(0);
 });
