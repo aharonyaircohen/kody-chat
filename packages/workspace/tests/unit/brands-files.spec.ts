@@ -150,6 +150,20 @@ describe("brand files (convex)", () => {
       welcomeText: "",
       modelId: "sonnet-4",
       agentSlug: "qa_agent",
+      appearance: {
+        colorScheme: "light",
+        background: "#fffaf5",
+        surface: "#ffffff",
+        foreground: "#292524",
+        mutedForeground: "#57534e",
+        secondary: "#ede9fe",
+        border: "#d6d3d1",
+        userMessage: "#6d28d9",
+        assistantMessage: "#f5f5f4",
+        input: "#ffffff",
+        fontSize: "large",
+        radius: "rounded",
+      },
     });
 
     expect(written).toMatchObject({
@@ -158,6 +172,20 @@ describe("brand files (convex)", () => {
       accent: "#2563eb",
       locale: "he-il",
       modelId: "sonnet-4",
+      appearance: {
+        colorScheme: "light",
+        background: "#fffaf5",
+        surface: "#ffffff",
+        foreground: "#292524",
+        mutedForeground: "#57534e",
+        secondary: "#ede9fe",
+        border: "#d6d3d1",
+        userMessage: "#6d28d9",
+        assistantMessage: "#f5f5f4",
+        input: "#ffffff",
+        fontSize: "large",
+        radius: "rounded",
+      },
       source: "repo",
       sha: "",
     });
@@ -167,7 +195,24 @@ describe("brand files (convex)", () => {
     expect(saveArgs).toMatchObject({
       tenantId: TENANT,
       saveKind: "brand:write-brand",
-      doc: expect.objectContaining({ slug: "write-brand", accent: "#2563eb" }),
+      doc: expect.objectContaining({
+        slug: "write-brand",
+        accent: "#2563eb",
+        appearance: {
+          colorScheme: "light",
+          background: "#fffaf5",
+          surface: "#ffffff",
+          foreground: "#292524",
+          mutedForeground: "#57534e",
+          secondary: "#ede9fe",
+          border: "#d6d3d1",
+          userMessage: "#6d28d9",
+          assistantMessage: "#f5f5f4",
+          input: "#ffffff",
+          fontSize: "large",
+          radius: "rounded",
+        },
+      }),
       removeKind: "brand-disabled:write-brand",
     });
     expect(convex.mutation).toHaveBeenCalledTimes(1);
@@ -181,6 +226,38 @@ describe("brand files (convex)", () => {
         accent: "blue",
       }),
     ).rejects.toThrow("hex color");
+    expect(convex.mutation).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid appearance colors on write", async () => {
+    await expect(
+      writeBrandFile(SCOPE, {
+        slug: "bad-theme",
+        name: "Bad theme",
+        accent: "#2563eb",
+        appearance: {
+          colorScheme: "dark",
+          background: "black",
+          foreground: "#ffffff",
+        },
+      }),
+    ).rejects.toThrow();
+    expect(convex.mutation).not.toHaveBeenCalled();
+  });
+
+  it("rejects unreadable appearance colors on write", async () => {
+    await expect(
+      writeBrandFile(SCOPE, {
+        slug: "low-contrast",
+        name: "Low contrast",
+        accent: "#2563eb",
+        appearance: {
+          colorScheme: "light",
+          background: "#ffffff",
+          foreground: "#eeeeee",
+        },
+      }),
+    ).rejects.toThrow("readable");
     expect(convex.mutation).not.toHaveBeenCalled();
   });
 

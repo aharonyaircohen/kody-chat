@@ -9,10 +9,84 @@
 import { slugifyTitle } from "@kody-ade/base/slug";
 export type ClientBrandAccess = { mode: "public" } | { mode: "delegated" };
 
+export interface ClientBrandAppearance {
+  colorScheme: "light" | "dark";
+  background: string;
+  foreground: string;
+  surface?: string;
+  mutedForeground?: string;
+  secondary?: string;
+  border?: string;
+  userMessage?: string;
+  assistantMessage?: string;
+  input?: string;
+  fontSize?: "small" | "medium" | "large";
+  radius?: "square" | "soft" | "rounded";
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = [1, 3, 5].map(
+    (start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255,
+  );
+  const [red, green, blue] = channels.map((channel) =>
+    channel <= 0.04045
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4),
+  );
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+export function hasReadableClientBrandContrast(
+  background: string,
+  foreground: string,
+): boolean {
+  if (
+    !/^#[0-9a-fA-F]{6}$/.test(background) ||
+    !/^#[0-9a-fA-F]{6}$/.test(foreground)
+  ) {
+    return false;
+  }
+  const lighter = Math.max(
+    relativeLuminance(background),
+    relativeLuminance(foreground),
+  );
+  const darker = Math.min(
+    relativeLuminance(background),
+    relativeLuminance(foreground),
+  );
+  return (lighter + 0.05) / (darker + 0.05) >= 4.5;
+}
+
+/** Validate every client surface that renders the main or muted text color. */
+export function hasReadableClientBrandAppearance(
+  appearance: ClientBrandAppearance,
+): boolean {
+  const foregroundSurfaces = [
+    appearance.background,
+    appearance.surface,
+    appearance.assistantMessage,
+    appearance.input,
+  ].filter((color): color is string => Boolean(color));
+  if (
+    !foregroundSurfaces.every((color) =>
+      hasReadableClientBrandContrast(color, appearance.foreground),
+    )
+  ) {
+    return false;
+  }
+  return appearance.mutedForeground
+    ? hasReadableClientBrandContrast(
+        appearance.background,
+        appearance.mutedForeground,
+      )
+    : true;
+}
+
 export interface ClientBrand {
   slug: string;
   name: string;
   accent: string;
+  appearance?: ClientBrandAppearance;
   /** BCP-47-ish locale tag, normalized lowercase (default "en"). Drives the
    *  surface-root text direction via `directionForLocale` (plan H7). */
   locale?: string;

@@ -20,6 +20,7 @@ import {
   readBrandFile,
   writeBrandFile,
 } from "../brands";
+import { clientBrandAppearanceSchema } from "../brands/files";
 import {
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
@@ -47,6 +48,7 @@ const brandInputSchema = z.object({
       mode: z.enum(["public", "delegated"]),
     })
     .optional(),
+  appearance: clientBrandAppearanceSchema.optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -123,6 +125,7 @@ export async function POST(req: NextRequest) {
       modelId: parsed.modelId,
       agentSlug: parsed.agentSlug,
       access: parsed.access ?? { mode: "public" },
+      appearance: parsed.appearance,
     });
 
     recordAudit(req, {

@@ -8,7 +8,7 @@
  *   module scope. Client consumers that need the plugin/panel pair import
  *   ./admin-pages instead.
  */
-import { Languages, type LucideIcon } from "lucide-react";
+import { Languages, Palette, type LucideIcon } from "lucide-react";
 
 export interface PackageAdminPageMeta {
   /** Route prefix the host mounts the page under (also the nav href). */
@@ -25,6 +25,16 @@ export interface PackageAdminPageMeta {
 }
 
 export const PACKAGE_ADMIN_PAGE_META: readonly PackageAdminPageMeta[] = [
+  {
+    href: "/themes",
+    label: "Client Themes",
+    description: "Complete client chat appearance for each brand.",
+    icon: Palette,
+    tint: "text-fuchsia-300 bg-fuchsia-500/10",
+    panelId: "themes",
+    aliases: ["themes", "brand themes", "appearance", "brand colors"],
+    when: "Use when the user asks to manage client chat themes or brand colors.",
+  },
   {
     href: "/languages",
     label: "Languages",

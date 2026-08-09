@@ -5,12 +5,16 @@
  * @ai-summary Shared data shapes for the client brand admin UI.
  */
 
-import type { ClientBrandAccess } from "@kody-ade/base/client-brand";
+import type {
+  ClientBrandAccess,
+  ClientBrandAppearance,
+} from "@kody-ade/base/client-brand";
 
 export interface BrandRow {
   slug: string;
   name: string;
   accent: string;
+  appearance?: ClientBrandAppearance;
   locale?: string;
   welcomeText?: string;
   modelId?: string;
@@ -31,6 +35,7 @@ export interface SavePayload {
   slug: string;
   name: string;
   accent: string;
+  appearance?: ClientBrandAppearance;
   locale?: string;
   welcomeText?: string;
   modelId?: string;

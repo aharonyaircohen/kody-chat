@@ -24,6 +24,7 @@ import {
 export type { BrandFile, BrandScope } from "./files";
 export {
   disableBrand,
+  clientBrandAppearanceSchema,
   deleteBrandFile,
   findBrandFileFromList,
   isBrandDeleted,

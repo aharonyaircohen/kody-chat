@@ -21,6 +21,7 @@ import {
   removeBrand,
   writeBrandFile,
 } from "../brands";
+import { clientBrandAppearanceSchema } from "../brands/files";
 import {
   getBuiltinClientBrand,
   normalizeClientBrandLocale,
@@ -44,6 +45,7 @@ const updateBrandSchema = z.object({
       mode: z.enum(["public", "delegated"]),
     })
     .optional(),
+  appearance: clientBrandAppearanceSchema.optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -146,6 +148,7 @@ export async function PATCH(
           ? base.agentSlug
           : (parsed.agentSlug ?? undefined),
       access: parsed.access ?? base.access,
+      appearance: parsed.appearance ?? base.appearance,
     });
 
     recordAudit(req, {

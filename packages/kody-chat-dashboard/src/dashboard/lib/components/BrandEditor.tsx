@@ -29,7 +29,6 @@ import type {
 } from "./brands-manager-types";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 interface BrandEditorProps {
   initial: BrandRow | null;
@@ -56,7 +55,7 @@ export function BrandEditor({
 }: BrandEditorProps) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [name, setName] = useState(initial?.name ?? "");
-  const [accent, setAccent] = useState(initial?.accent ?? "#0f766e");
+  const accent = initial?.accent ?? "#0f766e";
   const [locale, setLocale] = useState(initial?.locale ?? "en");
   const [welcomeText, setWelcomeText] = useState(initial?.welcomeText ?? "");
   const [modelId, setModelId] = useState(initial?.modelId ?? "");
@@ -77,13 +76,8 @@ export function BrandEditor({
     return null;
   })();
   const nameError = name.trim().length === 0 ? "Required" : null;
-  const accentError = HEX_RE.test(accent) ? null : "Use a 6-digit hex color.";
   const canSave =
-    !saving &&
-    !slugError &&
-    !nameError &&
-    !accentError &&
-    (isNew ? !!slug : true);
+    !saving && !slugError && !nameError && (isNew ? !!slug : true);
 
   return (
     <Dialog
@@ -141,31 +135,6 @@ export function BrandEditor({
             />
             {nameError && (
               <p className="mt-1 text-xs text-rose-300">{nameError}</p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="brand-accent" className="text-xs">
-              Accent
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="brand-accent"
-                type="color"
-                value={HEX_RE.test(accent) ? accent : "#0f766e"}
-                onChange={(event) => setAccent(event.target.value)}
-                className="h-10 w-12 shrink-0 p-1"
-                aria-label="Brand accent color"
-              />
-              <Input
-                value={accent}
-                onChange={(event) => setAccent(event.target.value)}
-                placeholder="#0f766e"
-                className="font-mono"
-              />
-            </div>
-            {accentError && (
-              <p className="mt-1 text-xs text-rose-300">{accentError}</p>
             )}
           </div>
 

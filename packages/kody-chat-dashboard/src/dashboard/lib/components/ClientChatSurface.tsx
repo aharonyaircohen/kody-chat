@@ -21,6 +21,7 @@ import type { ChatCapabilityGrant } from "../chat/platform";
 import { createBrandingPlugin } from "../chat/plugins/branding";
 import { commandsChatPlugin } from "../chat/plugins/commands";
 import { getClientSurfaceCatalog } from "../client-chat-strings";
+import { brandThemeStyle } from "../brand-theme";
 import { KodyChat } from "./KodyChat";
 
 // Minimal grant for the client surface: "theme" for the branding plugin,
@@ -86,17 +87,19 @@ export function ClientChatSurface({
   return (
     <main
       data-testid="client-chat-surface"
+      data-theme={theme.colorScheme}
       // Surface-root direction only — per-message bubbles keep their own
       // explicit `dir` (getMessageDirection in chat/surface/MessageList.tsx).
       dir={dir}
+      style={brandThemeStyle(theme)}
       className="flex h-dvh min-h-dvh flex-col bg-background text-foreground"
     >
-      <header className="shrink-0 border-b border-border bg-background px-4 py-3">
+      <header className="shrink-0 border-b border-border bg-card px-4 py-3 text-card-foreground">
         <div className="flex w-full items-center justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <span
               data-testid="client-brand-accent"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white shadow-sm"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-foreground shadow-sm"
               style={{ backgroundColor: theme.accent }}
               aria-hidden="true"
             >
@@ -158,8 +161,8 @@ export function ClientChatSurface({
           allowSessionSidebarPin={false}
           autoOpenSessionSidebar={false}
           lockedModelId={brand.modelId}
-      lockedAgentSlug={brand.agentSlug}
-      allowAgencyAgentSelection={false}
+          lockedAgentSlug={brand.agentSlug}
+          allowAgencyAgentSelection={false}
           kodyDirectHeaders={kodyDirectHeaders}
           messageRoleLayout="client"
           railFullscreen

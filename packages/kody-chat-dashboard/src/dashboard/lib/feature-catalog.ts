@@ -400,6 +400,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
+        href: "/themes",
+        label: "Client Themes",
+        icon: Palette,
+        description: "Complete client chat appearance for each brand.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+      },
+      {
         href: "/languages",
         label: "Languages",
         icon: Languages,

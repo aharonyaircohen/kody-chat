@@ -93,6 +93,20 @@ test.describe("Route smoke", () => {
               accent: "#7c3aed",
               locale: "en",
               welcomeText: "Welcome to Acme",
+              appearance: {
+                colorScheme: "light",
+                background: "#fffaf5",
+                surface: "#ffffff",
+                foreground: "#292524",
+                mutedForeground: "#57534e",
+                secondary: "#ede9fe",
+                border: "#d6d3d1",
+                userMessage: "#6d28d9",
+                assistantMessage: "#f5f5f4",
+                input: "#ffffff",
+                fontSize: "large",
+                radius: "rounded",
+              },
               access: { mode: "public" },
               source: "repo",
               htmlUrl:
@@ -134,5 +148,143 @@ test.describe("Route smoke", () => {
     await expect(page.locator('[data-testid="chat-panel-brands"]')).toHaveCount(
       0,
     );
+  });
+
+  test("/themes manages each brand theme from its own page", async ({
+    page,
+  }) => {
+    let savedTheme: Record<string, unknown> | null = null;
+    await page.route("**/api/kody/brands", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          brands: [
+            {
+              slug: "acme",
+              name: "Acme",
+              accent: "#7c3aed",
+              appearance: {
+                colorScheme: "light",
+                background: "#fffaf5",
+                surface: "#ffffff",
+                foreground: "#292524",
+                mutedForeground: "#57534e",
+                secondary: "#ede9fe",
+                border: "#d6d3d1",
+                userMessage: "#6d28d9",
+                assistantMessage: "#f5f5f4",
+                input: "#ffffff",
+                fontSize: "large",
+                radius: "rounded",
+              },
+              access: { mode: "public" },
+              source: "repo",
+            },
+          ],
+        }),
+      }),
+    );
+    await page.route("**/api/kody/brands/acme", async (route) => {
+      savedTheme = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ brand: { slug: "acme" } }),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/themes`);
+    await expect(
+      page.getByRole("heading", { name: "Client Themes", exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("searchbox", { name: "Search themes" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Brand" })).toHaveValue(
+      "acme",
+    );
+    await expect(page.getByLabel("Primary color", { exact: true })).toHaveValue(
+      "#7c3aed",
+    );
+    await expect(
+      page.getByLabel("Background color", { exact: true }),
+    ).toHaveValue("#fffaf5");
+    await expect(page.getByLabel("Text color", { exact: true })).toHaveValue(
+      "#292524",
+    );
+    await expect(page.getByLabel("Surface color", { exact: true })).toHaveValue(
+      "#ffffff",
+    );
+    await expect(
+      page.getByLabel("Assistant message color", { exact: true }),
+    ).toHaveValue("#f5f5f4");
+    await expect(
+      page.getByLabel("User message color", { exact: true }),
+    ).toHaveValue("#6d28d9");
+    await expect(
+      page.getByRole("combobox", { name: "Chat text size" }),
+    ).toHaveValue("large");
+    await expect(
+      page.getByRole("combobox", { name: "Corner style" }),
+    ).toHaveValue("rounded");
+    await expect(
+      page.getByRole("group", { name: "Theme style" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Light" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByLabel("Theme preview")).toHaveCSS(
+      "background-color",
+      "rgb(255, 250, 245)",
+    );
+    await expect(
+      page.getByRole("heading", { name: "How can we help?" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Save theme" }).click();
+    await expect
+      .poll(() => savedTheme)
+      .toEqual({
+        accent: "#7c3aed",
+        appearance: {
+          colorScheme: "light",
+          background: "#fffaf5",
+          surface: "#ffffff",
+          foreground: "#292524",
+          mutedForeground: "#57534e",
+          secondary: "#ede9fe",
+          border: "#d6d3d1",
+          userMessage: "#6d28d9",
+          assistantMessage: "#f5f5f4",
+          input: "#ffffff",
+          fontSize: "large",
+          radius: "rounded",
+        },
+        actorLogin: "smoke-e2e",
+      });
+
+    await page.getByRole("button", { name: "Dark", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Dark", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("Theme preview")).toHaveAttribute(
+      "data-theme",
+      "dark",
+    );
+    await expect(page.getByLabel("Theme preview")).toHaveCSS(
+      "background-color",
+      "rgb(10, 16, 30)",
+    );
+    await expect(page.getByLabel("Surface color", { exact: true })).toHaveValue(
+      "#111827",
+    );
+
+    await expect(
+      page.getByRole("button", { name: "Client", exact: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      page.getByRole("link", { name: "Client Themes" }),
+    ).toBeVisible();
   });
 });

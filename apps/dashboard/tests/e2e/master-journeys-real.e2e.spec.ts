@@ -141,9 +141,7 @@ test.describe("Master live user journeys", () => {
     });
   });
 
-  test("fully loads the extracted admin pages", async ({
-    page,
-  }) => {
+  test("fully loads the extracted admin pages", async ({ page }) => {
     const { owner, repo } = parseRepo(TEST_REPO);
     await installAuth(page, owner, repo);
 
@@ -213,9 +211,9 @@ test.describe("Master live user journeys", () => {
     await expect(
       page.getByRole("heading", { name: "Memory", exact: true }),
     ).toBeVisible({ timeout: 30_000 });
-    await expect(
-      page.getByRole("button", { name: "New memory" }),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: "New memory" })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByPlaceholder("Search memory...")).toBeVisible();
   });
 
@@ -258,9 +256,7 @@ test.describe("Master live user journeys", () => {
     const marker = `DASHBOARD_SAVE_E2E_${Date.now()}`;
     await chat.locator("textarea").fill(marker);
     await chat.getByRole("button", { name: "Send message" }).click();
-    await expect
-      .poll(() => conversationId, { timeout: 30_000 })
-      .not.toBe("");
+    await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
     await expect
       .poll(() => messagePersistStatus, { timeout: 30_000 })
       .toBe(200);
@@ -382,6 +378,102 @@ test.describe("Master live user journeys", () => {
         const cleanup = await page.request.delete(
           `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
           { headers: apiHeaders(owner, repo) },
+        );
+        expect(cleanup.ok()).toBe(true);
+      }
+    }
+  });
+
+  test("saves and renders a real brand appearance", async ({ page }) => {
+    test.setTimeout(180_000);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    const user = await resolveLiveGitHubUser(
+      page,
+      BASE_URL,
+      apiHeaders(owner, repo),
+    );
+    await installAuth(page, owner, repo);
+    const slug = `theme-e2e-${Date.now()}`;
+    const headers = {
+      ...apiHeaders(owner, repo),
+      "Content-Type": "application/json",
+    };
+    let created = false;
+
+    try {
+      const create = await page.request.post(`${BASE_URL}/api/kody/brands`, {
+        headers,
+        data: {
+          slug,
+          name: "Theme E2E",
+          accent: "#7c3aed",
+          locale: "en",
+          appearance: {
+            colorScheme: "light",
+            background: "#fffaf5",
+            surface: "#ffffff",
+            foreground: "#292524",
+            mutedForeground: "#57534e",
+            secondary: "#ede9fe",
+            border: "#d6d3d1",
+            userMessage: "#6d28d9",
+            assistantMessage: "#f5f5f4",
+            input: "#ffffff",
+            fontSize: "large",
+            radius: "rounded",
+          },
+          access: { mode: "public" },
+          actorLogin: user.login,
+        },
+      });
+      expect(create.ok()).toBe(true);
+      created = true;
+
+      await page.goto(`${BASE_URL}/client/${owner}/${repo}/${slug}`, {
+        waitUntil: "domcontentloaded",
+      });
+      const surface = page.locator('[data-testid="client-chat-surface"]');
+      await expect(surface).toBeVisible({ timeout: 30_000 });
+      await expect(surface).toHaveAttribute("data-theme", "light");
+      await expect
+        .poll(() =>
+          surface.evaluate((element) => {
+            const style = getComputedStyle(element);
+            return {
+              background: style.backgroundColor,
+              foreground: style.color,
+              primary: style.getPropertyValue("--primary").trim(),
+              surface: style.getPropertyValue("--card").trim(),
+              secondary: style.getPropertyValue("--secondary").trim(),
+              userMessage: style.getPropertyValue("--chat-user").trim(),
+              assistantMessage: style
+                .getPropertyValue("--chat-assistant")
+                .trim(),
+              input: style.getPropertyValue("--chat-input").trim(),
+              messageSize: style
+                .getPropertyValue("--chat-message-font-size")
+                .trim(),
+              radius: style.getPropertyValue("--radius").trim(),
+            };
+          }),
+        )
+        .toEqual({
+          background: "rgb(255, 250, 245)",
+          foreground: "rgb(41, 37, 36)",
+          primary: "262 83% 58%",
+          surface: "0 0% 100%",
+          secondary: "251 91% 95%",
+          userMessage: "263 70% 50%",
+          assistantMessage: "60 5% 96%",
+          input: "0 0% 100%",
+          messageSize: "18px",
+          radius: "1rem",
+        });
+    } finally {
+      if (created) {
+        const cleanup = await page.request.delete(
+          `${BASE_URL}/api/kody/brands/${slug}?actorLogin=${encodeURIComponent(user.login)}`,
+          { headers },
         );
         expect(cleanup.ok()).toBe(true);
       }

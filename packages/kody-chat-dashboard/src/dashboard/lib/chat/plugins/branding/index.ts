@@ -30,6 +30,7 @@ export function createBrandingPlugin(brand: ClientBrand): ChatPlugin {
       name: brand.name,
       accent: brand.accent,
       locale: brand.locale,
+      ...(brand.appearance ?? {}),
       ...(brand.welcomeText !== undefined
         ? { welcomeText: brand.welcomeText }
         : {}),

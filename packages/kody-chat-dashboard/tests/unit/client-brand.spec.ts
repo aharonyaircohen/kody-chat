@@ -96,6 +96,11 @@ describe("client brand config", () => {
       welcomeText: "Welcome to Acme",
       modelId: "sonnet-4",
       agentSlug: "qa-agent",
+      appearance: {
+        colorScheme: "light",
+        background: "#fffaf5",
+        foreground: "#292524",
+      },
       source: "repo",
       sha: "sha",
       updatedAt: "",
@@ -113,6 +118,11 @@ describe("client brand config", () => {
       welcomeText: "Welcome to Acme",
       modelId: "sonnet-4",
       agentSlug: "qa-agent",
+      appearance: {
+        colorScheme: "light",
+        background: "#fffaf5",
+        foreground: "#292524",
+      },
     });
     expect(h.readBrandFile).toHaveBeenCalledWith(
       { owner: "acme", repo: "widgets" },

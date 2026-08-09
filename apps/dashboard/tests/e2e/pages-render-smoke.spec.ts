@@ -20,8 +20,7 @@ import { test, expect, type Page } from "@playwright/test";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ??
-  "https://github.com/aharonyaircohen/kody-chat";
+  process.env.E2E_GITHUB_REPO ?? "https://github.com/aharonyaircohen/kody-chat";
 
 // Static top-level routes. Dynamic ([issueNumber]) and /*/docs pages are
 // excluded — they need live data or are static content, covered elsewhere.
@@ -44,6 +43,7 @@ const ROUTES = [
   "/scenario",
   "/secrets",
   "/tasks",
+  "/themes",
   "/jobs",
   "/triggers",
   "/findings",

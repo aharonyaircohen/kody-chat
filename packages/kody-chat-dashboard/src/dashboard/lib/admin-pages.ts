@@ -14,6 +14,7 @@ import {
   languagesChatPlugin,
   LANGUAGES_PANEL_ID,
 } from "./chat/plugins/languages";
+import { themesChatPlugin, THEMES_PANEL_ID } from "./chat/plugins/themes";
 import {
   PACKAGE_ADMIN_PAGE_META,
   type PackageAdminPageMeta,
@@ -25,6 +26,7 @@ export type PackageAdminPage = PackageAdminPageMeta & {
 };
 
 const PLUGIN_FOR_PANEL: Record<string, ChatPlugin> = {
+  [THEMES_PANEL_ID]: themesChatPlugin,
   [LANGUAGES_PANEL_ID]: languagesChatPlugin,
 };
 

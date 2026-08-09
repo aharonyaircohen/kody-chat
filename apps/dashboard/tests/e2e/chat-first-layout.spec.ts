@@ -225,6 +225,7 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/secrets", "secrets"],
       ["/store-catalog", "store-catalog"],
       ["/todos", "todos"],
+      ["/themes", "themes"],
       ["/variables", "variables"],
       ["/workflows", "workflows"],
     ];

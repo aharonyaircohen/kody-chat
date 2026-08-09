@@ -42,6 +42,9 @@ export async function resolveClientBrand(
         ...(repoBrand.agentSlug !== undefined
           ? { agentSlug: repoBrand.agentSlug }
           : {}),
+        ...(repoBrand.appearance !== undefined
+          ? { appearance: repoBrand.appearance }
+          : {}),
         access: repoBrand.access,
       };
     }

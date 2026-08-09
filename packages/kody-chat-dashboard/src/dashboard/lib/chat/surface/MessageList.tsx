@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type CSSProperties,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -59,6 +60,17 @@ export function getMessageDirection(text: string) {
 }
 
 export const messageTextDirectionStyle = textIsolationStyle;
+
+const USER_MESSAGE_THEME_STYLE = {
+  backgroundColor: "hsl(var(--chat-user, var(--primary)))",
+  color: "hsl(var(--chat-user-foreground, var(--primary-foreground)))",
+  "--primary-foreground": "var(--chat-user-foreground, 0 0% 100%)",
+} as CSSProperties;
+
+const ASSISTANT_MESSAGE_THEME_STYLE = {
+  backgroundColor: "hsl(var(--chat-assistant, var(--muted)))",
+  color: "hsl(var(--chat-assistant-foreground, var(--foreground)))",
+} as CSSProperties;
 
 export function shouldShowSilentAssistantNotice(input: {
   isLoading: boolean;
@@ -274,16 +286,19 @@ export function MessageList({
               >
                 <div
                   dir={messageDirection}
-                  style={messageTextDirectionStyle}
+                  data-testid={`chat-${msg.role}-message`}
+                  style={{
+                    ...messageTextDirectionStyle,
+                    ...(msg.role === "user"
+                      ? USER_MESSAGE_THEME_STYLE
+                      : ASSISTANT_MESSAGE_THEME_STYLE),
+                    fontSize: "var(--chat-message-font-size, 17px)",
+                  }}
                   className={`${
                     hasRenderedView
                       ? "w-full max-w-full"
                       : "max-w-[92%] sm:max-w-[85%]"
-                  } min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
+                  } min-w-0 break-words rounded-lg px-3 py-2 leading-relaxed`}
                 >
                   {/* Message Actions */}
                   <MessageActions

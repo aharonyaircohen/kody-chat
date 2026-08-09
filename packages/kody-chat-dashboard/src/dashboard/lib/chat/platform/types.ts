@@ -99,6 +99,18 @@ export interface ChatPanelView {
 export interface ChatThemeContribution {
   name?: string;
   accent?: string;
+  colorScheme?: "light" | "dark";
+  background?: string;
+  foreground?: string;
+  surface?: string;
+  mutedForeground?: string;
+  secondary?: string;
+  border?: string;
+  userMessage?: string;
+  assistantMessage?: string;
+  input?: string;
+  fontSize?: "small" | "medium" | "large";
+  radius?: "square" | "soft" | "rounded";
   logoUrl?: string;
   welcomeText?: string;
   locale?: string;

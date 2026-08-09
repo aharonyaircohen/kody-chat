@@ -189,6 +189,9 @@ function brandSearchText(brand: BrandRow): string {
     brand.slug,
     brand.name,
     brand.accent,
+    brand.appearance?.colorScheme,
+    brand.appearance?.background,
+    brand.appearance?.foreground,
     brand.locale,
     brand.welcomeText,
     brand.modelId,
@@ -701,9 +704,23 @@ function BrandDetail({
 
         <BrandDetailSection title="Appearance" icon={<Palette />}>
           <div className="grid gap-3 md:grid-cols-2">
-            <DetailField label="Accent" value={brand.accent} />
-            <DetailField label="Locale" value={brand.locale ?? "en"} />
+            <DetailField label="Primary color" value={brand.accent} />
+            <DetailField
+              label="Style"
+              value={brand.appearance?.colorScheme ?? "Uses dashboard style"}
+            />
+            <DetailField
+              label="Background color"
+              value={brand.appearance?.background ?? "Uses dashboard color"}
+            />
+            <DetailField
+              label="Text color"
+              value={brand.appearance?.foreground ?? "Uses dashboard color"}
+            />
           </div>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link href={selectionPath("/themes", brand.slug)}>Open theme</Link>
+          </Button>
         </BrandDetailSection>
 
         <BrandDetailSection title="Welcome" icon={<Sparkles />}>

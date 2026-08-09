@@ -19,6 +19,7 @@ import {
 } from "@kody-ade/base/backend/convex";
 import {
   normalizeClientBrandAccess,
+  hasReadableClientBrandAppearance,
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
   type ClientBrandAccess,
@@ -42,6 +43,30 @@ const BRAND_KIND_PREFIX = "brand:";
 const DISABLED_KIND_PREFIX = "brand-disabled:";
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/;
 
+const themeColor = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/);
+
+export const clientBrandAppearanceSchema = z
+  .object({
+    colorScheme: z.enum(["light", "dark"]),
+    background: themeColor,
+    foreground: themeColor,
+    surface: themeColor.optional(),
+    mutedForeground: themeColor.optional(),
+    secondary: themeColor.optional(),
+    border: themeColor.optional(),
+    userMessage: themeColor.optional(),
+    assistantMessage: themeColor.optional(),
+    input: themeColor.optional(),
+    fontSize: z.enum(["small", "medium", "large"]).optional(),
+    radius: z.enum(["square", "soft", "rounded"]).optional(),
+  })
+  .refine(hasReadableClientBrandAppearance, {
+    message: "Theme text colors must be readable on every client surface.",
+  });
+
 const brandFileSchema = z.object({
   slug: z.string().min(1).max(80),
   name: z.string().trim().min(1).max(120),
@@ -58,6 +83,7 @@ const brandFileSchema = z.object({
       mode: z.enum(["public", "delegated"]),
     })
     .optional(),
+  appearance: clientBrandAppearanceSchema.optional(),
   // Read-only migration input. New writes use `access`.
   auth: z
     .object({
@@ -122,6 +148,16 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
   if (!HEX_COLOR_RE.test(accent)) {
     throw new Error("Brand accent must be a 6-digit hex color.");
   }
+  if (
+    input.appearance &&
+    (!HEX_COLOR_RE.test(normalizeAccent(input.appearance.background)) ||
+      !HEX_COLOR_RE.test(normalizeAccent(input.appearance.foreground)))
+  ) {
+    throw new Error("Brand appearance colors must use 6-digit hex values.");
+  }
+  if (input.appearance && !hasReadableClientBrandAppearance(input.appearance)) {
+    throw new Error("Brand theme text colors must be readable.");
+  }
 
   return {
     slug,
@@ -134,6 +170,50 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
     ...(input.modelId?.trim() ? { modelId: input.modelId.trim() } : {}),
     ...(input.agentSlug?.trim()
       ? { agentSlug: normalizeAgentSlug(input.agentSlug) }
+      : {}),
+    ...(input.appearance
+      ? {
+          appearance: {
+            colorScheme: input.appearance.colorScheme,
+            background: normalizeAccent(input.appearance.background),
+            foreground: normalizeAccent(input.appearance.foreground),
+            ...(input.appearance.surface
+              ? { surface: normalizeAccent(input.appearance.surface) }
+              : {}),
+            ...(input.appearance.mutedForeground
+              ? {
+                  mutedForeground: normalizeAccent(
+                    input.appearance.mutedForeground,
+                  ),
+                }
+              : {}),
+            ...(input.appearance.secondary
+              ? { secondary: normalizeAccent(input.appearance.secondary) }
+              : {}),
+            ...(input.appearance.border
+              ? { border: normalizeAccent(input.appearance.border) }
+              : {}),
+            ...(input.appearance.userMessage
+              ? { userMessage: normalizeAccent(input.appearance.userMessage) }
+              : {}),
+            ...(input.appearance.assistantMessage
+              ? {
+                  assistantMessage: normalizeAccent(
+                    input.appearance.assistantMessage,
+                  ),
+                }
+              : {}),
+            ...(input.appearance.input
+              ? { input: normalizeAccent(input.appearance.input) }
+              : {}),
+            ...(input.appearance.fontSize
+              ? { fontSize: input.appearance.fontSize }
+              : {}),
+            ...(input.appearance.radius
+              ? { radius: input.appearance.radius }
+              : {}),
+          },
+        }
       : {}),
     access: normalizeClientBrandAccess(input.access, input.auth),
   } satisfies ClientBrand;
@@ -234,6 +314,7 @@ export interface WriteBrandOptions {
   modelId?: string;
   agentSlug?: string;
   access?: ClientBrandAccess;
+  appearance?: ClientBrand["appearance"];
 }
 
 export async function writeBrandFile(
@@ -249,6 +330,7 @@ export async function writeBrandFile(
     modelId: opts.modelId,
     agentSlug: opts.agentSlug,
     access: opts.access,
+    appearance: opts.appearance,
   });
   const updatedAt = new Date().toISOString();
   const client = getConvexClient();

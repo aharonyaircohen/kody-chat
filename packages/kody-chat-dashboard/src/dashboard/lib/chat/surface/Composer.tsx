@@ -267,7 +267,12 @@ export function Composer({
       )}
 
       {/* Input area */}
-      <div className="relative z-10 shrink-0 border-t bg-background px-2.5 py-2 sm:px-4 sm:py-3">
+      <div
+        className="relative z-10 shrink-0 border-t px-2.5 py-2 sm:px-4 sm:py-3"
+        style={{
+          backgroundColor: "hsl(var(--chat-composer, var(--background)))",
+        }}
+      >
         <div>
           {/* Kody Live status dot — compact indicator above the composer.
             Color encodes state; hover for full detail + links. Restart
@@ -536,7 +541,12 @@ export function Composer({
                       : "bg-background focus:ring-primary"
                   }`}
                   disabled={composerDisabled}
-                  style={{ height: "auto" }}
+                  style={{
+                    height: "auto",
+                    backgroundColor:
+                      "hsl(var(--chat-input, var(--background)))",
+                    fontSize: "var(--chat-message-font-size, 17px)",
+                  }}
                 />
               )}
             </div>

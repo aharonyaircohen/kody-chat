@@ -13,6 +13,7 @@
 
 export const CHAT_PLUGIN_DIRS = Object.freeze([
   "terminal",
+  "themes",
   "commands",
   "vibe",
   "branding",
