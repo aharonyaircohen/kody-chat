@@ -4,6 +4,7 @@ import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { createUserOctokit } from "@kody-ade/base/github/core";
 import { logger } from "@kody-ade/base/logger";
 import type { SystemEventEnvelope } from "@kody-ade/base/events/types";
+import { KODY_WORKFLOW_COMPLETION_SUMMARY_MAX_LENGTH } from "@kody-ade/base/events/catalog";
 import {
   bearerToken,
   verifyGitHubWorkflowIdentity,
@@ -24,7 +25,14 @@ const requestSchema = z
     workflowId: z.string().trim().min(1).max(200),
     runId: z.string().trim().min(1).max(200),
     status: z.enum(["success", "failed", "blocked"]),
-    summary: z.string().trim().min(1).max(1000).optional(),
+    summary: z
+      .string()
+      .trim()
+      .min(1)
+      .transform((value) =>
+        value.slice(0, KODY_WORKFLOW_COMPLETION_SUMMARY_MAX_LENGTH),
+      )
+      .optional(),
     output: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();

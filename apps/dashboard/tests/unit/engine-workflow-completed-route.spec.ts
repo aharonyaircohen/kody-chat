@@ -29,17 +29,12 @@ vi.mock(
   "@dashboard/features/workflows/server/github-workflow-trigger-dispatch",
   () => ({ dispatchWorkflowTriggers: h.dispatchWorkflowTriggers }),
 );
-vi.mock(
-  "@dashboard/features/workflows/server/workflow-inbox-alert",
-  () => ({ deliverWorkflowInboxAlert: h.deliverWorkflowInboxAlert }),
-);
-vi.mock(
-  "@dashboard/features/pipelines/server/pipeline-orchestrator",
-  () => ({
-    advancePipelineForWorkflowCompletion:
-      h.advancePipelineForWorkflowCompletion,
-  }),
-);
+vi.mock("@dashboard/features/workflows/server/workflow-inbox-alert", () => ({
+  deliverWorkflowInboxAlert: h.deliverWorkflowInboxAlert,
+}));
+vi.mock("@dashboard/features/pipelines/server/pipeline-orchestrator", () => ({
+  advancePipelineForWorkflowCompletion: h.advancePipelineForWorkflowCompletion,
+}));
 
 import { POST } from "../../app/api/kody/engine/workflow-completed/route";
 
@@ -74,8 +69,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
         workflowId: "review-fix",
         runId: "workflow-run-8",
         status: "blocked",
-        summary:
-          "UI Review could not run because LOGIN_PASSWORD is missing.",
+        summary: "UI Review could not run because LOGIN_PASSWORD is missing.",
         output: { pr: 3947 },
       }),
     );
@@ -128,6 +122,38 @@ describe("POST /api/kody/engine/workflow-completed", () => {
 
     expect(response.status).toBe(204);
     expect(h.dispatchWorkflowTriggers).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts completion and shortens an oversized optional summary", async () => {
+    const response = await POST(
+      request({
+        workflowId: "review-fix",
+        runId: "workflow-run-long-summary",
+        status: "blocked",
+        summary: "x".repeat(1_200),
+        output: { pr: 3947, verdict: "pass" },
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(h.advancePipelineForWorkflowCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowRunId: "workflow-run-long-summary",
+        output: { pr: 3947, verdict: "pass" },
+      }),
+    );
+    expect(h.dispatchWorkflowTriggers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          payload: expect.objectContaining({
+            summary: "x".repeat(1_000),
+          }),
+        }),
+      }),
+    );
+    expect(h.deliverWorkflowInboxAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: "x".repeat(1_000) }),
+    );
   });
 
   it("dispatches a repository-scoped Kody workflow completion event", async () => {

@@ -10,6 +10,8 @@
  */
 import { z } from "zod";
 
+export const KODY_WORKFLOW_COMPLETION_SUMMARY_MAX_LENGTH = 1_000;
+
 const sessionId = z.string().trim().min(1);
 
 /** One catalog entry: schema version + strict payload schema. */
@@ -200,7 +202,12 @@ export const SYSTEM_EVENT_CATALOG = {
         workflowId: z.string().trim().min(1).max(200),
         runId: z.string().trim().min(1).max(200),
         status: z.enum(["success", "failed", "blocked"]),
-        summary: z.string().trim().min(1).max(1000).optional(),
+        summary: z
+          .string()
+          .trim()
+          .min(1)
+          .max(KODY_WORKFLOW_COMPLETION_SUMMARY_MAX_LENGTH)
+          .optional(),
         repository: z.string().trim().min(1).max(255),
         pr: z.number().int().positive().optional(),
         headSha: z.string().trim().min(7).max(64).optional(),
