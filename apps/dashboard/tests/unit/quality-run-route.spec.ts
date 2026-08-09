@@ -6,6 +6,13 @@ const h = vi.hoisted(() => ({
   mutation: vi.fn(),
   startWorkflow: vi.fn(),
   createGateway: vi.fn(() => "dispatch"),
+  activateStoreAsset: vi.fn(async (_request: NextRequest) =>
+    Response.json({
+      kind: "workflow",
+      slug: "quality-run",
+      status: "already_local",
+    }),
+  ),
   requireKodyAuth: vi.fn(async () => null),
   getRequestAuth: vi.fn(() => ({
     owner: "acme",
@@ -50,6 +57,9 @@ vi.mock("@kody-ade/backend/client", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+}));
+vi.mock("../../app/api/kody/store-catalog/import/route", () => ({
+  POST: h.activateStoreAsset,
 }));
 vi.mock("@dashboard/features/workflows/server/company-workflow-loader", () => ({
   createCompanyWorkflowLoader: vi.fn(() => "loader"),
@@ -122,6 +132,12 @@ describe("POST /api/kody/quality/runs", () => {
 
     expect(response.status).toBe(202);
     expect(body.status).toBe("running");
+    expect(h.activateStoreAsset).toHaveBeenCalledOnce();
+    const activationRequest = h.activateStoreAsset.mock.calls[0]?.[0];
+    expect(await activationRequest?.json()).toEqual({
+      kind: "workflow",
+      slug: "quality-run",
+    });
     expect(h.mutation).toHaveBeenCalledWith(
       "quality.createRun",
       expect.objectContaining({

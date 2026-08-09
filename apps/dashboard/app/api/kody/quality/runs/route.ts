@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { POST as activateStoreCatalogAsset } from "../../store-catalog/import/route";
+
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { GET as getQualityResource } from "@kody-ade/kody-chat-dashboard/routes/kody/quality";
@@ -61,6 +63,25 @@ function environmentFor(
   return "staging";
 }
 
+async function ensureQualityWorkflow(req: NextRequest): Promise<void> {
+  const headers = new Headers(req.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  const response = await activateStoreCatalogAsset(
+    new NextRequest(
+      new URL("/api/kody/store-catalog/import", req.nextUrl.origin),
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ kind: "workflow", slug: "quality-run" }),
+      },
+    ),
+  );
+  if (!response.ok) {
+    throw new Error(`Quality Run workflow activation failed (${response.status})`);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError instanceof NextResponse) return authError;
@@ -116,6 +137,8 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+
+    await ensureQualityWorkflow(req);
 
     const repository = await octokit.rest.repos.get({
       owner: auth.owner,
