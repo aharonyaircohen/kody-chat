@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   query: vi.fn(),
@@ -72,8 +72,11 @@ vi.mock("@kody-ade/agency/workflow-run-approval", () => ({
 
 import { GET, POST } from "../../app/api/kody/quality/runs/route";
 
-function request(scenarioSlug = "reply-persists") {
-  return new NextRequest("http://127.0.0.1:3333/api/kody/quality/runs", {
+function request(
+  scenarioSlug = "reply-persists",
+  origin = "http://127.0.0.1:3333",
+) {
+  return new NextRequest(`${origin}/api/kody/quality/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scenarioSlug }),
@@ -81,6 +84,10 @@ function request(scenarioSlug = "reply-persists") {
 }
 
 describe("POST /api/kody/quality/runs", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     h.query.mockResolvedValue({
@@ -133,6 +140,26 @@ describe("POST /api/kody/quality/runs", () => {
         tenantId: "acme/widgets",
         status: "running",
       }),
+    );
+  });
+
+  it("records a production deployment as production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+
+    const response = await POST(
+      request("reply-persists", "https://kody-dashboard-khaki.vercel.app"),
+    );
+
+    expect(response.status).toBe(202);
+    expect(h.mutation).toHaveBeenCalledWith(
+      "quality.createRun",
+      expect.objectContaining({ environment: "production" }),
+    );
+    expect(h.startWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ environment: "production" }),
+      }),
+      expect.any(Object),
     );
   });
 

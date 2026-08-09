@@ -51,9 +51,12 @@ type QualityMap = {
   }>;
 };
 
-function environmentFor(url: URL): "local" | "preview" | "staging" {
+function environmentFor(
+  url: URL,
+): "local" | "preview" | "staging" | "production" {
   if (url.hostname === "localhost" || url.hostname === "127.0.0.1")
     return "local";
+  if (process.env.VERCEL_ENV === "production") return "production";
   if (url.hostname.endsWith(".vercel.app")) return "preview";
   return "staging";
 }
