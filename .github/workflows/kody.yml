@@ -42,6 +42,14 @@ on:
         description: 'Canonical Kody execution request JSON'
         type: string
         default: ''
+      storeRepoUrl:
+        description: 'Company Store repository (owner/repo)'
+        type: string
+        default: ''
+      storeRef:
+        description: 'Company Store ref'
+        type: string
+        default: ''
   issue_comment:
     types: [created]
   pull_request:
@@ -70,20 +78,57 @@ jobs:
           ref: ${{ (github.event.action == 'opened' || github.event.action == 'synchronize') && github.event.pull_request.head.sha || github.event.pull_request.base.ref || github.ref }}
           token: ${{ secrets.GH_PAT || secrets.KODY_TOKEN || github.token }}
 
+      - name: Checkout company Store definitions
+        if: ${{ inputs.storeRepoUrl != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.storeRepoUrl }}
+          ref: ${{ inputs.storeRef || 'main' }}
+          path: .kody-engine/company-store
+          token: ${{ secrets.GH_PAT || secrets.KODY_TOKEN || github.token }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - name: Prepare Quality Run browser
+        if: ${{ inputs.runRequest != '' }}
+        working-directory: ${{ github.workspace }}
+        run: |
+          npm install --global pnpm@10
+          pnpm install --frozen-lockfile
+          pnpm --filter kody-dashboard exec playwright install --with-deps chromium
+
       - env:
           GH_PAT: ${{ secrets.GH_PAT }}
           KODY_TOKEN: ${{ secrets.KODY_TOKEN }}
+          E2E_GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+          KODY_SERVICE_KEY: ${{ secrets.KODY_SERVICE_KEY }}
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY }}
           KODY_APP_ID: ${{ secrets.KODY_APP_ID }}
           KODY_APP_PRIVATE_KEY: ${{ secrets.KODY_APP_PRIVATE_KEY }}
           SESSION_ID: ${{ inputs.sessionId }}
           INIT_MESSAGE: ${{ inputs.message }}
           MODEL: ${{ inputs.model }}
           DASHBOARD_URL: ${{ inputs.dashboardUrl }}
+          KODY_PUBLIC_DASHBOARD_URL: ${{ inputs.dashboardUrl }}
+          KODY_PUBLIC_E2E_GITHUB_REPO: https://github.com/${{ github.repository }}
+          KODY_PUBLIC_LIVE_MUTATION_TARGET: ${{ github.repository }}
+          KODY_PUBLIC_LIVE_CONFIRM_MUTATIONS: ${{ github.repository }}
+          KODY_PUBLIC_CONVEX_URL: ${{ secrets.CONVEX_URL }}
+          KODY_PUBLIC_RUN_REAL_E2E: "1"
           KODY_RUN_REQUEST_JSON: ${{ inputs.runRequest }}
+          KODY_DEFINITIONS_ROOT: ${{ inputs.storeRepoUrl != '' && format('{0}/.kody-engine/company-store', github.workspace) || '' }}
+          KODY_DEFINITIONS_ROOT_CWD: ${{ inputs.storeRepoUrl != '' && github.workspace || '' }}
         working-directory: ${{ github.workspace }}
         run: |
           npx -y -p @kody-ade/kody-engine@latest kody-engine
+
+      - name: Upload Quality Run evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kody-quality-${{ github.run_id }}
+          path: apps/dashboard/test-results/live-ui-gate/
+          if-no-files-found: ignore
+          retention-days: 30

@@ -5,6 +5,8 @@ import { createUserOctokit } from "@kody-ade/base/github/core";
 import { logger } from "@kody-ade/base/logger";
 import type { SystemEventEnvelope } from "@kody-ade/base/events/types";
 import { KODY_WORKFLOW_COMPLETION_SUMMARY_MAX_LENGTH } from "@kody-ade/base/events/catalog";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   bearerToken,
   verifyGitHubWorkflowIdentity,
@@ -36,6 +38,27 @@ const requestSchema = z
     output: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();
+
+function qualityArtifactUrl(value: unknown, repository: string) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    const expectedPrefix = `/${repository}/actions/runs/`;
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "github.com" ||
+      !url.pathname.startsWith(expectedPrefix) ||
+      !/^\d+$/.test(url.pathname.slice(expectedPrefix.length))
+    ) {
+      return null;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const token = bearerToken(request);
@@ -102,6 +125,54 @@ export async function POST(request: Request) {
   setGitHubContext(owner, repo, background.token);
   try {
     const octokit = createUserOctokit(background.token);
+    if (workflowId === "quality-run") {
+      const backend = createBackendClient();
+      const completedAt = new Date().toISOString();
+      const artifactUrl = qualityArtifactUrl(
+        output.artifactUrl,
+        identity.repository,
+      );
+      const qualityStatus =
+        status === "success"
+          ? "passed"
+          : status === "failed"
+            ? "failed"
+            : "blocked";
+      await backend.mutation(backendApi.quality.updateRun, {
+        tenantId: identity.repository,
+        runId,
+        status: qualityStatus,
+        updatedAt: completedAt,
+        finishedAt: completedAt,
+        ...(status === "success"
+          ? {}
+          : { error: summary ?? `Quality Run ${qualityStatus}.` }),
+      });
+      await backend.mutation(backendApi.quality.appendRunEvent, {
+        tenantId: identity.repository,
+        runId,
+        time: completedAt,
+        idempotencyKey: `workflow-completed:${deliveryId}`,
+        event: {
+          type: "quality_run_completed",
+          status: qualityStatus,
+          ...(summary ? { summary } : {}),
+          ...(typeof output.testId === "string"
+            ? { testId: output.testId }
+            : {}),
+          ...(typeof output.artifactPath === "string"
+            ? { artifactPath: output.artifactPath }
+            : {}),
+          ...(artifactUrl ? { artifactUrl } : {}),
+          ...(typeof output.passed === "number"
+            ? { passed: output.passed }
+            : {}),
+          ...(typeof output.failed === "number"
+            ? { failed: output.failed }
+            : {}),
+        },
+      });
+    }
     await advancePipelineForWorkflowCompletion({
       octokit,
       owner,

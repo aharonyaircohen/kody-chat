@@ -11,6 +11,8 @@ import {
   buildLiveGateMetadata,
   buildPlaywrightArguments,
   runLiveServicePreflight,
+  selectLiveJourneys,
+  summarizePlaywrightReport,
   validateLiveGateEnvironment,
 } from "./core.mjs";
 import {
@@ -22,6 +24,11 @@ import {
 
 const dashboardRoot = fileURLToPath(new URL("../..", import.meta.url));
 loadDotenv({ path: join(dashboardRoot, ".env"), override: false, quiet: true });
+
+function argumentValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
 
 function fail(message) {
   process.stderr.write(`Live UI gate blocked: ${message}\n`);
@@ -46,6 +53,19 @@ if (environmentErrors.length > 0) {
   process.exit();
 }
 
+const requestedTestId =
+  argumentValue("--test-id") ?? process.env.QUALITY_TEST_ID ?? "";
+let selectedJourneys;
+try {
+  selectedJourneys = selectLiveJourneys(LIVE_UI_JOURNEYS, requestedTestId);
+} catch (error) {
+  fail(error instanceof Error ? error.message : "Unknown Quality test id");
+  process.exit();
+}
+const selectedSpecs = [
+  ...new Set(selectedJourneys.map((journey) => journey.file)),
+];
+
 try {
   const checks = await runLiveServicePreflight(process.env);
   for (const check of checks) {
@@ -59,7 +79,11 @@ try {
 }
 
 const startedAt = new Date().toISOString();
-const runId = startedAt.replace(/[:.]/g, "-");
+const requestedRunId =
+  argumentValue("--run-id") ?? process.env.QUALITY_RUN_ID ?? "";
+const runId = /^[A-Za-z0-9_-]{1,200}$/.test(requestedRunId)
+  ? requestedRunId
+  : startedAt.replace(/[:.]/g, "-");
 const artifactDir = join(dashboardRoot, "test-results", "live-ui-gate", runId);
 const reportPath = join(artifactDir, "results.json");
 const htmlPath = join(artifactDir, "html");
@@ -71,9 +95,12 @@ const metadata = {
     commit: currentCommit(),
     startedAt,
   }),
-  expectedTests: EXPECTED_LIVE_UI_TESTS,
-  specs: LIVE_UI_SPECS,
-  notImplemented: MISSING_LIVE_UI_JOURNEYS,
+  expectedTests: requestedTestId
+    ? selectedJourneys.length
+    : EXPECTED_LIVE_UI_TESTS,
+  specs: requestedTestId ? selectedSpecs : LIVE_UI_SPECS,
+  testId: requestedTestId || null,
+  notImplemented: requestedTestId ? [] : MISSING_LIVE_UI_JOURNEYS,
 };
 writeFileSync(
   join(artifactDir, "metadata.json"),
@@ -102,7 +129,10 @@ const playwrightEnvironment = {
 
 const playwright = spawnSync(
   "pnpm",
-  buildPlaywrightArguments(LIVE_UI_SPECS, { outputDir: outputPath }),
+  buildPlaywrightArguments(selectedSpecs, {
+    outputDir: outputPath,
+    ...(requestedTestId ? { grep: selectedJourneys[0].title } : {}),
+  }),
   {
     cwd: dashboardRoot,
     env: playwrightEnvironment,
@@ -120,19 +150,21 @@ if (!existsSync(reportPath)) {
   process.exit();
 }
 
+let observedSummary;
 try {
   const report = JSON.parse(readFileSync(reportPath, "utf8"));
-  const summary = assertLiveGateReport(report, LIVE_UI_JOURNEYS);
+  observedSummary = summarizePlaywrightReport(report);
+  const summary = assertLiveGateReport(report, selectedJourneys);
   const completeSummary = {
     ...summary,
-    notImplemented: MISSING_LIVE_UI_JOURNEYS.length,
+    notImplemented: requestedTestId ? 0 : MISSING_LIVE_UI_JOURNEYS.length,
   };
   writeFileSync(
     join(artifactDir, "summary.json"),
     `${JSON.stringify(completeSummary, null, 2)}\n`,
     "utf8",
   );
-  assertLiveJourneyCoverage(MISSING_LIVE_UI_JOURNEYS);
+  if (!requestedTestId) assertLiveJourneyCoverage(MISSING_LIVE_UI_JOURNEYS);
   if (playwright.status !== 0) {
     fail(`Playwright exited with status ${playwright.status ?? "unknown"}`);
   } else {
@@ -140,7 +172,30 @@ try {
       `Live UI gate passed: ${summary.passed}/${summary.total} journeys.\n`,
     );
   }
+  if (requestedTestId) {
+    const result = {
+      testId: requestedTestId,
+      artifactPath: relative(join(dashboardRoot, "../.."), artifactDir),
+      passed: summary.passed,
+      failed: summary.failed,
+      sourceCommit: metadata.commit,
+    };
+    process.stdout.write(`KODY_QUALITY_RESULT=${JSON.stringify(result)}\n`);
+  }
 } catch (error) {
+  if (requestedTestId && observedSummary) {
+    const result = {
+      testId: requestedTestId,
+      artifactPath: relative(join(dashboardRoot, "../.."), artifactDir),
+      passed: observedSummary.passed,
+      failed: Math.max(
+        1,
+        observedSummary.failed + observedSummary.skipped + observedSummary.flaky,
+      ),
+      sourceCommit: metadata.commit,
+    };
+    process.stdout.write(`KODY_QUALITY_RESULT=${JSON.stringify(result)}\n`);
+  }
   const message = error instanceof Error ? error.message : "invalid report";
   fail(message);
 }

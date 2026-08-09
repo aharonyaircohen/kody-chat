@@ -26,6 +26,7 @@ import {
   Trash2,
   Users,
   Workflow,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,13 +54,14 @@ export type CatalogKind =
   | "pipeline"
   | "capability"
   | "loop"
+  | "trigger"
   | "command"
   | "feature";
 
 type CatalogItemKind = Exclude<CatalogKind, "all" | "solution">;
 
 interface StoreSolutionNode {
-  kind: "loop" | "pipeline" | "workflow" | "agent" | "capability";
+  kind: "loop" | "pipeline" | "trigger" | "workflow" | "agent" | "capability";
   slug: string;
   title: string;
   installed: boolean;
@@ -114,6 +116,7 @@ const KIND_FILTERS: Array<{
   { id: "pipeline", label: "Pipelines", icon: Route },
   { id: "capability", label: "Capabilities", icon: Layers },
   { id: "loop", label: "Loops", icon: Clock3 },
+  { id: "trigger", label: "Triggers", icon: Zap },
   { id: "command", label: "Commands", icon: Bot },
   { id: "feature", label: "Features", icon: Package },
 ];
@@ -124,6 +127,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   pipeline: "Pipeline",
   capability: "Capability",
   loop: "Loop",
+  trigger: "Trigger",
   command: "Command",
   feature: "Feature",
 };
@@ -215,6 +219,17 @@ const KIND_COLORS: Record<
     borderHover: "hover:border-cyan-500/30",
     tint: "bg-cyan-500/10",
     text: "text-cyan-700 dark:text-cyan-100",
+  },
+  trigger: {
+    tabActive:
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-amber-700 dark:hover:text-amber-100",
+    icon: "text-amber-600 dark:text-amber-300",
+    iconHover: "group-hover:text-amber-600 dark:group-hover:text-amber-300",
+    borderHover: "hover:border-amber-500/30",
+    tint: "bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-100",
   },
   command: {
     tabActive:
@@ -713,9 +728,9 @@ export function StoreCatalogManager({
                   Start with a complete Solution
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground md:text-base md:leading-7">
-                  Choose an outcome and install its workflows, loops, agents,
-                  and capabilities together. You can review the complete setup
-                  before anything is added to this repository.
+                  Choose an outcome and install its workflows, triggers, loops,
+                  agents, and capabilities together. You can review the complete
+                  setup before anything is added to this repository.
                 </p>
               </div>
               <Button
@@ -1103,11 +1118,13 @@ function DependencyTree({
         const Icon =
           node.kind === "loop"
             ? Clock3
-            : node.kind === "workflow"
-              ? Workflow
-              : node.kind === "agent"
-                ? Users
-                : Layers;
+            : node.kind === "trigger"
+              ? Zap
+              : node.kind === "workflow"
+                ? Workflow
+                : node.kind === "agent"
+                  ? Users
+                  : Layers;
         return (
           <li key={`${node.kind}:${node.slug}`}>
             <div className="flex items-center gap-3 border-b border-border/60 px-3 py-3 md:px-4">

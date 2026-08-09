@@ -52,6 +52,7 @@ import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";
 
 const GITHUB_WORKFLOW_COMPLETED_EVENT = "github.workflow_run.completed";
+const ALL_GITHUB_WORKFLOWS = "all-github-workflows";
 const KODY_WORKFLOW_COMPLETED_EVENT = "kody.workflow.completed";
 const WORKFLOW_COMPLETED_EVENTS = new Set([
   GITHUB_WORKFLOW_COMPLETED_EVENT,
@@ -607,8 +608,8 @@ export function TriggersManager() {
       ? String(editor.githubWorkflowId)
       : editor.githubWorkflowName
         ? `name:${editor.githubWorkflowName}`
-        : ""
-    : "";
+        : ALL_GITHUB_WORKFLOWS
+    : ALL_GITHUB_WORKFLOWS;
 
   return (
     <PageShell
@@ -759,6 +760,14 @@ export function TriggersManager() {
                         <Select
                           value={selectedGithubWorkflowValue}
                           onValueChange={(value) => {
+                            if (value === ALL_GITHUB_WORKFLOWS) {
+                              setEditor({
+                                ...editor,
+                                githubWorkflowId: null,
+                                githubWorkflowName: "",
+                              });
+                              return;
+                            }
                             const workflow = githubWorkflows.find(
                               (candidate) => String(candidate.id) === value,
                             );
@@ -781,6 +790,9 @@ export function TriggersManager() {
                             />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="all-github-workflows">
+                              All GitHub workflows
+                            </SelectItem>
                             {editor.githubWorkflowName &&
                             editor.githubWorkflowId === null &&
                             !githubWorkflows.some(

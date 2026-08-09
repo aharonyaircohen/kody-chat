@@ -5,9 +5,18 @@ const source = readFileSync("app/api/kody/store-catalog/route.ts", "utf8");
 
 describe("simple Store catalog", () => {
   it("lists only current Store asset kinds", () => {
-    expect(source).toContain(
-      '"agent" | "pipeline" | "workflow" | "capability" | "loop" | "command" | "feature"',
-    );
+    for (const kind of [
+      "agent",
+      "pipeline",
+      "workflow",
+      "capability",
+      "loop",
+      "trigger",
+      "command",
+      "feature",
+    ]) {
+      expect(source).toContain(`| "${kind}"`);
+    }
     expect(source).not.toContain('"implementation"');
     expect(source).toContain("listStoreCatalogSlugs");
   });

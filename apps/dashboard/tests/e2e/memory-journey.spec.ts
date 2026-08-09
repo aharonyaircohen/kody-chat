@@ -106,9 +106,15 @@ test("creates, revises, reviews, and deletes typed memory", async ({
       failures.push(`response: ${response.status()} ${response.url()}`);
     }
   });
-  page.on("requestfailed", (request) =>
-    failures.push(`${request.method()} ${request.url()} failed`),
-  );
+  page.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    const isCancelledMachineProbe =
+      url.pathname === "/api/kody/chat/machines" &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    if (!isCancelledMachineProbe) {
+      failures.push(`${request.method()} ${request.url()} failed`);
+    }
+  });
   page.on("dialog", (dialog) => void dialog.accept());
   await seedAuth(page);
   await mockDashboardShellRequests(page);

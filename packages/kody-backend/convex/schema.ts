@@ -773,6 +773,108 @@ export default defineSchema({
     .index("by_stream", ["tenantId", "stream", "date", "seq"])
     .index("by_idempotency", ["tenantId", "stream", "date", "idempotencyKey"]),
 
+  qualityActions: defineTable({
+    tenantId: v.string(),
+    slug: v.string(),
+    name: v.string(),
+    outcome: v.string(),
+    area: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+    ),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "slug"]),
+
+  qualityJourneys: defineTable({
+    tenantId: v.string(),
+    slug: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    priority: v.union(
+      v.literal("critical"),
+      v.literal("high"),
+      v.literal("normal"),
+    ),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+    ),
+    actionSlugs: v.array(v.string()),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "slug"]),
+
+  qualityScenarios: defineTable({
+    tenantId: v.string(),
+    slug: v.string(),
+    journeySlug: v.string(),
+    name: v.string(),
+    kind: v.union(
+      v.literal("happy"),
+      v.literal("validation"),
+      v.literal("permission"),
+      v.literal("failure"),
+      v.literal("recovery"),
+      v.literal("persistence"),
+    ),
+    given: v.string(),
+    expectedVisible: v.string(),
+    expectedState: v.string(),
+    testId: v.optional(v.string()),
+    cleanup: v.optional(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+    ),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantId", "slug"])
+    .index("by_journey", ["tenantId", "journeySlug", "slug"]),
+
+  qualityRuns: defineTable({
+    tenantId: v.string(),
+    runId: v.string(),
+    runSlug: v.string(),
+    journeySlug: v.string(),
+    scenarioSlug: v.string(),
+    environment: v.string(),
+    targetUrl: v.string(),
+    sourceCommit: v.string(),
+    definitionUpdatedAt: v.string(),
+    retryOfRunId: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("passed"),
+      v.literal("failed"),
+      v.literal("blocked"),
+      v.literal("cancelled"),
+    ),
+    startedAt: v.optional(v.string()),
+    finishedAt: v.optional(v.string()),
+    error: v.optional(v.string()),
+    archived: v.optional(v.boolean()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_tenant", ["tenantId", "createdAt"])
+    .index("by_run", ["tenantId", "runId"])
+    .index("by_scenario", ["tenantId", "scenarioSlug", "createdAt"]),
+
+  qualityRunEvents: defineTable({
+    tenantId: v.string(),
+    runId: v.string(),
+    seq: v.number(),
+    idempotencyKey: v.string(),
+    event: v.any(),
+    time: v.string(),
+  })
+    .index("by_run", ["tenantId", "runId", "seq"])
+    .index("by_idempotency", ["tenantId", "runId", "idempotencyKey"]),
+
   // Global (cross-repo) Kody engine store — replaces the Kody-Dashboard repo
   // action-state.json / event-log.jsonl.
   actionStates: defineTable({

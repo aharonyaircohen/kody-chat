@@ -22,6 +22,7 @@ export default defineConfig({
   fullyParallel: false, // Disabled: parallel workers can cause "Access denied" on localStorage in some Playwright versions
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  maxFailures: process.env.CI ? 1 : undefined,
 
   /* Reporter — GitHub Actions annotate failures inline */
   reporter: process.env.CI ? [["github"], ["html"]] : [["list"]],

@@ -239,6 +239,13 @@ export function assertLiveJourneyCoverage(missingJourneys) {
   );
 }
 
+export function selectLiveJourneys(journeys, testId) {
+  if (!present(testId)) return [...journeys];
+  const selected = journeys.find((journey) => journey.id === testId.trim());
+  if (!selected) throw new Error(`Unknown Quality test id: ${testId.trim()}`);
+  return [selected];
+}
+
 export function buildPlaywrightArguments(specs, options = {}) {
   const args = [
     "exec",
@@ -253,6 +260,9 @@ export function buildPlaywrightArguments(specs, options = {}) {
 
   if (present(options.outputDir)) {
     args.push(`--output=${options.outputDir}`);
+  }
+  if (present(options.grep)) {
+    args.push(`--grep=${options.grep}`);
   }
 
   return args;
@@ -365,8 +375,7 @@ export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
         {
           headers: dashboardHeaders,
         },
-        (data) =>
-          data?.authenticated === true,
+        (data) => data?.authenticated === true,
       ),
     },
     {

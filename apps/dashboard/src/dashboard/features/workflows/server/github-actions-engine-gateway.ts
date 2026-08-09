@@ -34,7 +34,19 @@ interface GitHubActionsEngineGatewayOptions {
   octokit: GitHubActionsClient;
   owner: string;
   repo: string;
+  dashboardUrl?: string;
+  storeRepoUrl?: string;
+  storeRef?: string;
   now?: () => Date;
+}
+
+function githubRepositorySlug(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const match = /^(?:https?:\/\/github\.com\/|git@github\.com:)?([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(
+    trimmed,
+  );
+  return match?.[1];
 }
 
 const CACHE_TTL_MS = 60_000;
@@ -77,6 +89,9 @@ export function createGitHubActionsEngineGateway({
   octokit,
   owner,
   repo,
+  dashboardUrl,
+  storeRepoUrl,
+  storeRef,
   now = () => new Date(),
 }: GitHubActionsEngineGatewayOptions) {
   return async function dispatch(
@@ -90,6 +105,9 @@ export function createGitHubActionsEngineGateway({
         repo,
         ref,
         executionRequest: request,
+        dashboardUrl,
+        storeRepoUrl: githubRepositorySlug(storeRepoUrl),
+        storeRef,
       },
       { cache: true },
     );

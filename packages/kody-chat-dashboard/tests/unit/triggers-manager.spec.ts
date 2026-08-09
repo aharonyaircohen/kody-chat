@@ -119,9 +119,7 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).toContain(
       "editor.event === GITHUB_WORKFLOW_COMPLETED_EVENT ? (",
     );
-    expect(SOURCE).toContain(
-      'state.actionType === "start-pipeline"',
-    );
+    expect(SOURCE).toContain('state.actionType === "start-pipeline"');
     expect(SOURCE).toContain('value="start-pipeline"');
     expect(SOURCE).toContain('"kody.workflow.completed"');
     expect(SOURCE).toContain('aria-label="Kody workflow that finished"');
@@ -144,6 +142,13 @@ describe("TriggersManager editor", () => {
     expect(SOURCE).toContain("Pull request runs only");
     expect(SOURCE).toContain('path: "pr", op: "exists"');
     expect(SOURCE).toContain("withPullRequestOnlyCondition(");
+  });
+
+  it("offers an explicit all GitHub workflows choice", () => {
+    expect(SOURCE).toContain('value="all-github-workflows"');
+    expect(SOURCE).toContain("All GitHub workflows");
+    expect(SOURCE).toContain("githubWorkflowId: null");
+    expect(SOURCE).toContain('githubWorkflowName: ""');
   });
 
   it("maps only declared workflow inputs from the event payload", () => {

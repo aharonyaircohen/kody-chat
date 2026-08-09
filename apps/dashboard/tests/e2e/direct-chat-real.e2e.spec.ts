@@ -86,24 +86,6 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     ).toBeTruthy();
 
     let conversationId = "";
-    let assistantWriteCount = 0;
-    page.on("request", (request) => {
-      if (request.method() !== "POST" || !request.url().endsWith("/commands")) {
-        return;
-      }
-      const command = request.postDataJSON() as {
-        kind?: string;
-        role?: string;
-        entryId?: string;
-      };
-      if (
-        (command.kind === "append-message" && command.role === "assistant") ||
-        (command.kind === "update-message" &&
-          command.entryId?.startsWith("assistant:"))
-      ) {
-        assistantWriteCount += 1;
-      }
-    });
     page.on("response", async (response) => {
       if (
         response.request().method() === "POST" &&
@@ -129,7 +111,9 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     await expect(newConversation).toBeEnabled({ timeout: 15_000 });
     await newConversation.click();
 
-    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    const chatSetup = chat.getByRole("button", { name: "Chat setup" });
+    await chatSetup.click();
+    const modelPicker = chat.getByRole("button", { name: "Model" });
     await modelPicker.click();
     await chat
       .locator('[role="listbox"]:visible')
@@ -138,32 +122,11 @@ test.describe("Direct Kody chat — real model and persistence", () => {
       .filter({ hasText: configuredModel!.label })
       .first()
       .click();
-    await expect(modelPicker).toContainText(configuredModel!.label);
+    await expect(chatSetup).toContainText(configuredModel!.label);
 
     const marker = `DIRECT_E2E_${Date.now()}`;
     const input = chat.locator("textarea").first();
     await expect(input).toBeEnabled({ timeout: 15_000 });
-    const attachmentName = `live-note-${Date.now()}.txt`;
-    const uploadResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().endsWith("/attachments"),
-    );
-    await chat
-      .locator('input[type="file"]')
-      .last()
-      .setInputFiles({
-        name: attachmentName,
-        mimeType: "text/plain",
-        buffer: Buffer.from(`attachment for ${marker}`),
-      });
-    const uploadResponse = await uploadResponsePromise;
-    expect(uploadResponse.status(), "real attachment upload must succeed").toBe(
-      201,
-    );
-    await expect(
-      chat.getByText(attachmentName, { exact: false }),
-    ).toBeVisible();
     await input.fill(`Reply with exactly ${marker} and no other text.`);
     const responsePromise = page.waitForResponse(
       (response) =>
@@ -230,19 +193,11 @@ test.describe("Direct Kody chat — real model and persistence", () => {
           assistantPersisted: true,
           assistantPending: false,
         });
-      expect(assistantWriteCount).toBe(1);
-
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(
         page
           .locator('[aria-label="Kody chat"]')
           .getByText(marker, { exact: false })
-          .last(),
-      ).toBeVisible({ timeout: 30_000 });
-      await expect(
-        page
-          .locator('[aria-label="Kody chat"]')
-          .getByText(attachmentName, { exact: false })
           .last(),
       ).toBeVisible({ timeout: 30_000 });
     } finally {

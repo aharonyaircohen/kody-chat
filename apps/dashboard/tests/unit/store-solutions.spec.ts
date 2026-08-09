@@ -29,6 +29,16 @@ const catalog: StoreSolutionCatalog = {
       },
     ],
   ]),
+  triggers: new Map([
+    [
+      "release-on-ci-success",
+      {
+        id: "release-on-ci-success",
+        name: "Release on CI success",
+        target: { kind: "workflow", id: "web-release" },
+      },
+    ],
+  ]),
 };
 
 const manifest = {
@@ -47,6 +57,7 @@ describe("Store Solution dependency trees", () => {
       workflows: new Set(),
       loops: new Set(),
       pipelines: new Set(),
+      triggers: new Set(),
     });
 
     expect(resolved.status).toBe("available");
@@ -98,6 +109,7 @@ describe("Store Solution dependency trees", () => {
       workflows: new Set(["web-release"]),
       loops: new Set(),
       pipelines: new Set(),
+      triggers: new Set(),
     });
     expect(partial.status).toBe("partial");
 
@@ -107,6 +119,7 @@ describe("Store Solution dependency trees", () => {
       workflows: new Set(["web-release"]),
       loops: new Set(["daily-web-release-loop"]),
       pipelines: new Set(),
+      triggers: new Set(),
     });
     expect(installed.status).toBe("installed");
   });
@@ -125,10 +138,43 @@ describe("Store Solution dependency trees", () => {
           workflows: new Set(),
           loops: new Set(),
           pipelines: new Set(),
+          triggers: new Set(),
         },
       ),
     ).toThrow(
       'Store Solution "web-release" references missing Workflow "missing".',
     );
+  });
+
+  it("derives Trigger dependencies and installed state", () => {
+    const triggerManifest = {
+      ...manifest,
+      entrypoints: [{ kind: "trigger" as const, id: "release-on-ci-success" }],
+    };
+
+    const available = resolveStoreSolutionTree(triggerManifest, catalog, {
+      agents: new Set(),
+      capabilities: new Set(),
+      workflows: new Set(),
+      loops: new Set(),
+      pipelines: new Set(),
+      triggers: new Set(),
+    });
+    expect(available.tree[0]).toMatchObject({
+      kind: "trigger",
+      slug: "release-on-ci-success",
+      installed: false,
+      children: [{ kind: "workflow", slug: "web-release" }],
+    });
+
+    const installed = resolveStoreSolutionTree(triggerManifest, catalog, {
+      agents: new Set(["kody"]),
+      capabilities: new Set(["prepare", "deploy"]),
+      workflows: new Set(["web-release"]),
+      loops: new Set(),
+      pipelines: new Set(),
+      triggers: new Set(["release-on-ci-success"]),
+    });
+    expect(installed.status).toBe("installed");
   });
 });

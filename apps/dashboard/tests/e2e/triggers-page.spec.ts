@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 const OWNER = "test-owner";
@@ -49,10 +50,21 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
   const patUpdateAttempts: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (
+      message.type() === "error" &&
+      !message.text().startsWith("Failed to load resource:")
+    ) {
+      errors.push(message.text());
+    }
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      errors.push(`${response.status()} ${new URL(response.url()).pathname}`);
+    }
   });
 
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -75,12 +87,13 @@ test("user selects the GitHub source workflow and Kody target workflow", async (
   const emptyResponses = {
     commands: { commands: [] },
     agents: { agent: [] },
+    models: { models: [] },
     "guided-flows": { flows: [] },
   } as const;
   for (const path of Object.keys(emptyResponses) as Array<
     keyof typeof emptyResponses
   >) {
-    await page.route(`**/api/kody/${path}`, (route) =>
+    await page.route(`**/api/kody/${path}**`, (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

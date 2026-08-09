@@ -41,12 +41,16 @@ describe("kody-chat company activation", () => {
       "release-validate",
       "release-promote",
       "vercel-production-deploy",
+      "ui-review",
+      "prepare-ci-repair",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
       "learn-from-runs",
       "maintain-memory-quality",
       "web-release",
+      "merge",
+      "review-fix",
     ]);
   });
 

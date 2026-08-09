@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   advancePipelineForWorkflowCompletion: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  qualityMutation: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/backend/github-actions-identity", () => ({
@@ -20,6 +21,17 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
 }));
 vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: vi.fn(() => ({ authenticated: true })),
+}));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: {
+    quality: {
+      updateRun: "quality.updateRun",
+      appendRunEvent: "quality.appendRunEvent",
+    },
+  },
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({ mutation: h.qualityMutation }),
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
@@ -61,6 +73,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     h.dispatchWorkflowTriggers.mockResolvedValue(undefined);
     h.deliverWorkflowInboxAlert.mockResolvedValue(undefined);
     h.advancePipelineForWorkflowCompletion.mockResolvedValue(undefined);
+    h.qualityMutation.mockResolvedValue(undefined);
   });
 
   it("notifies repository operators when a workflow is blocked", async () => {
@@ -104,6 +117,47 @@ describe("POST /api/kody/engine/workflow-completed", () => {
 
     expect(response.status).toBe(204);
     expect(h.deliverWorkflowInboxAlert).not.toHaveBeenCalled();
+  });
+
+  it("records Quality Run completion and evidence in Convex", async () => {
+    const response = await POST(
+      request({
+        workflowId: "quality-run",
+        runId: "run-quality-1",
+        status: "success",
+        summary: "Direct chat persistence passed.",
+        output: {
+          testId: "direct-kody-chat",
+          artifactPath:
+            "apps/dashboard/test-results/live-ui-gate/run-quality-1",
+          artifactUrl: "https://github.com/acme/shop/actions/runs/42",
+          passed: 1,
+          failed: 0,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.updateRun",
+      expect.objectContaining({
+        tenantId: "acme/shop",
+        runId: "run-quality-1",
+        status: "passed",
+      }),
+    );
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.appendRunEvent",
+      expect.objectContaining({
+        runId: "run-quality-1",
+        event: expect.objectContaining({
+          type: "quality_run_completed",
+          artifactPath:
+            "apps/dashboard/test-results/live-ui-gate/run-quality-1",
+          artifactUrl: "https://github.com/acme/shop/actions/runs/42",
+        }),
+      }),
+    );
   });
 
   it("keeps the completed workflow intact when Inbox delivery fails", async () => {

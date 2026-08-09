@@ -31,12 +31,20 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { listRepositoryLoops } from "@dashboard/lib/repository-loops";
+import { getTriggers } from "@kody-ade/base/triggers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type CatalogKind =
-  "agent" | "pipeline" | "workflow" | "capability" | "loop" | "command" | "feature";
+  | "agent"
+  | "pipeline"
+  | "workflow"
+  | "capability"
+  | "loop"
+  | "trigger"
+  | "command"
+  | "feature";
 
 type CatalogItem = {
   slug: string;
@@ -92,19 +100,25 @@ export async function GET(req: NextRequest) {
     const octokit = getOctokit();
     const tenantId = `${auth.owner}/${auth.repo}`;
     const backend = createBackendClient();
-    const [localLoops, engine, agentDefinitions, capabilityDefinitions] =
-      await Promise.all([
-        listRepositoryLoops(octokit, auth.owner, auth.repo),
-        getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
-        backend.query(backendApi.definitions.listCurrent, {
-          tenantId,
-          kind: "agent",
-        }),
-        backend.query(backendApi.definitions.listCurrent, {
-          tenantId,
-          kind: "capability",
-        }),
-      ]);
+    const [
+      localLoops,
+      localTriggers,
+      engine,
+      agentDefinitions,
+      capabilityDefinitions,
+    ] = await Promise.all([
+      listRepositoryLoops(octokit, auth.owner, auth.repo),
+      getTriggers(octokit, auth.owner, auth.repo, { cache: false }),
+      getEngineConfig(octokit, auth.owner, auth.repo, { force: true }),
+      backend.query(backendApi.definitions.listCurrent, {
+        tenantId,
+        kind: "agent",
+      }),
+      backend.query(backendApi.definitions.listCurrent, {
+        tenantId,
+        kind: "capability",
+      }),
+    ]);
     const config = engine.config.company;
     const active = {
       agent: new Set(config?.activeAgents ?? []),
@@ -114,6 +128,7 @@ export async function GET(req: NextRequest) {
       pipeline: new Set(config?.activePipelines ?? []),
       feature: new Set(config?.activeFeatures ?? []),
       loop: new Set(localLoops.map((item) => item.id)),
+      trigger: new Set(localTriggers.map((item) => item.id)),
     };
     const runnableAgents = runnableStoreDefinitionSlugs(
       active.agent,
@@ -130,6 +145,7 @@ export async function GET(req: NextRequest) {
       workflows: workflowSlugs,
       pipelines: pipelineSlugs,
       loops,
+      triggers,
       solutions: solutionSlugs,
     } = await listStoreCatalogSlugs(octokit);
     const [solutionRecords, solutionCatalog] = await Promise.all([
@@ -140,6 +156,7 @@ export async function GET(req: NextRequest) {
         workflows: workflowSlugs,
         pipelines: pipelineSlugs,
         loops,
+        triggers,
       }),
     ]);
     const activeWorkflows = [...solutionCatalog.workflows.values()].filter(
@@ -162,6 +179,7 @@ export async function GET(req: NextRequest) {
         workflows: active.workflow,
         pipelines: active.pipeline,
         loops: active.loop,
+        triggers: active.trigger,
       });
       return {
         slug: solution.id,
@@ -228,6 +246,15 @@ export async function GET(req: NextRequest) {
         kind: "loop" as const,
         htmlUrl: buildCompanyStoreHtmlUrl("loops", slug),
         installed: active.loop.has(slug),
+        uninstallBlockedBy: [],
+      })),
+      ...triggers.map((slug) => ({
+        slug,
+        title: titleFromSlug(slug),
+        description: `Trigger: ${slug}`,
+        kind: "trigger" as const,
+        htmlUrl: buildCompanyStoreHtmlUrl("triggers", slug),
+        installed: active.trigger.has(slug),
         uninstallBlockedBy: [],
       })),
       ...BUILTIN_FEATURES.map((item) => ({

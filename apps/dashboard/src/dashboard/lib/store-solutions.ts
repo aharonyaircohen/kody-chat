@@ -7,13 +7,14 @@ import {
   readCompanyStoreText,
 } from "@kody-ade/base/company-store/assets";
 import { readStoreLoop } from "@dashboard/lib/store-loops";
+import { readStoreTrigger } from "@dashboard/lib/store-triggers";
 import { readCompanyStoreWorkflowDefinitionFile } from "@dashboard/lib/workflow-definition-files";
 import { readCompanyStorePipelineDefinitionFile } from "@dashboard/lib/pipeline-definition-files";
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,127}$/;
 
 const entrypointSchema = z.object({
-  kind: z.enum(["loop", "pipeline", "workflow"]),
+  kind: z.enum(["loop", "pipeline", "trigger", "workflow"]),
   id: z.string().regex(SLUG),
 });
 
@@ -30,7 +31,7 @@ const solutionSchema = z
 export type StoreSolutionManifest = z.infer<typeof solutionSchema>;
 export type StoreSolutionStatus = "available" | "partial" | "installed";
 export type StoreSolutionNodeKind =
-  "loop" | "pipeline" | "workflow" | "agent" | "capability";
+  "loop" | "pipeline" | "trigger" | "workflow" | "agent" | "capability";
 
 export interface StoreSolutionRecord extends StoreSolutionManifest {
   htmlUrl: string;
@@ -67,6 +68,14 @@ export interface StoreSolutionCatalog {
       target: { kind: "workflow" | "capability"; id: string };
     }
   >;
+  triggers: ReadonlyMap<
+    string,
+    {
+      id: string;
+      name: string;
+      target: { kind: "workflow" | "pipeline"; id: string };
+    }
+  >;
 }
 
 export interface StoreSolutionCatalogSlugs {
@@ -75,6 +84,7 @@ export interface StoreSolutionCatalogSlugs {
   workflows: readonly string[];
   pipelines: readonly string[];
   loops: readonly string[];
+  triggers: readonly string[];
 }
 
 export interface StoreSolutionInstalledSets {
@@ -83,6 +93,7 @@ export interface StoreSolutionInstalledSets {
   workflows: ReadonlySet<string>;
   pipelines: ReadonlySet<string>;
   loops: ReadonlySet<string>;
+  triggers: ReadonlySet<string>;
 }
 
 export interface ResolvedStoreSolution {
@@ -135,19 +146,23 @@ export async function loadStoreSolutionCatalog(
   octokit: Octokit,
   slugs: StoreSolutionCatalogSlugs,
 ): Promise<StoreSolutionCatalog> {
-  const [workflowRecords, pipelineRecords, loopRecords] = await Promise.all([
-    Promise.all(
-      slugs.workflows.map((slug) =>
-        readCompanyStoreWorkflowDefinitionFile(slug, octokit),
+  const [workflowRecords, pipelineRecords, loopRecords, triggerRecords] =
+    await Promise.all([
+      Promise.all(
+        slugs.workflows.map((slug) =>
+          readCompanyStoreWorkflowDefinitionFile(slug, octokit),
+        ),
       ),
-    ),
-    Promise.all(
-      slugs.pipelines.map((slug) =>
-        readCompanyStorePipelineDefinitionFile(slug, octokit),
+      Promise.all(
+        slugs.pipelines.map((slug) =>
+          readCompanyStorePipelineDefinitionFile(slug, octokit),
+        ),
       ),
-    ),
-    Promise.all(slugs.loops.map((slug) => readStoreLoop(octokit, slug))),
-  ]);
+      Promise.all(slugs.loops.map((slug) => readStoreLoop(octokit, slug))),
+      Promise.all(
+        slugs.triggers.map((slug) => readStoreTrigger(octokit, slug)),
+      ),
+    ]);
   return {
     agents: new Set(slugs.agents),
     capabilities: new Set(slugs.capabilities),
@@ -187,6 +202,18 @@ export async function loadStoreSolutionCatalog(
           },
         ]),
     ),
+    triggers: new Map(
+      triggerRecords
+        .filter((record) => record !== null)
+        .map((record) => [
+          record.slug,
+          {
+            id: record.trigger.id,
+            name: record.trigger.name,
+            target: record.target,
+          },
+        ]),
+    ),
   };
 }
 
@@ -209,7 +236,7 @@ export function resolveStoreSolutionTree(
   };
 
   const resolve = (
-    kind: "loop" | "pipeline" | "workflow" | "capability",
+    kind: "loop" | "pipeline" | "trigger" | "workflow" | "capability",
     slug: string,
     ancestors: ReadonlySet<string>,
   ): StoreSolutionNode => {
@@ -231,6 +258,22 @@ export function resolveStoreSolutionTree(
       return node("loop", slug, titleFromSlug(slug), active.loops.has(slug), [
         resolve(loop.target.kind, loop.target.id, nextAncestors),
       ]);
+    }
+
+    if (kind === "trigger") {
+      const trigger = catalog.triggers.get(slug);
+      if (!trigger) {
+        throw new Error(
+          `Store Solution "${solution.id}" references missing Trigger "${slug}".`,
+        );
+      }
+      return node(
+        "trigger",
+        slug,
+        trigger.name || titleFromSlug(slug),
+        active.triggers.has(slug),
+        [resolve(trigger.target.kind, trigger.target.id, nextAncestors)],
+      );
     }
 
     if (kind === "workflow") {

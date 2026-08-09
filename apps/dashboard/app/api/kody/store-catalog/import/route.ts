@@ -45,6 +45,11 @@ import type { PipelineDefinition } from "@dashboard/lib/pipeline-definitions";
 import { listCompanyStorePipelineDefinitionFiles } from "@dashboard/lib/pipeline-definition-files";
 import { readStoreLoop, type StoreLoop } from "@dashboard/lib/store-loops";
 import {
+  readStoreTrigger,
+  type StoreTrigger,
+} from "@dashboard/lib/store-triggers";
+import { getTriggers, mutateTriggers } from "@kody-ade/base/triggers";
+import {
   loadStoreSolutionCatalog,
   readStoreSolution,
   resolveStoreSolutionTree,
@@ -66,6 +71,7 @@ type ImportKind =
   | "workflow"
   | "pipeline"
   | "loop"
+  | "trigger"
   | "command"
   | "feature"
   | "solution";
@@ -92,6 +98,7 @@ const requestSchema = z.object({
     "workflow",
     "pipeline",
     "loop",
+    "trigger",
     "command",
     "feature",
     "solution",
@@ -100,7 +107,7 @@ const requestSchema = z.object({
 });
 
 const fieldByKind: Record<
-  Exclude<ImportKind, "loop" | "solution">,
+  Exclude<ImportKind, "loop" | "trigger" | "solution">,
   ActiveField
 > = {
   agent: "activeAgents",
@@ -132,6 +139,7 @@ async function resolvedStoreSolution(octokit: Octokit, slug: string) {
     workflows: new Set(),
     pipelines: new Set(),
     loops: new Set(),
+    triggers: new Set(),
   });
   return solution;
 }
@@ -332,7 +340,9 @@ async function assertExists(
   octokit: Octokit,
   kind: ImportKind,
   slug: string,
-): Promise<WorkflowDefinition | PipelineDefinition | StoreLoop | null> {
+): Promise<
+  WorkflowDefinition | PipelineDefinition | StoreLoop | StoreTrigger | null
+> {
   if (kind === "agent") {
     const found = (await listStoreAgentFiles(octokit)).some(
       (entry) => entry.slug === slug,
@@ -367,6 +377,14 @@ async function assertExists(
       throw Object.assign(new Error("Store Loop not found."), { status: 404 });
     }
     return loop;
+  } else if (kind === "trigger") {
+    const trigger = await readStoreTrigger(octokit, slug);
+    if (!trigger) {
+      throw Object.assign(new Error("Store Trigger not found."), {
+        status: 404,
+      });
+    }
+    return trigger;
   } else if (kind === "command") {
     const found = (await listStoreCommandFiles(new Set(), octokit)).some(
       (entry) => entry.slug === slug,
@@ -444,6 +462,30 @@ async function activate(
     };
   }
   const asset = await assertExists(octokit, kind, slug);
+  if (kind === "trigger") {
+    const storeTrigger = asset as StoreTrigger;
+    await activate(
+      octokit,
+      owner,
+      repo,
+      storeTrigger.target.kind,
+      storeTrigger.target.id,
+    );
+    const existing = (
+      await getTriggers(octokit, owner, repo, { cache: false })
+    ).find((candidate) => candidate.id === slug);
+    if (
+      existing &&
+      JSON.stringify(existing) === JSON.stringify(storeTrigger.trigger)
+    ) {
+      return { imported: false, status: "already_local" as const };
+    }
+    await mutateTriggers(octokit, owner, repo, (triggers) => [
+      ...triggers.filter((candidate) => candidate.id !== slug),
+      storeTrigger.trigger,
+    ]);
+    return { imported: true, status: "imported" as const };
+  }
   if (kind === "loop") {
     const storeLoop = asset as StoreLoop;
     await activate(
@@ -583,6 +625,18 @@ async function deactivate(
       removed,
       status: removed ? ("removed" as const) : ("already_missing" as const),
     };
+  }
+  if (kind === "trigger") {
+    const existing = (
+      await getTriggers(octokit, owner, repo, { cache: false })
+    ).some((candidate) => candidate.id === slug);
+    if (!existing) {
+      return { removed: false, status: "already_missing" as const };
+    }
+    await mutateTriggers(octokit, owner, repo, (triggers) =>
+      triggers.filter((candidate) => candidate.id !== slug),
+    );
+    return { removed: true, status: "removed" as const };
   }
   const { config, sha } = await getEngineConfig(octokit, owner, repo, {
     force: true,
@@ -728,7 +782,9 @@ async function handle(req: NextRequest, remove: boolean) {
           ? "solution.entrypoints"
           : kind === "loop"
             ? "loops"
-            : `company.${fieldByKind[kind]}`,
+            : kind === "trigger"
+              ? "triggers"
+              : `company.${fieldByKind[kind]}`,
       ...result,
     });
   } catch (error) {
