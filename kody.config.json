@@ -56,7 +56,8 @@
       "quality-run"
     ],
     "activePipelines": [
-      "review-and-merge"
+      "review-and-merge",
+      "ci-repair"
     ]
   },
   "access": {
