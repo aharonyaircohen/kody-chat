@@ -208,6 +208,53 @@ describe("POST /api/kody/quality/runs", () => {
     );
   });
 
+  it("dispatches a token reference without resolving or logging the token", async () => {
+    h.query.mockResolvedValueOnce({
+      actions: [
+        {
+          slug: "sign-in",
+          steps: [
+            {
+              operation: "fill",
+              target: "GitHub personal access token",
+              valueFrom: "github-test-token",
+            },
+          ],
+        },
+      ],
+      journeys: [
+        {
+          slug: "signed-in-work",
+          name: "Signed-in work",
+          actionSlugs: ["sign-in"],
+          updatedAt: "2026-08-09T12:00:00.000Z",
+        },
+      ],
+      scenarios: [
+        {
+          slug: "reply-persists",
+          journeySlug: "signed-in-work",
+          status: "active",
+          environmentId: "production",
+          updatedAt: "2026-08-09T12:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(202);
+    const startCommand = h.startWorkflow.mock.calls[0]?.[0];
+    expect(startCommand.input.steps).toEqual([
+      {
+        operation: "fill",
+        target: "GitHub personal access token",
+        valueFrom: "github-test-token",
+      },
+    ]);
+    expect(JSON.stringify(startCommand)).not.toContain("e2e-token");
+  });
+
   it("records a Production environment as production", async () => {
     const response = await POST(request());
 

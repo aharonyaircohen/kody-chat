@@ -30,6 +30,51 @@ describe("quality contracts", () => {
     expect(action).not.toHaveProperty("version");
   });
 
+  it("stores a fixed GitHub test-token reference without storing its value", () => {
+    const action = actionSchema.parse({
+      slug: "sign-in",
+      name: "Sign in",
+      outcome: "The user signs in to the dashboard.",
+      area: "Authentication",
+      steps: [
+        {
+          operation: "fill",
+          target: "GitHub personal access token",
+          valueFrom: "github-test-token",
+        },
+      ],
+      status: "active",
+      updatedAt: NOW,
+    });
+
+    expect(action.steps?.[0]).toEqual({
+      operation: "fill",
+      target: "GitHub personal access token",
+      valueFrom: "github-test-token",
+    });
+    expect(JSON.stringify(action)).not.toContain("ghp_");
+  });
+
+  it("rejects arbitrary secret references", () => {
+    expect(() =>
+      actionSchema.parse({
+        slug: "unsafe-sign-in",
+        name: "Unsafe sign in",
+        outcome: "The user signs in.",
+        area: "Authentication",
+        steps: [
+          {
+            operation: "fill",
+            target: "Token",
+            valueFrom: "arbitrary-environment-variable",
+          },
+        ],
+        status: "active",
+        updatedAt: NOW,
+      }),
+    ).toThrow();
+  });
+
   it("keeps a journey as an ordered list of action references", () => {
     const journey = journeySchema.parse({
       slug: "direct-chat-persists",

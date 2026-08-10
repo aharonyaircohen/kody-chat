@@ -23,17 +23,24 @@ const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const timestampSchema = z.string().datetime();
 
 const stepText = z.string().trim().min(1).max(500);
-export const qualityStepSchema = z.discriminatedUnion("operation", [
+export const qualityStepSchema = z.union([
   z.object({
     operation: z.literal("open"),
     path: z.string().trim().min(1).max(2048),
   }),
   z.object({ operation: z.literal("click"), target: stepText }),
-  z.object({
-    operation: z.literal("fill"),
-    target: stepText,
-    value: z.string().max(4000),
-  }),
+  z.union([
+    z.object({
+      operation: z.literal("fill"),
+      target: stepText,
+      value: z.string().max(4000),
+    }),
+    z.object({
+      operation: z.literal("fill"),
+      target: stepText,
+      valueFrom: z.literal("github-test-token"),
+    }),
+  ]),
   z.object({ operation: z.literal("reload") }),
   z.object({ operation: z.literal("check"), text: stepText }),
 ]);

@@ -51,6 +51,11 @@ type QualityMap = {
       | { operation: "open"; path: string }
       | { operation: "click"; target: string }
       | { operation: "fill"; target: string; value: string }
+      | {
+          operation: "fill";
+          target: string;
+          valueFrom: "github-test-token";
+        }
       | { operation: "reload" }
       | { operation: "check"; text: string }
     >;

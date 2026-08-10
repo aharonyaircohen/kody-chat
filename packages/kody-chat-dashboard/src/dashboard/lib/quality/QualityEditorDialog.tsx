@@ -305,19 +305,53 @@ export function QualityEditorDialog({
                             setDraft({ ...draft, steps });
                           }}
                         />
-                        <Input
-                          aria-label={`Step ${index + 1} value`}
-                          placeholder="Value"
-                          value={step.value}
+                        <select
+                          aria-label={`Step ${index + 1} value source`}
+                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                          value={"valueFrom" in step ? step.valueFrom : "text"}
                           onChange={(event) => {
                             const steps = [...(draft.steps ?? [])];
-                            steps[index] = {
-                              ...step,
-                              value: event.target.value,
-                            };
+                            steps[index] =
+                              event.target.value === "github-test-token"
+                                ? {
+                                    operation: "fill",
+                                    target: step.target,
+                                    valueFrom: "github-test-token",
+                                  }
+                                : {
+                                    operation: "fill",
+                                    target: step.target,
+                                    value: "",
+                                  };
                             setDraft({ ...draft, steps });
                           }}
-                        />
+                        >
+                          <option value="text">Text</option>
+                          <option value="github-test-token">
+                            GitHub test token
+                          </option>
+                        </select>
+                        {"value" in step ? (
+                          <Input
+                            className="sm:col-start-2"
+                            aria-label={`Step ${index + 1} value`}
+                            placeholder="Value"
+                            value={step.value}
+                            onChange={(event) => {
+                              const steps = [...(draft.steps ?? [])];
+                              steps[index] = {
+                                ...step,
+                                value: event.target.value,
+                              };
+                              setDraft({ ...draft, steps });
+                            }}
+                          />
+                        ) : (
+                          <p className="text-xs text-muted-foreground sm:col-start-2">
+                            Uses the protected E2E token when the Quality Run
+                            starts.
+                          </p>
+                        )}
                       </div>
                     ) : step.operation === "check" ? (
                       <Input

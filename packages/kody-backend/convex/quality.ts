@@ -37,6 +37,11 @@ const qualityStep = v.union(
     target: v.string(),
     value: v.string(),
   }),
+  v.object({
+    operation: v.literal("fill"),
+    target: v.string(),
+    valueFrom: v.literal("github-test-token"),
+  }),
   v.object({ operation: v.literal("reload") }),
   v.object({ operation: v.literal("check"), text: v.string() }),
 );

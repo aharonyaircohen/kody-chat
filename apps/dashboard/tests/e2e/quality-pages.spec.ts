@@ -218,6 +218,45 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
   await expect(page.getByText("No Actions yet")).toBeVisible();
 });
 
+test("creates a login Action using a protected GitHub test token", async ({
+  page,
+}) => {
+  let savedAction: Record<string, unknown> | null = null;
+  await page.route("**/api/kody/quality/actions", async (route) => {
+    if (route.request().method() === "POST") {
+      savedAction = route.request().postDataJSON();
+      return json(route, { ok: true }, 201);
+    }
+    return json(route, { ...qualityMap, actions: [] });
+  });
+
+  await page.goto("/repo/acme/widgets/quality/actions");
+  await page.getByRole("button", { name: "New action" }).click();
+  await page.getByLabel("Name").fill("Sign in");
+  await page.getByLabel("User outcome").fill("The user signs in.");
+  await page.getByLabel("Product area").fill("Authentication");
+  await page.getByLabel("Step 1 operation").selectOption("fill");
+  await page.getByLabel("Step 1 target").fill("GitHub personal access token");
+  await page
+    .getByLabel("Step 1 value source")
+    .selectOption("github-test-token");
+  await expect(page.getByLabel("Step 1 value", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+
+  expect(savedAction).toMatchObject({
+    steps: [
+      {
+        operation: "fill",
+        target: "GitHub personal access token",
+        valueFrom: "github-test-token",
+      },
+    ],
+  });
+  expect(JSON.stringify(savedAction)).not.toContain("e2e-token");
+});
+
 test("binds a Scenario to a repository environment", async ({ page }) => {
   let scenarios: typeof qualityMap.scenarios = [];
   await page.unroute("**/api/kody/quality/**");

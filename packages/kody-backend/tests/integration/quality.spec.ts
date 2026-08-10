@@ -56,6 +56,34 @@ describe("quality", () => {
     expect(map.journeys[0]).not.toHaveProperty("version");
   });
 
+  it("stores a GitHub test-token reference without receiving the token", async () => {
+    const t = setup();
+
+    await t.mutation(api.quality.saveAction, {
+      tenantId: TENANT,
+      slug: "sign-in",
+      name: "Sign in",
+      outcome: "The user signs in to the dashboard.",
+      area: "Authentication",
+      steps: [
+        {
+          operation: "fill",
+          target: "GitHub personal access token",
+          valueFrom: "github-test-token",
+        },
+      ],
+      status: "active",
+      updatedAt: NOW,
+    });
+
+    const map = await t.query(api.quality.getMap, { tenantId: TENANT });
+    expect(map.actions[0].steps?.[0]).toEqual({
+      operation: "fill",
+      target: "GitHub personal access token",
+      valueFrom: "github-test-token",
+    });
+  });
+
   it("refuses to delete referenced definitions", async () => {
     const t = setup();
     await t.mutation(api.quality.saveAction, {
