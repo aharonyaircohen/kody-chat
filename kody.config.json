@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "openrouter/z-ai/glm-5.2"
+    "model": "minimax/MiniMax-M3"
   },
   "company": {
     "activeAgents": [
