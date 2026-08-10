@@ -31,11 +31,18 @@ export function verifyQualityResult(
   expectedActions: Array<{ slug: string; name: string }>,
 ) {
   const parsed = resultSchema.safeParse(output);
-  if (
-    !parsed.success ||
-    parsed.data.actionResults.length !== expectedActions.length
-  ) {
-    return null;
+  if (!parsed.success) {
+    return {
+      result: null,
+      error:
+        "Quality result is missing the required Action or Scenario results.",
+    } as const;
+  }
+  if (parsed.data.actionResults.length !== expectedActions.length) {
+    return {
+      result: null,
+      error: `Quality result reported ${parsed.data.actionResults.length} Actions, but the Journey contains ${expectedActions.length}.`,
+    } as const;
   }
 
   const evidencePrefix = `test-results/quality-runs/${runId}/`;
@@ -45,11 +52,17 @@ export function verifyQualityResult(
       !expected ||
       !result.artifactPath.startsWith(evidencePrefix)
     ) {
-      return null;
+      return {
+        result: null,
+        error: `Quality evidence for Action ${index + 1} is not inside this run.`,
+      } as const;
     }
   }
   if (!parsed.data.scenarioResult.artifactPath.startsWith(evidencePrefix)) {
-    return null;
+    return {
+      result: null,
+      error: "Quality evidence for the Scenario is not inside this run.",
+    } as const;
   }
 
   const passed = parsed.data.actionResults.filter(
@@ -78,11 +91,14 @@ export function verifyQualityResult(
   }));
 
   return {
-    ...parsed.data,
-    actionResults,
-    passed,
-    failed,
-    blocked,
-    status,
-  };
+    result: {
+      ...parsed.data,
+      actionResults,
+      passed,
+      failed,
+      blocked,
+      status,
+    },
+    error: null,
+  } as const;
 }

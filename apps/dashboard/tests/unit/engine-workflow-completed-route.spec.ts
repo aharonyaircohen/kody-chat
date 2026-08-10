@@ -291,7 +291,8 @@ describe("POST /api/kody/engine/workflow-completed", () => {
         event: expect.objectContaining({
           type: "quality_run_completed",
           status: "blocked",
-          summary: "Quality result could not be verified.",
+          summary:
+            "Quality result is missing the required Action or Scenario results.",
         }),
       }),
     );

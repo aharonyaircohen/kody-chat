@@ -152,12 +152,16 @@ export async function POST(request: Request) {
         .filter((action): action is { slug: string; name: string } =>
           Boolean(action),
         );
-      const verifiedResult = expectedActions
+      const verification = expectedActions
         ? verifyQualityResult(output, runId, expectedActions)
-        : null;
+        : {
+            result: null,
+            error: "Quality Run does not reference a saved Journey.",
+          };
+      const verifiedResult = verification.result;
       const qualitySummary = verifiedResult
         ? summary
-        : "Quality result could not be verified.";
+        : verification.error;
       const artifactUrl =
         qualityArtifactUrl(output.artifactUrl, identity.repository) ??
         (identity.runId && /^\d+$/.test(identity.runId)
