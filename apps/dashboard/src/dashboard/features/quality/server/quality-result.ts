@@ -43,8 +43,6 @@ export function verifyQualityResult(
     const expected = expectedActions[index];
     if (
       !expected ||
-      result.actionSlug !== expected.slug ||
-      result.actionName !== expected.name ||
       !result.artifactPath.startsWith(evidencePrefix)
     ) {
       return null;
@@ -73,5 +71,18 @@ export function verifyQualityResult(
       ? "blocked"
       : "passed";
 
-  return { ...parsed.data, passed, failed, blocked, status };
+  const actionResults = parsed.data.actionResults.map((result, index) => ({
+    ...result,
+    actionSlug: expectedActions[index]!.slug,
+    actionName: expectedActions[index]!.name,
+  }));
+
+  return {
+    ...parsed.data,
+    actionResults,
+    passed,
+    failed,
+    blocked,
+    status,
+  };
 }

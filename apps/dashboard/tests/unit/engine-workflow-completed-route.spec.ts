@@ -209,6 +209,52 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     );
   });
 
+  it("uses the saved Action identity when the runner repeats its label differently", async () => {
+    const response = await POST(
+      request({
+        workflowId: "quality-run",
+        runId: "run-quality-canonical-action",
+        status: "success",
+        summary: "Direct chat persistence passed.",
+        output: {
+          actionResults: [
+            {
+              actionSlug: "send-message-with-a-label-typo",
+              actionName: "Send a message",
+              status: "passed",
+              evidence: "A fresh reply remained visible after reload.",
+              artifactPath:
+                "test-results/quality-runs/run-quality-canonical-action/01-action.png",
+            },
+          ],
+          scenarioResult: {
+            status: "passed",
+            evidence: "The saved reply remained visible after reload.",
+            artifactPath:
+              "test-results/quality-runs/run-quality-canonical-action/final.png",
+          },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.appendRunEvent",
+      expect.objectContaining({
+        event: expect.objectContaining({
+          status: "passed",
+          actionResults: [
+            expect.objectContaining({
+              actionSlug: "send-message",
+              actionName: "Send message",
+              status: "passed",
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it("blocks a Quality result that does not report the saved Actions", async () => {
     const response = await POST(
       request({
