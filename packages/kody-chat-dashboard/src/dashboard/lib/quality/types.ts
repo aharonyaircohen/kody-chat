@@ -35,11 +35,17 @@ export type QualityRun = {
       actionName: string;
       status: "passed" | "failed" | "blocked";
       evidence: string;
+      issueSource?: "none" | "product" | "test" | "environment" | "unknown";
+      cause?: string;
+      correction?: string;
       artifactPath: string;
     }>;
     scenarioResult?: {
       status: "passed" | "failed" | "blocked";
       evidence: string;
+      issueSource?: "none" | "product" | "test" | "environment" | "unknown";
+      cause?: string;
+      correction?: string;
       artifactPath: string;
     };
   };

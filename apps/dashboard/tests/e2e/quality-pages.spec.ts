@@ -331,6 +331,86 @@ test("shows the verified result for every Action in a Quality Run", async ({
   ).toBeVisible();
 });
 
+test("explains a failed Quality Run and links to the record that needs correction", async ({
+  page,
+}) => {
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", (route) =>
+    json(route, {
+      ...qualityMap,
+      runs: qualityMap.runs.map((run) => ({
+        ...run,
+        status: "failed",
+        error: "The repository was saved but not selected.",
+        latestEvent: {
+          ...run.latestEvent,
+          summary: "The test stayed in global Chat.",
+          passed: 0,
+          failed: 1,
+          blocked: 0,
+          actionResults: [
+            {
+              actionSlug: "send-message",
+              actionName: "Send a message",
+              status: "failed",
+              evidence:
+                "The repository appeared in the list, but Chat stayed global and the message box was disabled.",
+              issueSource: "test",
+              cause:
+                "The test tried to add a repository that was already saved instead of selecting it.",
+              correction:
+                "Select the existing repository before sending the message.",
+              artifactPath:
+                "test-results/quality-runs/run-1/01-send-message.png",
+            },
+          ],
+          scenarioResult: {
+            status: "failed",
+            evidence: "The expected reply was never created.",
+            issueSource: "test",
+            cause:
+              "The Action instruction did not activate the saved repository.",
+            correction:
+              "Correct the failed Action and run this Scenario again.",
+            artifactPath: "test-results/quality-runs/run-1/final.png",
+          },
+        },
+      })),
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
+
+  await expect(
+    page.getByRole("heading", { name: "What happened" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The repository appeared in the list, but Chat stayed global and the message box was disabled.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The test tried to add a repository that was already saved instead of selecting it.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Select the existing repository before sending the message.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Edit Action" })).toHaveAttribute(
+    "href",
+    "/repo/acme/widgets/quality/actions/send-message",
+  );
+  await expect(
+    page.getByRole("link", { name: "Edit Scenario" }),
+  ).toHaveAttribute(
+    "href",
+    "/repo/acme/widgets/quality/scenarios/reply-persists",
+  );
+});
+
 test("does not present missing Quality totals as zero", async ({ page }) => {
   await page.unroute("**/api/kody/quality/**");
   await page.route("**/api/kody/quality/**", (route) =>
