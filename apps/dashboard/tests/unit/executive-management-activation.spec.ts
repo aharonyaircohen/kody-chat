@@ -44,6 +44,7 @@ describe("kody-chat company activation", () => {
       "ui-review",
       "prepare-ci-repair",
       "quality-check",
+      "fix-ci",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
