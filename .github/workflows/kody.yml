@@ -129,6 +129,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kody-quality-${{ github.run_id }}
-          path: apps/dashboard/test-results/live-ui-gate/
+          path: test-results/quality-runs/
           if-no-files-found: ignore
           retention-days: 30
