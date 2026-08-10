@@ -6,6 +6,11 @@ const actionResultSchema = z
     actionName: z.string().trim().min(1).max(160),
     status: z.enum(["passed", "failed", "blocked"]),
     evidence: z.string().trim().min(1).max(2000),
+    issueSource: z
+      .enum(["none", "product", "test", "environment", "unknown"])
+      .optional(),
+    cause: z.string().trim().min(1).max(2000).optional(),
+    correction: z.string().trim().min(1).max(2000).optional(),
     artifactPath: z.string().trim().min(1).max(2048),
   })
   .strict();
@@ -14,6 +19,11 @@ const scenarioResultSchema = z
   .object({
     status: z.enum(["passed", "failed", "blocked"]),
     evidence: z.string().trim().min(1).max(2000),
+    issueSource: z
+      .enum(["none", "product", "test", "environment", "unknown"])
+      .optional(),
+    cause: z.string().trim().min(1).max(2000).optional(),
+    correction: z.string().trim().min(1).max(2000).optional(),
     artifactPath: z.string().trim().min(1).max(2048),
   })
   .strict();
@@ -48,10 +58,7 @@ export function verifyQualityResult(
   const evidencePrefix = `test-results/quality-runs/${runId}/`;
   for (const [index, result] of parsed.data.actionResults.entries()) {
     const expected = expectedActions[index];
-    if (
-      !expected ||
-      !result.artifactPath.startsWith(evidencePrefix)
-    ) {
+    if (!expected || !result.artifactPath.startsWith(evidencePrefix)) {
       return {
         result: null,
         error: `Quality evidence for Action ${index + 1} is not inside this run.`,

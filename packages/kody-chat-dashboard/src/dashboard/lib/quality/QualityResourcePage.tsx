@@ -39,7 +39,12 @@ import type {
 import { qualityRunHealth } from "./contracts";
 import { QualityEditorDialog } from "./QualityEditorDialog";
 import { QualityRunDialog } from "./QualityRunDialog";
-import type { QualityMap, QualityRecord, QualityResource } from "./types";
+import type {
+  QualityMap,
+  QualityRecord,
+  QualityResource,
+  QualityRun,
+} from "./types";
 import { cn } from "../utils";
 
 const CONFIG = {
@@ -198,6 +203,280 @@ function DetailValue({
   );
 }
 
+function issueSourceLabel(source: string | undefined): string {
+  switch (source) {
+    case "none":
+      return "No issue";
+    case "product":
+      return "Product";
+    case "test":
+      return "Test instructions";
+    case "environment":
+      return "Test environment";
+    default:
+      return "Not determined";
+  }
+}
+
+function RunReport({
+  record,
+  map,
+  qualityRootPath,
+}: {
+  record: QualityRun;
+  map: QualityMap;
+  qualityRootPath: string;
+}) {
+  const event = record.latestEvent;
+  const scenario = map.scenarios.find(
+    (candidate) => candidate.slug === record.scenarioSlug,
+  );
+  const scenarioResult = event?.scenarioResult;
+  const explanation =
+    scenarioResult?.cause ??
+    record.error ??
+    (record.status === "passed"
+      ? "The saved Journey and Scenario completed as expected."
+      : "This run did not report a clear cause.");
+  const correction =
+    scenarioResult?.correction ??
+    (record.status === "passed"
+      ? "No correction is needed."
+      : "Review the evidence before changing the test or product.");
+
+  return (
+    <>
+      <DetailCard title="Result">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              {record.status === "passed" ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+              ) : (
+                <CircleDot
+                  className={cn(
+                    "h-5 w-5",
+                    record.status === "failed"
+                      ? "text-red-300"
+                      : "text-amber-300",
+                  )}
+                />
+              )}
+              <span className="text-lg font-medium capitalize text-foreground">
+                {displayLabel(record.status)}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {event?.summary ?? "Waiting for a result."}
+            </p>
+          </div>
+          {event ? (
+            <div className="rounded-lg border border-white/[0.08] bg-black/20 px-4 py-2 text-sm">
+              {typeof event.passed === "number" &&
+              typeof event.failed === "number" ? (
+                <>
+                  <span className="text-emerald-300">
+                    {event.passed} passed
+                  </span>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span
+                    className={
+                      event.failed ? "text-red-300" : "text-muted-foreground"
+                    }
+                  >
+                    {event.failed} failed
+                  </span>
+                  {event.blocked ? (
+                    <>
+                      <span className="mx-2 text-muted-foreground">·</span>
+                      <span className="text-amber-300">
+                        {event.blocked} blocked
+                      </span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  Results unavailable
+                </span>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </DetailCard>
+
+      <DetailCard title="What happened">
+        <dl className="grid gap-5 sm:grid-cols-2">
+          <DetailValue
+            label="Observed result"
+            value={
+              scenarioResult?.evidence ??
+              event?.summary ??
+              "No result has been reported yet."
+            }
+          />
+          <DetailValue
+            label="Issue is in"
+            value={issueSourceLabel(scenarioResult?.issueSource)}
+          />
+          <DetailValue label="Why it happened" value={explanation} />
+          <DetailValue label="What to change" value={correction} />
+        </dl>
+        {scenarioResult?.issueSource === "test" && scenario ? (
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <a href={`${qualityRootPath}/scenarios/${scenario.slug}`}>
+              <Pencil className="h-4 w-4" />
+              Edit Scenario
+            </a>
+          </Button>
+        ) : null}
+      </DetailCard>
+
+      {scenario ? (
+        <DetailCard title="Scenario check">
+          <dl className="grid gap-5 sm:grid-cols-2">
+            <DetailValue label="Starting conditions" value={scenario.given} />
+            <DetailValue
+              label="Expected visible result"
+              value={scenario.expectedVisible}
+            />
+            <DetailValue
+              label="Expected stored state"
+              value={scenario.expectedState}
+            />
+            <DetailValue
+              label="Observed result"
+              value={scenarioResult?.evidence ?? "Not reported"}
+            />
+          </dl>
+        </DetailCard>
+      ) : null}
+
+      <DetailCard title="Actions">
+        {event?.actionResults?.length ? (
+          <ol className="grid gap-3">
+            {event.actionResults.map((result, index) => {
+              const action = map.actions.find(
+                (candidate) => candidate.slug === result.actionSlug,
+              );
+              return (
+                <li
+                  key={result.actionSlug}
+                  className="rounded-lg border border-white/[0.08] bg-black/20 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {index + 1}.
+                      </span>
+                      {result.status === "passed" ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                      ) : (
+                        <CircleDot
+                          className={cn(
+                            "h-4 w-4",
+                            result.status === "failed"
+                              ? "text-red-300"
+                              : "text-amber-300",
+                          )}
+                        />
+                      )}
+                      <h4 className="text-sm font-medium text-foreground">
+                        {result.actionName}
+                      </h4>
+                    </div>
+                    <QualityBadge value={result.status} />
+                  </div>
+                  <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <DetailValue
+                      label="Expected"
+                      value={action?.outcome ?? "Saved Action unavailable"}
+                    />
+                    <DetailValue label="Observed" value={result.evidence} />
+                    <DetailValue
+                      label="Issue is in"
+                      value={issueSourceLabel(result.issueSource)}
+                    />
+                    <DetailValue
+                      label="Why it happened"
+                      value={result.cause ?? "This run did not report a cause."}
+                    />
+                    <DetailValue
+                      label="What to change"
+                      value={
+                        result.correction ??
+                        (result.status === "passed"
+                          ? "No correction is needed."
+                          : "Review the evidence before changing this Action.")
+                      }
+                    />
+                  </dl>
+                  {result.issueSource === "test" ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                    >
+                      <a
+                        href={`${qualityRootPath}/actions/${result.actionSlug}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit Action
+                      </a>
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No Action results were reported.
+          </p>
+        )}
+      </DetailCard>
+
+      <DetailCard title="Evidence">
+        <p className="text-sm text-muted-foreground">
+          Open the screenshots, page state, and runner logs captured for this
+          run.
+        </p>
+        {event?.artifactUrl ? (
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <a href={event.artifactUrl} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" />
+              Open Quality evidence
+            </a>
+          </Button>
+        ) : (
+          <p className="mt-3 text-sm text-amber-300">
+            No evidence link was reported.
+          </p>
+        )}
+      </DetailCard>
+
+      <DetailCard title="Run details">
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <DetailValue
+            label="Scenario"
+            value={scenario?.name ?? record.scenarioSlug}
+          />
+          <DetailValue label="Environment" value={record.environment} />
+          <DetailValue label="Target" value={record.targetUrl} mono />
+          <DetailValue label="Source commit" value={record.sourceCommit} mono />
+          <DetailValue
+            label="Evidence path"
+            value={event?.artifactPath ?? "Pending"}
+            mono={!!event?.artifactPath}
+          />
+          <DetailValue label="Recorded error" value={record.error ?? "None"} />
+        </dl>
+      </DetailCard>
+    </>
+  );
+}
+
 async function readQuality(
   resource: QualityResource,
   headers: Record<string, string>,
@@ -246,6 +525,7 @@ function Detail({
   onDelete,
   onRun,
   onArchive,
+  qualityRootPath,
 }: {
   record: QualityRecord;
   map: QualityMap;
@@ -254,6 +534,7 @@ function Detail({
   onDelete?: () => void;
   onRun?: () => void;
   onArchive?: () => void;
+  qualityRootPath: string;
 }) {
   const Icon =
     "outcome" in record
@@ -264,12 +545,6 @@ function Detail({
           ? ShieldCheck
           : Activity;
   const status = record.status;
-  const scenario =
-    "runSlug" in record
-      ? map.scenarios.find(
-          (candidate) => candidate.slug === record.scenarioSlug,
-        )
-      : null;
   return (
     <article className="min-h-full">
       <div className="border-b border-white/[0.06] bg-gradient-to-b from-cyan-500/[0.06] via-cyan-500/[0.02] to-transparent">
@@ -461,127 +736,11 @@ function Detail({
             </DetailCard>
           </>
         ) : (
-          <>
-            <DetailCard title="Result">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {record.status === "passed" ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                    ) : (
-                      <CircleDot className="h-5 w-5 text-cyan-300" />
-                    )}
-                    <span className="text-lg font-medium capitalize text-foreground">
-                      {displayLabel(record.status)}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {record.latestEvent?.summary ?? "Waiting for a result."}
-                  </p>
-                </div>
-                {record.latestEvent ? (
-                  <div className="rounded-lg border border-white/[0.08] bg-black/20 px-4 py-2 text-sm">
-                    {typeof record.latestEvent.passed === "number" &&
-                    typeof record.latestEvent.failed === "number" ? (
-                      <>
-                        <span className="text-emerald-300">
-                          {record.latestEvent.passed} passed
-                        </span>
-                        <span className="mx-2 text-muted-foreground">·</span>
-                        <span
-                          className={
-                            record.latestEvent.failed
-                              ? "text-red-300"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {record.latestEvent.failed} failed
-                        </span>
-                        {record.latestEvent.blocked ? (
-                          <>
-                            <span className="mx-2 text-muted-foreground">
-                              ·
-                            </span>
-                            <span className="text-amber-300">
-                              {record.latestEvent.blocked} blocked
-                            </span>
-                          </>
-                        ) : null}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Results unavailable
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              {record.latestEvent?.actionResults?.length ? (
-                <div className="mt-5 divide-y divide-white/[0.08] border-y border-white/[0.08]">
-                  {record.latestEvent.actionResults.map((result) => (
-                    <div
-                      key={result.actionSlug}
-                      className="flex items-start gap-3 py-3"
-                    >
-                      {result.status === "passed" ? (
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                      ) : (
-                        <CircleDot
-                          className={cn(
-                            "mt-0.5 h-4 w-4 shrink-0",
-                            result.status === "failed"
-                              ? "text-red-300"
-                              : "text-amber-300",
-                          )}
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">
-                          {result.actionName}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {result.evidence}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {record.latestEvent?.artifactUrl ? (
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <a
-                    href={record.latestEvent.artifactUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Open Quality evidence
-                  </a>
-                </Button>
-              ) : null}
-            </DetailCard>
-            <DetailCard title="Run details">
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <DetailValue
-                  label="Scenario"
-                  value={scenario?.name ?? record.scenarioSlug}
-                />
-                <DetailValue label="Environment" value={record.environment} />
-                <DetailValue label="Target" value={record.targetUrl} mono />
-                <DetailValue
-                  label="Source commit"
-                  value={record.sourceCommit}
-                  mono
-                />
-                <DetailValue
-                  label="Evidence path"
-                  value={record.latestEvent?.artifactPath ?? "Pending"}
-                  mono={!!record.latestEvent?.artifactPath}
-                />
-                <DetailValue label="Error" value={record.error ?? "None"} />
-              </dl>
-            </DetailCard>
-          </>
+          <RunReport
+            record={record}
+            map={map}
+            qualityRootPath={qualityRootPath}
+          />
         )}
       </div>
     </article>
@@ -666,6 +825,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
   const headers = useMemo(() => (auth ? buildAuthHeaders(auth) : {}), [auth]);
   const basePath = `/quality/${resource}`;
   const canonicalBasePath = auth ? repoScopedHref(auth, basePath) : basePath;
+  const qualityRootPath = auth ? repoScopedHref(auth, "/quality") : "/quality";
   const showArchived = searchParams.get("archived") === "1";
   const selectionMarker = `${basePath}/`;
   const selectionIndex = pathname.indexOf(selectionMarker);
@@ -928,6 +1088,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               record={selected}
               map={map}
               onBack={() => router.push(canonicalBasePath)}
+              qualityRootPath={qualityRootPath}
               onEdit={
                 resource === "runs" ? undefined : () => setEditing(selected)
               }

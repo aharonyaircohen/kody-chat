@@ -163,6 +163,9 @@ describe("POST /api/kody/engine/workflow-completed", () => {
               actionName: "Send message",
               status: "passed",
               evidence: "A fresh reply remained visible after reload.",
+              issueSource: "none",
+              cause: "The Action completed as expected.",
+              correction: "No correction is needed.",
               artifactPath:
                 "test-results/quality-runs/run-quality-1/01-send-message.png",
             },
@@ -170,6 +173,9 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           scenarioResult: {
             status: "passed",
             evidence: "The saved reply remained visible after reload.",
+            issueSource: "none",
+            cause: "The Scenario expectations were satisfied.",
+            correction: "No correction is needed.",
             artifactPath: "test-results/quality-runs/run-quality-1/final.png",
           },
         },
@@ -202,8 +208,16 @@ describe("POST /api/kody/engine/workflow-completed", () => {
             expect.objectContaining({
               actionSlug: "send-message",
               status: "passed",
+              issueSource: "none",
+              cause: "The Action completed as expected.",
+              correction: "No correction is needed.",
             }),
           ],
+          scenarioResult: expect.objectContaining({
+            issueSource: "none",
+            cause: "The Scenario expectations were satisfied.",
+            correction: "No correction is needed.",
+          }),
         }),
       }),
     );
