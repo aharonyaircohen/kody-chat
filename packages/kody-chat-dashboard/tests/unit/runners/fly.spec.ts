@@ -56,6 +56,32 @@ describe("spawnRunner", () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("explicitly starts a machine when the automatic launch stays created", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "m-stuck", region: "fra" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 408 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await spawnRunner(BASE_INPUT);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://api.machines.dev/v1/apps/kody-runner/machines/m-stuck/start",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(String(fetchMock.mock.calls[3]![0])).toContain(
+      "/machines/m-stuck/wait?state=started",
+    );
+  });
+
   it("does not wire a shared LiteLLM URL into runner env", async () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
