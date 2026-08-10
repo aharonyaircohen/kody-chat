@@ -32,6 +32,18 @@ const h = vi.hoisted(() => ({
   verifyActorLogin: vi.fn(async () => ({
     identity: { login: "alice", githubId: 42 },
   })),
+  readDashboardConfig: vi.fn(async () => ({
+    doc: {
+      version: 1,
+      namedPreviews: [
+        {
+          id: "production",
+          label: "Production",
+          url: "https://widgets.example.com",
+        },
+      ],
+    },
+  })),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -57,6 +69,9 @@ vi.mock("@kody-ade/backend/client", () => ({
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+}));
+vi.mock("@dashboard/lib/dashboard-config/store", () => ({
+  readDashboardConfig: h.readDashboardConfig,
 }));
 vi.mock("../../app/api/kody/store-catalog/import/route", () => ({
   POST: h.activateStoreAsset,
@@ -104,16 +119,29 @@ describe("POST /api/kody/quality/runs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.query.mockResolvedValue({
-      actions: [],
+      actions: [
+        {
+          slug: "send-message",
+          steps: [
+            { operation: "fill", target: "Message", value: "Hello" },
+            { operation: "click", target: "Send message" },
+          ],
+        },
+      ],
       journeys: [
-        { slug: "direct-chat-persists", updatedAt: "2026-08-09T12:00:00.000Z" },
+        {
+          slug: "direct-chat-persists",
+          name: "Direct chat persists",
+          actionSlugs: ["send-message"],
+          updatedAt: "2026-08-09T12:00:00.000Z",
+        },
       ],
       scenarios: [
         {
           slug: "reply-persists",
           journeySlug: "direct-chat-persists",
           status: "active",
-          testId: "direct-kody-chat",
+          environmentId: "production",
           updatedAt: "2026-08-09T12:00:00.000Z",
         },
       ],
@@ -126,7 +154,7 @@ describe("POST /api/kody/quality/runs", () => {
     });
   });
 
-  it("creates a Quality Run and dispatches its exact test through the Engine", async () => {
+  it("dispatches the saved Journey steps against the repository environment", async () => {
     const response = await POST(request());
     const body = await response.json();
 
@@ -151,15 +179,22 @@ describe("POST /api/kody/quality/runs", () => {
         workflowId: "quality-run",
         input: {
           qualityRunId: expect.stringMatching(/^run-/),
-          testId: "direct-kody-chat",
-          targetUrl: "http://localhost:3333",
+          journeyName: "Direct chat persists",
+          steps: [
+            { operation: "fill", target: "Message", value: "Hello" },
+            { operation: "click", target: "Send message" },
+          ],
+          targetUrl: "https://widgets.example.com",
           sourceCommit: "abc123",
         },
       }),
       expect.any(Object),
     );
+    const startCommand = h.startWorkflow.mock.calls[0]?.[0];
+    expect(startCommand.requestId).toBe(startCommand.input.qualityRunId);
     expect(h.createGateway).toHaveBeenCalledWith(
       expect.objectContaining({
+        dashboardUrl: "http://localhost:3333",
         storeRepoUrl: "https://github.com/acme/company-store",
         storeRef: "stable",
       }),
@@ -173,17 +208,16 @@ describe("POST /api/kody/quality/runs", () => {
     );
   });
 
-  it("records a production deployment as production", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
-
-    const response = await POST(
-      request("reply-persists", "https://kody-dashboard-khaki.vercel.app"),
-    );
+  it("records a Production environment as production", async () => {
+    const response = await POST(request());
 
     expect(response.status).toBe(202);
     expect(h.mutation).toHaveBeenCalledWith(
       "quality.createRun",
-      expect.objectContaining({ environment: "production" }),
+      expect.objectContaining({
+        environment: "Production",
+        targetUrl: "https://widgets.example.com",
+      }),
     );
   });
 
@@ -203,6 +237,29 @@ describe("POST /api/kody/quality/runs", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(409);
+    expect(h.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("refuses a private repository environment URL", async () => {
+    h.readDashboardConfig.mockResolvedValueOnce({
+      doc: {
+        version: 1,
+        namedPreviews: [
+          {
+            id: "production",
+            label: "Production",
+            url: "https://127.0.0.1",
+          },
+        ],
+      },
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "quality_environment_unavailable",
+    });
     expect(h.startWorkflow).not.toHaveBeenCalled();
   });
 });

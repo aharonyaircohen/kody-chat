@@ -15,6 +15,8 @@ import {
 } from "@kody-ade/base/auth";
 import { workflowRunAction } from "@kody-ade/agency/workflow-run-approval";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { readDashboardConfig } from "@dashboard/lib/dashboard-config/store";
+import { resolveEnvironments } from "@kody-ade/fly/preview-environments";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -43,24 +45,73 @@ const inputSchema = z.object({
 });
 
 type QualityMap = {
-  journeys: Array<{ slug: string; updatedAt: string }>;
+  actions: Array<{
+    slug: string;
+    steps?: Array<
+      | { operation: "open"; path: string }
+      | { operation: "click"; target: string }
+      | { operation: "fill"; target: string; value: string }
+      | { operation: "reload" }
+      | { operation: "check"; text: string }
+    >;
+  }>;
+  journeys: Array<{
+    slug: string;
+    name: string;
+    actionSlugs: string[];
+    updatedAt: string;
+  }>;
   scenarios: Array<{
     slug: string;
     journeySlug: string;
     status: "draft" | "active" | "archived";
+    environmentId?: string;
     testId?: string;
     updatedAt: string;
   }>;
 };
 
-function environmentFor(
-  url: URL,
-): "local" | "preview" | "staging" | "production" {
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-    return "local";
-  if (process.env.VERCEL_ENV === "production") return "production";
-  if (url.hostname.endsWith(".vercel.app")) return "preview";
-  return "staging";
+function executableSteps(
+  map: QualityMap,
+  journey: QualityMap["journeys"][number],
+) {
+  if (!Array.isArray(journey.actionSlugs) || journey.actionSlugs.length === 0) {
+    return null;
+  }
+  const steps = journey.actionSlugs.flatMap((slug) => {
+    const action = map.actions.find((candidate) => candidate.slug === slug);
+    return action?.steps ?? [];
+  });
+  return steps.length > 0 &&
+    journey.actionSlugs.every(
+      (slug) =>
+        map.actions.find((action) => action.slug === slug)?.steps?.length,
+    )
+    ? steps
+    : null;
+}
+
+function safeRemoteTarget(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    if (url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".local") ||
+      /^(?:127\.|10\.|192\.168\.|169\.254\.)/.test(host) ||
+      /^172\.(?:1[6-9]|2\d|3[01])\./.test(host) ||
+      host === "::1"
+    ) {
+      return null;
+    }
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 }
 
 async function ensureQualityWorkflow(req: NextRequest): Promise<void> {
@@ -78,7 +129,9 @@ async function ensureQualityWorkflow(req: NextRequest): Promise<void> {
     ),
   );
   if (!response.ok) {
-    throw new Error(`Quality Run workflow activation failed (${response.status})`);
+    throw new Error(
+      `Quality Run workflow activation failed (${response.status})`,
+    );
   }
 }
 
@@ -131,7 +184,8 @@ export async function POST(req: NextRequest) {
         { error: "scenario_not_found" },
         { status: 404 },
       );
-    if (scenario.status !== "active" || !scenario.testId) {
+    const steps = journey ? executableSteps(map, journey) : null;
+    if (scenario.status !== "active" || !scenario.environmentId || !steps) {
       return NextResponse.json(
         { error: "scenario_not_executable" },
         { status: 409 },
@@ -151,8 +205,23 @@ export async function POST(req: NextRequest) {
       ref: branch,
     });
     const sourceCommit = commit.data.sha;
-    const targetUrl = req.nextUrl.origin;
-    const environment = environmentFor(req.nextUrl);
+    const { doc: dashboardConfig } = await readDashboardConfig(
+      auth.owner,
+      auth.repo,
+    );
+    const targetEnvironment = resolveEnvironments(dashboardConfig).find(
+      (candidate) => candidate.id === scenario.environmentId,
+    );
+    const targetUrl = targetEnvironment?.url
+      ? safeRemoteTarget(targetEnvironment.url)
+      : null;
+    if (!targetEnvironment || !targetUrl) {
+      return NextResponse.json(
+        { error: "quality_environment_unavailable" },
+        { status: 409 },
+      );
+    }
+    const environment = targetEnvironment.label;
 
     await client.mutation(backendApi.quality.createRun, {
       tenantId,
@@ -178,7 +247,8 @@ export async function POST(req: NextRequest) {
         requestId: runId,
         input: {
           qualityRunId: runId,
-          testId: scenario.testId,
+          journeyName: journey.name,
+          steps,
           targetUrl,
           sourceCommit,
         },
@@ -200,7 +270,7 @@ export async function POST(req: NextRequest) {
           octokit,
           owner: auth.owner,
           repo: auth.repo,
-          dashboardUrl: targetUrl,
+          dashboardUrl: req.nextUrl.origin,
           storeRepoUrl: auth.storeRepoUrl,
           storeRef: auth.storeRef,
         }),

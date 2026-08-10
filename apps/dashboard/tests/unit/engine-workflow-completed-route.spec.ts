@@ -127,7 +127,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
         status: "success",
         summary: "Direct chat persistence passed.",
         output: {
-          testId: "direct-kody-chat",
+          journeyName: "Direct chat persistence",
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
           artifactUrl: "https://github.com/acme/shop/actions/runs/42",
@@ -152,6 +152,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
         runId: "run-quality-1",
         event: expect.objectContaining({
           type: "quality_run_completed",
+          journeyName: "Direct chat persistence",
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
           artifactUrl: "https://github.com/acme/shop/actions/runs/42",

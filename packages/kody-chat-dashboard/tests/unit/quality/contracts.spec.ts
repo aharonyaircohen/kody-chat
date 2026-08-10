@@ -10,17 +10,23 @@ import {
 const NOW = "2026-08-09T12:00:00.000Z";
 
 describe("quality contracts", () => {
-  it("models reusable actions without version numbers", () => {
+  it("models reusable actions as executable browser steps", () => {
     const action = actionSchema.parse({
       slug: "send-message",
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
+      steps: [
+        { operation: "open", path: "/chat" },
+        { operation: "fill", target: "Message", value: "Hello" },
+        { operation: "click", target: "Send message" },
+      ],
       status: "active",
       updatedAt: NOW,
     });
 
     expect(action.slug).toBe("send-message");
+    expect(action.steps).toHaveLength(3);
     expect(action).not.toHaveProperty("version");
   });
 
@@ -42,20 +48,22 @@ describe("quality contracts", () => {
     ]);
   });
 
-  it("requires an executable test for an active scenario", () => {
-    expect(() =>
-      scenarioSchema.parse({
-        slug: "reply-persists",
-        journeySlug: "direct-chat-persists",
-        name: "Reply persists after reload",
-        kind: "persistence",
-        given: "A connected repository and configured direct model.",
-        expectedVisible: "The same reply is visible after reload.",
-        expectedState: "The conversation and messages remain stored.",
-        status: "active",
-        updatedAt: NOW,
-      }),
-    ).toThrow();
+  it("binds an active scenario to a repository environment", () => {
+    const scenario = scenarioSchema.parse({
+      slug: "reply-persists",
+      journeySlug: "direct-chat-persists",
+      name: "Reply persists after reload",
+      kind: "persistence",
+      given: "A connected repository and configured direct model.",
+      expectedVisible: "The same reply is visible after reload.",
+      expectedState: "The conversation and messages remain stored.",
+      environmentId: "production",
+      status: "active",
+      updatedAt: NOW,
+    });
+
+    expect(scenario.environmentId).toBe("production");
+    expect(scenario).not.toHaveProperty("testId");
   });
 
   it("marks proof stale when its definition changed after the pass", () => {

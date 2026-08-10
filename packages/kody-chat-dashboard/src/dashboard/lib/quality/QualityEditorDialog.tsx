@@ -20,6 +20,7 @@ import type {
   QualityAction,
   QualityJourney,
   QualityScenario,
+  QualityStep,
 } from "./contracts";
 import type { QualityMap, QualityRecord, QualityResource } from "./types";
 
@@ -36,6 +37,7 @@ function defaultRecord(
       name: "",
       outcome: "",
       area: "",
+      steps: [{ operation: "open", path: "/" }],
       status: "draft",
       updatedAt,
     };
@@ -51,6 +53,10 @@ function defaultRecord(
       updatedAt,
     };
   }
+  const production = map.environments.find(
+    (environment) =>
+      environment.url && environment.label.toLowerCase() === "production",
+  );
   return {
     slug: "",
     journeySlug: map.journeys[0]?.slug ?? "",
@@ -59,11 +65,28 @@ function defaultRecord(
     given: "",
     expectedVisible: "",
     expectedState: "",
-    testId: undefined,
+    environmentId:
+      production?.id ??
+      map.environments.find((environment) => environment.url)?.id,
     cleanup: "",
     status: "draft",
     updatedAt,
   };
+}
+
+function defaultStep(operation: QualityStep["operation"]): QualityStep {
+  if (operation === "open") return { operation, path: "/" };
+  if (operation === "click") return { operation, target: "" };
+  if (operation === "fill") return { operation, target: "", value: "" };
+  if (operation === "check") return { operation, text: "" };
+  return { operation: "reload" };
+}
+
+function stepValid(step: QualityStep): boolean {
+  if (step.operation === "reload") return true;
+  if (step.operation === "open") return step.path.trim().length > 0;
+  if (step.operation === "check") return step.text.trim().length > 0;
+  return step.target.trim().length > 0;
 }
 
 function isAction(record: Editable): record is QualityAction {
@@ -104,14 +127,17 @@ export function QualityEditorDialog({
   const valid =
     draft.name.trim().length > 0 &&
     (isAction(draft)
-      ? draft.outcome.trim().length > 0 && draft.area.trim().length > 0
+      ? draft.outcome.trim().length > 0 &&
+        draft.area.trim().length > 0 &&
+        (draft.steps ?? []).every(stepValid) &&
+        (draft.status !== "active" || !!draft.steps?.length)
       : isJourney(draft)
         ? draft.goal.trim().length > 0
         : draft.journeySlug.length > 0 &&
           draft.given.trim().length > 0 &&
           draft.expectedVisible.trim().length > 0 &&
           draft.expectedState.trim().length > 0 &&
-          (draft.status !== "active" || !!draft.testId));
+          (draft.status !== "active" || !!draft.environmentId));
 
   function updateName(name: string) {
     setDraft((current) => ({
@@ -123,7 +149,7 @@ export function QualityEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {record ? "Edit" : "New"} {resource.slice(0, -1)}
@@ -161,6 +187,166 @@ export function QualityEditorDialog({
                   }
                 />
               </label>
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium">Browser steps</legend>
+                <p className="text-xs text-muted-foreground">
+                  These steps run against the Scenario environment in this
+                  order. Do not put passwords or secrets in step values.
+                </p>
+                {(draft.steps ?? []).map((step, index) => (
+                  <div key={index} className="grid gap-2 rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={`Step ${index + 1} operation`}
+                        className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                        value={step.operation}
+                        onChange={(event) => {
+                          const steps = [...(draft.steps ?? [])];
+                          steps[index] = defaultStep(
+                            event.target.value as QualityStep["operation"],
+                          );
+                          setDraft({ ...draft, steps });
+                        }}
+                      >
+                        <option value="open">Open page</option>
+                        <option value="click">Click</option>
+                        <option value="fill">Fill field</option>
+                        <option value="reload">Reload page</option>
+                        <option value="check">Check text</option>
+                      </select>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Move step ${index + 1} up`}
+                        disabled={index === 0}
+                        onClick={() => {
+                          const steps = [...(draft.steps ?? [])];
+                          [steps[index - 1], steps[index]] = [
+                            steps[index],
+                            steps[index - 1],
+                          ];
+                          setDraft({ ...draft, steps });
+                        }}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Move step ${index + 1} down`}
+                        disabled={index === (draft.steps?.length ?? 0) - 1}
+                        onClick={() => {
+                          const steps = [...(draft.steps ?? [])];
+                          [steps[index], steps[index + 1]] = [
+                            steps[index + 1],
+                            steps[index],
+                          ];
+                          setDraft({ ...draft, steps });
+                        }}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Remove step ${index + 1}`}
+                        onClick={() =>
+                          setDraft({
+                            ...draft,
+                            steps: (draft.steps ?? []).filter(
+                              (_, candidate) => candidate !== index,
+                            ),
+                          })
+                        }
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {step.operation === "open" ? (
+                      <Input
+                        aria-label={`Step ${index + 1} path`}
+                        placeholder="/chat"
+                        value={step.path}
+                        onChange={(event) => {
+                          const steps = [...(draft.steps ?? [])];
+                          steps[index] = { ...step, path: event.target.value };
+                          setDraft({ ...draft, steps });
+                        }}
+                      />
+                    ) : step.operation === "click" ? (
+                      <Input
+                        aria-label={`Step ${index + 1} target`}
+                        placeholder="Button or link text"
+                        value={step.target}
+                        onChange={(event) => {
+                          const steps = [...(draft.steps ?? [])];
+                          steps[index] = {
+                            ...step,
+                            target: event.target.value,
+                          };
+                          setDraft({ ...draft, steps });
+                        }}
+                      />
+                    ) : step.operation === "fill" ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Input
+                          aria-label={`Step ${index + 1} target`}
+                          placeholder="Field label"
+                          value={step.target}
+                          onChange={(event) => {
+                            const steps = [...(draft.steps ?? [])];
+                            steps[index] = {
+                              ...step,
+                              target: event.target.value,
+                            };
+                            setDraft({ ...draft, steps });
+                          }}
+                        />
+                        <Input
+                          aria-label={`Step ${index + 1} value`}
+                          placeholder="Value"
+                          value={step.value}
+                          onChange={(event) => {
+                            const steps = [...(draft.steps ?? [])];
+                            steps[index] = {
+                              ...step,
+                              value: event.target.value,
+                            };
+                            setDraft({ ...draft, steps });
+                          }}
+                        />
+                      </div>
+                    ) : step.operation === "check" ? (
+                      <Input
+                        aria-label={`Step ${index + 1} text`}
+                        placeholder="Text that must appear"
+                        value={step.text}
+                        onChange={(event) => {
+                          const steps = [...(draft.steps ?? [])];
+                          steps[index] = { ...step, text: event.target.value };
+                          setDraft({ ...draft, steps });
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      steps: [...(draft.steps ?? []), defaultStep("check")],
+                    })
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Add step
+                </Button>
+              </fieldset>
             </>
           ) : null}
 
@@ -367,16 +553,33 @@ export function QualityEditorDialog({
                 />
               </label>
               <label className="grid gap-1.5">
-                <Label>Executable test ID</Label>
-                <Input
-                  value={draft.testId ?? ""}
+                <Label>Environment</Label>
+                <select
+                  aria-label="Environment"
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={draft.environmentId ?? ""}
                   onChange={(event) =>
                     setDraft({
                       ...draft,
-                      testId: event.target.value || undefined,
+                      environmentId: event.target.value || undefined,
+                      testId: undefined,
                     })
                   }
-                />
+                >
+                  <option value="">Select environment</option>
+                  {map.environments
+                    .filter((environment) => environment.url)
+                    .map((environment) => (
+                      <option key={environment.id} value={environment.id}>
+                        {environment.label}
+                      </option>
+                    ))}
+                </select>
+                {map.environments.every((environment) => !environment.url) ? (
+                  <span className="text-xs text-amber-300">
+                    Add a URL environment on the Preview page first.
+                  </span>
+                ) : null}
               </label>
               <label className="grid gap-1.5">
                 <Label>Cleanup</Label>
@@ -393,6 +596,7 @@ export function QualityEditorDialog({
           <label className="grid gap-1.5">
             <Label>Status</Label>
             <select
+              aria-label="Status"
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
               value={draft.status}
               onChange={(event) =>

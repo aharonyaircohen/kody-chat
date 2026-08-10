@@ -16,6 +16,12 @@ const qualityMap = {
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
+      steps: [
+        { operation: "open", path: "/chat" },
+        { operation: "fill", target: "Message", value: "Hello" },
+        { operation: "click", target: "Send" },
+        { operation: "check", text: "Hello" },
+      ],
       status: "active",
       updatedAt: "2026-08-09T12:00:00.000Z",
     },
@@ -40,7 +46,7 @@ const qualityMap = {
       given: "A connected repository and configured direct model.",
       expectedVisible: "The same reply is visible after reload.",
       expectedState: "The conversation and messages remain stored.",
-      testId: "direct-kody-chat",
+      environmentId: "production",
       cleanup: "Remove the test conversation.",
       status: "active",
       updatedAt: "2026-08-09T12:00:00.000Z",
@@ -93,24 +99,50 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/kody/quality/**", (route) =>
     json(route, qualityMap),
   );
+  await page.route("**/api/kody/dashboard-config", (route) =>
+    json(route, {
+      config: {
+        version: 1,
+        namedPreviews: [
+          {
+            id: "production",
+            label: "Production",
+            url: "https://widgets.example.com",
+          },
+        ],
+      },
+    }),
+  );
 });
 
 for (const pageCase of [
-  { path: "actions", title: "Actions", item: "Send a message" },
+  {
+    path: "actions",
+    title: "Actions",
+    item: "Send a message",
+    slug: "send-message",
+    count: "1 action",
+  },
   {
     path: "journeys",
     title: "Journeys",
     item: "Direct chat survives reload",
+    slug: "direct-chat-persists",
+    count: "1 journey",
   },
   {
     path: "scenarios",
     title: "Scenarios",
     item: "Reply persists after reload",
+    slug: "reply-persists",
+    count: "1 scenario",
   },
   {
     path: "runs",
     title: "Quality Runs",
     item: "Reply persists after reload",
+    slug: "reply-persists-20260809",
+    count: "1 quality run",
   },
 ] as const) {
   test(`manages ${pageCase.title} from a repository-scoped page`, async ({
@@ -124,12 +156,25 @@ for (const pageCase of [
       page.getByRole("heading", { name: pageCase.title, exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(pageCase.item, { exact: true })).toBeVisible();
+    await expect(page.getByText(pageCase.count, { exact: true })).toBeVisible();
+    await expect(page.getByText(pageCase.slug, { exact: true })).toHaveCount(0);
     await expect(
-      page.getByPlaceholder(`Search ${pageCase.path}...`),
+      page.getByPlaceholder(`Search ${pageCase.path}…`),
     ).toBeVisible();
     await expect(page).toHaveURL(
       new RegExp(`/repo/acme/widgets/quality/${pageCase.path}$`),
     );
+
+    await page.getByRole("button", { name: new RegExp(pageCase.item) }).click();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/repo/acme/widgets/quality/${pageCase.path}/${pageCase.slug}$`,
+      ),
+    );
+    await expect(
+      page.getByRole("heading", { name: pageCase.item, exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(pageCase.slug, { exact: true })).toBeVisible();
   });
 }
 
@@ -154,6 +199,8 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
   await page.getByLabel("Name").fill("Open a conversation");
   await page.getByLabel("User outcome").fill("The user opens Chat.");
   await page.getByLabel("Product area").fill("Chat");
+  await expect(page.getByLabel("Step 1 operation")).toHaveValue("open");
+  await page.getByLabel("Step 1 path").fill("/chat");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
     page.getByText("Open a conversation", { exact: true }).first(),
@@ -169,6 +216,36 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
     .last()
     .click();
   await expect(page.getByText("No Actions yet")).toBeVisible();
+});
+
+test("binds a Scenario to a repository environment", async ({ page }) => {
+  let scenarios: typeof qualityMap.scenarios = [];
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) => {
+    if (route.request().method() === "POST") {
+      scenarios = [route.request().postDataJSON()];
+      return json(route, { ok: true }, 201);
+    }
+    return json(route, { ...qualityMap, scenarios });
+  });
+
+  await page.goto("/repo/acme/widgets/quality/scenarios");
+  await page.getByRole("button", { name: "New scenario" }).click();
+  await page.getByLabel("Name").fill("Production chat opens");
+  await page.getByLabel("Starting conditions").fill("Production is available.");
+  await page.getByLabel("Visible proof").fill("Chat is visible.");
+  await page
+    .getByLabel("Stored-state proof")
+    .fill("No state change is needed.");
+  await expect(page.getByLabel("Environment")).toHaveValue("production");
+  await page.getByLabel("Status").selectOption("active");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(
+    page.getByText("Production chat opens", { exact: true }).first(),
+  ).toBeVisible();
+  expect(scenarios[0]?.environmentId).toBe("production");
+  expect(scenarios[0]).not.toHaveProperty("testId");
 });
 
 test("archives and restores a Quality Run while keeping its evidence", async ({
@@ -192,7 +269,7 @@ test("archives and restores a Quality Run while keeping its evidence", async ({
 
   await page.goto("/repo/acme/widgets/quality/runs");
   await page
-    .getByRole("button", { name: /Reply persists after reload local · passed/ })
+    .getByRole("button", { name: /Reply persists after reload/ })
     .click();
   await expect(
     page.getByRole("link", { name: "Open Quality evidence" }),
@@ -208,7 +285,7 @@ test("archives and restores a Quality Run while keeping its evidence", async ({
 
   await page.getByRole("button", { name: "Show archived" }).click();
   await page
-    .getByRole("button", { name: /Reply persists after reload local · passed/ })
+    .getByRole("button", { name: /Reply persists after reload/ })
     .click();
   await expect(
     page.getByRole("link", { name: "Open Quality evidence" }),

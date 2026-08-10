@@ -22,14 +22,41 @@ export const qualityRunStatusSchema = z.enum([
 const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const timestampSchema = z.string().datetime();
 
-export const actionSchema = z.object({
-  slug: slugSchema,
-  name: z.string().trim().min(1).max(160),
-  outcome: z.string().trim().min(1).max(2000),
-  area: z.string().trim().min(1).max(120),
-  status: qualityStatusSchema,
-  updatedAt: timestampSchema,
-});
+const stepText = z.string().trim().min(1).max(500);
+export const qualityStepSchema = z.discriminatedUnion("operation", [
+  z.object({
+    operation: z.literal("open"),
+    path: z.string().trim().min(1).max(2048),
+  }),
+  z.object({ operation: z.literal("click"), target: stepText }),
+  z.object({
+    operation: z.literal("fill"),
+    target: stepText,
+    value: z.string().max(4000),
+  }),
+  z.object({ operation: z.literal("reload") }),
+  z.object({ operation: z.literal("check"), text: stepText }),
+]);
+
+export const actionSchema = z
+  .object({
+    slug: slugSchema,
+    name: z.string().trim().min(1).max(160),
+    outcome: z.string().trim().min(1).max(2000),
+    area: z.string().trim().min(1).max(120),
+    steps: z.array(qualityStepSchema).min(1).max(50).optional(),
+    status: qualityStatusSchema,
+    updatedAt: timestampSchema,
+  })
+  .superRefine((action, context) => {
+    if (action.status === "active" && !action.steps?.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["steps"],
+        message: "Active Actions require executable steps",
+      });
+    }
+  });
 
 export const journeySchema = z.object({
   slug: slugSchema,
@@ -50,22 +77,24 @@ export const scenarioSchema = z
     given: z.string().trim().min(1).max(4000),
     expectedVisible: z.string().trim().min(1).max(4000),
     expectedState: z.string().trim().min(1).max(4000),
+    environmentId: slugSchema.optional(),
     testId: slugSchema.optional(),
     cleanup: z.string().trim().max(4000).optional(),
     status: qualityStatusSchema,
     updatedAt: timestampSchema,
   })
   .superRefine((scenario, context) => {
-    if (scenario.status === "active" && !scenario.testId) {
+    if (scenario.status === "active" && !scenario.environmentId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["testId"],
-        message: "Active scenarios require an executable test",
+        path: ["environmentId"],
+        message: "Active Scenarios require a repository environment",
       });
     }
   });
 
 export type QualityAction = z.infer<typeof actionSchema>;
+export type QualityStep = z.infer<typeof qualityStepSchema>;
 export type QualityJourney = z.infer<typeof journeySchema>;
 export type QualityScenario = z.infer<typeof scenarioSchema>;
 export type QualityRunStatus = z.infer<typeof qualityRunStatusSchema>;

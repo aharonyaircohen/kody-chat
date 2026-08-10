@@ -157,8 +157,8 @@ export async function POST(request: Request) {
           type: "quality_run_completed",
           status: qualityStatus,
           ...(summary ? { summary } : {}),
-          ...(typeof output.testId === "string"
-            ? { testId: output.testId }
+          ...(typeof output.journeyName === "string"
+            ? { journeyName: output.journeyName }
             : {}),
           ...(typeof output.artifactPath === "string"
             ? { artifactPath: output.artifactPath }

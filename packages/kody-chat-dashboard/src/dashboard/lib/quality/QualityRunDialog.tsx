@@ -31,10 +31,22 @@ export function QualityRunDialog({
 }) {
   const executable = useMemo(
     () =>
-      map.scenarios.filter(
-        (scenario) => scenario.status === "active" && !!scenario.testId,
-      ),
-    [map.scenarios],
+      map.scenarios.filter((scenario) => {
+        const journey = map.journeys.find(
+          (candidate) => candidate.slug === scenario.journeySlug,
+        );
+        return Boolean(
+          scenario.status === "active" &&
+          scenario.environmentId &&
+          journey?.actionSlugs.length &&
+          journey.actionSlugs.every((slug) =>
+            map.actions.some(
+              (action) => action.slug === slug && action.steps?.length,
+            ),
+          ),
+        );
+      }),
+    [map.actions, map.journeys, map.scenarios],
   );
   const [scenarioSlug, setScenarioSlug] = useState("");
 
@@ -52,8 +64,8 @@ export function QualityRunDialog({
         <DialogHeader>
           <DialogTitle>Start Quality Run</DialogTitle>
           <DialogDescription>
-            Kody will run the exact bound test against this Dashboard
-            environment and preserve its evidence.
+            Kody will run the saved Journey against its selected repository
+            environment and preserve the evidence.
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-1.5 py-2">
@@ -72,8 +84,8 @@ export function QualityRunDialog({
         </label>
         {executable.length === 0 ? (
           <p className="text-sm text-amber-300">
-            Activate a Scenario with an executable test before starting a
-            Quality Run.
+            An active Scenario needs an environment and a Journey whose Actions
+            contain browser steps.
           </p>
         ) : null}
         <div className="flex justify-end gap-2">

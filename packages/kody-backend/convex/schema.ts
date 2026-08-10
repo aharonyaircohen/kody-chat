@@ -779,6 +779,21 @@ export default defineSchema({
     name: v.string(),
     outcome: v.string(),
     area: v.string(),
+    steps: v.optional(
+      v.array(
+        v.union(
+          v.object({ operation: v.literal("open"), path: v.string() }),
+          v.object({ operation: v.literal("click"), target: v.string() }),
+          v.object({
+            operation: v.literal("fill"),
+            target: v.string(),
+            value: v.string(),
+          }),
+          v.object({ operation: v.literal("reload") }),
+          v.object({ operation: v.literal("check"), text: v.string() }),
+        ),
+      ),
+    ),
     status: v.union(
       v.literal("draft"),
       v.literal("active"),
@@ -822,6 +837,7 @@ export default defineSchema({
     given: v.string(),
     expectedVisible: v.string(),
     expectedState: v.string(),
+    environmentId: v.optional(v.string()),
     testId: v.optional(v.string()),
     cleanup: v.optional(v.string()),
     status: v.union(

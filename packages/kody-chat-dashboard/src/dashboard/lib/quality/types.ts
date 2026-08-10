@@ -38,6 +38,7 @@ export type QualityMap = {
   scenarios: QualityScenario[];
   runs: QualityRun[];
   currentSourceCommit: string | null;
+  environments: Array<{ id: string; label: string; url?: string }>;
 };
 
 export type QualityResource = "actions" | "journeys" | "scenarios" | "runs";

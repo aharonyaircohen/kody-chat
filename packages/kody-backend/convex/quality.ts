@@ -29,6 +29,17 @@ const runStatus = v.union(
   v.literal("blocked"),
   v.literal("cancelled"),
 );
+const qualityStep = v.union(
+  v.object({ operation: v.literal("open"), path: v.string() }),
+  v.object({ operation: v.literal("click"), target: v.string() }),
+  v.object({
+    operation: v.literal("fill"),
+    target: v.string(),
+    value: v.string(),
+  }),
+  v.object({ operation: v.literal("reload") }),
+  v.object({ operation: v.literal("check"), text: v.string() }),
+);
 
 async function findBySlug(
   ctx: Pick<MutationCtx, "db">,
@@ -70,6 +81,7 @@ export const saveAction = mutation({
     name: v.string(),
     outcome: v.string(),
     area: v.string(),
+    steps: v.optional(v.array(qualityStep)),
     status: definitionStatus,
     updatedAt: v.string(),
   },
@@ -172,6 +184,7 @@ export const saveScenario = mutation({
     given: v.string(),
     expectedVisible: v.string(),
     expectedState: v.string(),
+    environmentId: v.optional(v.string()),
     testId: v.optional(v.string()),
     cleanup: v.optional(v.string()),
     status: definitionStatus,
@@ -187,8 +200,10 @@ export const saveScenario = mutation({
       ))
     )
       throw new ConvexError(`Unknown Journey: ${args.journeySlug}`);
-    if (args.status === "active" && !args.testId)
-      throw new ConvexError("Active Scenarios require an executable test");
+    if (args.status === "active" && !args.environmentId && !args.testId)
+      throw new ConvexError(
+        "Active Scenarios require a repository environment",
+      );
     const existing = await findBySlug(
       ctx,
       "qualityScenarios",

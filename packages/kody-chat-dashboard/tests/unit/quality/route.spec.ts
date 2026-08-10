@@ -87,7 +87,7 @@ describe("Quality routes", () => {
     });
   });
 
-  it("rejects active scenarios without a test binding", async () => {
+  it("rejects active scenarios without a repository environment", async () => {
     const response = await POST(
       request("POST", {
         slug: "reply-persists",
@@ -97,6 +97,7 @@ describe("Quality routes", () => {
         given: "A configured model.",
         expectedVisible: "The reply remains visible.",
         expectedState: "The reply remains stored.",
+        testId: "old-detached-test",
         status: "active",
       }),
       { params: Promise.resolve({ resource: "scenarios" }) },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -8,10 +8,15 @@ import {
   Activity,
   Archive,
   ArchiveRestore,
+  ArrowLeft,
+  CheckCircle2,
+  CircleDot,
+  ExternalLink,
   Footprints,
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Trash2,
   Zap,
@@ -19,6 +24,7 @@ import {
 
 import { Button } from "@kody-ade/base/ui/button";
 import { repoScopedHref } from "@kody-ade/base/routes";
+import { resolveEnvironments } from "@kody-ade/fly/preview-environments";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -34,6 +40,7 @@ import { qualityRunHealth } from "./contracts";
 import { QualityEditorDialog } from "./QualityEditorDialog";
 import { QualityRunDialog } from "./QualityRunDialog";
 import type { QualityMap, QualityRecord, QualityResource } from "./types";
+import { cn } from "../utils";
 
 const CONFIG = {
   actions: {
@@ -41,24 +48,28 @@ const CONFIG = {
     singular: "Action",
     icon: Zap,
     empty: "No Actions yet",
+    hint: "Add a reusable user action to start mapping product quality.",
   },
   journeys: {
     title: "Journeys",
     singular: "Journey",
     icon: Footprints,
     empty: "No Journeys yet",
+    hint: "Combine Actions into an end-to-end user goal.",
   },
   scenarios: {
     title: "Scenarios",
     singular: "Scenario",
     icon: ShieldCheck,
     empty: "No Scenarios yet",
+    hint: "Add a meaningful variation and define the proof it needs.",
   },
   runs: {
     title: "Quality Runs",
     singular: "Quality Run",
     icon: Activity,
     empty: "No Quality Runs yet",
+    hint: "Run an active Scenario to create durable quality evidence.",
   },
 } as const;
 
@@ -91,28 +102,125 @@ function scenarioHealth(scenario: QualityScenario, map: QualityMap) {
     scenarioUpdatedAt: scenario.updatedAt,
     latestRun: latest ?? null,
     targetCommit: map.currentSourceCommit,
-    hasTest: !!scenario.testId,
+    hasTest: scenarioExecutable(scenario, map),
   });
+}
+
+function scenarioExecutable(scenario: QualityScenario, map: QualityMap) {
+  const journey = map.journeys.find(
+    (candidate) => candidate.slug === scenario.journeySlug,
+  );
+  return Boolean(
+    scenario.environmentId &&
+    journey?.actionSlugs.length &&
+    journey.actionSlugs.every((slug) => {
+      const action = map.actions.find((candidate) => candidate.slug === slug);
+      return action?.steps?.length;
+    }),
+  );
+}
+
+function displayLabel(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function toneFor(value: string): string {
+  switch (value) {
+    case "active":
+    case "passed":
+    case "passing":
+      return "border-emerald-500/25 bg-emerald-500/10 text-emerald-300";
+    case "failed":
+    case "failing":
+      return "border-red-500/25 bg-red-500/10 text-red-300";
+    case "blocked":
+    case "critical":
+      return "border-amber-500/25 bg-amber-500/10 text-amber-300";
+    case "running":
+      return "border-cyan-500/25 bg-cyan-500/10 text-cyan-300";
+    default:
+      return "border-white/10 bg-white/[0.04] text-muted-foreground";
+  }
+}
+
+function QualityBadge({ value }: { value: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+        toneFor(value),
+      )}
+    >
+      {displayLabel(value)}
+    </span>
+  );
+}
+
+function DetailCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 md:p-5">
+      <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function DetailValue({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          "mt-1 whitespace-pre-wrap break-words text-sm text-foreground",
+          mono && "font-mono text-xs",
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
 }
 
 async function readQuality(
   resource: QualityResource,
   headers: Record<string, string>,
 ): Promise<QualityMap> {
-  const response = await fetch(`/api/kody/quality/${resource}`, {
-    headers,
-    cache: "no-store",
-  });
+  const [response, configResponse] = await Promise.all([
+    fetch(`/api/kody/quality/${resource}`, { headers, cache: "no-store" }),
+    fetch("/api/kody/dashboard-config", { headers, cache: "no-store" }),
+  ]);
   const payload = (await response.json()) as Partial<QualityMap> & {
     error?: string;
   };
   if (!response.ok) throw new Error(payload.error ?? "Unable to load Quality");
+  const configPayload = configResponse.ok
+    ? ((await configResponse.json()) as {
+        config?: Parameters<typeof resolveEnvironments>[0];
+      })
+    : null;
   return {
     actions: payload.actions ?? [],
     journeys: payload.journeys ?? [],
     scenarios: payload.scenarios ?? [],
     runs: payload.runs ?? [],
     currentSourceCommit: payload.currentSourceCommit ?? null,
+    environments: resolveEnvironments(configPayload?.config),
   };
 }
 
@@ -132,6 +240,7 @@ function recordsFor(
 function Detail({
   record,
   map,
+  onBack,
   onEdit,
   onDelete,
   onRun,
@@ -139,135 +248,376 @@ function Detail({
 }: {
   record: QualityRecord;
   map: QualityMap;
+  onBack: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onRun?: () => void;
   onArchive?: () => void;
 }) {
-  const fields: Array<[string, string]> =
+  const Icon =
     "outcome" in record
-      ? [
-          ["User outcome", record.outcome],
-          ["Product area", record.area],
-          ["Status", record.status],
-        ]
+      ? Zap
       : "goal" in record
-        ? [
-            ["User goal", record.goal],
-            ["Priority", record.priority],
-            [
-              "Actions",
-              record.actionSlugs
-                .map(
-                  (slug) =>
-                    map.actions.find((action) => action.slug === slug)?.name ??
-                    slug,
-                )
-                .join(" → ") || "No Actions",
-            ],
-            ["Status", record.status],
-          ]
+        ? Footprints
         : "given" in record
-          ? [
-              [
-                "Journey",
-                map.journeys.find(
-                  (journey) => journey.slug === record.journeySlug,
-                )?.name ?? record.journeySlug,
-              ],
-              ["Kind", record.kind],
-              ["Starting conditions", record.given],
-              ["Visible proof", record.expectedVisible],
-              ["Stored-state proof", record.expectedState],
-              ["Executable test", record.testId ?? "Uncovered"],
-              ["Cleanup", record.cleanup || "None"],
-              ["Status", record.status],
-              ["Health", scenarioHealth(record, map).replaceAll("_", " ")],
-            ]
-          : [
-              [
-                "Scenario",
-                map.scenarios.find(
-                  (scenario) => scenario.slug === record.scenarioSlug,
-                )?.name ?? record.scenarioSlug,
-              ],
-              ["Environment", record.environment],
-              ["Target", record.targetUrl],
-              ["Source commit", record.sourceCommit],
-              ["Status", record.status],
-              ["Evidence", record.latestEvent?.artifactPath ?? "Pending"],
-              ["Evidence URL", record.latestEvent?.artifactUrl ?? "Pending"],
-              [
-                "Tests",
-                record.latestEvent
-                  ? `${record.latestEvent.passed ?? 0} passed · ${record.latestEvent.failed ?? 0} failed`
-                  : "Pending",
-              ],
-              ["Summary", record.latestEvent?.summary ?? "Pending"],
-              ["Error", record.error ?? "None"],
-            ];
+          ? ShieldCheck
+          : Activity;
+  const status = record.status;
+  const scenario =
+    "runSlug" in record
+      ? map.scenarios.find(
+          (candidate) => candidate.slug === record.scenarioSlug,
+        )
+      : null;
   return (
-    <div className="p-5 md:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">{recordName(record, map)}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {recordSlug(record)}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {onRun ? (
-            <Button size="sm" onClick={onRun}>
-              <Play className="mr-1.5 h-4 w-4" />
-              Quality Run
-            </Button>
-          ) : null}
-          {onEdit ? (
-            <Button variant="outline" size="sm" onClick={onEdit}>
-              <Pencil className="mr-1.5 h-4 w-4" />
-              Edit
-            </Button>
-          ) : null}
-          {onArchive ? (
-            <Button variant="outline" size="sm" onClick={onArchive}>
-              {"runSlug" in record && record.archived ? (
-                <ArchiveRestore className="mr-1.5 h-4 w-4" />
-              ) : (
-                <Archive className="mr-1.5 h-4 w-4" />
-              )}
-              {"runSlug" in record && record.archived ? "Restore" : "Archive"}
-            </Button>
-          ) : null}
-          {onDelete ? (
-            <Button variant="destructive" size="sm" onClick={onDelete}>
-              <Trash2 className="mr-1.5 h-4 w-4" />
-              Delete
-            </Button>
-          ) : null}
+    <article className="min-h-full">
+      <div className="border-b border-white/[0.06] bg-gradient-to-b from-cyan-500/[0.06] via-cyan-500/[0.02] to-transparent">
+        <div className="mx-auto max-w-4xl space-y-5 p-4 md:p-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="-ml-2 gap-1 text-muted-foreground md:hidden"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <header className="flex flex-col items-start gap-4">
+            <div className="min-w-0 w-full">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Icon className="h-5 w-5 shrink-0 text-cyan-300" />
+                <h2 className="min-w-0 break-words text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+                  {recordName(record, map)}
+                </h2>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-mono">{recordSlug(record)}</span>
+                <span>·</span>
+                <QualityBadge value={status} />
+                {"given" in record ? (
+                  <QualityBadge value={scenarioHealth(record, map)} />
+                ) : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {onRun ? (
+                <Button size="sm" onClick={onRun}>
+                  <Play className="h-4 w-4" />
+                  Run
+                </Button>
+              ) : null}
+              {onEdit ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  aria-label={`Edit ${recordName(record, map)}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+              ) : null}
+              {onArchive ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onArchive}
+                  aria-label={
+                    "runSlug" in record && record.archived
+                      ? "Restore"
+                      : "Archive"
+                  }
+                >
+                  {"runSlug" in record && record.archived ? (
+                    <ArchiveRestore className="h-4 w-4" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {"runSlug" in record && record.archived
+                      ? "Restore"
+                      : "Archive"}
+                  </span>
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-400 hover:text-red-300"
+                  onClick={onDelete}
+                  aria-label={`Delete ${recordName(record, map)}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Delete</span>
+                </Button>
+              ) : null}
+            </div>
+          </header>
         </div>
       </div>
-      <dl className="mt-8 grid gap-5">
-        {fields.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {label}
-            </dt>
-            <dd className="mt-1 whitespace-pre-wrap text-sm">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {"runSlug" in record && record.latestEvent?.artifactUrl ? (
-        <Button asChild variant="outline" className="mt-6">
-          <a
-            href={record.latestEvent.artifactUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open Quality evidence
-          </a>
-        </Button>
+      <div className="mx-auto grid max-w-4xl gap-4 p-4 md:p-8">
+        {"outcome" in record ? (
+          <>
+            <DetailCard title="User outcome">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                {record.outcome}
+              </p>
+            </DetailCard>
+            <DetailCard title="Browser steps">
+              {record.steps?.length ? (
+                <ol className="grid gap-2">
+                  {record.steps.map((step, index) => (
+                    <li
+                      key={index}
+                      className="rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5 text-sm"
+                    >
+                      <span className="mr-2 text-cyan-300">{index + 1}.</span>
+                      <span className="capitalize">{step.operation}</span>
+                      {"path" in step
+                        ? ` ${step.path}`
+                        : "target" in step
+                          ? ` ${step.target}`
+                          : "text" in step
+                            ? ` ${step.text}`
+                            : ""}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-amber-300">No executable steps</p>
+              )}
+            </DetailCard>
+            <DetailCard title="Details">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailValue label="Product area" value={record.area} />
+                <DetailValue
+                  label="Status"
+                  value={displayLabel(record.status)}
+                />
+              </dl>
+            </DetailCard>
+          </>
+        ) : "goal" in record ? (
+          <>
+            <DetailCard title="User goal">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                {record.goal}
+              </p>
+            </DetailCard>
+            <DetailCard title="Actions">
+              {record.actionSlugs.length ? (
+                <ol className="grid gap-2">
+                  {record.actionSlugs.map((slug, index) => (
+                    <li
+                      key={slug}
+                      className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-xs font-medium text-cyan-300">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 truncate text-sm">
+                        {map.actions.find((action) => action.slug === slug)
+                          ?.name ?? slug}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">No Actions</p>
+              )}
+            </DetailCard>
+            <DetailCard title="Details">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailValue label="Priority" value={record.priority} />
+                <DetailValue
+                  label="Status"
+                  value={displayLabel(record.status)}
+                />
+              </dl>
+            </DetailCard>
+          </>
+        ) : "given" in record ? (
+          <>
+            <DetailCard title="Scenario">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailValue
+                  label="Journey"
+                  value={
+                    map.journeys.find(
+                      (journey) => journey.slug === record.journeySlug,
+                    )?.name ?? record.journeySlug
+                  }
+                />
+                <DetailValue label="Kind" value={record.kind} />
+              </dl>
+            </DetailCard>
+            <DetailCard title="Starting conditions">
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                {record.given}
+              </p>
+            </DetailCard>
+            <DetailCard title="Required proof">
+              <dl className="grid gap-5 sm:grid-cols-2">
+                <DetailValue
+                  label="Visible result"
+                  value={record.expectedVisible}
+                />
+                <DetailValue
+                  label="Stored state"
+                  value={record.expectedState}
+                />
+              </dl>
+            </DetailCard>
+            <DetailCard title="Execution">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailValue
+                  label="Environment"
+                  value={
+                    map.environments.find(
+                      (environment) => environment.id === record.environmentId,
+                    )?.label ?? "Not selected"
+                  }
+                />
+                <DetailValue label="Cleanup" value={record.cleanup || "None"} />
+              </dl>
+            </DetailCard>
+          </>
+        ) : (
+          <>
+            <DetailCard title="Result">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    {record.status === "passed" ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                    ) : (
+                      <CircleDot className="h-5 w-5 text-cyan-300" />
+                    )}
+                    <span className="text-lg font-medium capitalize text-foreground">
+                      {displayLabel(record.status)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {record.latestEvent?.summary ?? "Waiting for a result."}
+                  </p>
+                </div>
+                {record.latestEvent ? (
+                  <div className="rounded-lg border border-white/[0.08] bg-black/20 px-4 py-2 text-sm">
+                    <span className="text-emerald-300">
+                      {record.latestEvent.passed ?? 0} passed
+                    </span>
+                    <span className="mx-2 text-muted-foreground">·</span>
+                    <span
+                      className={
+                        record.latestEvent.failed
+                          ? "text-red-300"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {record.latestEvent.failed ?? 0} failed
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              {record.latestEvent?.artifactUrl ? (
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <a
+                    href={record.latestEvent.artifactUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Quality evidence
+                  </a>
+                </Button>
+              ) : null}
+            </DetailCard>
+            <DetailCard title="Run details">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailValue
+                  label="Scenario"
+                  value={scenario?.name ?? record.scenarioSlug}
+                />
+                <DetailValue label="Environment" value={record.environment} />
+                <DetailValue label="Target" value={record.targetUrl} mono />
+                <DetailValue
+                  label="Source commit"
+                  value={record.sourceCommit}
+                  mono
+                />
+                <DetailValue
+                  label="Evidence path"
+                  value={record.latestEvent?.artifactPath ?? "Pending"}
+                  mono={!!record.latestEvent?.artifactPath}
+                />
+                <DetailValue label="Error" value={record.error ?? "None"} />
+              </dl>
+            </DetailCard>
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function QualityRow({
+  record,
+  map,
+  active,
+  onSelect,
+}: {
+  record: QualityRecord;
+  map: QualityMap;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const Icon =
+    "outcome" in record
+      ? Zap
+      : "goal" in record
+        ? Footprints
+        : "given" in record
+          ? ShieldCheck
+          : Activity;
+  const badge =
+    "given" in record
+      ? scenarioHealth(record, map)
+      : "goal" in record
+        ? record.priority
+        : record.status;
+  return (
+    <button
+      type="button"
+      className={cn(
+        "relative block w-full px-4 py-3 text-left transition-colors hover:bg-accent/50",
+        active && "bg-cyan-500/10",
+      )}
+      onClick={onSelect}
+    >
+      {active ? (
+        <span className="absolute inset-y-0 left-0 w-0.5 bg-cyan-400" />
       ) : null}
-    </div>
+      <div className="flex min-w-0 items-start gap-3">
+        <Icon
+          className={cn(
+            "mt-0.5 h-4 w-4 shrink-0",
+            active ? "text-cyan-300" : "text-muted-foreground",
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <span className="truncate text-sm font-medium text-foreground">
+              {recordName(record, map)}
+            </span>
+            <QualityBadge value={badge} />
+          </div>
+          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            {recordSummary(record, map)}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -311,6 +661,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
     scenarios: [],
     runs: [],
     currentSourceCommit: null,
+    environments: [],
   };
   const records = recordsFor(resource, map).filter(
     (record) =>
@@ -457,12 +808,34 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
       <MasterDetailShell
         title={config.title}
         icon={config.icon}
-        iconClassName="text-cyan-300"
+        iconClassName="text-cyan-400"
+        subtitle={`${records.length} ${records.length === 1 ? config.singular.toLowerCase() : config.title.toLowerCase()}`}
         search={search}
         onSearch={setSearch}
-        searchPlaceholder={`Search ${resource}...`}
+        searchPlaceholder={`Search ${resource}…`}
         searchAriaLabel={`Search ${resource}`}
         accent="teal"
+        listAside={
+          resource === "runs" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 w-full justify-start text-muted-foreground"
+              aria-pressed={showArchived}
+              aria-label={showArchived ? "Hide archived" : "Show archived"}
+              disabled={leavingArchivedRun}
+              onClick={() =>
+                router.replace(
+                  showArchived ? canonicalBasePath : `${pathname}?archived=1`,
+                )
+              }
+            >
+              <Archive className="mr-1.5 h-4 w-4" />
+              {showArchived ? "Hide archived" : "Show archived"}
+            </Button>
+          ) : undefined
+        }
+        listWidth="md:w-72"
         hasSelection={!!selected}
         actions={
           resource === "runs" ? (
@@ -470,22 +843,18 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               <Button
                 variant="outline"
                 size="sm"
-                aria-pressed={showArchived}
-                aria-label={showArchived ? "Hide archived" : "Show archived"}
-                disabled={leavingArchivedRun}
-                onClick={() =>
-                  router.replace(
-                    showArchived ? canonicalBasePath : `${pathname}?archived=1`,
-                  )
-                }
+                className="w-9 px-0"
+                onClick={() => void query.refetch()}
+                disabled={query.isFetching}
+                aria-label="Refresh Quality Runs"
               >
-                <Archive className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">
-                  {showArchived ? "Hide archived" : "Show archived"}
-                </span>
+                <RefreshCw
+                  className={cn("h-4 w-4", query.isFetching && "animate-spin")}
+                />
               </Button>
               <Button
                 size="sm"
+                className="w-9 px-0 sm:w-auto sm:px-3"
                 aria-label="New Quality Run"
                 onClick={() => setStartingRun(true)}
               >
@@ -494,18 +863,44 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               </Button>
             </div>
           ) : (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              New {config.singular.toLowerCase()}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-9 px-0"
+                onClick={() => void query.refetch()}
+                disabled={query.isFetching}
+                aria-label={`Refresh ${config.title}`}
+              >
+                <RefreshCw
+                  className={cn("h-4 w-4", query.isFetching && "animate-spin")}
+                />
+              </Button>
+              <Button
+                size="sm"
+                className="w-9 px-0 sm:w-auto sm:px-3"
+                onClick={() => setCreating(true)}
+                aria-label={`New ${config.singular.toLowerCase()}`}
+              >
+                <Plus className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">
+                  New {config.singular.toLowerCase()}
+                </span>
+              </Button>
+            </>
           )
         }
-        error={query.error instanceof Error ? query.error.message : null}
+        error={
+          query.error instanceof Error
+            ? `Failed to load ${config.title.toLowerCase()}: ${query.error.message}`
+            : null
+        }
         detail={
           selected ? (
             <Detail
               record={selected}
               map={map}
+              onBack={() => router.push(canonicalBasePath)}
               onEdit={
                 resource === "runs" ? undefined : () => setEditing(selected)
               }
@@ -517,8 +912,9 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               }
               onRun={
                 resource === "scenarios" &&
-                "testId" in selected &&
-                selected.status === "active"
+                "journeySlug" in selected &&
+                selected.status === "active" &&
+                scenarioExecutable(selected, map)
                   ? () =>
                       router.push(
                         `${auth ? repoScopedHref(auth, "/quality/runs") : "/quality/runs"}?scenario=${encodeURIComponent(selected.slug)}`,
@@ -530,6 +926,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
             <EmptyState
               icon={<config.icon />}
               title={`Select ${config.singular.toLowerCase()}`}
+              hint={`Pick one from the list to inspect its ${resource === "runs" ? "result and evidence" : "details"}.`}
             />
           )
         }
@@ -543,17 +940,25 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
           <EmptyState
             icon={<config.icon />}
             title={search ? `No matching ${config.title}` : config.empty}
+            hint={search ? `Nothing matched “${search}”.` : config.hint}
+            action={
+              !search && resource !== "runs" ? (
+                <Button size="sm" onClick={() => setCreating(true)}>
+                  <Plus className="h-4 w-4" />
+                  New {config.singular.toLowerCase()}
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
           <ul className="divide-y divide-border">
             {filtered.map((record) => (
               <li key={recordSlug(record)}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="clear"
-                  className="w-full px-4 py-3 text-left"
-                  onClick={() => {
+                <QualityRow
+                  record={record}
+                  map={map}
+                  active={recordSlug(record) === selectedSlug}
+                  onSelect={() => {
                     const destination = selectionPath(
                       canonicalBasePath,
                       recordSlug(record),
@@ -564,14 +969,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
                         : destination,
                     );
                   }}
-                >
-                  <span className="block truncate text-sm font-medium">
-                    {recordName(record, map)}
-                  </span>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {recordSummary(record, map)}
-                  </span>
-                </Button>
+                />
               </li>
             ))}
           </ul>

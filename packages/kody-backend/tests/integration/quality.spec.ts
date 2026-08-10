@@ -16,6 +16,10 @@ describe("quality", () => {
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
+      steps: [
+        { operation: "fill", target: "Message", value: "Hello" },
+        { operation: "click", target: "Send message" },
+      ],
       status: "active",
       updatedAt: NOW,
     });
@@ -38,7 +42,7 @@ describe("quality", () => {
       given: "A connected repository and configured direct model.",
       expectedVisible: "The same reply is visible after reload.",
       expectedState: "The conversation and messages remain stored.",
-      testId: "direct-kody-chat",
+      environmentId: "production",
       cleanup: "Remove the test conversation.",
       status: "active",
       updatedAt: NOW,
@@ -47,7 +51,8 @@ describe("quality", () => {
     const map = await t.query(api.quality.getMap, { tenantId: TENANT });
     expect(map.actions).toHaveLength(1);
     expect(map.journeys[0].actionSlugs).toEqual(["send-message"]);
-    expect(map.scenarios[0].testId).toBe("direct-kody-chat");
+    expect(map.actions[0].steps).toHaveLength(2);
+    expect(map.scenarios[0].environmentId).toBe("production");
     expect(map.journeys[0]).not.toHaveProperty("version");
   });
 
