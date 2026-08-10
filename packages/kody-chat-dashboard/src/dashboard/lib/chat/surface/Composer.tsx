@@ -491,6 +491,7 @@ export function Composer({
                   rows={4}
                   disabled={composerDisabled}
                   textareaRef={composerTextareaRef}
+                  textareaAriaLabel="Message"
                   textareaClassName="max-h-[36vh]"
                   className="min-w-0 flex-1"
                 />

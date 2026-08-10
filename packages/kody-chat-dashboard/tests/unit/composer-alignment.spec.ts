@@ -28,6 +28,7 @@ describe("composer alignment", () => {
 
   it("gives the chat message field a stable accessible name", () => {
     expect(SOURCE).toContain(': "Message"');
+    expect(SOURCE).toContain('textareaAriaLabel="Message"');
   });
 
   it("anchors the compose menu to the logical start edge for RTL", () => {
