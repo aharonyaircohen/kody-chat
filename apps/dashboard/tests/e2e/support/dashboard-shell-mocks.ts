@@ -5,6 +5,10 @@ type ShellResponse = Readonly<Record<string, unknown>>;
 const SHELL_RESPONSES: Readonly<Record<string, ShellResponse>> = {
   "/api/kody/brain/models": { models: [] },
   "/api/kody/dashboard-config": { config: {} },
+  "/api/kody/engine/status": {
+    status: "ready",
+    files: { workflow: "present", config: "present" },
+  },
   "/api/kody/file-spaces": { spaces: [] },
   "/api/kody/navigation-favorites": { favoriteHrefs: [] },
   "/api/kody/secrets": { secrets: [] },
