@@ -43,7 +43,8 @@
       "vercel-production-deploy",
       "ui-review",
       "prepare-ci-repair",
-      "quality-check"
+      "quality-check",
+      "fix-ci"
     ],
     "activeWorkflows": [
       "ci-repair",
