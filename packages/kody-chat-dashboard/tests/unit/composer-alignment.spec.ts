@@ -26,6 +26,10 @@ describe("composer alignment", () => {
     expect(SOURCE).not.toContain('textareaClassName="min-h-10');
   });
 
+  it("gives the chat message field a stable accessible name", () => {
+    expect(SOURCE).toContain(': "Message"');
+  });
+
   it("anchors the compose menu to the logical start edge for RTL", () => {
     expect(SOURCE).toContain(
       'className="absolute bottom-full start-0 z-30 mb-2 grid min-w-52',

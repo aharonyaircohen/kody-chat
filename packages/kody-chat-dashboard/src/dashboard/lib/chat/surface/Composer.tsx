@@ -533,7 +533,7 @@ export function Composer({
                   aria-label={
                     chatMode === "terminal"
                       ? "Terminal command input"
-                      : undefined
+                      : "Message"
                   }
                   className={`block w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
                     chatMode === "terminal"
