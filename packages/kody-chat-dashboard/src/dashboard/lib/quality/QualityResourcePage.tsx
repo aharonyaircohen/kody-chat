@@ -112,10 +112,11 @@ function scenarioExecutable(scenario: QualityScenario, map: QualityMap) {
   );
   return Boolean(
     scenario.environmentId &&
+    journey?.status === "active" &&
     journey?.actionSlugs.length &&
     journey.actionSlugs.every((slug) => {
       const action = map.actions.find((candidate) => candidate.slug === slug);
-      return action?.steps?.length;
+      return action?.status === "active";
     }),
   );
 }
@@ -363,30 +364,6 @@ function Detail({
               <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
                 {record.outcome}
               </p>
-            </DetailCard>
-            <DetailCard title="Browser steps">
-              {record.steps?.length ? (
-                <ol className="grid gap-2">
-                  {record.steps.map((step, index) => (
-                    <li
-                      key={index}
-                      className="rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5 text-sm"
-                    >
-                      <span className="mr-2 text-cyan-300">{index + 1}.</span>
-                      <span className="capitalize">{step.operation}</span>
-                      {"path" in step
-                        ? ` ${step.path}`
-                        : "target" in step
-                          ? ` ${step.target}`
-                          : "text" in step
-                            ? ` ${step.text}`
-                            : ""}
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-sm text-amber-300">No executable steps</p>
-              )}
             </DetailCard>
             <DetailCard title="Details">
               <dl className="grid gap-4 sm:grid-cols-2">

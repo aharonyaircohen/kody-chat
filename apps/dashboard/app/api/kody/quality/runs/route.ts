@@ -47,53 +47,70 @@ const inputSchema = z.object({
 type QualityMap = {
   actions: Array<{
     slug: string;
-    steps?: Array<
-      | { operation: "open"; path: string }
-      | { operation: "click"; target: string }
-      | { operation: "fill"; target: string; value: string }
-      | {
-          operation: "fill";
-          target: string;
-          valueFrom: "github-test-token";
-        }
-      | { operation: "reload" }
-      | { operation: "check"; text: string }
-    >;
+    name: string;
+    outcome: string;
+    area: string;
+    status: "draft" | "active" | "archived";
   }>;
   journeys: Array<{
     slug: string;
     name: string;
+    goal: string;
+    priority: "critical" | "high" | "normal";
+    status: "draft" | "active" | "archived";
     actionSlugs: string[];
     updatedAt: string;
   }>;
   scenarios: Array<{
     slug: string;
     journeySlug: string;
+    name: string;
+    kind:
+      | "happy"
+      | "validation"
+      | "permission"
+      | "failure"
+      | "recovery"
+      | "persistence";
+    given: string;
+    expectedVisible: string;
+    expectedState: string;
+    cleanup?: string;
     status: "draft" | "active" | "archived";
     environmentId?: string;
-    testId?: string;
     updatedAt: string;
   }>;
 };
 
-function executableSteps(
+function executableJourney(
   map: QualityMap,
   journey: QualityMap["journeys"][number],
 ) {
-  if (!Array.isArray(journey.actionSlugs) || journey.actionSlugs.length === 0) {
+  if (
+    journey.status !== "active" ||
+    !Array.isArray(journey.actionSlugs) ||
+    journey.actionSlugs.length === 0
+  ) {
     return null;
   }
-  const steps = journey.actionSlugs.flatMap((slug) => {
-    const action = map.actions.find((candidate) => candidate.slug === slug);
-    return action?.steps ?? [];
-  });
-  return steps.length > 0 &&
-    journey.actionSlugs.every(
-      (slug) =>
-        map.actions.find((action) => action.slug === slug)?.steps?.length,
-    )
-    ? steps
-    : null;
+  const actions = journey.actionSlugs.map((slug) =>
+    map.actions.find((candidate) => candidate.slug === slug),
+  );
+  if (actions.some((action) => !action || action.status !== "active")) {
+    return null;
+  }
+  return {
+    slug: journey.slug,
+    name: journey.name,
+    goal: journey.goal,
+    priority: journey.priority,
+    actions: actions.map((action) => ({
+      slug: action!.slug,
+      name: action!.name,
+      outcome: action!.outcome,
+      area: action!.area,
+    })),
+  };
 }
 
 function safeRemoteTarget(value: string): string | null {
@@ -189,8 +206,12 @@ export async function POST(req: NextRequest) {
         { error: "scenario_not_found" },
         { status: 404 },
       );
-    const steps = journey ? executableSteps(map, journey) : null;
-    if (scenario.status !== "active" || !scenario.environmentId || !steps) {
+    const resolvedJourney = journey ? executableJourney(map, journey) : null;
+    if (
+      scenario.status !== "active" ||
+      !scenario.environmentId ||
+      !resolvedJourney
+    ) {
       return NextResponse.json(
         { error: "scenario_not_executable" },
         { status: 409 },
@@ -252,8 +273,16 @@ export async function POST(req: NextRequest) {
         requestId: runId,
         input: {
           qualityRunId: runId,
-          journeyName: journey.name,
-          steps,
+          journey: resolvedJourney,
+          scenario: {
+            slug: scenario.slug,
+            name: scenario.name,
+            kind: scenario.kind,
+            given: scenario.given,
+            expectedVisible: scenario.expectedVisible,
+            expectedState: scenario.expectedState,
+            ...(scenario.cleanup ? { cleanup: scenario.cleanup } : {}),
+          },
           targetUrl,
           sourceCommit,
         },

@@ -38,10 +38,11 @@ export function QualityRunDialog({
         return Boolean(
           scenario.status === "active" &&
           scenario.environmentId &&
+          journey?.status === "active" &&
           journey?.actionSlugs.length &&
           journey.actionSlugs.every((slug) =>
             map.actions.some(
-              (action) => action.slug === slug && action.steps?.length,
+              (action) => action.slug === slug && action.status === "active",
             ),
           ),
         );
@@ -64,8 +65,7 @@ export function QualityRunDialog({
         <DialogHeader>
           <DialogTitle>Start Quality Run</DialogTitle>
           <DialogDescription>
-            Kody will run the saved Journey against its selected repository
-            environment and preserve the evidence.
+            Kody will act as a live user using the saved Journey and Scenario.
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-1.5 py-2">
@@ -84,8 +84,8 @@ export function QualityRunDialog({
         </label>
         {executable.length === 0 ? (
           <p className="text-sm text-amber-300">
-            An active Scenario needs an environment and a Journey whose Actions
-            contain browser steps.
+            An active Scenario needs an environment and an active Journey with
+            active Actions.
           </p>
         ) : null}
         <div className="flex justify-end gap-2">

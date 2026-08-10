@@ -16,12 +16,6 @@ const qualityMap = {
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
-      steps: [
-        { operation: "open", path: "/chat" },
-        { operation: "fill", target: "Message", value: "Hello" },
-        { operation: "click", target: "Send" },
-        { operation: "check", text: "Hello" },
-      ],
       status: "active",
       updatedAt: "2026-08-09T12:00:00.000Z",
     },
@@ -199,8 +193,7 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
   await page.getByLabel("Name").fill("Open a conversation");
   await page.getByLabel("User outcome").fill("The user opens Chat.");
   await page.getByLabel("Product area").fill("Chat");
-  await expect(page.getByLabel("Step 1 operation")).toHaveValue("open");
-  await page.getByLabel("Step 1 path").fill("/chat");
+  await expect(page.getByText("Browser steps", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
     page.getByText("Open a conversation", { exact: true }).first(),
@@ -218,7 +211,7 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
   await expect(page.getByText("No Actions yet")).toBeVisible();
 });
 
-test("creates a login Action using a protected GitHub test token", async ({
+test("saves an Action without asking the user for browser instructions", async ({
   page,
 }) => {
   let savedAction: Record<string, unknown> | null = null;
@@ -235,25 +228,17 @@ test("creates a login Action using a protected GitHub test token", async ({
   await page.getByLabel("Name").fill("Sign in");
   await page.getByLabel("User outcome").fill("The user signs in.");
   await page.getByLabel("Product area").fill("Authentication");
-  await page.getByLabel("Step 1 operation").selectOption("fill");
-  await page.getByLabel("Step 1 target").fill("GitHub personal access token");
-  await page
-    .getByLabel("Step 1 value source")
-    .selectOption("github-test-token");
-  await expect(page.getByLabel("Step 1 value", { exact: true })).toHaveCount(
-    0,
-  );
+  await page.getByLabel("Status").selectOption("active");
+  await expect(page.getByText("Browser steps", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Save" }).click();
 
   expect(savedAction).toMatchObject({
-    steps: [
-      {
-        operation: "fill",
-        target: "GitHub personal access token",
-        valueFrom: "github-test-token",
-      },
-    ],
+    name: "Sign in",
+    outcome: "The user signs in.",
+    area: "Authentication",
+    status: "active",
   });
+  expect(savedAction).not.toHaveProperty("steps");
   expect(JSON.stringify(savedAction)).not.toContain("e2e-token");
 });
 
@@ -285,6 +270,42 @@ test("binds a Scenario to a repository environment", async ({ page }) => {
   ).toBeVisible();
   expect(scenarios[0]?.environmentId).toBe("production");
   expect(scenarios[0]).not.toHaveProperty("testId");
+});
+
+test("starts an active Scenario without manual browser steps", async ({
+  page,
+}) => {
+  let startedScenario = "";
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) => {
+    if (
+      route.request().method() === "POST" &&
+      new URL(route.request().url()).pathname.endsWith("/quality/runs")
+    ) {
+      startedScenario = route.request().postDataJSON().scenarioSlug;
+      return json(
+        route,
+        {
+          runId: "run-agent",
+          runSlug: "reply-persists-agent",
+          status: "running",
+        },
+        202,
+      );
+    }
+    return json(route, qualityMap);
+  });
+
+  await page.goto("/repo/acme/widgets/quality/runs");
+  await page.getByRole("button", { name: "New Quality Run" }).click();
+  await expect(
+    page.getByText(
+      "Kody will act as a live user using the saved Journey and Scenario.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Start Quality Run" }).click();
+
+  expect(startedScenario).toBe("reply-persists");
 });
 
 test("archives and restores a Quality Run while keeping its evidence", async ({

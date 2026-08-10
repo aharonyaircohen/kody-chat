@@ -122,16 +122,19 @@ describe("POST /api/kody/quality/runs", () => {
       actions: [
         {
           slug: "send-message",
-          steps: [
-            { operation: "fill", target: "Message", value: "Hello" },
-            { operation: "click", target: "Send message" },
-          ],
+          name: "Send a message",
+          outcome: "The user sends one chat message.",
+          area: "Chat",
+          status: "active",
         },
       ],
       journeys: [
         {
           slug: "direct-chat-persists",
           name: "Direct chat persists",
+          goal: "A signed-in user can complete repository work with Kody.",
+          priority: "critical",
+          status: "active",
           actionSlugs: ["send-message"],
           updatedAt: "2026-08-09T12:00:00.000Z",
         },
@@ -140,6 +143,12 @@ describe("POST /api/kody/quality/runs", () => {
         {
           slug: "reply-persists",
           journeySlug: "direct-chat-persists",
+          name: "Reply persists",
+          kind: "persistence",
+          given: "The repository is connected and the user can sign in.",
+          expectedVisible: "Kody's reply remains visible after reload.",
+          expectedState: "The conversation remains stored.",
+          cleanup: "Remove the test conversation.",
           status: "active",
           environmentId: "production",
           updatedAt: "2026-08-09T12:00:00.000Z",
@@ -154,7 +163,7 @@ describe("POST /api/kody/quality/runs", () => {
     });
   });
 
-  it("dispatches the saved Journey steps against the repository environment", async () => {
+  it("dispatches the saved Quality models for agent-driven execution", async () => {
     const response = await POST(request());
     const body = await response.json();
 
@@ -179,11 +188,29 @@ describe("POST /api/kody/quality/runs", () => {
         workflowId: "quality-run",
         input: {
           qualityRunId: expect.stringMatching(/^run-/),
-          journeyName: "Direct chat persists",
-          steps: [
-            { operation: "fill", target: "Message", value: "Hello" },
-            { operation: "click", target: "Send message" },
-          ],
+          journey: {
+            slug: "direct-chat-persists",
+            name: "Direct chat persists",
+            goal: "A signed-in user can complete repository work with Kody.",
+            priority: "critical",
+            actions: [
+              {
+                slug: "send-message",
+                name: "Send a message",
+                outcome: "The user sends one chat message.",
+                area: "Chat",
+              },
+            ],
+          },
+          scenario: {
+            slug: "reply-persists",
+            name: "Reply persists",
+            kind: "persistence",
+            given: "The repository is connected and the user can sign in.",
+            expectedVisible: "Kody's reply remains visible after reload.",
+            expectedState: "The conversation remains stored.",
+            cleanup: "Remove the test conversation.",
+          },
           targetUrl: "https://widgets.example.com",
           sourceCommit: "abc123",
         },
@@ -208,50 +235,12 @@ describe("POST /api/kody/quality/runs", () => {
     );
   });
 
-  it("dispatches a token reference without resolving or logging the token", async () => {
-    h.query.mockResolvedValueOnce({
-      actions: [
-        {
-          slug: "sign-in",
-          steps: [
-            {
-              operation: "fill",
-              target: "GitHub personal access token",
-              valueFrom: "github-test-token",
-            },
-          ],
-        },
-      ],
-      journeys: [
-        {
-          slug: "signed-in-work",
-          name: "Signed-in work",
-          actionSlugs: ["sign-in"],
-          updatedAt: "2026-08-09T12:00:00.000Z",
-        },
-      ],
-      scenarios: [
-        {
-          slug: "reply-persists",
-          journeySlug: "signed-in-work",
-          status: "active",
-          environmentId: "production",
-          updatedAt: "2026-08-09T12:00:00.000Z",
-        },
-      ],
-    });
-
+  it("does not dispatch stored browser steps or authentication secrets", async () => {
     const response = await POST(request());
 
     expect(response.status).toBe(202);
     const startCommand = h.startWorkflow.mock.calls[0]?.[0];
-    expect(startCommand.input.steps).toEqual([
-      {
-        operation: "fill",
-        target: "GitHub personal access token",
-        valueFrom: "github-test-token",
-      },
-    ]);
+    expect(startCommand.input).not.toHaveProperty("steps");
     expect(JSON.stringify(startCommand)).not.toContain("e2e-token");
   });
 

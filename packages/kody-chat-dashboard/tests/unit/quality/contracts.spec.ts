@@ -10,27 +10,23 @@ import {
 const NOW = "2026-08-09T12:00:00.000Z";
 
 describe("quality contracts", () => {
-  it("models reusable actions as executable browser steps", () => {
+  it("models reusable actions as user outcomes", () => {
     const action = actionSchema.parse({
       slug: "send-message",
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
-      steps: [
-        { operation: "open", path: "/chat" },
-        { operation: "fill", target: "Message", value: "Hello" },
-        { operation: "click", target: "Send message" },
-      ],
       status: "active",
       updatedAt: NOW,
     });
 
     expect(action.slug).toBe("send-message");
-    expect(action.steps).toHaveLength(3);
+    expect(action.outcome).toBe("The user sends one chat message.");
+    expect(action).not.toHaveProperty("steps");
     expect(action).not.toHaveProperty("version");
   });
 
-  it("stores a fixed GitHub test-token reference without storing its value", () => {
+  it("removes legacy browser steps from saved Action data", () => {
     const action = actionSchema.parse({
       slug: "sign-in",
       name: "Sign in",
@@ -47,32 +43,8 @@ describe("quality contracts", () => {
       updatedAt: NOW,
     });
 
-    expect(action.steps?.[0]).toEqual({
-      operation: "fill",
-      target: "GitHub personal access token",
-      valueFrom: "github-test-token",
-    });
+    expect(action).not.toHaveProperty("steps");
     expect(JSON.stringify(action)).not.toContain("ghp_");
-  });
-
-  it("rejects arbitrary secret references", () => {
-    expect(() =>
-      actionSchema.parse({
-        slug: "unsafe-sign-in",
-        name: "Unsafe sign in",
-        outcome: "The user signs in.",
-        area: "Authentication",
-        steps: [
-          {
-            operation: "fill",
-            target: "Token",
-            valueFrom: "arbitrary-environment-variable",
-          },
-        ],
-        status: "active",
-        updatedAt: NOW,
-      }),
-    ).toThrow();
   });
 
   it("keeps a journey as an ordered list of action references", () => {
