@@ -35,6 +35,8 @@ const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
 const SPAWN_TIMEOUT_MS = 30_000;
 const INITIAL_START_WAIT_SECONDS = 8;
 const RETRY_START_WAIT_SECONDS = 30;
+const EXPLICIT_START_RETRY_MS = 150_000;
+const EXPLICIT_START_RETRY_INTERVAL_MS = 3_000;
 
 async function waitForMachineStarted(
   token: string,
@@ -72,15 +74,24 @@ async function ensureMachineStarted(
   }
 
   const startUrl = `${FLY_API_BASE}/apps/${encodeURIComponent(app)}/machines/${encodeURIComponent(machineId)}/start`;
-  const startRes = await fetch(startUrl, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
-  });
-  if (!startRes.ok) {
+  const retryDeadline = Date.now() + EXPLICIT_START_RETRY_MS;
+  while (true) {
+    const startRes = await fetch(startUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
+    });
+    if (startRes.ok) break;
+
     const body = await startRes.text().catch(() => "");
-    throw new Error(
-      `Fly Machine explicit start failed ${startRes.status}: ${body.slice(0, 200) || startRes.statusText}`,
+    const imageStillPreparing = startRes.status === 412;
+    if (!imageStillPreparing || Date.now() >= retryDeadline) {
+      throw new Error(
+        `Fly Machine explicit start failed ${startRes.status}: ${body.slice(0, 200) || startRes.statusText}`,
+      );
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, EXPLICIT_START_RETRY_INTERVAL_MS),
     );
   }
 

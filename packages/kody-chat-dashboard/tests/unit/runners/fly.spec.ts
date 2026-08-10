@@ -20,6 +20,7 @@ const BASE_INPUT = {
 };
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -80,6 +81,33 @@ describe("spawnRunner", () => {
     expect(String(fetchMock.mock.calls[3]![0])).toContain(
       "/machines/m-stuck/wait?state=started",
     );
+  });
+
+  it("retries explicit start while Fly is still preparing the image", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "m-preparing", region: "fra" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 408 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "failed_precondition" }), {
+          status: 412,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const spawn = spawnRunner(BASE_INPUT);
+    await vi.runAllTimersAsync();
+    await spawn;
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("does not wire a shared LiteLLM URL into runner env", async () => {
