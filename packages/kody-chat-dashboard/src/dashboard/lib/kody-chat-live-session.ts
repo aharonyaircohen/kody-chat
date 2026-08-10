@@ -16,7 +16,10 @@ import {
 } from "./integration-api";
 import type { ChatContext } from "./chat-types";
 import type { LiveScopeKey } from "./chat/core/kody-chat-reducer";
-import { readActiveRepoScope } from "@kody-ade/base/active-repo";
+import {
+  readActiveRepoScope,
+  readStoredKodyAuth,
+} from "@kody-ade/base/active-repo";
 import {
   brainChatIdMapSchema,
   liveSessionMapSchema,
@@ -28,18 +31,31 @@ export type { PersistedLiveSession } from "./chat/core/rehydration";
 
 export type { LiveScopeKey };
 
+function storedUserToken(): string | null {
+  const auth = readStoredKodyAuth();
+  const token = typeof auth?.token === "string" ? auth.token.trim() : "";
+  return token || null;
+}
+
 /** Build fetch headers including client auth when available */
 export function authHeaders(): Record<string, string> {
-  const auth = getStoredAuth();
-  return auth
+  const repoAuth = getStoredAuth();
+  const token = repoAuth?.token ?? storedUserToken();
+  return token
     ? {
-        "x-kody-token": auth.token,
-        "x-kody-owner": auth.owner,
-        "x-kody-repo": auth.repo,
-        ...(auth.storeRepoUrl
-          ? { "x-kody-store-repo-url": auth.storeRepoUrl }
+        "x-kody-token": token,
+        ...(repoAuth
+          ? {
+              "x-kody-owner": repoAuth.owner,
+              "x-kody-repo": repoAuth.repo,
+            }
           : {}),
-        ...(auth.storeRef ? { "x-kody-store-ref": auth.storeRef } : {}),
+        ...(repoAuth?.storeRepoUrl
+          ? { "x-kody-store-repo-url": repoAuth.storeRepoUrl }
+          : {}),
+        ...(repoAuth?.storeRef
+          ? { "x-kody-store-ref": repoAuth.storeRef }
+          : {}),
         "x-kody-brain-suspension": getStoredBrainSuspension(),
       }
     : {};
@@ -183,7 +199,9 @@ function readAllLiveSessions(): LiveSessionMap {
     // Outer shape first (corrupt map → treated as empty); entries stay
     // unknown so one bad record can't discard its healthy siblings — the
     // per-entry prune below validates each one.
-    const rawParsed = raw ? liveSessionMapSchema.safeParse(JSON.parse(raw)) : null;
+    const rawParsed = raw
+      ? liveSessionMapSchema.safeParse(JSON.parse(raw))
+      : null;
     let parsed: Record<string, unknown> = rawParsed?.success
       ? rawParsed.data
       : {};

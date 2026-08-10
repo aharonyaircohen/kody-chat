@@ -481,22 +481,72 @@ function Detail({
                 </div>
                 {record.latestEvent ? (
                   <div className="rounded-lg border border-white/[0.08] bg-black/20 px-4 py-2 text-sm">
-                    <span className="text-emerald-300">
-                      {record.latestEvent.passed ?? 0} passed
-                    </span>
-                    <span className="mx-2 text-muted-foreground">·</span>
-                    <span
-                      className={
-                        record.latestEvent.failed
-                          ? "text-red-300"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {record.latestEvent.failed ?? 0} failed
-                    </span>
+                    {typeof record.latestEvent.passed === "number" &&
+                    typeof record.latestEvent.failed === "number" ? (
+                      <>
+                        <span className="text-emerald-300">
+                          {record.latestEvent.passed} passed
+                        </span>
+                        <span className="mx-2 text-muted-foreground">·</span>
+                        <span
+                          className={
+                            record.latestEvent.failed
+                              ? "text-red-300"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {record.latestEvent.failed} failed
+                        </span>
+                        {record.latestEvent.blocked ? (
+                          <>
+                            <span className="mx-2 text-muted-foreground">
+                              ·
+                            </span>
+                            <span className="text-amber-300">
+                              {record.latestEvent.blocked} blocked
+                            </span>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Results unavailable
+                      </span>
+                    )}
                   </div>
                 ) : null}
               </div>
+              {record.latestEvent?.actionResults?.length ? (
+                <div className="mt-5 divide-y divide-white/[0.08] border-y border-white/[0.08]">
+                  {record.latestEvent.actionResults.map((result) => (
+                    <div
+                      key={result.actionSlug}
+                      className="flex items-start gap-3 py-3"
+                    >
+                      {result.status === "passed" ? (
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      ) : (
+                        <CircleDot
+                          className={cn(
+                            "mt-0.5 h-4 w-4 shrink-0",
+                            result.status === "failed"
+                              ? "text-red-300"
+                              : "text-amber-300",
+                          )}
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {result.actionName}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {result.evidence}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {record.latestEvent?.artifactUrl ? (
                 <Button asChild variant="outline" size="sm" className="mt-4">
                   <a

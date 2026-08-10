@@ -64,6 +64,16 @@ const qualityMap = {
         artifactUrl: "https://github.com/acme/widgets/actions/runs/42",
         passed: 1,
         failed: 0,
+        blocked: 0,
+        actionResults: [
+          {
+            actionSlug: "send-message",
+            actionName: "Send a message",
+            status: "passed",
+            evidence: "A fresh message remained visible after reload.",
+            artifactPath: "test-results/quality-runs/run-1/01-send-message.png",
+          },
+        ],
       },
       createdAt: "2026-08-09T12:00:00.000Z",
       updatedAt: "2026-08-09T12:02:00.000Z",
@@ -306,6 +316,43 @@ test("starts an active Scenario without manual browser steps", async ({
   await page.getByRole("button", { name: "Start Quality Run" }).click();
 
   expect(startedScenario).toBe("reply-persists");
+});
+
+test("shows the verified result for every Action in a Quality Run", async ({
+  page,
+}) => {
+  await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
+
+  await expect(page.getByText("1 passed", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 failed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Send a message", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("A fresh message remained visible after reload."),
+  ).toBeVisible();
+});
+
+test("does not present missing Quality totals as zero", async ({ page }) => {
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", (route) =>
+    json(route, {
+      ...qualityMap,
+      runs: qualityMap.runs.map((run) => ({
+        ...run,
+        latestEvent: {
+          type: "quality_run_completed",
+          summary: "The old result did not include verified Action totals.",
+        },
+      })),
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
+
+  await expect(
+    page.getByText("Results unavailable", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("0 passed", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("0 failed", { exact: true })).toHaveCount(0);
 });
 
 test("archives and restores a Quality Run while keeping its evidence", async ({

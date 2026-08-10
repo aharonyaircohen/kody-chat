@@ -18,6 +18,7 @@ import {
 import { dispatchWorkflowTriggers } from "@dashboard/features/workflows/server/github-workflow-trigger-dispatch";
 import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/workflow-inbox-alert";
 import { advancePipelineForWorkflowCompletion } from "@dashboard/features/pipelines/server/pipeline-orchestrator";
+import { verifyQualityResult } from "@dashboard/features/quality/server/quality-result";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -128,26 +129,52 @@ export async function POST(request: Request) {
     if (workflowId === "quality-run") {
       const backend = createBackendClient();
       const completedAt = new Date().toISOString();
+      const [runRecord, map] = (await Promise.all([
+        backend.query(backendApi.quality.getRun, {
+          tenantId: identity.repository,
+          runId,
+        }),
+        backend.query(backendApi.quality.getMap, {
+          tenantId: identity.repository,
+        }),
+      ])) as [
+        { run?: { journeySlug?: string } } | null,
+        {
+          journeys?: Array<{ slug: string; actionSlugs: string[] }>;
+          actions?: Array<{ slug: string; name: string }>;
+        } | null,
+      ];
+      const journey = map?.journeys?.find(
+        (candidate) => candidate.slug === runRecord?.run?.journeySlug,
+      );
+      const expectedActions = journey?.actionSlugs
+        .map((slug) => map?.actions?.find((action) => action.slug === slug))
+        .filter((action): action is { slug: string; name: string } =>
+          Boolean(action),
+        );
+      const verifiedResult = expectedActions
+        ? verifyQualityResult(output, runId, expectedActions)
+        : null;
+      const qualitySummary = verifiedResult
+        ? summary
+        : "Quality result could not be verified.";
       const artifactUrl =
         qualityArtifactUrl(output.artifactUrl, identity.repository) ??
         (identity.runId && /^\d+$/.test(identity.runId)
           ? `https://github.com/${identity.repository}/actions/runs/${identity.runId}`
           : null);
-      const qualityStatus =
-        status === "success"
-          ? "passed"
-          : status === "failed"
-            ? "failed"
-            : "blocked";
+      const qualityStatus = verifiedResult?.status ?? "blocked";
       await backend.mutation(backendApi.quality.updateRun, {
         tenantId: identity.repository,
         runId,
         status: qualityStatus,
         updatedAt: completedAt,
         finishedAt: completedAt,
-        ...(status === "success"
+        ...(qualityStatus === "passed"
           ? {}
-          : { error: summary ?? `Quality Run ${qualityStatus}.` }),
+          : {
+              error: qualitySummary ?? `Quality Run ${qualityStatus}.`,
+            }),
       });
       await backend.mutation(backendApi.quality.appendRunEvent, {
         tenantId: identity.repository,
@@ -157,7 +184,7 @@ export async function POST(request: Request) {
         event: {
           type: "quality_run_completed",
           status: qualityStatus,
-          ...(summary ? { summary } : {}),
+          ...(qualitySummary ? { summary: qualitySummary } : {}),
           ...(typeof output.journeyName === "string"
             ? { journeyName: output.journeyName }
             : {}),
@@ -165,11 +192,14 @@ export async function POST(request: Request) {
             ? { artifactPath: output.artifactPath }
             : {}),
           ...(artifactUrl ? { artifactUrl } : {}),
-          ...(typeof output.passed === "number"
-            ? { passed: output.passed }
-            : {}),
-          ...(typeof output.failed === "number"
-            ? { failed: output.failed }
+          ...(verifiedResult
+            ? {
+                passed: verifiedResult.passed,
+                failed: verifiedResult.failed,
+                blocked: verifiedResult.blocked,
+                actionResults: verifiedResult.actionResults,
+                scenarioResult: verifiedResult.scenarioResult,
+              }
             : {}),
         },
       });

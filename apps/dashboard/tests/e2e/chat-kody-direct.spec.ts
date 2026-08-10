@@ -114,6 +114,51 @@ test.describe("Kody direct agent", () => {
     await injectAuth(page);
   });
 
+  test("keeps the login token when Chat opens before a repository is connected", async ({
+    page,
+  }) => {
+    await page.evaluate((token) => {
+      localStorage.setItem(
+        "kody_auth",
+        JSON.stringify({
+          repoUrl: "",
+          owner: "",
+          repo: "",
+          token,
+          user: { login: "kody-e2e", avatar_url: "", id: 1 },
+          loggedInAt: Date.now(),
+          repos: [],
+          currentRepoIndex: -1,
+        }),
+      );
+    }, TEST_TOKEN);
+
+    let requestHeaders: Record<string, string> = {};
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      requestHeaders = route.request().headers();
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          'data: {"type":"text-delta","delta":"Signed in"}\n\n' +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      });
+    });
+
+    await page.goto(`${BASE_URL}/`);
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    await chat.locator("textarea").first().fill("hello");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(chat.getByText("Signed in", { exact: true })).toBeVisible();
+    expect(requestHeaders["x-kody-token"]).toBe(TEST_TOKEN);
+    expect(requestHeaders["x-kody-owner"]).toBeUndefined();
+    expect(requestHeaders["x-kody-repo"]).toBeUndefined();
+  });
+
   test("selecting Kody and sending a message streams reply into the assistant bubble", async ({
     page,
   }) => {
@@ -287,9 +332,7 @@ test.describe("Kody direct agent", () => {
     await expect(
       chat.getByRole("button", { name: "Send message" }),
     ).toBeVisible();
-    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
-      0,
-    );
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(0);
   });
 
   test("a completed specialist without an answer settles visibly and restores the composer", async ({
@@ -325,9 +368,7 @@ test.describe("Kody direct agent", () => {
     await expect(
       chat.getByRole("button", { name: "Send message" }),
     ).toBeVisible();
-    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
-      0,
-    );
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(0);
   });
 
   test("shows the specialist failure reason and does not remain thinking", async ({

@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   advancePipelineForWorkflowCompletion: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
+  qualityQuery: vi.fn(),
   qualityMutation: vi.fn(),
 }));
 
@@ -25,13 +26,18 @@ vi.mock("@kody-ade/base/github/core", () => ({
 vi.mock("@kody-ade/backend/api", () => ({
   api: {
     quality: {
+      getRun: "quality.getRun",
+      getMap: "quality.getMap",
       updateRun: "quality.updateRun",
       appendRunEvent: "quality.appendRunEvent",
     },
   },
 }));
 vi.mock("@kody-ade/backend/client", () => ({
-  createBackendClient: () => ({ mutation: h.qualityMutation }),
+  createBackendClient: () => ({
+    query: h.qualityQuery,
+    mutation: h.qualityMutation,
+  }),
 }));
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
@@ -73,6 +79,27 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     h.dispatchWorkflowTriggers.mockResolvedValue(undefined);
     h.deliverWorkflowInboxAlert.mockResolvedValue(undefined);
     h.advancePipelineForWorkflowCompletion.mockResolvedValue(undefined);
+    h.qualityQuery.mockImplementation((name: string) => {
+      if (name === "quality.getRun") {
+        return Promise.resolve({
+          run: { journeySlug: "direct-chat-persistence" },
+          events: [],
+        });
+      }
+      if (name === "quality.getMap") {
+        return Promise.resolve({
+          journeys: [
+            {
+              slug: "direct-chat-persistence",
+              actionSlugs: ["send-message"],
+            },
+          ],
+          actions: [{ slug: "send-message", name: "Send message" }],
+          scenarios: [],
+        });
+      }
+      return Promise.resolve(null);
+    });
     h.qualityMutation.mockResolvedValue(undefined);
   });
 
@@ -130,8 +157,21 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           journeyName: "Direct chat persistence",
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
-          passed: 1,
-          failed: 0,
+          actionResults: [
+            {
+              actionSlug: "send-message",
+              actionName: "Send message",
+              status: "passed",
+              evidence: "A fresh reply remained visible after reload.",
+              artifactPath:
+                "test-results/quality-runs/run-quality-1/01-send-message.png",
+            },
+          ],
+          scenarioResult: {
+            status: "passed",
+            evidence: "The saved reply remained visible after reload.",
+            artifactPath: "test-results/quality-runs/run-quality-1/final.png",
+          },
         },
       }),
     );
@@ -155,6 +195,57 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
           artifactUrl: "https://github.com/acme/shop/actions/runs/42",
+          passed: 1,
+          failed: 0,
+          blocked: 0,
+          actionResults: [
+            expect.objectContaining({
+              actionSlug: "send-message",
+              status: "passed",
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("blocks a Quality result that does not report the saved Actions", async () => {
+    const response = await POST(
+      request({
+        workflowId: "quality-run",
+        runId: "run-quality-invalid",
+        status: "success",
+        summary: "Everything passed.",
+        output: {
+          actionResults: [
+            {
+              actionSlug: "different-action",
+              actionName: "Different action",
+              status: "passed",
+              evidence: "Old conversation was visible.",
+              artifactPath:
+                "test-results/quality-runs/older-run/01-different.png",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.updateRun",
+      expect.objectContaining({
+        runId: "run-quality-invalid",
+        status: "blocked",
+      }),
+    );
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.appendRunEvent",
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: "quality_run_completed",
+          status: "blocked",
+          summary: "Quality result could not be verified.",
         }),
       }),
     );

@@ -192,6 +192,21 @@ describe("header builders", () => {
     });
   });
 
+  it("authHeaders keeps the login token before a repository is connected", () => {
+    installStorage({
+      owner: "",
+      repo: "",
+      token: "login-token",
+      repos: [],
+      currentRepoIndex: -1,
+    });
+
+    expect(authHeaders()).toEqual({
+      "x-kody-token": "login-token",
+      "x-kody-brain-suspension": "auto",
+    });
+  });
+
   it("authHeaders carries the saved Brain suspension policy", () => {
     installStorage({
       owner: "o",

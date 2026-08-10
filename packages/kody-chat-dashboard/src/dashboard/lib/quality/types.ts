@@ -29,6 +29,19 @@ export type QualityRun = {
     artifactUrl?: string;
     passed?: number;
     failed?: number;
+    blocked?: number;
+    actionResults?: Array<{
+      actionSlug: string;
+      actionName: string;
+      status: "passed" | "failed" | "blocked";
+      evidence: string;
+      artifactPath: string;
+    }>;
+    scenarioResult?: {
+      status: "passed" | "failed" | "blocked";
+      evidence: string;
+      artifactPath: string;
+    };
   };
 };
 
