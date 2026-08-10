@@ -62,4 +62,32 @@ describe("File Manager dependency boundary", () => {
     expect(host).toContain("useRepoScopedHref");
     expect(host).toContain("createGitHubFilesTransport");
   });
+
+  it("separates workspace identity from data refreshes", () => {
+    const transport = readFileSync(
+      join(FILE_MANAGER_ROOT, "lib/transport.tsx"),
+      "utf8",
+    );
+    const tree = readFileSync(
+      join(FILE_MANAGER_ROOT, "components/FileTree.tsx"),
+      "utf8",
+    );
+    const page = readFileSync(
+      join(FILE_MANAGER_ROOT, "components/FilesPage.tsx"),
+      "utf8",
+    );
+    const memory = readFileSync(
+      join(
+        process.cwd(),
+        "src/dashboard/features/memory/components/MemoryFilesPage.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(transport).toContain("dataVersion?: string | number");
+    expect(tree).toContain("transport?.dataVersion ?? 0");
+    expect(page).toContain("activeTransport?.dataVersion");
+    expect(memory).toContain("cacheKey: `memory:${repositoryScope}`");
+    expect(memory).toContain("dataVersion: latestUpdate(memories)");
+  });
 });

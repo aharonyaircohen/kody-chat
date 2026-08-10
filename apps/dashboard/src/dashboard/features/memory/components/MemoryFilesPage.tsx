@@ -91,13 +91,8 @@ export function MemoryFilesPage({
 
   const transport = useMemo<FilesTransport>(
     () => ({
-      cacheKey: [
-        "memory",
-        repositoryScope,
-        memories.length,
-        latestUpdate(memories),
-        memoriesQuery.error instanceof Error ? memoriesQuery.error.message : "",
-      ].join(":"),
+      cacheKey: `memory:${repositoryScope}`,
+      dataVersion: latestUpdate(memories),
       async listDir(path: string): Promise<FileEntry[]> {
         if (memoriesQuery.error instanceof Error) throw memoriesQuery.error;
         const parts = normalizedPath(path).split("/").filter(Boolean);

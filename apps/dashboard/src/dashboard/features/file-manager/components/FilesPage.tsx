@@ -435,6 +435,43 @@ export function FilesPage({
   }, [activeTransport, initialRepoPath, openRepoPath]);
 
   useEffect(() => {
+    if (
+      !activeTransport ||
+      activeTransport.dataVersion === undefined ||
+      !selectedPath ||
+      selectedPathType !== "file"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void activeTransport
+      .readFile(selectedPath)
+      .then((file) => {
+        if (cancelled || !file) return;
+        setSelectedFile({
+          path: file.path,
+          sha: file.sha,
+          size: file.size,
+          isBinary: file.isBinary,
+        });
+      })
+      .catch(() => {
+        // Keep the current file visible; the normal refresh/error paths own
+        // user-facing failures.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTransport,
+    activeTransport?.dataVersion,
+    selectedPath,
+    selectedPathType,
+  ]);
+
+  useEffect(() => {
     const handlePopState = () => {
       const routeMarker = `${routeBase}/`;
       const markerIndex = window.location.pathname.lastIndexOf(routeMarker);

@@ -543,6 +543,7 @@ export function KodyChat({
   // agent/model state, dropdown entries, default resolution, family snap,
   // reasoning-effort wiring, and the per-session agent sync effect.
   const {
+    selectionReady,
     selectedAgentId,
     setSelectedAgentId,
     selectedModelId,
@@ -585,31 +586,26 @@ export function KodyChat({
       sessionHook.hydrated,
     ],
   );
-  const createDefaultChatSession = useCallback(
-    () => {
-      const defaultEntry = resolveDefaultAgentEntry({
-        defaultChatEntryKey: readDefaultChatEntry(),
-        chatModels,
-        brainConfigured,
-        agentList,
-      });
-      return createChatSession({
-        ...(sessionHook.hydrated &&
-        chatModelsLoaded &&
-        defaultEntry?.key
-          ? { agentKey: defaultEntry.key }
-          : {}),
-      });
-    },
-    [
-      agentList,
-      brainConfigured,
-      chatModelsLoaded,
+  const createDefaultChatSession = useCallback(() => {
+    const defaultEntry = resolveDefaultAgentEntry({
+      defaultChatEntryKey: readDefaultChatEntry(),
       chatModels,
-      createChatSession,
-      sessionHook.hydrated,
-    ],
-  );
+      brainConfigured,
+      agentList,
+    });
+    return createChatSession({
+      ...(sessionHook.hydrated && chatModelsLoaded && defaultEntry?.key
+        ? { agentKey: defaultEntry.key }
+        : {}),
+    });
+  }, [
+    agentList,
+    brainConfigured,
+    chatModelsLoaded,
+    chatModels,
+    createChatSession,
+    sessionHook.hydrated,
+  ]);
   createGuidedFlowSessionRef.current = createSelectedChatSession;
 
   // Read-only host snapshot handed to slot components and send middleware.
@@ -738,6 +734,7 @@ export function KodyChat({
   );
   const { data: repoAgents = [] } = useAgents();
   const { setSessionAgencyAgent } = sessionHook;
+  const [agencyAgentSwitching, setAgencyAgentSwitching] = useState(false);
   const selectedAgencyAgentSlug =
     sessionHook.activeSession?.agencyAgent?.slug ?? "kody";
   const repoAgentSlugs = useMemo(
@@ -758,6 +755,7 @@ export function KodyChat({
       const listedAgent = repoAgents.find(
         (candidate) => candidate.slug === nextSlug,
       );
+      setAgencyAgentSwitching(true);
       try {
         const resolvedAgent =
           nextSlug === "kody"
@@ -773,6 +771,8 @@ export function KodyChat({
         toast.error(`Could not switch to ${listedAgent?.title ?? nextSlug}`, {
           description: "The agent is not available for this repository.",
         });
+      } finally {
+        setAgencyAgentSwitching(false);
       }
     },
     [
@@ -2198,7 +2198,10 @@ export function KodyChat({
   // user can type ahead; only sending is blocked (Enter is a newline and the
   // primary button is Stop). Kody Live still locks input until ready.
   const composerDisabled =
-    chatMode === "ai" && isKodyLive && interactiveState !== "ready";
+    chatMode === "ai" &&
+    (!selectionReady ||
+      agencyAgentSwitching ||
+      (isKodyLive && interactiveState !== "ready"));
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"

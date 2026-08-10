@@ -149,6 +149,8 @@ export interface UseAgentSelectionOptions {
 }
 
 export interface UseAgentSelectionResult {
+  /** True once the current session/default has resolved against the catalog. */
+  selectionReady: boolean;
   selectedAgentId: AgentId;
   setSelectedAgentId: React.Dispatch<React.SetStateAction<AgentId>>;
   selectedModelId: string | null;
@@ -199,6 +201,7 @@ export function useAgentSelection(
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
     lockedAgentId ?? "kody-live",
   );
+  const [selectionReady, setSelectionReady] = useState(false);
   // When the user picks a gateway-routed model (any LLM_MODELS entry), the
   // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
   // The chat request forwards it as `body.model`. Null = no override.
@@ -218,11 +221,16 @@ export function useAgentSelection(
   // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
   // localStorage (repo-scoped). Read synchronously on mount. Separate from a
   // model's own `default` flag, which governs server-side gateway resolution.
-  // Read on mount here; written by Settings → "Default chat". The chat picker
-  // stores per-session picks separately.
-  const [defaultChatEntryKey] = useState<string | null>(() =>
-    readDefaultChatEntry(),
+  // Read after hydration because localStorage does not exist during SSR. The
+  // selection remains unready until this browser-owned preference is loaded.
+  const [defaultChatEntryKey, setDefaultChatEntryKey] = useState<string | null>(
+    null,
   );
+  const [defaultEntryHydrated, setDefaultEntryHydrated] = useState(false);
+  useEffect(() => {
+    setDefaultChatEntryKey(readDefaultChatEntry());
+    setDefaultEntryHydrated(true);
+  }, []);
   const noSessionDefaultAppliedRef = useRef(false);
 
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
@@ -318,7 +326,14 @@ export function useAgentSelection(
   //      (the first send then auto-creates a session and the sync
   //      effect will re-run to capture the pick).
   useEffect(() => {
-    if (lockedAgentId) return; // Vibe page owns the agent
+    if (lockedAgentId) {
+      setSelectionReady(true);
+      return; // Vibe page owns the agent
+    }
+    if (!defaultEntryHydrated) {
+      setSelectionReady(false);
+      return;
+    }
     if (activeSessionId) {
       noSessionDefaultAppliedRef.current = false;
     } else if (noSessionDefaultAppliedRef.current) {
@@ -330,9 +345,13 @@ export function useAgentSelection(
         chatModelsLoaded,
       })
     ) {
+      setSelectionReady(false);
       return;
     }
-    if (agentList.length === 0) return; // Wait for the list to load.
+    if (agentList.length === 0) {
+      setSelectionReady(false);
+      return; // Wait for the list to load.
+    }
 
     let targetEntry: ChatDropdownEntry | null = null;
     if (activeSessionAgentKey) {
@@ -345,7 +364,10 @@ export function useAgentSelection(
     if (!targetEntry) {
       targetEntry = defaultAgentEntry;
     }
-    if (!targetEntry) return;
+    if (!targetEntry) {
+      setSelectionReady(false);
+      return;
+    }
 
     if (!activeSessionId) {
       noSessionDefaultAppliedRef.current = true;
@@ -366,9 +388,11 @@ export function useAgentSelection(
     if (activeSessionId && activeSessionAgentKey !== targetEntry.key) {
       setSessionAgent(activeSessionId, targetEntry.key);
     }
+    setSelectionReady(true);
   }, [
     activeSessionId,
     activeSessionAgentKey,
+    defaultEntryHydrated,
     sessionHydrated,
     agentList,
     defaultAgentEntry,
@@ -381,6 +405,7 @@ export function useAgentSelection(
   ]);
 
   return {
+    selectionReady,
     selectedAgentId,
     setSelectedAgentId,
     selectedModelId,
