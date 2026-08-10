@@ -130,7 +130,6 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           journeyName: "Direct chat persistence",
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
-          artifactUrl: "https://github.com/acme/shop/actions/runs/42",
           passed: 1,
           failed: 0,
         },

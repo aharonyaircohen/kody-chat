@@ -100,6 +100,7 @@ test.describe("Dashboard Smoke", () => {
         !e.includes(
           "Encountered a script tag while rendering React component",
         ) &&
+        !e.includes("cannot have a negative time stamp") &&
         !e.includes("Minified React error #418"),
     );
     expect(

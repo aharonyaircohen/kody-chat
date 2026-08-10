@@ -29,23 +29,6 @@ const runStatus = v.union(
   v.literal("blocked"),
   v.literal("cancelled"),
 );
-const qualityStep = v.union(
-  v.object({ operation: v.literal("open"), path: v.string() }),
-  v.object({ operation: v.literal("click"), target: v.string() }),
-  v.object({
-    operation: v.literal("fill"),
-    target: v.string(),
-    value: v.string(),
-  }),
-  v.object({
-    operation: v.literal("fill"),
-    target: v.string(),
-    valueFrom: v.literal("github-test-token"),
-  }),
-  v.object({ operation: v.literal("reload") }),
-  v.object({ operation: v.literal("check"), text: v.string() }),
-);
-
 async function findBySlug(
   ctx: Pick<MutationCtx, "db">,
   table: "qualityActions" | "qualityJourneys" | "qualityScenarios",
@@ -75,7 +58,13 @@ export const getMap = query({
         .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
         .collect(),
     ]);
-    return { actions, journeys, scenarios };
+    return {
+      actions: actions.map(({ steps: _legacySteps, ...action }) => action),
+      journeys,
+      scenarios: scenarios.map(
+        ({ testId: _legacyTestId, ...scenario }) => scenario,
+      ),
+    };
   },
 });
 
@@ -86,7 +75,6 @@ export const saveAction = mutation({
     name: v.string(),
     outcome: v.string(),
     area: v.string(),
-    steps: v.optional(v.array(qualityStep)),
     status: definitionStatus,
     updatedAt: v.string(),
   },
@@ -98,7 +86,7 @@ export const saveAction = mutation({
       args.slug,
     );
     if (existing) {
-      await ctx.db.patch(existing._id, args);
+      await ctx.db.patch(existing._id, { ...args, steps: undefined });
       return existing._id;
     }
     return await ctx.db.insert("qualityActions", args);
@@ -190,7 +178,6 @@ export const saveScenario = mutation({
     expectedVisible: v.string(),
     expectedState: v.string(),
     environmentId: v.optional(v.string()),
-    testId: v.optional(v.string()),
     cleanup: v.optional(v.string()),
     status: definitionStatus,
     updatedAt: v.string(),
@@ -205,7 +192,7 @@ export const saveScenario = mutation({
       ))
     )
       throw new ConvexError(`Unknown Journey: ${args.journeySlug}`);
-    if (args.status === "active" && !args.environmentId && !args.testId)
+    if (args.status === "active" && !args.environmentId)
       throw new ConvexError(
         "Active Scenarios require a repository environment",
       );
@@ -216,7 +203,7 @@ export const saveScenario = mutation({
       args.slug,
     );
     if (existing) {
-      await ctx.db.patch(existing._id, args);
+      await ctx.db.patch(existing._id, { ...args, testId: undefined });
       return existing._id;
     }
     return await ctx.db.insert("qualityScenarios", args);

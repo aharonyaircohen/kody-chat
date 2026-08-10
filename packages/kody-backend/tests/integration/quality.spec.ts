@@ -16,10 +16,6 @@ describe("quality", () => {
       name: "Send a message",
       outcome: "The user sends one chat message.",
       area: "Chat",
-      steps: [
-        { operation: "fill", target: "Message", value: "Hello" },
-        { operation: "click", target: "Send message" },
-      ],
       status: "active",
       updatedAt: NOW,
     });
@@ -51,37 +47,9 @@ describe("quality", () => {
     const map = await t.query(api.quality.getMap, { tenantId: TENANT });
     expect(map.actions).toHaveLength(1);
     expect(map.journeys[0].actionSlugs).toEqual(["send-message"]);
-    expect(map.actions[0].steps).toHaveLength(2);
+    expect(map.actions[0]).not.toHaveProperty("steps");
     expect(map.scenarios[0].environmentId).toBe("production");
     expect(map.journeys[0]).not.toHaveProperty("version");
-  });
-
-  it("stores a GitHub test-token reference without receiving the token", async () => {
-    const t = setup();
-
-    await t.mutation(api.quality.saveAction, {
-      tenantId: TENANT,
-      slug: "sign-in",
-      name: "Sign in",
-      outcome: "The user signs in to the dashboard.",
-      area: "Authentication",
-      steps: [
-        {
-          operation: "fill",
-          target: "GitHub personal access token",
-          valueFrom: "github-test-token",
-        },
-      ],
-      status: "active",
-      updatedAt: NOW,
-    });
-
-    const map = await t.query(api.quality.getMap, { tenantId: TENANT });
-    expect(map.actions[0].steps?.[0]).toEqual({
-      operation: "fill",
-      target: "GitHub personal access token",
-      valueFrom: "github-test-token",
-    });
   });
 
   it("refuses to delete referenced definitions", async () => {

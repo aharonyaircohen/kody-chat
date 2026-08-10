@@ -128,10 +128,11 @@ export async function POST(request: Request) {
     if (workflowId === "quality-run") {
       const backend = createBackendClient();
       const completedAt = new Date().toISOString();
-      const artifactUrl = qualityArtifactUrl(
-        output.artifactUrl,
-        identity.repository,
-      );
+      const artifactUrl =
+        qualityArtifactUrl(output.artifactUrl, identity.repository) ??
+        (identity.runId && /^\d+$/.test(identity.runId)
+          ? `https://github.com/${identity.repository}/actions/runs/${identity.runId}`
+          : null);
       const qualityStatus =
         status === "success"
           ? "passed"

@@ -353,7 +353,12 @@ export function assertSimpleCapabilityFolder(
 
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
-  requirements?: { browser?: boolean; qaCredentials?: boolean };
+  requirements?: {
+    browser?: boolean;
+    qaCredentials?: boolean;
+    githubTestToken?: boolean;
+    browserOnly?: boolean;
+  };
   secrets?: string[];
   timeoutMs?: number;
   requiredSubagents?: string[];
@@ -384,7 +389,11 @@ function parseCapabilityContract(raw: string): {
   }
   const requirementKeys = Object.keys(requirementsValue ?? {});
   const unsupportedRequirements = requirementKeys.filter(
-    (key) => key !== "browser" && key !== "qaCredentials",
+    (key) =>
+      key !== "browser" &&
+      key !== "qaCredentials" &&
+      key !== "githubTestToken" &&
+      key !== "browserOnly",
   );
   if (unsupportedRequirements.length > 0) {
     throw new Error(
@@ -401,16 +410,30 @@ function parseCapabilityContract(raw: string): {
     requirementsValue?.qaCredentials !== undefined &&
     typeof requirementsValue.qaCredentials !== "boolean"
   ) {
+    throw new Error("contract.json requirements.qaCredentials must be boolean");
+  }
+  if (
+    requirementsValue?.githubTestToken !== undefined &&
+    typeof requirementsValue.githubTestToken !== "boolean"
+  ) {
     throw new Error(
-      "contract.json requirements.qaCredentials must be boolean",
+      "contract.json requirements.githubTestToken must be boolean",
     );
   }
   if (
-    requirementsValue?.qaCredentials === true &&
+    requirementsValue?.browserOnly !== undefined &&
+    typeof requirementsValue.browserOnly !== "boolean"
+  ) {
+    throw new Error("contract.json requirements.browserOnly must be boolean");
+  }
+  if (
+    (requirementsValue?.qaCredentials === true ||
+      requirementsValue?.githubTestToken === true ||
+      requirementsValue?.browserOnly === true) &&
     requirementsValue.browser !== true
   ) {
     throw new Error(
-      "contract.json requirements.qaCredentials requires browser",
+      "contract.json protected browser requirement requires browser",
     );
   }
   const requirements = requirementsValue
@@ -418,6 +441,12 @@ function parseCapabilityContract(raw: string): {
         ...(requirementsValue.browser === true ? { browser: true } : {}),
         ...(requirementsValue.qaCredentials === true
           ? { qaCredentials: true }
+          : {}),
+        ...(requirementsValue.githubTestToken === true
+          ? { githubTestToken: true }
+          : {}),
+        ...(requirementsValue.browserOnly === true
+          ? { browserOnly: true }
           : {}),
       }
     : undefined;

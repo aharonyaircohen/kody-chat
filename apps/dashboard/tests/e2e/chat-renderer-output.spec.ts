@@ -8,6 +8,7 @@
  */
 
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const LOCAL_BASE_URL =
   process.env.RENDERER_E2E_BASE_URL ?? "http://127.0.0.1:3333";
@@ -87,6 +88,7 @@ function sseBody(events: unknown[]): string {
 }
 
 async function mockShellApis(page: Page): Promise<void> {
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/chat/conversations**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;

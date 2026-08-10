@@ -250,13 +250,18 @@ describe("simple capability folders", () => {
     ).toThrow(/agent/i);
   });
 
-  it("accepts browser and QA credential requirements for agent capabilities", () => {
+  it("accepts restricted browser requirements for agent capabilities", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
         "contract.json": JSON.stringify({
           execution: "agent",
-          requirements: { browser: true, qaCredentials: true },
+          requirements: {
+            browser: true,
+            qaCredentials: true,
+            githubTestToken: true,
+            browserOnly: true,
+          },
           input: {},
           output: {},
         }),
@@ -268,6 +273,17 @@ describe("simple capability folders", () => {
         "contract.json": JSON.stringify({
           execution: "agent",
           requirements: { qaCredentials: true },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/requires browser/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: { browserOnly: true },
           input: {},
           output: {},
         }),

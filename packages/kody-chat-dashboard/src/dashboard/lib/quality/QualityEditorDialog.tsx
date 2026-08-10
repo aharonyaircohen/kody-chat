@@ -20,7 +20,6 @@ import type {
   QualityAction,
   QualityJourney,
   QualityScenario,
-  QualityStep,
 } from "./contracts";
 import type { QualityMap, QualityRecord, QualityResource } from "./types";
 
@@ -37,7 +36,6 @@ function defaultRecord(
       name: "",
       outcome: "",
       area: "",
-      steps: [{ operation: "open", path: "/" }],
       status: "draft",
       updatedAt,
     };
@@ -72,21 +70,6 @@ function defaultRecord(
     status: "draft",
     updatedAt,
   };
-}
-
-function defaultStep(operation: QualityStep["operation"]): QualityStep {
-  if (operation === "open") return { operation, path: "/" };
-  if (operation === "click") return { operation, target: "" };
-  if (operation === "fill") return { operation, target: "", value: "" };
-  if (operation === "check") return { operation, text: "" };
-  return { operation: "reload" };
-}
-
-function stepValid(step: QualityStep): boolean {
-  if (step.operation === "reload") return true;
-  if (step.operation === "open") return step.path.trim().length > 0;
-  if (step.operation === "check") return step.text.trim().length > 0;
-  return step.target.trim().length > 0;
 }
 
 function isAction(record: Editable): record is QualityAction {
@@ -127,10 +110,7 @@ export function QualityEditorDialog({
   const valid =
     draft.name.trim().length > 0 &&
     (isAction(draft)
-      ? draft.outcome.trim().length > 0 &&
-        draft.area.trim().length > 0 &&
-        (draft.steps ?? []).every(stepValid) &&
-        (draft.status !== "active" || !!draft.steps?.length)
+      ? draft.outcome.trim().length > 0 && draft.area.trim().length > 0
       : isJourney(draft)
         ? draft.goal.trim().length > 0
         : draft.journeySlug.length > 0 &&
@@ -187,200 +167,6 @@ export function QualityEditorDialog({
                   }
                 />
               </label>
-              <fieldset className="grid gap-2">
-                <legend className="text-sm font-medium">Browser steps</legend>
-                <p className="text-xs text-muted-foreground">
-                  These steps run against the Scenario environment in this
-                  order. Do not put passwords or secrets in step values.
-                </p>
-                {(draft.steps ?? []).map((step, index) => (
-                  <div key={index} className="grid gap-2 rounded-md border p-3">
-                    <div className="flex items-center gap-2">
-                      <select
-                        aria-label={`Step ${index + 1} operation`}
-                        className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
-                        value={step.operation}
-                        onChange={(event) => {
-                          const steps = [...(draft.steps ?? [])];
-                          steps[index] = defaultStep(
-                            event.target.value as QualityStep["operation"],
-                          );
-                          setDraft({ ...draft, steps });
-                        }}
-                      >
-                        <option value="open">Open page</option>
-                        <option value="click">Click</option>
-                        <option value="fill">Fill field</option>
-                        <option value="reload">Reload page</option>
-                        <option value="check">Check text</option>
-                      </select>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`Move step ${index + 1} up`}
-                        disabled={index === 0}
-                        onClick={() => {
-                          const steps = [...(draft.steps ?? [])];
-                          [steps[index - 1], steps[index]] = [
-                            steps[index],
-                            steps[index - 1],
-                          ];
-                          setDraft({ ...draft, steps });
-                        }}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`Move step ${index + 1} down`}
-                        disabled={index === (draft.steps?.length ?? 0) - 1}
-                        onClick={() => {
-                          const steps = [...(draft.steps ?? [])];
-                          [steps[index], steps[index + 1]] = [
-                            steps[index + 1],
-                            steps[index],
-                          ];
-                          setDraft({ ...draft, steps });
-                        }}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        aria-label={`Remove step ${index + 1}`}
-                        onClick={() =>
-                          setDraft({
-                            ...draft,
-                            steps: (draft.steps ?? []).filter(
-                              (_, candidate) => candidate !== index,
-                            ),
-                          })
-                        }
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {step.operation === "open" ? (
-                      <Input
-                        aria-label={`Step ${index + 1} path`}
-                        placeholder="/chat"
-                        value={step.path}
-                        onChange={(event) => {
-                          const steps = [...(draft.steps ?? [])];
-                          steps[index] = { ...step, path: event.target.value };
-                          setDraft({ ...draft, steps });
-                        }}
-                      />
-                    ) : step.operation === "click" ? (
-                      <Input
-                        aria-label={`Step ${index + 1} target`}
-                        placeholder="Button or link text"
-                        value={step.target}
-                        onChange={(event) => {
-                          const steps = [...(draft.steps ?? [])];
-                          steps[index] = {
-                            ...step,
-                            target: event.target.value,
-                          };
-                          setDraft({ ...draft, steps });
-                        }}
-                      />
-                    ) : step.operation === "fill" ? (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <Input
-                          aria-label={`Step ${index + 1} target`}
-                          placeholder="Field label"
-                          value={step.target}
-                          onChange={(event) => {
-                            const steps = [...(draft.steps ?? [])];
-                            steps[index] = {
-                              ...step,
-                              target: event.target.value,
-                            };
-                            setDraft({ ...draft, steps });
-                          }}
-                        />
-                        <select
-                          aria-label={`Step ${index + 1} value source`}
-                          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                          value={"valueFrom" in step ? step.valueFrom : "text"}
-                          onChange={(event) => {
-                            const steps = [...(draft.steps ?? [])];
-                            steps[index] =
-                              event.target.value === "github-test-token"
-                                ? {
-                                    operation: "fill",
-                                    target: step.target,
-                                    valueFrom: "github-test-token",
-                                  }
-                                : {
-                                    operation: "fill",
-                                    target: step.target,
-                                    value: "",
-                                  };
-                            setDraft({ ...draft, steps });
-                          }}
-                        >
-                          <option value="text">Text</option>
-                          <option value="github-test-token">
-                            GitHub test token
-                          </option>
-                        </select>
-                        {"value" in step ? (
-                          <Input
-                            className="sm:col-start-2"
-                            aria-label={`Step ${index + 1} value`}
-                            placeholder="Value"
-                            value={step.value}
-                            onChange={(event) => {
-                              const steps = [...(draft.steps ?? [])];
-                              steps[index] = {
-                                ...step,
-                                value: event.target.value,
-                              };
-                              setDraft({ ...draft, steps });
-                            }}
-                          />
-                        ) : (
-                          <p className="text-xs text-muted-foreground sm:col-start-2">
-                            Uses the protected E2E token when the Quality Run
-                            starts.
-                          </p>
-                        )}
-                      </div>
-                    ) : step.operation === "check" ? (
-                      <Input
-                        aria-label={`Step ${index + 1} text`}
-                        placeholder="Text that must appear"
-                        value={step.text}
-                        onChange={(event) => {
-                          const steps = [...(draft.steps ?? [])];
-                          steps[index] = { ...step, text: event.target.value };
-                          setDraft({ ...draft, steps });
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      steps: [...(draft.steps ?? []), defaultStep("check")],
-                    })
-                  }
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Add step
-                </Button>
-              </fieldset>
             </>
           ) : null}
 
@@ -596,7 +382,6 @@ export function QualityEditorDialog({
                     setDraft({
                       ...draft,
                       environmentId: event.target.value || undefined,
-                      testId: undefined,
                     })
                   }
                 >
