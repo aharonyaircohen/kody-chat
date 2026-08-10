@@ -23,9 +23,7 @@ function sseBody(events: unknown[]): string {
 }
 
 async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     const auth = {
       repoUrl: "https://github.com/test-owner/test-repo",
       owner: "test-owner",
@@ -89,6 +87,28 @@ test.describe("Admin Kody chat regression", () => {
         body: JSON.stringify({ commands: [] }),
       }),
     );
+    await page.route("**/api/kody/chat/conversations**", (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      const isCollection = pathname.endsWith("/conversations");
+      return route.fulfill({
+        status: request.method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          request.method() === "GET" && isCollection
+            ? { conversations: [] }
+            : request.method() === "GET"
+              ? {
+                  conversation: null,
+                  entries: [],
+                  checkpoints: [],
+                  runtimeBindings: [],
+                  attachments: [],
+                }
+              : { ok: true },
+        ),
+      });
+    });
     await seedAuth(page);
   });
 

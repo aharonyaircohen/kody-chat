@@ -38,10 +38,15 @@ export interface FileSearchResults {
 
 export interface FilesTransport {
   /**
-   * Cache identity for this transport's data. Include it in query keys;
-   * bump it when the backing data changes so cached listings refetch.
+   * Stable identity of the backing workspace. Changing it resets navigation
+   * because the user has moved to a different workspace.
    */
   cacheKey?: string;
+  /**
+   * Version of the workspace data. Changing it refreshes listings and the
+   * selected file without resetting navigation.
+   */
+  dataVersion?: string | number;
   /** List the entries of a directory path ("" = root). */
   listDir(path: string): Promise<FileEntry[]>;
   /** Read one file, or null when the path is not a file. */
@@ -72,10 +77,7 @@ export interface FilesTransport {
   /** Optional version history capability. */
   history?: (path: string, limit?: number) => Promise<CommitInfo[]>;
   /** Optional read of a file at a historical version. */
-  readVersion?: (
-    path: string,
-    version: string,
-  ) => Promise<FileContent | null>;
+  readVersion?: (path: string, version: string) => Promise<FileContent | null>;
 }
 
 const FilesTransportContext = createContext<FilesTransport | null>(null);

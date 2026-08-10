@@ -471,6 +471,7 @@ export function FileTree({
       normalizedRootPath,
       refreshKey,
       transport?.cacheKey ?? "transport",
+      transport?.dataVersion ?? 0,
     ],
     queryFn: () => loadDir(normalizedRootPath),
     enabled: Boolean(transport),

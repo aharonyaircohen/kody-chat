@@ -576,6 +576,7 @@ export function Composer({
                       : "Send message";
               const disabled =
                 Boolean(terminalSendDisabled) ||
+                composerDisabled ||
                 (!isInFlight &&
                   composerAction === "send" &&
                   !hasComposerContent);
