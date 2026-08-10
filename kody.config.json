@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "openrouter/free"
+    "model": "openrouter/z-ai/glm-5.2"
   },
   "company": {
     "activeAgents": [
