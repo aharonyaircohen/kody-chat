@@ -46,17 +46,19 @@ export function getStoredAuth(): {
   // URL-first: the active repo (and its per-repo PAT) comes from the route,
   // not from the stored flat fields — see active-repo.ts.
   const active = readActiveRepo();
-  if (!active || !active.token) return null;
   const auth = blob as {
+    token?: string;
     user?: { login?: string };
     storeRepoUrl?: string;
     storeRepo?: string;
     storeRef?: string;
   };
+  const token = active?.token || auth.token?.trim();
+  if (!token) return null;
   return {
-    token: active.token,
-    owner: active.owner,
-    repo: active.repo,
+    token,
+    owner: active?.owner ?? "",
+    repo: active?.repo ?? "",
     userLogin: auth.user?.login,
     storeRepoUrl:
       auth.storeRepoUrl ??

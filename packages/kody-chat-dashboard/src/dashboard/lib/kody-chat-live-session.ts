@@ -44,7 +44,7 @@ export function authHeaders(): Record<string, string> {
   return token
     ? {
         "x-kody-token": token,
-        ...(repoAuth
+        ...(repoAuth?.owner && repoAuth.repo
           ? {
               "x-kody-owner": repoAuth.owner,
               "x-kody-repo": repoAuth.repo,
