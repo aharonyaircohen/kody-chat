@@ -298,6 +298,30 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     );
   });
 
+  it("preserves the workflow failure when the runner cannot return a result", async () => {
+    const response = await POST(
+      request({
+        workflowId: "quality-run",
+        runId: "run-quality-runtime-failure",
+        status: "failed",
+        summary: "The browser runner reached its turn limit.",
+        output: {},
+      }),
+    );
+
+    expect(response.status).toBe(204);
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "quality.appendRunEvent",
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: "quality_run_completed",
+          status: "blocked",
+          summary: "The browser runner reached its turn limit.",
+        }),
+      }),
+    );
+  });
+
   it("keeps the completed workflow intact when Inbox delivery fails", async () => {
     h.deliverWorkflowInboxAlert.mockRejectedValueOnce(
       new Error("Inbox unavailable"),

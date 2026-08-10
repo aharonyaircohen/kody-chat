@@ -161,7 +161,9 @@ export async function POST(request: Request) {
       const verifiedResult = verification.result;
       const qualitySummary = verifiedResult
         ? summary
-        : verification.error;
+        : status !== "success" && summary
+          ? summary
+          : verification.error;
       const artifactUrl =
         qualityArtifactUrl(output.artifactUrl, identity.repository) ??
         (identity.runId && /^\d+$/.test(identity.runId)
