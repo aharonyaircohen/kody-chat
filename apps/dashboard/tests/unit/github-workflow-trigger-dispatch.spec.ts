@@ -348,6 +348,32 @@ describe("dispatchGitHubWorkflowTriggers", () => {
     expect(h.startWorkflow).not.toHaveBeenCalled();
   });
 
+  it("does not start CI Repair for a cancelled run that never acquired a runner", async () => {
+    h.listJobsForWorkflowRun.mockResolvedValue({
+      data: {
+        jobs: [
+          {
+            conclusion: "cancelled",
+            runner_name: "",
+            steps: [],
+          },
+        ],
+      },
+    });
+
+    await dispatchGitHubWorkflowTriggers({
+      event: {
+        ...event,
+        payload: { ...event.payload, conclusion: "cancelled" },
+      },
+      deliveryId: "delivery-cancelled-before-start",
+      octokit,
+    });
+
+    expect(h.mutation).not.toHaveBeenCalled();
+    expect(h.startWorkflow).not.toHaveBeenCalled();
+  });
+
   it("keeps normal CI repair behavior when source-run inspection fails", async () => {
     h.listJobsForWorkflowRun.mockRejectedValue(new Error("GitHub unavailable"));
 

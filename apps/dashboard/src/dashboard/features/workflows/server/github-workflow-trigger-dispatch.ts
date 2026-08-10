@@ -61,7 +61,11 @@ async function sourceRunNeverStarted(input: {
     runId?: unknown;
     conclusion?: unknown;
   };
-  if (payload.conclusion !== "failure" || typeof payload.runId !== "number") {
+  if (
+    (payload.conclusion !== "failure" &&
+      payload.conclusion !== "cancelled") ||
+    typeof payload.runId !== "number"
+  ) {
     return false;
   }
 
