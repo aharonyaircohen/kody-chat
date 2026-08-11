@@ -147,6 +147,8 @@ function compactReportItems(
 }
 
 export function KodyChat({
+  conversationId,
+  onConversationChange,
   guidedFlowRequest,
   onGuidedFlowRequestHandled,
   context,
@@ -529,7 +531,43 @@ export function KodyChat({
     conversationRequestHeaders,
     effectiveActorLogin,
     effectiveActorLogin !== null,
+    conversationId,
   );
+  const routedConversationIdRef = useRef(conversationId);
+  const routeSelectionPendingRef = useRef(false);
+  const activeConversationId = sessionHook.activeSession?.id;
+  const conversationSessions = sessionHook.sessions;
+  const conversationsHydrated = sessionHook.hydrated;
+  const switchConversation = sessionHook.switchSession;
+  useEffect(() => {
+    if (routedConversationIdRef.current === conversationId) return;
+    routedConversationIdRef.current = conversationId;
+    if (!conversationsHydrated || !conversationId) return;
+    if (activeConversationId === conversationId) return;
+    if (!conversationSessions.some((session) => session.id === conversationId))
+      return;
+    routeSelectionPendingRef.current = true;
+    switchConversation(conversationId);
+  }, [
+    activeConversationId,
+    conversationId,
+    conversationSessions,
+    conversationsHydrated,
+    switchConversation,
+  ]);
+  useEffect(() => {
+    if (!conversationsHydrated || !onConversationChange) return;
+    if (routeSelectionPendingRef.current) {
+      if (activeConversationId !== conversationId) return;
+      routeSelectionPendingRef.current = false;
+    }
+    onConversationChange(activeConversationId ?? null);
+  }, [
+    activeConversationId,
+    conversationId,
+    conversationsHydrated,
+    onConversationChange,
+  ]);
   const { machineAccess, setMachineAccess } =
     useMachineAccessSelection(sessionHook);
   const localMachineAvailable = useLocalMachineAvailability(

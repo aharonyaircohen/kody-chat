@@ -78,6 +78,114 @@ test.describe("Route smoke", () => {
     await expect(chat.locator("textarea").first()).toBeVisible();
   });
 
+  test("a conversation route restores the same saved chat after refresh", async ({
+    page,
+  }) => {
+    const conversationId = "conversation-linked";
+    const otherConversationId = "conversation-other";
+    const now = "2026-08-11T12:00:00.000Z";
+    let detailReads = 0;
+    await page.unroute("**/api/kody/chat/conversations**");
+    await page.route("**/api/kody/chat/conversations**", (route) => {
+      const url = new URL(route.request().url());
+      const isCollection = url.pathname.endsWith("/conversations");
+      if (isCollection) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversations: [
+              {
+                conversationId,
+                title: "Persistent route conversation",
+                preview: "Saved message from this conversation",
+                pinned: false,
+                activeAgent: { slug: "kody", title: "Kody" },
+                runtime: { kind: "direct", modelId: "gpt-x" },
+                machineAccess: "none",
+                scope: { kind: "global" },
+                createdAt: now,
+                updatedAt: now,
+              },
+              {
+                conversationId: otherConversationId,
+                title: "Another saved conversation",
+                preview: "Another saved message",
+                pinned: false,
+                activeAgent: { slug: "kody", title: "Kody" },
+                runtime: { kind: "direct", modelId: "gpt-x" },
+                machineAccess: "none",
+                scope: { kind: "global" },
+                createdAt: now,
+                updatedAt: "2026-08-11T11:00:00.000Z",
+              },
+            ],
+          }),
+        });
+      }
+      if (route.request().method() === "GET") detailReads += 1;
+      const requestedConversationId = url.pathname.split("/").at(-1)!;
+      const isOtherConversation =
+        requestedConversationId === otherConversationId;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          conversation: {
+            conversationId: requestedConversationId,
+            title: isOtherConversation
+              ? "Another saved conversation"
+              : "Persistent route conversation",
+            pinned: false,
+            activeAgent: { slug: "kody", title: "Kody" },
+            runtime: { kind: "direct", modelId: "gpt-x" },
+            machineAccess: "none",
+            scope: { kind: "global" },
+            createdAt: now,
+            updatedAt: now,
+          },
+          entries: [
+            {
+              entryId: "message-1",
+              seq: 1,
+              entry: {
+                kind: "message",
+                role: "user",
+                content: isOtherConversation
+                  ? "Another saved message"
+                  : "Saved message from this conversation",
+                status: "committed",
+                createdAt: now,
+              },
+            },
+          ],
+          checkpoints: [],
+        }),
+      });
+    });
+
+    const conversationUrl = `${BASE_URL}/repo/test-owner/test-repo/chat/${conversationId}`;
+    await page.goto(conversationUrl);
+    await expect(
+      page.getByText("Saved message from this conversation").first(),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(conversationUrl);
+
+    await page.reload();
+    await expect(
+      page.getByText("Saved message from this conversation").first(),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(conversationUrl);
+    expect(detailReads).toBeGreaterThanOrEqual(2);
+
+    await page.getByRole("button", { name: "Toggle conversations" }).click();
+    await page.getByText("Another saved conversation").click();
+    await expect(page).toHaveURL(
+      `${BASE_URL}/repo/test-owner/test-repo/chat/${otherConversationId}`,
+    );
+    await expect(page.getByText("Another saved message").first()).toBeVisible();
+  });
+
   test("/brands keeps the default dashboard page structure", async ({
     page,
   }) => {
