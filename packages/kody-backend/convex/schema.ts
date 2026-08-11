@@ -106,6 +106,15 @@ export default defineSchema({
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
 
+  workflowRunLeases: defineTable({
+    tenantId: v.string(),
+    workflowId: v.string(),
+    runId: v.string(),
+    ownerId: v.string(),
+    expiresAtMs: v.number(),
+    updatedAtMs: v.number(),
+  }).index("by_run", ["tenantId", "workflowId", "runId"]),
+
   workflowEventDeliveries: defineTable({
     tenantId: v.string(),
     deliveryId: v.string(),
