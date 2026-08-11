@@ -385,6 +385,49 @@ test("explains that a Journey is one user goal made from simple Actions", async 
   ).toBeVisible();
 });
 
+test("offers only active records when composing Quality models", async ({
+  page,
+}) => {
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) =>
+    json(route, {
+      ...qualityMap,
+      actions: [
+        ...qualityMap.actions,
+        {
+          ...qualityMap.actions[0],
+          slug: "archived-action",
+          name: "Archived action",
+          status: "archived",
+        },
+      ],
+      journeys: [
+        {
+          ...qualityMap.journeys[0],
+          slug: "archived-journey",
+          name: "Archived journey",
+          status: "archived",
+        },
+        ...qualityMap.journeys,
+      ],
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/quality/journeys");
+  await page.getByRole("button", { name: "New journey" }).click();
+  await expect(
+    page.getByRole("button", { name: "Add Archived action" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.goto("/repo/acme/widgets/quality/scenarios");
+  await page.getByRole("button", { name: "New scenario" }).click();
+  await expect(page.getByText("1. Archived journey")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Add Archived journey" }),
+  ).toHaveCount(0);
+});
+
 test("starts an active Scenario without manual browser steps", async ({
   page,
 }) => {

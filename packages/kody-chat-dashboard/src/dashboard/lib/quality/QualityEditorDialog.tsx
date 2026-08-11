@@ -67,9 +67,12 @@ function defaultRecord(
     (environment) =>
       environment.url && environment.label.toLowerCase() === "production",
   );
+  const defaultJourney = map.journeys.find(
+    (journey) => journey.status === "active",
+  );
   return {
     slug: "",
-    journeySlugs: map.journeys[0] ? [map.journeys[0].slug] : [],
+    journeySlugs: defaultJourney ? [defaultJourney.slug] : [],
     name: "",
     kind: "happy",
     given: "",
@@ -118,6 +121,13 @@ export function QualityEditorDialog({
   useEffect(() => {
     setDraft((record as Editable | null) ?? defaultRecord(resource, map));
   }, [map, open, record, resource]);
+
+  const activeActions = map.actions.filter(
+    (action) => action.status === "active",
+  );
+  const activeJourneys = map.journeys.filter(
+    (journey) => journey.status === "active",
+  );
 
   const valid =
     draft.name.trim().length > 0 &&
@@ -215,7 +225,7 @@ export function QualityEditorDialog({
                 <legend className="text-sm font-medium">
                   Actions in order
                 </legend>
-                {map.actions.length === 0 ? (
+                {activeActions.length === 0 && draft.actionSlugs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Create an Action first.
                   </p>
@@ -286,7 +296,7 @@ export function QualityEditorDialog({
                         </div>
                       );
                     })}
-                    {map.actions
+                    {activeActions
                       .filter(
                         (action) => !draft.actionSlugs.includes(action.slug),
                       )
@@ -319,7 +329,8 @@ export function QualityEditorDialog({
                 <legend className="text-sm font-medium">
                   Journeys in order
                 </legend>
-                {map.journeys.length === 0 ? (
+                {activeJourneys.length === 0 &&
+                draft.journeySlugs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Create a Journey first.
                   </p>
@@ -390,7 +401,7 @@ export function QualityEditorDialog({
                         </div>
                       );
                     })}
-                    {map.journeys
+                    {activeJourneys
                       .filter(
                         (journey) => !draft.journeySlugs.includes(journey.slug),
                       )
