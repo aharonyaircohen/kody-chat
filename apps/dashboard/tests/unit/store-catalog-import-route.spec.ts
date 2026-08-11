@@ -58,6 +58,14 @@ describe("simple Store activation", () => {
     expect(source).toContain("backendApi.definitions.retire");
   });
 
+  it("does not look for Engine built-in capabilities in the Store", () => {
+    expect(source).toContain('ENGINE_BUILT_IN_CAPABILITIES = new Set(["run"])');
+    expect(source).toMatch(
+      /publishableCapabilitySlugs = capabilitySlugs\.filter[\s\S]*!ENGINE_BUILT_IN_CAPABILITIES\.has\(slug\)/,
+    );
+    expect(source).toContain("publishableCapabilitySlugs.map");
+  });
+
   it("preflights and installs every Solution entry point", () => {
     expect(source).toContain('"solution"');
     expect(source).toContain("readStoreSolution");

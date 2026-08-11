@@ -118,6 +118,10 @@ const fieldByKind: Record<
   feature: "activeFeatures",
 };
 
+// Engine-owned capabilities are always available at runtime and have no
+// Store folder to publish. Store Workflows may still reference them.
+const ENGINE_BUILT_IN_CAPABILITIES = new Set(["run"]);
+
 function validSlug(kind: ImportKind, slug: string): boolean {
   return kind === "workflow" || kind === "pipeline"
     ? isWorkflowDefinitionId(slug)
@@ -270,7 +274,11 @@ async function publishStoreDefinitions(
   agentSlugs: readonly string[],
   capabilitySlugs: readonly string[],
 ): Promise<void> {
-  if (agentSlugs.length === 0 && capabilitySlugs.length === 0) return;
+  const publishableCapabilitySlugs = capabilitySlugs.filter(
+    (slug) => !ENGINE_BUILT_IN_CAPABILITIES.has(slug),
+  );
+  if (agentSlugs.length === 0 && publishableCapabilitySlugs.length === 0)
+    return;
 
   const [agentEntries, capabilityEntries, shared] = await Promise.all([
     Promise.all(
@@ -290,7 +298,7 @@ async function publishStoreDefinitions(
       }),
     ),
     Promise.all(
-      capabilitySlugs.map(async (slug) => {
+      publishableCapabilitySlugs.map(async (slug) => {
         const files = await readCompanyStoreCapabilityFolderFiles(
           slug,
           octokit,
@@ -304,7 +312,7 @@ async function publishStoreDefinitions(
         return [slug, files] as const;
       }),
     ),
-    capabilitySlugs.length === 0
+    publishableCapabilitySlugs.length === 0
       ? Promise.resolve({})
       : companyStoreAssetPath(octokit, "shared").then((root) =>
           readStoreTree(octokit, root),
