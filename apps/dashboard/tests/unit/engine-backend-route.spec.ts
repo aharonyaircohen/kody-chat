@@ -100,6 +100,35 @@ describe("POST /api/kody/engine/backend", () => {
     });
   });
 
+  it("allows the Engine to acquire a repository-scoped Workflow run lease", async () => {
+    backend.mutation.mockResolvedValue({ acquired: true });
+
+    const response = await POST(
+      request({
+        kind: "mutation",
+        operation: "workflowRunLeases.acquire",
+        args: {
+          tenantId: "attacker/repo",
+          workflowId: "release",
+          runId: "run-1",
+          ownerId: "worker-1",
+          nowMs: 1_000,
+          leaseDurationMs: 10_000,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      workflowId: "release",
+      runId: "run-1",
+      ownerId: "worker-1",
+      nowMs: 1_000,
+      leaseDurationMs: 10_000,
+    });
+  });
+
   it("does not expose the removed Agency Definition operation", async () => {
     const response = await POST(
       request({

@@ -63,6 +63,18 @@ const operations = {
   "workflows.list": { kind: "query", fn: backendApi.workflows.list },
   "workflowRuns.get": { kind: "query", fn: backendApi.workflowRuns.get },
   "workflowRuns.save": { kind: "mutation", fn: backendApi.workflowRuns.save },
+  "workflowRunLeases.acquire": {
+    kind: "mutation",
+    fn: backendApi.workflowRunLeases.acquire,
+  },
+  "workflowRunLeases.renew": {
+    kind: "mutation",
+    fn: backendApi.workflowRunLeases.renew,
+  },
+  "workflowRunLeases.release": {
+    kind: "mutation",
+    fn: backendApi.workflowRunLeases.release,
+  },
 } as const;
 
 export async function POST(request: Request) {
