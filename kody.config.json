@@ -43,7 +43,8 @@
       "ui-review",
       "prepare-ci-repair",
       "quality-check",
-      "fix-ci"
+      "fix-ci",
+      "run"
     ],
     "activeWorkflows": [
       "ci-repair",
