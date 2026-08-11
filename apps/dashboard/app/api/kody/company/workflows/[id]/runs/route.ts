@@ -11,6 +11,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import {
+  isWorkflowRunStateId,
   readLatestWorkflowRunStateFile,
   readWorkflowRunStateFile,
 } from "@dashboard/lib/workflow-run-state-files";
@@ -42,21 +43,12 @@ export async function GET(
     if (!octokit)
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     const runId = req.nextUrl.searchParams.get("runId");
-    if (runId && !/^run-[a-z0-9]+$/.test(runId)) {
+    if (runId && !isWorkflowRunStateId(runId)) {
       return NextResponse.json({ error: "invalid_run_id" }, { status: 400 });
     }
     const run = runId
-      ? await readWorkflowRunStateFile(
-          auth.owner,
-          auth.repo,
-          id,
-          runId,
-        )
-      : await readLatestWorkflowRunStateFile(
-          auth.owner,
-          auth.repo,
-          id,
-        );
+      ? await readWorkflowRunStateFile(auth.owner, auth.repo, id, runId)
+      : await readLatestWorkflowRunStateFile(auth.owner, auth.repo, id);
     return NextResponse.json({ run });
   } catch (error) {
     return NextResponse.json(

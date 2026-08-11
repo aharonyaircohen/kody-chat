@@ -17,10 +17,14 @@ import {
 
 const SAFE_ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
+export function isWorkflowRunStateId(value: string): boolean {
+  return SAFE_ID.test(value);
+}
+
 function assertIds(workflowId: string, runId?: string): void {
   if (
     !SAFE_ID.test(workflowId) ||
-    (runId !== undefined && !SAFE_ID.test(runId))
+    (runId !== undefined && !isWorkflowRunStateId(runId))
   ) {
     throw new Error("Invalid workflow or run id");
   }
@@ -59,7 +63,7 @@ export async function readLatestWorkflowRunStateFile(
     workflowId,
   })) as WorkflowRunDoc[];
   const latest = docs
-    .filter((doc) => /^run-[a-z0-9_-]+$/i.test(doc.runId))
+    .filter((doc) => isWorkflowRunStateId(doc.runId))
     .map((doc) => doc.runId)
     .sort()
     .at(-1);
