@@ -346,6 +346,14 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   // page — chat never hovers over it). Remembered in a ref for the session.
   const router = useRouter();
   const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
+  const isChatRoute =
+    currentRepoPath === "/chat" || currentRepoPath.startsWith("/chat/");
+  const conversationIdFromRoute = isChatRoute
+    ? decodeURIComponent(currentRepoPath.slice("/chat/".length)) || null
+    : null;
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (publicRoute) return;
@@ -354,13 +362,13 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       !auth?.owner ||
       !auth.repo ||
       !pathname ||
-      currentRepoPath === "/chat"
+      isChatRoute
     )
       return;
     const target = legacyRepoRedirectPath(auth, pathname);
     if (!target) return;
     router.replace(`${target}${window.location.search}${window.location.hash}`);
-  }, [auth, currentRepoPath, loading, pathname, publicRoute, router]);
+  }, [auth, isChatRoute, loading, pathname, publicRoute, router]);
 
   // The auth context derives the active repo from the URL, so the only
   // sync state left to handle is "missing" — a /repo/<owner>/<repo> URL we
@@ -379,29 +387,49 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const chatFirst = useChatFirstLayout();
   const flipActive = chatFirst && !publicRoute && !!auth;
   useEffect(() => {
-    if (!flipActive || currentRepoPath === "/chat") return;
+    if (!flipActive || isChatRoute) return;
     trace({ kind: "panel:open", detail: currentRepoPath });
-  }, [flipActive, currentRepoPath]);
+  }, [flipActive, currentRepoPath, isChatRoute]);
   const scopedHref = useCallback(
     (href: string) =>
       auth?.owner && auth.repo ? repoScopedHref(auth, href) : href,
     [auth],
   );
   const toggleExpandedChat = useCallback(() => {
-    if (currentRepoPath === "/chat") {
+    if (isChatRoute) {
       router.push(preExpandRouteRef.current || scopedHref("/tasks"));
     } else {
       preExpandRouteRef.current = pathname || scopedHref("/tasks");
-      router.push(scopedHref("/chat"));
+      router.push(
+        scopedHref(
+          activeConversationId
+            ? `/chat/${encodeURIComponent(activeConversationId)}`
+            : "/chat",
+        ),
+      );
     }
-  }, [currentRepoPath, pathname, router, scopedHref]);
+  }, [activeConversationId, isChatRoute, pathname, router, scopedHref]);
+
+  const syncConversationRoute = useCallback(
+    (conversationId: string | null) => {
+      setActiveConversationId(conversationId);
+      if (!isChatRoute) return;
+      const target = scopedHref(
+        conversationId
+          ? `/chat/${encodeURIComponent(conversationId)}`
+          : "/chat",
+      );
+      if (pathname !== target) router.replace(target, { scroll: false });
+    },
+    [isChatRoute, pathname, router, scopedHref],
+  );
 
   // Escape always exits the full /chat view, even if the chat header is
   // hidden by a layout glitch (e.g. session sidebar overflowing on a narrow
   // window). Without this the user is stuck and has to reach for the
   // browser back button.
   useEffect(() => {
-    if (currentRepoPath !== "/chat") return;
+    if (!isChatRoute) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -410,7 +438,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [currentRepoPath, router, scopedHref]);
+  }, [isChatRoute, router, scopedHref]);
 
   // Hydration guard: SSR has no localStorage so `auth` is always null on
   // the server. Without this flag the first client render would diverge
@@ -438,12 +466,12 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!guidedFlowChat.pending) return;
     if (guidedFlowChat.pending.destination === "chat") {
-      if (currentRepoPath !== "/chat") router.push(scopedHref("/chat"));
+      if (!isChatRoute) router.push(scopedHref("/chat"));
       return;
     }
     openMobileChat();
   }, [
-    currentRepoPath,
+    isChatRoute,
     guidedFlowChat.pending,
     openMobileChat,
     router,
@@ -533,7 +561,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   //              header's chat button (see the fixed panel below).
   // Kody Live remains the default agent (only it can edit code); the model
   // dropdown still lets the user pick any configured LLM for chat-only turns.
-  const isChatRoute = currentRepoPath === "/chat";
   const isVibeRoute =
     currentRepoPath === "/vibe" || currentRepoPath.startsWith("/vibe/");
   const isOrgRoute =
@@ -587,6 +614,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
 
   const chatPane = (
     <KodyChat
+      conversationId={conversationIdFromRoute}
+      onConversationChange={syncConversationRoute}
       guidedFlowRequest={
         (isDesktop || isChatRoute) &&
         !(guidedFlowChat.pending?.destination === "chat" && !isChatRoute)

@@ -126,6 +126,10 @@ export interface Attachment {
 }
 
 export interface KodyChatProps {
+  /** Conversation selected by the host route, when Chat has a durable URL. */
+  conversationId?: string | null;
+  /** Reports the durable conversation selected by Chat back to the host route. */
+  onConversationChange?: (conversationId: string | null) => void;
   /** One shell-owned flow command. Only the persistent chat mount receives it. */
   guidedFlowRequest?: {
     id: string;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionMeta } from "../../../src/dashboard/lib/chat-types";
 import {
   mergeHydratedSessions,
+  preferredHydratedSessionId,
   preserveActiveSessionId,
   shouldLoadHydratedSessionDetail,
 } from "../../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions";
@@ -59,5 +60,16 @@ describe("conversation hydration", () => {
   it("does not replace a conversation the user already activated", () => {
     expect(preserveActiveSessionId("local-new", "remote")).toBe("local-new");
     expect(preserveActiveSessionId("", "remote")).toBe("remote");
+  });
+
+  it("hydrates the conversation named by the route when it exists", () => {
+    const loaded = [
+      session("latest", "2026-07-21T00:02:00.000Z"),
+      session("linked", "2026-07-21T00:01:00.000Z"),
+    ];
+
+    expect(preferredHydratedSessionId(loaded, "linked")).toBe("linked");
+    expect(preferredHydratedSessionId(loaded, "missing")).toBe("latest");
+    expect(preferredHydratedSessionId([], "missing")).toBe("");
   });
 });

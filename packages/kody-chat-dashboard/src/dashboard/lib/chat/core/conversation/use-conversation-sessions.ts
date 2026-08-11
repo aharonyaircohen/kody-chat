@@ -117,6 +117,19 @@ export function preserveActiveSessionId(
   return currentSessionId || firstLoadedSessionId;
 }
 
+export function preferredHydratedSessionId(
+  loaded: SessionMeta[],
+  preferredSessionId?: string | null,
+): string {
+  if (
+    preferredSessionId &&
+    loaded.some((session) => session.id === preferredSessionId)
+  ) {
+    return preferredSessionId;
+  }
+  return loaded[0]?.id ?? "";
+}
+
 function sessionFromList(value: Record<string, unknown>): SessionMeta {
   const storedScope =
     value.scope && typeof value.scope === "object"
@@ -152,6 +165,7 @@ export function useConversationSessions(
   requestHeaders?: Record<string, string>,
   actorLogin: string | null = null,
   persistenceEnabled = true,
+  preferredSessionId?: string | null,
 ): UseConversationSessionsResult {
   const conversationClient = useMemo(
     () => createConversationClient(requestHeaders ?? {}),
@@ -166,6 +180,8 @@ export function useConversationSessions(
   const [activeSessionId, setActiveSessionId] = useState("");
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const locallyCreatedSessionIdsRef = useRef(new Set<string>());
+  const preferredSessionIdRef = useRef(preferredSessionId);
+  preferredSessionIdRef.current = preferredSessionId;
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -224,7 +240,10 @@ export function useConversationSessions(
           sessionsRef.current = merged;
           return merged;
         });
-        const firstId = loaded[0]?.id ?? "";
+        const firstId = preferredHydratedSessionId(
+          loaded,
+          preferredSessionIdRef.current,
+        );
         setActiveSessionId((current) =>
           preserveActiveSessionId(current, firstId),
         );
@@ -251,7 +270,12 @@ export function useConversationSessions(
     return () => {
       cancelled = true;
     };
-  }, [conversationClient, loadDetail, persistenceEnabled, scope]);
+  }, [
+    conversationClient,
+    loadDetail,
+    persistenceEnabled,
+    scope,
+  ]);
 
   const orderedSessions = useMemo(
     () =>
