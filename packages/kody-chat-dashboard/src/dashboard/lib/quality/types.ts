@@ -8,7 +8,7 @@ import type {
 export type QualityRun = {
   runId: string;
   runSlug: string;
-  journeySlug: string;
+  journeySlugs: string[];
   scenarioSlug: string;
   environment: string;
   targetUrl: string;
@@ -30,7 +30,18 @@ export type QualityRun = {
     passed?: number;
     failed?: number;
     blocked?: number;
+    journeyResults?: Array<{
+      journeySlug: string;
+      journeyName: string;
+      status: "passed" | "failed" | "blocked";
+      evidence: string;
+      issueSource?: "none" | "product" | "test" | "environment" | "unknown";
+      cause?: string;
+      correction?: string;
+      artifactPath: string;
+    }>;
     actionResults?: Array<{
+      journeySlug?: string;
       actionSlug: string;
       actionName: string;
       status: "passed" | "failed" | "blocked";

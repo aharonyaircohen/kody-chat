@@ -829,7 +829,8 @@ export default defineSchema({
   qualityScenarios: defineTable({
     tenantId: v.string(),
     slug: v.string(),
-    journeySlug: v.string(),
+    journeySlug: v.optional(v.string()),
+    journeySlugs: v.optional(v.array(v.string())),
     name: v.string(),
     kind: v.union(
       v.literal("happy"),
@@ -859,7 +860,8 @@ export default defineSchema({
     tenantId: v.string(),
     runId: v.string(),
     runSlug: v.string(),
-    journeySlug: v.string(),
+    journeySlug: v.optional(v.string()),
+    journeySlugs: v.optional(v.array(v.string())),
     scenarioSlug: v.string(),
     environment: v.string(),
     targetUrl: v.string(),

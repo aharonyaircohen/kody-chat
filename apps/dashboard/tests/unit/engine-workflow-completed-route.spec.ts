@@ -82,7 +82,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     h.qualityQuery.mockImplementation((name: string) => {
       if (name === "quality.getRun") {
         return Promise.resolve({
-          run: { journeySlug: "direct-chat-persistence" },
+          run: { journeySlugs: ["direct-chat-persistence"] },
           events: [],
         });
       }
@@ -91,6 +91,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           journeys: [
             {
               slug: "direct-chat-persistence",
+              name: "Direct chat persistence",
               actionSlugs: ["send-message"],
             },
           ],
@@ -170,6 +171,19 @@ describe("POST /api/kody/engine/workflow-completed", () => {
                 "test-results/quality-runs/run-quality-1/01-send-message.png",
             },
           ],
+          journeyResults: [
+            {
+              journeySlug: "direct-chat-persistence",
+              journeyName: "Direct chat persistence",
+              status: "passed",
+              evidence: "The direct chat Journey completed.",
+              issueSource: "none",
+              cause: "Every Action completed.",
+              correction: "No correction is needed.",
+              artifactPath:
+                "test-results/quality-runs/run-quality-1/journey-1.png",
+            },
+          ],
           scenarioResult: {
             status: "passed",
             evidence: "The saved reply remained visible after reload.",
@@ -204,6 +218,13 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           passed: 1,
           failed: 0,
           blocked: 0,
+          journeyResults: [
+            expect.objectContaining({
+              journeySlug: "direct-chat-persistence",
+              journeyName: "Direct chat persistence",
+              status: "passed",
+            }),
+          ],
           actionResults: [
             expect.objectContaining({
               actionSlug: "send-message",
@@ -306,7 +327,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           type: "quality_run_completed",
           status: "blocked",
           summary:
-            "Quality result is missing the required Action or Scenario results.",
+            "Quality result is missing the required Journey, Action, or Scenario results.",
         }),
       }),
     );

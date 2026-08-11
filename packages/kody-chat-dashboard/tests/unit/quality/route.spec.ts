@@ -91,7 +91,7 @@ describe("Quality routes", () => {
     const response = await POST(
       request("POST", {
         slug: "reply-persists",
-        journeySlug: "direct-chat-persists",
+        journeySlugs: ["direct-chat-persists"],
         name: "Reply persists",
         kind: "persistence",
         given: "A configured model.",

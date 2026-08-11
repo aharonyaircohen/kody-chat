@@ -121,6 +121,13 @@ describe("POST /api/kody/quality/runs", () => {
     h.query.mockResolvedValue({
       actions: [
         {
+          slug: "sign-in",
+          name: "Sign in",
+          outcome: "The user signs in with the configured test account.",
+          area: "Authentication",
+          status: "active",
+        },
+        {
           slug: "send-message",
           name: "Send a message",
           outcome: "The user sends one chat message.",
@@ -129,6 +136,15 @@ describe("POST /api/kody/quality/runs", () => {
         },
       ],
       journeys: [
+        {
+          slug: "sign-in",
+          name: "Sign in",
+          goal: "A valid test user signs in.",
+          priority: "normal",
+          status: "active",
+          actionSlugs: ["sign-in"],
+          updatedAt: "2026-08-09T12:02:00.000Z",
+        },
         {
           slug: "direct-chat-persists",
           name: "Direct chat persists",
@@ -142,7 +158,7 @@ describe("POST /api/kody/quality/runs", () => {
       scenarios: [
         {
           slug: "reply-persists",
-          journeySlug: "direct-chat-persists",
+          journeySlugs: ["sign-in", "direct-chat-persists"],
           name: "Reply persists",
           kind: "persistence",
           given: "The repository is connected and the user can sign in.",
@@ -179,8 +195,9 @@ describe("POST /api/kody/quality/runs", () => {
       "quality.createRun",
       expect.objectContaining({
         tenantId: "acme/widgets",
-        journeySlug: "direct-chat-persists",
+        journeySlugs: ["sign-in", "direct-chat-persists"],
         scenarioSlug: "reply-persists",
+        definitionUpdatedAt: "2026-08-09T12:02:00.000Z",
       }),
     );
     expect(h.startWorkflow).toHaveBeenCalledWith(
@@ -188,20 +205,37 @@ describe("POST /api/kody/quality/runs", () => {
         workflowId: "quality-run",
         input: {
           qualityRunId: expect.stringMatching(/^run-/),
-          journey: {
-            slug: "direct-chat-persists",
-            name: "Direct chat persists",
-            goal: "A signed-in user can complete repository work with Kody.",
-            priority: "critical",
-            actions: [
-              {
-                slug: "send-message",
-                name: "Send a message",
-                outcome: "The user sends one chat message.",
-                area: "Chat",
-              },
-            ],
-          },
+          journeys: [
+            {
+              slug: "sign-in",
+              name: "Sign in",
+              goal: "A valid test user signs in.",
+              priority: "normal",
+              actions: [
+                {
+                  slug: "sign-in",
+                  name: "Sign in",
+                  outcome:
+                    "The user signs in with the configured test account.",
+                  area: "Authentication",
+                },
+              ],
+            },
+            {
+              slug: "direct-chat-persists",
+              name: "Direct chat persists",
+              goal: "A signed-in user can complete repository work with Kody.",
+              priority: "critical",
+              actions: [
+                {
+                  slug: "send-message",
+                  name: "Send a message",
+                  outcome: "The user sends one chat message.",
+                  area: "Chat",
+                },
+              ],
+            },
+          ],
           scenario: {
             slug: "reply-persists",
             name: "Reply persists",
@@ -264,7 +298,7 @@ describe("POST /api/kody/quality/runs", () => {
       scenarios: [
         {
           slug: "reply-persists",
-          journeySlug: "direct-chat-persists",
+          journeySlugs: ["direct-chat-persists"],
           status: "draft",
         },
       ],

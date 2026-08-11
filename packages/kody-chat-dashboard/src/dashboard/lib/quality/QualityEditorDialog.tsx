@@ -57,7 +57,7 @@ function defaultRecord(
   );
   return {
     slug: "",
-    journeySlug: map.journeys[0]?.slug ?? "",
+    journeySlugs: map.journeys[0] ? [map.journeys[0].slug] : [],
     name: "",
     kind: "happy",
     given: "",
@@ -79,7 +79,7 @@ function isJourney(record: Editable): record is QualityJourney {
   return "actionSlugs" in record;
 }
 function isScenario(record: Editable): record is QualityScenario {
-  return "journeySlug" in record;
+  return "journeySlugs" in record;
 }
 
 export function QualityEditorDialog({
@@ -113,7 +113,7 @@ export function QualityEditorDialog({
       ? draft.outcome.trim().length > 0 && draft.area.trim().length > 0
       : isJourney(draft)
         ? draft.goal.trim().length > 0
-        : draft.journeySlug.length > 0 &&
+        : draft.journeySlugs.length > 0 &&
           draft.given.trim().length > 0 &&
           draft.expectedVisible.trim().length > 0 &&
           draft.expectedState.trim().length > 0 &&
@@ -303,22 +303,108 @@ export function QualityEditorDialog({
 
           {isScenario(draft) ? (
             <>
-              <label className="grid gap-1.5">
-                <Label>Journey</Label>
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={draft.journeySlug}
-                  onChange={(event) =>
-                    setDraft({ ...draft, journeySlug: event.target.value })
-                  }
-                >
-                  {map.journeys.map((journey) => (
-                    <option key={journey.slug} value={journey.slug}>
-                      {journey.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium">
+                  Journeys in order
+                </legend>
+                {map.journeys.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Create a Journey first.
+                  </p>
+                ) : (
+                  <div className="grid gap-2">
+                    {draft.journeySlugs.map((slug, index) => {
+                      const journey = map.journeys.find(
+                        (candidate) => candidate.slug === slug,
+                      );
+                      return (
+                        <div
+                          key={slug}
+                          className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            {index + 1}. {journey?.name ?? slug}
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Move ${journey?.name ?? slug} up`}
+                            disabled={index === 0}
+                            onClick={() => {
+                              const next = [...draft.journeySlugs];
+                              [next[index - 1], next[index]] = [
+                                next[index],
+                                next[index - 1],
+                              ];
+                              setDraft({ ...draft, journeySlugs: next });
+                            }}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Move ${journey?.name ?? slug} down`}
+                            disabled={index === draft.journeySlugs.length - 1}
+                            onClick={() => {
+                              const next = [...draft.journeySlugs];
+                              [next[index], next[index + 1]] = [
+                                next[index + 1],
+                                next[index],
+                              ];
+                              setDraft({ ...draft, journeySlugs: next });
+                            }}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            aria-label={`Remove ${journey?.name ?? slug}`}
+                            onClick={() =>
+                              setDraft({
+                                ...draft,
+                                journeySlugs: draft.journeySlugs.filter(
+                                  (candidate) => candidate !== slug,
+                                ),
+                              })
+                            }
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    {map.journeys
+                      .filter(
+                        (journey) => !draft.journeySlugs.includes(journey.slug),
+                      )
+                      .map((journey) => (
+                        <Button
+                          key={journey.slug}
+                          type="button"
+                          variant="outline"
+                          className="justify-start"
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              journeySlugs: [
+                                ...draft.journeySlugs,
+                                journey.slug,
+                              ],
+                            })
+                          }
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add {journey.name}
+                        </Button>
+                      ))}
+                  </div>
+                )}
+              </fieldset>
               <label className="grid gap-1.5">
                 <Label>Kind</Label>
                 <select

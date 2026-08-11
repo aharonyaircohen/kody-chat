@@ -51,6 +51,7 @@ type QualityMap = {
     outcome: string;
     area: string;
     status: "draft" | "active" | "archived";
+    updatedAt: string;
   }>;
   journeys: Array<{
     slug: string;
@@ -63,7 +64,8 @@ type QualityMap = {
   }>;
   scenarios: Array<{
     slug: string;
-    journeySlug: string;
+    journeySlug?: string;
+    journeySlugs?: string[];
     name: string;
     kind:
       | "happy"
@@ -81,6 +83,16 @@ type QualityMap = {
     updatedAt: string;
   }>;
 };
+
+function orderedJourneySlugs(
+  scenario: QualityMap["scenarios"][number],
+): string[] {
+  return scenario.journeySlugs?.length
+    ? scenario.journeySlugs
+    : scenario.journeySlug
+      ? [scenario.journeySlug]
+      : [];
+}
 
 function executableJourney(
   map: QualityMap,
@@ -111,6 +123,23 @@ function executableJourney(
       area: action!.area,
     })),
   };
+}
+
+function latestDefinitionUpdate(
+  scenario: QualityMap["scenarios"][number],
+  journeys: QualityMap["journeys"],
+  actions: QualityMap["actions"],
+): string {
+  return [
+    scenario.updatedAt,
+    ...journeys.map((journey) => journey.updatedAt),
+    ...journeys.flatMap((journey) =>
+      journey.actionSlugs.flatMap((slug) => {
+        const action = actions.find((candidate) => candidate.slug === slug);
+        return action ? [action.updatedAt] : [];
+      }),
+    ),
+  ].reduce((latest, candidate) => (candidate > latest ? candidate : latest));
 }
 
 function safeRemoteTarget(value: string): string | null {
@@ -196,21 +225,31 @@ export async function POST(req: NextRequest) {
     const scenario = map.scenarios.find(
       (candidate) => candidate.slug === parsed.data.scenarioSlug,
     );
-    const journey = scenario
-      ? map.journeys.find(
-          (candidate) => candidate.slug === scenario.journeySlug,
+    const journeySlugs = scenario ? orderedJourneySlugs(scenario) : [];
+    const journeys = scenario
+      ? journeySlugs.map((slug) =>
+          map.journeys.find((candidate) => candidate.slug === slug),
         )
-      : null;
-    if (!scenario || !journey)
+      : [];
+    if (
+      !scenario ||
+      journeys.length === 0 ||
+      journeys.some((journey) => !journey)
+    )
       return NextResponse.json(
         { error: "scenario_not_found" },
         { status: 404 },
       );
-    const resolvedJourney = journey ? executableJourney(map, journey) : null;
+    const savedJourneys = journeys.filter(
+      (journey): journey is QualityMap["journeys"][number] => Boolean(journey),
+    );
+    const resolvedJourneys = savedJourneys.map((journey) =>
+      executableJourney(map, journey),
+    );
     if (
       scenario.status !== "active" ||
       !scenario.environmentId ||
-      !resolvedJourney
+      resolvedJourneys.some((journey) => !journey)
     ) {
       return NextResponse.json(
         { error: "scenario_not_executable" },
@@ -253,12 +292,16 @@ export async function POST(req: NextRequest) {
       tenantId,
       runId,
       runSlug,
-      journeySlug: journey.slug,
+      journeySlugs: savedJourneys.map((journey) => journey.slug),
       scenarioSlug: scenario.slug,
       environment,
       targetUrl,
       sourceCommit,
-      definitionUpdatedAt: scenario.updatedAt,
+      definitionUpdatedAt: latestDefinitionUpdate(
+        scenario,
+        savedJourneys,
+        map.actions,
+      ),
       createdAt: now,
       ...(parsed.data.retryOfRunId
         ? { retryOfRunId: parsed.data.retryOfRunId }
@@ -273,7 +316,7 @@ export async function POST(req: NextRequest) {
         requestId: runId,
         input: {
           qualityRunId: runId,
-          journey: resolvedJourney,
+          journeys: resolvedJourneys,
           scenario: {
             slug: scenario.slug,
             name: scenario.name,

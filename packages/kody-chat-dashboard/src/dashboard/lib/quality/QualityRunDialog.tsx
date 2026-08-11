@@ -32,19 +32,25 @@ export function QualityRunDialog({
   const executable = useMemo(
     () =>
       map.scenarios.filter((scenario) => {
-        const journey = map.journeys.find(
-          (candidate) => candidate.slug === scenario.journeySlug,
-        );
         return Boolean(
           scenario.status === "active" &&
           scenario.environmentId &&
-          journey?.status === "active" &&
-          journey?.actionSlugs.length &&
-          journey.actionSlugs.every((slug) =>
-            map.actions.some(
-              (action) => action.slug === slug && action.status === "active",
-            ),
-          ),
+          scenario.journeySlugs.length > 0 &&
+          scenario.journeySlugs.every((journeySlug) => {
+            const journey = map.journeys.find(
+              (candidate) => candidate.slug === journeySlug,
+            );
+            return Boolean(
+              journey?.status === "active" &&
+              journey.actionSlugs.length > 0 &&
+              journey.actionSlugs.every((slug) =>
+                map.actions.some(
+                  (action) =>
+                    action.slug === slug && action.status === "active",
+                ),
+              ),
+            );
+          }),
         );
       }),
     [map.actions, map.journeys, map.scenarios],
@@ -65,7 +71,8 @@ export function QualityRunDialog({
         <DialogHeader>
           <DialogTitle>Start Quality Run</DialogTitle>
           <DialogDescription>
-            Kody will act as a live user using the saved Journey and Scenario.
+            Kody will act as a live user and run the Scenario&apos;s Journeys in
+            order.
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-1.5 py-2">
@@ -84,7 +91,7 @@ export function QualityRunDialog({
         </label>
         {executable.length === 0 ? (
           <p className="text-sm text-amber-300">
-            An active Scenario needs an environment and an active Journey with
+            An active Scenario needs an environment and active Journeys with
             active Actions.
           </p>
         ) : null}

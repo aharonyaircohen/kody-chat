@@ -34,7 +34,7 @@ const qualityMap = {
   scenarios: [
     {
       slug: "reply-persists",
-      journeySlug: "direct-chat-persists",
+      journeySlugs: ["direct-chat-persists"],
       name: "Reply persists after reload",
       kind: "persistence",
       given: "A connected repository and configured direct model.",
@@ -50,7 +50,7 @@ const qualityMap = {
     {
       runId: "run-1",
       runSlug: "reply-persists-20260809",
-      journeySlug: "direct-chat-persists",
+      journeySlugs: ["direct-chat-persists"],
       scenarioSlug: "reply-persists",
       environment: "local",
       targetUrl: "http://127.0.0.1:3333",
@@ -65,6 +65,16 @@ const qualityMap = {
         passed: 1,
         failed: 0,
         blocked: 0,
+        journeyResults: [
+          {
+            journeySlug: "direct-chat-persists",
+            journeyName: "Direct chat survives reload",
+            status: "passed",
+            evidence: "The complete Journey passed.",
+            artifactPath:
+              "test-results/quality-runs/run-1/01-direct-chat-persists.png",
+          },
+        ],
         actionResults: [
           {
             actionSlug: "send-message",
@@ -279,7 +289,76 @@ test("binds a Scenario to a repository environment", async ({ page }) => {
     page.getByText("Production chat opens", { exact: true }).first(),
   ).toBeVisible();
   expect(scenarios[0]?.environmentId).toBe("production");
+  expect(scenarios[0]?.journeySlugs).toEqual(["direct-chat-persists"]);
   expect(scenarios[0]).not.toHaveProperty("testId");
+});
+
+test("keeps an existing single-Journey Scenario readable during migration", async ({
+  page,
+}) => {
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", (route) =>
+    json(route, {
+      ...qualityMap,
+      scenarios: [
+        {
+          ...qualityMap.scenarios[0],
+          journeySlugs: undefined,
+          journeySlug: "direct-chat-persists",
+        },
+      ],
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/quality/scenarios/reply-persists");
+
+  await expect(
+    page.getByRole("heading", { name: "Reply persists after reload" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Direct chat survives reload", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("This page hit an error")).toHaveCount(0);
+});
+
+test("orders reusable Journeys inside a Scenario", async ({ page }) => {
+  let savedScenario: Record<string, unknown> | null = null;
+  const journeys = [
+    ...qualityMap.journeys,
+    {
+      slug: "sign-in",
+      name: "Sign in",
+      goal: "A valid test user signs in.",
+      priority: "normal",
+      status: "active",
+      actionSlugs: ["send-message"],
+      updatedAt: "2026-08-09T12:00:00.000Z",
+    },
+  ];
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) => {
+    if (route.request().method() === "POST") {
+      savedScenario = route.request().postDataJSON();
+      return json(route, { ok: true }, 201);
+    }
+    return json(route, { ...qualityMap, journeys, scenarios: [] });
+  });
+
+  await page.goto("/repo/acme/widgets/quality/scenarios");
+  await page.getByRole("button", { name: "New scenario" }).click();
+  await page.getByLabel("Name").fill("Signed-in user completes work");
+  await page.getByRole("button", { name: "Add Sign in" }).click();
+  await page.getByRole("button", { name: "Move Sign in up" }).click();
+  await page.getByLabel("Starting conditions").fill("Production is available.");
+  await page.getByLabel("Visible proof").fill("A fresh reply is visible.");
+  await page
+    .getByLabel("Stored-state proof")
+    .fill("The fresh reply survives reload.");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  expect(savedScenario).toMatchObject({
+    journeySlugs: ["sign-in", "direct-chat-persists"],
+  });
 });
 
 test("starts an active Scenario without manual browser steps", async ({
@@ -310,7 +389,7 @@ test("starts an active Scenario without manual browser steps", async ({
   await page.getByRole("button", { name: "New Quality Run" }).click();
   await expect(
     page.getByText(
-      "Kody will act as a live user using the saved Journey and Scenario.",
+      "Kody will act as a live user and run the Scenario's Journeys in order.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Start Quality Run" }).click();
@@ -318,7 +397,7 @@ test("starts an active Scenario without manual browser steps", async ({
   expect(startedScenario).toBe("reply-persists");
 });
 
-test("shows the verified result for every Action in a Quality Run", async ({
+test("shows the verified result for every Journey and Action in a Quality Run", async ({
   page,
 }) => {
   await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
@@ -326,6 +405,9 @@ test("shows the verified result for every Action in a Quality Run", async ({
   await expect(page.getByText("1 passed", { exact: true })).toBeVisible();
   await expect(page.getByText("0 failed", { exact: true })).toBeVisible();
   await expect(page.getByText("Send a message", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Direct chat survives reload", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("A fresh message remained visible after reload."),
   ).toBeVisible();
