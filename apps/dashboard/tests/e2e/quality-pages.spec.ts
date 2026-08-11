@@ -305,6 +305,7 @@ test("keeps an existing single-Journey Scenario readable during migration", asyn
           ...qualityMap.scenarios[0],
           journeySlugs: undefined,
           journeySlug: "direct-chat-persists",
+          environmentId: undefined,
         },
       ],
     }),
