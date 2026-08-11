@@ -364,7 +364,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/quality/actions",
         label: "Actions",
         icon: Activity,
-        description: "Manage reusable user capabilities.",
+        description: "Manage reusable, simple user steps.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {

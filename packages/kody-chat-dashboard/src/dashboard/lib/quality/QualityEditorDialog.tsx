@@ -25,6 +25,18 @@ import type { QualityMap, QualityRecord, QualityResource } from "./types";
 
 type Editable = QualityAction | QualityJourney | QualityScenario;
 
+const authoringDescriptions: Record<
+  Exclude<QualityResource, "runs">,
+  string
+> = {
+  actions:
+    "An Action is one simple user step. Describe its expected result, not clicks or selectors.",
+  journeys:
+    "A Journey combines simple Actions to complete one user goal. Do not repeat setup owned by another Journey.",
+  scenarios:
+    "A Scenario orders Journeys into one complete test with starting conditions and required proof.",
+};
+
 function defaultRecord(
   resource: Exclude<QualityResource, "runs">,
   map: QualityMap,
@@ -135,7 +147,7 @@ export function QualityEditorDialog({
             {record ? "Edit" : "New"} {resource.slice(0, -1)}
           </DialogTitle>
           <DialogDescription>
-            Describe the user behavior and the proof that makes it trustworthy.
+            {authoringDescriptions[resource]}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
@@ -150,7 +162,7 @@ export function QualityEditorDialog({
           {isAction(draft) ? (
             <>
               <label className="grid gap-1.5">
-                <Label>User outcome</Label>
+                <Label>Expected result</Label>
                 <Textarea
                   value={draft.outcome}
                   onChange={(event) =>

@@ -85,6 +85,8 @@ One doc per dashboard-managed store / capability.
 
 ### Quality
 
+- ✅ [Quality authoring](quality.md) — the Action → Journey → Scenario
+  boundaries used by the editor and Kody.
 - ✅ [QA automation](qa.md) — the `qa` agent + `qa`/`qa-sweep` capabilities.
 - ✅ [Changelog](changelog.md) — `CHANGELOG.md` as machine-written ledger;
   the per-PR QA markers QA writes are documented here.

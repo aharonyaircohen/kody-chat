@@ -210,8 +210,13 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
 
   await page.goto("/repo/acme/widgets/quality/actions");
   await page.getByRole("button", { name: "New action" }).click();
+  await expect(
+    page.getByText(
+      "An Action is one simple user step. Describe its expected result, not clicks or selectors.",
+    ),
+  ).toBeVisible();
   await page.getByLabel("Name").fill("Open a conversation");
-  await page.getByLabel("User outcome").fill("The user opens Chat.");
+  await page.getByLabel("Expected result").fill("The user opens Chat.");
   await page.getByLabel("Product area").fill("Chat");
   await expect(page.getByText("Browser steps", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Save" }).click();
@@ -219,7 +224,7 @@ test("creates, edits, and deletes an Action", async ({ page }) => {
     page.getByText("Open a conversation", { exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("User outcome").fill("The user opens a saved Chat.");
+  await page.getByLabel("Expected result").fill("The user opens a saved Chat.");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("The user opens a saved Chat.")).toBeVisible();
 
@@ -246,7 +251,7 @@ test("saves an Action without asking the user for browser instructions", async (
   await page.goto("/repo/acme/widgets/quality/actions");
   await page.getByRole("button", { name: "New action" }).click();
   await page.getByLabel("Name").fill("Sign in");
-  await page.getByLabel("User outcome").fill("The user signs in.");
+  await page.getByLabel("Expected result").fill("The user signs in.");
   await page.getByLabel("Product area").fill("Authentication");
   await page.getByLabel("Status").selectOption("active");
   await expect(page.getByText("Browser steps", { exact: true })).toHaveCount(0);
@@ -347,6 +352,11 @@ test("orders reusable Journeys inside a Scenario", async ({ page }) => {
 
   await page.goto("/repo/acme/widgets/quality/scenarios");
   await page.getByRole("button", { name: "New scenario" }).click();
+  await expect(
+    page.getByText(
+      "A Scenario orders Journeys into one complete test with starting conditions and required proof.",
+    ),
+  ).toBeVisible();
   await page.getByLabel("Name").fill("Signed-in user completes work");
   await page.getByRole("button", { name: "Add Sign in" }).click();
   await page.getByRole("button", { name: "Move Sign in up" }).click();
@@ -360,6 +370,19 @@ test("orders reusable Journeys inside a Scenario", async ({ page }) => {
   expect(savedScenario).toMatchObject({
     journeySlugs: ["sign-in", "direct-chat-persists"],
   });
+});
+
+test("explains that a Journey is one user goal made from simple Actions", async ({
+  page,
+}) => {
+  await page.goto("/repo/acme/widgets/quality/journeys");
+  await page.getByRole("button", { name: "New journey" }).click();
+
+  await expect(
+    page.getByText(
+      "A Journey combines simple Actions to complete one user goal. Do not repeat setup owned by another Journey.",
+    ),
+  ).toBeVisible();
 });
 
 test("starts an active Scenario without manual browser steps", async ({
