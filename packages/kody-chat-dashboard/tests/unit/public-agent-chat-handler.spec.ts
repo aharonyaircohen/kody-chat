@@ -12,7 +12,7 @@ const agents = [
 ];
 
 describe("public Agent chat handler", () => {
-  it("adapts configured specialist capabilities without exposing their tools to Kody", async () => {
+  it("does not remove Kody's tools when a specialist owns the same tool", async () => {
     const log = vi.fn();
     await expect(
       handleConfiguredPublicAgentChat({
@@ -44,7 +44,7 @@ describe("public Agent chat handler", () => {
       }),
     ).resolves.toEqual({
       mode: "self",
-      parentTools: { final_answer: {} },
+      parentTools: { agency_read: {}, final_answer: {} },
     });
 
     expect(log).toHaveBeenCalledWith(

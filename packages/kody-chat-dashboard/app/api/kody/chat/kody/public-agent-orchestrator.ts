@@ -62,22 +62,14 @@ export async function orchestratePublicAgentTurn({
       ),
     ),
   );
-  const claimedToolNames = new Set(
-    [...capabilitiesByAgent.values()].flatMap((capabilities) =>
-      capabilities.flatMap((capability) =>
-        capability.capabilityTools.map((tool) => tool.name),
-      ),
-    ),
-  );
   const decision = await route({ userText, assignedAgents });
   if (decision.mode === "self") {
     return {
       decision,
-      parentTools: Object.fromEntries(
-        Object.entries(availableTools).filter(
-          ([name]) => !claimedToolNames.has(name),
-        ),
-      ),
+      // The route has already applied the parent's chat capability and every
+      // host-level policy. Child ownership must not mutate that authorized
+      // set; sharing a tool with a specialist is an explicit valid overlap.
+      parentTools: { ...availableTools },
       results: [],
     };
   }

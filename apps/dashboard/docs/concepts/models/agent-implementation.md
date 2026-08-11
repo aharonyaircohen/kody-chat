@@ -28,6 +28,11 @@ The active parent Agent supplies its configured `subagents` roster. Routing
 chooses only from that roster and uses the current Agent definitions to judge
 which specialist owns the request.
 
+The chat route resolves the parent's authorized tools before delegation by
+applying its chat Capability and host policies. A self-routed turn keeps that
+set unchanged. Specialist ownership never subtracts a tool from the parent;
+the same tool may be deliberately available to both.
+
 Each delegated task runs as an isolated child turn with its own session ID. It
 does not inherit the parent's message history. It receives a focused task, the
 selected Agent definition, its Capability instructions, repository identity

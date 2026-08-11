@@ -301,6 +301,34 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     );
   });
 
+  it("keeps issue comments readable when Kody answers a self-routed follow-up", async () => {
+    listResolvedAgentFilesMock.mockResolvedValueOnce([
+      {
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates assigned specialists.",
+        subagents: ["operations-specialist"],
+        updatedAt: "",
+        htmlUrl: "",
+      },
+      {
+        slug: "operations-specialist",
+        title: "Operations Specialist",
+        body: "Handles tasks, runs, and operational status.",
+        capabilities: ["builtin-agent-operations-specialist"],
+        updatedAt: "",
+        htmlUrl: "",
+      },
+    ]);
+
+    const { status, tools } = await postAndCaptureToolNames(
+      "why u have made 2 comments?",
+    );
+
+    expect(status).toBe(200);
+    expect(tools).toHaveProperty("github_get_issue");
+  });
+
   it("routes to and executes Kody's assigned public Agent before the parent turn", async () => {
     loadViewRendererContextForPromptMock.mockResolvedValueOnce({
       rules: "Use the Agency renderer for Agency requests.",

@@ -26,7 +26,7 @@ const availableTools = {
 };
 
 describe("public Agent orchestrator", () => {
-  it("keeps claimed specialist tools away from Kody on a self-routed turn", async () => {
+  it("preserves Kody's authorized tools on a self-routed turn", async () => {
     const result = await orchestratePublicAgentTurn({
       userText: "Hello",
       assignedAgents: agents,
@@ -37,11 +37,7 @@ describe("public Agent orchestrator", () => {
       invoke: vi.fn(),
     });
 
-    expect(result.parentTools).toEqual({
-      inspect_repository: availableTools.inspect_repository,
-      show_view: availableTools.show_view,
-      final_answer: availableTools.final_answer,
-    });
+    expect(result.parentTools).toEqual(availableTools);
     expect(result.results).toEqual([]);
   });
 
