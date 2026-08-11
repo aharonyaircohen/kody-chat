@@ -102,7 +102,7 @@ function targetId(run: Record<string, unknown>, stored: StoredAgencyRun) {
 
 function runStatus(value: unknown): AgencyRunStatus {
   if (value === "queued" || value === "running") return "running";
-  if (value === "succeeded") return "success";
+  if (value === "succeeded" || value === "success") return "success";
   if (value === "failed") return "failed";
   if (value === "cancelled") return "cancelled";
   return "recorded";
@@ -156,9 +156,7 @@ function normalize(stored: StoredAgencyRun): AgencyRunSummary | null {
     githubRunId: null,
     githubRunUrl: null,
     logUrl: null,
-    statePath: string(run.todoId)
-      ? `todos/${string(run.todoId)}.json`
-      : null,
+    statePath: string(run.todoId) ? `todos/${string(run.todoId)}.json` : null,
     sourcePath: id,
     action: null,
     capability: kind === "capability" ? target : null,

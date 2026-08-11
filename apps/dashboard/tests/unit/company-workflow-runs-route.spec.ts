@@ -15,6 +15,9 @@ const githubClient = vi.hoisted(() => ({
   clearGitHubContext: vi.fn(),
 }));
 const runFiles = vi.hoisted(() => ({
+  isWorkflowRunStateId: vi.fn((value: string) =>
+    /^[a-z0-9][a-z0-9_-]{0,79}$/.test(value),
+  ),
   readLatestWorkflowRunStateFile: vi.fn(),
   readWorkflowRunStateFile: vi.fn(),
 }));
@@ -56,6 +59,28 @@ describe("GET /api/kody/company/workflows/:id/runs", () => {
       "acme",
       "widgets",
       "pilot",
+    );
+  });
+
+  it("accepts the UUID run id returned by the workflow start route", async () => {
+    const runId = "run-c770e912-6d17-4d92-a039-f8bd1292c256";
+    runFiles.readWorkflowRunStateFile.mockResolvedValue({
+      workflowId: "pilot",
+      runId,
+      state: { status: "done" },
+    });
+    const req = new NextRequest(
+      `https://dash.test/api/kody/company/workflows/pilot/runs?runId=${runId}`,
+    );
+
+    const res = await GET(req, { params: Promise.resolve({ id: "pilot" }) });
+
+    expect(res.status).toBe(200);
+    expect(runFiles.readWorkflowRunStateFile).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      "pilot",
+      runId,
     );
   });
 });

@@ -80,4 +80,28 @@ describe("simple Agency Runs", () => {
     ]);
     expect(payload.workflowLog).toBeNull();
   });
+
+  it("shows the Engine's current success status as successful", async () => {
+    backend.listStoredAgencyRuns.mockResolvedValue([
+      {
+        runId: "workflow:release:run-uuid",
+        subjectType: "workflow",
+        subjectId: "release",
+        run: {
+          id: "workflow:release:run-uuid",
+          status: "success",
+          startedAt: "2026-08-11T08:00:00.000Z",
+        },
+        updatedAt: "2026-08-11T08:01:00.000Z",
+      },
+    ]);
+
+    const payload = await listAgencyRuns({
+      octokit: {} as never,
+      owner: "acme",
+      repo: "app",
+    });
+
+    expect(payload.runs[0]?.status).toBe("success");
+  });
 });
