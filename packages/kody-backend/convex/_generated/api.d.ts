@@ -52,6 +52,7 @@ import type * as validators from "../validators.js";
 import type * as viewRenderers from "../viewRenderers.js";
 import type * as widgets from "../widgets.js";
 import type * as workflowEventDeliveries from "../workflowEventDeliveries.js";
+import type * as workflowRunLeases from "../workflowRunLeases.js";
 import type * as workflowRuns from "../workflowRuns.js";
 import type * as workflows from "../workflows.js";
 
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   viewRenderers: typeof viewRenderers;
   widgets: typeof widgets;
   workflowEventDeliveries: typeof workflowEventDeliveries;
+  workflowRunLeases: typeof workflowRunLeases;
   workflowRuns: typeof workflowRuns;
   workflows: typeof workflows;
 }>;

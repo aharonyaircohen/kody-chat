@@ -1,11 +1,11 @@
 export type WorkflowRunStatus = "running" | "blocked" | "failed" | "done";
 
 export interface WorkflowRunStepState {
-  capability: string;
-  status: "running" | "done" | "failed";
+  capability?: string;
+  status: "running" | "completed" | "blocked" | "failed";
   input?: unknown;
   output?: unknown;
-  startedAt: string;
+  startedAt?: string;
   completedAt?: string;
 }
 
@@ -116,11 +116,14 @@ function normalizeWorkflowRunSteps(
         return [];
       const value = candidate as Record<string, unknown>;
       if (
-        typeof value.capability !== "string" ||
+        (value.capability !== undefined &&
+          typeof value.capability !== "string") ||
         (value.status !== "running" &&
-          value.status !== "done" &&
+          value.status !== "completed" &&
+          value.status !== "blocked" &&
           value.status !== "failed") ||
-        typeof value.startedAt !== "string" ||
+        (value.startedAt !== undefined &&
+          typeof value.startedAt !== "string") ||
         (value.completedAt !== undefined &&
           typeof value.completedAt !== "string")
       )
@@ -129,7 +132,9 @@ function normalizeWorkflowRunSteps(
         [
           id,
           {
-            capability: value.capability,
+            ...(typeof value.capability === "string"
+              ? { capability: value.capability }
+              : {}),
             status: value.status,
             ...(Object.prototype.hasOwnProperty.call(value, "input")
               ? { input: value.input }
@@ -137,7 +142,9 @@ function normalizeWorkflowRunSteps(
             ...(Object.prototype.hasOwnProperty.call(value, "output")
               ? { output: value.output }
               : {}),
-            startedAt: value.startedAt,
+            ...(typeof value.startedAt === "string"
+              ? { startedAt: value.startedAt }
+              : {}),
             ...(typeof value.completedAt === "string"
               ? { completedAt: value.completedAt }
               : {}),

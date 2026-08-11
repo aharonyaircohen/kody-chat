@@ -10,7 +10,7 @@ describe("normalizeWorkflowRunState", () => {
       steps: {
         inspect: {
           capability: "inspect",
-          status: "done",
+          status: "completed",
           input: { request: "repair it" },
           output: { findings: "exact failure text" },
           startedAt: "2026-08-09T10:00:00.000Z",
@@ -21,11 +21,45 @@ describe("normalizeWorkflowRunState", () => {
 
     expect(state?.steps.inspect).toEqual({
       capability: "inspect",
-      status: "done",
+      status: "completed",
       input: { request: "repair it" },
       output: { findings: "exact failure text" },
       startedAt: "2026-08-09T10:00:00.000Z",
       completedAt: "2026-08-09T10:01:00.000Z",
+    });
+  });
+
+  it("keeps completed and blocked steps from the shared workflow state", () => {
+    const state = normalizeWorkflowRunState({
+      status: "blocked",
+      completedStepIds: ["inspect"],
+      steps: {
+        inspect: {
+          status: "completed",
+          output: { verdict: "pass" },
+          completedAt: "2026-08-09T10:01:00.000Z",
+        },
+        repair: {
+          capability: "fix-ci",
+          status: "blocked",
+          output: { summary: "Repair limit reached" },
+          startedAt: "2026-08-09T10:02:00.000Z",
+        },
+      },
+    });
+
+    expect(state?.steps).toEqual({
+      inspect: {
+        status: "completed",
+        output: { verdict: "pass" },
+        completedAt: "2026-08-09T10:01:00.000Z",
+      },
+      repair: {
+        capability: "fix-ci",
+        status: "blocked",
+        output: { summary: "Repair limit reached" },
+        startedAt: "2026-08-09T10:02:00.000Z",
+      },
     });
   });
 });

@@ -32,6 +32,7 @@ export {
   DEFAULT_SKILL_CREATE_AGENT,
   DEFAULT_SKILL_CREATE_WORKFLOW,
   DEFAULT_SKILL_RUN_WORKFLOW,
+  DEFAULT_SKILL_AUTHOR_QUALITY,
 } from "./skills-operator";
 export { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 export { DEFAULT_SKILL_MEMORY } from "./skills-mem";
@@ -46,6 +47,7 @@ import { DEFAULT_SKILL_CREATE_CAPABILITY } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_AGENT } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_WORKFLOW } from "./skills-operator";
 import { DEFAULT_SKILL_RUN_WORKFLOW } from "./skills-operator";
+import { DEFAULT_SKILL_AUTHOR_QUALITY } from "./skills-operator";
 import { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 import { DEFAULT_SKILL_MEMORY } from "./skills-mem";
 import type { SkillEntry } from "./types";
@@ -61,6 +63,7 @@ export const DEFAULT_SKILLS: Record<string, SkillEntry> = {
   [DEFAULT_SKILL_CREATE_AGENT.slug]: DEFAULT_SKILL_CREATE_AGENT,
   [DEFAULT_SKILL_CREATE_WORKFLOW.slug]: DEFAULT_SKILL_CREATE_WORKFLOW,
   [DEFAULT_SKILL_RUN_WORKFLOW.slug]: DEFAULT_SKILL_RUN_WORKFLOW,
+  [DEFAULT_SKILL_AUTHOR_QUALITY.slug]: DEFAULT_SKILL_AUTHOR_QUALITY,
   [DEFAULT_SKILL_VIBE.slug]: DEFAULT_SKILL_VIBE,
   [DEFAULT_SKILL_MEMORY.slug]: DEFAULT_SKILL_MEMORY,
 };

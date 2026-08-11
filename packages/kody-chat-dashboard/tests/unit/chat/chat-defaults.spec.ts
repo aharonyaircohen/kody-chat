@@ -50,6 +50,20 @@ describe("chat-defaults bundle", () => {
     );
   });
 
+  it("teaches Kody the Quality authoring boundaries", () => {
+    const skill = DEFAULT_SKILLS["author-quality"];
+
+    expect(skill?.body).toContain("Action: one simple user step");
+    expect(skill?.body).toContain(
+      "Journey: ordered Actions completing one user goal",
+    );
+    expect(skill?.body).toContain(
+      "Scenario: ordered Journeys completing one full test",
+    );
+    expect(skill?.body).toContain("Do not repeat setup");
+    expect(skill?.body).toContain("Do not write selectors");
+  });
+
   it("agentIdentity preserves the legacy AGENT_KODY.systemPrompt hard rules + tool policy (regression guard)", () => {
     // The agentIdentity text is now data, but the rules must not drift. The
     // chat-kody-direct integration tests assert the same invariants against
@@ -305,8 +319,9 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 11 skills — including documentation reading and generic workflow execution", () => {
+  it("exposes the documented chat skills", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
+      "author-quality",
       "create-agent",
       "create-capability",
       "create-issue",

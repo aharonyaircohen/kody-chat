@@ -140,6 +140,13 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ config: {} }),
     }),
   );
+  await page.route("**/api/kody/system-events", (route) =>
+    route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ accepted: true }),
+    }),
+  );
   await page.route("**/api/kody/secrets**", (route) =>
     route.fulfill({
       status: 200,

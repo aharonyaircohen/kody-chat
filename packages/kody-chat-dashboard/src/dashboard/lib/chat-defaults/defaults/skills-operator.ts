@@ -46,3 +46,17 @@ export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {
   title: "run-workflow",
   body: `Use \`list_workflows\` to discover active workflows, then \`read_workflow\` to verify the selected definition. Select by the workflow's declared purpose, steps, capabilities, and \`inputSchema\`—not by a hardcoded phrase. Ask at most one question only when a required input is missing; never invent missing input. Call \`run_workflow\` with the selected ID and exact input. If it returns an approval card, stop and let the user choose. After the user clicks Approve, call \`run_workflow\` again with the exact same ID and input. Approval is server-verified and is never a model-generated argument. Do not hardcode workflow IDs, duplicate workflow logic in Chat, or create an issue unless the selected workflow requires one.`,
 };
+
+export const DEFAULT_SKILL_AUTHOR_QUALITY: SkillEntry = {
+  slug: "author-quality",
+  title: "author-quality",
+  body: `Use when the user asks to create, review, or reorganize Quality records.
+
+Apply this boundary before proposing records:
+- Action: one simple user step with one expected result. Keep it semantic so the live runner chooses the controls. Do not write selectors or stored browser commands.
+- Journey: ordered Actions completing one user goal.
+- Scenario: ordered Journeys completing one full test, plus starting conditions and required proof.
+- Quality Run: automatic evidence; never add “confirm the Quality Run” as a test Action.
+
+Do not repeat setup across Journeys and do not bundle several goals into one Action. Show the complete Scenario → Journeys → Actions list before recommending changes. If the user wants the records changed, guide them to the Quality editor; do not claim to save records without a matching tool result.`,
+};
