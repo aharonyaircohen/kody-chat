@@ -4,11 +4,10 @@
  * @pattern chat-terminal-registry
  *
  * Per-chat terminal UI registry. Chat sessions own their terminal mode,
- * mounted terminal surface, selected transport, and connection state.
+ * mounted terminal surface, and selected transport.
  * All state rules live in registry-state.ts (pure, behavior-tested);
- * this hook is the React wiring: state, persistence effects, and the
- * Fly-inventory / status polling loops (polling cadence ≥ 15s — see
- * tests/unit/rate-limit-polling.spec.ts).
+ * this hook is the React wiring: state, tab-scoped persistence effects, and the
+ * Fly-inventory refresh. Live session state belongs to the terminal client.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -24,15 +23,11 @@ import {
   chatTerminalTransportsEqual,
   defaultTerminalTransport,
   loadPersistedTerminalRegistry,
-  localTerminalStatusPath,
   mountedChatTerminalListsEqual,
   normalizeTerminalTransport,
-  pruneInstanceKeyedRecord,
   pruneMountedChatTerminals,
   pruneSessionKeyedRecord,
   reconcileMountedChatTerminalsWithInventory,
-  remoteTerminalStatusRequest,
-  remoteTerminalConnectionStateFromStatus,
   resolveTerminalTargetSelection,
   savePersistedTerminalRegistry,
   terminalRegistryStorageKey,
@@ -40,7 +35,6 @@ import {
   upsertMountedChatTerminal,
 } from "./registry-state";
 import type {
-  ChatTerminalConnectionState,
   ChatTerminalMode,
   ChatTerminalTransport,
   MountedChatTerminal,
@@ -94,8 +88,6 @@ export function useChatTerminalRegistry({
   const [transportBySessionId, setTransportBySessionId] = useState<
     Record<string, ChatTerminalTransport>
   >(initialRegistryState.transportBySessionId);
-  const [connectionStateByInstanceId, setConnectionStateByInstanceId] =
-    useState<Record<string, ChatTerminalConnectionState>>({});
   const [flyInventory, setServerProviderInventory] =
     useState<TerminalServerProviderInventory | null>(null);
   const [flyInventoryLoading, setServerProviderInventoryLoading] =
@@ -110,7 +102,6 @@ export function useChatTerminalRegistry({
     setModeBySessionId(persisted.modeBySessionId);
     setMountedTerminals(persisted.mountedTerminals);
     setTransportBySessionId(persisted.transportBySessionId);
-    setConnectionStateByInstanceId({});
   }, [storageKey]);
 
   useEffect(() => {
@@ -146,9 +137,6 @@ export function useChatTerminalRegistry({
     ? chatTerminalInstanceId(activeSessionId, activeTransport)
     : null;
   const activeTargetValue = terminalTargetValue(activeTransport);
-  const activeConnectionState = activeSessionId
-    ? (connectionStateByInstanceId[activeInstanceId ?? ""] ?? "idle")
-    : "idle";
 
   const mountTerminal = useCallback(
     (sessionId: string, transport: ChatTerminalTransport) => {
@@ -193,9 +181,6 @@ export function useChatTerminalRegistry({
     );
     setTransportBySessionId((prev) =>
       pruneSessionKeyedRecord(prev, knownSessionIds),
-    );
-    setConnectionStateByInstanceId((prev) =>
-      pruneInstanceKeyedRecord(prev, knownSessionIds),
     );
   }, [sessions, sessionsHydrated]);
 
@@ -357,152 +342,16 @@ export function useChatTerminalRegistry({
     [setActiveTransport, terminalMachines],
   );
 
-  const recordConnectionState = useCallback(
-    (instanceId: string, state: ChatTerminalConnectionState) => {
-      setConnectionStateByInstanceId((prev) =>
-        prev[instanceId] === state ? prev : { ...prev, [instanceId]: state },
-      );
-    },
-    [],
-  );
-
-  const hasLiveTerminal = useCallback(
-    (sessionId: string | null | undefined) => {
-      if (!sessionId) return false;
-      return mountedTerminals.some((terminal) => {
-        if (terminal.sessionId !== sessionId) return false;
-        const state = connectionStateByInstanceId[terminal.id];
-        return (
-          state === "connected" ||
-          state === "connecting" ||
-          state === "restoring"
-        );
-      });
-    },
-    [connectionStateByInstanceId, mountedTerminals],
-  );
-
-  useEffect(() => {
-    if (!activeSessionId) return;
-    const localTerminals = mountedTerminals.filter(
-      (terminal) =>
-        terminal.sessionId === activeSessionId &&
-        terminal.transport.type === "local",
-    );
-    if (localTerminals.length === 0) return;
-
-    let cancelled = false;
-    const refreshStatus = async () => {
-      const headers = authHeaders();
-      if (Object.keys(headers).length === 0) return;
-      await Promise.all(
-        localTerminals.map(async (terminal) => {
-          if (terminal.transport.type !== "local") return;
-          try {
-            const res = await fetch(localTerminalStatusPath(activeSessionId), {
-              headers,
-            });
-            if (!res.ok) return;
-            const body = (await res.json().catch(() => ({}))) as {
-              session?: { alive?: boolean } | null;
-            };
-            if (cancelled) return;
-            const state: ChatTerminalConnectionState = body.session?.alive
-              ? "connected"
-              : "closed";
-            setConnectionStateByInstanceId((prev) =>
-              prev[terminal.id] === state
-                ? prev
-                : { ...prev, [terminal.id]: state },
-            );
-          } catch {
-            /* status is advisory; the terminal surface reports hard errors */
-          }
-        }),
-      );
-    };
-
-    void refreshStatus();
-    const interval = setInterval(() => void refreshStatus(), 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [activeSessionId, mountedTerminals]);
-
-  useEffect(() => {
-    if (!activeSessionId) return;
-    const flyTerminals = mountedTerminals.filter(
-      (terminal) =>
-        terminal.sessionId === activeSessionId &&
-        (terminal.transport.type === "fly" ||
-          terminal.transport.type === "brain"),
-    );
-    if (flyTerminals.length === 0) return;
-
-    let cancelled = false;
-    const refreshStatus = async () => {
-      const headers = authHeaders();
-      if (Object.keys(headers).length === 0) return;
-      await Promise.all(
-        flyTerminals.map(async (terminal) => {
-          if (
-            terminal.transport.type !== "fly" &&
-            terminal.transport.type !== "brain"
-          ) {
-            return;
-          }
-          const statusRequest = remoteTerminalStatusRequest(
-            terminal.transport,
-            activeSessionId,
-          );
-          try {
-            const res = await fetch("/api/kody/terminal/status", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...headers },
-              body: JSON.stringify(statusRequest),
-            });
-            if (!res.ok) return;
-            const body = (await res.json().catch(() => ({}))) as {
-              alive?: boolean;
-              ready?: boolean;
-              socketCount?: number;
-            };
-            if (cancelled) return;
-            const state = remoteTerminalConnectionStateFromStatus(body);
-            setConnectionStateByInstanceId((prev) =>
-              prev[terminal.id] === state
-                ? prev
-                : { ...prev, [terminal.id]: state },
-            );
-          } catch {
-            /* status is advisory; reconnect reports hard errors */
-          }
-        }),
-      );
-    };
-
-    void refreshStatus();
-    const interval = setInterval(() => void refreshStatus(), 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [activeSessionId, mountedTerminals]);
-
   return {
-    activeConnectionState,
     activeInstanceId,
     activeTargetValue,
     activeTransport,
     flyInventoryError,
     flyInventoryLoading,
-    hasLiveTerminal,
     mode,
     modeBySessionId,
     mountedTerminals,
     openTerminalMode,
-    recordConnectionState,
     refreshFlyMachines,
     restoreTerminalTransport: setActiveTransport,
     selectTarget,

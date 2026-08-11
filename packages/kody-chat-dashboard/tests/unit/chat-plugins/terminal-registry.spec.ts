@@ -3,7 +3,7 @@
  *   (Step 5a REWRITE of chat-terminal-registry-refresh.spec.ts and the
  *   source-text half of chat-terminal-registry-brain-singleton.spec.ts):
  *   Brain is a per-chat semantic intent, restored terminals survive until
- *   chat sessions hydrate, status probes are scoped per chat session, and
+ *   chat sessions hydrate, and
  *   targets reconcile after a Brain image apply.
  * @testFramework vitest
  * @domain chat-plugins
@@ -18,16 +18,12 @@ import {
   findMountedBrainTerminal,
   isBrainTerminalTransport,
   loadPersistedTerminalRegistry,
-  localTerminalStatusPath,
   normalizeMountedChatTerminals,
   normalizeTerminalTransport,
-  pruneInstanceKeyedRecord,
   pruneMountedChatTerminals,
   pruneSessionKeyedRecord,
   pruneTerminalRegistryToSessions,
   reconcileMountedChatTerminalsWithInventory,
-  remoteTerminalConnectionStateFromStatus,
-  remoteTerminalStatusRequest,
   resolveTerminalTargetSelection,
   savePersistedTerminalRegistry,
   terminalTargetValue,
@@ -287,7 +283,6 @@ describe("chat terminal registry refresh persistence", () => {
       mountedTerminals: mounted,
       modeBySessionId: { "chat-1": "terminal" as const },
       transportBySessionId: { "chat-1": BRAIN_TERMINAL_TRANSPORT },
-      connectionStateByInstanceId: { "chat-1::brain": "connected" as const },
     };
     // Sessions have NOT hydrated: an empty session list must not wipe the
     // restored registry.
@@ -303,7 +298,6 @@ describe("chat terminal registry refresh persistence", () => {
     expect(pruned.mountedTerminals).toEqual([mounted[1]]);
     expect(pruned.modeBySessionId).toEqual({});
     expect(pruned.transportBySessionId).toEqual({});
-    expect(pruned.connectionStateByInstanceId).toEqual({});
   });
 
   it("prunes each collection identity-preservingly", () => {
@@ -311,68 +305,6 @@ describe("chat terminal registry refresh persistence", () => {
     expect(pruneMountedChatTerminals(mounted, known)).toBe(mounted);
     const modes = { "chat-1": "terminal" as const };
     expect(pruneSessionKeyedRecord(modes, known)).toBe(modes);
-    const connections = { "chat-2::local": "connected" as const };
-    expect(pruneInstanceKeyedRecord(connections, known)).toBe(connections);
-    expect(pruneInstanceKeyedRecord(connections, new Set(["chat-1"]))).toEqual(
-      {},
-    );
-  });
-
-  it("refreshes status for local terminals by chat session only", () => {
-    // The local status probe is keyed by chatSessionId — never a sandbox id.
-    expect(localTerminalStatusPath("chat-7")).toBe(
-      "/api/kody/chat/terminal/status?chatSessionId=chat-7",
-    );
-    expect(localTerminalStatusPath("chat-7")).not.toContain("sandboxId");
-  });
-
-  it("probes remote terminals by semantic Brain target or Fly machine", () => {
-    expect(remoteTerminalStatusRequest({ type: "brain" }, "chat-1")).toEqual({
-      target: "brain",
-      chatSessionId: "chat-1",
-    });
-    expect(
-      remoteTerminalStatusRequest(
-        { type: "fly", app: "runner-app", machineId: "m-1", feature: "runner" },
-        "chat-1",
-      ),
-    ).toEqual({
-      app: "runner-app",
-      machineId: "m-1",
-      feature: "runner",
-      chatSessionId: "chat-1",
-    });
-  });
-
-  it("reports connected only when the bridge session is ready and attached", () => {
-    expect(
-      remoteTerminalConnectionStateFromStatus({
-        alive: true,
-        ready: true,
-        socketCount: 1,
-      }),
-    ).toBe("connected");
-    expect(
-      remoteTerminalConnectionStateFromStatus({
-        alive: true,
-        ready: false,
-        socketCount: 1,
-      }),
-    ).toBe("connecting");
-    expect(
-      remoteTerminalConnectionStateFromStatus({
-        alive: true,
-        ready: true,
-        socketCount: 0,
-      }),
-    ).toBe("connecting");
-    expect(
-      remoteTerminalConnectionStateFromStatus({
-        alive: false,
-        ready: true,
-        socketCount: 1,
-      }),
-    ).toBe("closed");
   });
 
   it("reconciles Brain terminal targets after image apply", () => {
@@ -416,11 +348,17 @@ describe("chat terminal registry refresh persistence", () => {
   });
 
   it("round-trips the persisted registry and drops malformed transports", () => {
-    const store = new Map<string, string>();
+    const tabStore = new Map<string, string>();
+    const sharedStore = new Map<string, string>();
     vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: (key: string) => tabStore.get(key) ?? null,
+        setItem: (key: string, value: string) => void tabStore.set(key, value),
+      },
       localStorage: {
-        getItem: (key: string) => store.get(key) ?? null,
-        setItem: (key: string, value: string) => void store.set(key, value),
+        getItem: (key: string) => sharedStore.get(key) ?? null,
+        setItem: (key: string, value: string) =>
+          void sharedStore.set(key, value),
       },
     });
 
@@ -458,5 +396,36 @@ describe("chat terminal registry refresh persistence", () => {
     expect(loaded.transportBySessionId).toEqual({
       "chat-1": BRAIN_TERMINAL_TRANSPORT,
     });
+    expect(tabStore.has("test-key")).toBe(true);
+    expect(sharedStore.has("test-key")).toBe(false);
+  });
+
+  it("migrates an existing shared terminal mode into the current tab", () => {
+    const tabStore = new Map<string, string>();
+    const sharedStore = new Map<string, string>([
+      [
+        "test-key",
+        JSON.stringify({
+          version: 1,
+          modeBySessionId: { "chat-1": "terminal" },
+          mountedTerminals: [],
+          transportBySessionId: {},
+        }),
+      ],
+    ]);
+    vi.stubGlobal("window", {
+      sessionStorage: {
+        getItem: (key: string) => tabStore.get(key) ?? null,
+        setItem: (key: string, value: string) => void tabStore.set(key, value),
+      },
+      localStorage: {
+        getItem: (key: string) => sharedStore.get(key) ?? null,
+      },
+    });
+
+    const loaded = loadPersistedTerminalRegistry("test-key");
+
+    expect(loaded.modeBySessionId).toEqual({ "chat-1": "terminal" });
+    expect(tabStore.has("test-key")).toBe(true);
   });
 });

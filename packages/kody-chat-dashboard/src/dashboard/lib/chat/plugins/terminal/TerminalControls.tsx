@@ -234,12 +234,14 @@ export function TerminalBottomControls({
   onRestart,
   onClear,
   actionBusy,
+  restartDisabled = false,
   layout = "row",
 }: {
   onAddToChat: () => void;
   onRestart: () => void;
   onClear: () => void;
   actionBusy: boolean | undefined;
+  restartDisabled?: boolean;
   layout?: "row" | "menu";
 }) {
   const menuLayout = layout === "menu";
@@ -274,7 +276,7 @@ export function TerminalBottomControls({
         <button
           type="button"
           onClick={onRestart}
-          disabled={actionBusy}
+          disabled={actionBusy || restartDisabled}
           className={actionClassName}
           title="Restart terminal"
           aria-label="Restart terminal"

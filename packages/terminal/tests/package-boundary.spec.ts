@@ -36,4 +36,18 @@ describe("Terminal package boundary", () => {
     expect(manifest.dependencies).not.toHaveProperty("@kody-ade/fly");
     expect(imports).not.toContain("@kody-ade/fly");
   });
+
+  it("keeps the session domain independent of UI and runtime providers", () => {
+    const domainSource = [
+      "terminal-session-model.ts",
+      "terminal-session-state.ts",
+    ]
+      .map((file) => readFileSync(join(packageRoot, "src", file), "utf8"))
+      .join("\n");
+
+    expect(domainSource).not.toMatch(/from ["'](?:react|next|@kody-ade\/fly)/);
+    expect(domainSource).not.toContain("WebSocket");
+    expect(domainSource).not.toContain("tmux");
+    expect(domainSource).not.toContain("xterm");
+  });
 });

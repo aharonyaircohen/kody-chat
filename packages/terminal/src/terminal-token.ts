@@ -21,7 +21,8 @@ export interface TerminalBridgeClaims {
   machineId?: string;
   privateAddress?: string;
   chatSessionId?: string;
-  resetSession?: boolean;
+  conversationId?: string;
+  afterRevision?: number;
   activityLimitMs?: number | null;
   localExec?: boolean;
   flyToken: string;
@@ -40,7 +41,8 @@ export interface MintTerminalBridgeTokenInput {
   machineId?: string;
   privateAddress?: string;
   chatSessionId?: string;
-  resetSession?: boolean;
+  conversationId?: string;
+  afterRevision?: number;
   activityLimitMs?: number | null;
   localExec?: boolean;
   flyToken: string;
@@ -113,7 +115,8 @@ export function mintTerminalBridgeToken(
     machineId: input.machineId,
     privateAddress: input.privateAddress,
     chatSessionId: input.chatSessionId,
-    resetSession: input.resetSession,
+    conversationId: input.conversationId,
+    afterRevision: input.afterRevision,
     activityLimitMs: input.activityLimitMs,
     localExec: input.localExec,
     flyToken: input.flyToken,

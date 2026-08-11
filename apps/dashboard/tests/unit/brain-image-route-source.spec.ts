@@ -28,6 +28,13 @@ const BRIDGE_SOURCE = readFileSync(
   ),
   "utf8",
 );
+const BRIDGE_RUNTIME_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge-stateless-script.ts",
+  ),
+  "utf8",
+);
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(
   resolve(__dirname, "../../../../packages/terminal/src/bridge-exec-client.ts"),
   "utf8",
@@ -87,15 +94,14 @@ describe("Brain image save route", () => {
   });
 
   it("supports authenticated non-interactive bridge commands", () => {
-    expect(BRIDGE_SOURCE).toContain('url.pathname === "/exec"');
-    expect(BRIDGE_SOURCE).toContain("runOneShotFlyCommand");
-    expect(BRIDGE_SOURCE).toContain("runOneShotLocalCommand");
-    expect(BRIDGE_SOURCE).toContain("body.local === true");
-    expect(BRIDGE_SOURCE).toContain('"--command"');
-    expect(BRIDGE_SOURCE).toContain("MAX_EXEC_OUTPUT_BYTES");
-    expect(BRIDGE_SOURCE).toContain("GHCR_TOKEN: claims.ghcrToken ||");
-    expect(BRIDGE_SOURCE).toContain("EXEC_KEEPALIVE_INTERVAL_MS");
-    expect(BRIDGE_SOURCE).toContain('res.write(" ")');
+    expect(BRIDGE_RUNTIME_SOURCE).toContain('url.pathname === "/exec"');
+    expect(BRIDGE_RUNTIME_SOURCE).toContain("function runCommand");
+    expect(BRIDGE_RUNTIME_SOURCE).toContain("body.local === true");
+    expect(BRIDGE_RUNTIME_SOURCE).toContain('"--command"');
+    expect(BRIDGE_RUNTIME_SOURCE).toContain("MAX_EXEC_OUTPUT_BYTES");
+    expect(BRIDGE_RUNTIME_SOURCE).toContain("GHCR_TOKEN: claims.ghcrToken ||");
+    expect(BRIDGE_RUNTIME_SOURCE).toContain("EXEC_KEEPALIVE_INTERVAL_MS");
+    expect(BRIDGE_RUNTIME_SOURCE).toContain('res.write(" ")');
     expect(BRIDGE_SOURCE).toContain("memory_mb: 2048");
     expect(BRIDGE_SOURCE).toContain("REQUEST_TIMEOUT_MS = 90_000");
   });

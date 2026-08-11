@@ -5,8 +5,8 @@
  * @ai-summary Pure state logic for the per-chat terminal registry: transport
  *   normalization (Brain is a semantic intent, not a machine id), mounted
  *   terminal upsert/reconcile, session pruning gated on chat-session
- *   hydration, localStorage persistence codec, and target selection/status
- *   request builders. Extracted from useChatTerminalRegistry in Step 5a so
+ *   hydration, tab-scoped persistence codec, and target selection. Extracted
+ *   from useChatTerminalRegistry so
  *   every rule is behavior-testable without React.
  */
 import {
@@ -15,7 +15,6 @@ import {
 } from "@kody-ade/base/infrastructure/server-machine-model";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import type {
-  ChatTerminalConnectionState,
   ChatTerminalMode,
   ChatTerminalTransport,
   MountedChatTerminal,
@@ -211,7 +210,11 @@ export function loadPersistedTerminalRegistry(
   };
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(storageKey);
+    let raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) {
+      raw = window.localStorage.getItem(storageKey);
+      if (raw) window.sessionStorage.setItem(storageKey, raw);
+    }
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as PersistedTerminalRegistryState;
     if (parsed.version !== 1) return fallback;
@@ -249,9 +252,9 @@ export function savePersistedTerminalRegistry(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
+    window.sessionStorage.setItem(storageKey, JSON.stringify(state));
   } catch {
-    /* localStorage is best-effort UI persistence */
+    /* sessionStorage is best-effort UI persistence */
   }
 }
 
@@ -259,17 +262,6 @@ export function canUseChatTerminalFlyMachine(
   machine: ServerProviderMachineRow,
 ): boolean {
   return isFlyTerminalCapable(machine.feature);
-}
-
-export function remoteTerminalConnectionStateFromStatus(status: {
-  alive?: boolean;
-  ready?: boolean;
-  socketCount?: number;
-}): ChatTerminalConnectionState {
-  if (!status.alive) return "closed";
-  return status.ready && (status.socketCount ?? 0) > 0
-    ? "connected"
-    : "connecting";
 }
 
 export function terminalFlyMachineKey(machine: {
@@ -418,32 +410,10 @@ export function pruneSessionKeyedRecord<T>(
   return changed ? next : record;
 }
 
-/**
- * Prune an instanceId-keyed record (`<sessionId>::<transportKey>`) to known
- * sessions (identity-preserving).
- */
-export function pruneInstanceKeyedRecord<T>(
-  record: Record<string, T>,
-  knownSessionIds: ReadonlySet<string>,
-): Record<string, T> {
-  let changed = false;
-  const next: Record<string, T> = {};
-  for (const [instanceId, value] of Object.entries(record)) {
-    const sessionId = instanceId.split("::")[0];
-    if (knownSessionIds.has(sessionId)) {
-      next[instanceId] = value;
-    } else {
-      changed = true;
-    }
-  }
-  return changed ? next : record;
-}
-
 export interface TerminalRegistryPruneState {
   mountedTerminals: MountedChatTerminal[];
   modeBySessionId: Record<string, ChatTerminalMode>;
   transportBySessionId: Record<string, ChatTerminalTransport>;
-  connectionStateByInstanceId: Record<string, ChatTerminalConnectionState>;
 }
 
 /**
@@ -471,16 +441,10 @@ export function pruneTerminalRegistryToSessions(
     state.transportBySessionId,
     knownSessionIds,
   );
-  const connectionStateByInstanceId = pruneInstanceKeyedRecord(
-    state.connectionStateByInstanceId,
-    knownSessionIds,
-  );
-
   if (
     mountedTerminals === state.mountedTerminals &&
     modeBySessionId === state.modeBySessionId &&
-    transportBySessionId === state.transportBySessionId &&
-    connectionStateByInstanceId === state.connectionStateByInstanceId
+    transportBySessionId === state.transportBySessionId
   ) {
     return state;
   }
@@ -489,34 +453,5 @@ export function pruneTerminalRegistryToSessions(
     mountedTerminals,
     modeBySessionId,
     transportBySessionId,
-    connectionStateByInstanceId,
-  };
-}
-
-/**
- * Local terminal status is scoped per CHAT SESSION (never a sandbox id) —
- * the status probe asks "does this chat session have a live local pty".
- */
-export function localTerminalStatusPath(chatSessionId: string): string {
-  const params = new URLSearchParams({ chatSessionId });
-  return `/api/kody/chat/terminal/status?${params}`;
-}
-
-/**
- * Remote terminal status request body: Brain terminals probe by semantic
- * target; Fly terminals by app + machine id. Both carry the chat session.
- */
-export function remoteTerminalStatusRequest(
-  transport: Exclude<ChatTerminalTransport, { type: "local" }>,
-  chatSessionId: string,
-): Record<string, unknown> {
-  if (transport.type === "brain") {
-    return { target: "brain", chatSessionId };
-  }
-  return {
-    app: transport.app,
-    machineId: transport.machineId,
-    feature: transport.feature,
-    chatSessionId,
   };
 }

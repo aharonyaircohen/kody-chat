@@ -40,6 +40,7 @@ export interface TerminalInputSignal {
 }
 
 export interface ChatTerminalChromeState {
+  connection: ChatTerminalConnectionState;
   statusText: string;
   inputLabel: string;
   inputTone: TerminalInputSignal["tone"];

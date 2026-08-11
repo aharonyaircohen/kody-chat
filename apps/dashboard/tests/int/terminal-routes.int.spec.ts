@@ -133,7 +133,7 @@ const bridge = vi.hoisted(() => ({
       secret: string;
     } | null> => ({
       app: "kody-terminal",
-      url: "https://bridge.example",
+      url: "https://bridge.example/ws",
       machineId: "bridge-1",
       secret: "bridge-secret",
     }),
@@ -421,7 +421,7 @@ beforeEach(() => {
     },
   );
   flyPreview.startMachine.mockResolvedValue(undefined);
-  bridge.ensureTerminalBridge.mockResolvedValue({
+  bridge.findTerminalBridge.mockResolvedValue({
     app: "kody-terminal",
     url: "https://bridge.example/ws",
     machineId: "bridge-1",
@@ -429,7 +429,7 @@ beforeEach(() => {
   });
   bridge.findTerminalBridge.mockResolvedValue({
     app: "kody-terminal",
-    url: "https://bridge.example",
+    url: "https://bridge.example/ws",
     machineId: "bridge-1",
     secret: "bridge-secret",
   });
@@ -483,7 +483,7 @@ describe("POST /api/kody/terminal/session", () => {
         machineId: "brain-1",
         feature: "brain",
         chatSessionId: "chat-1",
-        resetSession: true,
+        afterRevision: 7,
         cols: 132,
         rows: 40,
       }),
@@ -496,6 +496,15 @@ describe("POST /api/kody/terminal/session", () => {
       machineId: "brain-1",
       bridgeApp: "kody-terminal",
       webSocketUrl: "wss://bridge.example/ws?token=opaque-token",
+      session: {
+        id: "brain:acme:widgets:kody-brain-octocat:brain-1:chat-1",
+        scope: {
+          owner: "acme",
+          repo: "widgets",
+          conversationId: "chat-1",
+        },
+        target: { kind: "brain", runtimeId: "brain-1" },
+      },
     });
     expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -504,7 +513,8 @@ describe("POST /api/kody/terminal/session", () => {
         app: "kody-brain-octocat",
         machineId: "brain-1",
         chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1:chat-1",
-        resetSession: true,
+        conversationId: "chat-1",
+        afterRevision: 7,
         cols: 132,
         rows: 40,
         flyToken: "fly-token",
@@ -540,7 +550,7 @@ describe("POST /api/kody/terminal/session", () => {
     expect(body).toMatchObject({ ok: true });
     expect(body).not.toHaveProperty("warnings");
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalled();
+    expect(bridge.findTerminalBridge).toHaveBeenCalled();
   });
 
   it("does not let stale image metadata choose the terminal target", async () => {
@@ -677,7 +687,7 @@ describe("POST /api/kody/terminal/session", () => {
       error: "machine_not_found",
     });
     expect(inventory.listFlyInventory).not.toHaveBeenCalled();
-    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.findTerminalBridge).not.toHaveBeenCalled();
   });
 
   it("uses the recorded running Brain machine when the UI sends a stale Brain target", async () => {
@@ -767,7 +777,7 @@ describe("POST /api/kody/terminal/session", () => {
     expect(await res.json()).toMatchObject({
       error: "machine_not_terminal_capable",
     });
-    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.findTerminalBridge).not.toHaveBeenCalled();
   });
 
   it("uses the saved Brain fallback before selecting the terminal target", async () => {
@@ -799,7 +809,7 @@ describe("POST /api/kody/terminal/session", () => {
         orgSlug: "guy-koren",
       }),
     );
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
@@ -822,7 +832,7 @@ describe("POST /api/kody/terminal/session", () => {
 
     expect(res.status).toBe(200);
     expect(inventory.listFlyInventory).not.toHaveBeenCalled();
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({
         orgSlug: "guy-koren",
         token: "env-fly-token",
@@ -872,7 +882,7 @@ describe("POST /api/kody/terminal/session", () => {
       app: "brain-1",
       machineId: "brain-current",
     });
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
@@ -915,7 +925,7 @@ describe("POST /api/kody/terminal/session", () => {
         token: "env-fly-token",
       }),
     );
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({
         orgSlug: "guy-koren",
         token: "env-fly-token",
@@ -935,7 +945,7 @@ describe("POST /api/kody/terminal/session", () => {
       "started",
       "brain-fly-token",
     );
-    bridge.ensureTerminalBridge.mockRejectedValueOnce(
+    bridge.findTerminalBridge.mockRejectedValueOnce(
       new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
     );
 
@@ -947,8 +957,8 @@ describe("POST /api/kody/terminal/session", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledOnce();
-    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.findTerminalBridge).toHaveBeenCalledOnce();
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ token: "brain-fly-token" }),
     );
     expect(token.mintTerminalBridgeToken).not.toHaveBeenCalled();

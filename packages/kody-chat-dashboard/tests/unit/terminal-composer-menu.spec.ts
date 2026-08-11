@@ -113,4 +113,19 @@ describe("terminal controls in the composer menu", () => {
       outerClass(renderToggle("terminal")),
     );
   });
+
+  it("disables restart until a terminal is connected", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TerminalBottomControls, {
+        onAddToChat: () => undefined,
+        onRestart: () => undefined,
+        onClear: () => undefined,
+        actionBusy: false,
+        restartDisabled: true,
+      }),
+    );
+
+    expect(markup).toContain('aria-label="Restart terminal"');
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Restart terminal"/);
+  });
 });

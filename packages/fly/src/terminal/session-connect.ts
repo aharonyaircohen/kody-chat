@@ -35,7 +35,7 @@ import {
 } from "../infrastructure/server-context";
 
 import {
-  ensureServerProviderTerminalBridge,
+  findServerProviderTerminalBridge,
   type ServerProviderTerminalBridgeInfo,
 } from "../infrastructure/server-terminal";
 import {
@@ -54,7 +54,7 @@ export interface StartTerminalSessionData {
   machineId?: string;
   feature?: "runner" | "brain";
   chatSessionId?: string;
-  resetSession?: boolean;
+  afterRevision?: number;
   activityLimitMs?: number | null;
   cols?: number;
   rows?: number;
@@ -122,20 +122,22 @@ function isFlyMachineAlreadyStartingError(err: unknown): boolean {
   );
 }
 
-async function ensureServerProviderTerminalBridgeForTarget(
+async function findServerProviderTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
-): Promise<ServerProviderTerminalBridgeInfo> {
+): Promise<ServerProviderTerminalBridgeInfo | null> {
   let lastErr: unknown;
   const candidates = terminalBridgeConfigCandidates(cfg);
   for (const candidate of candidates) {
     try {
-      return await ensureServerProviderTerminalBridge(candidate);
+      const bridge = await findServerProviderTerminalBridge(candidate);
+      if (bridge) return bridge;
     } catch (err) {
       lastErr = err;
       if (!isFlyBridgeAuthError(err)) throw err;
     }
   }
-  throw lastErr;
+  if (lastErr) throw lastErr;
+  return null;
 }
 
 async function startServerProviderMachineForTarget(
@@ -298,7 +300,14 @@ export async function startTerminalSession(input: {
     selected.machine,
     savedBrain,
   );
-  const bridge = await ensureServerProviderTerminalBridgeForTarget(selectedCfg);
+  const bridge = await findServerProviderTerminalBridgeForTarget(selectedCfg);
+  if (!bridge) {
+    throw new TerminalSessionError(
+      "terminal_gateway_not_ready",
+      "Terminal gateway is not deployed for this Brain runtime.",
+      503,
+    );
+  }
   const activityLimitMs = terminalActivityLimitForTarget(
     selected.machine.feature,
     data.activityLimitMs,
@@ -320,7 +329,8 @@ export async function startTerminalSession(input: {
     machineId: selected.machine.machineId,
     privateAddress: selected.machine.privateAddress,
     chatSessionId: bridgeSessionId,
-    resetSession: data.resetSession,
+    conversationId: data.chatSessionId ?? bridgeSessionId,
+    afterRevision: data.afterRevision,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
     flyToken: selectedCfg.token,
     cols: data.cols,
@@ -336,6 +346,19 @@ export async function startTerminalSession(input: {
     machineId: selected.machine.machineId,
     label: selected.machine.label,
     bridgeApp: bridge.app,
+    sessionId: bridgeSessionId,
+    session: {
+      id: bridgeSessionId,
+      scope: {
+        owner: context.owner,
+        repo: context.repo,
+        conversationId: data.chatSessionId ?? bridgeSessionId,
+      },
+      target: {
+        kind: "brain" as const,
+        runtimeId: selected.machine.machineId,
+      },
+    },
     expiresAt: new Date((now + 120) * 1000).toISOString(),
     webSocketUrl,
     ...(brainWarnings.length ? { warnings: brainWarnings } : {}),

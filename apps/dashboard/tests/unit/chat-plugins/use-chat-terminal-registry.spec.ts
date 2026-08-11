@@ -3,8 +3,7 @@
  *   (`useChatTerminalRegistry`) — the wiring layer above registry-state:
  *   per-session mode/transport bookkeeping, persistence (skip-first-save,
  *   storage-scope reload), session pruning after hydration, mount
- *   idempotence, connection-state recording / live-terminal lookup, Fly
- *   inventory refresh (auth-gated, 503, error paths) and the
+ *   idempotence, Fly inventory refresh (auth-gated, 503, error paths) and the
  *   FLY_MACHINES_REFRESH_EVENT listener lifecycle.
  *
  *   The vitest environment is "node" and the repo has no
@@ -222,6 +221,11 @@ function stubWindow() {
       setItem: (key: string, value: string) => void localStore.set(key, value),
       removeItem: (key: string) => void localStore.delete(key),
     },
+    sessionStorage: {
+      getItem: (key: string) => localStore.get(key) ?? null,
+      setItem: (key: string, value: string) => void localStore.set(key, value),
+      removeItem: (key: string) => void localStore.delete(key),
+    },
     addEventListener: (type: string, listener: EventListener) => {
       const set = windowListeners.get(type) ?? new Set();
       set.add(listener);
@@ -304,17 +308,14 @@ afterEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("useChatTerminalRegistry defaults", () => {
-  it("starts in ai mode on the local transport with no live terminals", () => {
+  it("starts in ai mode on the local transport", () => {
     const { result } = mountRegistry();
     const registry = result.current as Registry;
 
     expect(registry.mode).toBe("ai");
     expect(registry.activeTransport).toEqual({ type: "local" });
     expect(registry.activeTargetValue).toBe("local");
-    expect(registry.activeConnectionState).toBe("idle");
     expect(registry.mountedTerminals).toEqual([]);
-    expect(registry.hasLiveTerminal("chat-1")).toBe(false);
-    expect(registry.hasLiveTerminal(null)).toBe(false);
   });
 
   it("reports idle/ai and a null instance when no session is active", () => {
@@ -323,7 +324,6 @@ describe("useChatTerminalRegistry defaults", () => {
 
     expect(registry.mode).toBe("ai");
     expect(registry.activeInstanceId).toBeNull();
-    expect(registry.activeConnectionState).toBe("idle");
   });
 });
 
@@ -424,24 +424,6 @@ describe("useChatTerminalRegistry registration", () => {
   });
 });
 
-describe("useChatTerminalRegistry connection state", () => {
-  it("hasLiveTerminal is true for connected/connecting/restoring, false otherwise", () => {
-    const { result } = mountRegistry();
-    (result.current as Registry).openTerminalMode();
-    const instanceId = (result.current as Registry).activeInstanceId!;
-
-    for (const live of ["connected", "connecting", "restoring"] as const) {
-      (result.current as Registry).recordConnectionState(instanceId, live);
-      expect((result.current as Registry).activeConnectionState).toBe(live);
-      expect((result.current as Registry).hasLiveTerminal("chat-1")).toBe(true);
-    }
-
-    (result.current as Registry).recordConnectionState(instanceId, "closed");
-    expect((result.current as Registry).hasLiveTerminal("chat-1")).toBe(false);
-    expect((result.current as Registry).hasLiveTerminal("chat-2")).toBe(false);
-  });
-});
-
 describe("useChatTerminalRegistry persistence", () => {
   it("does not persist on mount, then saves after the first real change", () => {
     const key = "kody:chat-terminal-registry:test-scope";
@@ -466,7 +448,6 @@ describe("useChatTerminalRegistry persistence", () => {
       "chat-1::brain",
     );
     // Connection state is runtime-only — never restored from storage.
-    expect(registry.activeConnectionState).toBe("idle");
   });
 
   it("reloads the registry when the storage scope changes", () => {

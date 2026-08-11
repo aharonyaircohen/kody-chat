@@ -29,7 +29,7 @@ const Body = z
     machineId: z.string().min(1).max(120).optional(),
     feature: z.enum(["runner", "brain"]).optional(),
     chatSessionId: z.string().min(1).max(160).optional(),
-    resetSession: z.boolean().optional(),
+    afterRevision: z.number().int().min(0).optional(),
     activityLimitMs: z
       .union([
         z

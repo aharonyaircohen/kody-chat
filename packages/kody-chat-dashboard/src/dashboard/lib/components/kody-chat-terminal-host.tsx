@@ -43,7 +43,7 @@ import type { ChatPluginRegistry } from "../chat/platform";
 import { authHeaders } from "../kody-chat-live-session";
 // Terminal plugin — deep imports on purpose (Step 7 bundle check). The
 // barrel (plugins/terminal/index.ts) statically reaches ChatTerminalSurface,
-// fly-connection and TerminalControls; importing it here would drag the
+// terminal session client and TerminalControls; importing it here would drag the
 // whole plugin into EVERY route chunk that renders KodyChat, including
 // /client. Statics below are the small always-needed halves (hooks can't be
 // lazy; the effect reader/checkpoint helpers run on every send path); the
@@ -177,16 +177,26 @@ export function useTerminalHost({
   const activeTerminalTransport = terminalRegistry.activeTransport;
   const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
   const activeTerminalValue = terminalRegistry.activeTargetValue;
-  const activeTerminalConnectionState = terminalRegistry.activeConnectionState;
   const mountedChatTerminals = terminalRegistry.mountedTerminals;
   const flyInventoryLoading = terminalRegistry.flyInventoryLoading;
   const flyInventoryError = terminalRegistry.flyInventoryError;
   const setActiveChatMode = terminalRegistry.setActiveMode;
   const refreshChatTerminalFlyMachines = terminalRegistry.refreshFlyMachines;
   const handleTerminalTargetChange = terminalRegistry.selectTarget;
-  const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
-  const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
-    activeSessionIdForReset,
+  const [terminalChromeById, setTerminalChromeById] = useState<
+    Record<string, ChatTerminalChromeState>
+  >({});
+  const activeTerminalChrome = activeTerminalInstanceId
+    ? terminalChromeById[activeTerminalInstanceId]
+    : null;
+  const activeTerminalConnectionState =
+    activeTerminalChrome?.connection ?? "idle";
+  const activeSessionHasLiveTerminal = mountedChatTerminals.some(
+    (terminal) =>
+      terminal.sessionId === activeSessionIdForReset &&
+      ["connected", "connecting", "restoring"].includes(
+        terminalChromeById[terminal.id]?.connection ?? "idle",
+      ),
   );
   const terminalStatusLabel =
     activeTerminalConnectionState === "connected"
@@ -207,12 +217,6 @@ export function useTerminalHost({
   const terminalSurfaceRefs: MutableRefObject<
     Record<string, ChatTerminalSurfaceHandle | null>
   > = useRef({});
-  const [terminalChromeById, setTerminalChromeById] = useState<
-    Record<string, ChatTerminalChromeState>
-  >({});
-  const activeTerminalChrome = activeTerminalInstanceId
-    ? terminalChromeById[activeTerminalInstanceId]
-    : null;
 
   const loadTerminalCheckpoint = useCallback(
     async (transport: ChatTerminalTransport, chatSessionId: string) => {
@@ -512,6 +516,7 @@ export function useTerminalHost({
           onRestart={() => activeTerminalSurface?.restart()}
           onClear={() => activeTerminalSurface?.clear()}
           actionBusy={activeTerminalChrome?.actionBusy}
+          restartDisabled={activeTerminalConnectionState !== "connected"}
           layout="menu"
         />
       </Suspense>
@@ -543,6 +548,7 @@ export function useTerminalHost({
                 const current = existing[terminal.id];
                 if (
                   current &&
+                  current.connection === state.connection &&
                   current.statusText === state.statusText &&
                   current.inputLabel === state.inputLabel &&
                   current.inputTone === state.inputTone &&
@@ -552,9 +558,6 @@ export function useTerminalHost({
                 }
                 return { ...existing, [terminal.id]: state };
               });
-            }}
-            onConnectionStateChange={(state) => {
-              recordTerminalConnectionState(terminal.id, state);
             }}
             onSessionEnded={(snapshot) =>
               void saveTerminalCheckpoint(terminal, snapshot)

@@ -21,13 +21,6 @@ const IMAGE_MANAGEMENT_SOURCE = readFileSync(
   resolve(__dirname, "../../../brain/src/image-management.ts"),
   "utf8",
 );
-const BRIDGE_SOURCE = readFileSync(
-  resolve(
-    __dirname,
-    "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge.ts",
-  ),
-  "utf8",
-);
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(
   resolve(__dirname, "../../../terminal/src/bridge-exec-client.ts"),
   "utf8",
@@ -84,20 +77,6 @@ describe("Brain image save route", () => {
     expect(IMAGE_MANAGEMENT_SOURCE).toContain("readBrainImage");
     expect(IMAGE_MANAGEMENT_SOURCE).toContain("writeBrainImage");
     expect(ROUTE_SOURCE).not.toContain("brain_app_mismatch");
-  });
-
-  it("supports authenticated non-interactive bridge commands", () => {
-    expect(BRIDGE_SOURCE).toContain('url.pathname === "/exec"');
-    expect(BRIDGE_SOURCE).toContain("runOneShotFlyCommand");
-    expect(BRIDGE_SOURCE).toContain("runOneShotLocalCommand");
-    expect(BRIDGE_SOURCE).toContain("body.local === true");
-    expect(BRIDGE_SOURCE).toContain('"--command"');
-    expect(BRIDGE_SOURCE).toContain("MAX_EXEC_OUTPUT_BYTES");
-    expect(BRIDGE_SOURCE).toContain("GHCR_TOKEN: claims.ghcrToken ||");
-    expect(BRIDGE_SOURCE).toContain("EXEC_KEEPALIVE_INTERVAL_MS");
-    expect(BRIDGE_SOURCE).toContain('res.write(" ")');
-    expect(BRIDGE_SOURCE).toContain("memory_mb: 2048");
-    expect(BRIDGE_SOURCE).toContain("REQUEST_TIMEOUT_MS = 90_000");
   });
 
   it("keeps image apply explicit and out of normal Brain provision paths", () => {

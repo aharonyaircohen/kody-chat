@@ -19,6 +19,7 @@ import {
   type ProvisionServerBrainResult,
 } from "@kody-ade/fly/infrastructure/server-brain";
 import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 
 import { resolveBrainService } from "./service-resolver";
 import { clearBrainRuntimeDeployment } from "./runtime-manager";
@@ -26,7 +27,12 @@ import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";
 import { resolveBrainTarget } from "./target";
 
 export type BrainServerCommand =
-  "provision" | "resume" | "suspend" | "destroy" | "update-suspension";
+  | "provision"
+  | "resume"
+  | "suspend"
+  | "destroy"
+  | "update-suspension"
+  | "setup-terminal";
 
 export interface ManageBrainServerInput {
   command: BrainServerCommand;
@@ -73,6 +79,58 @@ async function resolveCurrentBrain(
   });
 }
 
+async function provisionManagedBrain(
+  input: ManageBrainServerInput,
+  options: { replaceExistingMachine?: boolean } = {},
+): Promise<ProvisionServerBrainResult> {
+  const { context } = input;
+  const flyToken = requireFlyToken(context);
+  const stored = await readBrainApp(context.account, context.githubToken).catch(
+    () => null,
+  );
+  const target = resolveBrainTarget({
+    account: context.account,
+    contextOrgSlug: context.flyOrgSlug,
+    stored,
+    appNameOverride: input.appNameOverride,
+  });
+  try {
+    const result = await provisionServerBrain({
+      providerToken: flyToken,
+      account: context.account,
+      model: context.engineModel,
+      modelConfig: context.engineModelConfig,
+      githubToken: context.githubToken,
+      allSecrets: context.allSecrets,
+      perfTier: input.perfTier ?? context.perfTier,
+      orgSlug: target.orgSlug,
+      defaultRegion: context.flyDefaultRegion,
+      suspendOnIdle: input.suspendOnIdle,
+      dashboardUrl: input.dashboardUrl,
+      appNameOverride: target.app,
+      ...(options.replaceExistingMachine ? { replaceExistingMachine: true } : {}),
+    });
+    await writeBrainApp(context.account, context.githubToken, {
+      version: 1,
+      appName: result.app,
+      orgSlug: result.org,
+      createdAt: new Date().toISOString(),
+    });
+    return result;
+  } catch (err) {
+    if (isServerBrainProvisionTransientError(err)) {
+      const retryable = err as Error & { retryAfterSeconds?: number };
+      throw new BrainCommandError(
+        retryable.message,
+        503,
+        "brain_provision_retryable",
+        retryable.retryAfterSeconds,
+      );
+    }
+    throw err;
+  }
+}
+
 export function manageBrainServer(
   input: ManageBrainServerInput & { command: "provision" },
 ): Promise<ProvisionServerBrainResult>;
@@ -84,55 +142,38 @@ export function manageBrainServer(
 export function manageBrainServer(
   input: ManageBrainServerInput & { command: "update-suspension" },
 ): Promise<{ ok: true; suspendOnIdle: boolean }>;
+export function manageBrainServer(
+  input: ManageBrainServerInput & { command: "setup-terminal" },
+): Promise<{
+  ok: true;
+  app: string;
+  machineId: string;
+  bridgeApp: string;
+}>;
+
 export async function manageBrainServer(input: ManageBrainServerInput) {
   const { context } = input;
   const flyToken = requireFlyToken(context);
 
   if (input.command === "provision") {
-    const stored = await readBrainApp(
-      context.account,
-      context.githubToken,
-    ).catch(() => null);
-    const target = resolveBrainTarget({
-      account: context.account,
-      contextOrgSlug: context.flyOrgSlug,
-      stored,
-      appNameOverride: input.appNameOverride,
+    return provisionManagedBrain(input);
+  }
+
+  if (input.command === "setup-terminal") {
+    const result = await provisionManagedBrain(input, {
+      replaceExistingMachine: true,
     });
-    try {
-      const result = await provisionServerBrain({
-        providerToken: flyToken,
-        account: context.account,
-        model: context.engineModel,
-        modelConfig: context.engineModelConfig,
-        githubToken: context.githubToken,
-        allSecrets: context.allSecrets,
-        perfTier: input.perfTier ?? context.perfTier,
-        orgSlug: target.orgSlug,
-        defaultRegion: context.flyDefaultRegion,
-        suspendOnIdle: input.suspendOnIdle,
-        dashboardUrl: input.dashboardUrl,
-        appNameOverride: target.app,
-      });
-      await writeBrainApp(context.account, context.githubToken, {
-        version: 1,
-        appName: result.app,
-        orgSlug: result.org,
-        createdAt: new Date().toISOString(),
-      });
-      return result;
-    } catch (err) {
-      if (isServerBrainProvisionTransientError(err)) {
-        const retryable = err as Error & { retryAfterSeconds?: number };
-        throw new BrainCommandError(
-          retryable.message,
-          503,
-          "brain_provision_retryable",
-          retryable.retryAfterSeconds,
-        );
-      }
-      throw err;
-    }
+    const bridge = await ensureServerProviderTerminalBridge({
+      token: flyToken,
+      orgSlug: result.org,
+      defaultRegion: context.flyDefaultRegion,
+    });
+    return {
+      ok: true,
+      app: result.app,
+      machineId: result.machineId,
+      bridgeApp: bridge.app,
+    };
   }
 
   const brain = await resolveCurrentBrain(context, input.appNameOverride);

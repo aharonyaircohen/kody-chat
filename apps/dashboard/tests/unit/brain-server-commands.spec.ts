@@ -16,6 +16,14 @@ const runtimeManager = vi.hoisted(() => ({
   clearBrainRuntimeDeployment: vi.fn(async () => undefined),
 }));
 
+const terminalBridge = vi.hoisted(() => ({
+  ensureServerProviderTerminalBridge: vi.fn(async () => ({
+    app: "kody-terminal",
+    url: "https://kody-terminal.fly.dev",
+    secret: "bridge-secret",
+  })),
+}));
+
 const brainFly = vi.hoisted(() => ({
   destroyBrain: vi.fn(async () => undefined),
   isBrainFlyProvisionTransientError: vi.fn(() => false),
@@ -38,6 +46,7 @@ const brainFly = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/brain/store", () => store);
 vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
+vi.mock("@kody-ade/fly/infrastructure/server-terminal", () => terminalBridge);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   ...brainFly,
   brainAppName: (account: string) => `kody-brain-${account}`,
@@ -122,5 +131,40 @@ describe("manageBrainServer", () => {
       "gh-token",
     );
     expect(store.clearBrainApp).toHaveBeenCalled();
+  });
+
+  it("upgrades an existing Brain explicitly before installing its terminal gateway", async () => {
+    await expect(
+      manageBrainServer({ command: "setup-terminal", context }),
+    ).resolves.toMatchObject({
+      ok: true,
+      app: "kody-brain-octocat",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal",
+    });
+
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerToken: "fly-token",
+        appNameOverride: "kody-brain-octocat",
+        replaceExistingMachine: true,
+      }),
+    );
+    expect(terminalBridge.ensureServerProviderTerminalBridge).toHaveBeenCalledWith({
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    });
+    expect(
+      brainFly.provisionBrain.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      terminalBridge.ensureServerProviderTerminalBridge.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("does not couple ordinary Brain provisioning to terminal gateway setup", async () => {
+    await manageBrainServer({ command: "provision", context });
+
+    expect(terminalBridge.ensureServerProviderTerminalBridge).not.toHaveBeenCalled();
   });
 });
