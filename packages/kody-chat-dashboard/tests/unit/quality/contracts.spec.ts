@@ -65,10 +65,10 @@ describe("quality contracts", () => {
     ]);
   });
 
-  it("binds an active scenario to a repository environment", () => {
+  it("keeps a scenario as an ordered list of journey references", () => {
     const scenario = scenarioSchema.parse({
       slug: "reply-persists",
-      journeySlug: "direct-chat-persists",
+      journeySlugs: ["sign-in", "direct-chat-persists"],
       name: "Reply persists after reload",
       kind: "persistence",
       given: "A connected repository and configured direct model.",
@@ -79,8 +79,27 @@ describe("quality contracts", () => {
       updatedAt: NOW,
     });
 
+    expect(scenario.journeySlugs).toEqual(["sign-in", "direct-chat-persists"]);
     expect(scenario.environmentId).toBe("production");
     expect(scenario).not.toHaveProperty("testId");
+  });
+
+  it("reads a legacy single-Journey scenario as a one-item Journey list", () => {
+    const scenario = scenarioSchema.parse({
+      slug: "legacy-reply-persists",
+      journeySlug: "direct-chat-persists",
+      name: "Legacy reply persists",
+      kind: "persistence",
+      given: "A connected repository.",
+      expectedVisible: "The reply remains visible.",
+      expectedState: "The reply remains stored.",
+      environmentId: "production",
+      status: "active",
+      updatedAt: NOW,
+    });
+
+    expect(scenario.journeySlugs).toEqual(["direct-chat-persists"]);
+    expect(scenario).not.toHaveProperty("journeySlug");
   });
 
   it("marks proof stale when its definition changed after the pass", () => {

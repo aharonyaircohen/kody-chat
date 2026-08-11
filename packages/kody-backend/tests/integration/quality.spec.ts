@@ -29,10 +29,20 @@ describe("quality", () => {
       actionSlugs: ["send-message"],
       updatedAt: NOW,
     });
+    await t.mutation(api.quality.saveJourney, {
+      tenantId: TENANT,
+      slug: "reload-chat",
+      name: "Reload chat",
+      goal: "A user reloads the saved conversation.",
+      priority: "normal",
+      status: "active",
+      actionSlugs: ["send-message"],
+      updatedAt: NOW,
+    });
     await t.mutation(api.quality.saveScenario, {
       tenantId: TENANT,
       slug: "reply-persists",
-      journeySlug: "direct-chat-persists",
+      journeySlugs: ["direct-chat-persists", "reload-chat"],
       name: "Reply persists after reload",
       kind: "persistence",
       given: "A connected repository and configured direct model.",
@@ -49,6 +59,10 @@ describe("quality", () => {
     expect(map.journeys[0].actionSlugs).toEqual(["send-message"]);
     expect(map.actions[0]).not.toHaveProperty("steps");
     expect(map.scenarios[0].environmentId).toBe("production");
+    expect(map.scenarios[0].journeySlugs).toEqual([
+      "direct-chat-persists",
+      "reload-chat",
+    ]);
     expect(map.journeys[0]).not.toHaveProperty("version");
   });
 
@@ -88,7 +102,7 @@ describe("quality", () => {
       tenantId: TENANT,
       runId: "run-1",
       runSlug: "reply-persists-20260809",
-      journeySlug: "direct-chat-persists",
+      journeySlugs: ["direct-chat-persists", "reload-chat"],
       scenarioSlug: "reply-persists",
       environment: "local",
       targetUrl: "http://127.0.0.1:3333",
@@ -120,6 +134,10 @@ describe("quality", () => {
     expect(detail?.events).toHaveLength(1);
     expect(detail?.run.status).toBe("queued");
     expect(detail?.run.archived).toBe(true);
+    expect(detail?.run.journeySlugs).toEqual([
+      "direct-chat-persists",
+      "reload-chat",
+    ]);
     const runs = await t.query(api.quality.listRuns, { tenantId: TENANT });
     expect(runs[0]).toMatchObject({
       runId: "run-1",

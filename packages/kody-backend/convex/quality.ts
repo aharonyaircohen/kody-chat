@@ -41,6 +41,24 @@ async function findBySlug(
     .unique();
 }
 
+function orderedJourneySlugs(record: {
+  journeySlug?: string;
+  journeySlugs?: string[];
+}): string[] {
+  return record.journeySlugs?.length
+    ? record.journeySlugs
+    : record.journeySlug
+      ? [record.journeySlug]
+      : [];
+}
+
+function withoutLegacyJourneySlug<
+  T extends { journeySlug?: string; journeySlugs?: string[] },
+>(record: T) {
+  const { journeySlug: _legacyJourneySlug, ...rest } = record;
+  return { ...rest, journeySlugs: orderedJourneySlugs(record) };
+}
+
 export const getMap = query({
   args: { tenantId: v.string() },
   handler: async (ctx, { tenantId }) => {
@@ -61,8 +79,8 @@ export const getMap = query({
     return {
       actions: actions.map(({ steps: _legacySteps, ...action }) => action),
       journeys,
-      scenarios: scenarios.map(
-        ({ testId: _legacyTestId, ...scenario }) => scenario,
+      scenarios: scenarios.map(({ testId: _legacyTestId, ...scenario }) =>
+        withoutLegacyJourneySlug(scenario),
       ),
     };
   },
@@ -154,14 +172,13 @@ export const removeJourney = mutation({
       args.slug,
     );
     if (!journey) return false;
-    const scenarios = await ctx.db
+    const scenarios = ctx.db
       .query("qualityScenarios")
-      .withIndex("by_journey", (q) =>
-        q.eq("tenantId", args.tenantId).eq("journeySlug", args.slug),
-      )
-      .collect();
-    if (scenarios.length > 0)
-      throw new ConvexError("Journey is referenced by Scenarios");
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId));
+    for await (const scenario of scenarios) {
+      if (orderedJourneySlugs(scenario).includes(args.slug))
+        throw new ConvexError("Journey is referenced by Scenarios");
+    }
     await ctx.db.delete(journey._id);
     return true;
   },
@@ -171,7 +188,7 @@ export const saveScenario = mutation({
   args: {
     tenantId: v.string(),
     slug: v.string(),
-    journeySlug: v.string(),
+    journeySlugs: v.array(v.string()),
     name: v.string(),
     kind: scenarioKind,
     given: v.string(),
@@ -184,14 +201,18 @@ export const saveScenario = mutation({
   },
   handler: async (ctx, args) => {
     if (
-      !(await findBySlug(
-        ctx,
-        "qualityJourneys",
-        args.tenantId,
-        args.journeySlug,
-      ))
-    )
-      throw new ConvexError(`Unknown Journey: ${args.journeySlug}`);
+      args.journeySlugs.length === 0 ||
+      args.journeySlugs.length > 100 ||
+      new Set(args.journeySlugs).size !== args.journeySlugs.length
+    ) {
+      throw new ConvexError("A Scenario requires unique ordered Journeys");
+    }
+    for (const journeySlug of args.journeySlugs) {
+      if (
+        !(await findBySlug(ctx, "qualityJourneys", args.tenantId, journeySlug))
+      )
+        throw new ConvexError(`Unknown Journey: ${journeySlug}`);
+    }
     if (args.status === "active" && !args.environmentId)
       throw new ConvexError(
         "Active Scenarios require a repository environment",
@@ -203,7 +224,11 @@ export const saveScenario = mutation({
       args.slug,
     );
     if (existing) {
-      await ctx.db.patch(existing._id, { ...args, testId: undefined });
+      await ctx.db.patch(existing._id, {
+        ...args,
+        journeySlug: undefined,
+        testId: undefined,
+      });
       return existing._id;
     }
     return await ctx.db.insert("qualityScenarios", args);
@@ -237,7 +262,7 @@ export const createRun = mutation({
     tenantId: v.string(),
     runId: v.string(),
     runSlug: v.string(),
-    journeySlug: v.string(),
+    journeySlugs: v.array(v.string()),
     scenarioSlug: v.string(),
     environment: v.string(),
     targetUrl: v.string(),
@@ -254,6 +279,8 @@ export const createRun = mutation({
       )
       .unique();
     if (existing) return existing._id;
+    if (args.journeySlugs.length === 0)
+      throw new ConvexError("A Quality Run requires at least one Journey");
     return await ctx.db.insert("qualityRuns", {
       ...args,
       status: "queued",
@@ -361,7 +388,7 @@ export const getRun = query({
       )
       .order("asc")
       .collect();
-    return { run, events };
+    return { run: withoutLegacyJourneySlug(run), events };
   },
 });
 
@@ -382,7 +409,10 @@ export const listRuns = query({
           )
           .order("desc")
           .first();
-        return { ...run, latestEvent: latest?.event };
+        return {
+          ...withoutLegacyJourneySlug(run),
+          latestEvent: latest?.event,
+        };
       }),
     );
   },

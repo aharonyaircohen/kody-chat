@@ -138,26 +138,52 @@ export async function POST(request: Request) {
           tenantId: identity.repository,
         }),
       ])) as [
-        { run?: { journeySlug?: string } } | null,
+        { run?: { journeySlugs?: string[] } } | null,
         {
-          journeys?: Array<{ slug: string; actionSlugs: string[] }>;
+          journeys?: Array<{
+            slug: string;
+            name: string;
+            actionSlugs: string[];
+          }>;
           actions?: Array<{ slug: string; name: string }>;
         } | null,
       ];
-      const journey = map?.journeys?.find(
-        (candidate) => candidate.slug === runRecord?.run?.journeySlug,
-      );
-      const expectedActions = journey?.actionSlugs
-        .map((slug) => map?.actions?.find((action) => action.slug === slug))
-        .filter((action): action is { slug: string; name: string } =>
-          Boolean(action),
+      const runJourneySlugs = runRecord?.run?.journeySlugs ?? [];
+      const expectedJourneys = runJourneySlugs.map((slug) => {
+        const journey = map?.journeys?.find(
+          (candidate) => candidate.slug === slug,
         );
-      const verification = expectedActions
-        ? verifyQualityResult(output, runId, expectedActions)
-        : {
-            result: null,
-            error: "Quality Run does not reference a saved Journey.",
-          };
+        if (!journey) return null;
+        const actions = journey.actionSlugs.map((actionSlug) =>
+          map?.actions?.find((action) => action.slug === actionSlug),
+        );
+        if (actions.some((action) => !action)) return null;
+        return {
+          slug: journey.slug,
+          name: journey.name,
+          actions: actions.filter(
+            (action): action is { slug: string; name: string } =>
+              Boolean(action),
+          ),
+        };
+      });
+      const completeExpectedJourneys = expectedJourneys?.filter(
+        (
+          journey,
+        ): journey is {
+          slug: string;
+          name: string;
+          actions: Array<{ slug: string; name: string }>;
+        } => Boolean(journey),
+      );
+      const verification =
+        completeExpectedJourneys.length > 0 &&
+        completeExpectedJourneys.length === expectedJourneys.length
+          ? verifyQualityResult(output, runId, completeExpectedJourneys)
+          : {
+              result: null,
+              error: "Quality Run does not reference complete saved Journeys.",
+            };
       const verifiedResult = verification.result;
       const qualitySummary = verifiedResult
         ? summary
@@ -203,6 +229,7 @@ export async function POST(request: Request) {
                 passed: verifiedResult.passed,
                 failed: verifiedResult.failed,
                 blocked: verifiedResult.blocked,
+                journeyResults: verifiedResult.journeyResults,
                 actionResults: verifiedResult.actionResults,
                 scenarioResult: verifiedResult.scenarioResult,
               }

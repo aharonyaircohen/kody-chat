@@ -36,7 +36,7 @@ import type {
   QualityJourney,
   QualityScenario,
 } from "./contracts";
-import { qualityRunHealth } from "./contracts";
+import { qualityRunHealth, scenarioSchema } from "./contracts";
 import { QualityEditorDialog } from "./QualityEditorDialog";
 import { QualityRunDialog } from "./QualityRunDialog";
 import type {
@@ -67,7 +67,7 @@ const CONFIG = {
     singular: "Scenario",
     icon: ShieldCheck,
     empty: "No Scenarios yet",
-    hint: "Add a meaningful variation and define the proof it needs.",
+    hint: "Combine Journeys into a complete test and define its proof.",
   },
   runs: {
     title: "Quality Runs",
@@ -104,24 +104,54 @@ function scenarioHealth(scenario: QualityScenario, map: QualityMap) {
   );
   return qualityRunHealth({
     scenarioStatus: scenario.status,
-    scenarioUpdatedAt: scenario.updatedAt,
+    scenarioUpdatedAt: scenarioDefinitionUpdatedAt(scenario, map),
     latestRun: latest ?? null,
     targetCommit: map.currentSourceCommit,
     hasTest: scenarioExecutable(scenario, map),
   });
 }
 
-function scenarioExecutable(scenario: QualityScenario, map: QualityMap) {
-  const journey = map.journeys.find(
-    (candidate) => candidate.slug === scenario.journeySlug,
+function scenarioDefinitionUpdatedAt(
+  scenario: QualityScenario,
+  map: QualityMap,
+): string {
+  const updates = [scenario.updatedAt];
+  for (const journeySlug of scenario.journeySlugs) {
+    const journey = map.journeys.find(
+      (candidate) => candidate.slug === journeySlug,
+    );
+    if (!journey) continue;
+    updates.push(journey.updatedAt);
+    for (const actionSlug of journey.actionSlugs) {
+      const action = map.actions.find(
+        (candidate) => candidate.slug === actionSlug,
+      );
+      if (action) updates.push(action.updatedAt);
+    }
+  }
+  return updates.reduce((latest, candidate) =>
+    candidate > latest ? candidate : latest,
   );
+}
+
+function scenarioExecutable(scenario: QualityScenario, map: QualityMap) {
   return Boolean(
     scenario.environmentId &&
-    journey?.status === "active" &&
-    journey?.actionSlugs.length &&
-    journey.actionSlugs.every((slug) => {
-      const action = map.actions.find((candidate) => candidate.slug === slug);
-      return action?.status === "active";
+    scenario.journeySlugs.length > 0 &&
+    scenario.journeySlugs.every((journeySlug) => {
+      const journey = map.journeys.find(
+        (candidate) => candidate.slug === journeySlug,
+      );
+      return Boolean(
+        journey?.status === "active" &&
+        journey.actionSlugs.length > 0 &&
+        journey.actionSlugs.every((slug) => {
+          const action = map.actions.find(
+            (candidate) => candidate.slug === slug,
+          );
+          return action?.status === "active";
+        }),
+      );
     }),
   );
 }
@@ -332,6 +362,27 @@ function RunReport({
         ) : null}
       </DetailCard>
 
+      {event?.journeyResults?.length ? (
+        <DetailCard title="Journeys">
+          <ol className="grid gap-2">
+            {event.journeyResults.map((result, index) => (
+              <li
+                key={`${result.journeySlug}-${index}`}
+                className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-xs font-medium text-cyan-300">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 text-sm">
+                  {result.journeyName}
+                </span>
+                <QualityBadge value={result.status} />
+              </li>
+            ))}
+          </ol>
+        </DetailCard>
+      ) : null}
+
       {scenario ? (
         <DetailCard title="Scenario check">
           <dl className="grid gap-5 sm:grid-cols-2">
@@ -497,8 +548,20 @@ async function readQuality(
   return {
     actions: payload.actions ?? [],
     journeys: payload.journeys ?? [],
-    scenarios: payload.scenarios ?? [],
-    runs: payload.runs ?? [],
+    scenarios: (payload.scenarios ?? []).map((scenario) =>
+      scenarioSchema.parse(scenario),
+    ),
+    runs: (payload.runs ?? []).map((run) => {
+      const legacyRun = run as QualityRun & { journeySlug?: string };
+      return {
+        ...run,
+        journeySlugs: Array.isArray(run.journeySlugs)
+          ? run.journeySlugs
+          : legacyRun.journeySlug
+            ? [legacyRun.journeySlug]
+            : [],
+      };
+    }),
     currentSourceCommit: payload.currentSourceCommit ?? null,
     environments: resolveEnvironments(configPayload?.config),
   };
@@ -691,18 +754,26 @@ function Detail({
           </>
         ) : "given" in record ? (
           <>
-            <DetailCard title="Scenario">
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <DetailValue
-                  label="Journey"
-                  value={
-                    map.journeys.find(
-                      (journey) => journey.slug === record.journeySlug,
-                    )?.name ?? record.journeySlug
-                  }
-                />
-                <DetailValue label="Kind" value={record.kind} />
-              </dl>
+            <DetailCard title="Journeys">
+              <ol className="grid gap-2">
+                {record.journeySlugs.map((slug, index) => (
+                  <li
+                    key={slug}
+                    className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5"
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-xs font-medium text-cyan-300">
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 truncate text-sm">
+                      {map.journeys.find((journey) => journey.slug === slug)
+                        ?.name ?? slug}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </DetailCard>
+            <DetailCard title="Scenario type">
+              <DetailValue label="Kind" value={record.kind} />
             </DetailCard>
             <DetailCard title="Starting conditions">
               <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
@@ -1100,7 +1171,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               }
               onRun={
                 resource === "scenarios" &&
-                "journeySlug" in selected &&
+                "journeySlugs" in selected &&
                 selected.status === "active" &&
                 scenarioExecutable(selected, map)
                   ? () =>

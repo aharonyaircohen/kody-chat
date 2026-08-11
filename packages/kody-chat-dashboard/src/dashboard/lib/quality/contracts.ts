@@ -41,10 +41,10 @@ export const journeySchema = z.object({
   updatedAt: timestampSchema,
 });
 
-export const scenarioSchema = z
+const scenarioObjectSchema = z
   .object({
     slug: slugSchema,
-    journeySlug: slugSchema,
+    journeySlugs: z.array(slugSchema).min(1).max(100),
     name: z.string().trim().min(1).max(160),
     kind: scenarioKindSchema,
     given: z.string().trim().min(1).max(4000),
@@ -56,6 +56,13 @@ export const scenarioSchema = z
     updatedAt: timestampSchema,
   })
   .superRefine((scenario, context) => {
+    if (new Set(scenario.journeySlugs).size !== scenario.journeySlugs.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["journeySlugs"],
+        message: "A Journey can appear only once in a Scenario",
+      });
+    }
     if (scenario.status === "active" && !scenario.environmentId) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -64,6 +71,21 @@ export const scenarioSchema = z
       });
     }
   });
+
+export const scenarioSchema = z.preprocess((value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    !Array.isArray(record.journeySlugs) &&
+    typeof record.journeySlug === "string"
+  ) {
+    const { journeySlug, ...rest } = record;
+    return { ...rest, journeySlugs: [journeySlug] };
+  }
+  return value;
+}, scenarioObjectSchema);
 
 export type QualityAction = z.infer<typeof actionSchema>;
 export type QualityJourney = z.infer<typeof journeySchema>;
