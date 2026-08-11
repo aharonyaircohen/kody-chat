@@ -26,7 +26,6 @@ describe("kody-chat company activation", () => {
     expect(config.company.activeAgents).toEqual(["kody", "memory-steward"]);
     expect(config.company.activeCapabilities).toEqual([
       "ci-health-check",
-      "run",
       "review",
       "fix",
       "merge",
@@ -55,6 +54,11 @@ describe("kody-chat company activation", () => {
       "review-fix",
       "quality-run",
     ]);
+    expect(config.defaultImplementation).toBe("run");
+    expect(config.defaultPrImplementation).toBe("fix");
+    expect(config.company.activeCapabilities).not.toContain("run");
+    expect(config).not.toHaveProperty("defaultExecutable");
+    expect(config).not.toHaveProperty("defaultPrExecutable");
   });
 
   it("ships the standard root workflow with a 15-minute scheduler wake", () => {

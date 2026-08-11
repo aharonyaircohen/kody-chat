@@ -58,6 +58,47 @@ afterEach(() => {
 });
 
 describe("kody dispatch tools use capabilities", () => {
+  it("uses a bare @kody comment for the configured default issue capability", async () => {
+    const { ctx, createComment } = createCtx();
+    capabilities.readCapabilityFile.mockResolvedValue(null);
+
+    const tools = createKodyTools(ctx);
+    const result = await tools.kody_run_issue.execute?.(
+      {
+        issueNumber: 123,
+        notes: "ship this",
+      },
+      executeOptions(tools.kody_run_issue.execute),
+    );
+
+    expect(result).toMatchObject({ command: "@kody", triggered: true });
+    expect(capabilities.readCapabilityFile).not.toHaveBeenCalled();
+    expect(createComment).toHaveBeenCalledWith({
+      owner: "test-owner",
+      repo: "test-repo",
+      issue_number: 123,
+      body: "@kody\n\nship this",
+    });
+  });
+
+  it("keeps an explicitly requested built-in run action explicit", async () => {
+    const { ctx, createComment } = createCtx();
+
+    const tools = createKodyTools(ctx);
+    const result = await tools.kody_run_issue.execute?.(
+      { issueNumber: 123, capability: "run" },
+      executeOptions(tools.kody_run_issue.execute),
+    );
+
+    expect(result).toMatchObject({ command: "@kody run", triggered: true });
+    expect(createComment).toHaveBeenCalledWith({
+      owner: "test-owner",
+      repo: "test-repo",
+      issue_number: 123,
+      body: "@kody run",
+    });
+  });
+
   it("refuses to run an issue command when the capability folder is missing", async () => {
     const { ctx, createComment } = createCtx();
     capabilities.readCapabilityFile.mockResolvedValue(null);

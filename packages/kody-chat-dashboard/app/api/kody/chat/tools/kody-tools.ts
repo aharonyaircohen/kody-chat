@@ -59,6 +59,8 @@ interface DispatchError {
   error: string;
 }
 
+const ENGINE_BUILT_IN_CAPABILITY_ACTIONS = new Set(["run"]);
+
 async function resolveCapabilityAction(
   ctx: Ctx,
   capabilitySlug: string,
@@ -69,6 +71,9 @@ async function resolveCapabilityAction(
       error:
         "Refusing to dispatch: capability must be lowercase letters, digits, dashes, or underscores.",
     };
+  }
+  if (ENGINE_BUILT_IN_CAPABILITY_ACTIONS.has(slug)) {
+    return { slug, action: slug };
   }
   const capability = await readCapabilityFile(slug);
   if (!capability) {
@@ -149,13 +154,17 @@ async function dispatchOnPr(
 async function dispatchOnIssue(
   ctx: Ctx,
   issueNumber: number,
-  capability: string,
+  capability: string | undefined,
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const capabilityAction = await resolveCapabilityAction(ctx, capability);
-  if ("error" in capabilityAction) return capabilityAction;
-  const header = `@kody ${capabilityAction.action}`;
+  const capabilityAction = capability
+    ? await resolveCapabilityAction(ctx, capability)
+    : null;
+  if (capabilityAction && "error" in capabilityAction) return capabilityAction;
+  const header = capabilityAction
+    ? `@kody ${capabilityAction.action}`
+    : "@kody";
   const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header;
 
   try {
@@ -182,7 +191,12 @@ async function dispatchOnIssue(
     invalidateIssueCache(issueNumber);
 
     logger.info(
-      { owner, repo, number: issueNumber, capability: capabilityAction.slug },
+      {
+        owner,
+        repo,
+        number: issueNumber,
+        capability: capabilityAction?.slug ?? "default",
+      },
       "kody-dispatch: posted issue trigger",
     );
 
@@ -200,7 +214,7 @@ async function dispatchOnIssue(
         owner,
         repo,
         number: issueNumber,
-        capability: capabilityAction.slug,
+        capability: capabilityAction?.slug ?? "default",
       },
       "kody-dispatch (issue) failed",
     );
@@ -230,7 +244,7 @@ const CAPABILITY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the backend.",
+    "Which Kody capability to run. `run` is built in; any other capability must be installed. Defaults to the repository's configured issue capability, or `run` when none is configured.",
   );
 
 const NOTES_SCHEMA = z
@@ -342,7 +356,9 @@ export function createKodyTools(ctx: Ctx) {
     kody_run_issue: tool({
       description:
         `EXECUTE a plan on an issue in ${owner}/${repo}. Posts ` +
-        "`@kody <capability>` (default: `classify`) as a comment on the issue. " +
+        "bare `@kody` so the Engine selects the repository's configured issue " +
+        "default (`run` when unset). An explicit capability posts " +
+        "`@kody <capability>` instead. " +
         "The Kody engine in GitHub Actions then clones the repo, edits " +
         "files, commits, and opens a PR for that issue. THIS IS THE ONLY " +
         "way to actually execute code work from this chat — you do not " +
@@ -359,7 +375,7 @@ export function createKodyTools(ctx: Ctx) {
         notes: NOTES_SCHEMA,
       }),
       execute: ({ issueNumber, capability, notes }) =>
-        dispatchOnIssue(ctx, issueNumber, capability ?? "classify", notes),
+        dispatchOnIssue(ctx, issueNumber, capability, notes),
     }),
   };
 }
