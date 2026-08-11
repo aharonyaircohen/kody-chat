@@ -12,7 +12,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-
 describe("terminal surface boundaries", () => {
   it("bounds local terminal requests", async () => {
     let signal: AbortSignal | undefined;
@@ -58,4 +57,3 @@ describe("terminal surface boundaries", () => {
     ).toBe("red\nline two");
   });
 });
-

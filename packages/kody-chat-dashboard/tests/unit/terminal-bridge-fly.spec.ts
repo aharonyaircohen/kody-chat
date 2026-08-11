@@ -64,4 +64,3 @@ describe("stateless terminal gateway", () => {
     ).toEqual([]);
   });
 });
-
