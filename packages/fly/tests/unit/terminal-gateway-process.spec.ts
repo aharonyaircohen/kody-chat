@@ -47,11 +47,18 @@ async function waitForHealth(port: number): Promise<void> {
   throw new Error("gateway did not become healthy");
 }
 
-function nextMessage(socket: WebSocket): Promise<Record<string, unknown>> {
+function nextMessages(
+  socket: WebSocket,
+  count: number,
+): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
+    const messages: Record<string, unknown>[] = [];
     const onMessage = (event: MessageEvent) => {
-      cleanup();
-      resolve(JSON.parse(String(event.data)) as Record<string, unknown>);
+      messages.push(JSON.parse(String(event.data)) as Record<string, unknown>);
+      if (messages.length === count) {
+        cleanup();
+        resolve(messages);
+      }
     };
     const onError = () => {
       cleanup();
@@ -129,19 +136,21 @@ lines.on("line", (line) => {
     await waitForHealth(port);
 
     const first = new WebSocket(`ws://127.0.0.1:${port}/?token=${token()}`);
+    const firstMessages = nextMessages(first, 2);
     await new Promise<void>((resolve, reject) => {
       first.addEventListener("open", () => resolve(), { once: true });
       first.addEventListener("error", () => reject(new Error("open failed")), {
         once: true,
       });
     });
-    expect(await nextMessage(first)).toMatchObject({
+    const [firstState, firstOutput] = await firstMessages;
+    expect(firstState).toMatchObject({
       type: "state",
       sessionId: "terminal-1",
       generation: 1,
       state: "ready",
     });
-    expect(await nextMessage(first)).toMatchObject({
+    expect(firstOutput).toMatchObject({
       type: "output",
       revision: 1,
       data: "durable screen",
@@ -151,13 +160,15 @@ lines.on("line", (line) => {
     const second = new WebSocket(
       `ws://127.0.0.1:${port}/?token=${token(1)}`,
     );
+    const secondMessages = nextMessages(second, 1);
     await new Promise<void>((resolve, reject) => {
       second.addEventListener("open", () => resolve(), { once: true });
       second.addEventListener("error", () => reject(new Error("open failed")), {
         once: true,
       });
     });
-    expect(await nextMessage(second)).toMatchObject({
+    const [secondState] = await secondMessages;
+    expect(secondState).toMatchObject({
       type: "state",
       sessionId: "terminal-1",
       generation: 1,
