@@ -44,7 +44,8 @@
       "prepare-ci-repair",
       "quality-check",
       "fix-ci",
-      "run"
+      "run",
+      "finalize-ci-repair"
     ],
     "activeWorkflows": [
       "ci-repair",
