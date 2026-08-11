@@ -36,7 +36,7 @@ import type {
   QualityJourney,
   QualityScenario,
 } from "./contracts";
-import { qualityRunHealth, scenarioSchema } from "./contracts";
+import { qualityRunHealth, scenarioRecordSchema } from "./contracts";
 import { QualityEditorDialog } from "./QualityEditorDialog";
 import { QualityRunDialog } from "./QualityRunDialog";
 import type {
@@ -549,7 +549,7 @@ async function readQuality(
     actions: payload.actions ?? [],
     journeys: payload.journeys ?? [],
     scenarios: (payload.scenarios ?? []).map((scenario) =>
-      scenarioSchema.parse(scenario),
+      scenarioRecordSchema.parse(scenario),
     ),
     runs: (payload.runs ?? []).map((run) => {
       const legacyRun = run as QualityRun & { journeySlug?: string };

@@ -4,6 +4,7 @@ import {
   actionSchema,
   journeySchema,
   qualityRunHealth,
+  scenarioRecordSchema,
   scenarioSchema,
 } from "../../../src/dashboard/lib/quality/contracts";
 
@@ -100,6 +101,25 @@ describe("quality contracts", () => {
 
     expect(scenario.journeySlugs).toEqual(["direct-chat-persists"]);
     expect(scenario).not.toHaveProperty("journeySlug");
+  });
+
+  it("keeps an older active Scenario readable when its environment is missing", () => {
+    const legacy = {
+      slug: "legacy-scenario",
+      journeySlug: "legacy-journey",
+      name: "Legacy scenario",
+      kind: "happy",
+      given: "The saved record predates repository environments.",
+      expectedVisible: "The record remains visible.",
+      expectedState: "Nothing is changed while reading.",
+      status: "active",
+      updatedAt: NOW,
+    };
+
+    expect(scenarioRecordSchema.parse(legacy).journeySlugs).toEqual([
+      "legacy-journey",
+    ]);
+    expect(scenarioSchema.safeParse(legacy).success).toBe(false);
   });
 
   it("marks proof stale when its definition changed after the pass", () => {
