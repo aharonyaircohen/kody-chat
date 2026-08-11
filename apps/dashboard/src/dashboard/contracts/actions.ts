@@ -226,7 +226,7 @@ export function describeAction(action: EngineAction): string {
     return `Run: ${action.command || "(no command)"}`;
   }
   if (action.action === "approve") {
-    return "Approve";
+      return "Approved";
   }
   if (action.action === "reject") {
     return "Reject";
