@@ -5,6 +5,7 @@ import {
   type WorkflowStepDefinition,
   normalizeWorkflowDefinition,
   validateWorkflowDefinition,
+  workflowStepDefinitionSchema,
 } from "../../src/dashboard/lib/workflow-definitions";
 
 function workflow(
@@ -99,6 +100,7 @@ describe("validateWorkflowDefinition", () => {
             delivery: "pull-request",
             targetFact: "facts.issue_number",
             reason: "Implement and deliver the requested change.",
+            timeoutSeconds: 600,
             runWhen: { "facts.ready": true },
             continueOn: ["completed"],
             saveReport: true,
@@ -115,11 +117,29 @@ describe("validateWorkflowDefinition", () => {
       delivery: "pull-request",
       targetFact: "facts.issue_number",
       reason: "Implement and deliver the requested change.",
+      timeoutSeconds: 600,
       runWhen: { "facts.ready": true },
       continueOn: ["completed"],
       saveReport: true,
       report: { channel: "workflow" },
     });
+  });
+
+  it("accepts only bounded workflow step deadlines", () => {
+    expect(
+      workflowStepDefinitionSchema.safeParse({
+        id: "repair",
+        capability: "run",
+        timeoutSeconds: 600,
+      }).success,
+    ).toBe(true);
+    expect(
+      workflowStepDefinitionSchema.safeParse({
+        id: "repair",
+        capability: "run",
+        timeoutSeconds: 0,
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts a complete branch and bounded loop", () => {

@@ -22,6 +22,7 @@ export const workflowStepValidator = v.object({
   delivery: v.optional(v.literal("pull-request")),
   targetFact: v.optional(v.string()),
   reason: v.optional(v.string()),
+  timeoutSeconds: v.optional(v.number()),
   inputs: v.optional(v.record(v.string(), v.object({ from: v.string() }))),
   next: v.optional(v.array(workflowTransitionValidator)),
   runWhen: v.optional(v.record(v.string(), v.any())),

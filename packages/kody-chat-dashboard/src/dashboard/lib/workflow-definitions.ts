@@ -68,6 +68,7 @@ export const workflowStepDefinitionSchema = z.object({
   delivery: z.literal("pull-request").optional(),
   targetFact: z.string().trim().min(1).optional(),
   reason: z.string().trim().min(1).optional(),
+  timeoutSeconds: z.number().int().min(1).max(3600).optional(),
   next: z.array(workflowTransitionDefinitionSchema).optional(),
   runWhen: z.record(z.string(), z.unknown()).optional(),
   continueOn: z.array(z.string().trim().min(1)).optional(),
@@ -242,6 +243,13 @@ function normalizeWorkflowStepExecution(
     typeof raw.reason === "string" && raw.reason.trim()
       ? raw.reason.trim()
       : undefined;
+  const timeoutSeconds =
+    typeof raw.timeoutSeconds === "number" &&
+    Number.isInteger(raw.timeoutSeconds) &&
+    raw.timeoutSeconds >= 1 &&
+    raw.timeoutSeconds <= 3600
+      ? raw.timeoutSeconds
+      : undefined;
   const runWhen =
     raw.runWhen &&
     typeof raw.runWhen === "object" &&
@@ -270,6 +278,7 @@ function normalizeWorkflowStepExecution(
     ...(delivery ? { delivery } : {}),
     ...(targetFact ? { targetFact } : {}),
     ...(reason ? { reason } : {}),
+    ...(timeoutSeconds ? { timeoutSeconds } : {}),
     ...(runWhen ? { runWhen } : {}),
     ...(continueOn.length > 0 ? { continueOn } : {}),
     ...(raw.saveReport === true ? { saveReport: true } : {}),
