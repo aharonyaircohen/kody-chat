@@ -353,6 +353,7 @@ export function assertSimpleCapabilityFolder(
 
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
+  deliveryPolicy?: "checkpoint";
   requirements?: {
     browser?: boolean;
     qaCredentials?: boolean;
@@ -381,6 +382,20 @@ function parseCapabilityContract(raw: string): {
     value.execution !== "script"
   ) {
     throw new Error('contract.json execution must be "agent" or "script"');
+  }
+  if (
+    value.deliveryPolicy !== undefined &&
+    value.deliveryPolicy !== "checkpoint"
+  ) {
+    throw new Error('contract.json deliveryPolicy must be "checkpoint"');
+  }
+  if (
+    value.deliveryPolicy === "checkpoint" &&
+    value.execution !== "agent"
+  ) {
+    throw new Error(
+      'contract.json deliveryPolicy is supported only when execution is "agent"',
+    );
   }
   const requirementsValue =
     value.requirements === undefined ? undefined : asRecord(value.requirements);
@@ -513,6 +528,7 @@ function parseCapabilityContract(raw: string): {
   const unsupported = Object.keys(value).filter(
     (key) =>
       key !== "execution" &&
+      key !== "deliveryPolicy" &&
       key !== "requirements" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
@@ -527,6 +543,9 @@ function parseCapabilityContract(raw: string): {
   }
   return {
     ...(value.execution ? { execution: value.execution } : {}),
+    ...(value.deliveryPolicy === "checkpoint"
+      ? { deliveryPolicy: value.deliveryPolicy }
+      : {}),
     ...(requirements && Object.keys(requirements).length > 0
       ? { requirements }
       : {}),

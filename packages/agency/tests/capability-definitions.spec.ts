@@ -250,6 +250,43 @@ describe("simple capability folders", () => {
     ).toThrow(/agent/i);
   });
 
+  it("preserves checkpoint delivery policy only for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPolicy: "checkpoint",
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          deliveryPolicy: "checkpoint",
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/agent/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPolicy: "automatic",
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/deliveryPolicy/i);
+  });
+
   it("accepts restricted browser requirements for agent capabilities", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
