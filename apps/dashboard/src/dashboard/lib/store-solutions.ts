@@ -13,6 +13,8 @@ import { readCompanyStorePipelineDefinitionFile } from "@dashboard/lib/pipeline-
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,127}$/;
 
+export const ENGINE_BUILT_IN_CAPABILITIES = new Set(["run"]);
+
 const entrypointSchema = z.object({
   kind: z.enum(["loop", "pipeline", "trigger", "workflow"]),
   id: z.string().regex(SLUG),
@@ -326,7 +328,10 @@ export function resolveStoreSolutionTree(
       );
     }
 
-    if (!catalog.capabilities.has(slug)) {
+    if (
+      !catalog.capabilities.has(slug) &&
+      !ENGINE_BUILT_IN_CAPABILITIES.has(slug)
+    ) {
       throw new Error(
         `Store Solution "${solution.id}" references missing Capability "${slug}".`,
       );

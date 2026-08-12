@@ -59,7 +59,7 @@ describe("simple Store activation", () => {
   });
 
   it("does not look for Engine built-in capabilities in the Store", () => {
-    expect(source).toContain('ENGINE_BUILT_IN_CAPABILITIES = new Set(["run"])');
+    expect(source).toContain("ENGINE_BUILT_IN_CAPABILITIES,");
     expect(source).toMatch(
       /publishableCapabilitySlugs = capabilitySlugs\.filter[\s\S]*!ENGINE_BUILT_IN_CAPABILITIES\.has\(slug\)/,
     );

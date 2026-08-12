@@ -50,6 +50,7 @@ import {
 } from "@dashboard/lib/store-triggers";
 import { getTriggers, mutateTriggers } from "@kody-ade/base/triggers";
 import {
+  ENGINE_BUILT_IN_CAPABILITIES,
   loadStoreSolutionCatalog,
   readStoreSolution,
   resolveStoreSolutionTree,
@@ -120,8 +121,6 @@ const fieldByKind: Record<
 
 // Engine-owned capabilities are always available at runtime and have no
 // Store folder to publish. Store Workflows may still reference them.
-const ENGINE_BUILT_IN_CAPABILITIES = new Set(["run"]);
-
 function validSlug(kind: ImportKind, slug: string): boolean {
   return kind === "workflow" || kind === "pipeline"
     ? isWorkflowDefinitionId(slug)

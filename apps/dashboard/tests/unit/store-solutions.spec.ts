@@ -146,6 +146,42 @@ describe("Store Solution dependency trees", () => {
     );
   });
 
+  it("accepts Engine built-in capabilities without Store folders", () => {
+    const builtInCatalog: StoreSolutionCatalog = {
+      ...catalog,
+      workflows: new Map([
+        [
+          "chore",
+          {
+            id: "chore",
+            name: "Chore",
+            agent: "kody",
+            capabilities: ["run"],
+          },
+        ],
+      ]),
+    };
+
+    expect(() =>
+      resolveStoreSolutionTree(
+        {
+          ...manifest,
+          id: "chore",
+          entrypoints: [{ kind: "workflow", id: "chore" }],
+        },
+        builtInCatalog,
+        {
+          agents: new Set(),
+          capabilities: new Set(),
+          workflows: new Set(),
+          loops: new Set(),
+          pipelines: new Set(),
+          triggers: new Set(),
+        },
+      ),
+    ).not.toThrow();
+  });
+
   it("derives Trigger dependencies and installed state", () => {
     const triggerManifest = {
       ...manifest,
