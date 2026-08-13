@@ -820,6 +820,9 @@ async function handleKodyDirectPost(
   const latestUserText = getLatestUserText(messages);
   const explicitMemoryCommand = hasExplicitMemoryCommand(latestUserText);
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
+  const agencyAssessmentHandoffRequested = isAgencyRequestAssessmentHandoff(
+    latestUserText ?? "",
+  );
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
@@ -859,7 +862,7 @@ async function handleKodyDirectPost(
     ? messages
     : inlineImagePartsForTextModel(messages);
   const turnSystemInstructions: string[] = [];
-  if (isAgencyRequestAssessmentHandoff(latestUserText ?? "")) {
+  if (agencyAssessmentHandoffRequested) {
     turnSystemInstructions.push(
       "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility with tools, save the concrete plan and waiting-approval phase, then present exactly one approval action. Do not delegate ownership of this step.",
     );
@@ -1973,6 +1976,29 @@ This turn includes an image from the user. For questions about what is visible i
                     activeTools: ["guided_flow_start"],
                     toolChoice: selectChatOutputToolChoice(
                       ["guided_flow_start"],
+                      providerCapabilities,
+                    ),
+                  };
+                }
+                if (agencyAssessmentHandoffRequested) {
+                  const agencyAssessmentUpdated = steps.some((step) =>
+                    step.toolResults.some(
+                      (result) =>
+                        result.toolName === "update_agency_request" &&
+                        !isToolErrorOutput(result.output),
+                    ),
+                  );
+                  const agencyAssessmentTools = agencyAssessmentUpdated
+                    ? allActiveTools.filter((name) => name === SHOW_VIEW_TOOL)
+                    : allActiveTools.filter(
+                        (name) =>
+                          /^(?:list|read|get|search|fetch)_/.test(name) ||
+                          name === "update_agency_request",
+                      );
+                  return {
+                    activeTools: agencyAssessmentTools,
+                    toolChoice: selectChatOutputToolChoice(
+                      agencyAssessmentTools,
                       providerCapabilities,
                     ),
                   };
