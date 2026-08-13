@@ -27,6 +27,25 @@ export const machineAccessValidator = v.union(
   v.literal("brain"),
 );
 
+export const conversationTurnProgressValidator = v.object({
+  reasoning: v.string(),
+  toolCalls: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      arguments: v.any(),
+      description: v.optional(v.string()),
+      activityKind: v.optional(v.literal("subagent")),
+      displayName: v.optional(v.string()),
+      status: v.union(
+        v.literal("running"),
+        v.literal("success"),
+        v.literal("error"),
+      ),
+    }),
+  ),
+});
+
 export const conversationAuthorValidator = v.union(
   v.object({ kind: v.literal("user"), actorId: v.string() }),
   v.object({

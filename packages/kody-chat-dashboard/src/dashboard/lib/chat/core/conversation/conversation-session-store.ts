@@ -43,6 +43,27 @@ export type ConversationDetail = {
     seq: number;
     entry: StoredMessage | StoredHandoff;
   }>;
+  turns?: Array<{
+    turnId: string;
+    status: "running" | "completed" | "failed" | "cancelled";
+    agent: { slug: string; title: string };
+    startedAt: string;
+    assistantEntryId?: string;
+    completedAt?: string;
+    errorCode?: string;
+    progress?: {
+      reasoning: string;
+      toolCalls: Array<{
+        id: string;
+        name: string;
+        arguments: Record<string, unknown>;
+        description?: string;
+        activityKind?: "subagent";
+        displayName?: string;
+        status: "running" | "success" | "error";
+      }>;
+    };
+  }>;
   checkpoints: Array<{
     version: number;
     throughSeq: number;
@@ -78,8 +99,12 @@ function agentKeyForRuntime(
 export function mapConversationDetail(detail: ConversationDetail): {
   session: SessionMeta;
   messages: ChatMessage[];
+  hasRunningTurns: boolean;
 } {
   const ordered = [...detail.entries].sort((a, b) => a.seq - b.seq);
+  const turnsById = new Map(
+    (detail.turns ?? []).map((turn) => [turn.turnId, turn]),
+  );
   const handoffs: AgentHandoff[] = ordered.flatMap((stored) =>
     stored.entry.kind === "agent-handoff"
       ? [
@@ -94,38 +119,104 @@ export function mapConversationDetail(detail: ConversationDetail): {
         ]
       : [],
   );
-  const messages: ChatMessage[] = ordered.flatMap((stored) =>
-    stored.entry.kind === "message"
-      ? [
-          {
-            id: stored.entryId,
-            turnId: stored.entry.turnId,
-            role: stored.entry.role,
-            text: stored.entry.content,
-            view: isRenderedViewDirective(stored.entry.view)
-              ? stored.entry.view
-              : undefined,
-            timestamp: stored.entry.createdAt,
-            isLoading: stored.entry.status === "pending",
-            attachments: stored.entry.attachmentIds?.flatMap((id) => {
-              const metadata = detail.attachments?.find(
-                (item) => item.attachment.attachmentId === id,
-              )?.attachment;
-              return metadata
-                ? [
-                    {
-                      id: `${detail.conversation.conversationId}::${id}`,
-                      name: metadata.fileName,
-                      mimeType: metadata.mediaType,
-                      size: metadata.sizeBytes,
-                    },
-                  ]
-                : [];
-            }),
-          },
-        ]
-      : [],
+  const storedMessages: ChatMessage[] = ordered.flatMap((stored) => {
+    if (stored.entry.kind !== "message") return [];
+    const durableTurn = stored.entry.turnId
+      ? turnsById.get(stored.entry.turnId)
+      : undefined;
+    const durableProgress =
+      stored.entry.role === "assistant" ? durableTurn?.progress : undefined;
+    const storedContent =
+      stored.entry.role === "assistant" &&
+      (durableTurn?.status === "failed" || durableTurn?.status === "cancelled")
+        ? "Error: The reply could not be completed. Please retry."
+        : stored.entry.content;
+    return [
+      {
+        id: stored.entryId,
+        turnId: stored.entry.turnId,
+        role: stored.entry.role,
+        text: durableProgress?.reasoning
+          ? `<think>${durableProgress.reasoning}</think>\n\n${storedContent}`
+          : storedContent,
+        toolCalls: durableProgress?.toolCalls.map((toolCall) => ({
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          description: toolCall.description,
+          activityKind: toolCall.activityKind,
+          displayName: toolCall.displayName,
+          status: toolCall.status,
+        })),
+        view: isRenderedViewDirective(stored.entry.view)
+          ? stored.entry.view
+          : undefined,
+        timestamp: stored.entry.createdAt,
+        isLoading:
+          stored.entry.status === "pending" &&
+          (!durableTurn || durableTurn.status === "running"),
+        attachments: stored.entry.attachmentIds?.flatMap((id) => {
+          const metadata = detail.attachments?.find(
+            (item) => item.attachment.attachmentId === id,
+          )?.attachment;
+          return metadata
+            ? [
+                {
+                  id: `${detail.conversation.conversationId}::${id}`,
+                  name: metadata.fileName,
+                  mimeType: metadata.mediaType,
+                  size: metadata.sizeBytes,
+                },
+              ]
+            : [];
+        }),
+      },
+    ];
+  });
+  const storedMessageIds = new Set(
+    storedMessages.flatMap((message) => (message.id ? [message.id] : [])),
   );
+  const storedTurnIds = new Set(
+    storedMessages.flatMap((message) =>
+      message.turnId ? [message.turnId] : [],
+    ),
+  );
+  const recoveredTurns = (detail.turns ?? [])
+    .filter(
+      (turn) =>
+        turn.status !== "completed" &&
+        !storedMessageIds.has(`assistant:${turn.turnId}`) &&
+        !storedTurnIds.has(turn.turnId),
+    )
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+  const hasRunningTurns =
+    storedMessages.some(
+      (message) => message.role === "assistant" && message.isLoading,
+    ) || recoveredTurns.some((turn) => turn.status === "running");
+  const messages: ChatMessage[] = [
+    ...storedMessages,
+    ...recoveredTurns.map((turn) => ({
+      id: `assistant:${turn.turnId}`,
+      turnId: turn.turnId,
+      role: "assistant" as const,
+      text:
+        turn.status === "running"
+          ? turn.progress?.reasoning
+            ? `<think>${turn.progress.reasoning}</think>\n\n`
+            : ""
+          : "Error: The reply could not be completed. Please retry.",
+      timestamp: turn.completedAt ?? turn.startedAt,
+      agent: turn.agent,
+      isLoading: turn.status === "running",
+      toolCalls: turn.progress?.toolCalls.map((toolCall) => ({
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+        description: toolCall.description,
+        activityKind: toolCall.activityKind,
+        displayName: toolCall.displayName,
+        status: toolCall.status,
+      })),
+    })),
+  ];
   const checkpoint = [...detail.checkpoints]
     .sort((a, b) => b.version - a.version)
     .at(0);
@@ -162,8 +253,10 @@ export function mapConversationDetail(detail: ConversationDetail): {
             createdAt: checkpoint.createdAt,
           }
         : undefined,
+      status: hasRunningTurns ? "running" : "idle",
     },
     messages,
+    hasRunningTurns,
   };
 }
 

@@ -6,6 +6,15 @@ import {
 } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentAssignment } from "./public-agent-routing";
+import {
+  PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+  PUBLIC_AGENT_TASK_TIMEOUT_MS,
+} from "./public-agent-limits";
+
+export {
+  PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+  PUBLIC_AGENT_TASK_TIMEOUT_MS,
+} from "./public-agent-limits";
 
 export type { PublicDelegationAgent } from "./public-agent-definition";
 
@@ -51,13 +60,94 @@ const MAX_PUBLIC_AGENT_EVIDENCE_ITEM_CHARS = 12_000;
 const MAX_PUBLIC_AGENT_REASONING_CHARS = 40_000;
 const MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS = 3_000;
 const MAX_PUBLIC_AGENT_SYNTHESIS_CONCLUSION_CHARS = 6_000;
-const PUBLIC_AGENT_TASK_TIMEOUT_MS = 35_000;
+const MAX_PROJECT_ASSESSMENT_REFERENCE_CHARS = 500;
+const MAX_PROJECT_ASSESSMENT_EVIDENCE_CHARS = 1_200;
+const MAX_PROJECT_ASSESSMENT_CONCLUSION_CHARS = 1_800;
 const PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS = 25_000;
+export const PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS = 480_000;
+export const PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS = 12_000;
 const SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS = 25_000;
 export const PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE =
-  "I could not prepare a reliable answer from the available specialist evidence.";
+  "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?";
+export const PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX =
+  "Final report writing failed";
 const PROVIDER_REASONING_METADATA =
   /^\s*user safety\s*:\s*(?:safe|unsafe|unknown)\s*$/i;
+
+interface SynthesisErrorLike {
+  message?: string;
+  statusCode?: number;
+  responseBody?: string;
+  data?: { error?: { message?: string } };
+}
+
+export function describePublicAgentSynthesisError(error: unknown): string {
+  const candidate =
+    error && typeof error === "object" ? (error as SynthesisErrorLike) : {};
+  const detail = [
+    candidate.data?.error?.message,
+    candidate.message,
+    candidate.responseBody,
+    typeof error === "string" ? error : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  if (/timeout|timed out|aborted|deadline/.test(detail)) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because it exceeded the ${PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS / 1_000}-second limit.`;
+  }
+  if (
+    candidate.statusCode === 413 ||
+    /context length|context_length|too large|too many tokens|maximum context/.test(
+      detail,
+    )
+  ) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek rejected the combined input as too large.`;
+  }
+  if (candidate.statusCode === 429 || /rate.?limit/.test(detail)) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek was rate-limited.`;
+  }
+  if (/max(?:imum)? output|output tokens|length limit/.test(detail)) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek reached its output limit.`;
+  }
+  return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the model provider rejected or ended the request unexpectedly.`;
+}
+
+export function describePublicAgentEmptySynthesis({
+  text,
+  finishReason,
+}: {
+  text: string;
+  finishReason?: string;
+}): string {
+  const normalizedFinishReason = finishReason?.trim().toLowerCase();
+  if (!text.trim() && normalizedFinishReason === "length") {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned no text after reaching its output limit.`;
+  }
+  if (containsToolCallMarkup(text)) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned a tool call instead of the report.`;
+  }
+  if (/<think>|<\/think>|\breasoning\b/i.test(text)) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned reasoning without a final report.`;
+  }
+  if (!text.trim()) {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned no report text (finish reason: ${normalizedFinishReason || "unknown"}).`;
+  }
+  if (normalizedFinishReason === "length") {
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek reached its output limit before producing a usable report.`;
+  }
+  return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned text that could not be used as the report (finish reason: ${normalizedFinishReason || "unknown"}).`;
+}
+
+export function isCompleteProjectAssessmentAssignments(
+  assignments: readonly PublicAgentAssignment[],
+): boolean {
+  return (
+    assignments.length === 10 &&
+    assignments.every(({ capability }) => capability?.startsWith("assess-"))
+  );
+}
 
 export function requiresPublicAgentToolEvidence(task: string): boolean {
   return /\b(?:this\s+)?(?:repository|repo|codebase|file|files|directory|directories|pull request|pr|commit|branch)\b|\b(?:currently|current|latest|status|blocked)\b/i.test(
@@ -212,11 +302,10 @@ export function buildPublicAgentSynthesisInput({
   const agentsBySlug = new Map(
     assignedAgents.map((agent) => [agent.slug, agent] as const),
   );
-  const resultsByAgent = new Map(
-    results.map((result) => [result.agent, result] as const),
-  );
+  const completeProjectAssessment =
+    isCompleteProjectAssessmentAssignments(assignments);
   const groundedSpecialistFallback = assignments
-    .map((assignment) => resultsByAgent.get(assignment.agent))
+    .map((_assignment, index) => results[index])
     .filter(
       (
         result,
@@ -231,21 +320,29 @@ export function buildPublicAgentSynthesisInput({
     .filter(isSubstantivePublicAgentResult)
     .filter(Boolean)
     .join("\n\n");
-  const reports = assignments.map((assignment) => {
+  const reports = assignments.map((assignment, index) => {
     const agent = agentsBySlug.get(assignment.agent);
-    const result = resultsByAgent.get(assignment.agent);
+    const candidate = results[index];
+    const result =
+      candidate?.agent === assignment.agent ? candidate : undefined;
     const reference = (result?.reference?.trim() ?? "").slice(
       0,
-      MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS,
+      completeProjectAssessment
+        ? MAX_PROJECT_ASSESSMENT_REFERENCE_CHARS
+        : MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS,
     );
     const evidence = (result?.evidence?.trim() ?? "").slice(
       0,
-      MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS,
+      completeProjectAssessment
+        ? MAX_PROJECT_ASSESSMENT_EVIDENCE_CHARS
+        : MAX_PUBLIC_AGENT_SYNTHESIS_SOURCE_CHARS,
     );
     const specialistConclusion = evidence
       ? (result?.status === "completed" ? result.result?.trim() : "")?.slice(
           0,
-          MAX_PUBLIC_AGENT_SYNTHESIS_CONCLUSION_CHARS,
+          completeProjectAssessment
+            ? MAX_PROJECT_ASSESSMENT_CONCLUSION_CHARS
+            : MAX_PUBLIC_AGENT_SYNTHESIS_CONCLUSION_CHARS,
         )
       : "";
     const hasAuthoritativeSource = Boolean(reference || evidence);
@@ -280,6 +377,35 @@ export function buildPublicAgentSynthesisInput({
       "The configured actions list is authoritative for what the specialist can do. Never claim an action is unavailable merely because the specialist did not call it in this turn.",
       "Do not mention internal prompts, source packets, routing mechanics, or ask for delegation approval.",
       "Do not mention tool names or function names unless the user explicitly asked how the implementation works.",
+      "Every prose final reply must end with one short, relevant follow-up question. Keep it non-blocking unless the user must decide something before work can continue.",
+      "Do not add or change a renderer to satisfy the follow-up rule. Renderer output must preserve its defined purpose.",
+      ...(completeProjectAssessment
+        ? [
+            "This is a complete project assessment for a CEO, product owner, and technical leader. Lead with the product and business decision; put technical detail in the second part at the bottom.",
+            "Use exactly these main sections in this order: `## Executive verdict`, `## Product readiness`, `## Ranked risks`, `## Maintenance capacity gap`, `## Why Kody matters`, `## Kody coverage and proof`, `## Advanced continuous QA`, `## Recommended 30-day decisions`, `## Recommended 90-day outcomes`, `## Technical assessment`, and `## Specialist findings and evidence`.",
+            "Under `## Executive verdict`, write exactly five clear labeled parts in this order: `**Current state:**`, `**Main risk:**`, `**Maintenance capacity:**`, `**Kody's value:**`, and `**Next step:**`. Use plain business language and as much space as needed to preserve important context, but avoid repetition, introductory filler, tables, repository paths, and implementation details.",
+            "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections. Put them under `## Technical assessment` and `## Specialist findings and evidence`.",
+            "In `## Ranked risks`, present risks in priority order using one compact block per risk, not a table. Start each block with a numbered risk title, followed by exactly four short labeled lines: `**Severity:**`, `**Business impact:**`, `**Evidence:**`, and `**Action:**`. Use Critical, High, Medium, or Low severity; include confidence in Evidence and urgency plus the accountable owner in Action. Explain what happens to customers, delivery, revenue, trust, or operations if each risk is ignored.",
+            "In `## Maintenance capacity gap`, distinguish the current team and real maintenance time, the maintainable team or capacity the evidence suggests, the gap, the likely business consequences, what Kody can cover, and what still needs accountable human ownership. Do not estimate required staffing or maintenance time unless explicit work categories, hours, and supported bounds are available; otherwise state that the required capacity is unknown.",
+            "In `## Why Kody matters`, compare Without Kody versus with Kody. Explain whether neglected maintenance makes Kody an important addition. Cover continuous remote operation and the declared capacity for up to 20 independent maintenance tasks in parallel, but present that capacity as unverified unless current platform evidence proves it. Do not imply that parallel execution replaces prioritization, architecture decisions, review, or ownership.",
+            "Add `## Kody coverage and proof` before the recommendations. Evaluate test coverage, maintenance automation, security advice, coding-agent documentation, and continuous product QA. For each area state the customer outcome, current evidence, human responsibility, success metric, and one status: Proven now, available but untested, or planned.",
+            "Add `## Advanced continuous QA` immediately after `## Kody coverage and proof`. Treat continuous user-level QA as distinct from ordinary test coverage. Verify predefined Quality Runs, free-form browser QA, continuous scheduling, bug creation, and automatic repair; then verify fix validation and human approval separately. Never describe a read-only QA pass as an automatic fix loop.",
+            "For Kody's parallelism, distinguish available capacity, tested capacity, and useful capacity. Available machines or uncapped workflows do not prove safe throughput; useful capacity means independently completed work that passes validation and human review.",
+            "Do not invent staffing multipliers or FTE ranges. Estimate the maintenance gap from explicit work categories and hours, show assumptions, and use a range only when evidence supports its bounds.",
+            "Do not call the whole product unready for production when the evidence supports only a narrower limit. State the exact operating mode that is unsafe, such as unattended multi-customer production.",
+            "Keep risks separate when they have different causes, owners, or remedies. Preserve material security findings across tracks, resolve contradictions explicitly, and label absence claims as `not found` or `not confirmed` rather than proven absence.",
+            "Make Kody's value measurable through outcomes such as maintenance backlog reduction, time to detect, time to repair, CI health, security-update latency, and human maintenance time saved. State plainly when Kody is not yet reliable enough to deliver those outcomes.",
+            "Keep uncertainties explicit, separate facts from estimates, and preserve concrete technical evidence only in the technical sections.",
+            "Evidence discipline: classify every material claim as `Verified`, `User-provided`, `Inferred`, or `Unverified`. Put the classification in the nearest Evidence line or technical evidence entry so leadership prose stays readable. Verified requires direct current evidence; User-provided must preserve the submitted wording and remain separate from repository evidence; Inferred must state the reasoning; Unverified must state what proof is missing.",
+            "A configured file, dependency, test, capability, workflow, or integration proves only that it exists. It does not prove correct configuration, live operation, reliability, customer outcome, security, or scale. Proven now requires direct evidence of a relevant successful completed run and its validation; configuration alone means available but untested, and an absent implementation means planned.",
+            "Inspect the complete CI workflow, including commands, job conditions, event filters, and required dependencies, before describing coverage. Distinguish always-run tests, release-only gates, manually dispatched suites, and tests that merely exist. Determine current health from the most recent relevant run at the assessment cutoff; describe older failures as a trend, not the current state, when a newer success exists.",
+            "Separate application error capture, workflow-failure notification, escalation, and human acknowledgement. Error-reporting code does not prove live alert delivery, but its presence also forbids a broad claim that no observability or alerting exists; state the exact unconfirmed path and configuration.",
+            "Treat an account as automated only when provider metadata identifies it as a bot or its verified identity uses the `[bot]` convention. Separate authors, committers, PR actors, and human identities; never infer team size, employment, or shared identity from names or commit frequency.",
+            "Product readiness requires evidence from live behavior such as validated critical journeys, tenant-isolation tests, backup and restore proof, production monitoring, incident history, security review, and relevant load evidence. Repository quality alone supports a codebase-quality finding, not a production-readiness verdict.",
+            "Resolve the report globally before finalizing it. Do not let one section claim a capability is proven while another says it is absent, untested, or planned. When tracks conflict, preserve the conflict and lower confidence until direct evidence resolves it.",
+            "Recommendations must trace directly to a ranked finding, name the accountable owner only when that role is established, and define a measurable outcome plus verification method. Do not invent a management team, meeting, maintenance window, staffing level, or success measure that is absent from evidence or user input.",
+          ]
+        : []),
     ].join("\n"),
     messages: [
       {
@@ -303,6 +429,7 @@ export async function synthesizePublicAgentResponse({
   results,
   model,
   generate = generateText,
+  onSynthesisFailure,
 }: {
   userText: string;
   assignments: readonly PublicAgentAssignment[];
@@ -310,6 +437,7 @@ export async function synthesizePublicAgentResponse({
   results: readonly PublicAgentTaskResult[];
   model: Parameters<typeof generateText>[0]["model"];
   generate?: typeof generateText;
+  onSynthesisFailure?: (error: unknown) => void;
 }): Promise<string> {
   const { system, messages, groundedSpecialistFallback } =
     buildPublicAgentSynthesisInput({
@@ -318,21 +446,31 @@ export async function synthesizePublicAgentResponse({
       assignedAgents,
       results,
     });
+  const completeProjectAssessment =
+    isCompleteProjectAssessmentAssignments(assignments);
   let response: Awaited<ReturnType<typeof generate>>;
   try {
     response = await generate({
       model,
       abortSignal: AbortSignal.timeout(
-        assignments.length === 1
-          ? SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS
-          : PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS,
+        completeProjectAssessment
+          ? PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS
+          : assignments.length === 1
+            ? SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS
+            : PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS,
       ),
       system,
       messages,
       tools: undefined,
-      maxOutputTokens: 1_200,
+      maxOutputTokens: completeProjectAssessment
+        ? PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS
+        : 1_200,
     });
   } catch (error) {
+    onSynthesisFailure?.(error);
+    if (completeProjectAssessment) {
+      return describePublicAgentSynthesisError(error);
+    }
     if (groundedSpecialistFallback) {
       return formatPublicAgentResponse({
         answer: groundedSpecialistFallback,
@@ -343,10 +481,18 @@ export async function synthesizePublicAgentResponse({
     throw error;
   }
   const answer = parsePublicAgentGeneratedAnswer(response.text);
+  if (completeProjectAssessment && !answer) {
+    const failure = describePublicAgentEmptySynthesis({
+      text: response.text,
+      finishReason: response.finishReason,
+    });
+    onSynthesisFailure?.(new Error(failure));
+    return failure;
+  }
   return formatPublicAgentResponse({
     answer:
       answer ||
-      groundedSpecialistFallback ||
+      (completeProjectAssessment ? "" : groundedSpecialistFallback) ||
       PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE,
     assignments,
     assignedAgents,
@@ -440,13 +586,15 @@ export async function runPublicAgentAssignments({
   invoke(input: {
     agent: PublicDelegationAgent;
     task: string;
+    capability?: string;
+    assignmentIndex: number;
   }): Promise<PublicAgentTaskResult>;
 }): Promise<PublicAgentTaskResult[]> {
   const agentsBySlug = new Map(
     assignedAgents.map((agent) => [agent.slug, agent] as const),
   );
   return Promise.all(
-    assignments.map(async (assignment) => {
+    assignments.map(async (assignment, assignmentIndex) => {
       const agent = agentsBySlug.get(assignment.agent);
       if (!agent) {
         return {
@@ -456,7 +604,14 @@ export async function runPublicAgentAssignments({
         };
       }
       try {
-        return await invoke({ agent, task: assignment.task });
+        return await invoke({
+          agent,
+          task: assignment.task,
+          ...(assignment.capability
+            ? { capability: assignment.capability }
+            : {}),
+          assignmentIndex,
+        });
       } catch (error) {
         return {
           status: "failed",
@@ -471,6 +626,7 @@ export async function runPublicAgentAssignments({
 export interface RunIsolatedPublicAgentTaskOptions {
   agent: PublicDelegationAgent;
   task: string;
+  sharedContext?: string;
   reference?: string;
   system: string;
   model: Parameters<typeof generateText>[0]["model"];
@@ -489,11 +645,12 @@ export interface RunIsolatedPublicAgentTaskOptions {
 export async function runIsolatedPublicAgentTask({
   agent,
   task,
+  sharedContext,
   reference,
   system,
   model,
   tools,
-  maxSteps = 8,
+  maxSteps = PUBLIC_AGENT_DEFAULT_MAX_STEPS,
   sessionId = randomUUID(),
   stream = streamText,
   onReasoningDelta,
@@ -506,16 +663,25 @@ export async function runIsolatedPublicAgentTask({
     requireToolEvidence && Object.keys(tools).length > 0
       ? "Use at least one available tool and base current-state claims only on its actual result."
       : null;
-  const focusedTask = reference?.trim()
-    ? [
-        "## Focused task",
-        task,
-        ...(evidenceInstruction ? [evidenceInstruction] : []),
-        "## Authoritative capability reference",
-        reference.trim(),
-        "Use this reference exactly for domain facts. Do not omit or reinterpret relevant definitions.",
-      ].join("\n\n")
-    : [task, evidenceInstruction].filter(Boolean).join("\n\n");
+  const focusedTask = [
+    "## Focused task",
+    task,
+    ...(evidenceInstruction ? [evidenceInstruction] : []),
+    ...(sharedContext?.trim()
+      ? [
+          "## Shared request context",
+          sharedContext,
+          "Use this context as direct input to the focused task. Preserve submitted values exactly and do not rely on another Agent to restate them.",
+        ]
+      : []),
+    ...(reference?.trim()
+      ? [
+          "## Authoritative capability reference",
+          reference.trim(),
+          "Use this reference exactly for domain facts. Do not omit or reinterpret relevant definitions.",
+        ]
+      : []),
+  ].join("\n\n");
   try {
     const response = stream({
       model,

@@ -7,17 +7,21 @@ export interface Agent {
   slug: string;
   title: string;
   body: string;
+  /** Plain-language guidance for selecting this Agent as a specialist. */
+  whenToUse?: string;
   /** Capability slugs attached to this agent (loaded into its chat). */
   capabilities?: string[];
   /** Public Agents this Agent may delegate work to. */
   subagents?: string[];
+  /** Product-owned assignments that cannot be removed. */
+  lockedSubagents?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Runtime resolution source. Local repo agent win over store agent. */
   source?: "local" | "builtin" | "store";
-  /** Code- and Store-owned agents are overridden by saving a local copy. */
+  /** Built-in definitions are immutable; Store definitions may be copied. */
   readOnly?: boolean;
 }
 
@@ -43,6 +47,7 @@ export const staffApi = {
     slug?: string;
     title: string;
     body: string;
+    whenToUse?: string;
     capabilities?: string[];
     subagents?: string[];
     actorLogin?: string;
@@ -61,6 +66,7 @@ export const staffApi = {
     data: {
       title?: string;
       body?: string;
+      whenToUse?: string;
       capabilities?: string[];
       subagents?: string[];
       actorLogin?: string;

@@ -76,6 +76,7 @@ export async function GET(
 const updateAgentSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
+  whenToUse: z.string().trim().max(500).optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
     .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
@@ -107,9 +108,8 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    // Store-linked agents are editable too: the first save publishes a local
-    // backend definition, which then becomes the active version.
-    const existing = (await listResolvedAgentFiles()).find(
+    const resolvedAgents = await listResolvedAgentFiles();
+    const existing = resolvedAgents.find(
       (candidate) => candidate.slug === slug,
     );
     if (!existing) {
@@ -117,8 +117,25 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, capabilities, subagents, actorLogin } =
+    const { title, body, whenToUse, capabilities, subagents, actorLogin } =
       updateAgentSchema.parse(payload);
+
+    if (existing.source === "builtin") {
+      const changesIdentity =
+        title !== undefined ||
+        body !== undefined ||
+        whenToUse !== undefined ||
+        capabilities !== undefined;
+      if (slug !== "kody" || changesIdentity || subagents === undefined) {
+        return NextResponse.json(
+          {
+            error: "builtin_agent_locked",
+            message: "Built-in Agent identities cannot be edited.",
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     const assignedSubagents =
       subagents === undefined ? existing.subagents : [...new Set(subagents)];
@@ -132,18 +149,74 @@ export async function PATCH(
       );
     }
 
+    const lockedSubagents = existing.lockedSubagents ?? [];
+    const effectiveSubagents = [
+      ...new Set([...lockedSubagents, ...(assignedSubagents ?? [])]),
+    ];
+    const unrouteableSubagent = effectiveSubagents.find((assignedSlug) => {
+      const assigned = resolvedAgents.find(
+        (candidate) => candidate.slug === assignedSlug,
+      );
+      return !assigned?.whenToUse?.trim();
+    });
+    if (unrouteableSubagent) {
+      return NextResponse.json(
+        {
+          error: "subagent_routing_required",
+          message: `Agent "${unrouteableSubagent}" needs a When to use description before it can be assigned as a subagent.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const nextWhenToUse =
+      whenToUse === undefined ? existing.whenToUse : whenToUse;
+    if (
+      whenToUse !== undefined &&
+      !nextWhenToUse?.trim() &&
+      resolvedAgents.some((candidate) => candidate.subagents?.includes(slug))
+    ) {
+      return NextResponse.json(
+        {
+          error: "subagent_routing_required",
+          message: "An assigned subagent must keep a When to use description.",
+        },
+        { status: 400 },
+      );
+    }
+
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const agentMember = await writeAgentFile({
-      slug,
-      title: title ?? existing.title,
-      body: body ?? existing.body,
-      sha: existing.sha,
-      // Preserve existing capabilities unless the caller sends a new list.
-      capabilities: capabilities ?? existing.capabilities,
-      subagents: assignedSubagents,
-    });
+    let agentMember;
+    if (existing.source === "builtin" && slug === "kody") {
+      const additionalSubagents = effectiveSubagents.filter(
+        (assignedSlug) => !lockedSubagents.includes(assignedSlug),
+      );
+      if (additionalSubagents.length === 0) {
+        await deleteAgentFile(slug);
+      } else {
+        await writeAgentFile({
+          slug,
+          title: existing.title,
+          body: existing.body,
+          sha: "",
+          capabilities: existing.capabilities,
+          subagents: additionalSubagents,
+        });
+      }
+      agentMember = { ...existing, subagents: effectiveSubagents };
+    } else {
+      agentMember = await writeAgentFile({
+        slug,
+        title: title ?? existing.title,
+        body: body ?? existing.body,
+        sha: existing.sha,
+        capabilities: capabilities ?? existing.capabilities,
+        subagents: assignedSubagents,
+        ...(nextWhenToUse ? { whenToUse: nextWhenToUse } : {}),
+      });
+    }
     if (!headerAuth) {
       throw new Error("Repository context is required to save an agent");
     }

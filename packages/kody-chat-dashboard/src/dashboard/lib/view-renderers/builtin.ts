@@ -197,7 +197,11 @@ const BUILTIN_SOURCES: readonly string[] = [
     rule: "Use this purpose to create or edit something when a few user-entered values are needed before continuing.",
     data: {
       title: { type: "text", description: "Form heading." },
-      body: { type: "text", optional: true, description: "Form explanation." },
+      body: {
+        type: "markdown",
+        optional: true,
+        description: "Form explanation.",
+      },
       fields: { type: "fields", description: "Input field definitions." },
       submitLabel: {
         type: "text",
@@ -210,18 +214,24 @@ const BUILTIN_SOURCES: readonly string[] = [
       type: "stack",
       children: [
         { type: "text", variant: "title", value: "$title" },
-        { type: "text", value: "$body" },
+        { type: "markdown", value: "$body" },
         {
           type: "list",
           for: "$fields",
           as: "field",
           item: {
-            type: "input",
-            name: "$field.name",
-            label: "$field.label",
-            value: "$field.value",
-            inputType: "$field.inputType",
-            readOnly: false,
+            type: "stack",
+            children: [
+              {
+                type: "input",
+                name: "$field.name",
+                label: "$field.label",
+                value: "$field.value",
+                inputType: "$field.inputType",
+                readOnly: false,
+              },
+              { type: "text", value: "$field.description" },
+            ],
           },
         },
         { type: "submit", label: "$submitLabel" },

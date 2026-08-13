@@ -80,7 +80,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "End non-trivial replies with a recommended next step",
+      "Every prose final reply must end with one short, relevant follow-up question",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -95,11 +95,16 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("agentIdentity does not force a question on tiny factual replies", () => {
+  it("agentIdentity requires a question on every prose reply without changing renderer output", () => {
     expect(DEFAULT_IDENTITY_MD).toContain(
-      "For tiny factual answers, stop after the answer unless a follow-up would clearly help",
+      "Every prose final reply must end with one short, relevant follow-up question",
     );
-    expect(DEFAULT_IDENTITY_MD).not.toContain("Every reply ends");
+    expect(DEFAULT_IDENTITY_MD).toContain(
+      "This includes tiny factual answers and completed tasks",
+    );
+    expect(DEFAULT_IDENTITY_MD).toContain(
+      "Renderer replies are exempt: preserve the renderer's defined purpose",
+    );
   });
 
   it("agentIdentity does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
@@ -534,7 +539,10 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
     expect(CRITICAL_REMINDERS_MD).toContain(
-      "one direct proceed-style question",
+      "Every prose final reply ends with one short, relevant follow-up question",
+    );
+    expect(CRITICAL_REMINDERS_MD).toContain(
+      "Do not add a question, control, or prose solely to satisfy this rule when `show_view` owns the reply",
     );
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });

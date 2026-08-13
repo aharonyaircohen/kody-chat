@@ -1115,15 +1115,17 @@ export interface Agent {
   slug: string;
   title: string;
   body: string;
+  whenToUse?: string;
   capabilities?: string[];
   subagents?: string[];
+  lockedSubagents?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
   /** Runtime resolution source. Local repo agent win over store agent. */
   source?: "local" | "builtin" | "store";
-  /** Code- and Store-owned agents are overridden by saving a local copy. */
+  /** Built-in definitions are immutable; Store definitions may be copied. */
   readOnly?: boolean;
 }
 
@@ -1149,6 +1151,7 @@ export const staffApi = {
     slug?: string;
     title: string;
     body: string;
+    whenToUse?: string;
     capabilities?: string[];
     subagents?: string[];
     actorLogin?: string;
@@ -1167,6 +1170,7 @@ export const staffApi = {
     data: {
       title?: string;
       body?: string;
+      whenToUse?: string;
       capabilities?: string[];
       subagents?: string[];
       actorLogin?: string;
@@ -1405,9 +1409,7 @@ export interface DiscussionComment {
 }
 
 export type DiscussionDisabledReason =
-  | "discussions_disabled"
-  | "category_missing"
-  | "provision_failed";
+  "discussions_disabled" | "category_missing" | "provision_failed";
 
 // ============ Notifications API ============
 
@@ -1900,9 +1902,7 @@ export const messagesApi = {
       headers: buildHeaders(),
       body: JSON.stringify({ body, ...(actorLogin && { actorLogin }) }),
     });
-    const payload = await handleResponse<{ comment: DiscussionComment }>(
-      res,
-    );
+    const payload = await handleResponse<{ comment: DiscussionComment }>(res);
     return payload.comment;
   },
 

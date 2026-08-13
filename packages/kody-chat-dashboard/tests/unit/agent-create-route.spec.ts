@@ -156,6 +156,27 @@ describe("POST /api/kody/agents", () => {
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readAgentFile.mockResolvedValue(null);
+    h.listResolvedAgentFiles.mockResolvedValue([
+      {
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates specialists.",
+        source: "builtin",
+        readOnly: true,
+      },
+      {
+        slug: "agency-specialist",
+        title: "Agency Specialist",
+        body: "Manages the Agency.",
+        whenToUse: "Use for Agency governance.",
+      },
+      {
+        slug: "repo-scout",
+        title: "Repository Scout",
+        body: "Reads repository files.",
+        whenToUse: "Use for repository research.",
+      },
+    ]);
     h.writeAgentFile.mockImplementation(async ({ slug, title, body }) => ({
       slug,
       title,
@@ -211,12 +232,13 @@ describe("POST /api/kody/agents", () => {
     );
   });
 
-  it("stores assigned public subagents", async () => {
+  it("stores routing guidance and assigned public subagents", async () => {
     const res = await POST(
       request({
-        slug: "kody",
-        title: "Kody",
+        slug: "coordinator",
+        title: "Coordinator",
         body: "Coordinates the team.",
+        whenToUse: "Use for cross-team coordination.",
         subagents: ["agency-specialist", "repo-scout"],
       }),
     );
@@ -224,7 +246,8 @@ describe("POST /api/kody/agents", () => {
     expect(res.status).toBe(200);
     expect(h.writeAgentFile).toHaveBeenCalledWith(
       expect.objectContaining({
-        slug: "kody",
+        slug: "coordinator",
+        whenToUse: "Use for cross-team coordination.",
         subagents: ["agency-specialist", "repo-scout"],
       }),
     );
@@ -233,14 +256,43 @@ describe("POST /api/kody/agents", () => {
   it("rejects assigning an agent to itself", async () => {
     const res = await POST(
       request({
-        slug: "kody",
-        title: "Kody",
+        slug: "parent-agent",
+        title: "Parent Agent",
         body: "Coordinates the team.",
-        subagents: ["kody"],
+        subagents: ["parent-agent"],
       }),
     );
 
     expect(res.status).toBe(400);
+    expect(h.writeAgentFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects assigning a specialist without routing guidance", async () => {
+    h.listResolvedAgentFiles.mockResolvedValue([
+      { slug: "unclear-agent", title: "Unclear", body: "Does things." },
+    ]);
+
+    const res = await POST(
+      request({
+        slug: "coordinator",
+        title: "Coordinator",
+        body: "Coordinates the team.",
+        subagents: ["unclear-agent"],
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("subagent_routing_required");
+    expect(h.writeAgentFile).not.toHaveBeenCalled();
+  });
+
+  it("does not let local configuration replace a built-in Agent", async () => {
+    const res = await POST(
+      request({ slug: "kody", title: "Custom Kody", body: "Override." }),
+    );
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("builtin_agent_locked");
     expect(h.writeAgentFile).not.toHaveBeenCalled();
   });
 });

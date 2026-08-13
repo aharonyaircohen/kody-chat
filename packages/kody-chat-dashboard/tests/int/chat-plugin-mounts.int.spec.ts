@@ -235,6 +235,15 @@ async function postAndCaptureToolNames(userText?: string): Promise<{
   };
 }
 
+function queueAgencyRoute(task: string): void {
+  generateTextMock.mockResolvedValueOnce({
+    text: JSON.stringify({
+      mode: "delegate",
+      assignments: [{ agent: "agency-specialist", task }],
+    }),
+  });
+}
+
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "chat-plugin-mounts-test-secret";
 });
@@ -375,6 +384,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       text: "Agency structure explained.",
       reasoningText: "I compared the configured Agency models.",
     };
+    queueAgencyRoute("Explain AI Agency structure.");
     generateTextMock.mockResolvedValueOnce({
       text: "Kody's synthesized Agency explanation.",
     });
@@ -455,6 +465,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       text: "Agency connects Agents to focused Capabilities and Workflows.",
       reasoningText: "User Safety: safe",
     };
+    queueAgencyRoute("Explain AI Agency structure.");
     generateTextMock.mockResolvedValueOnce({ text: "User Safety: safe" });
 
     const { status, response } = await postAndCaptureToolNames(
@@ -505,6 +516,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     nextSpecialistStream = {
       text: "A Todo list requires a name before creation.",
     };
+    queueAgencyRoute("can u create new todo");
 
     const { status, response } = await postAndCaptureToolNames(
       "can u create new todo",
@@ -537,6 +549,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
       },
     ]);
     nextSpecialistStream = { text: "" };
+    queueAgencyRoute("Explain AI Agency structure.");
     generateTextMock.mockResolvedValueOnce({
       text: "Agency connects Agents, Workflows, Capabilities, and Todos.",
     });
@@ -579,6 +592,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
         "The operation was aborted because the request timed out",
       ),
     };
+    queueAgencyRoute("Explain AI Agency structure.");
     const streamTextCallCountBefore = streamTextCalls.length;
     const { status, response } = await postAndCaptureToolNames(
       "Explain AI Agency structure.",
@@ -592,7 +606,7 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(responseBody).toContain("data-subagent-activity");
     expect(responseBody).toContain("errorText");
     expect(responseBody).not.toContain("Kody delegated this request");
-    expect(generateTextMock).toHaveBeenCalledTimes(generateCallCountBefore);
+    expect(generateTextMock).toHaveBeenCalledTimes(generateCallCountBefore + 1);
     expect(streamTextCalls).toHaveLength(streamTextCallCountBefore + 1);
   });
 

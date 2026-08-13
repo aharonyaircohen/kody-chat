@@ -23,6 +23,7 @@ interface Ctx {
     slug: string;
     title: string;
     body: string;
+    whenToUse?: string;
   }): Promise<unknown>;
 }
 
@@ -30,6 +31,7 @@ interface AgentInput {
   title: string;
   slug?: string;
   purpose: string;
+  whenToUse?: string;
   extraAllowedCommands?: string[];
   extraRestrictions?: string[];
 }
@@ -86,6 +88,14 @@ export const createKodyAgentInputSchema = z.object({
       "One to three sentences describing the agentIdentity — what it is, what it does, " +
         "and how it should behave. No implementation details.",
     ),
+  whenToUse: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .describe(
+      "Plain-language guidance for when a parent Agent should delegate to this Agent. Required before assigning it as a subagent.",
+    ),
   extraAllowedCommands: z
     .array(z.string().min(1))
     .optional()
@@ -132,6 +142,7 @@ export function createAgentTools(ctx: Ctx) {
           slug,
           title: input.title,
           body: buildAgentBody(input),
+          ...(input.whenToUse ? { whenToUse: input.whenToUse } : {}),
         });
       },
     }),

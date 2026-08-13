@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  MAX_PARALLEL_ASSIGNMENTS,
+  buildProjectAssessmentIntakeInstruction,
+  buildProjectAssessmentIntakeSpec,
   buildPublicAgentRoutingPrompt,
   inferPublicAgentRouteFromDefinitions,
+  routeProjectAssessmentSubmission,
+  isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
   routePublicAgentTask,
@@ -14,30 +19,198 @@ const assignedAgents = [
     slug: "agency-specialist",
     title: "Agency Specialist",
     body: "Manages Agents, Workflows, Capabilities, Loops, and Todos.",
+    whenToUse:
+      "Use for AI Agency structure and governance across Agents, Capabilities, Workflows (including wf requests), Loops, Intents, and Todos.",
   },
   {
     slug: "repository-specialist",
     title: "Repository Specialist",
     body: "Investigates repository structure, code, commits, and pull requests.",
+    whenToUse:
+      "Use for repository structure, code, commits, and pull requests.",
   },
   {
     slug: "operations-specialist",
     title: "Operations Specialist",
     body: "Manage tasks, runs, CI, pull requests, releases, inbox items, reports, blockers, and operational status.",
+    whenToUse: "Use for operational status, CI, releases, runs, and blockers.",
   },
   {
     slug: "experience-specialist",
     title: "Experience Specialist",
     body: "Explains Views, previews, guided flows, and user-interface behavior.",
+    whenToUse: "Use for Views, previews, guided flows, and interface behavior.",
   },
   {
     slug: "knowledge-specialist",
     title: "Knowledge Specialist",
     body: "Retrieves memory, documentation, policies, context, and instructions.",
+    whenToUse: "Use for memory, documentation, policies, and context.",
   },
 ];
 
 describe("public Agent routing", () => {
+  it("keeps a complete assessment with Kody until the context form is submitted", () => {
+    expect(
+      isCompleteProjectAssessmentRequest(
+        "Run a complete project assessment for this repository.",
+      ),
+    ).toBe(true);
+    expect(
+      isCompleteProjectAssessmentRequest(
+        'Start assessment.\n<view_result>{"teamSize":"3"}</view_result>',
+      ),
+    ).toBe(false);
+    expect(isCompleteProjectAssessmentRequest("Assess the architecture.")).toBe(
+      false,
+    );
+  });
+
+  it("turns the submitted assessment form directly into ten CTO assignments", () => {
+    const capabilities = [
+      "assess-architecture",
+      "assess-code-quality",
+      "assess-security",
+      "assess-test-reliability",
+      "assess-delivery-system",
+      "assess-operational-readiness",
+      "assess-scalability",
+      "assess-repository-history",
+      "assess-team-capacity",
+      "assess-continuous-product-qa",
+    ];
+    const decision = routeProjectAssessmentSubmission(
+      '<view_result>{"projectExpectations":"grow","businessCriticality":"customer-facing; four hours downtime is acceptable","teamSizeAndRoles":"3 developers","relevantExperience":"senior web","systemKnowledge":"one original maintainer","maintenanceTime":"one day weekly"}</view_result>',
+      [
+        {
+          slug: "cto",
+          title: "CTO",
+          body: "Assess project health.",
+          capabilities: ["builtin-agent-cto", ...capabilities],
+        },
+      ],
+    );
+
+    expect(decision).toMatchObject({ mode: "delegate" });
+    if (decision?.mode !== "delegate") return;
+    expect(decision.assignments).toHaveLength(10);
+    expect(decision.assignments[0]?.task).toContain("current repository");
+    expect(decision.assignments.map(({ capability }) => capability)).toEqual(
+      capabilities,
+    );
+  });
+
+  it("requires all six user context answers before starting the assessment", () => {
+    expect(
+      routeProjectAssessmentSubmission(
+        '<view_result>{"projectExpectations":"grow","teamSizeAndRoles":"3 developers","relevantExperience":"senior web","systemKnowledge":"one original maintainer","maintenanceTime":"one day weekly"}</view_result>',
+        [
+          {
+            slug: "cto",
+            title: "CTO",
+            body: "Assess project health.",
+            capabilities: ["assess-architecture"],
+          },
+        ],
+      ),
+    ).toBeNull();
+  });
+
+  it("defines six clearly explained questions without asking for repository facts", () => {
+    const instruction = buildProjectAssessmentIntakeInstruction();
+
+    expect(instruction).toContain("Use exactly these six editable fields");
+    expect(instruction).toContain("`projectExpectations`");
+    expect(instruction).toContain("`businessCriticality`");
+    expect(instruction).toContain("`teamSizeAndRoles`");
+    expect(instruction).toContain("`relevantExperience`");
+    expect(instruction).toContain("`systemKnowledge`");
+    expect(instruction).toContain("`maintenanceTime`");
+    expect(instruction).toContain("what happens if the system is unavailable");
+    expect(instruction).toContain("employees, contractors, and AI agents");
+    expect(instruction).toContain("weekly or monthly estimate");
+    expect(instruction).toContain(
+      "Do not ask for repository size, architecture, contribution history, or the required team size",
+    );
+  });
+
+  it("builds the assessment form with explanations as guaranteed view data", () => {
+    const spec = buildProjectAssessmentIntakeSpec();
+    const form = spec.elements.form;
+
+    expect(form.type).toBe("GuidedForm");
+    expect(form.props.fields).toHaveLength(6);
+    expect(form.props.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "businessCriticality",
+          description: expect.stringContaining("unavailable"),
+        }),
+        expect.objectContaining({
+          name: "teamSizeAndRoles",
+          description: expect.stringContaining("AI agents"),
+        }),
+      ]),
+    );
+  });
+
+  it("accepts ten parallel assessment tasks for one specialist", () => {
+    const capabilities = [
+      "assess-architecture",
+      "assess-code-quality",
+      "assess-security",
+      "assess-test-reliability",
+      "assess-delivery-system",
+      "assess-operational-readiness",
+      "assess-scalability",
+      "assess-repository-history",
+      "assess-team-capacity",
+      "assess-continuous-product-qa",
+    ];
+    const assessmentAgents = [
+      {
+        slug: "cto",
+        title: "CTO",
+        body: "Runs evidence-based project assessment tracks.",
+        capabilities,
+      },
+    ];
+    const assignments = capabilities.map((capability) => ({
+      agent: "cto",
+      capability,
+      task: `Run ${capability}.`,
+    }));
+
+    expect(MAX_PARALLEL_ASSIGNMENTS).toBe(20);
+    expect(
+      parsePublicAgentRouteDecision(
+        JSON.stringify({ mode: "delegate", assignments }),
+        assessmentAgents,
+      ),
+    ).toEqual({ mode: "delegate", assignments });
+    expect(buildPublicAgentRoutingPrompt(assessmentAgents)).toContain(
+      "assess-team-capacity",
+    );
+    expect(buildPublicAgentRoutingPrompt(assessmentAgents)).toContain(
+      "assess-continuous-product-qa",
+    );
+    expect(
+      parsePublicAgentRouteDecision(
+        JSON.stringify({
+          mode: "delegate",
+          assignments: [
+            {
+              agent: "cto",
+              capability: "not-owned",
+              task: "Run an unknown assessment.",
+            },
+          ],
+        }),
+        assessmentAgents,
+      ),
+    ).toEqual({ mode: "self" });
+  });
+
   it("lets specialist routing run before parent-owned presentation", () => {
     expect(
       shouldRoutePublicAgentChat({
@@ -63,10 +236,11 @@ describe("public Agent routing", () => {
     const prompt = buildPublicAgentRoutingPrompt(assignedAgents);
 
     expect(prompt).toContain("agency-specialist");
-    expect(prompt).toContain("Manages Agents, Workflows");
+    expect(prompt).toContain("Use for AI Agency structure and governance");
     expect(prompt).toContain("repository-specialist");
     expect(prompt).toContain("operations-specialist");
-    expect(prompt).toContain("Manage tasks, runs, CI");
+    expect(prompt).toContain("Use for operational status, CI");
+    expect(prompt).toContain("assign the same Agent more than once");
   });
 
   it("accepts one or more assigned Agents with focused tasks", () => {
@@ -143,11 +317,11 @@ describe("public Agent routing", () => {
       mode: "delegate",
       assignments: [
         {
-          agent: "repository-specialist",
+          agent: "agency-specialist",
           task: "Complete only the part of this request owned by your configured definition: Explain the Agency structure and identify where it is implemented in this repository.",
         },
         {
-          agent: "agency-specialist",
+          agent: "repository-specialist",
           task: "Complete only the part of this request owned by your configured definition: Explain the Agency structure and identify where it is implemented in this repository.",
         },
       ],
@@ -221,8 +395,15 @@ describe("public Agent routing", () => {
     );
   });
 
-  it("routes a clear configured domain without spending another model call", async () => {
-    const generate = vi.fn();
+  it("uses semantic routing before the wording fallback", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "agency-specialist", task: "Explain AI Agency structure." },
+        ],
+      }),
+    }));
 
     await expect(
       routePublicAgentTask({
@@ -240,7 +421,32 @@ describe("public Agent routing", () => {
         },
       ],
     });
-    expect(generate).not.toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
+  it("keeps explicit Workflow ownership when semantic routing selects Operations", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "operations-specialist", task: "Run the merge workflow." },
+        ],
+      }),
+    }));
+
+    await expect(
+      routePublicAgentTask({
+        userText: "r u able to run merge wf?",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({
+      mode: "delegate",
+      assignments: [
+        { agent: "agency-specialist", task: "r u able to run merge wf?" },
+      ],
+    });
   });
 
   it("keeps a greeting with Kody without spending a routing model call", async () => {
@@ -257,12 +463,54 @@ describe("public Agent routing", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
-  it("prefers a clear configured definition over a conflicting model choice", async () => {
+  it("keeps architecture advice with Kody instead of misrouting generic system wording", async () => {
     const generate = vi.fn(async () => ({
       text: JSON.stringify({
         mode: "delegate",
         assignments: [
-          { agent: "knowledge-specialist", task: "Explain Views" },
+          {
+            agent: "system-admin",
+            task: "Review configured chat models.",
+          },
+        ],
+      }),
+    }));
+    const agentsWithSystemAdmin = [
+      ...assignedAgents,
+      {
+        slug: "system-admin",
+        title: "System Admin",
+        body: "Manages models, secrets, variables, webhooks, and system settings.",
+        whenToUse:
+          "Use for models, secrets, variables, webhooks, and system settings.",
+      },
+    ];
+
+    await expect(
+      routePublicAgentTask({
+        userText: "Should this project add another chat system?",
+        assignedAgents: agentsWithSystemAdmin,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    await expect(
+      routePublicAgentTask({
+        userText: "How does Kody Chat work in this project?",
+        assignedAgents: agentsWithSystemAdmin,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("lets semantic meaning override misleading word overlap", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "experience-specialist", task: "Explain Views" },
         ],
       }),
     }));
@@ -279,11 +527,44 @@ describe("public Agent routing", () => {
       assignments: [
         {
           agent: "experience-specialist",
-          task: "Explain what the Views page is used for.",
+          task: "Explain Views",
         },
       ],
     });
-    expect(generate).not.toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
+  it("includes recent conversation context for short follow-ups", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "operations-specialist", task: "Check the CI blockers." },
+        ],
+      }),
+    }));
+
+    await routePublicAgentTask({
+      userText: "Check it",
+      conversationContext:
+        "User: Is the latest deployment blocked by CI?\nAssistant: I can check.",
+      assignedAgents,
+      model: {} as never,
+      generate: generate as never,
+    });
+
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          {
+            role: "user",
+            content: expect.stringContaining(
+              "Is the latest deployment blocked by CI?",
+            ),
+          },
+        ],
+      }),
+    );
   });
 
   it("keeps Kody in control when the routing model fails", async () => {
@@ -295,6 +576,20 @@ describe("public Agent routing", () => {
         generate: vi.fn(async () => {
           throw new Error("router unavailable");
         }) as never,
+      }),
+    ).resolves.toEqual({
+      mode: "delegate",
+      assignments: [{ agent: "agency-specialist", task: "Explain Agency" }],
+    });
+  });
+
+  it("uses the wording fallback when semantic routing returns malformed output", async () => {
+    await expect(
+      routePublicAgentTask({
+        userText: "Explain Agency",
+        assignedAgents,
+        model: {} as never,
+        generate: vi.fn(async () => ({ text: "not json" })) as never,
       }),
     ).resolves.toEqual({
       mode: "delegate",

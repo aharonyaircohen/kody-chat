@@ -24,7 +24,6 @@ import type { MachineAccess } from "../../chat-types";
 import { writeReasoningEffort } from "../../reasoning-pref";
 import {
   availableMachineAccessOptions,
-  modelEntriesForMachineAccess,
   type MachineAvailability,
 } from "../core/machine-access";
 import type { ModelReasoning } from "../core/reasoning-adapter";
@@ -112,10 +111,7 @@ export function HeaderControls(props: HeaderControlsProps) {
           requestedSection={props.requestedSetupSection}
           onRequestedSectionHandled={props.onRequestedSetupSectionHandled}
           currentModelName={props.currentEntry?.name ?? props.currentAgent.name}
-          modelEntries={modelEntriesForMachineAccess(
-            props.agentList,
-            props.machineAccess,
-          )}
+          modelEntries={props.agentList}
           selectedAgentId={props.selectedAgentId}
           selectedModelId={props.selectedModelId}
           onSelectModel={props.onSelectEntry}

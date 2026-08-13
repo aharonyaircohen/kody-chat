@@ -13,6 +13,7 @@ An Agent has:
 - a title;
 - a Markdown body;
 - optional Capability references in frontmatter;
+- optional `whenToUse` routing guidance;
 - optional Agent references in `subagents`.
 
 `subagents` is an assignment, not a separate Agent type. An Agent is the
@@ -22,6 +23,10 @@ assigned to another parent.
 
 An Agent's title and body describe its specialty. There is no separate domain,
 specialty, main-agent, or subagent field.
+
+`whenToUse` is not a domain or Agent type. It is plain-language delegation
+guidance and becomes required only when the Agent is assigned as a subagent.
+The body continues to own how the Agent works.
 
 Agent does not own a Workflow, Loop, Todo, or Run. Workflow selects the Agent
 that runs its steps.
@@ -39,6 +44,8 @@ stored Agent field.
 3. A parent may delegate only to Agents explicitly assigned in `subagents`.
 4. An assigned subagent receives tools through its Capabilities; assignment
    alone does not grant tools.
-5. Store and built-in Agents are read-only; a local Agent may override either
-   by slug.
+5. Built-in Agents are immutable. Store Agents are read-only but may be copied
+   into local configuration.
 6. Agent does not create a second Implementation model.
+7. Kody's effective roster is its locked built-in defaults plus configured
+   additions; configured state cannot remove or replace a default.

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { handlePublicAgentChat } from "../../app/api/kody/chat/kody/public-agent-chat-handler";
 import { handleConfiguredPublicAgentChat } from "../../app/api/kody/chat/kody/public-agent-chat-runtime";
+import { publishProjectAssessmentReport } from "../../app/api/kody/chat/kody/public-agent-chat-runtime";
 
 const agents = [
   {
@@ -12,6 +13,75 @@ const agents = [
 ];
 
 describe("public Agent chat handler", () => {
+  it("publishes a completed assessment through the existing report owner", async () => {
+    const execute = vi.fn(async () => ({ published: true }));
+
+    await expect(
+      publishProjectAssessmentReport({
+        answer: "# Project assessment\n\nHealthy foundations.",
+        repository: { owner: "aharonyaircohen", repo: "kody-chat" },
+        publishTool: { execute },
+      }),
+    ).resolves.toEqual({
+      answer: expect.stringContaining(
+        "/repo/aharonyaircohen/kody-chat/reports/project-assessment",
+      ),
+      published: true,
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "project-assessment",
+        title: "Kody project assessment",
+        body: expect.stringContaining("Healthy foundations"),
+      }),
+    );
+  });
+
+  it("does not invent a report link when report publishing fails", async () => {
+    await expect(
+      publishProjectAssessmentReport({
+        answer: "Assessment content.",
+        repository: { owner: "aharonyaircohen", repo: "kody-chat" },
+        publishTool: {
+          execute: vi.fn(async () => ({ error: "backend unavailable" })),
+        },
+      }),
+    ).resolves.toEqual({
+      answer: expect.not.stringContaining("/reports/project-assessment"),
+      published: false,
+    });
+  });
+
+  it("does not publish a failed assessment as a report", async () => {
+    const execute = vi.fn();
+    const failure =
+      "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?";
+
+    await expect(
+      publishProjectAssessmentReport({
+        answer: failure,
+        repository: { owner: "aharonyaircohen", repo: "kody-chat" },
+        publishTool: { execute },
+      }),
+    ).resolves.toEqual({ answer: failure, published: false });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("does not publish a specifically diagnosed synthesis failure", async () => {
+    const execute = vi.fn();
+    const failure =
+      "Final report writing failed because it exceeded the 240-second limit.";
+
+    await expect(
+      publishProjectAssessmentReport({
+        answer: failure,
+        repository: { owner: "aharonyaircohen", repo: "kody-chat" },
+        publishTool: { execute },
+      }),
+    ).resolves.toEqual({ answer: failure, published: false });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("does not remove Kody's tools when a specialist owns the same tool", async () => {
     const log = vi.fn();
     await expect(
@@ -178,6 +248,41 @@ describe("public Agent chat handler", () => {
       ]),
       { show_view: showView },
       expect.objectContaining({ write: expect.any(Function) }),
+    );
+  });
+
+  it("reports final synthesis failure to completion telemetry", async () => {
+    const onFinished = vi.fn();
+    const handled = await handlePublicAgentChat({
+      traceId: "trace-synthesis-failure",
+      assignedAgents: agents,
+      route: vi.fn(async () => ({
+        mode: "delegate" as const,
+        assignments: [{ agent: "agency-specialist", task: "Write the report" }],
+      })),
+      orchestrate: vi.fn(async () => ({
+        parentTools: {},
+        results: [
+          {
+            status: "completed" as const,
+            agent: "agency-specialist",
+            result: "Evidence",
+          },
+        ],
+      })),
+      synthesize: vi.fn(
+        async () =>
+          "Final report writing failed because the provider rejected the request.",
+      ),
+      formatStreamError: (error) => String(error),
+      onFinished,
+    });
+
+    expect(handled.mode).toBe("delegated");
+    if (handled.mode !== "delegated") return;
+    await handled.response.text();
+    expect(onFinished).toHaveBeenCalledWith(
+      expect.objectContaining({ synthesisFailed: true }),
     );
   });
 });

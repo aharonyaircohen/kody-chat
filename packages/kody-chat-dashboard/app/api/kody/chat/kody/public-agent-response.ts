@@ -1,9 +1,12 @@
 import {
   formatPublicAgentFailure,
+  PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
   PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE,
   type PublicAgentTaskResult,
 } from "./public-agent-delegation";
 import type { PublicAgentAssignment } from "./public-agent-routing";
+import type { DurableTurn } from "../durable-turn";
+import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 type FailedPublicAgentTaskResult = Extract<
   PublicAgentTaskResult,
   { status: "failed" }
@@ -20,7 +23,7 @@ type PublicAgentStreamEvent =
       type: "data-subagent-activity";
       data: {
         id: string;
-        phase: "started" | "reasoning" | "completed" | "failed";
+        phase: "started" | "heartbeat" | "reasoning" | "completed" | "failed";
         agentTitle: string;
         task?: string;
         reasoning?: string;
@@ -47,18 +50,23 @@ export interface PublicAgentResponseWriter {
   write(event: PublicAgentStreamEvent): void;
 }
 
-interface PublicAgentDurableTurn {
-  complete(text: string): Promise<void>;
-  fail(errorCode: string): Promise<void>;
-}
+type PublicAgentDurableTurn = Pick<
+  DurableTurn,
+  "recordProgress" | "complete" | "fail"
+>;
 
 interface WritePublicAgentResponseOptions {
   writer: PublicAgentResponseWriter;
   traceId: string;
   messageId: string;
   activities: readonly PublicAgentActivity[];
+  heartbeatMs?: number;
   runOrchestration(
-    onReasoningDelta: (event: { agent: string; delta: string }) => void,
+    onReasoningDelta: (event: {
+      agent: string;
+      assignmentIndex: number;
+      delta: string;
+    }) => void,
   ): Promise<{
     parentTools: Record<string, unknown>;
     results: PublicAgentTaskResult[];
@@ -67,7 +75,7 @@ interface WritePublicAgentResponseOptions {
     results: readonly PublicAgentTaskResult[],
     parentTools: Record<string, unknown>,
     writer: PublicAgentResponseWriter,
-  ) => Promise<string>;
+  ) => Promise<string | null>;
   synthesize(results: readonly PublicAgentTaskResult[]): Promise<string>;
   startDurableTurn?: () => PublicAgentDurableTurn;
   onDurableStartFailure?: (error: unknown) => void;
@@ -83,6 +91,7 @@ export interface PublicAgentResponseOutcome {
   text: string;
   allSpecialistsFailed: boolean;
   returnedFailure: boolean;
+  synthesisFailed: boolean;
   childSessionIds: string[];
 }
 
@@ -91,6 +100,7 @@ export async function writePublicAgentResponse({
   traceId,
   messageId,
   activities,
+  heartbeatMs = 30_000,
   runOrchestration,
   present,
   synthesize,
@@ -103,7 +113,7 @@ export async function writePublicAgentResponse({
   onSpecialistFailure,
   onSynthesisFailure,
 }: WritePublicAgentResponseOptions): Promise<PublicAgentResponseOutcome> {
-  const streamedReasoningAgents = new Set<string>();
+  const streamedReasoningActivities = new Set<string>();
   let durableTurn: PublicAgentDurableTurn | null = null;
   if (startDurableTurn) {
     try {
@@ -111,6 +121,18 @@ export async function writePublicAgentResponse({
     } catch (error) {
       onDurableStartFailure?.(error);
     }
+  }
+  const durableProgress = createDurableTurnProgressRecorder(durableTurn);
+  for (const activity of activities) {
+    durableProgress.upsertTool({
+      id: activity.id,
+      name: "subagent",
+      arguments: { task: activity.assignment.task },
+      description: "Working on delegated specialist research.",
+      status: "running" as const,
+      activityKind: "subagent" as const,
+      displayName: activity.title,
+    });
   }
 
   for (const activity of activities) {
@@ -125,30 +147,45 @@ export async function writePublicAgentResponse({
     });
   }
 
-  const activitiesByAgent = new Map(
-    activities.map(
-      (activity) => [activity.assignment.agent, activity] as const,
-    ),
-  );
   let orchestration: {
     parentTools: Record<string, unknown>;
     results: PublicAgentTaskResult[];
   };
-  try {
-    orchestration = await runOrchestration(({ agent, delta }) => {
-      const activity = activitiesByAgent.get(agent);
-      if (!activity || !delta) return;
-      streamedReasoningAgents.add(agent);
-      writer.write({
-        type: "data-subagent-activity",
-        data: {
-          id: activity.id,
-          phase: "reasoning",
-          agentTitle: activity.title,
-          reasoningDelta: delta,
-        },
-      });
+  let heartbeatIndex = 0;
+  const heartbeat = setInterval(() => {
+    const activity = activities[heartbeatIndex % activities.length];
+    heartbeatIndex += 1;
+    if (!activity) return;
+    writer.write({
+      type: "data-subagent-activity",
+      data: {
+        id: activity.id,
+        phase: "heartbeat",
+        agentTitle: activity.title,
+      },
     });
+  }, heartbeatMs);
+  try {
+    orchestration = await runOrchestration(
+      ({ agent, assignmentIndex, delta }) => {
+        const activity = activities[assignmentIndex];
+        if (!activity || activity.assignment.agent !== agent || !delta) return;
+        if (!streamedReasoningActivities.has(activity.id)) {
+          durableProgress.appendReasoning(`${activity.title}:\n`);
+        }
+        streamedReasoningActivities.add(activity.id);
+        durableProgress.appendReasoning(delta);
+        writer.write({
+          type: "data-subagent-activity",
+          data: {
+            id: activity.id,
+            phase: "reasoning",
+            agentTitle: activity.title,
+            reasoningDelta: delta,
+          },
+        });
+      },
+    );
   } catch (error) {
     onOrchestrationFailure?.(error);
     const detail = error instanceof Error ? error.message : String(error);
@@ -165,23 +202,15 @@ export async function writePublicAgentResponse({
     result.sessionId ? [result.sessionId] : [],
   );
   onOrchestrationComplete?.(childSessionIds);
-  const resultsByAgent = new Map<string, PublicAgentTaskResult[]>();
-  for (const result of orchestration.results) {
-    const matchingResults = resultsByAgent.get(result.agent) ?? [];
-    resultsByAgent.set(result.agent, [...matchingResults, result]);
-  }
-  const results = activities.map((activity): PublicAgentTaskResult => {
-    const matchingResults = resultsByAgent.get(activity.assignment.agent) ?? [];
-    if (matchingResults.length === 1) return matchingResults[0]!;
+  const results = activities.map((activity, index): PublicAgentTaskResult => {
+    const result = orchestration.results[index];
+    if (result?.agent === activity.assignment.agent) return result;
     return {
       status: "failed",
       agent: activity.assignment.agent,
       failure: {
         code: "missing_result",
-        detail:
-          matchingResults.length === 0
-            ? "No result was returned for the delegated assignment."
-            : "Multiple results were returned for one delegated assignment.",
+        detail: "No matching result was returned for the delegated assignment.",
       },
     };
   });
@@ -189,34 +218,35 @@ export async function writePublicAgentResponse({
     (result): result is FailedPublicAgentTaskResult =>
       result.status === "failed",
   );
-  const failureMessagesByAgent = new Map(
-    failures.map((result) => {
-      onSpecialistFailure?.(result);
-      return [
-        result.agent,
-        `${formatPublicAgentFailure(result.failure.code)} (trace ${traceId})`,
-      ] as const;
-    }),
-  );
+  const failureMessages = results.map((result) => {
+    if (result.status !== "failed") return undefined;
+    onSpecialistFailure?.(result);
+    return `${formatPublicAgentFailure(result.failure.code)} (trace ${traceId})`;
+  });
 
-  for (const activity of activities) {
-    const result = results.find(
-      (candidate) => candidate.agent === activity.assignment.agent,
-    );
+  for (const [index, activity] of activities.entries()) {
+    const result = results[index];
     const failed = result?.status === "failed";
+    durableProgress.finishTool(activity.id, failed ? "error" : "success");
+    if (
+      result?.status === "completed" &&
+      result.reasoning?.trim() &&
+      !streamedReasoningActivities.has(activity.id)
+    ) {
+      durableProgress.appendReasoning(
+        `${activity.title}:\n${result.reasoning.trim()}\n\n`,
+      );
+    }
     writer.write({
       type: "data-subagent-activity",
       data: {
         id: activity.id,
         phase: failed ? "failed" : "completed",
         agentTitle: activity.title,
-        ...(result?.reasoning &&
-        !streamedReasoningAgents.has(activity.assignment.agent)
+        ...(result?.reasoning && !streamedReasoningActivities.has(activity.id)
           ? { reasoning: result.reasoning }
           : {}),
-        ...(failed
-          ? { errorText: failureMessagesByAgent.get(activity.assignment.agent) }
-          : {}),
+        ...(failed ? { errorText: failureMessages[index] } : {}),
       },
     });
   }
@@ -235,17 +265,26 @@ export async function writePublicAgentResponse({
   let text: string;
   let presentationWritten = false;
   if (returnedFailure) {
-    text = activities
+    text = `${activities
       .map(
-        (activity) =>
-          `${activity.title} failed: ${failureMessagesByAgent.get(activity.assignment.agent) ?? `The specialist model request failed. Retry or choose another model. (trace ${traceId})`}`,
+        (activity, index) =>
+          `${activity.title} failed: ${failureMessages[index] ?? `The specialist model request failed. Retry or choose another model. (trace ${traceId})`}`,
       )
-      .join("\n\n");
+      .join("\n\n")}\n\nWould you like me to retry or use another model?`;
   } else {
     if (present) {
       try {
-        text = await present(results, orchestration.parentTools, writer);
-        presentationWritten = true;
+        const presentedText = await present(
+          results,
+          orchestration.parentTools,
+          writer,
+        );
+        if (presentedText === null) {
+          text = await synthesize(results);
+        } else {
+          text = presentedText;
+          presentationWritten = true;
+        }
       } catch (error) {
         onSynthesisFailure?.(error);
         try {
@@ -264,6 +303,10 @@ export async function writePublicAgentResponse({
       }
     }
   }
+  clearInterval(heartbeat);
+  const synthesisFailed =
+    text.startsWith(PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX) ||
+    text.trim() === PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE;
 
   if (!presentationWritten) {
     writer.write({ type: "text-start", id: messageId });
@@ -272,12 +315,14 @@ export async function writePublicAgentResponse({
   }
   if (durableTurn) {
     try {
-      if (returnedFailure) {
-        const errorCode = failures.some(
-          (result) => result.failure.code === "orchestration_error",
-        )
-          ? "specialist_orchestration_failed"
-          : "specialist_failed";
+      if (returnedFailure || synthesisFailed) {
+        const errorCode = synthesisFailed
+          ? "specialist_synthesis_failed"
+          : failures.some(
+                (result) => result.failure.code === "orchestration_error",
+              )
+            ? "specialist_orchestration_failed"
+            : "specialist_failed";
         await durableTurn.fail(errorCode);
       } else {
         await durableTurn.complete(text);
@@ -292,6 +337,7 @@ export async function writePublicAgentResponse({
     text,
     allSpecialistsFailed,
     returnedFailure,
+    synthesisFailed,
     childSessionIds,
   };
 }

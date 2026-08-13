@@ -65,7 +65,6 @@ import {
   resolveDefaultAgentEntry,
   useAgentSelection,
 } from "./kody-chat-selection";
-import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "../voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
@@ -73,8 +72,8 @@ import { useConversationSessions } from "../chat/core/conversation/use-conversat
 import { useMachineAccessSelection } from "../chat/core/use-machine-access-selection";
 import { useLocalMachineAvailability } from "../chat/core/use-machine-availability";
 import {
+  machineAccessForEntrySelection,
   modelEntriesForMachineAccess,
-  reconcileMachineSelection,
 } from "../chat/core/machine-access";
 import type { MachineAccess } from "../chat-types";
 import { useKodyActionState } from "../hooks/useKodyActionState";
@@ -583,9 +582,8 @@ export function KodyChat({
   const {
     selectionReady,
     selectedAgentId,
-    setSelectedAgentId,
     selectedModelId,
-    setSelectedModelId,
+    selectEntry,
     agentMenuOpen,
     setAgentMenuOpen,
     setReasoningEffort,
@@ -626,7 +624,6 @@ export function KodyChat({
   );
   const createDefaultChatSession = useCallback(() => {
     const defaultEntry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: readDefaultChatEntry(),
       chatModels,
       brainConfigured,
       agentList,
@@ -908,22 +905,18 @@ export function KodyChat({
     setContextChips,
   });
 
-  const activeSelectionSessionId = sessionHook.activeSession?.id;
-  const persistSessionAgent = sessionHook.setSessionAgent;
   const applyChatEntry = useCallback(
     (entry: (typeof agentList)[number]) => {
-      setSelectedAgentId(entry.agentId);
-      setSelectedModelId(entry.modelId);
-      if (activeSelectionSessionId) {
-        persistSessionAgent(activeSelectionSessionId, entry.key);
+      const compatibleMachineAccess = machineAccessForEntrySelection(
+        entry,
+        machineAccess,
+      );
+      if (compatibleMachineAccess !== machineAccess) {
+        setMachineAccess(compatibleMachineAccess);
       }
+      selectEntry(entry);
     },
-    [
-      activeSelectionSessionId,
-      persistSessionAgent,
-      setSelectedAgentId,
-      setSelectedModelId,
-    ],
+    [machineAccess, selectEntry, setMachineAccess],
   );
   const selectChatEntry = useCallback(
     (entry: (typeof agentList)[number]) => {
@@ -934,48 +927,20 @@ export function KodyChat({
   );
   const selectMachineAccess = useCallback(
     (next: MachineAccess) => {
-      setMachineAccess(next);
       const compatibleEntries = modelEntriesForMachineAccess(agentList, next);
       const currentIsCompatible = compatibleEntries.some(
         (entry) =>
           entry.agentId === selectedAgentId &&
           (entry.modelId ?? null) === selectedModelId,
       );
-      if (!currentIsCompatible && compatibleEntries[0]) {
-        selectChatEntry(compatibleEntries[0]);
+      if (!currentIsCompatible) {
+        toast.error("The selected model does not support that machine access.");
+        return;
       }
+      setMachineAccess(next);
     },
-    [
-      agentList,
-      selectChatEntry,
-      selectedAgentId,
-      selectedModelId,
-      setMachineAccess,
-    ],
+    [agentList, selectedAgentId, selectedModelId, setMachineAccess],
   );
-  useEffect(() => {
-    if (!activeSelectionSessionId) return;
-    const reconciled = reconcileMachineSelection({
-      entries: agentList,
-      machineAccess,
-      selectedAgentId,
-      selectedModelId,
-    });
-    if (reconciled.machineAccess !== machineAccess) {
-      setMachineAccess(reconciled.machineAccess);
-    }
-    if (reconciled.replacementEntry) {
-      applyChatEntry(reconciled.replacementEntry);
-    }
-  }, [
-    activeSelectionSessionId,
-    agentList,
-    applyChatEntry,
-    machineAccess,
-    selectedAgentId,
-    selectedModelId,
-    setMachineAccess,
-  ]);
   // Client trace: record display-mode flips (ai ↔ terminal). Inspection
   // only — no behavior change (trace never throws, never logs).
   useEffect(() => {
@@ -1667,7 +1632,7 @@ export function KodyChat({
           setMessagesForSession,
           setLoading,
           setToolCalls,
-          setSelectedAgentId,
+          selectAgentEntry: applyChatEntry,
           setVoiceOverlayOpen,
           setCompactionStatus,
           currentPageRef,
@@ -1703,6 +1668,7 @@ export function KodyChat({
       selectedModelId,
       effectiveReasoningEffort,
       machineAccess,
+      applyChatEntry,
       lockedAgentSlug,
       kodyDirectHeaders,
       effectiveActorLogin,

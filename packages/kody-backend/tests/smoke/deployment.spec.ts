@@ -154,6 +154,23 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
       agent: { slug: "kody", title: "Kody" },
       startedAt: createdAt,
     });
+    await client.mutation(api.conversationTurns.updateProgress, {
+      tenantId,
+      conversationId,
+      turnId: "turn-1",
+      progress: {
+        reasoning: "Checking the durable path.",
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            arguments: { path: "README.md" },
+            status: "success",
+          },
+        ],
+      },
+      updatedAt: new Date().toISOString(),
+    });
     await client.mutation(api.conversationTurns.complete, {
       tenantId,
       conversationId,
@@ -169,7 +186,20 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
     expect(stored?.conversation.activeAgent.slug).toBe("kody");
     expect(stored?.entries).toHaveLength(2);
     expect(stored?.turns).toHaveLength(1);
-    expect(stored?.turns[0]).toMatchObject({ status: "completed" });
+    expect(stored?.turns[0]).toMatchObject({
+      status: "completed",
+      progress: {
+        reasoning: "Checking the durable path.",
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            arguments: { path: "README.md" },
+            status: "success",
+          },
+        ],
+      },
+    });
     expect(stored?.entries[0]?.entry).toMatchObject({
       kind: "message",
       role: "user",

@@ -17,10 +17,28 @@ export type DurableTurnIdentity = Readonly<{
   }>;
 }>;
 
+export type DurableTurnProgress = Readonly<{
+  reasoning: string;
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    description?: string;
+    activityKind?: "subagent";
+    displayName?: string;
+    status: "running" | "success" | "error";
+  }>;
+}>;
+
 export type DurableTurn = Readonly<{
   started: Promise<void>;
+  recordProgress(progress: DurableTurnProgress): void;
   complete(content: string): Promise<void>;
   fail(errorCode: string): Promise<void>;
+}>;
+
+export type DurableTurnOptions = Readonly<{
+  onProgressError?: (error: unknown) => void;
 }>;
 
 /**
@@ -28,7 +46,10 @@ export type DurableTurn = Readonly<{
  * await that start, preserving ordering while the model and Convex run in
  * parallel.
  */
-export function startDurableTurn(identity: DurableTurnIdentity): DurableTurn {
+export function startDurableTurn(
+  identity: DurableTurnIdentity,
+  options: DurableTurnOptions = {},
+): DurableTurn {
   const client = createBackendClient();
   const started = client
     .mutation(backendApi.conversationTurns.start, {
@@ -40,10 +61,59 @@ export function startDurableTurn(identity: DurableTurnIdentity): DurableTurn {
   // handler now prevents a long model turn from producing an unhandled promise.
   void started.catch(() => undefined);
 
+  let latestProgress: DurableTurnProgress | undefined;
+  let progressVersion = 0;
+  let queuedVersion = 0;
+  let progressTimer: ReturnType<typeof setTimeout> | undefined;
+  let progressWrites: Promise<void> = Promise.resolve();
+
+  const queueProgressWrite = () => {
+    if (!latestProgress || queuedVersion >= progressVersion) {
+      return progressWrites;
+    }
+    const snapshot = latestProgress;
+    queuedVersion = progressVersion;
+    progressWrites = progressWrites
+      .catch(() => undefined)
+      .then(async () => {
+        await started;
+        await client.mutation(backendApi.conversationTurns.updateProgress, {
+          tenantId: identity.tenantId,
+          conversationId: identity.conversationId,
+          turnId: identity.turnId,
+          progress: snapshot,
+          updatedAt: new Date().toISOString(),
+        });
+      })
+      .catch((error: unknown) => {
+        options.onProgressError?.(error);
+      });
+    return progressWrites;
+  };
+
+  const flushProgress = async () => {
+    if (progressTimer) {
+      clearTimeout(progressTimer);
+      progressTimer = undefined;
+    }
+    await queueProgressWrite();
+  };
+
   return {
     started,
+    recordProgress(progress) {
+      latestProgress = progress;
+      progressVersion += 1;
+      if (!progressTimer) {
+        progressTimer = setTimeout(() => {
+          progressTimer = undefined;
+          void queueProgressWrite();
+        }, 250);
+      }
+    },
     async complete(content) {
       await started;
+      await flushProgress();
       await client.mutation(backendApi.conversationTurns.complete, {
         tenantId: identity.tenantId,
         conversationId: identity.conversationId,
@@ -54,6 +124,7 @@ export function startDurableTurn(identity: DurableTurnIdentity): DurableTurn {
     },
     async fail(errorCode) {
       await started;
+      await flushProgress();
       await client.mutation(backendApi.conversationTurns.fail, {
         tenantId: identity.tenantId,
         conversationId: identity.conversationId,

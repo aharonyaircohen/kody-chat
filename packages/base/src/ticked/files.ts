@@ -16,6 +16,10 @@ export interface TickFile {
   readOnly?: boolean;
   capabilities?: string[];
   subagents?: string[];
+  /** Plain-language guidance used only to decide when to delegate here. */
+  whenToUse?: string;
+  /** Immutable default assignments supplied by product configuration. */
+  lockedSubagents?: string[];
 }
 
 export interface TickWriteOptions {
@@ -27,6 +31,7 @@ export interface TickWriteOptions {
   message?: string;
   capabilities?: string[];
   subagents?: string[];
+  whenToUse?: string;
 }
 
 function deriveTitle(body: string, slug: string): string {

@@ -15,11 +15,22 @@ export interface ToolErrorOutput {
   error: string;
 }
 
+export const FINAL_ANSWER_INTERACTION_ERROR =
+  "This answer still asks the user for input or a decision. Use show_view with an editable form, choice, or confirmation control instead.";
+export const FINAL_ANSWER_FOLLOW_UP_ERROR =
+  "This prose answer must end with one short, relevant follow-up question. Retry final_answer without adding or changing a renderer.";
+
+export function finalAnswerEndsWithFollowUpQuestion(content: string): boolean {
+  return /\?\s*$/.test(content.trim());
+}
+
 /** A final answer cannot be final when it still asks the user to act. */
 export function finalAnswerRequestsInteraction(content: string): boolean {
   const text = content.trim();
   return (
-    /\b(?:would|could|can|do|will) you\b[^.!?]{0,180}\?/i.test(text) ||
+    /\b(?:would|could|can|do|will) you\s+(?:approve|confirm|choose|select|provide|share|pick|enter|upload|submit|authorize)\b[^.!?]{0,180}\?/i.test(
+      text,
+    ) ||
     /\bif you (?:can )?(?:provide|share|choose|select|confirm|approve|pick|enter)\b/i.test(
       text,
     ) ||

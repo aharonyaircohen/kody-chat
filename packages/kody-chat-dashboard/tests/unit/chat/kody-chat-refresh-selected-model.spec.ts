@@ -67,14 +67,24 @@ describe("KodyChat refresh selected-model restore", () => {
     ).toBe(true);
   });
 
-  it("wires the restore guard into the per-session sync path", () => {
+  it("wires the restore guard into the derived selection path", () => {
     const syncBlock = extractRegionAround(
       KODY_CHAT_SOURCE,
-      "Per-session agent sync",
+      "const catalogReady",
     );
     expect(syncBlock).toMatch(/shouldWaitForChatCatalogResolution/);
     expect(syncBlock).toMatch(/sessionHydrated[,\s]/);
     expect(syncBlock).toMatch(/chatModelsLoaded/);
+  });
+
+  it("keeps hydration read-only so a temporary fallback cannot poison the next refresh", () => {
+    expect(KODY_CHAT_SOURCE).not.toContain(
+      "setSessionAgent(activeSessionId, targetEntry.key)",
+    );
+  });
+
+  it("does not consume the retired browser default owner", () => {
+    expect(KODY_CHAT_SOURCE).not.toContain("readDefaultChatEntry");
   });
 });
 

@@ -318,6 +318,33 @@ function renderedSelectionView() {
   };
 }
 
+function renderedWorkflowListView() {
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "view-workflow-list-e2e",
+    rendererSlug: "workflow-list-fixture",
+    rendererName: "Workflow list",
+    resultTarget: "chat",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "Agency workflows", variant: "title" },
+        {
+          type: "list",
+          children: [
+            { type: "text", value: "Release review" },
+            { type: "text", value: "Repository health check" },
+          ],
+        },
+      ],
+    },
+    data: {
+      workflows: ["Release review", "Repository health check"],
+    },
+  };
+}
+
 function renderedMultiSelectionView() {
   return {
     action: "render_view",
@@ -369,6 +396,74 @@ function renderedMultiSelectionView() {
   };
 }
 
+function renderedProjectAssessmentForm() {
+  const fields = [
+    {
+      name: "projectExpectations",
+      label: "Project goals and expected growth",
+      description:
+        "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major changes, and deadlines.",
+    },
+    {
+      name: "businessCriticality",
+      label: "Business importance and acceptable failures",
+      description:
+        "Explain what happens if the system is unavailable, loses data, or has a security incident.",
+    },
+    {
+      name: "teamSizeAndRoles",
+      label: "Active team size and roles",
+      description:
+        "Include employees, contractors, and AI agents, their roles, and whether their involvement is full-time or part-time.",
+    },
+    {
+      name: "relevantExperience",
+      label: "Relevant team experience",
+      description:
+        "Describe experience with the main technologies, architecture, scale, security, and production operations.",
+    },
+    {
+      name: "systemKnowledge",
+      label: "Shared system knowledge and ownership gaps",
+      description:
+        "Explain who understands the important areas, how knowledge is shared, and where ownership gaps remain.",
+    },
+    {
+      name: "maintenanceTime",
+      label: "Real maintenance time available",
+      description:
+        "Give the time actually available for maintenance as a weekly or monthly estimate.",
+    },
+  ];
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "view-project-assessment-e2e",
+    rendererSlug: "guided-form",
+    rendererName: "Guided form",
+    resultTarget: "chat",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", value: "Project assessment", variant: "title" },
+        ...fields.flatMap((field) => [
+          {
+            type: "input",
+            name: field.name,
+            label: field.label,
+            value: "",
+            inputType: "text",
+            readOnly: false,
+          },
+          { type: "text", value: field.description },
+        ]),
+        { type: "submit", label: "Start assessment" },
+      ],
+    },
+    data: { title: "Project assessment", fields },
+  };
+}
+
 async function mockChatStream(
   page: Page,
   options: {
@@ -383,14 +478,17 @@ async function mockChatStream(
     };
     options.onRequest?.(body);
     const latest = body.messages?.at(-1)?.content ?? "";
-    const output =
-      latest.includes("multiple") && latest.includes("reports")
-        ? renderedMultiSelectionView()
-        : latest.includes("reports") && latest.includes("select")
-          ? renderedSelectionView()
-          : turn === 1
-            ? renderedApprovalView()
-            : { content: "Recorded." };
+    const output = latest.includes("project assessment")
+      ? renderedProjectAssessmentForm()
+      : latest.includes("agency workflows")
+        ? renderedWorkflowListView()
+        : latest.includes("multiple") && latest.includes("reports")
+          ? renderedMultiSelectionView()
+          : latest.includes("reports") && latest.includes("select")
+            ? renderedSelectionView()
+            : turn === 1
+              ? renderedApprovalView()
+              : { content: "Recorded." };
     await route.fulfill({
       status: 200,
       headers: {
@@ -497,6 +595,37 @@ test.describe("Kody chat renderer output", () => {
 
     await approve.click();
     await expect(approve).toBeDisabled();
+  });
+
+  test("project assessment shows six explained questions", async ({ page }) => {
+    await openChat(page);
+
+    await sendChatMessage(page, "Run a complete project assessment");
+
+    await expect(page.getByText("Project assessment")).toBeVisible();
+    await expect(
+      page.getByText("Project goals and expected growth"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Business importance and acceptable failures"),
+    ).toBeVisible();
+    await expect(page.getByText("Active team size and roles")).toBeVisible();
+    await expect(page.getByText("Relevant team experience")).toBeVisible();
+    await expect(
+      page.getByText("Shared system knowledge and ownership gaps"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Real maintenance time available"),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/what happens if the system is unavailable/i),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/employees, contractors, and AI agents/i),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Start assessment" }),
+    ).toBeVisible();
   });
 
   test("rejected final-answer approval prose does not leak before renderer", async ({
@@ -715,6 +844,23 @@ test.describe("Kody chat renderer output", () => {
 
     await cto.click();
     await expect(cto).toBeDisabled();
+  });
+
+  test("agency workflow listing renders as a read-only list", async ({
+    page,
+  }) => {
+    await openChat(page);
+
+    await sendChatMessage(page, "list all agency workflows");
+
+    await expect(
+      page.getByRole("heading", { name: "Agency workflows" }),
+    ).toBeVisible();
+    await expect(page.getByText("Release review")).toBeVisible();
+    await expect(page.getByText("Repository health check")).toBeVisible();
+    await expect(
+      chatRail(page).getByRole("button", { name: /release review/i }),
+    ).toHaveCount(0);
   });
 
   test("multi-selection request uses checkbox and submit atoms then locks", async ({

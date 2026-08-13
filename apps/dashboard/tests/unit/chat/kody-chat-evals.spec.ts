@@ -102,7 +102,13 @@ describe("Kody chat evals", () => {
       "Prefer a high-level view component when its purpose matches the interaction",
     );
     expect(promptWithPreview).toContain(
-      "first call the read/list tool needed to get the records, then call `show_view` with those records as the selectable items",
+      "first call the read/list tool needed to get the records, then call `show_view` with those records as a clear list",
+    );
+    expect(promptWithPreview).toContain(
+      "When the user asks to present structured records, statuses, choices, forms, or other data-shaped results, use `show_view` first",
+    );
+    expect(promptWithPreview).toContain(
+      "Keep explanations, analysis, diagnoses, and advice in `final_answer`",
     );
     expect(promptWithPreview).toContain(
       "Every value you place in the spec must come from one of two places",
@@ -135,6 +141,8 @@ describe("Kody chat evals", () => {
     expect(route).toContain("definitions: viewRendererDefinitions");
     expect(route).toContain("selectChatOutputActiveTools");
     expect(route).toContain("allActiveTools");
+    expect(route).toContain("shouldRequireStructuredViewForTurn");
+    expect(route).toContain("requireViewOutputForTurn");
     expect(route).toContain("Do not finish with `final_answer`");
     expect(route).toContain(
       "settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS)",

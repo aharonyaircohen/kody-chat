@@ -110,6 +110,53 @@ describe("conversations", () => {
     });
   });
 
+  it("keeps running reasoning and tool activity on the durable turn", async () => {
+    const t = setup();
+    await t.mutation(api.conversations.create, conversation);
+    await t.mutation(api.conversationTurns.start, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-progress",
+      backend: "direct",
+      agent: conversation.activeAgent,
+      startedAt: NOW,
+    });
+
+    await t.mutation(api.conversationTurns.updateProgress, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-progress",
+      progress: {
+        reasoning: "Checking the repository.",
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            arguments: { path: "README.md" },
+            status: "success",
+          },
+        ],
+      },
+      updatedAt: "2026-07-20T10:00:30.000Z",
+    });
+
+    const stored = await t.query(api.conversations.get, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+    });
+    expect(stored?.turns[0].progress).toEqual({
+      reasoning: "Checking the repository.",
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "read_file",
+          arguments: { path: "README.md" },
+          status: "success",
+        },
+      ],
+    });
+  });
+
   it("rejects completion by an agent that is no longer active", async () => {
     const t = setup();
     await t.mutation(api.conversations.create, conversation);

@@ -36,7 +36,10 @@ import { buildChatViewDirective } from "../../../../../src/dashboard/lib/view-re
 import { buildShowViewGuidance } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
 import {
   FINAL_ANSWER_TOOL,
+  FINAL_ANSWER_FOLLOW_UP_ERROR,
+  FINAL_ANSWER_INTERACTION_ERROR,
   SHOW_VIEW_TOOL,
+  finalAnswerEndsWithFollowUpQuestion,
   finalAnswerRequestsInteraction,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 
@@ -49,6 +52,8 @@ interface UiToolsCtx {
   viewRendererDefinitions?: ViewRendererDefinition[];
   /** Decision turns must render at least one control the user can operate. */
   requireInteractiveAction?: boolean;
+  /** Caller-owned exact view data for deterministic product flows. */
+  forcedViewInput?: unknown;
 }
 
 function hasInteractiveControl(node: RenderedViewUiNode): boolean {
@@ -245,6 +250,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Commit user-visible plain text. Use it alone when no chat UI renderer is needed. " +
         "When a short explanation should appear before a renderer, call final_answer and show_view together in the same response; the text appears first and the view follows. " +
         "Use this for ordinary answers, summaries, and status updates. " +
+        "Every prose answer must end with one short, relevant follow-up question. " +
         "Do not use this for questions that ask the user to choose, approve, confirm, continue, cancel, or pick an action; use show_view instead.",
       inputSchema: z.object({
         content: z
@@ -257,11 +263,10 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
       }),
       execute: async ({ content }) =>
         finalAnswerRequestsInteraction(content)
-          ? {
-              error:
-                "This answer still asks the user for input or a decision. Use show_view with an editable form, choice, or confirmation control instead.",
-            }
-          : { content },
+          ? { error: FINAL_ANSWER_INTERACTION_ERROR }
+          : !finalAnswerEndsWithFollowUpQuestion(content)
+            ? { error: FINAL_ANSWER_FOLLOW_UP_ERROR }
+            : { content },
     }),
     switch_agent: switchAgentTool,
     dashboard_navigate: dashboardNavigateTool,
@@ -278,7 +283,10 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         buildShowViewGuidance(catalog),
       inputSchema: showViewInputSchema,
       execute: async (input) => {
-        const validated = validateChatViewSpec(catalog, input);
+        const validated = validateChatViewSpec(
+          catalog,
+          ctx.forcedViewInput ?? input,
+        );
         if (!validated.success) {
           return { error: validated.error };
         }

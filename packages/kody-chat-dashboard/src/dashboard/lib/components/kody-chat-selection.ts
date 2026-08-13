@@ -2,14 +2,11 @@
  * @fileType hook
  * @domain kody
  * @pattern kody-chat-selection
- * @ai-summary Agent/model selection extracted from KodyChat (phase
- *   1.6c): the selected agent/model state, the dropdown entry list,
- *   default-agent resolution, family snap for removed entries,
- *   reasoning-effort wiring, the lockedAgentId sync, and the
- *   per-session agent sync effect. Behavior is identical to the
- *   pre-extraction inline code — the picker/JSX writes (onSelectEntry,
- *   "New conversation" seeding) stay in KodyChat and call the setters
- *   returned here.
+ * @ai-summary Agent/model selection extracted from KodyChat. Existing
+ *   conversations derive their selection from the saved session agent key;
+ *   an unsaved conversation keeps a draft pick; otherwise the configured
+ *   catalog default is used. The hook also owns dropdown entries, removed-
+ *   entry family fallback, reasoning-effort wiring, and host locks.
  *
  *   Placement note: lives in components/ next to the other phase-1.6
  *   extractions (kody-chat-live-runner.ts / kody-chat-send.ts /
@@ -19,7 +16,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "../agents";
 import {
   buildAgentList,
@@ -28,41 +25,33 @@ import {
   type ChatDropdownEntry,
   type ChatModelEntry,
 } from "../chat/platform/agent-entries";
-import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import { readReasoningEffort } from "../reasoning-pref";
 import type { ModelReasoning } from "../chat/core/reasoning-adapter";
 import type { UseConversationSessionsResult } from "../chat/core/conversation/use-conversation-sessions";
 
 /**
- * Resolve the global default agent entry — the value a session with
- * no per-session pick falls back to. Used as the catch-all when
+ * Resolve the configured catalog default — the value a session with
+ * no saved pick falls back to. Used as the catch-all when
  * a session's `agentKey` is missing (legacy sessions created
  * before this field existed) or points at an entry that has
  * since been removed from the list.
  *
  * Resolution order:
- *   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
- *   2. Legacy: a Kody model with `default: true` on the Models page.
- *   3. First configured Kody model.
- *   4. Brain if configured.
- *   5. First available Live entry.
+ *   1. A Kody model with `default: true` on the Models page.
+ *   2. First configured Kody model.
+ *   3. Brain if configured.
+ *   4. First available Live entry.
  *
  * Renderers are part of the in-process Kody chat protocol. If a repo has
  * a Kody model configured but no saved default, default to that renderer-
- * capable path instead of Live, while still letting Settings override it.
+ * capable path instead of Live.
  */
 export function resolveDefaultAgentEntry(options: {
-  defaultChatEntryKey: string | null;
   chatModels: ChatModelEntry[];
   brainConfigured: boolean;
   agentList: ChatDropdownEntry[];
 }): ChatDropdownEntry | null {
-  const { defaultChatEntryKey, chatModels, brainConfigured, agentList } =
-    options;
-  if (defaultChatEntryKey) {
-    const entry = agentList.find((e) => e.key === defaultChatEntryKey);
-    if (entry) return entry;
-  }
+  const { chatModels, brainConfigured, agentList } = options;
   const defModel = chatModels.find(
     (m) => m.default === true && m.enabled !== false,
   );
@@ -128,6 +117,46 @@ export function familySnapEntry(
   return null;
 }
 
+export function resolveSelectedAgentEntry(options: {
+  activeSessionId?: string;
+  activeSessionAgentKey?: string;
+  draftEntryKey: string | null;
+  defaultEntry: ChatDropdownEntry | null;
+  agentList: ChatDropdownEntry[];
+  lockedAgentId?: AgentId;
+  lockedModelId?: string | null;
+}): ChatDropdownEntry | null {
+  const {
+    activeSessionId,
+    activeSessionAgentKey,
+    draftEntryKey,
+    defaultEntry,
+    agentList,
+    lockedAgentId,
+    lockedModelId,
+  } = options;
+  if (lockedAgentId) {
+    return (
+      agentList.find(
+        (entry) =>
+          entry.agentId === lockedAgentId &&
+          (lockedModelId === undefined ||
+            (entry.modelId ?? null) === lockedModelId),
+      ) ?? familySnapEntry(lockedAgentId, agentList)
+    );
+  }
+
+  const selectedKey = activeSessionId
+    ? activeSessionAgentKey
+    : (draftEntryKey ?? undefined);
+  if (!selectedKey) return defaultEntry;
+  return (
+    agentList.find((entry) => entry.key === selectedKey) ??
+    familySnapEntry(selectedKey, agentList) ??
+    defaultEntry
+  );
+}
+
 export interface UseAgentSelectionOptions {
   /** Host pins an agent (e.g. the Vibe page) — the picker is locked. */
   lockedAgentId?: AgentId;
@@ -144,7 +173,7 @@ export interface UseAgentSelectionOptions {
   chatModelsLoaded: boolean;
   /** Personal Brain model list from /brain. */
   brainModels: BrainChatModelEntry[];
-  /** The global session store — per-session agent picks live on it. */
+  /** The session store — saved conversation model picks live on it. */
   sessionHook: UseConversationSessionsResult;
 }
 
@@ -152,9 +181,8 @@ export interface UseAgentSelectionResult {
   /** True once the current session/default has resolved against the catalog. */
   selectionReady: boolean;
   selectedAgentId: AgentId;
-  setSelectedAgentId: React.Dispatch<React.SetStateAction<AgentId>>;
   selectedModelId: string | null;
-  setSelectedModelId: React.Dispatch<React.SetStateAction<string | null>>;
+  selectEntry: (entry: ChatDropdownEntry) => void;
   agentMenuOpen: boolean;
   setAgentMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setReasoningEffort: React.Dispatch<React.SetStateAction<string | null>>;
@@ -173,8 +201,7 @@ export interface UseAgentSelectionResult {
 /**
  * Agent/model selection state + sync. The active session's `agentKey`
  * is the source of truth for the visible agent; this hook owns the
- * resolution chain (session pick → family snap → default) and the
- * write-back of resolved picks.
+ * read-only resolution chain (session pick → family snap → default).
  */
 export function useAgentSelection(
   options: UseAgentSelectionOptions,
@@ -198,16 +225,7 @@ export function useAgentSelection(
   const activeSessionId = activeSession?.id;
   const activeSessionAgentKey = activeSession?.agentKey;
 
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
-    lockedAgentId ?? "kody-live",
-  );
-  const [selectionReady, setSelectionReady] = useState(false);
-  // When the user picks a gateway-routed model (any LLM_MODELS entry), the
-  // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
-  // The chat request forwards it as `body.model`. Null = no override.
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(
-    lockedModelId ?? null,
-  );
+  const [draftEntryKey, setDraftEntryKey] = useState<string | null>(null);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   // Thinking-level state. The chat header shows a small `🧠` dropdown
   // next to the agent picker when the current model declares a
@@ -217,23 +235,6 @@ export function useAgentSelection(
   // on every chat request as `body.reasoningEffort`; the chat route
   // translates it to the provider's wire shape at request time.
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
-  // The user-chosen default chat dropdown entry key (any entry: Brain,
-  // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
-  // localStorage (repo-scoped). Read synchronously on mount. Separate from a
-  // model's own `default` flag, which governs server-side gateway resolution.
-  // Read after hydration because localStorage does not exist during SSR. The
-  // selection remains unready until this browser-owned preference is loaded.
-  const [defaultChatEntryKey, setDefaultChatEntryKey] = useState<string | null>(
-    null,
-  );
-  const [defaultEntryHydrated, setDefaultEntryHydrated] = useState(false);
-  useEffect(() => {
-    setDefaultChatEntryKey(readDefaultChatEntry());
-    setDefaultEntryHydrated(true);
-  }, []);
-  const noSessionDefaultAppliedRef = useRef(false);
-
-  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
     brainConfigured,
     flyConfigured,
@@ -242,174 +243,78 @@ export function useAgentSelection(
     brainModels,
   );
 
-  // What to show in the header — when a gateway model is active, prefer
-  // its label over the static `kody` agent name.
+  // Default-entry resolution — see resolveDefaultAgentEntry above.
+  const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(
+    () =>
+      resolveDefaultAgentEntry({
+        chatModels,
+        brainConfigured,
+        agentList,
+      }),
+    [chatModels, brainConfigured, agentList],
+  );
+
+  const catalogReady = !shouldWaitForChatCatalogResolution({
+    sessionHydrated,
+    chatModelsLoaded,
+  });
   const currentEntry =
-    agentList.find(
-      (e) =>
-        e.agentId === selectedAgentId &&
-        (e.modelId ?? null) === selectedModelId,
-    ) ?? null;
-  // Effective thinking config for the active model. `null` when the model
-  // has no `reasoning` block AND the model-name auto-detect couldn't pick
-  // one — the header hides the dropdown in that case (no clutter for
-  // models that don't reason).
+    (lockedAgentId || catalogReady) && agentList.length > 0
+      ? resolveSelectedAgentEntry({
+          activeSessionId,
+          activeSessionAgentKey,
+          draftEntryKey,
+          defaultEntry: defaultAgentEntry,
+          agentList,
+          lockedAgentId,
+          lockedModelId,
+        })
+      : null;
+  const selectionReady = currentEntry !== null;
+  const selectedAgentId = currentEntry?.agentId ?? lockedAgentId ?? "kody-live";
+  const selectedModelId = currentEntry?.modelId ?? lockedModelId ?? null;
+  const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const currentReasoning = currentEntry?.reasoning ?? null;
-  // Resolved effort. Read directly from localStorage on every render so
-  // the dropdown never flashes the model's `default` before snapping to
-  // the stored pick on mount. The `reasoningEffort` state still wins
-  // during the current session (overrides the storage read with the
-  // user's just-clicked pick before the localStorage write is observed
-  // by React's next render). Per-(repo, modelId) scoping lives in
-  // `reasoning-pref.ts`.
+
+  const selectEntry = useCallback(
+    (entry: ChatDropdownEntry) => {
+      if (lockedAgentId) return;
+      if (activeSessionId) {
+        setSessionAgent(activeSessionId, entry.key);
+      } else {
+        setDraftEntryKey(entry.key);
+      }
+    },
+    [activeSessionId, lockedAgentId, setSessionAgent],
+  );
+
   const effectiveReasoningEffort = useMemo(() => {
     if (!currentReasoning) return null;
     if (
       reasoningEffort &&
-      currentReasoning.efforts.some((e) => e.value === reasoningEffort)
+      currentReasoning.efforts.some(
+        (effort) => effort.value === reasoningEffort,
+      )
     ) {
       return reasoningEffort;
     }
     if (selectedModelId) {
       const stored = readReasoningEffort(selectedModelId);
-      if (stored && currentReasoning.efforts.some((e) => e.value === stored)) {
+      if (
+        stored &&
+        currentReasoning.efforts.some((effort) => effort.value === stored)
+      ) {
         return stored;
       }
     }
     return currentReasoning.default;
-  }, [currentReasoning, selectedModelId, reasoningEffort]);
-
-  // Default-entry resolution — see resolveDefaultAgentEntry above.
-  const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(
-    () =>
-      resolveDefaultAgentEntry({
-        defaultChatEntryKey,
-        chatModels,
-        brainConfigured,
-        agentList,
-      }),
-    [defaultChatEntryKey, chatModels, brainConfigured, agentList],
-  );
-
-  // Family snap for removed dropdown rows — see familySnapEntry above.
-  const familySnap = useCallback(
-    (key: string): ChatDropdownEntry | null => familySnapEntry(key, agentList),
-    [agentList],
-  );
-
-  // When a parent toggles locked selection on/off (route change), keep state in sync.
-  useEffect(() => {
-    if (lockedAgentId && selectedAgentId !== lockedAgentId) {
-      setSelectedAgentId(lockedAgentId);
-    }
-    if (lockedModelId !== undefined && selectedModelId !== lockedModelId) {
-      setSelectedModelId(lockedModelId ?? null);
-    }
-  }, [lockedAgentId, lockedModelId, selectedAgentId, selectedModelId]);
-
-  // Per-session agent sync. The active session's `agentKey` is the
-  // source of truth for the visible agent — switching sessions
-  // restores the agent that was active for that thread, and the
-  // user's picker write is captured on the session.
-  //
-  // Three flows collapse into one effect:
-  //   1. Session has a valid `agentKey` → adopt it. (Covers session
-  //      switches, where the active session changes underneath us.)
-  //   2. Session's `agentKey` points at an entry that's no longer
-  //      in the list (e.g. FLY_API_TOKEN probe flipped, or the user
-  //      removed the model on the Models page) → family snap to
-  //      a sibling entry, then default chain.
-  //   3. Session has no `agentKey` (legacy session) → use the
-  //      default chain and write it back so the next switch
-  //      restores it directly. Also covers the "no active session"
-  //      case, where the local state is just seeded with the default
-  //      (the first send then auto-creates a session and the sync
-  //      effect will re-run to capture the pick).
-  useEffect(() => {
-    if (lockedAgentId) {
-      setSelectionReady(true);
-      return; // Vibe page owns the agent
-    }
-    if (!defaultEntryHydrated) {
-      setSelectionReady(false);
-      return;
-    }
-    if (activeSessionId) {
-      noSessionDefaultAppliedRef.current = false;
-    } else if (noSessionDefaultAppliedRef.current) {
-      return;
-    }
-    if (
-      shouldWaitForChatCatalogResolution({
-        sessionHydrated,
-        chatModelsLoaded,
-      })
-    ) {
-      setSelectionReady(false);
-      return;
-    }
-    if (agentList.length === 0) {
-      setSelectionReady(false);
-      return; // Wait for the list to load.
-    }
-
-    let targetEntry: ChatDropdownEntry | null = null;
-    if (activeSessionAgentKey) {
-      targetEntry =
-        agentList.find((e) => e.key === activeSessionAgentKey) ?? null;
-      if (!targetEntry) {
-        targetEntry = familySnap(activeSessionAgentKey);
-      }
-    }
-    if (!targetEntry) {
-      targetEntry = defaultAgentEntry;
-    }
-    if (!targetEntry) {
-      setSelectionReady(false);
-      return;
-    }
-
-    if (!activeSessionId) {
-      noSessionDefaultAppliedRef.current = true;
-    }
-
-    if (
-      targetEntry.agentId !== selectedAgentId ||
-      (targetEntry.modelId ?? null) !== selectedModelId
-    ) {
-      setSelectedAgentId(targetEntry.agentId);
-      setSelectedModelId(targetEntry.modelId);
-    }
-
-    // Persist the resolved pick on the active session so future
-    // switches restore it directly without re-running the fallback
-    // chain. Skipped when there's no session (local-state-only
-    // adjustment) or when the session already has this key.
-    if (activeSessionId && activeSessionAgentKey !== targetEntry.key) {
-      setSessionAgent(activeSessionId, targetEntry.key);
-    }
-    setSelectionReady(true);
-  }, [
-    activeSessionId,
-    activeSessionAgentKey,
-    defaultEntryHydrated,
-    sessionHydrated,
-    agentList,
-    defaultAgentEntry,
-    familySnap,
-    chatModelsLoaded,
-    lockedAgentId,
-    selectedAgentId,
-    selectedModelId,
-    setSessionAgent,
-  ]);
+  }, [currentReasoning, reasoningEffort, selectedModelId]);
 
   return {
     selectionReady,
     selectedAgentId,
-    setSelectedAgentId,
     selectedModelId,
-    setSelectedModelId,
+    selectEntry,
     agentMenuOpen,
     setAgentMenuOpen,
     setReasoningEffort,

@@ -84,7 +84,7 @@ describe("Store agent repository activation", () => {
       activeStoreSlugs: new Set(),
     });
 
-    expect(agents).toHaveLength(7);
+    expect(agents).toHaveLength(8);
     expect(store.listSlugs).not.toHaveBeenCalled();
   });
 

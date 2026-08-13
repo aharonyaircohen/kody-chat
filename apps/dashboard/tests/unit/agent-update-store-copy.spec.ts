@@ -1,7 +1,6 @@
 /**
- * @fileoverview Store-linked agents are editable: PATCH materializes a repo
- * copy at legacy/agents/<slug>.md (create, sha "") that overrides the Store
- * version — this is how the built-in Kody chat identity becomes editable.
+ * @fileoverview Built-in Agent definitions stay immutable while Kody accepts
+ * a persisted list of additional configured specialists.
  * @testFramework vitest
  * @domain agents
  */
@@ -44,7 +43,23 @@ vi.mock("@kody-ade/agency/agent-files", () => ({
   // list from the same per-slug mock so existing test setups keep working.
   listResolvedAgentFiles: async () => {
     const agent = await h.readResolvedAgentFile("kody");
-    return agent ? [agent] : [];
+    return agent
+      ? [
+          agent,
+          {
+            slug: "custom-specialist",
+            title: "Custom Specialist",
+            body: "Handles custom work.",
+            whenToUse: "Use for custom work.",
+          },
+          {
+            slug: "context-scout",
+            title: "Context Scout",
+            body: "Finds context.",
+            whenToUse: "Use for context.",
+          },
+        ]
+      : [];
   },
   writeAgentFile: h.writeAgentFile,
   deleteAgentFile: h.deleteAgentFile,
@@ -72,42 +87,64 @@ function request(body: Record<string, unknown>) {
 
 const params = Promise.resolve({ slug: "kody" });
 
-describe("PATCH /api/kody/agents/[slug] — store-linked agents", () => {
+describe("PATCH /api/kody/agents/[slug] — built-in agents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.verifyActorLogin.mockResolvedValue("admin");
     h.getUserOctokit.mockResolvedValue({});
   });
 
-  it("materializes a repo copy when only the Store version exists", async () => {
-    // Store copy: readOnly, empty sha — writeAgentFile treats "" as create.
+  it("stores only Kody's additional specialists", async () => {
     h.readResolvedAgentFile.mockResolvedValue({
       slug: "kody",
       title: "Kody",
       body: "Built-in identity",
+      subagents: ["context-scout", "custom-specialist"],
+      lockedSubagents: ["context-scout"],
       sha: "",
-      updatedAt: "2026-07-10T00:00:00Z",
-      htmlUrl: "https://github.com/acme/store/blob/main/agents/kody.md",
-      source: "store",
+      updatedAt: "",
+      htmlUrl: "",
+      source: "builtin",
       readOnly: true,
     });
     h.writeAgentFile.mockResolvedValue({
       slug: "kody",
       title: "Kody",
-      body: "Custom identity",
+      body: "Built-in identity",
       sha: "abc123",
     });
 
-    const res = await PATCH(request({ body: "Custom identity" }), { params });
+    const res = await PATCH(
+      request({ subagents: ["context-scout", "custom-specialist"] }),
+      { params },
+    );
 
     expect(res.status).toBe(200);
     expect(h.writeAgentFile).toHaveBeenCalledWith(
       expect.objectContaining({
         slug: "kody",
-        body: "Custom identity",
-        sha: "",
+        body: "Built-in identity",
+        subagents: ["custom-specialist"],
       }),
     );
+  });
+
+  it("rejects edits to Kody's built-in identity", async () => {
+    h.readResolvedAgentFile.mockResolvedValue({
+      slug: "kody",
+      title: "Kody",
+      body: "Built-in identity",
+      source: "builtin",
+      readOnly: true,
+      subagents: ["context-scout"],
+      lockedSubagents: ["context-scout"],
+    });
+
+    const res = await PATCH(request({ body: "Custom identity" }), { params });
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("builtin_agent_locked");
+    expect(h.writeAgentFile).not.toHaveBeenCalled();
   });
 
   it("still 404s when the agent exists nowhere", async () => {

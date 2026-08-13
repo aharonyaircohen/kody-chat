@@ -49,6 +49,27 @@ describe("builtin view renderers", () => {
     });
   });
 
+  it("lets guided forms explain what belongs in each field", () => {
+    const form = getBuiltinViewRendererDefinition("guided-form");
+
+    expect(form?.ui).toMatchObject({
+      children: expect.arrayContaining([
+        expect.objectContaining({
+          type: "list",
+          item: expect.objectContaining({
+            type: "stack",
+            children: expect.arrayContaining([
+              expect.objectContaining({
+                type: "text",
+                value: "$field.description",
+              }),
+            ]),
+          }),
+        }),
+      ]),
+    });
+  });
+
   it("built-ins compile into catalog view components", () => {
     const catalog = buildChatViewCatalog([
       ...BUILTIN_VIEW_RENDERER_DEFINITIONS,

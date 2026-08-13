@@ -9,9 +9,10 @@ const specialists = listBuiltinAgentFiles().filter(
 
 describe("built-in specialist routing", () => {
   it.each([
-    ["Explain AI Agency structure.", "agency-architect"],
+    ["Explain AI Agency structure.", "agency-specialist"],
     ["Explain this repository's structure.", "repository-analyst"],
-    ["Do you know how to add a new todo?", "agency-architect"],
+    ["Do you know how to add a new todo?", "agency-specialist"],
+    ["r u able to run merge wf?", "agency-specialist"],
     ["Check CI status and blockers.", "operations-specialist"],
     ["Which models and secrets are configured?", "system-admin"],
     ["What chat models are currently configured?", "system-admin"],

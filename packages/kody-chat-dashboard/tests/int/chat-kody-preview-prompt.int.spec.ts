@@ -21,6 +21,7 @@ const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
 const createCmsToolsMock = vi.hoisted(() => vi.fn());
+const startDurableTurnMock = vi.hoisted(() => vi.fn());
 const resolvedModelMock = vi.hoisted(() => ({
   id: "test-model",
   label: "Test model",
@@ -31,6 +32,7 @@ const resolvedModelMock = vi.hoisted(() => ({
   apiKeySecret: "TEST_MODEL_API_KEY",
   enabled: true,
   default: true,
+  maxSteps: 8,
 }));
 
 vi.mock("ai", () => ({
@@ -54,7 +56,9 @@ vi.mock("@kody-ade/base/auth", () => ({
     storeRepoUrl: undefined,
     storeRef: undefined,
   })),
-  verifyActorLogin: vi.fn(async () => ({ identity: { login: "alice" } })),
+  verifyActorLogin: vi.fn(async () => ({
+    identity: { login: "alice", githubId: 1 },
+  })),
   getUserOctokit: vi.fn(async () => ({})),
 }));
 
@@ -108,6 +112,10 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
 
 vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
   createCmsTools: createCmsToolsMock,
+}));
+
+vi.mock("../../app/api/kody/chat/durable-turn", () => ({
+  startDurableTurn: startDurableTurnMock,
 }));
 
 function makeRequest(body: unknown): NextRequest {
@@ -186,6 +194,75 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     createCmsToolsMock.mockResolvedValue({});
     createUIMessageStreamResponseMock.mockReturnValue(
       new Response("ok", { status: 200 }),
+    );
+    startDurableTurnMock.mockReturnValue({
+      started: Promise.resolve(),
+      recordProgress: vi.fn(),
+      complete: vi.fn(async () => undefined),
+      fail: vi.fn(async () => undefined),
+    });
+  });
+
+  it("sends live reasoning and tool activity to the durable turn", async () => {
+    const recordProgress = vi.fn();
+    startDurableTurnMock.mockReturnValueOnce({
+      started: Promise.resolve(),
+      recordProgress,
+      complete: vi.fn(async () => undefined),
+      fail: vi.fn(async () => undefined),
+    });
+    streamTextMock.mockImplementationOnce((options) => ({
+      toUIMessageStream: toUIMessageStreamMock,
+      consumeStream: vi.fn(async () => {
+        options.onChunk?.({
+          chunk: {
+            type: "reasoning-delta",
+            id: "reasoning-1",
+            text: "Checking",
+          },
+        });
+        const toolCall = {
+          type: "tool-call",
+          toolCallId: "tool-1",
+          toolName: "read_file",
+          input: { path: "README.md" },
+        };
+        options.onChunk?.({ chunk: toolCall });
+        options.onChunk?.({
+          chunk: {
+            type: "tool-result",
+            toolCallId: "tool-1",
+            toolName: "read_file",
+            input: { path: "README.md" },
+            output: { content: "read" },
+          },
+        });
+      }),
+    }));
+
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "check the repository" }],
+        actorLogin: "alice",
+        conversationId: "conversation-1",
+        turnId: "turn-1",
+        conversationAgent: { slug: "kody", title: "Kody" },
+      }),
+    );
+
+    await vi.waitFor(() =>
+      expect(recordProgress).toHaveBeenLastCalledWith({
+        reasoning: "Checking",
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "read_file",
+            arguments: { path: "README.md" },
+            status: "success",
+          },
+        ],
+      }),
     );
   });
 
@@ -472,6 +549,67 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(options?.system).toContain("finish this turn with `show_view`");
   });
 
+  it("keeps should-we-add architecture advice on the text-answer path", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "Should this project add another chat system?",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const options = streamTextMock.mock.calls[0]?.[0];
+    expect(options?.system).not.toContain(
+      "The latest user message asks for an interactive response",
+    );
+    expect(options?.system).toContain(
+      "This is an architecture recommendation, not a request to create anything and not a question about configured chat models",
+    );
+    expect(options?.system).toContain(
+      "Give a direct verdict instead of an inventory or clarification question",
+    );
+    const step = options?.prepareStep?.({ steps: [] } as never);
+    expect(step?.activeTools).toContain("final_answer");
+    expect(step?.toolChoice).not.toEqual({
+      type: "tool",
+      toolName: "show_view",
+    });
+  });
+
+  it("reserves the last model step for a prose answer with a follow-up", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "How does Kody Chat work in this project?",
+          },
+        ],
+      }),
+    );
+
+    const options = streamTextMock.mock.calls[0]?.[0];
+    const prepared = options?.prepareStep?.({
+      steps: Array.from({ length: 7 }, () => ({
+        toolResults: [
+          { toolName: "read_file", output: { content: "verified" } },
+        ],
+      })),
+    } as never);
+
+    expect(prepared?.activeTools).toEqual(["final_answer"]);
+    expect(prepared?.system).toContain("Stop researching");
+    expect(prepared?.system).toContain("follow-up question");
+  });
+
   it("exposes a working show_view spec contract for approval renderer requests", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
@@ -628,6 +766,46 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
     expect(retrySystem).toContain("Call `show_view` NOW");
     expect(writer.merge).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns a question-ending recovery when a prose model never calls final_answer", async () => {
+    const silentResult = () => ({
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        { toolResults: [], text: "<think>answer stayed in reasoning</think>" },
+      ]),
+    });
+    streamTextMock
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult());
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [{ role: "user", content: "What is 2 + 2?" }],
+      }),
+    );
+
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(3);
+    expect(writer.write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tool-output-available",
+        output: expect.objectContaining({
+          content: expect.stringMatching(/\?$/),
+        }),
+      }),
+    );
   });
 
   it("does not retry when the turn produced a rendered view", async () => {

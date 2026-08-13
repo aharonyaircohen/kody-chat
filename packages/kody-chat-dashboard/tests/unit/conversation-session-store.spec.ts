@@ -51,6 +51,7 @@ describe("conversation session store", () => {
           },
         },
       ],
+      turns: [],
       checkpoints: [],
     });
 
@@ -78,6 +79,7 @@ describe("conversation session store", () => {
         updatedAt: "2026-07-20T10:03:00.000Z",
       },
       entries: [],
+      turns: [],
       checkpoints: [],
     });
 
@@ -100,6 +102,7 @@ describe("conversation session store", () => {
         updatedAt: "2026-07-20T10:03:00.000Z",
       },
       entries: [],
+      turns: [],
       checkpoints: [],
     });
 
@@ -177,10 +180,255 @@ describe("conversation session store", () => {
           },
         },
       ],
+      turns: [],
       checkpoints: [],
     });
 
     expect(result.messages[0]?.view).toEqual(renderedView);
+  });
+
+  it("restores a running durable turn as a loading assistant reply", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-running",
+        title: "Pending reply",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:01.000Z",
+      },
+      entries: [
+        {
+          entryId: "u1",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "user",
+            content: "Take your time",
+            status: "committed",
+            turnId: "u1",
+            createdAt: "2026-07-20T10:00:00.000Z",
+          },
+        },
+      ],
+      turns: [
+        {
+          turnId: "turn-1",
+          status: "running",
+          agent: { slug: "kody", title: "Kody" },
+          startedAt: "2026-07-20T10:00:01.000Z",
+        },
+      ],
+      checkpoints: [],
+    });
+
+    expect(result.hasRunningTurns).toBe(true);
+    expect(result.messages.at(-1)).toMatchObject({
+      id: "assistant:turn-1",
+      turnId: "turn-1",
+      role: "assistant",
+      text: "",
+      isLoading: true,
+      agent: { slug: "kody", title: "Kody" },
+    });
+  });
+
+  it("keeps polling when the pending assistant entry was saved before the turn record", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-pending-entry",
+        title: "Pending reply",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:01.000Z",
+      },
+      entries: [
+        {
+          entryId: "assistant:turn-early",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "",
+            status: "pending",
+            turnId: "turn-early",
+            createdAt: "2026-07-20T10:00:01.000Z",
+          },
+        },
+      ],
+      turns: [],
+      checkpoints: [],
+    });
+
+    expect(result.hasRunningTurns).toBe(true);
+    expect(result.messages[0]).toMatchObject({
+      id: "assistant:turn-early",
+      isLoading: true,
+    });
+  });
+
+  it("restores reasoning and used tools from a running durable turn", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-progress",
+        title: "Progress",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:01.000Z",
+      },
+      entries: [
+        {
+          entryId: "assistant:turn-progress",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "",
+            status: "pending",
+            turnId: "turn-progress",
+            createdAt: "2026-07-20T10:00:01.000Z",
+          },
+        },
+      ],
+      turns: [
+        {
+          turnId: "turn-progress",
+          status: "running",
+          agent: { slug: "kody", title: "Kody" },
+          startedAt: "2026-07-20T10:00:01.000Z",
+          progress: {
+            reasoning: "Checking the repository.",
+            toolCalls: [
+              {
+                id: "tool-1",
+                name: "read_file",
+                arguments: { path: "README.md" },
+                status: "success",
+              },
+            ],
+          },
+        },
+      ],
+      checkpoints: [],
+    });
+
+    expect(result.messages[0]).toMatchObject({
+      text: "<think>Checking the repository.</think>\n\n",
+      toolCalls: [
+        {
+          name: "read_file",
+          arguments: { path: "README.md" },
+          status: "success",
+        },
+      ],
+      isLoading: true,
+    });
+  });
+
+  it("does not duplicate a durable turn that already has an assistant entry", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-completed",
+        title: "Completed reply",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:01:00.000Z",
+      },
+      entries: [
+        {
+          entryId: "assistant:turn-1",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "Finished after refresh.",
+            status: "committed",
+            turnId: "turn-1",
+            createdAt: "2026-07-20T10:01:00.000Z",
+          },
+        },
+      ],
+      turns: [
+        {
+          turnId: "turn-1",
+          status: "completed",
+          agent: { slug: "kody", title: "Kody" },
+          assistantEntryId: "assistant:turn-1",
+          startedAt: "2026-07-20T10:00:01.000Z",
+          completedAt: "2026-07-20T10:01:00.000Z",
+          progress: {
+            reasoning: "Verified the final answer.",
+            toolCalls: [
+              {
+                id: "tool-1",
+                name: "read_file",
+                arguments: { path: "README.md" },
+                status: "success",
+              },
+            ],
+          },
+        },
+      ],
+      checkpoints: [],
+    });
+
+    expect(result.hasRunningTurns).toBe(false);
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toMatchObject({
+      id: "assistant:turn-1",
+      text: "<think>Verified the final answer.</think>\n\nFinished after refresh.",
+      toolCalls: [
+        {
+          name: "read_file",
+          arguments: { path: "README.md" },
+          status: "success",
+        },
+      ],
+      isLoading: false,
+    });
+  });
+
+  it("restores a failed durable turn as a retryable assistant error", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-failed",
+        title: "Failed reply",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:05.000Z",
+      },
+      entries: [],
+      turns: [
+        {
+          turnId: "turn-failed",
+          status: "failed",
+          agent: { slug: "kody", title: "Kody" },
+          startedAt: "2026-07-20T10:00:01.000Z",
+          completedAt: "2026-07-20T10:00:05.000Z",
+          errorCode: "provider_error",
+        },
+      ],
+      checkpoints: [],
+    });
+
+    expect(result.hasRunningTurns).toBe(false);
+    expect(result.messages).toEqual([
+      expect.objectContaining({
+        id: "assistant:turn-failed",
+        role: "assistant",
+        text: "Error: The reply could not be completed. Please retry.",
+        isLoading: false,
+      }),
+    ]);
   });
 
   it("persists a rendered answer added to an existing streaming message", () => {

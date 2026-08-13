@@ -16,10 +16,42 @@ import {
   reconcileConversationMessages,
   type ConversationDetail,
 } from "./conversation-session-store";
+import {
+  persistAssistantConversationMessage,
+  type AssistantMessagePersistenceMode,
+} from "./assistant-message-persistence";
+import { useRunningTurnRecovery } from "./use-running-turn-recovery";
 
 export type ChatSessionScope = "global" | "vibe-default";
 type MessageUpdater =
   ChatMessage[] | ((previous: ChatMessage[]) => ChatMessage[]);
+
+function activeSessionStorageKey(scope: ChatSessionScope): string {
+  return `kody-chat:active-session:${scope}`;
+}
+
+function readTabActiveSessionId(scope: ChatSessionScope): string | null {
+  try {
+    return window.sessionStorage.getItem(activeSessionStorageKey(scope));
+  } catch {
+    return null;
+  }
+}
+
+function writeTabActiveSessionId(
+  scope: ChatSessionScope,
+  sessionId: string,
+): void {
+  try {
+    if (sessionId) {
+      window.sessionStorage.setItem(activeSessionStorageKey(scope), sessionId);
+    } else {
+      window.sessionStorage.removeItem(activeSessionStorageKey(scope));
+    }
+  } catch {
+    // Tab storage can be unavailable in restricted browser contexts.
+  }
+}
 
 export interface UseConversationSessionsResult {
   hydrated: boolean;
@@ -32,6 +64,14 @@ export interface UseConversationSessionsResult {
     message: ChatMessage & { id: string; role: "user" },
   ) => Promise<void>;
   persistAssistantMessage: (
+    sessionId: string,
+    message: ChatMessage & { id: string; role: "assistant" },
+  ) => Promise<void>;
+  persistPendingAssistantMessage: (
+    sessionId: string,
+    message: ChatMessage & { id: string; role: "assistant" },
+  ) => Promise<void>;
+  settlePendingAssistantMessage: (
     sessionId: string,
     message: ChatMessage & { id: string; role: "assistant" },
   ) => Promise<void>;
@@ -178,6 +218,9 @@ export function useConversationSessions(
     Record<string, ChatMessage[]>
   >({});
   const [activeSessionId, setActiveSessionId] = useState("");
+  const [recoveringSessionIds, setRecoveringSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const locallyCreatedSessionIdsRef = useRef(new Set<string>());
   const preferredSessionIdRef = useRef(preferredSessionId);
@@ -209,6 +252,15 @@ export function useConversationSessions(
         ...previous,
         [conversationId]: mapped.messages,
       }));
+      setRecoveringSessionIds((previous) => {
+        const alreadyRecovering = previous.has(conversationId);
+        if (alreadyRecovering === mapped.hasRunningTurns) return previous;
+        const next = new Set(previous);
+        if (mapped.hasRunningTurns) next.add(conversationId);
+        else next.delete(conversationId);
+        return next;
+      });
+      return mapped.hasRunningTurns;
     },
     [conversationClient],
   );
@@ -217,6 +269,7 @@ export function useConversationSessions(
     let cancelled = false;
     locallyCreatedSessionIdsRef.current = new Set();
     setActiveSessionId("");
+    setRecoveringSessionIds(new Set());
     if (!persistenceEnabled) {
       setSessions([]);
       setMessagesBySession({});
@@ -242,7 +295,7 @@ export function useConversationSessions(
         });
         const firstId = preferredHydratedSessionId(
           loaded,
-          preferredSessionIdRef.current,
+          preferredSessionIdRef.current ?? readTabActiveSessionId(scope),
         );
         setActiveSessionId((current) =>
           preserveActiveSessionId(current, firstId),
@@ -270,12 +323,26 @@ export function useConversationSessions(
     return () => {
       cancelled = true;
     };
-  }, [
-    conversationClient,
-    loadDetail,
+  }, [conversationClient, loadDetail, persistenceEnabled, scope]);
+
+  const handleRunningTurnRefreshError = useCallback((error: unknown) => {
+    setPersistenceError(
+      error instanceof Error ? error.message : "Conversation refresh failed",
+    );
+  }, []);
+  useRunningTurnRecovery({
+    activeSessionId,
+    hydrated,
     persistenceEnabled,
-    scope,
-  ]);
+    recoveringSessionIds,
+    loadDetail,
+    onError: handleRunningTurnRefreshError,
+  });
+
+  useEffect(() => {
+    if (!hydrated || !persistenceEnabled) return;
+    writeTabActiveSessionId(scope, activeSessionId);
+  }, [activeSessionId, hydrated, persistenceEnabled, scope]);
 
   const orderedSessions = useMemo(
     () =>
@@ -422,8 +489,9 @@ export function useConversationSessions(
     [actorLogin, conversationClient],
   );
 
-  const persistAssistantMessage = useCallback(
+  const saveAssistantMessage = useCallback(
     async (
+      mode: AssistantMessagePersistenceMode,
       sessionId: string,
       message: ChatMessage & { id: string; role: "assistant" },
     ) => {
@@ -432,23 +500,18 @@ export function useConversationSessions(
         throw new Error("Conversation save requires a signed-in user");
       const session = sessionsRef.current.find((item) => item.id === sessionId);
       try {
-        await conversationClient.command(sessionId, {
-          kind: "append-message",
+        await persistAssistantConversationMessage({
+          client: conversationClient,
           actorLogin: login,
-          entryId: message.id,
-          idempotencyKey: message.id,
-          role: "assistant",
-          agent: message.agent ??
-            session?.agencyAgent ?? { slug: "kody", title: "Kody" },
-          content: message.text,
-          view: message.view,
-          status: "committed",
-          turnId: message.turnId ?? message.id,
-          attachmentIds: message.attachments?.map((item) =>
-            storedAttachmentId(item.id),
-          ),
-          createdAt: message.timestamp,
+          sessionId,
+          message,
+          fallbackAgent: session?.agencyAgent ?? {
+            slug: "kody",
+            title: "Kody",
+          },
+          mode,
         });
+        setPersistenceError(null);
       } catch (error) {
         setPersistenceError(
           error instanceof Error ? error.message : "Conversation save failed",
@@ -457,6 +520,28 @@ export function useConversationSessions(
       }
     },
     [actorLogin, conversationClient],
+  );
+
+  const persistAssistantMessage = useCallback(
+    (
+      sessionId: string,
+      message: ChatMessage & { id: string; role: "assistant" },
+    ) => saveAssistantMessage("append-committed", sessionId, message),
+    [saveAssistantMessage],
+  );
+  const persistPendingAssistantMessage = useCallback(
+    (
+      sessionId: string,
+      message: ChatMessage & { id: string; role: "assistant" },
+    ) => saveAssistantMessage("append-pending", sessionId, message),
+    [saveAssistantMessage],
+  );
+  const settlePendingAssistantMessage = useCallback(
+    (
+      sessionId: string,
+      message: ChatMessage & { id: string; role: "assistant" },
+    ) => saveAssistantMessage("settle-pending", sessionId, message),
+    [saveAssistantMessage],
   );
 
   const setSessionMessages = useCallback(
@@ -722,6 +807,8 @@ export function useConversationSessions(
     persistenceError,
     persistUserMessage,
     persistAssistantMessage,
+    persistPendingAssistantMessage,
+    settlePendingAssistantMessage,
     setMessages,
     setSessionMessages,
     getSessionMessages: (sessionId) => messagesBySession[sessionId] ?? [],

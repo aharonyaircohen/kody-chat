@@ -143,6 +143,14 @@ describe("sendKodyDirectTurn", () => {
             type: "data-subagent-activity",
             data: {
               id: "subagent-agency-specialist",
+              phase: "heartbeat",
+              agentTitle: "Agency Specialist",
+            },
+          }),
+          chunk({
+            type: "data-subagent-activity",
+            data: {
+              id: "subagent-agency-specialist",
               phase: "reasoning",
               agentTitle: "Agency Specialist",
               reasoningDelta: "I checked the seven ",
@@ -183,6 +191,10 @@ describe("sendKodyDirectTurn", () => {
         activityKind: "subagent",
         displayName: "Agency Specialist",
         description: "Working on delegated specialist research.",
+      },
+      {
+        type: "reasoning",
+        text: "​",
       },
       {
         type: "reasoning",

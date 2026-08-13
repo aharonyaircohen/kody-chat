@@ -17,7 +17,10 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "../../../../../src/dashboard/lib/github-client";
-import { dashboardFileUrl, dashboardTaskUrl } from "../../../../../src/dashboard/lib/thread-link";
+import {
+  dashboardFileUrl,
+  dashboardTaskUrl,
+} from "../../../../../src/dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -607,6 +610,113 @@ export function createGitHubTools(ctx: Ctx) {
           return {
             error:
               err instanceof Error ? err.message : "Failed to list commits",
+          };
+        }
+      },
+    }),
+
+    github_list_commits: tool({
+      description:
+        `Page through repository-wide commit history for ${owner}/${repo}. ` +
+        "Use it to assess contributor activity, cadence, and ownership patterns without treating commit counts as productivity.",
+      inputSchema: z.object({
+        page: z.number().int().min(1).max(10).optional().default(1),
+        perPage: z.number().int().min(1).max(100).optional().default(100),
+        since: z.string().datetime().optional(),
+        until: z.string().datetime().optional(),
+      }),
+      execute: async ({ page, perPage, since, until }) => {
+        try {
+          const res = await octokit.rest.repos.listCommits({
+            owner,
+            repo,
+            page,
+            per_page: perPage,
+            since,
+            until,
+          });
+          return {
+            page,
+            count: res.data.length,
+            commits: res.data.map((c) => ({
+              sha: c.sha.slice(0, 8),
+              date: c.commit.author?.date ?? c.commit.committer?.date ?? null,
+              author: c.author?.login ?? c.commit.author?.name ?? null,
+              message: c.commit.message.split("\n")[0] ?? "",
+              url: c.html_url,
+            })),
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo, page }, "github_list_commits failed");
+          return {
+            error:
+              err instanceof Error ? err.message : "Failed to list commits",
+          };
+        }
+      },
+    }),
+
+    github_list_workflow_runs: tool({
+      description:
+        `Page through GitHub Actions runs for ${owner}/${repo}. ` +
+        "Use it to measure delivery reliability, recurring failures, duration, triggering events, and manual bottlenecks.",
+      inputSchema: z.object({
+        page: z.number().int().min(1).max(10).optional().default(1),
+        perPage: z.number().int().min(1).max(100).optional().default(100),
+        status: z
+          .enum([
+            "completed",
+            "action_required",
+            "cancelled",
+            "failure",
+            "neutral",
+            "skipped",
+            "stale",
+            "success",
+            "timed_out",
+            "in_progress",
+            "queued",
+            "requested",
+            "waiting",
+            "pending",
+          ])
+          .optional(),
+      }),
+      execute: async ({ page, perPage, status }) => {
+        try {
+          const res = await octokit.rest.actions.listWorkflowRunsForRepo({
+            owner,
+            repo,
+            page,
+            per_page: perPage,
+            status,
+          });
+          return {
+            page,
+            totalCount: res.data.total_count,
+            runs: res.data.workflow_runs.map((run) => ({
+              id: run.id,
+              name: run.name ?? null,
+              event: run.event,
+              status: run.status,
+              conclusion: run.conclusion,
+              startedAt: run.run_started_at,
+              updatedAt: run.updated_at,
+              actor: run.actor?.login ?? null,
+              sha: run.head_sha.slice(0, 8),
+              url: run.html_url,
+            })),
+          };
+        } catch (err) {
+          logger.warn(
+            { err, owner, repo, page },
+            "github_list_workflow_runs failed",
+          );
+          return {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to list workflow runs",
           };
         }
       },

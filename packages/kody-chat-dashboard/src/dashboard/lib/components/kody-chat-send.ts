@@ -210,6 +210,12 @@ export function classifyTurnFailure(err: unknown): TurnFailure {
   return isAbort ? { kind: "abort", message } : { kind: "error", message };
 }
 
+export function shouldPreservePendingDirectTurn(
+  visibilityState: DocumentVisibilityState | undefined,
+): boolean {
+  return visibilityState === "hidden";
+}
+
 /** Pure decision: (backend, failure) → how the turn settles. */
 export function settleDecision(
   backend: SettleBackend,
@@ -264,7 +270,7 @@ export function applySettleDecision(
           ...filtered,
           {
             role: "assistant",
-            content: `Error: ${decision.errorMessage}`,
+            content: `Error: ${decision.errorMessage}\n\nWould you like me to try again?`,
             isLoading: false,
             isError: true,
           },
@@ -412,7 +418,7 @@ export interface SendTextDeps {
   ) => void;
   setLoading: (loading: boolean) => void;
   setToolCalls: (toolCalls: ToolCall[]) => void;
-  setSelectedAgentId: (id: AgentId) => void;
+  selectAgentEntry: (entry: ChatDropdownEntry) => void;
   setVoiceOverlayOpen: (open: boolean) => void;
   setCompactionStatus: (status: CompactionStatus) => void;
   // Refs (read at send time)
@@ -505,7 +511,7 @@ async function runSendTextInner(
     setMessagesForSession,
     setLoading,
     setToolCalls,
-    setSelectedAgentId,
+    selectAgentEntry,
     setVoiceOverlayOpen,
     setCompactionStatus,
     currentPageRef,
@@ -790,28 +796,41 @@ async function runSendTextInner(
         .find((item) => item.role === "assistant" && !item.isLoading);
     if (!message || message.isLoading) return;
     const stored = messageToChat(message);
-    await sessionHook
-      .persistAssistantMessage(uiSessionId, {
-        ...stored,
-        id: stored.id ?? `assistant:${durableTurnId}`,
-        role: "assistant",
-        turnId: durableTurnId,
-      })
-      .catch(() => undefined);
+    const persistence =
+      effectiveAgent.backend === "kody-direct"
+        ? sessionHook.settlePendingAssistantMessage
+        : sessionHook.persistAssistantMessage;
+    await persistence(uiSessionId, {
+      ...stored,
+      id: stored.id ?? `assistant:${durableTurnId}`,
+      role: "assistant",
+      turnId: durableTurnId,
+    }).catch(() => undefined);
   };
 
   // Placeholder assistant message — will be replaced by SSE events
-  setMessages((prev) => [
-    ...prev,
-    {
-      id: `assistant:${durableTurnId}`,
-      turnId: durableTurnId,
-      role: "assistant",
-      content: "",
-      isLoading: true,
-      timestamp: new Date().toISOString(),
-    },
-  ]);
+  const pendingAssistantMessage = {
+    id: `assistant:${durableTurnId}`,
+    turnId: durableTurnId,
+    role: "assistant" as const,
+    content: "",
+    isLoading: true,
+    timestamp: new Date().toISOString(),
+  };
+  setMessages((prev) => [...prev, pendingAssistantMessage]);
+  if (effectiveAgent.backend === "kody-direct") {
+    await sessionHook
+      .persistPendingAssistantMessage(uiSessionId, {
+        id: pendingAssistantMessage.id,
+        turnId: durableTurnId,
+        role: "assistant",
+        text: "",
+        isLoading: true,
+        timestamp: pendingAssistantMessage.timestamp,
+        agent: preparedTurn.speaker,
+      })
+      .catch(() => undefined);
+  }
 
   // ─── Brain backend: sync SSE stream from a Brain server ───
   // Two flavors share this branch, distinguished by selectedAgentId:
@@ -1306,7 +1325,6 @@ async function runSendTextInner(
       // speaking the confirmation sentence.
       if (pendingSwitchAgent && isSwitchAgentDirective(pendingSwitchAgent)) {
         const target = pendingSwitchAgent;
-        setSelectedAgentId(target.agentId);
         // Mirror the model-emitted switch onto the active session so
         // a refresh / session re-open keeps the same agent. The
         // directive carries only `agentId` (no modelId) so we match
@@ -1318,9 +1336,8 @@ async function runSendTextInner(
             e.agentId === target.agentId &&
             (e.agentId !== "kody" || e.modelId === selectedModelId),
         );
-        const activeId = sessionHook.activeSession?.id;
-        if (activeId && targetEntry) {
-          sessionHook.setSessionAgent(activeId, targetEntry.key);
+        if (targetEntry) {
+          selectAgentEntry(targetEntry);
         }
         // If voice is active and the new agent isn't backed by the
         // in-process chat path, close the overlay. The overlay is
@@ -1391,6 +1408,15 @@ async function runSendTextInner(
       const spoken = voiceMode ? stripReasoning(textBuf) : textBuf.trim();
       return spoken || null;
     } catch (err) {
+      if (
+        shouldPreservePendingDirectTurn(
+          typeof document === "undefined"
+            ? undefined
+            : document.visibilityState,
+        )
+      ) {
+        return null;
+      }
       // Stop button fired — fetch/reader throws an AbortError. That's
       // not a real failure; the settle table maps it to settling the
       // bubble in place (SETTLE_STRATEGIES["kody-direct"]). Real

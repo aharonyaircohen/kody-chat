@@ -53,6 +53,7 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { Agent } from "../api";
+import { agentUiPermissions } from "../agent-ui-policy";
 import { KODY_CHAT_AGENT } from "@kody-ade/workspace/context/frontmatter";
 import { AGENT_TEMPLATE } from "../agent-template";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -61,11 +62,6 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { PageHeader } from "./PageShell";
 import { useChatScope } from "./ChatRailShell";
-
-/** Code-owned definitions can be locally overridden but never deleted. */
-function isCodeOwnedAgent(member: Agent): boolean {
-  return member.source === "builtin";
-}
 
 interface AgentsControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in AgentsPageTabs). */
@@ -276,6 +272,7 @@ export function AgentsControlInner({
               <ul className="divide-y divide-border">
                 {filtered.map((member) => {
                   const isActive = selectedSlug === member.slug;
+                  const permissions = agentUiPermissions(member);
                   return (
                     <li key={member.slug}>
                       {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable list row with block content; Button's inline-flex centering would break it */}
@@ -317,7 +314,7 @@ export function AgentsControlInner({
                           <span className="font-mono opacity-80">
                             {member.slug}
                           </span>
-                          {!isCodeOwnedAgent(member) ? (
+                          {!permissions.isCodeOwned ? (
                             <>
                               <span>·</span>
                               <span className="inline-flex items-center gap-1">
@@ -443,7 +440,9 @@ function StaffDetail({
   onSendTask: () => void;
 }) {
   const hasBody = member.body.trim().length > 0;
-  const isBuiltin = isCodeOwnedAgent(member);
+  const permissions = agentUiPermissions(member);
+  const canConfigure =
+    permissions.canConfigureIdentity || permissions.canConfigureSubagents;
   return (
     <article className="min-h-full">
       {/* Hero */}
@@ -473,7 +472,7 @@ function StaffDetail({
                     </span>
                   </>
                 ) : null}
-                {isBuiltin ? (
+                {permissions.isCodeOwned ? (
                   <>
                     <span>·</span>
                     <span>Built-in agentIdentity</span>
@@ -512,21 +511,27 @@ function StaffDetail({
                   <Send className="w-3.5 h-3.5" />
                 </Button>
               ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onEdit}
-                className="w-9 px-0"
-                title={
-                  member.readOnly
-                    ? "Edit — saves a repo override"
-                    : "Edit agent"
-                }
-                aria-label="Edit agent"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-              {!isBuiltin ? (
+              {canConfigure ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="w-9 px-0"
+                  title={
+                    member.slug === KODY_CHAT_AGENT
+                      ? "Configure specialists"
+                      : "Edit agent"
+                  }
+                  aria-label={
+                    member.slug === KODY_CHAT_AGENT
+                      ? "Configure specialists"
+                      : "Edit agent"
+                  }
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              ) : null}
+              {permissions.canDelete ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -555,6 +560,14 @@ function StaffDetail({
               <MarkdownPreview content={member.body} />
             </div>
           ) : null}
+          {member.whenToUse ? (
+            <div className="space-y-1">
+              <h2 className="text-sm font-medium">When to use</h2>
+              <p className="text-sm text-muted-foreground">
+                {member.whenToUse}
+              </p>
+            </div>
+          ) : null}
           {member.subagents?.length ? (
             <div className="space-y-2">
               <h2 className="text-sm font-medium">Subagents</h2>
@@ -565,6 +578,9 @@ function StaffDetail({
                     className="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 font-mono text-xs text-emerald-300"
                   >
                     {slug}
+                    {member.lockedSubagents?.includes(slug) ? (
+                      <span className="ml-1 font-sans opacity-70">default</span>
+                    ) : null}
                   </span>
                 ))}
               </div>
@@ -625,18 +641,24 @@ function CreateAgentDialog({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState(AGENT_TEMPLATE);
+  const [whenToUse, setWhenToUse] = useState("");
 
   useEffect(() => {
     if (open) {
       setTitle("");
       setBody(AGENT_TEMPLATE);
+      setWhenToUse("");
     }
   }, [open]);
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return;
     createMutation.mutate(
-      { title: title.trim(), body },
+      {
+        title: title.trim(),
+        body,
+        ...(whenToUse.trim() ? { whenToUse: whenToUse.trim() } : {}),
+      },
       {
         onSuccess: (member) => onCreated(member),
       },
@@ -668,6 +690,18 @@ function CreateAgentDialog({
           <div className="space-y-1.5">
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="agent-when-to-use">
+              When to use as a specialist
+            </Label>
+            <Input
+              id="agent-when-to-use"
+              value={whenToUse}
+              onChange={(event) => setWhenToUse(event.target.value)}
+              placeholder="Use for release coordination and CI blockers."
+              maxLength={500}
+            />
           </div>
         </div>
 
@@ -761,11 +795,13 @@ function SubagentsChecklist({
   ownerSlug,
   options,
   selected,
+  locked,
   onToggle,
 }: {
   ownerSlug: string;
   options: Agent[];
   selected: string[];
+  locked: string[];
   onToggle: (slug: string, on: boolean) => void;
 }) {
   const candidates = options.filter((agent) => agent.slug !== ownerSlug);
@@ -791,6 +827,10 @@ function SubagentsChecklist({
               <Checkbox
                 aria-label={`Assign ${agent.title} as subagent`}
                 checked={selected.includes(agent.slug)}
+                disabled={
+                  locked.includes(agent.slug) ||
+                  (!selected.includes(agent.slug) && !agent.whenToUse?.trim())
+                }
                 onCheckedChange={(on) => onToggle(agent.slug, on === true)}
               />
               <span className="min-w-0">
@@ -798,6 +838,13 @@ function SubagentsChecklist({
                 <span className="ml-2 font-mono text-muted-foreground">
                   {agent.slug}
                 </span>
+                {locked.includes(agent.slug) ? (
+                  <span className="ml-2 text-muted-foreground">Default</span>
+                ) : !agent.whenToUse?.trim() ? (
+                  <span className="ml-2 text-amber-300">
+                    Add “When to use” first
+                  </span>
+                ) : null}
               </span>
             </label>
           ))
@@ -821,12 +868,15 @@ function EditStaffDialog({
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateAgent(member.slug, githubUser?.login);
   const createMutation = useCreateAgent(githubUser?.login);
-  // Code-owned definitions have no persisted file; the first save creates a
-  // local definition that overrides the built-in.
-  const isFileless = !member.updatedAt && !member.htmlUrl;
+  const permissions = agentUiPermissions(member);
+  const configuresOnlySubagents =
+    permissions.canConfigureSubagents && !permissions.canConfigureIdentity;
+  // Store definitions have no persisted local file until the first save.
+  const isFilelessStore = member.source === "store" && !member.updatedAt;
 
   const [title, setTitle] = useState(member.title);
   const [body, setBody] = useState(member.body || "");
+  const [whenToUse, setWhenToUse] = useState(member.whenToUse ?? "");
   const [capabilities, setCapabilities] = useState<string[]>(
     member.capabilities ?? [],
   );
@@ -835,6 +885,7 @@ function EditStaffDialog({
   useEffect(() => {
     setTitle(member.title);
     setBody(member.body || "");
+    setWhenToUse(member.whenToUse ?? "");
     setCapabilities(member.capabilities ?? []);
     setSubagents(member.subagents ?? []);
   }, [member]);
@@ -854,12 +905,17 @@ function EditStaffDialog({
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending || createMutation.isPending)
       return;
-    if (isFileless) {
+    if (configuresOnlySubagents) {
+      updateMutation.mutate({ subagents }, { onSuccess: () => onSaved() });
+      return;
+    }
+    if (isFilelessStore) {
       createMutation.mutate(
         {
           slug: member.slug,
           title: title.trim(),
           body,
+          ...(whenToUse.trim() ? { whenToUse: whenToUse.trim() } : {}),
           capabilities,
           subagents,
         },
@@ -870,11 +926,15 @@ function EditStaffDialog({
     const patch: {
       title?: string;
       body?: string;
+      whenToUse?: string;
       capabilities?: string[];
       subagents?: string[];
     } = {};
     if (title !== member.title) patch.title = title.trim();
     if (body !== member.body) patch.body = body;
+    if (whenToUse !== (member.whenToUse ?? "")) {
+      patch.whenToUse = whenToUse.trim();
+    }
     if (!sameCapabilities(capabilities, member.capabilities ?? [])) {
       patch.capabilities = capabilities;
     }
@@ -892,35 +952,57 @@ function EditStaffDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-h-[calc(100vh-2rem)] max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit agent `{member.slug}`</DialogTitle>
+          <DialogTitle>
+            {configuresOnlySubagents
+              ? "Configure Kody specialists"
+              : `Edit agent \`${member.slug}\``}
+          </DialogTitle>
           <DialogDescription>
-            Update the agent&apos;s title or body. Saving commits the file to
-            the default branch.
+            {configuresOnlySubagents
+              ? "The six built-in specialists stay assigned. You can add configured Agents."
+              : "Update this Agent's identity, routing guidance, and assignments."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-agent-title">Title</Label>
-            <Input
-              id="edit-agent-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Body</Label>
-            <MarkdownEditor value={body} onChange={setBody} rows={14} />
-          </div>
-          <CapabilitiesChecklist
-            selected={capabilities}
-            onToggle={toggleCapability}
-          />
+          {!configuresOnlySubagents ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-agent-title">Title</Label>
+                <Input
+                  id="edit-agent-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-agent-when-to-use">
+                  When to use as a specialist
+                </Label>
+                <Input
+                  id="edit-agent-when-to-use"
+                  value={whenToUse}
+                  onChange={(event) => setWhenToUse(event.target.value)}
+                  placeholder="Use for release coordination and CI blockers."
+                  maxLength={500}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Body</Label>
+                <MarkdownEditor value={body} onChange={setBody} rows={14} />
+              </div>
+              <CapabilitiesChecklist
+                selected={capabilities}
+                onToggle={toggleCapability}
+              />
+            </>
+          ) : null}
           <SubagentsChecklist
             ownerSlug={member.slug}
             options={availableAgents}
             selected={subagents}
+            locked={member.lockedSubagents ?? []}
             onToggle={toggleSubagent}
           />
         </div>
@@ -932,9 +1014,15 @@ function EditStaffDialog({
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={!title.trim() || updateMutation.isPending}
+            disabled={
+              !title.trim() ||
+              updateMutation.isPending ||
+              createMutation.isPending
+            }
           >
-            {updateMutation.isPending ? "Saving…" : "Save changes"}
+            {updateMutation.isPending || createMutation.isPending
+              ? "Saving…"
+              : "Save changes"}
           </Button>
         </div>
       </DialogContent>

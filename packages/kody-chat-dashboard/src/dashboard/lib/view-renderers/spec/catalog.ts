@@ -47,6 +47,7 @@ const SPEC_FIELD_SCHEMA = z
   .object({
     name: z.string().trim().min(1).max(128),
     label: z.string().trim().min(1).max(256),
+    description: z.string().trim().min(1).max(500).optional(),
     value: z.string().max(10_000).optional(),
     inputType: z.enum(["text", "password"]).optional(),
   })

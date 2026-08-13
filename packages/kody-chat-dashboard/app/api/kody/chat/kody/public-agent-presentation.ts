@@ -4,9 +4,11 @@ import { generateText, stepCountIs, type ToolSet } from "ai";
 import {
   CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   EXCLUSIVE_TOOL_OUTPUT_MODE,
+  FINAL_ANSWER_FOLLOW_UP_ERROR,
   FINAL_ANSWER_TOOL,
   finalAnswerRequestsInteraction,
   getFinalAnswerContent,
+  getToolErrorMessage,
   isToolErrorOutput,
   SHOW_VIEW_TOOL,
   selectChatOutputToolChoice,
@@ -26,10 +28,7 @@ const PUBLIC_AGENT_PRESENTATION_TIMEOUT_MS = 25_000;
 const INTERACTIVE_PRESENTATION_TEXT = "Interactive response presented.";
 const INTERACTIVE_PRESENTATION_FAILURE =
   "I couldn't open the required interaction. Please retry.";
-const OUTPUT_TOOL_NAMES = new Set<string>([
-  FINAL_ANSWER_TOOL,
-  SHOW_VIEW_TOOL,
-]);
+const OUTPUT_TOOL_NAMES = new Set<string>([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]);
 
 interface PresentationToolCall {
   toolCallId: string;
@@ -80,8 +79,7 @@ async function renderCreationFallback({
 }): Promise<boolean> {
   const input = creationFormInput(userText);
   const showView = presentationTools[SHOW_VIEW_TOOL] as
-    | { execute?: (value: unknown) => Promise<unknown> }
-    | undefined;
+    { execute?: (value: unknown) => Promise<unknown> } | undefined;
   if (!input || !showView?.execute) return false;
   const output = await showView.execute(input);
   if (isToolErrorOutput(output)) return false;
@@ -194,14 +192,29 @@ export async function presentPublicAgentResponse({
         providerCapabilities,
       ),
       prepareStep: ({ steps }) => {
-        const rejectedFinalAnswer = steps.some((step) =>
-          (step.toolResults ?? []).some(
-            (result) =>
-              result.toolName === FINAL_ANSWER_TOOL &&
-              isToolErrorOutput(result.output),
+        const finalAnswerErrors = steps.flatMap((step) =>
+          (step.toolResults ?? []).flatMap((result) =>
+            result.toolName === FINAL_ANSWER_TOOL
+              ? [getToolErrorMessage(result.output)]
+              : [],
           ),
         );
-        if (!rejectedFinalAnswer) return {};
+        if (finalAnswerErrors.includes(FINAL_ANSWER_FOLLOW_UP_ERROR)) {
+          return {
+            activeTools: [FINAL_ANSWER_TOOL],
+            toolChoice: selectChatOutputToolChoice(
+              [FINAL_ANSWER_TOOL],
+              providerCapabilities,
+            ),
+            system: [
+              system,
+              "Your final_answer was rejected because it had no follow-up question. Retry final_answer with one short, relevant, non-blocking question at the end. Do not call show_view for this correction.",
+            ].join("\n"),
+          };
+        }
+        if (!finalAnswerErrors.some(Boolean)) {
+          return {};
+        }
         return {
           activeTools: [SHOW_VIEW_TOOL],
           toolChoice: selectChatOutputToolChoice(

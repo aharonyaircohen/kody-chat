@@ -7,6 +7,7 @@ import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentRouteDecision } from "./public-agent-routing";
 
 export interface PublicAgentCapability {
+  slug?: string;
   instructions: string;
   capabilityTools: Array<{ name: string }>;
 }
@@ -27,6 +28,7 @@ interface OrchestratePublicAgentTurnOptions {
   invoke(input: {
     agent: PublicDelegationAgent;
     task: string;
+    assignmentIndex: number;
     capabilities: PublicAgentCapability[];
     tools: Record<string, unknown>;
   }): Promise<PublicAgentTaskResult>;
@@ -77,15 +79,27 @@ export async function orchestratePublicAgentTurn({
   const results = await runPublicAgentAssignments({
     assignments: decision.assignments,
     assignedAgents,
-    invoke: async ({ agent, task }) => {
-      const capabilities = capabilitiesByAgent.get(agent.slug) ?? [];
+    invoke: async ({ agent, task, capability, assignmentIndex }) => {
+      const allCapabilities = capabilitiesByAgent.get(agent.slug) ?? [];
+      const selected = capability
+        ? allCapabilities.find(({ slug }) => slug === capability)
+        : null;
+      if (capability && !selected) {
+        throw new Error(`Assigned capability was not loaded: ${capability}`);
+      }
+      const baseSlug = `builtin-agent-${agent.slug}`;
+      const capabilities = selected
+        ? allCapabilities.filter(
+            ({ slug }) => slug === baseSlug || slug === capability,
+          )
+        : allCapabilities;
       const tools = selectPublicAgentTools({
         availableTools: specialistTools,
         capabilityToolNames: capabilities.flatMap((capability) =>
           capability.capabilityTools.map((tool) => tool.name),
         ),
       });
-      return invoke({ agent, task, capabilities, tools });
+      return invoke({ agent, task, assignmentIndex, capabilities, tools });
     },
   });
   const completed = results.some((result) => result.status === "completed");

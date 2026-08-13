@@ -14,6 +14,7 @@ import {
 import {
   familySnapEntry,
   resolveDefaultAgentEntry,
+  resolveSelectedAgentEntry,
 } from "../../../src/dashboard/lib/components/kody-chat-selection";
 
 const MODELS: ChatModelEntry[] = [
@@ -36,21 +37,19 @@ function list(opts?: {
 }
 
 describe("resolveDefaultAgentEntry", () => {
-  it("prefers the Settings → 'Default chat' pick when present in the list", () => {
+  it("uses the configured default model", () => {
     const agentList = list({ models: MODELS, brain: true });
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: "kody:claude-sonnet",
       chatModels: MODELS,
       brainConfigured: true,
       agentList,
     });
-    expect(entry?.key).toBe("kody:claude-sonnet");
+    expect(entry?.key).toBe("kody:gpt-5");
   });
 
   it("falls back to the legacy default-flagged model when no saved pick", () => {
     const agentList = list({ models: MODELS });
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: null,
       chatModels: MODELS,
       brainConfigured: false,
       agentList,
@@ -65,7 +64,6 @@ describe("resolveDefaultAgentEntry", () => {
     ];
     const agentList = list({ models });
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: null,
       chatModels: models,
       brainConfigured: false,
       agentList,
@@ -77,7 +75,6 @@ describe("resolveDefaultAgentEntry", () => {
   it("returns no visible entry when no custom model exists", () => {
     const agentList = list({ brain: true });
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: null,
       chatModels: [],
       brainConfigured: true,
       agentList,
@@ -88,7 +85,6 @@ describe("resolveDefaultAgentEntry", () => {
   it("returns no visible entry when nothing is configured", () => {
     const agentList = list();
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: null,
       chatModels: [],
       brainConfigured: false,
       agentList,
@@ -99,7 +95,6 @@ describe("resolveDefaultAgentEntry", () => {
   it("does not expose an internal Fly runner as a model", () => {
     const agentList = list({ fly: true });
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: null,
       chatModels: [],
       brainConfigured: false,
       agentList,
@@ -110,7 +105,6 @@ describe("resolveDefaultAgentEntry", () => {
   it("ignores a saved pick that no longer resolves to a row", () => {
     const agentList = list();
     const entry = resolveDefaultAgentEntry({
-      defaultChatEntryKey: "kody:removed-model",
       chatModels: [],
       brainConfigured: false,
       agentList,
@@ -145,5 +139,21 @@ describe("familySnapEntry", () => {
 
   it("returns null for keys outside the known families", () => {
     expect(familySnapEntry("something-else", list())).toBeNull();
+  });
+});
+
+describe("resolveSelectedAgentEntry", () => {
+  it("uses the saved model for an existing conversation", () => {
+    const agentList = list({ models: MODELS });
+    const defaultEntry = agentList.find((entry) => entry.key === "kody:gpt-5")!;
+    expect(
+      resolveSelectedAgentEntry({
+        activeSessionId: "conversation-1",
+        activeSessionAgentKey: "kody:claude-sonnet",
+        draftEntryKey: "kody-live",
+        defaultEntry,
+        agentList,
+      })?.key,
+    ).toBe("kody:claude-sonnet");
   });
 });

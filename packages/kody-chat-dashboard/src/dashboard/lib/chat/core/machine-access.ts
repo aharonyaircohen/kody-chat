@@ -47,37 +47,11 @@ export function modelEntriesForMachineAccess<T extends MachineSelectableEntry>(
   return entries.filter((entry) => !isBrainEntry(entry));
 }
 
-export interface ReconciledMachineSelection<T extends MachineSelectableEntry> {
-  machineAccess: MachineAccess;
-  replacementEntry?: T;
-}
-
-export function reconcileMachineSelection<
-  T extends MachineSelectableEntry,
->(input: {
-  entries: readonly T[];
-  machineAccess: MachineAccess;
-  selectedAgentId: string;
-  selectedModelId: string | null;
-}): ReconciledMachineSelection<T> {
-  const compatibleEntries = modelEntriesForMachineAccess(
-    input.entries,
-    input.machineAccess,
-  );
-  const currentIsCompatible = compatibleEntries.some(
-    (entry) =>
-      entry.agentId === input.selectedAgentId &&
-      (entry.modelId ?? null) === input.selectedModelId,
-  );
-  if (currentIsCompatible) return { machineAccess: input.machineAccess };
-  if (compatibleEntries[0]) {
-    return {
-      machineAccess: input.machineAccess,
-      replacementEntry: compatibleEntries[0],
-    };
-  }
-  if (input.machineAccess !== "none") {
-    return reconcileMachineSelection({ ...input, machineAccess: "none" });
-  }
-  return { machineAccess: "none" };
+export function machineAccessForEntrySelection(
+  entry: MachineSelectableEntry,
+  current: MachineAccess,
+): MachineAccess {
+  if (isBrainEntry(entry)) return "brain";
+  if (current === "local" && entry.agentId === "kody") return "local";
+  return "none";
 }

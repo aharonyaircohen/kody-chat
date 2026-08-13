@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   availableMachineAccessOptions,
+  machineAccessForEntrySelection,
   machineAccessForRuntime,
   modelEntriesForMachineAccess,
-  reconcileMachineSelection,
   type MachineAccess,
 } from "../../../src/dashboard/lib/chat/core/machine-access";
 import type { ChatDropdownEntry } from "../../../src/dashboard/lib/chat/platform/agent-entries";
@@ -55,28 +55,12 @@ describe("machine access", () => {
     ]);
   });
 
-  it("repairs an incompatible persisted machine and model pair", () => {
-    expect(
-      reconcileMachineSelection({
-        entries,
-        machineAccess: "brain",
-        selectedAgentId: "kody",
-        selectedModelId: "model-b",
-      }),
-    ).toEqual({
-      machineAccess: "brain",
-      replacementEntry: entries[1],
-    });
+  it("keeps model ownership with the picker when machine access is incompatible", () => {
+    expect(machineAccessForEntrySelection(entries[2]!, "brain")).toBe("none");
   });
 
-  it("falls back to no access when the persisted machine is unavailable", () => {
-    expect(
-      reconcileMachineSelection({
-        entries: [entries[0]!, entries[2]!],
-        machineAccess: "brain",
-        selectedAgentId: "kody",
-        selectedModelId: "model-b",
-      }),
-    ).toEqual({ machineAccess: "none" });
+  it("keeps compatible machine access when the picker changes model", () => {
+    expect(machineAccessForEntrySelection(entries[2]!, "local")).toBe("local");
+    expect(machineAccessForEntrySelection(entries[1]!, "none")).toBe("brain");
   });
 });

@@ -38,7 +38,11 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
     slug: string;
     title: string;
     body: string;
+    whenToUse?: string;
     subagents?: string[];
+    lockedSubagents?: string[];
+    source?: "local" | "builtin" | "store";
+    readOnly?: boolean;
     updatedAt: string;
     htmlUrl: string;
   }> = [
@@ -46,14 +50,28 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
       slug: "kody",
       title: "Kody",
       body: "Coordinates the team.",
-      subagents: [],
-      updatedAt: "2026-08-01T00:00:00.000Z",
+      subagents: ["context-scout"],
+      lockedSubagents: ["context-scout"],
+      source: "builtin",
+      readOnly: true,
+      updatedAt: "",
+      htmlUrl: "",
+    },
+    {
+      slug: "context-scout",
+      title: "Context Scout",
+      body: "Finds relevant context.",
+      whenToUse: "Use for memory, documentation, and context.",
+      source: "builtin",
+      readOnly: true,
+      updatedAt: "",
       htmlUrl: "",
     },
     {
       slug: "agency-specialist",
       title: "Agency Specialist",
       body: "Manages the AI Agency.",
+      whenToUse: "Use for Agency configuration and governance.",
       updatedAt: "2026-08-01T00:00:00.000Z",
       htmlUrl: "",
     },
@@ -113,25 +131,33 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "Kody" })).toBeVisible();
-  await page.getByRole("button", { name: "Edit agent" }).click();
-  const dialog = page.getByRole("dialog", { name: "Edit agent `kody`" });
+  await page.getByRole("button", { name: "Configure specialists" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Configure Kody specialists",
+  });
   await expect(dialog).toContainText("Subagents");
+  await expect(
+    dialog.getByRole("checkbox", { name: "Assign Context Scout as subagent" }),
+  ).toBeDisabled();
   await dialog.getByText("Agency Specialist", { exact: true }).click();
   await dialog.getByRole("button", { name: "Save changes" }).click();
 
-  await expect.poll(() => savedSubagents).toEqual(["agency-specialist"]);
+  await expect
+    .poll(() => savedSubagents)
+    .toEqual(["context-scout", "agency-specialist"]);
   expect(failures).toEqual([]);
 });
 
-test("code-owned Kody shows its six assigned built-in specialists", async ({
+test("code-owned Kody shows its seven assigned built-in specialists", async ({
   page,
 }) => {
   const failures: string[] = [];
   const specialistSlugs = [
     "context-scout",
+    "cto",
     "repository-analyst",
     "operations-specialist",
-    "agency-architect",
+    "agency-specialist",
     "system-admin",
     "ui-vibe-specialist",
   ];
@@ -141,6 +167,7 @@ test("code-owned Kody shows its six assigned built-in specialists", async ({
       title: "Kody",
       body: "Coordinates focused specialist work.",
       subagents: specialistSlugs,
+      lockedSubagents: specialistSlugs,
       source: "builtin",
       readOnly: true,
       updatedAt: "",
@@ -153,6 +180,7 @@ test("code-owned Kody shows its six assigned built-in specialists", async ({
         .map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`)
         .join(" "),
       body: `Owns ${slug} work.`,
+      whenToUse: `Use for ${slug} work.`,
       source: "builtin",
       readOnly: true,
       updatedAt: "",
@@ -201,11 +229,14 @@ test("code-owned Kody shows its six assigned built-in specialists", async ({
   await page.goto(`/repo/${OWNER}/${REPO}/agents/kody`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page.getByRole("heading", { name: "Kody" })).toBeVisible();
+  const kodyDetail = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Kody", exact: true }),
+  });
+  await expect(kodyDetail).toBeVisible();
   for (const slug of specialistSlugs) {
-    await expect(page.getByText(slug, { exact: true }).last()).toBeVisible();
+    await expect(kodyDetail.getByText(slug)).toBeVisible();
   }
-  await expect(page.getByText("Built-in", { exact: true })).toHaveCount(7);
+  await expect(page.getByText("Built-in", { exact: true })).toHaveCount(8);
   await expect(page.getByRole("button", { name: "Delete agent" })).toHaveCount(
     0,
   );

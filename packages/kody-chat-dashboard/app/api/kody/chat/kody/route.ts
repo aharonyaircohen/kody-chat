@@ -113,9 +113,11 @@ import {
   CHAT_OUTPUT_CONTRACT_DATA_TYPE,
   CHAT_OUTPUT_TOOL_NAMES,
   EXCLUSIVE_TOOL_OUTPUT_MODE,
+  FINAL_ANSWER_FOLLOW_UP_ERROR,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
   isFinalAnswerOutput,
+  getToolErrorMessage,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
@@ -135,6 +137,7 @@ import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-rend
 import { buildViewComponentRules } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
 import {
   shouldAllowPreRenderToolCallsForTurn,
+  shouldRequireStructuredViewForTurn,
   shouldRequireViewOutputForTurn,
 } from "../../../../../src/dashboard/lib/view-renderers/chat-intent";
 import { createCommandTools } from "../tools/commands-tools";
@@ -184,8 +187,16 @@ import {
   parseExplicitViewRequest,
 } from "./view-request";
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
-import { isClearlyConversationalTurn } from "./public-agent-routing";
+import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
+import {
+  buildProjectAssessmentIntakeInstruction,
+  buildProjectAssessmentIntakeSpec,
+  isCompleteProjectAssessmentRequest,
+  isClearlyConversationalTurn,
+  isParentOwnedArchitectureAdvice,
+} from "./public-agent-routing";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
+import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { shouldRoutePublicAgentChat } from "./public-agent-routing";
 
 export const runtime = "nodejs";
@@ -565,6 +576,38 @@ function getLatestUserText(messages: ModelMessage[]): string | null {
   return null;
 }
 
+function specialistRoutingContext(
+  messages: ModelMessage[],
+): string | undefined {
+  const latestUserIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  if (latestUserIndex <= 0) return undefined;
+  const context = messages
+    .slice(Math.max(0, latestUserIndex - 6), latestUserIndex)
+    .filter(
+      (message) => message.role === "user" || message.role === "assistant",
+    )
+    .map((message) => {
+      const content =
+        typeof message.content === "string"
+          ? message.content
+          : Array.isArray(message.content)
+            ? message.content
+                .map((part) => (part.type === "text" ? part.text : ""))
+                .filter(Boolean)
+                .join("\n")
+            : "";
+      return content.trim()
+        ? `${message.role === "user" ? "User" : "Assistant"}: ${content.trim()}`
+        : "";
+    })
+    .filter(Boolean)
+    .join("\n")
+    .slice(-4000);
+  return context || undefined;
+}
+
 function requestWithAuth(req: NextRequest, auth: RequestAuth): NextRequest {
   const headers = new Headers(req.headers);
   for (const [key, value] of Object.entries(buildKodyAuthHeaders(auth))) {
@@ -804,6 +847,11 @@ async function handleKodyDirectPost(
     ? messages
     : inlineImagePartsForTextModel(messages);
   const turnSystemInstructions: string[] = [];
+  if (isParentOwnedArchitectureAdvice(latestUserText ?? "")) {
+    turnSystemInstructions.push(
+      "This is an architecture recommendation, not a request to create anything and not a question about configured chat models. Give a direct verdict instead of an inventory or clarification question. Treat the existing Kody Chat path as the current owner and recommend extending it unless verified repository evidence proves a requirement it cannot satisfy. Explain the ownership tradeoff briefly, do not confuse chat systems with configured models or providers, and end with one relevant non-blocking follow-up question.",
+    );
+  }
   const repo = getRequestAuth(repoScopedReq);
   const durableIdentity =
     verifiedActorGithubId !== null &&
@@ -1134,6 +1182,16 @@ async function handleKodyDirectPost(
       { status: 400 },
     );
   }
+  const startRequestDurableTurn = durableIdentity
+    ? () =>
+        startDurableTurn(durableIdentity, {
+          onProgressError: (error) =>
+            traceError(
+              { traceId, err: formatProviderError(error) },
+              "kody-direct: durable turn progress write failed",
+            ),
+        })
+    : null;
 
   // Capabilities attached to the agent: load each one's prompt (folded into
   // the agent identity so the model follows it) and its tool names (unioned
@@ -1170,7 +1228,19 @@ async function handleKodyDirectPost(
       userText: latestUserText,
       definitions: viewRendererDefinitions,
     });
-  let uiToolSet = createUiTools({ requireInteractiveAction });
+  const requireStructuredView =
+    !explicitViewRequest && shouldRequireStructuredViewForTurn(latestUserText);
+  const requireViewOutputForTurn =
+    requireInteractiveAction || requireStructuredView;
+  const assessmentIntakeRequested = isCompleteProjectAssessmentRequest(
+    latestUserText ?? "",
+  );
+  let uiToolSet = createUiTools({
+    requireInteractiveAction,
+    ...(assessmentIntakeRequested
+      ? { forcedViewInput: buildProjectAssessmentIntakeSpec() }
+      : {}),
+  });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
     if (verifiedActorGithubId === null) {
@@ -1182,6 +1252,9 @@ async function handleKodyDirectPost(
     uiToolSet = createUiTools({
       viewRendererDefinitions,
       requireInteractiveAction,
+      ...(assessmentIntakeRequested
+        ? { forcedViewInput: buildProjectAssessmentIntakeSpec() }
+        : {}),
     });
     const workflowApi = createWorkflowApiClient({
       request: repoScopedReq,
@@ -1563,6 +1636,7 @@ async function handleKodyDirectPost(
   ) {
     const specialistChat = await handleConfiguredPublicAgentChat({
       userText: latestUserText ?? "",
+      conversationContext: specialistRoutingContext(messages),
       assignedAgents: assignedSubagentRoster,
       model,
       availableTools: allowlistedTools,
@@ -1571,19 +1645,24 @@ async function handleKodyDirectPost(
       loadCapabilities: async (agent) =>
         (
           await Promise.all(
-            (agent.capabilities ?? []).map(async (slug) =>
-              readBuiltinAgentCapability(slug) ??
-              readResolvedCapabilityFile(slug).catch(() => null),
-            ),
+            (agent.capabilities ?? []).map(async (slug) => {
+              const capability =
+                readBuiltinAgentCapability(slug) ??
+                (await readResolvedCapabilityFile(slug).catch(() => null));
+              return capability ? { slug, ...capability } : null;
+            }),
           )
         ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),
       wrapTool: wrapToolExecution,
       repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
-      maxSteps: Math.min(resolvedModel.maxSteps ?? 8, 8),
+      maxSteps: Math.min(
+        resolvedModel.maxSteps ?? PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+        PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+      ),
       providerCapabilities,
-      requireViewOutput: requireInteractiveAction,
-      ...(durableIdentity
-        ? { startDurableTurn: () => startDurableTurn(durableIdentity) }
+      requireViewOutput: requireViewOutputForTurn,
+      ...(startRequestDurableTurn
+        ? { startDurableTurn: startRequestDurableTurn }
         : {}),
       telemetry: {
         traceId,
@@ -1607,6 +1686,12 @@ async function handleKodyDirectPost(
     latestUserText ?? "",
   );
   if (
+    assessmentIntakeRequested &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL)
+  ) {
+    turnSystemInstructions.push(buildProjectAssessmentIntakeInstruction());
+  }
+  if (
     clearlyConversationalTurn &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, FINAL_ANSWER_TOOL)
   ) {
@@ -1625,8 +1710,9 @@ async function handleKodyDirectPost(
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
-    requireInteractiveAction &&
+    (requireViewOutputForTurn || assessmentIntakeRequested) &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
+  const maxTurnSteps = resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS;
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
   >;
@@ -1649,7 +1735,9 @@ async function handleKodyDirectPost(
     );
   } else if (requireViewOutput) {
     turnSystemInstructions.push(
-      "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
+      requireStructuredView && !requireInteractiveAction
+        ? "The latest user message asks to present structured data. Use read/list tools first if needed, then finish this turn with `show_view` as a clear non-interactive view. Do not invent controls or finish with `final_answer`."
+        : "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
     );
   }
   if (failedToolFamilies.length > 0) {
@@ -1803,9 +1891,9 @@ This turn includes an image from the user. For questions about what is visible i
   };
 
   let durableTurn: DurableTurn | null = null;
-  if (durableIdentity) {
+  if (startRequestDurableTurn) {
     try {
-      durableTurn = startDurableTurn(durableIdentity);
+      durableTurn = startRequestDurableTurn();
     } catch (error) {
       traceError(
         { traceId, err: formatProviderError(error) },
@@ -1813,6 +1901,11 @@ This turn includes an image from the user. For questions about what is visible i
       );
     }
   }
+  const durableProgress = createDurableTurnProgressRecorder(durableTurn);
+  const toolArguments = (input: unknown): Record<string, unknown> =>
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : {};
 
   try {
     traceLog(
@@ -1867,6 +1960,42 @@ This turn includes an image from the user. For questions about what is visible i
                             toolName: "remember" as const,
                           }
                         : ("required" as const),
+                  };
+                }
+                const missingFollowUp = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName === FINAL_ANSWER_TOOL &&
+                      getToolErrorMessage(result.output) ===
+                        FINAL_ANSWER_FOLLOW_UP_ERROR,
+                  ),
+                );
+                if (missingFollowUp) {
+                  return {
+                    activeTools: [FINAL_ANSWER_TOOL],
+                    toolChoice: selectChatOutputToolChoice(
+                      [FINAL_ANSWER_TOOL],
+                      providerCapabilities,
+                    ),
+                    system: buildTurnSystemPrompt([
+                      "Your final_answer was rejected because it had no follow-up question. Retry final_answer with one short, relevant, non-blocking question at the end. Do not call show_view for this correction.",
+                    ]),
+                  };
+                }
+                if (
+                  !requireViewOutput &&
+                  steps.length >= maxTurnSteps - 1 &&
+                  allActiveTools.includes(FINAL_ANSWER_TOOL)
+                ) {
+                  return {
+                    activeTools: [FINAL_ANSWER_TOOL],
+                    toolChoice: selectChatOutputToolChoice(
+                      [FINAL_ANSWER_TOOL],
+                      providerCapabilities,
+                    ),
+                    system: buildTurnSystemPrompt([
+                      "This is the final available step. Stop researching and call final_answer now with the best verified answer available. End with one short, relevant, non-blocking follow-up question.",
+                    ]),
                   };
                 }
                 const hasPreRenderToolResult = steps.some((step) =>
@@ -1924,7 +2053,7 @@ This turn includes an image from the user. For questions about what is visible i
           settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
           successfulToolResult(FINAL_ANSWER_TOOL),
           successfulRenderedViewResult(),
-          stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
+          stepCountIs(maxTurnSteps),
         ],
         // Per-provider thinking config so reasoning-delta chunks actually
         // reach the client. Without this, `sendReasoning: true` below has
@@ -1940,6 +2069,33 @@ This turn includes an image from the user. For questions about what is visible i
         ...(voiceMode
           ? {}
           : applyReasoning(resolvedModel, body.reasoningEffort)),
+        onChunk: ({ chunk }) => {
+          if (chunk.type === "reasoning-delta") {
+            if (!voiceMode) durableProgress.appendReasoning(chunk.text);
+            return;
+          }
+          if (
+            chunk.type === "tool-call" &&
+            chunk.toolName !== FINAL_ANSWER_TOOL
+          ) {
+            durableProgress.upsertTool({
+              id: chunk.toolCallId,
+              name: chunk.toolName,
+              arguments: toolArguments(chunk.input),
+              status: "running",
+              ...(toolDescriptionByName[chunk.toolName]
+                ? { description: toolDescriptionByName[chunk.toolName] }
+                : {}),
+            });
+            return;
+          }
+          if (
+            chunk.type === "tool-result" &&
+            chunk.toolName !== FINAL_ANSWER_TOOL
+          ) {
+            durableProgress.finishTool(chunk.toolCallId, "success");
+          }
+        },
         // Per-tool tracing. `experimental_onToolCallStart` fires before the
         // tool's `execute` is invoked; `experimental_onToolCallFinish`
         // afterward with the SDK-measured `durationMs` and a success flag.
@@ -1956,6 +2112,9 @@ This turn includes an image from the user. For questions about what is visible i
           );
         },
         experimental_onToolCallFinish: (event) => {
+          if (!event.success) {
+            durableProgress.finishTool(event.toolCall.toolCallId, "error");
+          }
           const base = {
             traceId,
             tool: event.toolCall.toolName,
@@ -2128,10 +2287,7 @@ This turn includes an image from the user. For questions about what is visible i
             const wroteTextualToolCall = containsToolCallMarkup(
               ...steps.flatMap((step) => [step.text, step.reasoningText]),
             );
-            if (
-              wroteTextualToolCall &&
-              malformedToolRetryDeadline === null
-            ) {
+            if (wroteTextualToolCall && malformedToolRetryDeadline === null) {
               malformedToolRetryDeadline = retryCount + 1;
             }
             const retryDeadline =
@@ -2159,12 +2315,36 @@ This turn includes an image from the user. For questions about what is visible i
               return;
             }
             if (
+              !requireViewOutput &&
+              !producedOutputTool &&
+              retryCount >= retryDeadline
+            ) {
+              const content =
+                "I couldn't complete a reliable answer with this model. Would you like me to retry or use another model?";
+              const toolCallId = `model-answer-recovery-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: FINAL_ANSWER_TOOL,
+                input: { content },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: { content },
+              });
+              return;
+            }
+            if (
               !shouldRetryToollessTurn({
                 producedOutputTool,
                 visibleAnswer,
                 enforceToolOutput:
                   requireViewOutput ||
-                  providerCapabilities.supportsRequiredToolChoice !== false,
+                  Object.prototype.hasOwnProperty.call(
+                    allowlistedTools,
+                    FINAL_ANSWER_TOOL,
+                  ),
                 retryCount,
                 maxRetries: retryDeadline,
               })
@@ -2185,8 +2365,8 @@ This turn includes an image from the user. For questions about what is visible i
               wroteTextualToolCall
                 ? "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute. Re-issue the operation exactly once as a REAL API tool call. Do not claim any result from the plain-text invocation."
                 : requireViewOutput
-                ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
-                : "Your previous attempt did not make a required API tool call. Plain text cannot read or change data. Re-evaluate the user's request, call the required operation tool first when an operation was requested, then finish with `final_answer`. For a conversational reply, call `final_answer` directly.",
+                  ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
+                  : "Your previous attempt did not make a required API tool call. Plain text cannot read or change data. Re-evaluate the user's request, call the required operation tool first when an operation was requested, then finish with `final_answer`. For a conversational reply, call `final_answer` directly.",
             ]);
             writer.merge(
               attempt.toUIMessageStream({

@@ -4,6 +4,7 @@ import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import type { PublicAgentTaskResult } from "./public-agent-delegation";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentRouteDecision } from "./public-agent-routing";
+import type { DurableTurn } from "../durable-turn";
 import {
   writePublicAgentResponse,
   type PublicAgentResponseWriter,
@@ -15,10 +16,10 @@ type FailedPublicAgentTaskResult = Extract<
   { status: "failed" }
 >;
 
-interface PublicAgentDurableTurn {
-  complete(text: string): Promise<void>;
-  fail(errorCode: string): Promise<void>;
-}
+type PublicAgentDurableTurn = Pick<
+  DurableTurn,
+  "recordProgress" | "complete" | "fail"
+>;
 
 interface PublicAgentOrchestrationResult {
   parentTools: Record<string, unknown>;
@@ -31,7 +32,11 @@ interface HandlePublicAgentChatOptions {
   route(): Promise<PublicAgentRouteDecision>;
   orchestrate(
     decision: PublicAgentRouteDecision,
-    onReasoningDelta: (event: { agent: string; delta: string }) => void,
+    onReasoningDelta: (event: {
+      agent: string;
+      assignmentIndex: number;
+      delta: string;
+    }) => void,
   ): Promise<PublicAgentOrchestrationResult>;
   synthesize(
     decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
@@ -42,7 +47,7 @@ interface HandlePublicAgentChatOptions {
     results: readonly PublicAgentTaskResult[],
     parentTools: Record<string, unknown>,
     writer: PublicAgentResponseWriter,
-  ) => Promise<string>;
+  ) => Promise<string | null>;
   startDurableTurn?: () => PublicAgentDurableTurn;
   formatStreamError(error: unknown): string;
   onDurableStartFailure?: (error: unknown) => void;
@@ -85,7 +90,11 @@ export async function handlePublicAgentChat({
 }: HandlePublicAgentChatOptions): Promise<PublicAgentChatResult> {
   const decision = await route();
   const runOrchestration = (
-    onReasoningDelta: (event: { agent: string; delta: string }) => void,
+    onReasoningDelta: (event: {
+      agent: string;
+      assignmentIndex: number;
+      delta: string;
+    }) => void,
   ) => orchestrate(decision, onReasoningDelta);
 
   if (decision.mode === "self") {

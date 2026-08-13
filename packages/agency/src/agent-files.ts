@@ -75,6 +75,7 @@ function agentFileFromDefinition(definition: AgentDefinition): TickFile {
       ? { capabilities: frontmatter.capabilities }
       : {}),
     ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
+    ...(frontmatter.whenToUse ? { whenToUse: frontmatter.whenToUse } : {}),
   };
 }
 
@@ -128,6 +129,7 @@ function buildRawMarkdown(opts: AgentWriteOptions): string {
     {
       ...(opts.capabilities ? { capabilities: opts.capabilities } : {}),
       ...(opts.subagents ? { subagents: opts.subagents } : {}),
+      ...(opts.whenToUse ? { whenToUse: opts.whenToUse } : {}),
     },
     titled,
   );
@@ -218,9 +220,11 @@ export async function readResolvedAgentFile(
   octokitOverride?: Octokit,
 ): Promise<AgentFile | null> {
   const local = await readAgentFile(slug);
-  if (local && local.source !== "store") return local;
   const builtin = readBuiltinAgentFile(slug);
-  if (builtin) return builtin;
+  if (builtin) {
+    return mergeBuiltinAgent(builtin, local?.source === "store" ? null : local);
+  }
+  if (local && local.source !== "store") return local;
   if (local) return local;
   const store = await listStoreAgentFiles(
     octokitOverride ?? getOctokit(),
@@ -239,12 +243,21 @@ export function mergeResolvedAgentFiles({
   store: readonly AgentFile[];
 }): AgentFile[] {
   const resolved = new Map<string, AgentFile>();
+  const builtinSlugs = new Set(builtin.map(({ slug }) => slug));
+  const localDefinitions = local.filter(
+    ({ source, slug }) => source !== "store" && !builtinSlugs.has(slug),
+  );
   for (const agent of store) resolved.set(agent.slug, agent);
   for (const agent of local.filter(({ source }) => source === "store")) {
     resolved.set(agent.slug, agent);
   }
-  for (const agent of builtin) resolved.set(agent.slug, agent);
-  for (const agent of local.filter(({ source }) => source !== "store")) {
+  for (const agent of builtin) {
+    const localAssignment = local.find(
+      ({ source, slug }) => source !== "store" && slug === agent.slug,
+    );
+    resolved.set(agent.slug, mergeBuiltinAgent(agent, localAssignment));
+  }
+  for (const agent of localDefinitions) {
     resolved.set(agent.slug, agent);
   }
   return [...resolved.values()].sort((left, right) => {
@@ -254,15 +267,54 @@ export function mergeResolvedAgentFiles({
   });
 }
 
+function mergeBuiltinAgent(
+  builtin: AgentFile,
+  localAssignment?: AgentFile | null,
+): AgentFile {
+  if (builtin.slug === "agency-specialist") {
+    return {
+      ...builtin,
+      capabilities: [
+        ...new Set([
+          ...(builtin.capabilities ?? []),
+          ...(localAssignment?.capabilities ?? []),
+        ]),
+      ],
+      subagents: [
+        ...new Set([
+          ...(builtin.subagents ?? []),
+          ...(localAssignment?.subagents ?? []),
+        ]),
+      ],
+    };
+  }
+  if (builtin.slug !== "kody") return builtin;
+  const lockedSubagents = builtin.lockedSubagents ?? builtin.subagents ?? [];
+  const additionalSubagents = (localAssignment?.subagents ?? []).filter(
+    (slug) => !lockedSubagents.includes(slug),
+  );
+  return {
+    ...builtin,
+    lockedSubagents: [...lockedSubagents],
+    subagents: [...new Set([...lockedSubagents, ...additionalSubagents])],
+  };
+}
+
 export function readResolvedAgentFromSources(
   slug: string,
   local: readonly AgentFile[],
   builtin: readonly AgentFile[],
   store: readonly AgentFile[],
 ): AgentFile | null {
+  const builtinAgent = builtin.find((agent) => agent.slug === slug);
+  if (builtinAgent) {
+    return mergeBuiltinAgent(
+      builtinAgent,
+      local.find((agent) => agent.slug === slug && agent.source !== "store"),
+    );
+  }
   return (
     local.find((agent) => agent.slug === slug) ??
-    builtin.find((agent) => agent.slug === slug) ??
     store.find((agent) => agent.slug === slug) ??
     null
   );
@@ -312,5 +364,6 @@ export async function readStoreAgentFile(
       ? { capabilities: frontmatter.capabilities }
       : {}),
     ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
+    ...(frontmatter.whenToUse ? { whenToUse: frontmatter.whenToUse } : {}),
   };
 }

@@ -98,7 +98,41 @@ function isDirectAgentAsk(text: string): boolean {
 }
 
 function isInformationalRequest(text: string): boolean {
-  return /^\s*(?:explain|describe|summarize|what|why|how)\b/i.test(text);
+  return /^\s*(?:explain|describe|summarize|what|why|how|should|(?:can|could)\s+we)\b/i.test(
+    text,
+  );
+}
+
+function isNonInteractiveOperation(text: string): boolean {
+  if (
+    !/^\s*(?:read|rewrite|publish|update|delete|remove|rename|move|copy|archive)\b/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  return !/\b(?:ask\s+(?:me|the\s+user)|allow\s+(?:me|the\s+user)|let\s+(?:me|the\s+user)|choose|select|approve|confirm|fill\s+(?:in|out)|enter)\b/i.test(
+    text,
+  );
+}
+
+/** Data-shaped requests should render; narrative reasoning should stay text. */
+export function shouldRequireStructuredViewForTurn(
+  userText: string | null | undefined,
+): boolean {
+  const text = userText?.trim() ?? "";
+  if (!text || /<view_result>[\s\S]*<\/view_result>/i.test(text)) return false;
+  if (
+    /^(?:(?:show|tell) me\s+)?(?:explain|describe|summarize|analyze|review|investigate|diagnose|recommend|advise|why|how)\b/i.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  return (
+    /^(?:please\s+)?(?:list|show|display|browse)\b/i.test(text) ||
+    /^(?:what|which)\b[^?\n]{0,160}\b(?:available|exist)\b/i.test(text)
+  );
 }
 
 export function shouldRequireViewOutputForTurn({
@@ -114,6 +148,7 @@ export function shouldRequireViewOutputForTurn({
   // assigned Agent, not a request for Kody to ask the user for approval.
   if (isDirectAgentAsk(text)) return false;
   if (isInformationalRequest(text)) return false;
+  if (isNonInteractiveOperation(text)) return false;
   const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(

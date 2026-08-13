@@ -9,6 +9,7 @@ interface AgentCreateInput extends JsonObject {
   slug?: string;
   title: string;
   body: string;
+  whenToUse?: string;
   capabilities?: string[];
 }
 
@@ -40,7 +41,9 @@ async function apiResult(response: Response): Promise<JsonObject> {
   if (response.ok) return payload;
   return {
     error:
-      typeof payload.error === "string" ? payload.error : "agency_request_failed",
+      typeof payload.error === "string"
+        ? payload.error
+        : "agency_request_failed",
     ...(response.status < 500 && typeof payload.message === "string"
       ? { message: payload.message }
       : {}),
@@ -155,8 +158,7 @@ export function createAgencyApiClient({
       send("/api/kody/loops", "POST", input),
     updateLoop: (id: string, input: LoopWriteInput) =>
       send(itemPath("/api/kody/loops", id), "PATCH", input),
-    removeLoop: (id: string) =>
-      send(itemPath("/api/kody/loops", id), "DELETE"),
+    removeLoop: (id: string) => send(itemPath("/api/kody/loops", id), "DELETE"),
     runLoop: (id: string) =>
       send(`${itemPath("/api/kody/loops", id)}/run`, "POST", {
         approved: true,
@@ -176,8 +178,7 @@ export function createAgencyApiClient({
       ),
 
     listTodos: () => send("/api/kody/todos", "GET"),
-    readTodo: (slug: string) =>
-      send(itemPath("/api/kody/todos", slug), "GET"),
+    readTodo: (slug: string) => send(itemPath("/api/kody/todos", slug), "GET"),
     createTodo: (input: JsonObject) => send("/api/kody/todos", "POST", input),
     updateTodo: (slug: string, input: JsonObject) =>
       send(itemPath("/api/kody/todos", slug), "PATCH", input),
@@ -188,7 +189,10 @@ export function createAgencyApiClient({
       ),
 
     listRuns: (limit = 50) =>
-      send(`/api/kody/agency-runs?limit=${Math.max(1, Math.min(100, limit))}`, "GET"),
+      send(
+        `/api/kody/agency-runs?limit=${Math.max(1, Math.min(100, limit))}`,
+        "GET",
+      ),
     readRun: (runId: string, githubRunId?: string) => {
       const query = new URLSearchParams({ runId });
       if (githubRunId) query.set("githubRunId", githubRunId);

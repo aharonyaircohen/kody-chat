@@ -7,6 +7,7 @@ import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../src/dashboard/lib/vi
 import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import {
   shouldAllowPreRenderToolCallsForTurn,
+  shouldRequireStructuredViewForTurn,
   shouldRequireViewOutputForTurn,
 } from "../../../src/dashboard/lib/view-renderers/chat-intent";
 
@@ -173,6 +174,30 @@ describe("view renderer chat intent", () => {
     ).toBe(false);
   });
 
+  it("requires a structured view for data presentation requests", () => {
+    expect(
+      shouldRequireStructuredViewForTurn("list all agency workflows"),
+    ).toBe(true);
+    expect(
+      shouldRequireStructuredViewForTurn("show available workflow runs"),
+    ).toBe(true);
+    expect(
+      shouldRequireStructuredViewForTurn("which workflows are available?"),
+    ).toBe(true);
+  });
+
+  it("keeps narrative requests as text even when tools provide data", () => {
+    expect(shouldRequireStructuredViewForTurn("explain agency workflows")).toBe(
+      false,
+    );
+    expect(
+      shouldRequireStructuredViewForTurn("diagnose why the workflow failed"),
+    ).toBe(false);
+    expect(
+      shouldRequireStructuredViewForTurn("advise me on workflow design"),
+    ).toBe(false);
+  });
+
   it("does not require a view when the request does not match the renderer", () => {
     expect(
       shouldRequireViewOutputForTurn({
@@ -195,6 +220,39 @@ describe("view renderer chat intent", () => {
         ],
       }),
     ).toBe(false);
+  });
+
+  it("keeps architecture advice as text even when it mentions adding a rendered resource", () => {
+    for (const userText of [
+      "Should this project add another chat system?",
+      "Can we add another chat system without duplicating ownership?",
+    ]) {
+      expect(
+        shouldRequireViewOutputForTurn({
+          userText,
+          definitions: BUILTIN_VIEW_RENDERER_DEFINITIONS,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("does not force an interactive renderer for report read and publish operations", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText:
+          "Read the saved report with slug project-assessment. Rewrite it into one concise decision report and publish a new run under the same slug.",
+        definitions: BUILTIN_VIEW_RENDERER_DEFINITIONS,
+      }),
+    ).toBe(false);
+  });
+
+  it("still renders when a report operation explicitly asks the user to choose", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "Read the available reports and let me select one.",
+        definitions: [choiceRenderer],
+      }),
+    ).toBe(true);
   });
 
   it("uses the built-in form for creation requests that need user values", () => {

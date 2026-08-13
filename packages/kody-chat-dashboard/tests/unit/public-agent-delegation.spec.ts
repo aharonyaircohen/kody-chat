@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+  PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS,
+  PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS,
+  PUBLIC_AGENT_TASK_TIMEOUT_MS,
   buildPublicAgentChildSystem,
   buildPublicAgentReference,
+  buildPublicAgentSynthesisInput,
   collectPublicAgentEvidence,
   formatPublicAgentFailure,
   runPublicAgentAssignments,
@@ -11,6 +16,8 @@ import {
   requiresPublicAgentToolEvidence,
   selectPublicAgentTools,
   synthesizePublicAgentResponse,
+  describePublicAgentSynthesisError,
+  describePublicAgentEmptySynthesis,
 } from "../../app/api/kody/chat/kody/public-agent-delegation";
 import { publicAgentPurpose } from "../../app/api/kody/chat/kody/public-agent-definition";
 
@@ -35,7 +42,119 @@ const roster = [
   },
 ];
 
+it("requires delegated prose to end with a relevant follow-up question", () => {
+  const input = buildPublicAgentSynthesisInput({
+    userText: "Explain Agency structure.",
+    assignments: [
+      { agent: "agency-specialist", task: "Explain Agency structure." },
+    ],
+    assignedAgents: roster,
+    results: [
+      {
+        status: "completed",
+        agent: "agency-specialist",
+        result: "Agency connects operating definitions.",
+        reference: "Agency owns reusable operating definitions.",
+      },
+    ],
+  });
+
+  expect(input.system).toContain(
+    "Every prose final reply must end with one short, relevant follow-up question",
+  );
+  expect(input.system).toContain("Do not add or change a renderer");
+});
+
 describe("public Agent delegation", () => {
+  it("describes the real synthesis failure without exposing raw provider data", () => {
+    expect(
+      describePublicAgentSynthesisError(
+        new Error("The operation was aborted due to timeout"),
+      ),
+    ).toBe(
+      "Final report writing failed because it exceeded the 480-second limit.",
+    );
+    expect(
+      describePublicAgentSynthesisError({
+        statusCode: 400,
+        data: { error: { message: "maximum context length exceeded" } },
+      }),
+    ).toBe(
+      "Final report writing failed because DeepSeek rejected the combined input as too large.",
+    );
+    expect(
+      describePublicAgentSynthesisError({
+        statusCode: 429,
+        responseBody: "private provider response",
+      }),
+    ).toBe("Final report writing failed because DeepSeek was rate-limited.");
+  });
+
+  it("describes why DeepSeek returned no usable final report", () => {
+    expect(
+      describePublicAgentEmptySynthesis({ text: "", finishReason: "length" }),
+    ).toBe(
+      "Final report writing failed because DeepSeek returned no text after reaching its output limit.",
+    );
+    expect(
+      describePublicAgentEmptySynthesis({
+        text: "<think>I am still planning.</think>",
+        finishReason: "stop",
+      }),
+    ).toBe(
+      "Final report writing failed because DeepSeek returned reasoning without a final report.",
+    );
+    expect(
+      describePublicAgentEmptySynthesis({
+        text: '<tool_call>{"name":"inspect"}</tool_call>',
+        finishReason: "tool-calls",
+      }),
+    ).toBe(
+      "Final report writing failed because DeepSeek returned a tool call instead of the report.",
+    );
+  });
+
+  it("gives deep-assessment specialists a four-minute, 100-step budget", () => {
+    expect(PUBLIC_AGENT_TASK_TIMEOUT_MS).toBe(240_000);
+    expect(PUBLIC_AGENT_DEFAULT_MAX_STEPS).toBe(100);
+    expect(PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS).toBe(480_000);
+    expect(PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS).toBe(12_000);
+  });
+
+  it("keeps repeated specialist results aligned with their focused tasks", () => {
+    const input = buildPublicAgentSynthesisInput({
+      userText: "Assess this project.",
+      assignments: [
+        { agent: "repo-scout", task: "Map architecture." },
+        { agent: "repo-scout", task: "Inspect test health." },
+      ],
+      assignedAgents: roster,
+      results: [
+        {
+          status: "completed",
+          agent: "repo-scout",
+          result: "Architecture conclusion.",
+          evidence: "Architecture evidence.",
+        },
+        {
+          status: "completed",
+          agent: "repo-scout",
+          result: "Testing conclusion.",
+          evidence: "Testing evidence.",
+        },
+      ],
+    });
+
+    expect(input.messages[0]!.content).toContain(
+      "Focused task: Map architecture.\n\nSource status: authoritative source available",
+    );
+    expect(input.messages[0]!.content).toContain("Architecture evidence.");
+    expect(input.messages[0]!.content).toContain(
+      "Focused task: Inspect test health.\n\nSource status: authoritative source available",
+    );
+    expect(input.messages[0]!.content).toContain("Testing evidence.");
+  });
+
   it("requires tools for requests about current repository or operational state", () => {
     expect(
       requiresPublicAgentToolEvidence(
@@ -143,6 +262,186 @@ describe("public Agent delegation", () => {
         ],
       }),
     );
+  });
+
+  it("gives a complete ten-track assessment enough synthesis space", async () => {
+    const assignments = [
+      "architecture",
+      "code-quality",
+      "security",
+      "test-reliability",
+      "delivery-system",
+      "operational-readiness",
+      "scalability",
+      "repository-history",
+      "team-capacity",
+      "continuous-product-qa",
+    ].map((track) => ({
+      agent: "repo-scout",
+      capability: `assess-${track}`,
+      task: `Assess ${track}.`,
+    }));
+    const generate = vi.fn(async () => ({
+      text: "# Project assessment\n\n## Overall health\n\nNeeds attention.",
+    }));
+
+    await synthesizePublicAgentResponse({
+      userText: "Run the assessment.",
+      assignments,
+      assignedAgents: roster,
+      results: assignments.map(() => ({
+        status: "completed" as const,
+        agent: "repo-scout",
+        result: "Grounded finding.",
+        evidence: "Verified evidence.",
+      })),
+      model: {} as never,
+      generate: generate as never,
+    });
+
+    for (const requiredInstruction of [
+      "## Executive verdict",
+      "exactly five clear labeled parts",
+      "**Current state:**",
+      "**Main risk:**",
+      "**Maintenance capacity:**",
+      "**Kody's value:**",
+      "**Next step:**",
+      "as much space as needed",
+      "avoid repetition",
+      "## Product readiness",
+      "## Ranked risks",
+      "## Maintenance capacity gap",
+      "## Why Kody matters",
+      "## Kody coverage and proof",
+      "## Advanced continuous QA",
+      "## Technical assessment",
+      "## Specialist findings and evidence",
+      "one compact block per risk",
+      "`**Severity:**`",
+      "`**Business impact:**`",
+      "`**Evidence:**`",
+      "`**Action:**`",
+      "Without Kody versus with Kody",
+      "up to 20 independent maintenance tasks in parallel",
+      "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections",
+      "Proven now, available but untested, or planned",
+      "continuous user-level QA",
+      "predefined Quality Runs, free-form browser QA, continuous scheduling, bug creation, and automatic repair",
+      "Do not invent staffing multipliers or FTE ranges",
+      "available capacity, tested capacity, and useful capacity",
+      "test coverage, maintenance automation, security advice, coding-agent documentation, and continuous product QA",
+      "classify every material claim as `Verified`, `User-provided`, `Inferred`, or `Unverified`",
+      "A configured file, dependency, test, capability, workflow, or integration proves only that it exists",
+      "Proven now requires direct evidence of a relevant successful completed run",
+      "Inspect the complete CI workflow",
+      "most recent relevant run",
+      "Error-reporting code does not prove live alert delivery",
+      "Treat an account as automated only when",
+      "Do not estimate required staffing or maintenance time",
+      "Product readiness requires evidence from live behavior",
+      "Do not let one section claim a capability is proven while another says it is absent",
+      "Recommendations must trace directly to a ranked finding",
+      "Do not invent a management team",
+    ]) {
+      expect(generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxOutputTokens: PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS,
+          system: expect.stringContaining(requiredInstruction),
+        }),
+      );
+    }
+
+    expect(generate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining("provide an ordered table"),
+      }),
+    );
+  });
+
+  it("keeps the ten-track synthesis packet compact enough for one reliable final report", () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+    const input = buildPublicAgentSynthesisInput({
+      userText: "Run the assessment.",
+      assignments,
+      assignedAgents: roster,
+      results: assignments.map(() => ({
+        status: "completed" as const,
+        agent: "repo-scout",
+        result: "C".repeat(20_000),
+        reference: "R".repeat(20_000),
+        evidence: "E".repeat(20_000),
+      })),
+    });
+
+    expect(input.messages[0]!.content.length).toBeLessThan(45_000);
+  });
+
+  it("does not publish raw specialist reports when assessment synthesis fails", async () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+
+    const onSynthesisFailure = vi.fn();
+    await expect(
+      synthesizePublicAgentResponse({
+        userText: "Run the assessment.",
+        assignments,
+        assignedAgents: roster,
+        results: assignments.map(() => ({
+          status: "completed" as const,
+          agent: "repo-scout",
+          result: "Raw specialist report that is not a leadership report.",
+          evidence: "Verified evidence.",
+        })),
+        model: {} as never,
+        generate: vi.fn(async () => {
+          throw new Error("The operation was aborted due to timeout");
+        }) as never,
+        onSynthesisFailure,
+      }),
+    ).resolves.toBe(
+      "Final report writing failed because it exceeded the 480-second limit.",
+    );
+    expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("reports the provider finish reason when assessment synthesis returns no text", async () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+    const onSynthesisFailure = vi.fn();
+
+    await expect(
+      synthesizePublicAgentResponse({
+        userText: "Run the assessment.",
+        assignments,
+        assignedAgents: roster,
+        results: assignments.map(() => ({
+          status: "completed" as const,
+          agent: "repo-scout",
+          result: "Grounded finding.",
+          evidence: "Verified evidence.",
+        })),
+        model: {} as never,
+        generate: vi.fn(async () => ({
+          text: "",
+          finishReason: "length",
+        })) as never,
+        onSynthesisFailure,
+      }),
+    ).resolves.toBe(
+      "Final report writing failed because DeepSeek returned no text after reaching its output limit.",
+    );
+    expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
   });
 
   it("does not give Kody an unsupported specialist draft as a factual source", async () => {
@@ -775,8 +1074,7 @@ describe("public Agent delegation", () => {
       sessionId: "mixed-tool-session",
       reasoning: "Inspected the repository.",
       reference: "Repository claims require current evidence.",
-      evidence:
-        'Evidence item 1 (inspect_repository): {"files":["POLICY.md"]}',
+      evidence: 'Evidence item 1 (inspect_repository): {"files":["POLICY.md"]}',
     });
   });
 
@@ -799,6 +1097,45 @@ describe("public Agent delegation", () => {
     expect(system).not.toContain("memoryContext");
     expect(system).toContain("safe for Kody to show directly");
     expect(system).toContain("Do not mention internal tool names");
+  });
+
+  it("passes the original form submission unchanged beside every focused task", async () => {
+    let capturedContent = "";
+    const stream = vi.fn(
+      (input: { messages: Array<{ role: string; content: string }> }) => {
+        capturedContent = input.messages[0]?.content ?? "";
+        return {
+          fullStream: (async function* () {})(),
+          text: Promise.resolve("Assessment complete."),
+          reasoningText: Promise.resolve(""),
+          steps: Promise.resolve([]),
+        };
+      },
+    );
+    const sharedContext =
+      'Assess this project.\n\n<view_result>{"teamSize":"3","maintenanceTime":"one day weekly"}</view_result>';
+
+    await runIsolatedPublicAgentTask({
+      agent: roster[1]!,
+      task: "Assess architecture only.",
+      sharedContext,
+      system: "System",
+      model: {} as never,
+      tools: {},
+      stream: stream as never,
+    });
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          {
+            role: "user",
+            content: expect.stringContaining(sharedContext),
+          },
+        ],
+      }),
+    );
+    expect(capturedContent).toContain("## Shared request context");
   });
 
   it("grounds synthesis with the Agent definition as well as capabilities", () => {
@@ -869,5 +1206,34 @@ describe("public Agent delegation", () => {
       },
     ]);
     expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts twenty focused tasks for one specialist in parallel", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started: string[] = [];
+    const assignments = Array.from({ length: 20 }, (_, index) => ({
+      agent: "repo-scout",
+      task: `Assessment track ${index + 1}`,
+    }));
+    const running = runPublicAgentAssignments({
+      assignments,
+      assignedAgents: roster,
+      invoke: vi.fn(async ({ agent, task }) => {
+        started.push(task);
+        await gate;
+        return {
+          status: "completed" as const,
+          agent: agent.slug,
+          result: task,
+        };
+      }),
+    });
+
+    await vi.waitFor(() => expect(started).toHaveLength(20));
+    release();
+    await expect(running).resolves.toHaveLength(20);
   });
 });

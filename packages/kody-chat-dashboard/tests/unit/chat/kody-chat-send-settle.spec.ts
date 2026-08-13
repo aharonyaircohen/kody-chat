@@ -15,6 +15,7 @@ import {
   SETTLE_STRATEGIES,
   FINISH_STRATEGIES,
   classifyTurnFailure,
+  shouldPreservePendingDirectTurn,
   settleDecision,
   applySettleDecision,
 } from "../../../src/dashboard/lib/components/kody-chat-send";
@@ -54,6 +55,13 @@ describe("classifyTurnFailure", () => {
   });
 });
 
+describe("refresh-safe direct turns", () => {
+  it("leaves the durable pending turn untouched while the page unloads", () => {
+    expect(shouldPreservePendingDirectTurn("hidden")).toBe(true);
+    expect(shouldPreservePendingDirectTurn("visible")).toBe(false);
+  });
+});
+
 describe("settleDecision — the per-backend recover table", () => {
   it("errors are uniform: error bubble + stop loading, on every backend", () => {
     for (const backend of [
@@ -62,7 +70,9 @@ describe("settleDecision — the per-backend recover table", () => {
       "kody-live",
       "kody-engine",
     ] as const) {
-      expect(settleDecision(backend, { kind: "error", message: "boom" })).toEqual({
+      expect(
+        settleDecision(backend, { kind: "error", message: "boom" }),
+      ).toEqual({
         messageOp: "error-bubble",
         stopLoading: true,
         errorMessage: "boom",
@@ -84,9 +94,13 @@ describe("settleDecision — the per-backend recover table", () => {
   });
 
   it("kody-live abort surfaces like any failure (fire-and-ack has no abort path)", () => {
-    expect(settleDecision("kody-live", { kind: "abort", message: "x" })).toEqual(
-      { messageOp: "error-bubble", stopLoading: true, errorMessage: "x" },
-    );
+    expect(
+      settleDecision("kody-live", { kind: "abort", message: "x" }),
+    ).toEqual({
+      messageOp: "error-bubble",
+      stopLoading: true,
+      errorMessage: "x",
+    });
   });
 
   it("kody-engine abort mirrors brain (pop the optimistic slice)", () => {
@@ -160,7 +174,7 @@ describe("applySettleDecision — the ONE recover implementation", () => {
       { role: "user", content: "hi" },
       {
         role: "assistant",
-        content: "Error: boom",
+        content: "Error: boom\n\nWould you like me to try again?",
         isLoading: false,
         isError: true,
       },

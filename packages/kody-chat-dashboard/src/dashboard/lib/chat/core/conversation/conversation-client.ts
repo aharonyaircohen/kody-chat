@@ -72,6 +72,15 @@ export type ConversationRuntime =
   | { kind: "engine"; profileId: string }
   | { kind: "live"; profileId: string };
 
+function shouldKeepCommandAlive(command: ConversationCommand): boolean {
+  return (
+    command.kind === "runtime" ||
+    (command.kind === "append-message" &&
+      command.role === "assistant" &&
+      command.status === "pending")
+  );
+}
+
 type ConversationListResponse = {
   conversations: Array<Record<string, unknown> & { conversationId: string }>;
 };
@@ -133,7 +142,11 @@ export class ConversationClient {
     return this.enqueue(conversationId, async () => {
       await this.request(
         `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}/commands`,
-        { method: "POST", body: JSON.stringify(command) },
+        {
+          method: "POST",
+          body: JSON.stringify(command),
+          ...(shouldKeepCommandAlive(command) ? { keepalive: true } : {}),
+        },
       );
     });
   }

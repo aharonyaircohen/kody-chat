@@ -13,6 +13,7 @@ const agents = [
 
 const capabilities = [
   {
+    slug: "manage-agency",
     instructions: "Manage Agency safely.",
     capabilityTools: [{ name: "update_agent" }],
   },
@@ -65,6 +66,7 @@ describe("public Agent orchestrator", () => {
     expect(invoke).toHaveBeenCalledWith({
       agent: agents[0],
       task: "Update the Agency",
+      assignmentIndex: 0,
       capabilities,
       tools: { update_agent: availableTools.update_agent },
     });
@@ -113,5 +115,66 @@ describe("public Agent orchestrator", () => {
         detail: "specialist unavailable",
       },
     });
+  });
+
+  it("runs only the selected assessment plus the Agent's base capability", async () => {
+    const cto = {
+      slug: "cto",
+      title: "CTO",
+      body: "Assess project health.",
+      capabilities: [
+        "builtin-agent-cto",
+        "assess-architecture",
+        "assess-security",
+      ],
+    };
+    const loaded = [
+      {
+        slug: "builtin-agent-cto",
+        instructions: "CTO evidence rules.",
+        capabilityTools: [{ name: "inspect_repository" }],
+      },
+      {
+        slug: "assess-architecture",
+        instructions: "Assess architecture only.",
+        capabilityTools: [],
+      },
+      {
+        slug: "assess-security",
+        instructions: "Assess security only.",
+        capabilityTools: [],
+      },
+    ];
+    const invoke = vi.fn(async ({ agent }) => ({
+      status: "completed" as const,
+      agent: agent.slug,
+      result: "done",
+    }));
+
+    await orchestratePublicAgentTurn({
+      userText: "Assess architecture",
+      assignedAgents: [cto],
+      availableTools,
+      outputToolNames: ["final_answer"],
+      loadCapabilities: vi.fn(async () => loaded),
+      route: vi.fn(async () => ({
+        mode: "delegate" as const,
+        assignments: [
+          {
+            agent: "cto",
+            capability: "assess-architecture",
+            task: "Assess architecture.",
+          },
+        ],
+      })),
+      invoke,
+    });
+
+    expect(invoke).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilities: [loaded[0], loaded[1]],
+        tools: { inspect_repository: availableTools.inspect_repository },
+      }),
+    );
   });
 });

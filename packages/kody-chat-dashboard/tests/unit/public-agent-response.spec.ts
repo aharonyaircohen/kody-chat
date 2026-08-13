@@ -15,6 +15,180 @@ const activities = [
 ];
 
 describe("public Agent response", () => {
+  it("keeps a silent long-running specialist turn active", async () => {
+    vi.useFakeTimers();
+    let finishOrchestration!: () => void;
+    const orchestrationGate = new Promise<void>((resolve) => {
+      finishOrchestration = resolve;
+    });
+    const events: unknown[] = [];
+    const response = writePublicAgentResponse({
+      writer: { write: (event) => events.push(event) },
+      traceId: "trace-heartbeat",
+      messageId: "message-heartbeat",
+      activities,
+      heartbeatMs: 30_000,
+      runOrchestration: vi.fn(async () => {
+        await orchestrationGate;
+        return {
+          parentTools: {},
+          results: [
+            {
+              status: "completed" as const,
+              agent: "agency-specialist",
+              result: "Completed after a silent research period.",
+            },
+          ],
+        };
+      }),
+      synthesize: vi.fn(async () => "Completed assessment."),
+    });
+
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(
+      events.filter(
+        (event) =>
+          (event as { type?: string }).type === "data-subagent-activity" &&
+          (event as { data?: { phase?: string } }).data?.phase === "started",
+      ),
+    ).toHaveLength(1);
+    expect(
+      events.filter(
+        (event) =>
+          (event as { type?: string }).type === "data-subagent-activity" &&
+          (event as { data?: { phase?: string } }).data?.phase === "heartbeat",
+      ),
+    ).toHaveLength(3);
+
+    finishOrchestration();
+    await expect(response).resolves.toMatchObject({
+      text: "Completed assessment.",
+    });
+    vi.useRealTimers();
+  });
+
+  it("keeps a silent long-running final synthesis active", async () => {
+    vi.useFakeTimers();
+    let finishSynthesis!: () => void;
+    const synthesisGate = new Promise<void>((resolve) => {
+      finishSynthesis = resolve;
+    });
+    const events: unknown[] = [];
+    const response = writePublicAgentResponse({
+      writer: { write: (event) => events.push(event) },
+      traceId: "trace-synthesis-heartbeat",
+      messageId: "message-synthesis-heartbeat",
+      activities,
+      heartbeatMs: 30_000,
+      runOrchestration: vi.fn(async () => ({
+        parentTools: {},
+        results: [
+          {
+            status: "completed" as const,
+            agent: "agency-specialist",
+            result: "Specialist evidence.",
+          },
+        ],
+      })),
+      synthesize: vi.fn(async () => {
+        await synthesisGate;
+        return "Completed assessment.";
+      }),
+    });
+
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(
+      events.filter(
+        (event) =>
+          (event as { type?: string }).type === "data-subagent-activity" &&
+          (event as { data?: { phase?: string } }).data?.phase === "heartbeat",
+      ),
+    ).toHaveLength(3);
+
+    finishSynthesis();
+    await expect(response).resolves.toMatchObject({
+      text: "Completed assessment.",
+    });
+    vi.useRealTimers();
+  });
+
+  it("keeps parallel tasks from the same specialist distinct", async () => {
+    const repeatedActivities = [
+      {
+        id: "activity-architecture",
+        assignment: {
+          agent: "agency-specialist",
+          task: "Map architecture",
+        },
+        title: "Project Assessor",
+      },
+      {
+        id: "activity-tests",
+        assignment: {
+          agent: "agency-specialist",
+          task: "Inspect test health",
+        },
+        title: "Project Assessor",
+      },
+    ];
+    const events: unknown[] = [];
+    const synthesize = vi.fn(async () => "Combined assessment.");
+
+    await expect(
+      writePublicAgentResponse({
+        writer: { write: (event) => events.push(event) },
+        traceId: "trace-repeated-agent",
+        messageId: "message-repeated-agent",
+        activities: repeatedActivities,
+        runOrchestration: vi.fn(async () => ({
+          parentTools: {},
+          results: [
+            {
+              status: "completed" as const,
+              agent: "agency-specialist",
+              result: "Architecture result",
+            },
+            {
+              status: "failed" as const,
+              agent: "agency-specialist",
+              failure: { code: "timeout" as const },
+            },
+          ],
+        })),
+        synthesize,
+      }),
+    ).resolves.toMatchObject({
+      text: "Combined assessment.",
+      allSpecialistsFailed: false,
+      returnedFailure: false,
+    });
+
+    expect(synthesize).toHaveBeenCalledWith([
+      expect.objectContaining({
+        status: "completed",
+        result: "Architecture result",
+      }),
+      expect.objectContaining({
+        status: "failed",
+        failure: { code: "timeout" },
+      }),
+    ]);
+    expect(events).toContainEqual({
+      type: "data-subagent-activity",
+      data: expect.objectContaining({
+        id: "activity-architecture",
+        phase: "completed",
+      }),
+    });
+    expect(events).toContainEqual({
+      type: "data-subagent-activity",
+      data: expect.objectContaining({
+        id: "activity-tests",
+        phase: "failed",
+      }),
+    });
+  });
+
   it("hands completed specialist work back to the parent presenter", async () => {
     const events: unknown[] = [];
     const showView = { description: "render a form" };
@@ -81,9 +255,43 @@ describe("public Agent response", () => {
     );
   });
 
+  it("lets a report workflow bypass generic presentation and use dedicated synthesis", async () => {
+    const events: unknown[] = [];
+    const synthesize = vi.fn(async () => "Complete published report.");
+
+    await expect(
+      writePublicAgentResponse({
+        writer: { write: (event) => events.push(event) },
+        traceId: "trace-report",
+        messageId: "message-report",
+        activities,
+        runOrchestration: vi.fn(async () => ({
+          parentTools: {},
+          results: [
+            {
+              status: "completed" as const,
+              agent: "agency-specialist",
+              result: "Specialist evidence.",
+            },
+          ],
+        })),
+        present: vi.fn(async () => null),
+        synthesize,
+      }),
+    ).resolves.toMatchObject({ text: "Complete published report." });
+
+    expect(synthesize).toHaveBeenCalledOnce();
+    expect(events).toContainEqual({
+      type: "text-delta",
+      id: "message-report",
+      delta: "Complete published report.",
+    });
+  });
+
   it("streams specialist progress, the final answer, and durable completion", async () => {
     const events: unknown[] = [];
     const complete = vi.fn(async () => undefined);
+    const recordProgress = vi.fn();
     const result = {
       status: "completed" as const,
       agent: "agency-specialist",
@@ -95,6 +303,7 @@ describe("public Agent response", () => {
     const runOrchestration = vi.fn(async (onReasoningDelta) => {
       onReasoningDelta({
         agent: "agency-specialist",
+        assignmentIndex: 0,
         delta: "Checking Agency…",
       });
       return { parentTools: {}, results: [result] };
@@ -111,12 +320,14 @@ describe("public Agent response", () => {
         startDurableTurn: () => ({
           complete,
           fail: vi.fn(async () => undefined),
+          recordProgress,
         }),
       }),
     ).resolves.toEqual({
       text: "Agency is structured clearly.",
       allSpecialistsFailed: false,
       returnedFailure: false,
+      synthesisFailed: false,
       childSessionIds: ["child-session"],
     });
 
@@ -156,6 +367,20 @@ describe("public Agent response", () => {
       { type: "text-end", id: "message-1" },
     ]);
     expect(complete).toHaveBeenCalledWith("Agency is structured clearly.");
+    expect(recordProgress).toHaveBeenLastCalledWith({
+      reasoning: "Agency Specialist:\nChecking Agency…",
+      toolCalls: [
+        {
+          id: "activity-1",
+          name: "subagent",
+          arguments: { task: "Explain Agency" },
+          description: "Working on delegated specialist research.",
+          status: "success",
+          activityKind: "subagent",
+          displayName: "Agency Specialist",
+        },
+      ],
+    });
   });
 
   it("returns a safe failure without synthesizing when every specialist fails", async () => {
@@ -163,33 +388,34 @@ describe("public Agent response", () => {
     const synthesize = vi.fn();
     const onSpecialistFailure = vi.fn();
 
-    await expect(
-      writePublicAgentResponse({
-        writer: { write: (event) => events.push(event) },
-        traceId: "trace-2",
-        messageId: "message-2",
-        activities,
-        runOrchestration: vi.fn(async () => ({
-          parentTools: {},
-          results: [
-            {
-              status: "failed" as const,
-              agent: "agency-specialist",
-              sessionId: "failed-session",
-              failure: {
-                code: "provider_error" as const,
-                detail: "provider secret detail",
-              },
+    const failureResult = await writePublicAgentResponse({
+      writer: { write: (event) => events.push(event) },
+      traceId: "trace-2",
+      messageId: "message-2",
+      activities,
+      runOrchestration: vi.fn(async () => ({
+        parentTools: {},
+        results: [
+          {
+            status: "failed" as const,
+            agent: "agency-specialist",
+            sessionId: "failed-session",
+            failure: {
+              code: "provider_error" as const,
+              detail: "provider secret detail",
             },
-          ],
-        })),
-        synthesize,
-        onSpecialistFailure,
-      }),
-    ).resolves.toMatchObject({
+          },
+        ],
+      })),
+      synthesize,
+      onSpecialistFailure,
+    });
+
+    expect(failureResult).toMatchObject({
       allSpecialistsFailed: true,
       returnedFailure: true,
     });
+    expect(failureResult.text).toMatch(/\?$/);
 
     expect(synthesize).not.toHaveBeenCalled();
     expect(onSpecialistFailure).toHaveBeenCalledWith(
@@ -236,9 +462,44 @@ describe("public Agent response", () => {
         onSynthesisFailure,
       }),
     ).resolves.toMatchObject({
-      text: "I could not prepare a reliable answer from the available specialist evidence.",
+      text: "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?",
     });
     expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("marks a returned final-report failure as a failed outcome", async () => {
+    const complete = vi.fn(async () => undefined);
+    const fail = vi.fn(async () => undefined);
+
+    const outcome = await writePublicAgentResponse({
+      writer: { write: vi.fn() },
+      traceId: "trace-report-failure",
+      messageId: "message-report-failure",
+      activities,
+      runOrchestration: vi.fn(async () => ({
+        parentTools: {},
+        results: [
+          {
+            status: "completed" as const,
+            agent: "agency-specialist",
+            result: "Specialist evidence.",
+          },
+        ],
+      })),
+      synthesize: vi.fn(
+        async () =>
+          "Final report writing failed because the provider rejected the request.",
+      ),
+      startDurableTurn: () => ({
+        recordProgress: vi.fn(),
+        complete,
+        fail,
+      }),
+    });
+
+    expect(outcome).toMatchObject({ synthesisFailed: true });
+    expect(fail).toHaveBeenCalledWith("specialist_synthesis_failed");
+    expect(complete).not.toHaveBeenCalled();
   });
 
   it("falls back to grounded text when parent presentation fails", async () => {
@@ -297,6 +558,7 @@ describe("public Agent response", () => {
         }),
         synthesize,
         startDurableTurn: () => ({
+          recordProgress: vi.fn(),
           complete: vi.fn(async () => undefined),
           fail,
         }),

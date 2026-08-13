@@ -128,6 +128,26 @@ describe("public Agent parent presentation", () => {
       toolChoice: { type: "tool", toolName: "show_view" },
       system: expect.stringContaining("Call show_view now"),
     });
+    expect(
+      prepareStep?.({
+        steps: [
+          {
+            toolResults: [
+              {
+                toolName: "final_answer",
+                output: {
+                  error:
+                    "This prose answer must end with one short, relevant follow-up question. Retry final_answer without adding or changing a renderer.",
+                },
+              },
+            ],
+          },
+        ],
+      } as never),
+    ).toMatchObject({
+      activeTools: ["final_answer"],
+      system: expect.stringContaining("no follow-up question"),
+    });
     expect(events).toEqual([
       {
         type: "data-chat-output-contract",

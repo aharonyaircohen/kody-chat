@@ -146,7 +146,7 @@ describe("kody-direct send→stream→persist", () => {
       isLoading: false,
       isError: true,
       content:
-        "Error: Reply stalled after 5 seconds without activity. Please retry.",
+        "Error: Reply stalled after 5 seconds without activity. Please retry.\n\nWould you like me to try again?",
     });
   });
 

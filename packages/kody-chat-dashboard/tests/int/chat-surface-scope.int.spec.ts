@@ -39,7 +39,9 @@ vi.mock("../../src/dashboard/lib/client-brand", () => ({
 }));
 vi.mock("../../src/dashboard/lib/chat-defaults", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../src/dashboard/lib/chat-defaults")>();
+    await importOriginal<
+      typeof import("../../src/dashboard/lib/chat-defaults")
+    >();
   return {
     ...actual,
     loadChatDefaults: vi.fn(async () => ({
@@ -60,9 +62,12 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
 vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
-vi.mock("../../src/dashboard/lib/view-renderers/standalone-renderer-store", () => ({
-  loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
-}));
+vi.mock(
+  "../../src/dashboard/lib/view-renderers/standalone-renderer-store",
+  () => ({
+    loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
+  }),
+);
 vi.mock("../../src/dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   listResolvedAgentFiles: h.listResolvedAgentFiles,
@@ -145,7 +150,9 @@ function mockModel(): MockLanguageModelV3 {
             type: "tool-call",
             toolCallId: "call-1",
             toolName: FINAL_ANSWER_TOOL,
-            input: JSON.stringify({ content: "hello" }),
+            input: JSON.stringify({
+              content: "Hello. What would you like help with next?",
+            }),
           },
           {
             type: "finish",

@@ -17,6 +17,7 @@ import {
   conversationAttachmentValidator,
   conversationEntryValidator,
   conversationRuntimeValidator,
+  conversationTurnProgressValidator,
   machineAccessValidator,
   conversationScopeValidator,
 } from "./conversationValidators";
@@ -465,6 +466,7 @@ export default defineSchema({
     ),
     assistantEntryId: v.optional(v.string()),
     errorCode: v.optional(v.string()),
+    progress: v.optional(conversationTurnProgressValidator),
     startedAt: v.string(),
     completedAt: v.optional(v.string()),
     updatedAt: v.string(),

@@ -437,12 +437,15 @@ function normalizeRendererFields(
     if (!isRecord(item)) return null;
     const name = typeof item.name === "string" ? item.name.trim() : "";
     const label = typeof item.label === "string" ? item.label.trim() : "";
+    const description =
+      typeof item.description === "string" ? item.description.trim() : "";
     const fieldValue = typeof item.value === "string" ? item.value : "";
     if (!name || !label) return null;
     return {
       name,
       label,
       value: fieldValue,
+      ...(description ? { description } : {}),
       ...(item.inputType === "password" ? { inputType: "password" } : {}),
     };
   });

@@ -224,6 +224,10 @@ export async function sendKodyDirectTurn(
           displayName: chunk.data.agentTitle,
           description: "Working on delegated specialist research.",
         });
+      } else if (phase === "heartbeat") {
+        // Reset the turn inactivity deadline without creating another visible
+        // specialist item or adding user-visible reasoning text.
+        ctx.emit({ type: "reasoning", text: "\u200b" });
       } else if (
         phase === "reasoning" &&
         typeof chunk.data.reasoningDelta === "string" &&

@@ -6,6 +6,8 @@ import {
   requiresPublicAgentToolEvidence,
   runIsolatedPublicAgentTaskWithRetry,
   synthesizePublicAgentResponse,
+  isCompleteProjectAssessmentAssignments,
+  PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
 } from "./public-agent-delegation";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import {
@@ -18,6 +20,7 @@ import {
   type PublicAgentCapability,
 } from "./public-agent-orchestrator";
 import { routePublicAgentTask } from "./public-agent-routing";
+import type { DurableTurn } from "../durable-turn";
 
 interface PublicAgentTelemetry {
   traceId: string;
@@ -31,6 +34,7 @@ interface PublicAgentTelemetry {
 
 interface HandleConfiguredPublicAgentChatOptions {
   userText: string;
+  conversationContext?: string;
   assignedAgents: readonly PublicDelegationAgent[];
   model: Parameters<typeof generateText>[0]["model"];
   availableTools: Record<string, unknown>;
@@ -47,16 +51,69 @@ interface HandleConfiguredPublicAgentChatOptions {
     supportsNamedToolChoice?: boolean;
   };
   requireViewOutput: boolean;
-  startDurableTurn?: () => {
-    complete(text: string): Promise<void>;
-    fail(errorCode: string): Promise<void>;
-  };
+  startDurableTurn?: () => Pick<
+    DurableTurn,
+    "recordProgress" | "complete" | "fail"
+  >;
   telemetry: PublicAgentTelemetry;
+}
+
+interface PublishTool {
+  execute?: (input: {
+    slug: string;
+    title: string;
+    body: string;
+  }) => Promise<unknown> | unknown;
+}
+
+export async function publishProjectAssessmentReport({
+  answer,
+  repository,
+  publishTool,
+}: {
+  answer: string;
+  repository?: { owner: string; repo: string } | null;
+  publishTool?: PublishTool | null;
+}): Promise<{ answer: string; published: boolean }> {
+  if (!repository || typeof publishTool?.execute !== "function") {
+    return { answer, published: false };
+  }
+  if (
+    !answer.trim() ||
+    answer.startsWith(PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX) ||
+    answer.trim() ===
+      "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?"
+  ) {
+    return { answer, published: false };
+  }
+  try {
+    const result = await publishTool.execute({
+      slug: "project-assessment",
+      title: "Kody project assessment",
+      body: answer,
+    });
+    if (
+      result &&
+      typeof result === "object" &&
+      "error" in result &&
+      typeof result.error === "string"
+    ) {
+      return { answer, published: false };
+    }
+    const href = `/repo/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.repo)}/reports/project-assessment`;
+    return {
+      answer: `${answer.trim()}\n\n[Open the saved project assessment](${href})`,
+      published: true,
+    };
+  } catch {
+    return { answer, published: false };
+  }
 }
 
 /** Adapts configured Agents, Capabilities, and tools to the specialist chat protocol. */
 export async function handleConfiguredPublicAgentChat({
   userText,
+  conversationContext,
   assignedAgents,
   model,
   availableTools,
@@ -75,7 +132,13 @@ export async function handleConfiguredPublicAgentChat({
   return handlePublicAgentChat({
     traceId,
     assignedAgents,
-    route: () => routePublicAgentTask({ userText, assignedAgents, model }),
+    route: () =>
+      routePublicAgentTask({
+        userText,
+        conversationContext,
+        assignedAgents,
+        model,
+      }),
     orchestrate: (decision, onReasoningDelta) =>
       orchestratePublicAgentTurn({
         userText,
@@ -85,7 +148,13 @@ export async function handleConfiguredPublicAgentChat({
         outputToolNames,
         loadCapabilities,
         route: async () => decision,
-        invoke: async ({ agent, task, capabilities, tools }) => {
+        invoke: async ({
+          agent,
+          task,
+          assignmentIndex,
+          capabilities,
+          tools,
+        }) => {
           const wrappedTools = Object.fromEntries(
             Object.entries(tools).map(([name, candidate]) => [
               name,
@@ -98,6 +167,9 @@ export async function handleConfiguredPublicAgentChat({
           return runIsolatedPublicAgentTaskWithRetry({
             agent,
             task,
+            ...(userText.includes("<view_result>")
+              ? { sharedContext: userText }
+              : {}),
             reference: buildPublicAgentReference({
               agent,
               capabilityInstructions,
@@ -116,20 +188,42 @@ export async function handleConfiguredPublicAgentChat({
             requireToolEvidence: requiresPublicAgentToolEvidence(task),
             providerCapabilities,
             onReasoningDelta: (delta) =>
-              onReasoningDelta({ agent: agent.slug, delta }),
+              onReasoningDelta({
+                agent: agent.slug,
+                assignmentIndex,
+                delta,
+              }),
           });
         },
       }),
-    synthesize: (decision, results) =>
-      synthesizePublicAgentResponse({
+    synthesize: async (decision, results) => {
+      const answer = await synthesizePublicAgentResponse({
         userText,
         assignments: decision.assignments,
         assignedAgents,
         results,
         model,
-      }),
-    present: (decision, results, parentTools, writer) =>
-      presentPublicAgentResponse({
+        onSynthesisFailure: (error) =>
+          telemetry.error(
+            { traceId, err: telemetry.formatError(error) },
+            "kody-direct: specialist synthesis failed",
+          ),
+      });
+      if (!isCompleteProjectAssessmentAssignments(decision.assignments)) {
+        return answer;
+      }
+      const published = await publishProjectAssessmentReport({
+        answer,
+        repository,
+        publishTool: specialistTools.publish_report as PublishTool | undefined,
+      });
+      return published.answer;
+    },
+    present: (decision, results, parentTools, writer) => {
+      if (isCompleteProjectAssessmentAssignments(decision.assignments)) {
+        return Promise.resolve(null);
+      }
+      return presentPublicAgentResponse({
         userText,
         assignments: decision.assignments,
         assignedAgents,
@@ -144,7 +238,8 @@ export async function handleConfiguredPublicAgentChat({
         writer,
         providerCapabilities,
         requireViewOutput,
-      }),
+      });
+    },
     startDurableTurn,
     formatStreamError: (error) =>
       `[trace ${traceId}] ${telemetry.formatError(error)}`,
@@ -201,9 +296,11 @@ export async function handleConfiguredPublicAgentChat({
       telemetry.clearContext();
       telemetry.log(
         { traceId, totalDuration: Date.now() - telemetry.startedAt },
-        outcome.returnedFailure
-          ? "kody-direct: specialist failure returned"
-          : "kody-direct: synthesized specialist result",
+        outcome.synthesisFailed
+          ? "kody-direct: specialist synthesis failure returned"
+          : outcome.returnedFailure
+            ? "kody-direct: specialist failure returned"
+            : "kody-direct: synthesized specialist result",
       );
     },
     onStreamError: (error) => {

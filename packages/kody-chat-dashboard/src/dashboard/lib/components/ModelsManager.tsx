@@ -308,7 +308,7 @@ function ModelsManagerInner() {
                         {m.default && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300"
-                            title="Auto-selected when chat opens"
+                            title="Used for new conversations"
                           >
                             <Star className="w-3 h-3" />
                             Chat
@@ -449,8 +449,7 @@ function ModelEditor({
         ? "Required for OpenAI-compatible models"
         : null,
     adapterBaseURL:
-      draft.adapter === "openai-compatible" &&
-      !draft.adapterBaseURL?.trim()
+      draft.adapter === "openai-compatible" && !draft.adapterBaseURL?.trim()
         ? "Required for OpenAI-compatible chat"
         : null,
     id: idClash ? "Another model already uses this id" : null,
@@ -588,7 +587,7 @@ function ModelEditor({
               }
             />
             <Star className="w-3.5 h-3.5 text-white/40" />
-            Default for chat (auto-selected on open)
+            Default for chat (used for new conversations)
           </label>
 
           <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
@@ -620,7 +619,9 @@ function ModelEditor({
               <div>
                 <Label className="text-xs">Chat adapter</Label>
                 <select
-                  value={draft.adapter ?? PROVIDER_PRESETS[draft.provider].adapter}
+                  value={
+                    draft.adapter ?? PROVIDER_PRESETS[draft.provider].adapter
+                  }
                   onChange={(ev) =>
                     setDraft((cur) => ({
                       ...cur,
@@ -631,9 +632,7 @@ function ModelEditor({
                 >
                   <option value="anthropic">anthropic</option>
                   <option value="google">google</option>
-                  <option value="openai-compatible">
-                    openai-compatible
-                  </option>
+                  <option value="openai-compatible">openai-compatible</option>
                 </select>
               </div>
               <div>
@@ -728,8 +727,8 @@ function ModelEditor({
                   className="font-mono text-xs"
                 />
                 <p className="text-[11px] text-white/40 mt-1">
-                  Per-turn tool-call rounds. Blank → 10.
-                  Raise for models that need long research chains.
+                  Per-turn tool-call rounds. Blank → 10. Raise for models that
+                  need long research chains.
                 </p>
               </div>
             </div>

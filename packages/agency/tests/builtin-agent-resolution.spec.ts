@@ -19,31 +19,49 @@ const agent = (slug: string, source: "local" | "store"): AgentFile => ({
 });
 
 describe("built-in Agent resolution", () => {
-  it("always includes built-ins and lets local definitions override them", () => {
+  it("keeps built-in definitions immutable and merges configured additions", () => {
     const result = mergeResolvedAgentFiles({
-      local: [agent("kody", "local"), agent("local-only", "local")],
+      local: [
+        { ...agent("kody", "local"), subagents: ["custom-specialist"] },
+        {
+          ...agent("agency-specialist", "local"),
+          capabilities: ["agency-management"],
+          subagents: ["custom-agency-helper"],
+        },
+        agent("local-only", "local"),
+      ],
       builtin: listBuiltinAgentFiles(),
       store: [agent("kody", "store"), agent("store-only", "store")],
     });
 
-    expect(result.find(({ slug }) => slug === "kody")?.source).toBe("local");
-    expect(result.find(({ slug }) => slug === "agency-architect")?.source).toBe(
-      "builtin",
-    );
+    const kody = result.find(({ slug }) => slug === "kody");
+    expect(kody?.source).toBe("builtin");
+    expect(kody?.subagents).toEqual([
+      ...kody!.lockedSubagents!,
+      "custom-specialist",
+    ]);
+    const agency = result.find(({ slug }) => slug === "agency-specialist");
+    expect(agency?.source).toBe("builtin");
+    expect(agency?.capabilities).toEqual([
+      "builtin-agent-agency-specialist",
+      "agency-management",
+    ]);
+    expect(agency?.subagents).toEqual(["custom-agency-helper"]);
+    expect(result.map(({ slug }) => slug)).not.toContain("agency-architect");
     expect(result.find(({ slug }) => slug === "store-only")?.source).toBe(
       "store",
     );
     expect(result.map(({ slug }) => slug)).not.toContain("kody-store-copy");
   });
 
-  it("resolves local, then built-in, then Store", () => {
+  it("resolves built-ins before local and Store definitions", () => {
     const builtin = listBuiltinAgentFiles();
 
     expect(
       readResolvedAgentFromSources("kody", [agent("kody", "local")], builtin, [
         agent("kody", "store"),
       ])?.source,
-    ).toBe("local");
+    ).toBe("builtin");
     expect(
       readResolvedAgentFromSources("kody", [], builtin, [
         agent("kody", "store"),

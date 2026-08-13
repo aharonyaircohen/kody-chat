@@ -1,7 +1,10 @@
 import { v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
-import { agentIdentityValidator } from "./conversationValidators";
+import {
+  agentIdentityValidator,
+  conversationTurnProgressValidator,
+} from "./conversationValidators";
 
 type DatabaseContext = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -212,6 +215,32 @@ export const complete = mutation({
       updatedAt: args.completedAt,
     });
     await ctx.db.patch(conversation._id, { updatedAt: args.completedAt });
+    return turn._id;
+  },
+});
+
+export const updateProgress = mutation({
+  args: {
+    tenantId: v.string(),
+    conversationId: v.string(),
+    turnId: v.string(),
+    progress: conversationTurnProgressValidator,
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireConversation(ctx, args.tenantId, args.conversationId);
+    const turn = await findTurn(
+      ctx,
+      args.tenantId,
+      args.conversationId,
+      args.turnId,
+    );
+    if (!turn) throw new Error("Conversation turn not found");
+    if (turn.status !== "running") return turn._id;
+    await ctx.db.patch(turn._id, {
+      progress: args.progress,
+      updatedAt: args.updatedAt,
+    });
     return turn._id;
   },
 });

@@ -150,9 +150,10 @@ describe("ConversationClient", () => {
       updatedAt: "2026-07-20T10:00:00.000Z",
     });
 
-    const body = JSON.parse(
-      String(fetcher.mock.calls[0]?.[1]?.body),
-    ) as Record<string, unknown>;
+    const body = JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)) as Record<
+      string,
+      unknown
+    >;
     expect(body).toEqual({
       kind: "machine-access",
       actorLogin: "alice",
@@ -161,5 +162,53 @@ describe("ConversationClient", () => {
     });
     expect(body).not.toHaveProperty("runtime");
     expect(body).not.toHaveProperty("agent");
+  });
+
+  it("keeps a selected model save alive during a hard refresh", async () => {
+    fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    await client.command("c1", {
+      kind: "runtime",
+      actorLogin: "alice",
+      runtime: { kind: "direct", modelId: "kody:openrouter-free" },
+      updatedAt: "2026-08-10T10:00:00.000Z",
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/kody/chat/conversations/c1/commands",
+      expect.objectContaining({
+        method: "POST",
+        keepalive: true,
+      }),
+    );
+  });
+
+  it("keeps a pending assistant turn save alive during a hard refresh", async () => {
+    fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    await client.command("c1", {
+      kind: "append-message",
+      actorLogin: "alice",
+      entryId: "assistant:turn-1",
+      idempotencyKey: "assistant:turn-1",
+      role: "assistant",
+      agent: { slug: "kody", title: "Kody" },
+      content: "",
+      status: "pending",
+      turnId: "turn-1",
+      createdAt: "2026-08-11T10:00:00.000Z",
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/kody/chat/conversations/c1/commands",
+      expect.objectContaining({
+        method: "POST",
+        keepalive: true,
+      }),
+    );
   });
 });

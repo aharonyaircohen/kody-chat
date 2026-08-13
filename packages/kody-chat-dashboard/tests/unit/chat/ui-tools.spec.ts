@@ -76,8 +76,7 @@ describe("ui tools", () => {
 
     await expect(
       finalAnswer.execute({
-        content:
-          "I can create the Todo list if you provide the name you want.",
+        content: "I can create the Todo list if you provide the name you want.",
       }),
     ).resolves.toEqual({
       error: expect.stringContaining("show_view"),
@@ -87,7 +86,25 @@ describe("ui tools", () => {
         content: "Agency connects Agents, Capabilities, and Workflows.",
       }),
     ).resolves.toEqual({
-      content: "Agency connects Agents, Capabilities, and Workflows.",
+      error: expect.stringContaining("follow-up question"),
+    });
+    await expect(
+      finalAnswer.execute({
+        content:
+          "Agency connects Agents, Capabilities, and Workflows. What should I inspect next?",
+      }),
+    ).resolves.toEqual({
+      content:
+        "Agency connects Agents, Capabilities, and Workflows. What should I inspect next?",
+    });
+    await expect(
+      finalAnswer.execute({
+        content:
+          "Kody Chat uses the project's existing chat owner. Would you like me to explain one part in more detail?",
+      }),
+    ).resolves.toEqual({
+      content:
+        "Kody Chat uses the project's existing chat owner. Would you like me to explain one part in more detail?",
     });
   });
 
@@ -167,7 +184,7 @@ describe("ui tools", () => {
     });
   });
 
-  it("keeps plain final answers for non-interactive text", async () => {
+  it("requires plain final answers to end with a follow-up question", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],
     }) as Record<string, unknown>;
@@ -180,7 +197,7 @@ describe("ui tools", () => {
         content: "The bug is in the login redirect handler.",
       }),
     ).resolves.toEqual({
-      content: "The bug is in the login redirect handler.",
+      error: expect.stringContaining("follow-up question"),
     });
   });
 
@@ -227,6 +244,55 @@ describe("ui tools", () => {
       action: "render_view",
       rendererSlug: "decision-card",
     });
+  });
+
+  it("uses caller-owned guaranteed view data when the model omits it", async () => {
+    const forcedViewInput = {
+      root: "form",
+      elements: {
+        form: {
+          type: "GuidedForm",
+          props: {
+            title: "Project assessment",
+            fields: [
+              {
+                name: "businessCriticality",
+                label: "Business importance",
+                description: "Explain the impact of downtime.",
+                value: "",
+              },
+            ],
+            submitLabel: "Start assessment",
+          },
+        },
+      },
+    };
+    const tools = createUiTools({ forcedViewInput }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{
+        ui?: unknown;
+      }>;
+    };
+
+    const result = await showView.execute({
+      root: "form",
+      elements: {
+        form: {
+          type: "GuidedForm",
+          props: {
+            title: "Project assessment",
+            fields: [
+              { name: "businessCriticality", label: "Business importance" },
+            ],
+            submitLabel: "Start assessment",
+          },
+        },
+      },
+    });
+
+    expect(JSON.stringify(result.ui)).toContain(
+      "Explain the impact of downtime.",
+    );
   });
 
   it("rejects non-actionable views when the turn requires a user decision", async () => {

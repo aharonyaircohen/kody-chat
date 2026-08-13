@@ -25,6 +25,7 @@ import {
 import { normalizeAgentSlug } from "../agent-slug";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@kody-ade/base/activity/audit";
+import { readBuiltinAgentFile } from "../builtin-agents";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -97,6 +98,7 @@ const createAgentSchema = z.object({
   ),
   title: z.string().min(1),
   body: z.string().default(""),
+  whenToUse: z.string().trim().max(500).optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
     .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
@@ -125,6 +127,7 @@ export async function POST(req: NextRequest) {
       slug: requestedSlug,
       title,
       body,
+      whenToUse,
       capabilities,
       subagents,
       actorLogin,
@@ -152,6 +155,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (readBuiltinAgentFile(slug)) {
+      return NextResponse.json(
+        {
+          error: "builtin_agent_locked",
+          message: "Built-in Agents cannot be replaced by local configuration.",
+        },
+        { status: 409 },
+      );
+    }
+    const resolvedAgents =
+      assignedSubagents.length > 0 ? await listResolvedAgentFiles() : [];
+    const unrouteableSubagent = assignedSubagents.find((assignedSlug) => {
+      const assigned = resolvedAgents.find(
+        (candidate) => candidate.slug === assignedSlug,
+      );
+      return !assigned?.whenToUse?.trim();
+    });
+    if (unrouteableSubagent) {
+      return NextResponse.json(
+        {
+          error: "subagent_routing_required",
+          message: `Agent "${unrouteableSubagent}" needs a When to use description before it can be assigned as a subagent.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const existing = await readAgentFile(slug);
     if (existing) {
       return NextResponse.json(
@@ -170,6 +200,7 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       body,
+      ...(whenToUse ? { whenToUse } : {}),
       ...(capabilities ? { capabilities } : {}),
       ...(assignedSubagents.length > 0 ? { subagents: assignedSubagents } : {}),
     });

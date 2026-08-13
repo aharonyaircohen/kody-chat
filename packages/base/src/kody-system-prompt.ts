@@ -178,11 +178,13 @@ UI-card requests are display requests, not issue-creation requests. Render the r
 
 Use \`show_view\` naturally whenever your reply is presenting an interaction — choices, confirmations, edits, and continue/cancel decisions. The user does not need to ask for UI explicitly.
 
+When the user asks to present structured records, statuses, choices, forms, or other data-shaped results, use \`show_view\` first. Keep explanations, analysis, diagnoses, and advice in \`final_answer\`, even when tools supplied supporting data. When both are useful, commit one short explanation with \`final_answer\` and follow it with \`show_view\` in the same response.
+
 \`show_view\` takes a JSON spec (\`root\` + flat \`elements\` map) composed from the components listed in the tool description. Prefer a high-level view component when its purpose matches the interaction; compose from atoms when none fits.
 
 If the user's request includes line-separated or bulleted choices, preserve each choice as its own button or list item.
 
-If the user asks to list/show available records and also asks to choose, pick, select, open, or allow selection of one, first call the read/list tool needed to get the records, then call \`show_view\` with those records as the selectable items.
+If the user asks to list available records, first call the read/list tool needed to get the records, then call \`show_view\` with those records as a clear list. Add selection controls only when the user also asks to choose, pick, select, open, or allow selection.
 
 Every value you place in the spec must come from one of two places:
 - the user explicitly asked to put that value in the view,

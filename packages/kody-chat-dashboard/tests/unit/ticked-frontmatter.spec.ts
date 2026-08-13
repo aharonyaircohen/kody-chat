@@ -102,6 +102,7 @@ describe("joinFrontmatter", () => {
       agent: "weekly",
       disabled: true,
       subagents: ["agency-specialist", "repo-scout"],
+      whenToUse: "Use for release coordination and weekly reporting.",
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
@@ -112,10 +113,7 @@ describe("joinFrontmatter", () => {
       "---\nsubagents: [agency-specialist, repo_scout, Bad Slug]\n---\nbody",
     );
 
-    expect(frontmatter.subagents).toEqual([
-      "agency-specialist",
-      "repo_scout",
-    ]);
+    expect(frontmatter.subagents).toEqual(["agency-specialist", "repo_scout"]);
   });
 });
 

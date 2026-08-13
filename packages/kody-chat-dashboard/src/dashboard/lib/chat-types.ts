@@ -145,9 +145,8 @@ export interface SessionMeta {
    * thread's chosen assistant instead of a single global default.
    *
    * `undefined` for legacy sessions created before this field existed —
-   * render-time fallback to the global `defaultChatEntryKey` (then the
-   * brain auto-default, then `kody-live`) applies. The next time the
-   * user picks an agent in that session, the field is populated.
+   * render-time fallback to the configured catalog default applies. The next
+   * time the user picks an agent in that session, the field is populated.
    */
   agentKey?: string;
   /** Explicit host-machine access for this conversation. */

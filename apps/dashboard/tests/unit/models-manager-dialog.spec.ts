@@ -7,6 +7,12 @@ const SOURCE = readFileSync(
 );
 
 describe("ModelsManager model editor dialog", () => {
+  it("explains that the chat default applies to new conversations", () => {
+    expect(SOURCE).toContain("Used for new conversations");
+    expect(SOURCE).not.toContain("Auto-selected when chat opens");
+    expect(SOURCE).not.toContain("auto-selected on open");
+  });
+
   it("uses the shared wide viewport modal behavior", () => {
     const editorDialog = SOURCE.slice(
       SOURCE.indexOf("function ModelEditor"),

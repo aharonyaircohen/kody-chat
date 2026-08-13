@@ -20,6 +20,7 @@ interface Ctx {
     input: {
       title?: string;
       body?: string;
+      whenToUse?: string;
       capabilities?: string[];
       subagents?: string[];
     },
@@ -54,12 +55,13 @@ export function createAgentAdminTools(ctx: Ctx) {
     }),
 
     update_agent: tool({
-      description: `Update one local or active Store Agent identity in ${repoRef} through the Dashboard API. Editing a Store agent publishes a local version for this repo.`,
+      description: `Update one editable Agent in ${repoRef} through the Dashboard API. Built-in identities are locked; Kody accepts only additional subagent assignments.`,
       inputSchema: z
         .object({
           slug: z.string().min(1).max(64),
           title: z.string().trim().min(1).optional(),
           body: z.string().optional(),
+          whenToUse: z.string().trim().max(500).optional(),
           capabilities: z.array(z.string().min(1).max(80)).max(50).optional(),
           subagents: z.array(z.string().min(1).max(64)).max(20).optional(),
         })
@@ -67,6 +69,7 @@ export function createAgentAdminTools(ctx: Ctx) {
           (input) =>
             input.title !== undefined ||
             input.body !== undefined ||
+            input.whenToUse !== undefined ||
             input.capabilities !== undefined ||
             input.subagents !== undefined,
           { message: "Provide at least one Agent field to update." },

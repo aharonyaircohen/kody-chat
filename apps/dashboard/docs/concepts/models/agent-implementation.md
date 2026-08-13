@@ -7,26 +7,30 @@ Status: **Current Dashboard contract**
 - Page: `/agents`
 - Local storage: versioned Convex definition bundle
 - Required bundle file: `agent.md`
-- Built-in Agents: `packages/agency/src/builtin-agents.ts`
+- Built-in Agent configuration:
+  `packages/agency/src/builtin-agents.config.json`
 - Store Agents: read-only GitHub assets
 - Owner: `packages/agency/src/agent-files.ts`
 
-The reader parses title, body, optional Capability references, and optional
+The reader parses title, body, optional `whenToUse`, Capability references, and
 `subagents` references from `agent.md`. The resolved roster merges local,
-built-in, and active Store definitions. Local definitions take precedence over
-built-ins and Store assets; built-ins take precedence over Store assets with
-the same slug.
+built-in, and active Store definitions. Built-in identities always remain
+authoritative; local definitions take precedence over Store assets only.
 
-Built-in Agents are product configuration shipped with Kody. They are not Store
-entries. Their definitions, assignments, and scoped Capability tools have one
-source of truth in `packages/agency/src/builtin-agents.ts`; documentation must
-not copy that inventory.
+Built-in Agents are immutable product configuration shipped with Kody. They are
+not Store entries. Their definitions, default assignments, routing guidance,
+and scoped Capability tools have one declarative source of truth in
+`packages/agency/src/builtin-agents.config.json`; documentation must not copy
+that inventory. Kody persists only additional specialist assignments and the
+resolver combines them with the locked defaults.
 
 ## Delegation
 
-The active parent Agent supplies its configured `subagents` roster. Routing
-chooses only from that roster and uses the current Agent definitions to judge
-which specialist owns the request.
+The active parent Agent supplies its effective `subagents` roster. Routing
+chooses only from that roster and uses each Agent's `whenToUse` guidance to
+judge which specialist owns the request. The routing model receives relevant
+recent conversation context and matches by meaning. Definition-based word
+matching is a failure fallback, not the primary decision.
 
 The chat route resolves the parent's authorized tools before delegation by
 applying its chat Capability and host policies. A self-routed turn keeps that
