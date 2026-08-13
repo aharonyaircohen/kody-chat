@@ -39,6 +39,7 @@ import {
 import {
   isWorkflowDefinitionId,
   type WorkflowDefinition,
+  validateWorkflowDefinition,
 } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 import type { PipelineDefinition } from "@dashboard/lib/pipeline-definitions";
@@ -367,6 +368,13 @@ async function assertExists(
     if (!workflow) {
       throw Object.assign(new Error("Store Workflow not found."), {
         status: 404,
+      });
+    }
+    const issues = validateWorkflowDefinition(workflow);
+    if (issues.length > 0) {
+      throw Object.assign(new Error("Store Workflow is invalid."), {
+        status: 422,
+        issues,
       });
     }
     return workflow;
@@ -729,6 +737,7 @@ function errorResponse(error: unknown) {
   const details = error as {
     status?: number;
     blockers?: Array<{ kind: string; slug: string; title?: string }>;
+    issues?: Array<{ code: string; path: string; message: string }>;
   };
   const status = details.status ?? 500;
   return NextResponse.json(
@@ -738,9 +747,12 @@ function errorResponse(error: unknown) {
           ? "store_item_not_found"
           : status === 409
             ? "store_reference_in_use"
+            : status === 422
+              ? "invalid_store_workflow"
             : "store_import_failed",
       message: error instanceof Error ? error.message : "Unknown error",
       ...(details.blockers ? { blockers: details.blockers } : {}),
+      ...(details.issues ? { issues: details.issues } : {}),
     },
     { status },
   );

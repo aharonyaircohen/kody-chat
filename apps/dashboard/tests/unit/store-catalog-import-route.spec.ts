@@ -58,6 +58,13 @@ describe("simple Store activation", () => {
     expect(source).toContain("backendApi.definitions.retire");
   });
 
+  it("rejects invalid Workflows before installing or publishing them", () => {
+    expect(source).toContain("validateWorkflowDefinition(workflow)");
+    expect(source).toContain('status: 422');
+    expect(source).toContain('"invalid_store_workflow"');
+    expect(source).toContain("details.issues");
+  });
+
   it("does not look for Engine built-in capabilities in the Store", () => {
     expect(source).toContain("ENGINE_BUILT_IN_CAPABILITIES,");
     expect(source).toMatch(

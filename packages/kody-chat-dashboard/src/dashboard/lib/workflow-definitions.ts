@@ -7,6 +7,7 @@
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
+import { validateExecutableWorkflow } from "@kody-ade/engine-contracts";
 import { z } from "zod";
 import {
   validateWorkflowInputSchema,
@@ -430,9 +431,10 @@ export function validateWorkflowDefinition(
 ): WorkflowValidationIssue[] {
   const issues: WorkflowValidationIssue[] = [
     ...validateWorkflowInputSchema(workflow.inputSchema),
+    ...validateExecutableWorkflow(workflow, options),
   ];
   const steps = workflow.steps ?? [];
-  if (steps.length === 0) return issues;
+  if (steps.length === 0) return uniqueWorkflowIssues(issues);
   if (steps.length > 100)
     addIssue(
       issues,
@@ -541,7 +543,6 @@ export function validateWorkflowDefinition(
         `steps[${stepIndex}].next`,
         `Step ${step.id} has more than 20 connections.`,
       );
-    const conditionals = transitions.filter((transition) => transition.when);
     const defaults = transitions.filter((transition) => transition.default);
     const unconditional = transitions.filter(
       (transition) =>
@@ -555,13 +556,6 @@ export function validateWorkflowDefinition(
         "multiple_default_transitions",
         `steps[${stepIndex}].next`,
         `Step ${step.id} has more than one Otherwise connection.`,
-      );
-    if (conditionals.length > 0 && defaults.length !== 1)
-      addIssue(
-        issues,
-        "missing_default_transition",
-        `steps[${stepIndex}].next`,
-        `Step ${step.id} has conditions and needs one Otherwise connection.`,
       );
     if (
       unconditional.length > 1 ||
@@ -666,7 +660,19 @@ export function validateWorkflowDefinition(
         "Workflow has no reachable final step.",
       );
   }
-  return issues;
+  return uniqueWorkflowIssues(issues);
+}
+
+function uniqueWorkflowIssues(
+  issues: WorkflowValidationIssue[],
+): WorkflowValidationIssue[] {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    const key = `${issue.code}\u0000${issue.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function isJsonValue(value: unknown): boolean {

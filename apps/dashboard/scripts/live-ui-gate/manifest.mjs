@@ -33,6 +33,11 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     title: "UI send → engine reply committed to target repo within 2 min",
   },
   {
+    id: "ci-repair-chat-to-engine",
+    file: "tests/e2e/ci-repair-chat-real.e2e.spec.ts",
+    title: "runs healthy main-branch CI without requiring a PR",
+  },
+  {
     id: "brain-terminal-live-input",
     file: "tests/e2e/chat-terminal-live-ui.spec.ts",
     title:

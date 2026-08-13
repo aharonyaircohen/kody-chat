@@ -668,6 +668,9 @@ importers:
       '@kody-ade/cms':
         specifier: workspace:*
         version: link:../cms
+      '@kody-ade/engine-contracts':
+        specifier: workspace:^
+        version: link:../engine-contracts
       '@kody-ade/fly':
         specifier: workspace:*
         version: link:../fly

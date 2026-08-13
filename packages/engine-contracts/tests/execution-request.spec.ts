@@ -41,6 +41,17 @@ describe("parseEngineExecutionRequest", () => {
     });
   });
 
+  it("treats Goal as a first-class execution target", () => {
+    expect(
+      parseEngineExecutionRequest({
+        requestId: "goal-request-1",
+        target: { type: "goal", id: "ship-release" },
+        intent: "manage",
+        source: "schedule",
+      }),
+    ).toMatchObject({ request: { target: { type: "goal", id: "ship-release" } } });
+  });
+
   it.each([
     [{ target: { type: "workflow", id: "learn" }, intent: "run", source: "dashboard" }, "requestId"],
     [

@@ -153,6 +153,10 @@ import { createUserStateTools } from "../tools/user-state-tools";
 import { createPositionTools } from "../tools/position-tools";
 import { applyReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning-adapter";
 import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
+import {
+  findPermanentToolFailure,
+  formatPermanentToolFailure,
+} from "../../../../../src/dashboard/lib/chat/core/permanent-tool-failure";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import {
   readCapabilityFile,
@@ -317,6 +321,10 @@ function successfulRenderedViewResult(): StopCondition<ToolSet> {
     steps[steps.length - 1]?.toolResults?.some((result) =>
       isRenderedViewDirective(result.output),
     ) ?? false;
+}
+
+function permanentToolFailureResult(): StopCondition<ToolSet> {
+  return ({ steps }) => findPermanentToolFailure(steps) !== null;
 }
 
 /**
@@ -2050,6 +2058,7 @@ This turn includes an image from the user. For questions about what is visible i
         // rationale and the per-model override path. The constant lives at
         // module level so tests can assert the value.
         stopWhen: [
+          permanentToolFailureResult(),
           settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
           successfulToolResult(FINAL_ANSWER_TOOL),
           successfulRenderedViewResult(),
@@ -2269,6 +2278,23 @@ This turn includes an image from the user. For questions about what is visible i
             retryCount += 1
           ) {
             const steps = await attempt.steps;
+            const permanentFailure = findPermanentToolFailure(steps);
+            if (permanentFailure) {
+              const content = formatPermanentToolFailure(permanentFailure);
+              const toolCallId = `permanent-tool-failure-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: FINAL_ANSWER_TOOL,
+                input: { content },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: { content },
+              });
+              return;
+            }
             const producedOutputTool = steps.some((step) =>
               step.toolResults.some(
                 (stepResult) =>

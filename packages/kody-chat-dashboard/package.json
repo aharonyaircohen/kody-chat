@@ -166,6 +166,7 @@
     "@kody-ade/base": "workspace:*",
     "@kody-ade/brain": "workspace:*",
     "@kody-ade/cms": "workspace:*",
+    "@kody-ade/engine-contracts": "workspace:^",
     "@kody-ade/fly": "workspace:*",
     "@kody-ade/kody-chat": "workspace:*",
     "@kody-ade/memory": "workspace:*",
