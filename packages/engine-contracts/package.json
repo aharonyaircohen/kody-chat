@@ -1,6 +1,6 @@
 {
   "name": "@kody-ade/engine-contracts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "description": "Provider-neutral request contracts shared by Kody clients and the Kody Engine.",
   "type": "module",

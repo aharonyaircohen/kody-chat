@@ -1,6 +1,7 @@
 export const ENGINE_EXECUTION_REQUEST_ENV = "KODY_RUN_REQUEST_JSON";
 
 export * from "./workflow.js";
+export * from "./strategy.js";
 
 export type EngineExecutionTarget =
   | { type: "chat"; id: string }
@@ -26,8 +27,7 @@ export interface EngineExecutionReceipt {
 }
 
 export type EngineExecutionRequestParseResult =
-  | { request: EngineExecutionRequest }
-  | { error: string };
+  { request: EngineExecutionRequest } | { error: string };
 
 const IDENTIFIER = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 const INTENTS = new Set<EngineExecutionIntent>([

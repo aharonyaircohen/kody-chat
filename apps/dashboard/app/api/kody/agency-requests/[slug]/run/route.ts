@@ -93,6 +93,32 @@ export async function POST(
               owner: auth.owner,
               repo: auth.repo,
             }),
+            activate: async (activation) => {
+              const headers = new Headers(req.headers);
+              headers.set("content-type", "application/json");
+              headers.delete("content-length");
+              const response = await fetch(
+                new URL("/api/kody/store-catalog/import", req.url),
+                {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify({
+                    kind: activation.kind,
+                    slug: activation.id,
+                    actorLogin: actorResult.identity.login,
+                  }),
+                },
+              );
+              if (!response.ok) {
+                const payload = (await response.json().catch(() => ({}))) as {
+                  message?: string;
+                };
+                throw new Error(
+                  payload.message ??
+                    `Could not activate ${activation.kind}:${activation.id}`,
+                );
+              }
+            },
           },
         }),
     });

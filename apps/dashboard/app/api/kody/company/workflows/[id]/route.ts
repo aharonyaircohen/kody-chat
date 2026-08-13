@@ -145,6 +145,17 @@ export async function GET(
       context.headerAuth.repo,
     );
     if (!existing) {
+      const includeStore =
+        req.nextUrl.searchParams.get("includeStore") === "true";
+      if (includeStore) {
+        const storeWorkflow = await readCompanyStoreWorkflowDefinitionFile(
+          id,
+          context.octokit,
+        );
+        if (storeWorkflow) {
+          return NextResponse.json({ workflow: storeWorkflow });
+        }
+      }
       const active = await activeStoreReferenceSets(
         context.octokit,
         context.headerAuth.owner,

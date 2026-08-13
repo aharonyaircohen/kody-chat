@@ -558,6 +558,7 @@ export async function POST(req: NextRequest) {
           tenantId,
           actorId: actor,
           instanceId: current.instanceId,
+          instanceKey: current.instanceKey,
         },
       );
       return json({
@@ -682,6 +683,7 @@ export async function POST(req: NextRequest) {
       tenantId,
       actorId: actor,
       instanceId: next.instanceId,
+      instanceKey: next.instanceKey,
     });
     return json({
       ...presentGuidedFlow(

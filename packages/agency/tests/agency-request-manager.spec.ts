@@ -8,6 +8,7 @@ describe("Agency Request Manager", () => {
 
     const result = await submitAgencyRequest(
       {
+        blueprintId: "healthy-ci",
         source: {
           kind: "guided-flow",
           instanceId: "flow-1",
@@ -21,13 +22,47 @@ describe("Agency Request Manager", () => {
           additionalContext: "Use CI Repair when compatible",
         },
       },
-      { create, findBySource },
+      {
+        create,
+        findBySource,
+        resolveBlueprint: vi.fn(async () => ({
+          blueprint: {
+            id: "healthy-ci",
+            version: "1.0.0",
+            application: {
+              workflowId: "apply-strategy",
+              workflowInput: {
+                waitForCi: true,
+                ciTimeoutSeconds: 1800,
+              },
+              activate: [{ kind: "solution", id: "ci-repair" }],
+            },
+          } as never,
+          instructions: "Inspect the repository and build native CI.",
+        })),
+      },
     );
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Keep CI healthy on main",
-        agencyRequest: expect.objectContaining({ phase: "assessing" }),
+        agencyRequest: expect.objectContaining({
+          phase: "assessing",
+          execution: expect.objectContaining({
+            workflowId: "apply-strategy",
+            input: expect.objectContaining({
+              waitForCi: true,
+              ciTimeoutSeconds: 1800,
+            }),
+            activations: [
+              { kind: "workflow", id: "apply-strategy" },
+              { kind: "solution", id: "ci-repair" },
+            ],
+          }),
+          related: expect.arrayContaining([
+            { kind: "strategy", id: "healthy-ci" },
+          ]),
+        }),
       }),
     );
     expect(result).toMatchObject({
@@ -36,6 +71,27 @@ describe("Agency Request Manager", () => {
       handoff: { type: "kody" },
     });
     expect(result.handoff.message).toContain("keep-ci-healthy");
+  });
+
+  it("rejects an unavailable requested Blueprint", async () => {
+    await expect(
+      submitAgencyRequest(
+        {
+          blueprintId: "missing",
+          source: {
+            kind: "guided-flow",
+            instanceId: "flow-1",
+            effectId: "effect-1",
+          },
+          answers: { desiredOutcome: "Keep CI healthy" },
+        },
+        {
+          create: vi.fn(),
+          findBySource: vi.fn(async () => null),
+          resolveBlueprint: vi.fn(async () => null),
+        },
+      ),
+    ).rejects.toThrow(/Blueprint.*unavailable/i);
   });
 
   it("returns the existing Todo when a completion effect is retried", async () => {

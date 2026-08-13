@@ -181,13 +181,16 @@ test("collects, approves, and starts an Agency request", async ({
       "Anything else Kody should consider?",
     ],
   ] as const;
+  let startedInstanceKey = "";
   await page.route("**/api/kody/guided-flows**", async (route) => {
     if (route.request().method() === "GET") return json(route, { flows: [] });
     const body = route.request().postDataJSON() as {
       action?: string;
       stepId?: string;
+      instanceKey?: string;
     };
     if (body.action === "start") {
+      startedInstanceKey = body.instanceKey ?? "";
       return json(route, {
         instance: { status: "active" },
         flow: { id: "new-agency-request" },
@@ -254,10 +257,11 @@ test("collects, approves, and starts an Agency request", async ({
   });
 
   await page.goto(
-    `/repo/${OWNER}/${REPO}/chat?guidedFlow=new-agency-request&instanceKey=ci-repair`,
+    `/repo/${OWNER}/${REPO}/chat?guidedFlow=new-agency-request&instanceKey=blueprint:healthy-ci`,
     { waitUntil: "domcontentloaded" },
   );
   await expect(page.getByText("Create an Agency request")).toBeVisible();
+  expect(startedInstanceKey).toBe("blueprint:healthy-ci");
   await page.getByRole("button", { name: "Begin" }).click();
 
   const answers = [

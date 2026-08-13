@@ -320,6 +320,9 @@ importers:
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../base
+      '@kody-ade/engine-contracts':
+        specifier: workspace:*
+        version: link:../engine-contracts
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1

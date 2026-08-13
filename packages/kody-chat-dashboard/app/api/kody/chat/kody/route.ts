@@ -1412,7 +1412,14 @@ async function handleKodyDirectPost(
         saveTodo: (input) => agencyApi.saveTodo(input),
         patchTodo: (slug, input) => agencyApi.updateTodo(slug, input),
         validateAgencyExecution: async (execution) => {
-          const result = await agencyApi.readWorkflow(execution.workflowId);
+          const result = await agencyApi.readWorkflow(
+            execution.workflowId,
+            execution.activations?.some(
+              (activation) =>
+                activation.kind === "workflow" &&
+                activation.id === execution.workflowId,
+            ),
+          );
           if (typeof result.error === "string") {
             return {
               execution,

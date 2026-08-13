@@ -47,13 +47,21 @@ describe("simple AI Agency domain", () => {
         execution: {
           workflowId: "ci-repair",
           input: { branch: "main", ciRunId: 123 },
+          activations: [{ kind: "solution", id: "ci-repair" }],
         },
         evidence: [],
         blockers: [],
-        related: [{ kind: "workflow", id: "ci-repair" }],
+        related: [
+          { kind: "strategy", id: "healthy-ci" },
+          { kind: "workflow", id: "ci-repair" },
+        ],
       }),
     ).toMatchObject({
-      execution: { workflowId: "ci-repair", input: { branch: "main" } },
+      execution: {
+        workflowId: "ci-repair",
+        input: { branch: "main" },
+        activations: [{ kind: "solution", id: "ci-repair" }],
+      },
       evidence: [],
       blockers: [],
     });

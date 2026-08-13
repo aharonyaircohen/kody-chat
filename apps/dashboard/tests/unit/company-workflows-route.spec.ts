@@ -20,6 +20,7 @@ describe("Workflow API boundary", () => {
     expect(listSource).toContain("effectiveActiveWorkflowIds");
     expect(detailSource).toContain("effectiveActiveWorkflowIds");
     expect(detailSource).toContain("isBuiltInWorkflow");
+    expect(detailSource).toContain('searchParams.get("includeStore")');
     expect(listSource).toContain("reconcileProjectedStoreWorkflows");
     expect(listSource).not.toContain("if (projected.length > 0)");
     expect(listSource).not.toContain(

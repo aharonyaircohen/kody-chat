@@ -3,6 +3,7 @@ import {
   type AgencyRequestSource,
   type AgencyRequestState,
 } from "@kody-ade/agency-domain";
+import type { StrategyBlueprint } from "@kody-ade/engine-contracts";
 
 export interface AgencyRequestTodoDraft {
   title: string;
@@ -19,9 +20,13 @@ export interface AgencyRequestTodoDraft {
 export interface AgencyRequestManagerPorts {
   findBySource(source: AgencyRequestSource): Promise<{ slug: string } | null>;
   create(input: AgencyRequestTodoDraft): Promise<{ slug: string }>;
+  resolveBlueprint?(
+    id: string,
+  ): Promise<{ blueprint: StrategyBlueprint; instructions: string } | null>;
 }
 
 export interface SubmitAgencyRequestInput {
+  blueprintId?: string;
   source: AgencyRequestSource;
   answers: Readonly<Record<string, unknown>>;
 }
@@ -55,6 +60,7 @@ function handoff(todoSlug: string): AgencyRequestHandoff {
     message: [
       `Agency request assessment handoff for Todo ${JSON.stringify(todoSlug)}.`,
       "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
+      "When the Todo already contains a Strategy Blueprint execution, assess that saved Blueprint and preserve its Workflow, inputs, and activations; do not replace it with a different automation path.",
       "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
       "For default-branch CI requests, use the repository CI rollup rather than selecting a run from the raw Actions list; Kody orchestration runs are not repository CI.",
       "If it is executable, save a concrete plan and the exact verified Workflow id and input in execution, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
@@ -82,6 +88,14 @@ export async function submitAgencyRequest(
   const outcome = answer(input.answers, "desiredOutcome");
   if (!outcome) throw new Error("Agency request outcome is required");
 
+  const blueprintId = input.blueprintId?.trim();
+  const resolved = blueprintId
+    ? await ports.resolveBlueprint?.(blueprintId)
+    : null;
+  if (blueprintId && !resolved) {
+    throw new Error(`Strategy Blueprint "${blueprintId}" is unavailable`);
+  }
+
   const existing = await ports.findBySource(source);
   if (existing) {
     return {
@@ -91,29 +105,63 @@ export async function submitAgencyRequest(
     };
   }
 
+  const requirement = {
+    outcome,
+    ...(answer(input.answers, "activation")
+      ? { activation: answer(input.answers, "activation") }
+      : {}),
+    ...(answer(input.answers, "allowedActions")
+      ? { permissions: answer(input.answers, "allowedActions") }
+      : {}),
+    ...(answer(input.answers, "successCriteria")
+      ? { success: answer(input.answers, "successCriteria") }
+      : {}),
+    ...(answer(input.answers, "additionalContext")
+      ? { context: answer(input.answers, "additionalContext") }
+      : {}),
+  };
   const agencyRequest = createAgencyRequestState({
     phase: "assessing",
     source,
-    requirement: {
-      outcome,
-      ...(answer(input.answers, "activation")
-        ? { activation: answer(input.answers, "activation") }
-        : {}),
-      ...(answer(input.answers, "allowedActions")
-        ? { permissions: answer(input.answers, "allowedActions") }
-        : {}),
-      ...(answer(input.answers, "successCriteria")
-        ? { success: answer(input.answers, "successCriteria") }
-        : {}),
-      ...(answer(input.answers, "additionalContext")
-        ? { context: answer(input.answers, "additionalContext") }
-        : {}),
-    },
+    requirement,
     questions: [],
     plan: [],
     evidence: [],
     blockers: [],
-    related: [],
+    ...(resolved
+      ? {
+          execution: {
+            workflowId: resolved.blueprint.application.workflowId,
+            input: {
+              ...(resolved.blueprint.application.workflowInput ?? {}),
+              blueprintId: resolved.blueprint.id,
+              blueprintVersion: resolved.blueprint.version,
+              requestId: input.source.effectId,
+              outcome,
+              blueprint: resolved.blueprint,
+              instructions: resolved.instructions,
+              request: requirement,
+            },
+            activations: [
+              {
+                kind: "workflow",
+                id: resolved.blueprint.application.workflowId,
+              },
+              ...resolved.blueprint.application.activate,
+            ],
+          },
+        }
+      : {}),
+    related: resolved
+      ? [
+          { kind: "strategy", id: resolved.blueprint.id },
+          {
+            kind: "workflow",
+            id: resolved.blueprint.application.workflowId,
+          },
+          ...resolved.blueprint.application.activate,
+        ]
+      : [],
   });
   const created = await ports.create({
     title: outcome.slice(0, 160),

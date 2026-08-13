@@ -39,7 +39,12 @@ describe("GuidedFlow completion effects", () => {
           headers: { authorization: "Bearer test" },
         }),
         client as never,
-        { tenantId: "acme/app", actorId: "alice", instanceId: "flow-1" },
+        {
+          tenantId: "acme/app",
+          actorId: "alice",
+          instanceId: "flow-1",
+          instanceKey: "blueprint:healthy-ci",
+        },
       ),
     ).resolves.toMatchObject({
       handoff: { type: "kody", message: "Assess Todo keep-ci-healthy" },
@@ -54,6 +59,9 @@ describe("GuidedFlow completion effects", () => {
     if (calledInit?.method !== "POST") {
       throw new Error("Agency request completion did not use POST");
     }
+    expect(JSON.parse(String(calledInit.body))).toMatchObject({
+      blueprintId: "healthy-ci",
+    });
     expect(client.mutation).toHaveBeenCalledTimes(2);
   });
 });

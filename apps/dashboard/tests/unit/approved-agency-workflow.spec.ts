@@ -5,6 +5,7 @@ import { dispatchApprovedAgencyWorkflow } from "../../src/dashboard/features/age
 const execution = {
   workflowId: "ci-repair",
   input: { branch: "main", ciRunId: 123 },
+  activations: [{ kind: "solution" as const, id: "ci-repair" }],
 };
 
 function services(overrides: Record<string, unknown> = {}) {
@@ -18,6 +19,7 @@ function services(overrides: Record<string, unknown> = {}) {
       requestId: request.requestId,
       acceptedAt: "2026-08-13T00:00:00.000Z",
     })),
+    activate: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -35,6 +37,10 @@ describe("approved Agency Workflow dispatch", () => {
 
     expect(result.runId).toBe("run-1");
     expect(workflowServices.dispatch).toHaveBeenCalledOnce();
+    expect(workflowServices.activate).toHaveBeenCalledWith({
+      kind: "solution",
+      id: "ci-repair",
+    });
     expect(workflowServices.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         target: { type: "workflow", id: "ci-repair" },
@@ -45,9 +51,7 @@ describe("approved Agency Workflow dispatch", () => {
 
   it("rejects an invalid saved Workflow input before dispatch", async () => {
     const workflowServices = services({
-      validateInput: vi.fn(() => [
-        { path: "ciRunId", message: "Required" },
-      ]),
+      validateInput: vi.fn(() => [{ path: "ciRunId", message: "Required" }]),
     });
 
     await expect(

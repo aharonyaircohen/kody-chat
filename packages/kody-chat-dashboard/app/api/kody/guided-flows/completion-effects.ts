@@ -16,6 +16,13 @@ interface GuidedFlowEffectRow {
   readonly attempts: number;
 }
 
+function blueprintIdFromInstanceKey(instanceKey?: string): string | undefined {
+  const match = /^blueprint:([a-z][a-z0-9-]{0,127})$/.exec(
+    instanceKey?.trim() ?? "",
+  );
+  return match?.[1];
+}
+
 interface GuidedFlowHandoff {
   readonly type: "kody";
   readonly message: string;
@@ -115,6 +122,7 @@ async function runConsumerEffect(
   effect: GuidedFlowEffectRow,
   actor: string,
   isRetry: boolean,
+  instanceKey?: string,
 ): Promise<{ workflow?: unknown; handoff?: GuidedFlowHandoff }> {
   if (effect.action === "agency-request.submit") {
     const headers = new Headers(req.headers);
@@ -127,6 +135,9 @@ async function runConsumerEffect(
         method: "POST",
         headers,
         body: JSON.stringify({
+          ...(blueprintIdFromInstanceKey(instanceKey)
+            ? { blueprintId: blueprintIdFromInstanceKey(instanceKey) }
+            : {}),
           source: {
             kind: "guided-flow",
             instanceId: effect.instanceId,
@@ -160,6 +171,7 @@ export async function processGuidedFlowCompletionEffects(
     readonly tenantId: string;
     readonly actorId: string;
     readonly instanceId: string;
+    readonly instanceKey?: string;
   },
 ): Promise<{
   readonly workflow?: unknown;
@@ -184,6 +196,7 @@ export async function processGuidedFlowCompletionEffects(
         effect,
         input.actorId,
         effect.attempts > 0,
+        input.instanceKey,
       );
       workflow = result.workflow ?? workflow;
       handoff = result.handoff ?? handoff;

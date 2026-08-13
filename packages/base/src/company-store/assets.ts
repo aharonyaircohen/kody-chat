@@ -18,6 +18,7 @@ export type StoreAssetKind =
   | "loops"
   | "triggers"
   | "solutions"
+  | "strategies"
   | "commands"
   | "shared"
   | "agent"
@@ -30,6 +31,7 @@ type StoreManifestKind =
   | "loops"
   | "triggers"
   | "solutions"
+  | "strategies"
   | "commands"
   | "shared"
   | "agent";

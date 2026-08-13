@@ -54,13 +54,26 @@ export interface AgencyRequirement {
 }
 
 export interface AgencyRequestRelatedRef {
-  kind: "solution" | "trigger" | "loop" | "workflow" | "capability" | "run";
+  kind:
+    | "strategy"
+    | "solution"
+    | "trigger"
+    | "loop"
+    | "workflow"
+    | "capability"
+    | "run";
   id: string;
 }
+
+export type AgencyActivationKind =
+  | Exclude<AgencyRequestRelatedRef["kind"], "strategy" | "run">
+  | "agent"
+  | "pipeline";
 
 export interface AgencyRequestExecution {
   workflowId: string;
   input: Readonly<Record<string, unknown>>;
+  activations?: ReadonlyArray<{ kind: AgencyActivationKind; id: string }>;
 }
 
 export interface AgencyRequestState {
@@ -375,11 +388,12 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
   if (execution) {
     exact(
       execution,
-      ["workflowId", "input"],
+      ["workflowId", "input", "activations"],
       "Agency request execution",
     );
   }
   const relatedKinds: AgencyRequestRelatedRef["kind"][] = [
+    "strategy",
     "solution",
     "trigger",
     "loop",
@@ -415,6 +429,9 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
               execution.input,
               "Agency request execution input",
             ),
+            ...(execution.activations === undefined
+              ? {}
+              : { activations: parseAgencyActivations(execution.activations) }),
           }),
         }
       : {}),
@@ -439,6 +456,34 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
         id: text(related.id, "Agency request related reference id"),
       });
     }),
+  });
+}
+
+function parseAgencyActivations(
+  value: unknown,
+): ReadonlyArray<{ kind: AgencyActivationKind; id: string }> {
+  if (!Array.isArray(value)) {
+    throw new Error("Agency request execution activations must be an array");
+  }
+  const kinds: AgencyActivationKind[] = [
+    "solution",
+    "trigger",
+    "loop",
+    "pipeline",
+    "workflow",
+    "capability",
+    "agent",
+  ];
+  return value.map((entry) => {
+    const activation = record(entry, "Agency request activation");
+    exact(activation, ["kind", "id"], "Agency request activation");
+    if (!kinds.includes(activation.kind as AgencyActivationKind)) {
+      throw new Error("Agency request activation kind is invalid");
+    }
+    return Object.freeze({
+      kind: activation.kind as AgencyActivationKind,
+      id: identifier(activation.id, "Agency request activation id"),
+    });
   });
 }
 

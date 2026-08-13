@@ -36,6 +36,28 @@ export const agencyRequestStateSchema = z
           .trim()
           .regex(/^[a-z][a-z0-9-]{0,127}$/),
         input: z.record(z.string(), z.unknown()),
+        activations: z
+          .array(
+            z
+              .object({
+                kind: z.enum([
+                  "solution",
+                  "trigger",
+                  "loop",
+                  "pipeline",
+                  "workflow",
+                  "capability",
+                  "agent",
+                ]),
+                id: z
+                  .string()
+                  .trim()
+                  .regex(/^[a-z][a-z0-9-]{0,127}$/),
+              })
+              .strict(),
+          )
+          .max(50)
+          .optional(),
       })
       .strict()
       .optional(),
@@ -46,6 +68,7 @@ export const agencyRequestStateSchema = z
         z
           .object({
             kind: z.enum([
+              "strategy",
               "solution",
               "trigger",
               "loop",

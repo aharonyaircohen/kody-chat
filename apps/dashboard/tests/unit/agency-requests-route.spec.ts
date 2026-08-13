@@ -14,11 +14,16 @@ const auth = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => auth);
 
 const manager = vi.hoisted(() => ({
-  submitAgencyRequest: vi.fn(async () => ({
-    created: true,
-    todoSlug: "set-up-ci-repair",
-    handoff: { message: "Assess todo set-up-ci-repair" },
-  })),
+  submitAgencyRequest: vi.fn(
+    async (
+      _input?: unknown,
+      _ports?: { resolveBlueprint(id: string): Promise<unknown> },
+    ) => ({
+      created: true,
+      todoSlug: "set-up-ci-repair",
+      handoff: { message: "Assess todo set-up-ci-repair" },
+    }),
+  ),
 }));
 vi.mock("@kody-ade/agency/agency-request-manager", () => manager);
 
@@ -34,6 +39,14 @@ const github = vi.hoisted(() => ({
   clearGitHubContext: vi.fn(),
 }));
 vi.mock("@kody-ade/workspace/github", () => github);
+
+const strategies = vi.hoisted(() => ({
+  readStoreStrategy: vi.fn(async () => ({
+    blueprint: { id: "healthy-ci" },
+    instructions: "Build native CI",
+  })),
+}));
+vi.mock("@dashboard/lib/store-strategies", () => strategies);
 
 import { POST } from "../../app/api/kody/agency-requests/route";
 
@@ -76,6 +89,8 @@ describe("agency request route", () => {
       "acme",
       "widgets",
       "token",
+      undefined,
+      undefined,
     );
     expect(manager.submitAgencyRequest).toHaveBeenCalledWith(
       validBody,
@@ -85,6 +100,21 @@ describe("agency request route", () => {
       }),
     );
     expect(github.clearGitHubContext).toHaveBeenCalledOnce();
+  });
+
+  it("passes the selected Blueprint to the request owner", async () => {
+    const body = { ...validBody, blueprintId: "healthy-ci" };
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(201);
+    const ports = manager.submitAgencyRequest.mock.calls[0]![1]!;
+    await expect(ports.resolveBlueprint("healthy-ci")).resolves.toMatchObject({
+      blueprint: { id: "healthy-ci" },
+    });
+    expect(strategies.readStoreStrategy).toHaveBeenCalledWith(
+      expect.anything(),
+      "healthy-ci",
+    );
   });
 
   it("rejects incomplete request data before creating anything", async () => {

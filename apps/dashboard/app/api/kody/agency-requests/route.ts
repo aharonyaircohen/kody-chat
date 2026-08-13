@@ -16,12 +16,18 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@kody-ade/workspace/github";
+import { readStoreStrategy } from "@dashboard/lib/store-strategies";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const submitSchema = z
   .object({
+    blueprintId: z
+      .string()
+      .trim()
+      .regex(/^[a-z][a-z0-9-]{0,127}$/)
+      .optional(),
     source: z
       .object({
         kind: z.literal("guided-flow"),
@@ -41,7 +47,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  setGitHubContext(auth.owner, auth.repo, auth.token);
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
   try {
     const parsed = submitSchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -90,6 +102,7 @@ export async function POST(req: NextRequest) {
         });
         return { slug: todo.slug };
       },
+      resolveBlueprint: (id) => readStoreStrategy(octokit, id),
     });
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {

@@ -9,7 +9,11 @@ import {
 type DispatchServices = Pick<
   WorkflowExecutionDependencies,
   "loadWorkflow" | "validateDefinition" | "validateInput" | "dispatch"
->;
+> & {
+  activate?(
+    activation: NonNullable<AgencyRequestExecution["activations"]>[number],
+  ): Promise<void>;
+};
 
 export async function dispatchApprovedAgencyWorkflow({
   actor,
@@ -22,6 +26,12 @@ export async function dispatchApprovedAgencyWorkflow({
   runId: string;
   services: DispatchServices;
 }): Promise<{ runId: string }> {
+  for (const activation of execution.activations ?? []) {
+    if (!services.activate) {
+      throw new Error("The approved Agency activation service is unavailable");
+    }
+    await services.activate(activation);
+  }
   const result = await startWorkflow(
     {
       workflowId: execution.workflowId,
