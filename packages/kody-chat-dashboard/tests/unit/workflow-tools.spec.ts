@@ -43,7 +43,7 @@ describe("workflow chat tools", () => {
     expect(ctx.listWorkflows).toHaveBeenCalledOnce();
   });
 
-  it("reads one active workflow definition before selection", async () => {
+  it("reads one repository or Store workflow definition before selection", async () => {
     const tools = createWorkflowTools(ctx);
 
     await expect(

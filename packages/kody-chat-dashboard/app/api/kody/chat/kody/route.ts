@@ -1369,7 +1369,7 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
         listWorkflows: () => workflowApi.list(),
-        readWorkflow: (workflowId) => workflowApi.read(workflowId),
+        readWorkflow: (workflowId) => workflowApi.read(workflowId, true),
         saveWorkflow: (input) => agencyApi.saveWorkflow(input),
         removeWorkflow: (workflowId) => agencyApi.removeWorkflow(workflowId),
         runWorkflow: (command) => workflowApi.run(command),

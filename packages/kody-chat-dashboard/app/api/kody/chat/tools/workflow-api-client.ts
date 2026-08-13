@@ -72,11 +72,12 @@ export function createWorkflowApiClient({
       );
     },
 
-    async read(workflowId: string): Promise<unknown> {
+    async read(workflowId: string, includeStore = false): Promise<unknown> {
+      const storeQuery = includeStore ? "?includeStore=true" : "";
       return workflowResult(
         await fetchImpl(
           new URL(
-            `/api/kody/company/workflows/${encodeURIComponent(workflowId)}`,
+            `/api/kody/company/workflows/${encodeURIComponent(workflowId)}${storeQuery}`,
             request.url,
           ),
           {

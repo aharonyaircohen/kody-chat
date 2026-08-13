@@ -46,7 +46,7 @@ export function createWorkflowTools(ctx: Ctx) {
     }),
 
     read_workflow: tool({
-      description: `Read one active Workflow definition in ${repoRef}; use this after list_workflows to verify its purpose, steps, capabilities, and expected input before selecting it.`,
+      description: `Read one Workflow definition available to ${repoRef}, including an inactive Store workflow being considered for activation; use this to verify its purpose, steps, capabilities, source, and expected input before selecting it.`,
       inputSchema: z.object({
         workflowId: workflowIdSchema,
       }),

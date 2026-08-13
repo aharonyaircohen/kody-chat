@@ -68,13 +68,13 @@ describe("workflow API client", () => {
     });
 
     await client.list();
-    await client.read("documentation-agency");
+    await client.read("documentation-agency", true);
 
     expect(fetchImpl.mock.calls[0]![0].toString()).toBe(
       "https://dash.test/api/kody/company/workflows",
     );
     expect(fetchImpl.mock.calls[1]![0].toString()).toBe(
-      "https://dash.test/api/kody/company/workflows/documentation-agency",
+      "https://dash.test/api/kody/company/workflows/documentation-agency?includeStore=true",
     );
     const headers = fetchImpl.mock.calls[0]![1]!.headers as Headers;
     expect(headers.get("authorization")).toBe("Bearer user-token");
