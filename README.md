@@ -228,6 +228,7 @@ definition.
 
 ## Documentation
 
+- [Project assessment](docs/project-assessment.md)
 - [Project behavior](docs/project-behavior.md)
 - [Dashboard UI principles](docs/ui-design-principles.md)
 - [Testing policy](docs/testing-policy.md)

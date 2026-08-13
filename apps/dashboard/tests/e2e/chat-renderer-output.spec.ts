@@ -401,42 +401,38 @@ function renderedProjectAssessmentForm() {
     action: "render_view",
     view: "renderer",
     id: "view-project-assessment-e2e",
-    rendererSlug: "guided-form",
-    rendererName: "Guided form",
+    rendererSlug: "approval-card",
+    rendererName: "Approval card",
     resultTarget: "guided-flow",
     guidedFlow: {
       instanceId: "assessment-from-chat",
-      stepId: "project-expectations",
+      stepId: "introduction",
       revision: 0,
     },
     ui: {
       type: "stack",
       children: [
-        { type: "text", value: "Question 1 of 7", variant: "title" },
+        { type: "text", value: "Deep project assessment", variant: "title" },
         {
           type: "markdown",
           value:
-            "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major changes, and deadlines.",
+            "Kody automatically inspects repository evidence. You answer seven questions, each answer is saved, and assessment work starts only after the final answer.",
         },
         {
           type: "list",
           children: [
-          {
-            type: "stack",
-            children: [
-              {
-                type: "input",
-                name: "projectExpectations",
-                label: "Project goals and expected growth",
-                value: "",
-                inputType: "textarea",
-                readOnly: false,
+            {
+              type: "button",
+              label: "Begin questions",
+              action: {
+                id: "continue",
+                label: "Begin questions",
+                response: "continue",
+                variant: "primary",
               },
-            ],
-          },
+            },
           ],
         },
-        { type: "submit", label: "Continue" },
       ],
     },
     data: {},
@@ -584,19 +580,19 @@ test.describe("Kody chat renderer output", () => {
               id: "project-assessment",
               title: "Project assessment",
               stepIndex: 0,
-              stepCount: 7,
+              stepCount: 8,
             },
             compatibility: { status: "compatible" },
             view: {
               action: "render_view",
               view: "renderer",
               id: "guided-flow-assessment-flow-0",
-              rendererSlug: "guided-form",
-              rendererName: "Guided form",
+              rendererSlug: "approval-card",
+              rendererName: "Approval card",
               resultTarget: "guided-flow",
               guidedFlow: {
                 instanceId: "assessment-flow",
-                stepId: "project-expectations",
+                stepId: "introduction",
                 revision: 0,
               },
               ui: {
@@ -604,13 +600,13 @@ test.describe("Kody chat renderer output", () => {
                 children: [
                   {
                     type: "text",
-                    value: "Question 1 of 7",
+                    value: "Deep project assessment",
                     variant: "title",
                   },
                   {
                     type: "markdown",
                     value:
-                      "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major product or technical changes, and important deadlines.",
+                      "Kody automatically inspects the repository and GitHub history. You answer seven questions, each answer is saved, and assessment work starts only after the final answer.",
                   },
                   {
                     type: "list",
@@ -619,18 +615,19 @@ test.describe("Kody chat renderer output", () => {
                         type: "stack",
                         children: [
                           {
-                            type: "input",
-                            name: "projectExpectations",
-                            label: "Project goals and expected growth",
-                            value: "",
-                            inputType: "textarea",
-                            readOnly: false,
+                            type: "button",
+                            label: "Begin questions",
+                            action: {
+                              id: "continue",
+                              label: "Begin questions",
+                              response: "continue",
+                              variant: "primary",
+                            },
                           },
                         ],
                       },
                     ],
                   },
-                  { type: "submit", label: "Continue" },
                 ],
               },
               data: {},
@@ -686,12 +683,12 @@ test.describe("Kody chat renderer output", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Run project assessment" }).click();
-    await expect(page.getByText("Question 1 of 7")).toBeVisible();
+    await expect(page.getByText("Deep project assessment")).toBeVisible();
     await expect(
-      page.getByText("Project goals and expected growth"),
+      page.getByText(/answer seven questions/i),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Continue" }),
+      page.getByRole("button", { name: "Begin questions" }),
     ).toBeVisible();
     await expect(
       page.getByText("Business importance and acceptable failures"),
@@ -742,15 +739,15 @@ test.describe("Kody chat renderer output", () => {
 
     await sendChatMessage(page, "Run a complete project assessment");
 
-    await expect(page.getByText("Question 1 of 7")).toBeVisible();
+    await expect(page.getByText("Deep project assessment")).toBeVisible();
     await expect(
-      page.getByText("Project goals and expected growth"),
+      page.getByText(/answer seven questions/i),
     ).toBeVisible();
     await expect(
       page.getByText("Business importance and acceptable failures"),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Continue" }),
+      page.getByRole("button", { name: "Begin questions" }),
     ).toBeVisible();
   });
 

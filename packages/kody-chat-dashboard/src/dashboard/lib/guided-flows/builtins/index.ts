@@ -2,7 +2,10 @@ import type { GuidedFlowDefinition } from "../controller";
 import { CREATE_WORKFLOW_FLOW } from "./create-workflow";
 import { INITIALIZE_KODY_ENGINE_FLOW } from "./initialize-kody-engine";
 import { SETUP_UI_LOGIN_FLOW } from "./setup-ui-login";
-import { PROJECT_ASSESSMENT_FLOW } from "./project-assessment";
+import {
+  PROJECT_ASSESSMENT_FLOW,
+  PROJECT_ASSESSMENT_FLOW_V1,
+} from "./project-assessment";
 import {
   ONBOARDING_FLOW,
   ONBOARDING_FLOW_V1,
@@ -23,5 +26,6 @@ export const BUILTIN_GUIDED_FLOW_DEFINITIONS: readonly GuidedFlowDefinition[] =
     INITIALIZE_KODY_ENGINE_FLOW,
     SETUP_UI_LOGIN_FLOW,
     CREATE_WORKFLOW_FLOW,
+    PROJECT_ASSESSMENT_FLOW_V1,
     PROJECT_ASSESSMENT_FLOW,
   ];
