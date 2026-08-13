@@ -158,13 +158,14 @@ describe("Kody chat evals", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 
     expect(route).toContain("isAgencyRequestIntakeRequest");
-    expect(route).toContain("isAgencyRequestAssessmentHandoff");
+    expect(route).toContain("getAgencyRequestAssessmentTodoSlug");
     expect(route).toContain("agencyAssessmentUpdated");
     expect(route).toContain('name === "update_agency_request"');
     expect(route).toContain("MAX_AGENCY_ASSESSMENT_READ_RESULTS = 8");
     expect(route).toContain("agencyAssessmentReadResults >=");
     expect(route).toContain("agencyAssessmentReadResultsSeen += 1");
     expect(route).toContain("agencyAssessmentUpdatedSeen = true");
+    expect(route).toContain("createAgencyRequestApproval");
     expect(route).toContain("NEW_AGENCY_REQUEST_FLOW_ID");
     expect(route).toContain('activeTools: ["guided_flow_start"]');
     expect(route).toContain(

@@ -99,6 +99,7 @@ import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
+import { createAgencyRequestApproval } from "../tools/agency-request-approval";
 import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -195,7 +196,7 @@ import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
   isCompleteProjectAssessmentRequest,
   isAgencyRequestIntakeRequest,
-  isAgencyRequestAssessmentHandoff,
+  getAgencyRequestAssessmentTodoSlug,
   isClearlyConversationalTurn,
   isParentOwnedArchitectureAdvice,
 } from "./public-agent-routing";
@@ -823,9 +824,10 @@ async function handleKodyDirectPost(
   const latestUserText = getLatestUserText(messages);
   const explicitMemoryCommand = hasExplicitMemoryCommand(latestUserText);
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
-  const agencyAssessmentHandoffRequested = isAgencyRequestAssessmentHandoff(
+  const agencyAssessmentTodoSlug = getAgencyRequestAssessmentTodoSlug(
     latestUserText ?? "",
   );
+  const agencyAssessmentHandoffRequested = agencyAssessmentTodoSlug !== null;
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
@@ -2395,6 +2397,34 @@ This turn includes an image from the user. For questions about what is visible i
                     !isToolErrorOutput(stepResult.output)),
               ),
             );
+            const savedAgencyAssessment = steps.some((step) =>
+              step.toolResults.some(
+                (stepResult) =>
+                  stepResult.toolName === "update_agency_request" &&
+                  !isToolErrorOutput(stepResult.output),
+              ),
+            );
+            if (
+              agencyAssessmentTodoSlug &&
+              savedAgencyAssessment &&
+              !producedOutputTool
+            ) {
+              const toolCallId = `agency-approval-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: SHOW_VIEW_TOOL,
+                input: { purpose: "approval-card" },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: createAgencyRequestApproval({
+                  todoSlug: agencyAssessmentTodoSlug,
+                }),
+              });
+              return;
+            }
             const visibleAnswer = parseReasoning(
               steps.map((step) => step.text ?? "").join(""),
             ).answer.trim();

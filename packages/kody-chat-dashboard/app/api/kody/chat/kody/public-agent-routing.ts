@@ -141,14 +141,19 @@ export function isAgencyRequestIntakeRequest(userText: string): boolean {
 }
 
 /** Trusted internal handoff emitted after Agency request intake completes. */
-export function isAgencyRequestAssessmentHandoff(userText: string): boolean {
+export function getAgencyRequestAssessmentTodoSlug(
+  userText: string,
+): string | null {
   const text = userText.trim();
-  return (
-    /^Assess Agency Todo "[a-z0-9][a-z0-9_-]{0,63}" now\./.test(text) ||
-    /^Agency request assessment handoff for Todo "[a-z0-9][a-z0-9_-]{0,63}"\./.test(
-      text,
-    )
+  const match = text.match(
+    /^(?:Assess Agency Todo|Agency request assessment handoff for Todo) "([a-z0-9][a-z0-9_-]{0,63})"(?: now)?\./,
   );
+  return match?.[1] ?? null;
+}
+
+/** Trusted internal handoff emitted after Agency request intake completes. */
+export function isAgencyRequestAssessmentHandoff(userText: string): boolean {
+  return getAgencyRequestAssessmentTodoSlug(userText) !== null;
 }
 
 export function isParentOwnedArchitectureAdvice(userText: string): boolean {

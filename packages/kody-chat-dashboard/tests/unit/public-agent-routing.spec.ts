@@ -7,6 +7,7 @@ import {
   routeProjectAssessmentSubmission,
   isAgencyRequestIntakeRequest,
   isAgencyRequestAssessmentHandoff,
+  getAgencyRequestAssessmentTodoSlug,
   isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
@@ -76,6 +77,7 @@ describe("public Agent routing", () => {
   it("keeps the request manager assessment handoff with Kody", async () => {
     const handoff = 'Assess Agency Todo "keep-ci-passing" now.';
     expect(isAgencyRequestAssessmentHandoff(handoff)).toBe(true);
+    expect(getAgencyRequestAssessmentTodoSlug(handoff)).toBe("keep-ci-passing");
 
     const generate = vi.fn();
     await expect(
