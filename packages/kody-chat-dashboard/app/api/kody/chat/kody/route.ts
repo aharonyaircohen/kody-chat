@@ -100,6 +100,11 @@ import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
 import {
+  validateWorkflowDefinition,
+  validateWorkflowInput,
+  type WorkflowDefinition,
+} from "../../../../../src/dashboard/lib/workflow-definitions";
+import {
   createAgencyRequestApproval,
   readAgencyRequestApproval,
   runApprovedAgencyRequestDirectly,
@@ -1405,6 +1410,33 @@ async function handleKodyDirectPost(
         readTodo: (slug) => agencyApi.readTodo(slug),
         saveTodo: (input) => agencyApi.saveTodo(input),
         patchTodo: (slug, input) => agencyApi.updateTodo(slug, input),
+        validateAgencyExecution: async (execution) => {
+          const result = await agencyApi.readWorkflow(execution.workflowId);
+          if (typeof result.error === "string") {
+            return [
+              `Workflow ${execution.workflowId} could not be read: ${result.error}`,
+            ];
+          }
+          const record =
+            result.workflow &&
+            typeof result.workflow === "object" &&
+            !Array.isArray(result.workflow)
+              ? (result.workflow as Record<string, unknown>)
+              : null;
+          const workflow =
+            record?.workflow &&
+            typeof record.workflow === "object" &&
+            !Array.isArray(record.workflow)
+              ? (record.workflow as WorkflowDefinition)
+              : null;
+          if (!workflow) {
+            return [`Workflow ${execution.workflowId} is unavailable`];
+          }
+          return [
+            ...validateWorkflowDefinition(workflow),
+            ...validateWorkflowInput(execution.input, workflow.inputSchema),
+          ].map((issue) => `${issue.path}: ${issue.message}`);
+        },
         runAgencyRequest: (slug) => agencyApi.runAgencyRequest(slug),
         removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),

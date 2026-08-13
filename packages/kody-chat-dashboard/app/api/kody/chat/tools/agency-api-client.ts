@@ -148,6 +148,8 @@ export function createAgencyApiClient({
 
     createWorkflow: (input: JsonObject) =>
       send("/api/kody/company/workflows", "POST", input),
+    readWorkflow: (id: string) =>
+      send(itemPath("/api/kody/company/workflows", id), "GET"),
     updateWorkflow: (id: string, input: JsonObject) =>
       send(itemPath("/api/kody/company/workflows", id), "PATCH", input),
     removeWorkflow: (id: string) =>

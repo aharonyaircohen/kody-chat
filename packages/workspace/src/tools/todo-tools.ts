@@ -20,6 +20,11 @@ interface Ctx {
     slug: string,
     input: { agencyRequest: z.infer<typeof agencyRequestStateSchema> },
   ): Promise<unknown>;
+  validateAgencyExecution(
+    execution: NonNullable<
+      z.infer<typeof agencyRequestStateSchema>["execution"]
+    >,
+  ): Promise<string[]>;
   runAgencyRequest(slug: string): Promise<unknown>;
   removeTodo(slug: string): Promise<unknown>;
 }
@@ -100,6 +105,19 @@ export function createTodoTools(ctx: Ctx) {
             error:
               "waiting-approval requires execution.workflowId and validated input",
           };
+        }
+        if (
+          agencyRequest.phase === "waiting-approval" &&
+          agencyRequest.execution
+        ) {
+          const issues = await ctx.validateAgencyExecution(
+            agencyRequest.execution,
+          );
+          if (issues.length > 0) {
+            return {
+              error: `Agency execution is invalid: ${issues.join("; ")}`,
+            };
+          }
         }
         return ctx.patchTodo(slug, { agencyRequest });
       },
