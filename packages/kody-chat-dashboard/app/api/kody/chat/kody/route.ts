@@ -194,10 +194,14 @@ import { startDurableTurn, type DurableTurn } from "../durable-turn";
 import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
   isCompleteProjectAssessmentRequest,
+  isAgencyRequestIntakeRequest,
   isClearlyConversationalTurn,
   isParentOwnedArchitectureAdvice,
 } from "./public-agent-routing";
-import { PROJECT_ASSESSMENT_FLOW_ID } from "../../../../../src/dashboard/lib/guided-flows/builtins";
+import {
+  NEW_AGENCY_REQUEST_FLOW_ID,
+  PROJECT_ASSESSMENT_FLOW_ID,
+} from "../../../../../src/dashboard/lib/guided-flows/builtins";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { shouldRoutePublicAgentChat } from "./public-agent-routing";
@@ -1232,6 +1236,9 @@ async function handleKodyDirectPost(
   const assessmentIntakeRequested = isCompleteProjectAssessmentRequest(
     latestUserText ?? "",
   );
+  const agencyRequestIntakeRequested = isAgencyRequestIntakeRequest(
+    latestUserText ?? "",
+  );
   const requireInteractiveAction =
     !explicitViewRequest &&
     shouldRequireViewOutputForTurn({
@@ -1239,8 +1246,7 @@ async function handleKodyDirectPost(
       definitions: viewRendererDefinitions,
     });
   const requireStructuredView =
-    !explicitViewRequest &&
-    shouldRequireStructuredViewForTurn(latestUserText);
+    !explicitViewRequest && shouldRequireStructuredViewForTurn(latestUserText);
   const requireViewOutputForTurn =
     requireInteractiveAction || requireStructuredView;
   let uiToolSet = createUiTools({
@@ -1693,6 +1699,11 @@ async function handleKodyDirectPost(
       `Start the built-in GuidedFlow \`${PROJECT_ASSESSMENT_FLOW_ID}\` with \`guided_flow_start\`. Do not begin assessment work and do not recreate the questions with \`show_view\`; the GuidedFlow owns intake and starts the assessment only after its last step.`,
     );
   }
+  if (agencyRequestIntakeRequested) {
+    turnSystemInstructions.push(
+      `Start the built-in GuidedFlow \`${NEW_AGENCY_REQUEST_FLOW_ID}\` with \`guided_flow_start\` now. Do not delegate, inspect, execute, or recreate the questions with \`show_view\` before intake; the GuidedFlow collects the user's durable automation requirement and hands the completed request back to Kody for assessment.`,
+    );
+  }
   if (
     clearlyConversationalTurn &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, FINAL_ANSWER_TOOL)
@@ -1718,6 +1729,9 @@ async function handleKodyDirectPost(
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
   >;
+  const forceGuidedFlowIntake =
+    (assessmentIntakeRequested || agencyRequestIntakeRequested) &&
+    allActiveTools.includes("guided_flow_start");
   const shouldAllowPreRenderTools =
     requireViewOutput &&
     shouldAllowPreRenderToolCallsForTurn({
@@ -1948,6 +1962,15 @@ This turn includes an image from the user. For questions about what is visible i
         ...(!forceShowViewTool
           ? {
               prepareStep: ({ steps }) => {
+                if (forceGuidedFlowIntake && steps.length === 0) {
+                  return {
+                    activeTools: ["guided_flow_start"],
+                    toolChoice: selectChatOutputToolChoice(
+                      ["guided_flow_start"],
+                      providerCapabilities,
+                    ),
+                  };
+                }
                 if (
                   explicitMemoryCommand &&
                   steps.length === 0 &&

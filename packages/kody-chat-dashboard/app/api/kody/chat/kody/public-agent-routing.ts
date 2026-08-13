@@ -126,6 +126,20 @@ export function isCompleteProjectAssessmentRequest(userText: string): boolean {
   return assessment && project && (complete || namedProjectAssessment);
 }
 
+/** A request to create durable automation ownership, not a one-off run. */
+export function isAgencyRequestIntakeRequest(userText: string): boolean {
+  const text = userText.trim().toLowerCase().replace(/\s+/g, " ");
+  const setup =
+    /\b(?:set up|setup|build|create|configure|establish|install)\b/.test(text);
+  const automation =
+    /\b(?:automation|workflow|pipeline|flow|process|ci repair)\b/.test(text);
+  const durableOwnership =
+    /\b(?:take responsibility|keep working|maintain|monitor|own|automatically|whenever)\b/.test(
+      text,
+    ) || /\buntil\b.{0,80}\b(?:pass|work|succeed|complete|done)\b/.test(text);
+  return setup && automation && durableOwnership;
+}
+
 export function isParentOwnedArchitectureAdvice(userText: string): boolean {
   const text = userText.trim();
   return (
@@ -336,6 +350,9 @@ export async function routePublicAgentTask({
     return { mode: "self" };
   }
   if (isCompleteProjectAssessmentRequest(userText)) {
+    return { mode: "self" };
+  }
+  if (isAgencyRequestIntakeRequest(userText)) {
     return { mode: "self" };
   }
   const workflowExecution = routeExplicitWorkflowExecution(

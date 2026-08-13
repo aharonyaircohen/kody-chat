@@ -154,6 +154,17 @@ describe("Kody chat evals", () => {
     expect(route).not.toContain("buildProjectAssessmentIntakeSpec");
   });
 
+  it("forces durable automation requests through Agency intake before delegation", () => {
+    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+
+    expect(route).toContain("isAgencyRequestIntakeRequest");
+    expect(route).toContain("NEW_AGENCY_REQUEST_FLOW_ID");
+    expect(route).toContain('activeTools: ["guided_flow_start"]');
+    expect(route).toContain(
+      "Do not delegate, inspect, execute, or recreate the questions",
+    );
+  });
+
   it("retries a failed show_view a bounded number of times, not forever", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 

@@ -5,6 +5,7 @@ import {
   buildPublicAgentRoutingPrompt,
   inferPublicAgentRouteFromDefinitions,
   routeProjectAssessmentSubmission,
+  isAgencyRequestIntakeRequest,
   isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
@@ -48,6 +49,29 @@ const assignedAgents = [
 ];
 
 describe("public Agent routing", () => {
+  it("keeps durable automation ownership requests with Kody intake", async () => {
+    expect(
+      isAgencyRequestIntakeRequest(
+        "Set up CI Repair for this repository and keep working until it passes end to end.",
+      ),
+    ).toBe(true);
+    expect(
+      isAgencyRequestIntakeRequest("Run the CI Repair workflow on main."),
+    ).toBe(false);
+
+    const generate = vi.fn();
+    await expect(
+      routePublicAgentTask({
+        userText:
+          "Build an automation for releases and take responsibility for monitoring it.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("keeps a complete assessment with Kody until the context form is submitted", () => {
     expect(
       isCompleteProjectAssessmentRequest(
