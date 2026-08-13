@@ -100,6 +100,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "list_todo_lists",
     "read_todo_list",
     "create_or_update_todo_list",
+    "update_agency_request",
     "delete_todo_list",
     // ── Loops (actor-gated) ───────────────────────────────────────────────
     "list_loops",
