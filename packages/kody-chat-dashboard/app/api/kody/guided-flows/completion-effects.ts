@@ -179,7 +179,11 @@ export async function processGuidedFlowCompletionEffects(
 }> {
   const effects = (await client.query(
     backendApi.guidedFlows.listPendingEffects,
-    input,
+    {
+      tenantId: input.tenantId,
+      actorId: input.actorId,
+      instanceId: input.instanceId,
+    },
   )) as GuidedFlowEffectRow[];
   let workflow: unknown;
   let handoff: GuidedFlowHandoff | undefined;

@@ -62,6 +62,11 @@ describe("GuidedFlow completion effects", () => {
     expect(JSON.parse(String(calledInit.body))).toMatchObject({
       blueprintId: "healthy-ci",
     });
+    expect(client.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "acme/app",
+      actorId: "alice",
+      instanceId: "flow-1",
+    });
     expect(client.mutation).toHaveBeenCalledTimes(2);
   });
 });
