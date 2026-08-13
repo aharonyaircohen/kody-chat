@@ -29,6 +29,21 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+type PipelineContinuation = {
+  kind: "next" | "start";
+  pipelineId: string;
+  runId: string;
+  stepIndex: number;
+  step: { id: string; workflowId: string };
+  facts: Record<string, unknown>;
+};
+
+function isPipelineContinuation(value: unknown): value is PipelineContinuation {
+  if (!value || typeof value !== "object") return false;
+  const kind = (value as { kind?: unknown }).kind;
+  return kind === "next" || kind === "start";
+}
+
 export async function startPipelineExecution(input: {
   octokit: Octokit;
   owner: string;
@@ -75,6 +90,7 @@ export async function startPipelineExecution(input: {
     });
   } catch (error) {
     await failPipelineDispatch({
+      octokit: input.octokit,
       owner: input.owner,
       repo: input.repo,
       pipelineId: input.pipelineId,
@@ -160,19 +176,72 @@ export async function dispatchPipelineStep(input: {
 }
 
 export async function failPipelineDispatch(input: {
+  octokit: Octokit;
   owner: string;
   repo: string;
   pipelineId: string;
   pipelineRunId: string;
   error: unknown;
 }): Promise<void> {
-  await createBackendClient().mutation(api.pipelineRuns.failDispatch, {
-    tenantId: `${input.owner}/${input.repo}`,
-    pipelineId: input.pipelineId,
-    runId: input.pipelineRunId,
-    error: message(input.error),
-    now: new Date().toISOString(),
-  });
+  const next = await createBackendClient().mutation(
+    api.pipelineRuns.failDispatch,
+    {
+      tenantId: `${input.owner}/${input.repo}`,
+      pipelineId: input.pipelineId,
+      runId: input.pipelineRunId,
+      error: message(input.error),
+      now: new Date().toISOString(),
+    },
+  );
+  if (isPipelineContinuation(next)) {
+    await dispatchPipelineContinuation({
+      octokit: input.octokit,
+      owner: input.owner,
+      repo: input.repo,
+      next,
+    });
+  }
+}
+
+async function dispatchPipelineContinuation(input: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  next: PipelineContinuation;
+}): Promise<void> {
+  const step: PipelineStepDefinition = {
+    id: input.next.step.id,
+    workflow: input.next.step.workflowId,
+  };
+  try {
+    await dispatchPipelineStep({
+      octokit: input.octokit,
+      owner: input.owner,
+      repo: input.repo,
+      pipelineId: input.next.pipelineId,
+      pipelineRunId: input.next.runId,
+      stepIndex: input.next.stepIndex,
+      step,
+      facts: input.next.facts,
+    });
+  } catch (error) {
+    await failPipelineDispatch({
+      octokit: input.octokit,
+      owner: input.owner,
+      repo: input.repo,
+      pipelineId: input.next.pipelineId,
+      pipelineRunId: input.next.runId,
+      error,
+    });
+    logger.error(
+      {
+        pipeline: input.next.pipelineId,
+        runId: input.next.runId,
+        error: message(error),
+      },
+      "Pipeline failed to start its next Workflow",
+    );
+  }
 }
 
 export async function advancePipelineForWorkflowCompletion(input: {
@@ -191,34 +260,13 @@ export async function advancePipelineForWorkflowCompletion(input: {
     now: new Date().toISOString(),
   });
   if (!next) return false;
-  if (next.kind !== "next") return true;
-  const step: PipelineStepDefinition = {
-    id: next.step.id,
-    workflow: next.step.workflowId,
-  };
-  try {
-    await dispatchPipelineStep({
+  if (isPipelineContinuation(next)) {
+    await dispatchPipelineContinuation({
       octokit: input.octokit,
       owner: input.owner,
       repo: input.repo,
-      pipelineId: next.pipelineId,
-      pipelineRunId: next.runId,
-      stepIndex: next.stepIndex,
-      step,
-      facts: next.facts,
+      next,
     });
-  } catch (error) {
-    await failPipelineDispatch({
-      owner: input.owner,
-      repo: input.repo,
-      pipelineId: next.pipelineId,
-      pipelineRunId: next.runId,
-      error,
-    });
-    logger.error(
-      { pipeline: next.pipelineId, runId: next.runId, error: message(error) },
-      "Pipeline failed to start its next Workflow",
-    );
   }
   return true;
 }

@@ -62,6 +62,7 @@ export const pipelineDefinitionValidator = v.object({
 });
 
 export const pipelineRunStatusValidator = v.union(
+  v.literal("queued"),
   v.literal("running"),
   v.literal("done"),
   v.literal("failed"),

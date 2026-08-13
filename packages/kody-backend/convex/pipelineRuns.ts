@@ -1,8 +1,44 @@
 import { v } from "convex/values";
 import { pipelineRunStepValidator } from "./validators";
 import { serviceMutation, serviceQuery } from "./lib/auth";
+import type { MutationCtx } from "./_generated/server";
 
 const PIPELINE_CONCURRENCY_LEASE_MS = 7 * 60 * 60 * 1_000;
+
+async function queuedRunFor(
+  ctx: MutationCtx,
+  input: { tenantId: string; pipelineId: string; concurrencyKey?: string },
+) {
+  if (!input.concurrencyKey) return null;
+  return await ctx.db
+    .query("pipelineRuns")
+    .withIndex("by_concurrency", (q) =>
+      q
+        .eq("tenantId", input.tenantId)
+        .eq("pipelineId", input.pipelineId)
+        .eq("concurrencyKey", input.concurrencyKey)
+        .eq("status", "queued"),
+    )
+    .first();
+}
+
+async function promoteQueuedRun(
+  ctx: MutationCtx,
+  input: { tenantId: string; pipelineId: string; concurrencyKey?: string },
+  now: string,
+) {
+  const queued = await queuedRunFor(ctx, input);
+  if (!queued) return null;
+  await ctx.db.patch(queued._id, { status: "running", updatedAt: now });
+  return {
+    kind: "start" as const,
+    pipelineId: queued.pipelineId,
+    runId: queued.runId,
+    stepIndex: 0,
+    step: queued.steps[0]!,
+    facts: queued.facts ?? queued.input ?? {},
+  };
+}
 
 export const list = serviceQuery({
   args: {
@@ -74,7 +110,33 @@ export const reserve = serviceMutation({
           Number.isFinite(activeAt) &&
           Number.isFinite(nowAt) &&
           nowAt - activeAt >= PIPELINE_CONCURRENCY_LEASE_MS;
-        if (!expired) return { claimed: false, run: active };
+        if (!expired) {
+          const queued = await queuedRunFor(ctx, args);
+          if (queued) {
+            await ctx.db.patch(queued._id, {
+              status: "cancelled",
+              error: "Superseded by a newer waiting Pipeline run.",
+              updatedAt: args.now,
+            });
+          }
+          const id = await ctx.db.insert("pipelineRuns", {
+            tenantId: args.tenantId,
+            pipelineId: args.pipelineId,
+            runId: args.runId,
+            concurrencyKey: args.concurrencyKey,
+            status: "queued",
+            facts: args.facts ?? args.input ?? {},
+            steps: args.steps,
+            currentStepIndex: 0,
+            createdAt: args.now,
+            updatedAt: args.now,
+          });
+          return {
+            claimed: false,
+            queued: true,
+            run: await ctx.db.get(id),
+          };
+        }
 
         const staleSteps = [...active.steps];
         if (staleSteps[active.currentStepIndex]) {
@@ -91,6 +153,14 @@ export const reserve = serviceMutation({
           error: "Pipeline run expired while still active.",
           updatedAt: args.now,
         });
+        const queued = await queuedRunFor(ctx, args);
+        if (queued) {
+          await ctx.db.patch(queued._id, {
+            status: "cancelled",
+            error: "Superseded by a newer Pipeline run.",
+            updatedAt: args.now,
+          });
+        }
       }
     }
     const id = await ctx.db.insert("pipelineRuns", {
@@ -186,7 +256,7 @@ export const failDispatch = serviceMutation({
       error: args.error.slice(0, 2000),
       updatedAt: args.now,
     });
-    return true;
+    return await promoteQueuedRun(ctx, run, args.now);
   },
 });
 
@@ -235,7 +305,11 @@ export const advance = serviceMutation({
         error: `Workflow ${current.workflowId} ${args.status}.`,
         updatedAt: args.now,
       });
-      return { kind: args.status as "failed" | "blocked" };
+      return (
+        (await promoteQueuedRun(ctx, run, args.now)) ?? {
+          kind: args.status as "failed" | "blocked",
+        }
+      );
     }
     const nextIndex = run.currentStepIndex + 1;
     const next = steps[nextIndex];
@@ -248,7 +322,11 @@ export const advance = serviceMutation({
         activeWorkflowRunId: undefined,
         updatedAt: args.now,
       });
-      return { kind: "done" as const };
+      return (
+        (await promoteQueuedRun(ctx, run, args.now)) ?? {
+          kind: "done" as const,
+        }
+      );
     }
     await ctx.db.patch(run._id, {
       steps,

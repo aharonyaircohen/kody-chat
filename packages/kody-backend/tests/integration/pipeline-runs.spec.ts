@@ -6,7 +6,7 @@ const TENANT = "acme/app";
 const NOW = "2026-08-08T00:00:00.000Z";
 
 describe("pipeline runs", () => {
-  it("allows only one running Pipeline for the same concurrency key", async () => {
+  it("runs one Pipeline and keeps only the newest waiting run per key", async () => {
     const t = setup();
     const common = {
       tenantId: TENANT,
@@ -27,6 +27,11 @@ describe("pipeline runs", () => {
       ...common,
       runId: "repair-2",
     });
+    const newest = await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "repair-3",
+      facts: { branch: "main", ciRunId: 3 },
+    });
     const otherBranch = await t.mutation(api.pipelineRuns.reserve, {
       ...common,
       runId: "repair-feature",
@@ -36,8 +41,165 @@ describe("pipeline runs", () => {
 
     expect(first.claimed).toBe(true);
     expect(competing.claimed).toBe(false);
-    expect(competing.run?.runId).toBe("repair-1");
+    expect(competing.queued).toBe(true);
+    expect(competing.run?.status).toBe("queued");
+    expect(newest.claimed).toBe(false);
+    expect(newest.queued).toBe(true);
+    expect(newest.run?.runId).toBe("repair-3");
+    const superseded = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "repair-2",
+    });
+    expect(superseded?.status).toBe("cancelled");
     expect(otherBranch.claimed).toBe(true);
+  });
+
+  it("starts the waiting run when the active run finishes", async () => {
+    const t = setup();
+    const common = {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      concurrencyKey: "main",
+      steps: [
+        { id: "repair", workflowId: "ci-repair", status: "pending" as const },
+      ],
+      now: NOW,
+    };
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "active-repair",
+      facts: { branch: "main", ciRunId: 1 },
+    });
+    await t.mutation(api.pipelineRuns.markDispatched, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "active-repair",
+      stepIndex: 0,
+      workflowRunId: "active-workflow",
+      now: NOW,
+    });
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "waiting-repair",
+      facts: { branch: "main", ciRunId: 2 },
+    });
+
+    const result = await t.mutation(api.pipelineRuns.advance, {
+      tenantId: TENANT,
+      workflowRunId: "active-workflow",
+      status: "success",
+      output: {},
+      now: NOW,
+    });
+
+    expect(result).toMatchObject({
+      kind: "start",
+      pipelineId: "ci-repair",
+      runId: "waiting-repair",
+      stepIndex: 0,
+      facts: { branch: "main", ciRunId: 2 },
+    });
+    const waiting = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "waiting-repair",
+    });
+    expect(waiting?.status).toBe("running");
+  });
+
+  it("starts the waiting run when the active workflow fails", async () => {
+    const t = setup();
+    const common = {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      concurrencyKey: "main",
+      steps: [
+        { id: "repair", workflowId: "ci-repair", status: "pending" as const },
+      ],
+      now: NOW,
+    };
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "active-repair",
+      facts: { branch: "main", ciRunId: 1 },
+    });
+    await t.mutation(api.pipelineRuns.markDispatched, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "active-repair",
+      stepIndex: 0,
+      workflowRunId: "active-workflow",
+      now: NOW,
+    });
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "waiting-repair",
+      facts: { branch: "main", ciRunId: 2 },
+    });
+
+    const next = await t.mutation(api.pipelineRuns.advance, {
+      tenantId: TENANT,
+      workflowRunId: "active-workflow",
+      status: "failed",
+      output: {},
+      now: "2026-08-08T00:01:00.000Z",
+    });
+
+    expect(next).toMatchObject({
+      kind: "start",
+      runId: "waiting-repair",
+      facts: { branch: "main", ciRunId: 2 },
+    });
+    const active = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "active-repair",
+    });
+    const waiting = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "waiting-repair",
+    });
+    expect(active?.status).toBe("failed");
+    expect(waiting?.status).toBe("running");
+  });
+
+  it("starts the waiting run when the active dispatch fails", async () => {
+    const t = setup();
+    const common = {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      concurrencyKey: "main",
+      facts: { branch: "main" },
+      steps: [
+        { id: "repair", workflowId: "ci-repair", status: "pending" as const },
+      ],
+      now: NOW,
+    };
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "active-repair",
+    });
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "waiting-repair",
+      facts: { branch: "main", ciRunId: 2 },
+    });
+
+    const result = await t.mutation(api.pipelineRuns.failDispatch, {
+      tenantId: TENANT,
+      pipelineId: "ci-repair",
+      runId: "active-repair",
+      error: "dispatch failed",
+      now: NOW,
+    });
+
+    expect(result).toMatchObject({
+      kind: "start",
+      runId: "waiting-repair",
+      facts: { branch: "main", ciRunId: 2 },
+    });
   });
 
   it("releases a concurrency key held by an abandoned run", async () => {
