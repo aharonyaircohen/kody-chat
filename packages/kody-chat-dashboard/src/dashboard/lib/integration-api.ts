@@ -26,6 +26,7 @@ import type {
   WorkflowDefinitionRecord,
 } from "./workflow-definitions";
 import type { ScheduleEvery } from "./ticked/frontmatter";
+import type { AgencyRequestState } from "@kody-ade/workspace/todos";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import { readActiveRepo, readStoredKodyAuth } from "@kody-ade/base/active-repo";
 
@@ -1244,6 +1245,7 @@ export interface TodoEntry {
   htmlUrl: string;
   /** List-level metadata from frontmatter. */
   frontmatter?: Record<string, unknown>;
+  agencyRequest?: AgencyRequestState;
 }
 
 export interface TodoItem {
@@ -1288,6 +1290,7 @@ export const todosApi = {
       completedAt?: string | null;
       meta?: Record<string, unknown>;
     }>;
+    agencyRequest?: AgencyRequestState;
     actorLogin?: string;
   }): Promise<TodoEntry> => {
     const res = await fetch(`${API_BASE}/todos`, {
@@ -1304,6 +1307,7 @@ export const todosApi = {
       title?: string;
       description?: string;
       items?: TodoItem[];
+      agencyRequest?: AgencyRequestState;
       actorLogin?: string;
     },
   ): Promise<TodoEntry> => {

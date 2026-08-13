@@ -8,6 +8,7 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
+import { agencyRequestStateSchema } from "../todos/agency-request-schema";
 
 interface Ctx {
   owner: string;
@@ -15,6 +16,10 @@ interface Ctx {
   listTodos(): Promise<unknown>;
   readTodo(slug: string): Promise<unknown>;
   saveTodo(input: z.infer<typeof todoWriteSchema>): Promise<unknown>;
+  patchTodo(
+    slug: string,
+    input: { agencyRequest: z.infer<typeof agencyRequestStateSchema> },
+  ): Promise<unknown>;
   removeTodo(slug: string): Promise<unknown>;
 }
 
@@ -33,6 +38,7 @@ const todoWriteSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().max(20_000).optional(),
   items: z.array(todoItemSchema).max(200).default([]),
+  agencyRequest: agencyRequestStateSchema.optional(),
 });
 
 function isValidTodoSlug(slug: string): boolean {
@@ -72,6 +78,20 @@ export function createTodoTools(ctx: Ctx) {
           return { error: `invalid slug "${input.slug}"` };
         }
         return ctx.saveTodo(input);
+      },
+    }),
+
+    update_agency_request: tool({
+      description:
+        `Update the lifecycle of one Agency request Todo in ${repoRef}. ` +
+        "Read the Todo first, preserve the user's requirement and source exactly, and update phase, questions, plan, and related Agency resources. Use waiting-information only for a real user decision, waiting-approval after feasibility and a concrete plan are verified, running/monitoring after approval, done only with end-to-end evidence recorded on the Todo, and blocked only with a precise blocker.",
+      inputSchema: z.object({
+        slug: z.string().min(1).max(64),
+        agencyRequest: agencyRequestStateSchema,
+      }),
+      execute: async ({ slug, agencyRequest }) => {
+        if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
+        return ctx.patchTodo(slug, { agencyRequest });
       },
     }),
 

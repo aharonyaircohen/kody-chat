@@ -1835,6 +1835,11 @@ export function KodyChat({
                 data?: Readonly<Record<string, unknown>>;
               };
               flow?: { id?: string };
+              handoff?: {
+                type?: string;
+                message?: string;
+                displayContent?: string;
+              };
               navigation?: DashboardNavigateDirective;
               error?: string;
             };
@@ -1854,6 +1859,18 @@ export function KodyChat({
                   view: nextView,
                 },
               ]);
+            } else if (
+              payload.handoff?.type === "kody" &&
+              typeof payload.handoff.message === "string" &&
+              payload.handoff.message.trim()
+            ) {
+              void sendText(payload.handoff.message, [], {
+                displayContent:
+                  typeof payload.handoff.displayContent === "string" &&
+                  payload.handoff.displayContent.trim()
+                    ? payload.handoff.displayContent
+                    : "Request submitted.",
+              });
             } else if (
               payload.instance?.status === "completed" &&
               payload.flow?.id === PROJECT_ASSESSMENT_FLOW_ID

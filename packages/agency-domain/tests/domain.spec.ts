@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAgencyRequestState,
   createLoopDefinition,
   createRun,
   createTodo,
@@ -7,6 +8,48 @@ import {
 } from "../src/index";
 
 describe("simple AI Agency domain", () => {
+  it("keeps Agency request lifecycle state inside Todo metadata", () => {
+    expect(
+      createAgencyRequestState({
+        phase: "assessing",
+        source: {
+          kind: "guided-flow",
+          instanceId: "request-1",
+          effectId: "effect-1",
+        },
+        requirement: {
+          outcome: "Keep CI healthy",
+          activation: "When CI fails on main",
+          permissions: "Create a pull request; do not merge it",
+          success: "The latest main CI run is green",
+          context: "Use the installed CI Repair solution when compatible",
+        },
+        questions: [],
+        plan: [],
+        related: [],
+      }),
+    ).toMatchObject({
+      phase: "assessing",
+      requirement: { outcome: "Keep CI healthy" },
+    });
+
+    expect(() =>
+      createAgencyRequestState({
+        phase: "running",
+        source: {
+          kind: "guided-flow",
+          instanceId: "request-1",
+          effectId: "effect-1",
+        },
+        requirement: { outcome: "Keep CI healthy" },
+        questions: [],
+        plan: [],
+        related: [],
+        workflowId: "ci-repair",
+      }),
+    ).toThrow(/unknown field "workflowId"/i);
+  });
+
   it("puts one Agent on the Workflow, not its steps", () => {
     expect(
       createWorkflowDefinition({

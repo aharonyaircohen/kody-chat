@@ -8,6 +8,7 @@ const ctx = {
   listTodos: vi.fn(),
   readTodo: vi.fn(),
   saveTodo: vi.fn(),
+  patchTodo: vi.fn(),
   removeTodo: vi.fn(),
 };
 
@@ -17,6 +18,7 @@ describe("todo chat tools", () => {
     ctx.listTodos.mockResolvedValue({ todos: [] });
     ctx.readTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.saveTodo.mockResolvedValue({ todo: { slug: "launch" } });
+    ctx.patchTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.removeTodo.mockResolvedValue({ success: true });
   });
 
@@ -34,6 +36,24 @@ describe("todo chat tools", () => {
       },
       {} as never,
     );
+    await tools.update_agency_request.execute!(
+      {
+        slug: "launch",
+        agencyRequest: {
+          phase: "waiting-approval",
+          source: {
+            kind: "guided-flow",
+            instanceId: "flow-1",
+            effectId: "effect-1",
+          },
+          requirement: { outcome: "Ship safely" },
+          questions: [],
+          plan: ["Run the release workflow"],
+          related: [{ kind: "workflow", id: "release" }],
+        },
+      },
+      {} as never,
+    );
     await tools.delete_todo_list.execute!({ slug: "launch" }, {} as never);
 
     expect(ctx.listTodos).toHaveBeenCalledOnce();
@@ -43,6 +63,9 @@ describe("todo chat tools", () => {
       title: "Launch",
       description: "Ship safely.",
       items: [],
+    });
+    expect(ctx.patchTodo).toHaveBeenCalledWith("launch", {
+      agencyRequest: expect.objectContaining({ phase: "waiting-approval" }),
     });
     expect(ctx.removeTodo).toHaveBeenCalledWith("launch");
   });

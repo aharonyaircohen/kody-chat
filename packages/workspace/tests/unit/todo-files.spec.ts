@@ -86,6 +86,41 @@ describe("todo file content", () => {
     });
   });
 
+  it("round-trips Agency request lifecycle metadata", () => {
+    const serialized = serializeTodoFileContent({
+      title: "Keep CI healthy",
+      description: "Set up and prove CI Repair.",
+      items: [],
+      createdAt,
+      agencyRequest: {
+        phase: "assessing",
+        source: {
+          kind: "guided-flow",
+          instanceId: "flow-1",
+          effectId: "effect-1",
+        },
+        requirement: {
+          outcome: "Keep CI healthy",
+          activation: "When CI fails",
+          permissions: "Create PRs but do not merge",
+          success: "Main CI is green",
+        },
+        questions: [],
+        plan: [],
+        related: [],
+      },
+    });
+
+    expect(
+      parseTodoFileContent(serialized, "keep-ci-healthy", updatedAt),
+    ).toMatchObject({
+      agencyRequest: {
+        phase: "assessing",
+        source: { effectId: "effect-1" },
+      },
+    });
+  });
+
   it("keeps a described empty list empty instead of creating a legacy item", () => {
     const serialized = serializeTodoFileContent({
       title: "Launch notes",

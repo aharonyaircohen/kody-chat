@@ -1,0 +1,132 @@
+import {
+  createAgencyRequestState,
+  type AgencyRequestSource,
+  type AgencyRequestState,
+} from "@kody-ade/agency-domain";
+
+export interface AgencyRequestTodoDraft {
+  title: string;
+  description: string;
+  items: Array<{
+    title: string;
+    body: string;
+    completed: boolean;
+    meta: Record<string, unknown>;
+  }>;
+  agencyRequest: AgencyRequestState;
+}
+
+export interface AgencyRequestManagerPorts {
+  findBySource(source: AgencyRequestSource): Promise<{ slug: string } | null>;
+  create(input: AgencyRequestTodoDraft): Promise<{ slug: string }>;
+}
+
+export interface SubmitAgencyRequestInput {
+  source: AgencyRequestSource;
+  answers: Readonly<Record<string, unknown>>;
+}
+
+export interface AgencyRequestHandoff {
+  type: "kody";
+  message: string;
+  displayContent: string;
+}
+
+export interface SubmitAgencyRequestResult {
+  created: boolean;
+  todoSlug: string;
+  handoff: AgencyRequestHandoff;
+}
+
+function answer(
+  answers: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined {
+  const value = answers[key];
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized ? normalized.slice(0, 20_000) : undefined;
+}
+
+function handoff(todoSlug: string): AgencyRequestHandoff {
+  return {
+    type: "kody",
+    displayContent: "Request submitted for assessment.",
+    message: [
+      `Assess Agency Todo ${JSON.stringify(todoSlug)} now.`,
+      "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
+      "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
+      "If it is executable, save a concrete plan, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
+      "After approval, use only existing compatible automation in this first release, attach its Run ids, monitor it, and mark the request done only with end-to-end evidence. Otherwise mark it blocked with the precise reason.",
+    ].join("\n"),
+  };
+}
+
+export async function submitAgencyRequest(
+  input: SubmitAgencyRequestInput,
+  ports: AgencyRequestManagerPorts,
+): Promise<SubmitAgencyRequestResult> {
+  const source = createAgencyRequestState({
+    phase: "assessing",
+    source: input.source,
+    requirement: {
+      outcome: answer(input.answers, "desiredOutcome") ?? "Missing outcome",
+    },
+    questions: [],
+    plan: [],
+    related: [],
+  }).source;
+  const outcome = answer(input.answers, "desiredOutcome");
+  if (!outcome) throw new Error("Agency request outcome is required");
+
+  const existing = await ports.findBySource(source);
+  if (existing) {
+    return {
+      created: false,
+      todoSlug: existing.slug,
+      handoff: handoff(existing.slug),
+    };
+  }
+
+  const agencyRequest = createAgencyRequestState({
+    phase: "assessing",
+    source,
+    requirement: {
+      outcome,
+      ...(answer(input.answers, "activation")
+        ? { activation: answer(input.answers, "activation") }
+        : {}),
+      ...(answer(input.answers, "allowedActions")
+        ? { permissions: answer(input.answers, "allowedActions") }
+        : {}),
+      ...(answer(input.answers, "successCriteria")
+        ? { success: answer(input.answers, "successCriteria") }
+        : {}),
+      ...(answer(input.answers, "additionalContext")
+        ? { context: answer(input.answers, "additionalContext") }
+        : {}),
+    },
+    questions: [],
+    plan: [],
+    related: [],
+  });
+  const created = await ports.create({
+    title: outcome.slice(0, 160),
+    description: "Kody is assessing this request before proposing execution.",
+    items: [
+      {
+        title: "Assess feasibility and prepare the execution plan",
+        body: "Kody must verify the repository, available automation, permissions, and success evidence.",
+        completed: false,
+        meta: { kind: "agency-request-readiness" },
+      },
+    ],
+    agencyRequest,
+  });
+
+  return {
+    created: true,
+    todoSlug: created.slug,
+    handoff: handoff(created.slug),
+  };
+}

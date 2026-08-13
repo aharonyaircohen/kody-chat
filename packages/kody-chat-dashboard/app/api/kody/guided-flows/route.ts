@@ -669,6 +669,9 @@ export async function POST(req: NextRequest) {
               effectId: `${next.instanceId}:${completed.definition.id}@${completed.definition.version}:${completed.instance.revision}`,
               flowId: completed.definition.id,
               flowVersion: completed.definition.version,
+              ...(completed.definition.onComplete
+                ? { action: completed.definition.onComplete.action }
+                : {}),
               completedAt,
               data: completed.instance.data,
             })),

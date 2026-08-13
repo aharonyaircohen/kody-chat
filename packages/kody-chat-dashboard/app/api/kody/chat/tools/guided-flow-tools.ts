@@ -25,8 +25,11 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
   return {
     guided_flow_start: tool({
       description:
-        "Start or resume a GuidedFlow for the user. Use only when the user " +
-        "explicitly asks for step-by-step help with a supported task. " +
+        "Start or resume a GuidedFlow for the user. Use when the user " +
+        "explicitly asks for step-by-step help with a supported task. Also start " +
+        "new-agency-request when the user asks Kody to take responsibility for " +
+        "building, running, or maintaining automation and the outcome, activation, " +
+        "permissions, or success proof still need one-time definition. " +
         `Built-in flow ids: ${knownFlowIds}. Custom flows defined in this ` +
         "repo can also be started by id. The result is the first interactive step.",
       inputSchema: z.object({

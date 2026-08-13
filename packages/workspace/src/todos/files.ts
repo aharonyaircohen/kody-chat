@@ -6,6 +6,10 @@
  * in the tenant's Convex backend. Each document is one list.
  */
 import type { Octokit } from "@octokit/rest";
+import {
+  createAgencyRequestState,
+  type AgencyRequestState,
+} from "@kody-ade/agency-domain";
 import { getOwner, getRepo } from "../github";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { api } from "@kody-ade/backend/api";
@@ -34,6 +38,7 @@ export interface TodoFileContent {
   description: string;
   items: TodoItemFile[];
   createdAt: string;
+  agencyRequest?: AgencyRequestState;
   frontmatter?: Record<string, unknown>;
 }
 
@@ -162,7 +167,12 @@ function parseTodoJsonFileContent(
     ...(asRecord(record.frontmatter) ?? {}),
   };
   for (const [key, value] of Object.entries(record)) {
-    if (key === "description" || key === "items" || key === "frontmatter") {
+    if (
+      key === "description" ||
+      key === "items" ||
+      key === "frontmatter" ||
+      key === "agencyRequest"
+    ) {
       continue;
     }
     frontmatter[key] = value;
@@ -178,6 +188,11 @@ function parseTodoJsonFileContent(
         : "",
     items: normalizeItems(record.items, createdAt),
     createdAt,
+    ...(record.agencyRequest === undefined
+      ? {}
+      : {
+          agencyRequest: createAgencyRequestState(record.agencyRequest),
+        }),
     frontmatter,
   };
 }
@@ -196,6 +211,9 @@ export function serializeTodoFileContent(content: TodoFileContent): string {
       title: frontmatter.title,
       description,
       createdAt: frontmatter.createdAt,
+      ...(content.agencyRequest
+        ? { agencyRequest: createAgencyRequestState(content.agencyRequest) }
+        : {}),
       items: normalizeItems(content.items, content.createdAt),
     },
     null,
@@ -293,6 +311,7 @@ interface WriteTodoOptions {
   description: string;
   items: TodoItemFile[];
   createdAt: string;
+  agencyRequest?: AgencyRequestState;
   frontmatter?: Record<string, unknown>;
   sha?: string;
   message?: string;
@@ -309,6 +328,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     description: opts.description,
     items: opts.items,
     createdAt: opts.createdAt,
+    ...(opts.agencyRequest ? { agencyRequest: opts.agencyRequest } : {}),
     frontmatter: opts.frontmatter,
   });
   const normalizedContent = content.endsWith("\n") ? content : `${content}\n`;

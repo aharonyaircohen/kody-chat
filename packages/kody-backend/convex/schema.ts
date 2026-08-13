@@ -299,6 +299,7 @@ export default defineSchema({
     effectId: v.string(),
     flowId: v.string(),
     flowVersion: v.number(),
+    action: v.optional(v.string()),
     data: v.any(),
     status: v.union(
       v.literal("pending"),

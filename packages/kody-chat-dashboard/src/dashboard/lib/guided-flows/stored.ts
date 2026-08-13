@@ -91,6 +91,10 @@ export const storedGuidedFlowDefinitionSchema = z.object({
     .max(8)
     .refine(hasUniqueGuidedFlowControls)
     .optional(),
+  onComplete: z
+    .object({ action: z.literal("agency-request.submit") })
+    .strict()
+    .optional(),
   archived: z.boolean().optional(),
   steps: z.array(storedGuidedFlowStepSchema).min(1).max(20),
 });

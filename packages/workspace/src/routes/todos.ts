@@ -15,6 +15,7 @@ import {
 } from "@kody-ade/base/auth";
 import { setGitHubContext, clearGitHubContext } from "../github";
 import { createTodoSlug, listTodoFiles, writeTodoFile } from "../todos/files";
+import { agencyRequestStateSchema } from "../todos/agency-request-schema";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -36,6 +37,7 @@ const createTodoListSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().max(20_000).default(""),
   items: z.array(todoItemSchema).max(200).default([]),
+  agencyRequest: agencyRequestStateSchema.optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { title, description, items, actorLogin } =
+    const { title, description, items, agencyRequest, actorLogin } =
       createTodoListSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
@@ -141,6 +143,7 @@ export async function POST(req: NextRequest) {
       description,
       items: normalizeCreateItems(items, now),
       createdAt: now,
+      ...(agencyRequest ? { agencyRequest } : {}),
     });
 
     return NextResponse.json({ todo });

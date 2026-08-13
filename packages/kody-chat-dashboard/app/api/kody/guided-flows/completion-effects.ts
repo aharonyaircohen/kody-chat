@@ -7,11 +7,19 @@ import type { createBackendClient } from "@kody-ade/backend/client";
 type BackendClient = ReturnType<typeof createBackendClient>;
 
 interface GuidedFlowEffectRow {
+  readonly instanceId: string;
   readonly effectId: string;
   readonly flowId: string;
   readonly flowVersion: number;
+  readonly action?: string;
   readonly data: unknown;
   readonly attempts: number;
+}
+
+interface GuidedFlowHandoff {
+  readonly type: "kody";
+  readonly message: string;
+  readonly displayContent: string;
 }
 
 export class GuidedFlowCompletionError extends Error {
@@ -107,11 +115,42 @@ async function runConsumerEffect(
   effect: GuidedFlowEffectRow,
   actor: string,
   isRetry: boolean,
-): Promise<unknown> {
-  if (effect.flowId === "create-workflow") {
-    return await createWorkflowEffect(req, effect, actor, isRetry);
+): Promise<{ workflow?: unknown; handoff?: GuidedFlowHandoff }> {
+  if (effect.action === "agency-request.submit") {
+    const headers = new Headers(req.headers);
+    headers.set("content-type", "application/json");
+    headers.set("x-kody-idempotency-key", effect.effectId);
+    headers.delete("content-length");
+    const response = await fetch(
+      new URL("/api/kody/agency-requests", req.url),
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          source: {
+            kind: "guided-flow",
+            instanceId: effect.instanceId,
+            effectId: effect.effectId,
+          },
+          answers: effect.data,
+        }),
+      },
+    );
+    const payload = (await response.json().catch(() => ({}))) as {
+      handoff?: GuidedFlowHandoff;
+      error?: string;
+    };
+    if (!response.ok || !payload.handoff) {
+      throw completionErrorFor(payload.error, response.status);
+    }
+    return { handoff: payload.handoff };
   }
-  return undefined;
+  if (effect.flowId === "create-workflow") {
+    return {
+      workflow: await createWorkflowEffect(req, effect, actor, isRetry),
+    };
+  }
+  return {};
 }
 
 export async function processGuidedFlowCompletionEffects(
@@ -122,12 +161,16 @@ export async function processGuidedFlowCompletionEffects(
     readonly actorId: string;
     readonly instanceId: string;
   },
-): Promise<{ readonly workflow?: unknown }> {
+): Promise<{
+  readonly workflow?: unknown;
+  readonly handoff?: GuidedFlowHandoff;
+}> {
   const effects = (await client.query(
     backendApi.guidedFlows.listPendingEffects,
     input,
   )) as GuidedFlowEffectRow[];
   let workflow: unknown;
+  let handoff: GuidedFlowHandoff | undefined;
   for (const effect of effects) {
     try {
       await client.mutation(backendApi.guidedFlows.beginEffect, {
@@ -136,13 +179,14 @@ export async function processGuidedFlowCompletionEffects(
         effectId: effect.effectId,
         updatedAt: new Date().toISOString(),
       });
-      workflow =
-        (await runConsumerEffect(
-          req,
-          effect,
-          input.actorId,
-          effect.attempts > 0,
-        )) ?? workflow;
+      const result = await runConsumerEffect(
+        req,
+        effect,
+        input.actorId,
+        effect.attempts > 0,
+      );
+      workflow = result.workflow ?? workflow;
+      handoff = result.handoff ?? handoff;
       await client.mutation(backendApi.guidedFlows.markEffect, {
         tenantId: input.tenantId,
         actorId: input.actorId,
@@ -162,5 +206,8 @@ export async function processGuidedFlowCompletionEffects(
       throw error;
     }
   }
-  return workflow === undefined ? {} : { workflow };
+  return {
+    ...(workflow === undefined ? {} : { workflow }),
+    ...(handoff ? { handoff } : {}),
+  };
 }

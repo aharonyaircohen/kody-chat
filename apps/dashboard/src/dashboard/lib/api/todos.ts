@@ -1,4 +1,5 @@
 import { API_BASE, buildHeaders, handleResponse } from "./client";
+import type { AgencyRequestState } from "@kody-ade/agency-domain";
 
 // ============ Todos API ============
 export interface TodoEntry {
@@ -19,6 +20,7 @@ export interface TodoEntry {
   htmlUrl: string;
   /** List-level metadata from frontmatter. */
   frontmatter?: Record<string, unknown>;
+  agencyRequest?: AgencyRequestState;
 }
 
 export interface TodoItem {
@@ -63,6 +65,7 @@ export const todosApi = {
       completedAt?: string | null;
       meta?: Record<string, unknown>;
     }>;
+    agencyRequest?: AgencyRequestState;
     actorLogin?: string;
   }): Promise<TodoEntry> => {
     const res = await fetch(`${API_BASE}/todos`, {
@@ -79,6 +82,7 @@ export const todosApi = {
       title?: string;
       description?: string;
       items?: TodoItem[];
+      agencyRequest?: AgencyRequestState;
       actorLogin?: string;
     },
   ): Promise<TodoEntry> => {

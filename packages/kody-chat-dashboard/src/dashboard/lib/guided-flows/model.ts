@@ -55,6 +55,9 @@ export interface GuidedFlowDefinition {
   readonly completionRouteId?: string;
   readonly completionRouteParameters?: Readonly<Record<string, string>>;
   readonly controls?: readonly GuidedFlowControlId[];
+  readonly onComplete?: {
+    readonly action: "agency-request.submit";
+  };
 }
 
 export interface GuidedFlowFrame {

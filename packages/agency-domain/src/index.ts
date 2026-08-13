@@ -30,6 +30,43 @@ export interface WorkflowDefinition {
 
 export type TodoStatus = "todo" | "in-progress" | "blocked" | "done";
 
+export type AgencyRequestPhase =
+  | "assessing"
+  | "waiting-information"
+  | "waiting-approval"
+  | "running"
+  | "monitoring"
+  | "done"
+  | "blocked";
+
+export interface AgencyRequestSource {
+  kind: "guided-flow";
+  instanceId: string;
+  effectId: string;
+}
+
+export interface AgencyRequirement {
+  outcome: string;
+  activation?: string;
+  permissions?: string;
+  success?: string;
+  context?: string;
+}
+
+export interface AgencyRequestRelatedRef {
+  kind: "solution" | "trigger" | "loop" | "workflow" | "capability" | "run";
+  id: string;
+}
+
+export interface AgencyRequestState {
+  phase: AgencyRequestPhase;
+  source: AgencyRequestSource;
+  requirement: AgencyRequirement;
+  questions: string[];
+  plan: string[];
+  related: AgencyRequestRelatedRef[];
+}
+
 export interface TodoChecklistItem {
   id: string;
   text: string;
@@ -239,23 +276,10 @@ export function createTodo(value: unknown): Todo {
   const input = record(value, "Todo");
   exact(
     input,
-    [
-      "id",
-      "outcome",
-      "status",
-      "evidence",
-      "checklist",
-      "blockers",
-      "runIds",
-    ],
+    ["id", "outcome", "status", "evidence", "checklist", "blockers", "runIds"],
     "Todo",
   );
-  const statuses: TodoStatus[] = [
-    "todo",
-    "in-progress",
-    "blocked",
-    "done",
-  ];
+  const statuses: TodoStatus[] = ["todo", "in-progress", "blocked", "done"];
   if (!statuses.includes(input.status as TodoStatus)) {
     throw new Error("Todo status is invalid");
   }
@@ -283,6 +307,87 @@ export function createTodo(value: unknown): Todo {
     })(),
     blockers: strings(input.blockers, "Todo blockers"),
     runIds: strings(input.runIds, "Todo runIds"),
+  });
+}
+
+export function createAgencyRequestState(value: unknown): AgencyRequestState {
+  const input = record(value, "Agency request");
+  exact(
+    input,
+    ["phase", "source", "requirement", "questions", "plan", "related"],
+    "Agency request",
+  );
+  const phases: AgencyRequestPhase[] = [
+    "assessing",
+    "waiting-information",
+    "waiting-approval",
+    "running",
+    "monitoring",
+    "done",
+    "blocked",
+  ];
+  if (!phases.includes(input.phase as AgencyRequestPhase)) {
+    throw new Error("Agency request phase is invalid");
+  }
+
+  const source = record(input.source, "Agency request source");
+  exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
+  if (source.kind !== "guided-flow") {
+    throw new Error("Agency request source kind is invalid");
+  }
+
+  const requirement = record(input.requirement, "Agency request requirement");
+  exact(
+    requirement,
+    ["outcome", "activation", "permissions", "success", "context"],
+    "Agency request requirement",
+  );
+  const optionalText = (key: string) =>
+    requirement[key] === undefined
+      ? {}
+      : { [key]: text(requirement[key], `Agency request ${key}`) };
+
+  if (!Array.isArray(input.related)) {
+    throw new Error("Agency request related must be an array");
+  }
+  const relatedKinds: AgencyRequestRelatedRef["kind"][] = [
+    "solution",
+    "trigger",
+    "loop",
+    "workflow",
+    "capability",
+    "run",
+  ];
+
+  return Object.freeze({
+    phase: input.phase as AgencyRequestPhase,
+    source: Object.freeze({
+      kind: "guided-flow" as const,
+      instanceId: text(source.instanceId, "Agency request source instanceId"),
+      effectId: text(source.effectId, "Agency request source effectId"),
+    }),
+    requirement: Object.freeze({
+      outcome: text(requirement.outcome, "Agency request outcome"),
+      ...optionalText("activation"),
+      ...optionalText("permissions"),
+      ...optionalText("success"),
+      ...optionalText("context"),
+    }),
+    questions: strings(input.questions, "Agency request questions"),
+    plan: strings(input.plan, "Agency request plan"),
+    related: input.related.map((value) => {
+      const related = record(value, "Agency request related reference");
+      exact(related, ["kind", "id"], "Agency request related reference");
+      if (
+        !relatedKinds.includes(related.kind as AgencyRequestRelatedRef["kind"])
+      ) {
+        throw new Error("Agency request related reference kind is invalid");
+      }
+      return Object.freeze({
+        kind: related.kind as AgencyRequestRelatedRef["kind"],
+        id: text(related.id, "Agency request related reference id"),
+      });
+    }),
   });
 }
 

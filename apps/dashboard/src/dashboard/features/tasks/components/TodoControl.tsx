@@ -217,6 +217,9 @@ function displayMetaValue(value: unknown): string | null {
 function todoStateBadges(
   list: TodoEntry,
 ): Array<{ label: string; value: string }> {
+  if (list.agencyRequest) {
+    return [{ label: "Phase", value: list.agencyRequest.phase }];
+  }
   const fm = list.frontmatter ?? {};
   if (fm.managedModel !== "agentLoop") {
     return [];
@@ -1059,6 +1062,42 @@ function TodoListDetail({
               </div>
             </div>
           </header>
+
+          {list.agencyRequest ? (
+            <section
+              aria-label="Agency request status"
+              className="max-w-3xl space-y-2 rounded-md border border-white/[0.08] bg-black/15 p-3 text-sm"
+            >
+              {list.agencyRequest.plan.length > 0 ? (
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    Plan
+                  </div>
+                  <ol className="mt-1 list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+                    {list.agencyRequest.plan.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Kody is checking whether this request is clear and executable.
+                </p>
+              )}
+              {list.agencyRequest.questions.length > 0 ? (
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    Information needed
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {list.agencyRequest.questions.map((question) => (
+                      <li key={question}>{question}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <section
             className="space-y-2 border-t border-white/[0.06] pt-4"

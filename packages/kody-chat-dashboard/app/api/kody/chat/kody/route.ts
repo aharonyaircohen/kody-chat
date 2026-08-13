@@ -1364,6 +1364,7 @@ async function handleKodyDirectPost(
         listTodos: () => agencyApi.listTodos(),
         readTodo: (slug) => agencyApi.readTodo(slug),
         saveTodo: (input) => agencyApi.saveTodo(input),
+        patchTodo: (slug, input) => agencyApi.updateTodo(slug, input),
         removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),
       ...createInstructionsTools({

@@ -20,6 +20,7 @@ import {
   readTodoFile,
   writeTodoFile,
 } from "../todos/files";
+import { agencyRequestStateSchema } from "../todos/agency-request-schema";
 
 const todoItemSchema = z.object({
   id: z.string().min(1).max(80),
@@ -37,13 +38,15 @@ const updateTodoListSchema = z
     title: z.string().trim().min(1).max(160).optional(),
     description: z.string().max(20_000).optional(),
     items: z.array(todoItemSchema).max(200).optional(),
+    agencyRequest: agencyRequestStateSchema.optional(),
     actorLogin: z.string().optional(),
   })
   .refine(
     (value) =>
       value.title !== undefined ||
       value.description !== undefined ||
-      value.items !== undefined,
+      value.items !== undefined ||
+      value.agencyRequest !== undefined,
     {
       message: "At least one todo-list field must be provided.",
     },
@@ -116,7 +119,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, description, items, actorLogin } =
+    const { title, description, items, agencyRequest, actorLogin } =
       updateTodoListSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
@@ -145,6 +148,7 @@ export async function PATCH(
       description: description ?? existing.description,
       items: items ? normalizeUpdateItems(items) : existing.items,
       createdAt: existing.createdAt,
+      agencyRequest: agencyRequest ?? existing.agencyRequest,
       frontmatter: existing.frontmatter,
       sha: existing.sha,
     });
