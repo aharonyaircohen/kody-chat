@@ -15,6 +15,8 @@ The Dashboard owns route mounting and deployment.
 
 ## Project docs
 
+- [Creating proper GuidedFlows](../../docs/guided-flows.md) — design,
+  ownership, persistence, versioning, and verification.
 - [Project behavior](../../docs/project-behavior.md) — route ownership,
   repository context, and user-facing verification rules.
 - **Chat backends** — `/api/kody/chat/*` (in-process model, Brain proxy,

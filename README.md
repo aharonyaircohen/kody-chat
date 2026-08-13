@@ -228,7 +228,7 @@ definition.
 
 ## Documentation
 
-- [Project assessment](docs/project-assessment.md)
+- [Creating proper GuidedFlows](docs/guided-flows.md)
 - [Project behavior](docs/project-behavior.md)
 - [Dashboard UI principles](docs/ui-design-principles.md)
 - [Testing policy](docs/testing-policy.md)
