@@ -99,6 +99,7 @@ export async function dispatchPipelineStep(input: {
     octokit: input.octokit,
     owner: input.owner,
     repo: input.repo,
+    syncStoreDefinitions: true,
   });
   const loaded = await loadWorkflow(input.step.workflow);
   if (!loaded) {

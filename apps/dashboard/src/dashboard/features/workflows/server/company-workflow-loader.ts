@@ -6,17 +6,20 @@ import {
 } from "@dashboard/lib/workflow-definition-files";
 import type { WorkflowDefinition } from "@dashboard/lib/workflow-definitions";
 import { effectiveActiveWorkflowIds } from "@dashboard/features/workflows/built-in-workflows";
+import { syncStoreWorkflowExecutionDefinitions } from "@dashboard/lib/store-workflow-execution-sync";
 
 interface CompanyWorkflowLoaderOptions {
   octokit: Octokit;
   owner: string;
   repo: string;
+  syncStoreDefinitions?: boolean;
 }
 
 export function createCompanyWorkflowLoader({
   octokit,
   owner,
   repo,
+  syncStoreDefinitions = false,
 }: CompanyWorkflowLoaderOptions) {
   return async function loadWorkflow(
     workflowId: string,
@@ -34,6 +37,18 @@ export function createCompanyWorkflowLoader({
     ) {
       return null;
     }
-    return readCompanyStoreWorkflowDefinitionFile(workflowId, octokit);
+    const store = await readCompanyStoreWorkflowDefinitionFile(
+      workflowId,
+      octokit,
+    );
+    if (store && syncStoreDefinitions) {
+      await syncStoreWorkflowExecutionDefinitions({
+        octokit,
+        owner,
+        repo,
+        workflow: store.workflow,
+      });
+    }
+    return store;
   };
 }

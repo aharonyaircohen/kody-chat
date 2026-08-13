@@ -28,6 +28,9 @@ const workflowFiles = vi.hoisted(() => ({
 const approvals = vi.hoisted(() => ({
   consumeStoredAgencyApproval: vi.fn(async () => true),
 }));
+const storeSync = vi.hoisted(() => ({
+  syncStoreWorkflowExecutionDefinitions: vi.fn(async () => undefined),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
@@ -38,6 +41,7 @@ vi.mock("@dashboard/lib/cto/trust-store", () => ({
 vi.mock("@kody-ade/base/engine/config", () => engineConfig);
 vi.mock("@dashboard/lib/workflow-definition-files", () => workflowFiles);
 vi.mock("@kody-ade/agency/backend/agency-approvals-store", () => approvals);
+vi.mock("@dashboard/lib/store-workflow-execution-sync", () => storeSync);
 
 import { POST } from "../../app/api/kody/company/workflows/[id]/run/route";
 
@@ -87,6 +91,13 @@ const validWorkflow = {
     agent: "memory-steward",
     capabilities: ["extract-run-learning"],
     runWithoutApproval: true,
+    startAt: "extract",
+    steps: [
+      {
+        id: "extract",
+        capability: "extract-run-learning",
+      },
+    ],
   },
   source: "store",
   readOnly: true,
@@ -95,6 +106,9 @@ const validWorkflow = {
 describe("POST /api/kody/company/workflows/:id/run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    storeSync.syncStoreWorkflowExecutionDefinitions.mockResolvedValue(
+      undefined,
+    );
     vi.stubEnv("KODY_SERVICE_KEY", "server-only-test-key");
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
@@ -148,6 +162,13 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
       resource: "learn-from-runs",
       detail: "manual Engine dispatch for workflow learn-from-runs",
     });
+    expect(storeSync.syncStoreWorkflowExecutionDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "widgets",
+        workflow: validWorkflow.workflow,
+      }),
+    );
   });
 
   it("preserves the workflow run id when resuming", async () => {
@@ -304,6 +325,26 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
           path: "input.issue",
         },
       ],
+    });
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when Store tools cannot be refreshed", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    storeSync.syncStoreWorkflowExecutionDefinitions.mockRejectedValue(
+      new Error("Store Capability unavailable"),
+    );
+
+    const response = await POST(
+      request("learn-from-runs", { input: { issue: 42 } }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "dispatch_failed",
+      message: "Store Capability unavailable",
     });
     expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });

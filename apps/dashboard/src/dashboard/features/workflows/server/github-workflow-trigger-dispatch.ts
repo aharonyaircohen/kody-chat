@@ -315,6 +315,7 @@ export async function dispatchWorkflowTriggers(input: {
             octokit: input.octokit,
             owner: brand.owner,
             repo: brand.repo,
+            syncStoreDefinitions: true,
           }),
           validateDefinition: validateWorkflowDefinition,
           validateInput: (schema, value) =>

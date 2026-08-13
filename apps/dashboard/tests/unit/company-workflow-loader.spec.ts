@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
   readLocal: vi.fn(),
   readStore: vi.fn(),
+  syncStoreWorkflowExecutionDefinitions: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/engine/config", () => ({
@@ -12,6 +13,10 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 vi.mock("@dashboard/lib/workflow-definition-files", () => ({
   readWorkflowDefinitionFile: h.readLocal,
   readCompanyStoreWorkflowDefinitionFile: h.readStore,
+}));
+vi.mock("@dashboard/lib/store-workflow-execution-sync", () => ({
+  syncStoreWorkflowExecutionDefinitions:
+    h.syncStoreWorkflowExecutionDefinitions,
 }));
 
 import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
@@ -51,5 +56,52 @@ describe("company workflow loader", () => {
       workflow: { name: "Repository Quality" },
     });
     expect(h.readStore).not.toHaveBeenCalled();
+  });
+
+  it("refreshes Store tools when loading for execution", async () => {
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: { activeWorkflows: ["ci-repair"] } },
+    });
+    const stored = {
+      source: "store",
+      workflow: {
+        name: "CI Repair",
+        agent: "kody",
+        capabilities: ["ci-health-check", "fix-ci"],
+      },
+    };
+    h.readStore.mockResolvedValue(stored);
+    const octokit = {} as never;
+    const load = createCompanyWorkflowLoader({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      syncStoreDefinitions: true,
+    });
+
+    await expect(load("ci-repair")).resolves.toBe(stored);
+    expect(h.syncStoreWorkflowExecutionDefinitions).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      workflow: stored.workflow,
+    });
+  });
+
+  it("never publishes repository-owned workflows", async () => {
+    h.readLocal.mockResolvedValue({
+      source: "local",
+      workflow: { name: "Repository Quality" },
+    });
+    const load = createCompanyWorkflowLoader({
+      octokit: {} as never,
+      owner: "acme",
+      repo: "widgets",
+      syncStoreDefinitions: true,
+    });
+
+    await load("quality-run");
+
+    expect(h.syncStoreWorkflowExecutionDefinitions).not.toHaveBeenCalled();
   });
 });

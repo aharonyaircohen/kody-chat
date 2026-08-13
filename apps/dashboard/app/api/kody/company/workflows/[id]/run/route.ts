@@ -145,6 +145,7 @@ export async function POST(
           octokit,
           owner: auth.owner,
           repo: auth.repo,
+          syncStoreDefinitions: true,
         }),
         validateDefinition: validateWorkflowDefinition,
         validateInput: (schema, input) =>
