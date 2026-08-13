@@ -178,6 +178,14 @@ describe("Kody chat evals", () => {
     );
   });
 
+  it("executes a recognized Agency approval without asking the model", () => {
+    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+
+    expect(route).toContain("runApprovedAgencyRequestDirectly");
+    expect(route).toContain("agencyApi.runAgencyRequest(");
+    expect(route).toContain("if (agencyRequestApproval)");
+  });
+
   it("retries a failed show_view a bounded number of times, not forever", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 

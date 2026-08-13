@@ -102,6 +102,7 @@ import { createAgencyApiClient } from "../tools/agency-api-client";
 import {
   createAgencyRequestApproval,
   readAgencyRequestApproval,
+  runApprovedAgencyRequestDirectly,
 } from "../tools/agency-request-approval";
 import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
@@ -1299,6 +1300,16 @@ async function handleKodyDirectPost(
       request: repoScopedReq,
       actorLogin: verifiedActorLogin,
     });
+    if (agencyRequestApproval) {
+      try {
+        return await runApprovedAgencyRequestDirectly({
+          approval: agencyRequestApproval,
+          runAgencyRequest: (slug) => agencyApi.runAgencyRequest(slug),
+        });
+      } finally {
+        clearGitHubContext();
+      }
+    }
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),

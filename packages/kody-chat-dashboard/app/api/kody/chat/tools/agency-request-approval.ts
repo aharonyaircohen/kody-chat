@@ -1,4 +1,8 @@
 import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+} from "ai";
 import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildRenderedViewDirective } from "../../../../../src/dashboard/lib/view-renderers/template";
 
@@ -47,4 +51,44 @@ export function readAgencyRequestApproval(
   } catch {
     return null;
   }
+}
+
+export async function runApprovedAgencyRequestDirectly({
+  approval,
+  runAgencyRequest,
+}: {
+  approval: { action: "approve" | "cancel"; todoSlug: string };
+  runAgencyRequest(slug: string): Promise<Record<string, unknown>>;
+}): Promise<Response> {
+  const result =
+    approval.action === "approve"
+      ? await runAgencyRequest(approval.todoSlug)
+      : { kind: "cancelled" };
+  const failed = typeof result.error === "string";
+  const runId = typeof result.runId === "string" ? result.runId : null;
+  const content =
+    approval.action === "cancel"
+      ? "Agency request remains waiting for approval."
+      : failed
+        ? `Agency request could not start: ${typeof result.message === "string" ? result.message : result.error}`
+        : runId
+          ? `Agency request is monitoring workflow run ${runId}.`
+          : "Agency request started and is being monitored.";
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      const toolCallId = `agency-approval-${approval.todoSlug}`;
+      writer.write({
+        type: "tool-input-available",
+        toolCallId,
+        toolName: "final_answer",
+        input: { content },
+      });
+      writer.write({
+        type: "tool-output-available",
+        toolCallId,
+        output: { content },
+      });
+    },
+  });
+  return createUIMessageStreamResponse({ stream });
 }
