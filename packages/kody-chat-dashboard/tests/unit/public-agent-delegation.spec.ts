@@ -742,6 +742,44 @@ describe("public Agent delegation", () => {
     );
   });
 
+  it("requires tool evidence only on the first specialist step", async () => {
+    const stream = vi.fn(() => ({
+      fullStream: (async function* () {})(),
+      text: Promise.resolve("The workflow was started."),
+      reasoningText: Promise.resolve(""),
+      steps: Promise.resolve([
+        {
+          toolResults: [
+            {
+              toolName: "run_workflow",
+              output: { status: "started" },
+            },
+          ],
+        },
+      ]),
+    }));
+
+    await runIsolatedPublicAgentTask({
+      agent: roster[0]!,
+      task: "Run the CI Repair workflow",
+      system: "Operations Specialist isolated system prompt",
+      model: {} as never,
+      tools: { run_workflow: {} as never },
+      requireToolEvidence: true,
+      providerCapabilities: {
+        supportsRequiredToolChoice: true,
+      },
+      stream: stream as never,
+    });
+
+    const prepareStep = stream.mock.calls[0]![0].prepareStep;
+    expect(stream.mock.calls[0]![0].toolChoice).toBe("auto");
+    expect(prepareStep({ steps: [] })).toEqual({ toolChoice: "required" });
+    expect(prepareStep({ steps: [{ toolResults: [] }] })).toEqual({
+      toolChoice: "auto",
+    });
+  });
+
   it("does not expose provider safety classification as specialist reasoning", async () => {
     const reasoningDeltas: string[] = [];
     const stream = vi.fn(() => ({

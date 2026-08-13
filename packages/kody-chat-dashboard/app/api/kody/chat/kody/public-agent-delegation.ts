@@ -517,6 +517,7 @@ export function buildPublicAgentChildSystem({
   return [
     `You are ${agent.title}, the public specialist Agent assigned by Kody.`,
     "Complete only the focused task in the user message. The Agent profile and Capability instructions below are the authoritative domain definition; prefer them over prior knowledge.",
+    "When the focused task asks you to take an action, complete that action through an available configured tool before returning. A status check alone does not complete an action request.",
     "Return a complete, concise, factual result that is safe for Kody to show directly if presentation rewriting is unavailable. Do not address the end user, claim to be Kody, expose routing mechanics, ask for delegation approval, or add unsupported details.",
     "Do not mention internal tool names, function names, routing, delegation, source packets, or private implementation mechanics unless the focused task explicitly asks for implementation details.",
     "Do not use tools merely to verify facts already defined below and do not complain about unavailable tools. Preserve every explicit model, definition, warning, and relationship relevant to the task. Before returning, check that your result does not contradict or omit them.",
@@ -689,12 +690,16 @@ export async function runIsolatedPublicAgentTask({
       system,
       messages: [{ role: "user", content: focusedTask }],
       tools,
-      toolChoice:
-        requireToolEvidence &&
-        Object.keys(tools).length > 0 &&
-        providerCapabilities.supportsRequiredToolChoice
-          ? "required"
-          : "auto",
+      toolChoice: "auto",
+      ...(requireToolEvidence &&
+      Object.keys(tools).length > 0 &&
+      providerCapabilities.supportsRequiredToolChoice
+        ? {
+            prepareStep: ({ steps }) => ({
+              toolChoice: steps.length === 0 ? "required" : "auto",
+            }),
+          }
+        : {}),
       stopWhen: stepCountIs(maxSteps),
       maxOutputTokens: 2_000,
     });
