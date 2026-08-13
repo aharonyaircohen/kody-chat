@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
 import {
   getRequestAuth,
@@ -71,10 +72,12 @@ export async function POST(
           sha: todo.sha,
         });
       },
-      dispatch: (execution) =>
+      createRunId: () => `run-${randomUUID()}`,
+      dispatch: (execution, runId) =>
         dispatchApprovedAgencyWorkflow({
           actor,
           execution,
+          runId,
           services: {
             loadWorkflow: createCompanyWorkflowLoader({
               octokit,

@@ -12,7 +12,11 @@ export interface AgencyRequestRecord {
 interface StartPorts {
   read(slug: string): Promise<AgencyRequestRecord | null>;
   save(slug: string, state: AgencyRequestState): Promise<void>;
-  dispatch(execution: AgencyRequestExecution): Promise<{ runId: string }>;
+  createRunId(): string;
+  dispatch(
+    execution: AgencyRequestExecution,
+    runId: string,
+  ): Promise<{ runId: string }>;
 }
 
 interface CompletionPorts {
@@ -63,31 +67,32 @@ export async function startAgencyRequest(slug: string, ports: StartPorts) {
     return { kind: "blocked" as const, message };
   }
 
-  await ports.save(
-    slug,
-    withState(record.state, { phase: "running", blockers: [] }),
-  );
+  const reservedRunId = ports.createRunId();
+  const monitoringState = withState(record.state, {
+    phase: "monitoring",
+    blockers: [],
+    related: [
+      ...record.state.related.filter(
+        (ref) => !(ref.kind === "run" && ref.id === reservedRunId),
+      ),
+      { kind: "run", id: reservedRunId },
+    ],
+  });
+  await ports.save(slug, monitoringState);
   try {
-    const result = await ports.dispatch(record.state.execution);
-    await ports.save(
-      slug,
-      withState(record.state, {
-        phase: "monitoring",
-        blockers: [],
-        related: [
-          ...record.state.related.filter(
-            (ref) => !(ref.kind === "run" && ref.id === result.runId),
-          ),
-          { kind: "run", id: result.runId },
-        ],
-      }),
+    const result = await ports.dispatch(
+      record.state.execution,
+      reservedRunId,
     );
+    if (result.runId !== reservedRunId) {
+      throw new Error("Workflow dispatch returned a different Run id");
+    }
     return { kind: "started" as const, runId: result.runId };
   } catch (error) {
     const message = normalizedFailure(error);
     await ports.save(
       slug,
-      withState(record.state, { phase: "blocked", blockers: [message] }),
+      withState(monitoringState, { phase: "blocked", blockers: [message] }),
     );
     throw error;
   }

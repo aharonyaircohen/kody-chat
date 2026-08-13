@@ -14,10 +14,12 @@ type DispatchServices = Pick<
 export async function dispatchApprovedAgencyWorkflow({
   actor,
   execution,
+  runId,
   services,
 }: {
   actor: string;
   execution: AgencyRequestExecution;
+  runId: string;
   services: DispatchServices;
 }): Promise<{ runId: string }> {
   const result = await startWorkflow(
@@ -25,6 +27,7 @@ export async function dispatchApprovedAgencyWorkflow({
       workflowId: execution.workflowId,
       source: "dashboard",
       actor,
+      requestId: runId,
       input: { ...execution.input },
     },
     {

@@ -40,12 +40,15 @@ describe("Agency request lifecycle", () => {
     const result = await startAgencyRequest("keep-ci-healthy", {
       read: vi.fn(async () => baseRecord),
       save,
+      createRunId: () => "run-123",
       dispatch,
     });
 
-    expect(dispatch).toHaveBeenCalledWith(baseRecord.state.execution);
-    expect(save.mock.calls[0]?.[1]).toMatchObject({ phase: "running" });
-    expect(save.mock.calls[1]?.[1]).toMatchObject({
+    expect(dispatch).toHaveBeenCalledWith(
+      baseRecord.state.execution,
+      "run-123",
+    );
+    expect(save.mock.calls[0]?.[1]).toMatchObject({
       phase: "monitoring",
       related: expect.arrayContaining([{ kind: "run", id: "run-123" }]),
     });
@@ -70,6 +73,7 @@ describe("Agency request lifecycle", () => {
       startAgencyRequest(record.slug, {
         read: vi.fn(async () => record),
         save: vi.fn(),
+        createRunId: () => "run-unused",
         dispatch,
       }),
     ).resolves.toEqual({ kind: "existing", runId: "run-123" });
@@ -83,6 +87,7 @@ describe("Agency request lifecycle", () => {
       startAgencyRequest(baseRecord.slug, {
         read: vi.fn(async () => baseRecord),
         save,
+        createRunId: () => "run-123",
         dispatch: vi.fn(async () => {
           throw new Error("Workflow input is invalid");
         }),
@@ -91,6 +96,7 @@ describe("Agency request lifecycle", () => {
     expect(save.mock.calls.at(-1)?.[1]).toMatchObject({
       phase: "blocked",
       blockers: ["Workflow input is invalid"],
+      related: expect.arrayContaining([{ kind: "run", id: "run-123" }]),
     });
   });
 

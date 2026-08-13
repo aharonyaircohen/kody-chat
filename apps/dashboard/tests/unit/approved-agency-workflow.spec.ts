@@ -29,10 +29,11 @@ describe("approved Agency Workflow dispatch", () => {
     const result = await dispatchApprovedAgencyWorkflow({
       actor: "github:1",
       execution,
+      runId: "run-1",
       services: workflowServices,
     });
 
-    expect(result.runId).toMatch(/^run-/);
+    expect(result.runId).toBe("run-1");
     expect(workflowServices.dispatch).toHaveBeenCalledOnce();
     expect(workflowServices.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -53,6 +54,7 @@ describe("approved Agency Workflow dispatch", () => {
       dispatchApprovedAgencyWorkflow({
         actor: "github:1",
         execution,
+        runId: "run-1",
         services: workflowServices,
       }),
     ).rejects.toThrow("no longer valid");
@@ -70,6 +72,7 @@ describe("approved Agency Workflow dispatch", () => {
       dispatchApprovedAgencyWorkflow({
         actor: "github:1",
         execution,
+        runId: "run-1",
         services: workflowServices,
       }),
     ).rejects.toThrow("secret provider response");
