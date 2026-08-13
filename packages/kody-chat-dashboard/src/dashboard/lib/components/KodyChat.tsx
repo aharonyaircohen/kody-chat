@@ -1019,10 +1019,9 @@ export function KodyChat({
     }
 
     let cancelled = false;
-    void fetch(
-      `/api/kody/guided-flows?conversationId=${encodeURIComponent(activeSessionId)}`,
-      { headers: authHeaders() },
-    )
+    void fetch("/api/kody/guided-flows?status=active", {
+      headers: authHeaders(),
+    })
       .then(async (response) => {
         if (!response.ok) return null;
         return (await response.json()) as {
@@ -1233,11 +1232,12 @@ export function KodyChat({
           ),
         }
       : null;
-  const openingMessage =
-    resumedGuidedFlowDisplayMessage ?? repositoryOpeningMessage;
-  const displayMessages = openingMessage
-    ? [...messages, openingMessage]
-    : messages;
+  const openingMessages = [
+    resumedGuidedFlowDisplayMessage,
+    repositoryOpeningMessage,
+  ].filter((message): message is Message => message !== null);
+  const displayMessages =
+    openingMessages.length > 0 ? [...messages, ...openingMessages] : messages;
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {

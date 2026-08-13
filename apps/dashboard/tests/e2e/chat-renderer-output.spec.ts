@@ -593,7 +593,23 @@ test.describe("Kody chat renderer output", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ flows: [] }),
+        body: JSON.stringify({
+          flows: [
+            {
+              instance: {
+                instanceId: "active-flow",
+                revision: 1,
+                status: "active",
+              },
+              flow: {
+                title: "Get started with Kody",
+                stepIndex: 2,
+                stepCount: 5,
+              },
+              compatibility: { status: "compatible" },
+            },
+          ],
+        }),
       });
     });
     await openChat(page);
@@ -610,7 +626,13 @@ test.describe("Kody chat renderer output", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "New conversation" }).click();
-    await expect.poll(() => guidedFlowRequestUrl).toContain("conversationId=");
+    await expect.poll(() => guidedFlowRequestUrl).toContain("status=active");
+    await expect(
+      page.getByText("You have an unfinished GuidedFlow."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Resume flow" }),
+    ).toBeVisible();
     await expect(page.getByText("How can Kody help?")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Run project assessment" }),

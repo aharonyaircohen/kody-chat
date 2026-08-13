@@ -322,6 +322,46 @@ describe("GuidedFlow route", () => {
     ]);
   });
 
+  it("lists only active flows when requested", async () => {
+    await POST(
+      request({
+        action: "start",
+        flowId: "create-workflow",
+        conversationId: "conversation-1",
+      }),
+    );
+    const active = store.rows[0];
+    store.rows.push(
+      { ...active, instanceId: "completed-flow", status: "completed" },
+      { ...active, instanceId: "cancelled-flow", status: "cancelled" },
+    );
+
+    const listed = await GET(
+      new NextRequest("https://dash.test/api/kody/guided-flows?status=active", {
+        headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" },
+      }),
+    );
+
+    expect(listed.status).toBe(200);
+    const flows = (await listed.json()).flows as Array<{
+      instance: { status: string };
+    }>;
+    expect(flows).toHaveLength(1);
+    expect(flows.every((flow) => flow.instance.status === "active")).toBe(true);
+  });
+
+  it("rejects unsupported flow status filters", async () => {
+    const response = await GET(
+      new NextRequest(
+        "https://dash.test/api/kody/guided-flows?status=completed",
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "validation_error" });
+  });
+
   it("lists only the flow owned by the requested conversation", async () => {
     await POST(
       request({

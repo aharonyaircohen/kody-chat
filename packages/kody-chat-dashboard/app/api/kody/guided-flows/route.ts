@@ -256,6 +256,10 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const instanceId = url.searchParams.get("instanceId");
+    const requestedStatus = url.searchParams.get("status");
+    if (requestedStatus && requestedStatus !== "active") {
+      return json({ error: "validation_error" }, { status: 400 });
+    }
     const requestedConversationId = url.searchParams.get("conversationId");
     const conversationId = requestedConversationId
       ? conversationIdSchema.safeParse(requestedConversationId)
@@ -319,31 +323,37 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const rows = conversationId?.success
-      ? await (async (): Promise<GuidedFlowRow[]> => {
-          const binding = (await getConvexClient().query(
-            backendApi.guidedFlows.getConversationBinding,
-            {
+    const rows =
+      requestedStatus === "active"
+        ? ((await getConvexClient().query(backendApi.guidedFlows.listActive, {
+            tenantId,
+            actorId: actor,
+          })) as GuidedFlowRow[])
+        : conversationId?.success
+          ? await (async (): Promise<GuidedFlowRow[]> => {
+              const binding = (await getConvexClient().query(
+                backendApi.guidedFlows.getConversationBinding,
+                {
+                  tenantId,
+                  actorId: actor,
+                  conversationId: conversationId.data,
+                },
+              )) as { instanceId?: unknown } | null;
+              if (typeof binding?.instanceId !== "string") return [];
+              const row = (await getConvexClient().query(
+                backendApi.guidedFlows.get,
+                {
+                  tenantId,
+                  actorId: actor,
+                  instanceId: binding.instanceId,
+                },
+              )) as GuidedFlowRow | null;
+              return row ? [row] : [];
+            })()
+          : ((await getConvexClient().query(backendApi.guidedFlows.list, {
               tenantId,
               actorId: actor,
-              conversationId: conversationId.data,
-            },
-          )) as { instanceId?: unknown } | null;
-          if (typeof binding?.instanceId !== "string") return [];
-          const row = (await getConvexClient().query(
-            backendApi.guidedFlows.get,
-            {
-              tenantId,
-              actorId: actor,
-              instanceId: binding.instanceId,
-            },
-          )) as GuidedFlowRow | null;
-          return row ? [row] : [];
-        })()
-      : ((await getConvexClient().query(backendApi.guidedFlows.list, {
-          tenantId,
-          actorId: actor,
-        })) as GuidedFlowRow[]);
+            })) as GuidedFlowRow[]);
     const listRenderers = await loadGuidedFlowRenderers(
       tenantId,
       rows.flatMap((row) => {
