@@ -274,6 +274,9 @@ export async function readTodoFile(
       description: parsed.description,
       items: parsed.items,
       createdAt: parsed.createdAt,
+      ...(parsed.agencyRequest
+        ? { agencyRequest: parsed.agencyRequest }
+        : {}),
       frontmatter: parsed.frontmatter,
       sha: "",
       updatedAt,
@@ -354,6 +357,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     description: parsed.description,
     items: parsed.items,
     createdAt: parsed.createdAt,
+    ...(parsed.agencyRequest ? { agencyRequest: parsed.agencyRequest } : {}),
     frontmatter: parsed.frontmatter,
     sha: "",
     updatedAt,
