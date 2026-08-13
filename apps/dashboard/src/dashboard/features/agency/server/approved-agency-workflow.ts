@@ -1,97 +1,49 @@
+import { randomUUID } from "node:crypto";
+
 import type { AgencyRequestExecution } from "@kody-ade/agency-domain";
+import {
+  startWorkflow,
+  type WorkflowExecutionDependencies,
+} from "@dashboard/features/workflows/server/start-workflow";
 
-interface RequestContext {
-  url: string;
-  headers: Headers;
-}
-
-type JsonRecord = Record<string, unknown>;
-
-async function post(
-  request: RequestContext,
-  path: string,
-  body: JsonRecord,
-  fetchImpl: typeof fetch,
-): Promise<{ response: Response; payload: JsonRecord }> {
-  const headers = new Headers(request.headers);
-  headers.set("content-type", "application/json");
-  headers.delete("content-length");
-  const response = await fetchImpl(new URL(path, request.url), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  return {
-    response,
-    payload: (await response.json().catch(() => ({}))) as JsonRecord,
-  };
-}
-
-function runId(payload: JsonRecord): string | null {
-  return typeof payload.runId === "string" && payload.runId.trim()
-    ? payload.runId
-    : null;
-}
-
-function dispatchError(response: Response, payload: JsonRecord): Error {
-  const safeMessage =
-    response.status < 500 && typeof payload.message === "string"
-      ? payload.message
-      : "Workflow dispatch failed";
-  return new Error(safeMessage);
-}
+type DispatchServices = Pick<
+  WorkflowExecutionDependencies,
+  "loadWorkflow" | "validateDefinition" | "validateInput" | "dispatch"
+>;
 
 export async function dispatchApprovedAgencyWorkflow({
-  request,
+  actor,
   execution,
-  fetchImpl = fetch,
+  services,
 }: {
-  request: RequestContext;
+  actor: string;
   execution: AgencyRequestExecution;
-  fetchImpl?: typeof fetch;
+  services: DispatchServices;
 }): Promise<{ runId: string }> {
-  const runPath = `/api/kody/company/workflows/${encodeURIComponent(execution.workflowId)}/run`;
-  const first = await post(
-    request,
-    runPath,
-    { input: execution.input },
-    fetchImpl,
-  );
-  const directRunId = runId(first.payload);
-  if (first.response.ok && directRunId) return { runId: directRunId };
-  if (
-    first.response.status !== 409 ||
-    first.payload.error !== "approval_required" ||
-    typeof first.payload.approvalToken !== "string"
-  ) {
-    throw dispatchError(first.response, first.payload);
-  }
-
-  const approval = await post(
-    request,
-    `/api/kody/company/workflows/${encodeURIComponent(execution.workflowId)}/approve`,
+  const result = await startWorkflow(
     {
-      approvalToken: first.payload.approvalToken,
-      input: execution.input,
+      workflowId: execution.workflowId,
+      source: "dashboard",
+      actor,
+      input: { ...execution.input },
     },
-    fetchImpl,
-  );
-  if (!approval.response.ok || typeof approval.payload.approvalId !== "string") {
-    throw dispatchError(approval.response, approval.payload);
-  }
-
-  const dispatched = await post(
-    request,
-    runPath,
     {
-      approvalId: approval.payload.approvalId,
-      input: execution.input,
+      ...services,
+      createRequestId: () => `run-${randomUUID()}`,
+      now: () => new Date().toISOString(),
+      // The user approved the exact Workflow and validated input stored on the
+      // Agency request. That approval is the authorization for this dispatch.
+      requiresApproval: async () => false,
+      consumeApproval: async () => false,
+      actionFor: () => "run",
     },
-    fetchImpl,
   );
-  const approvedRunId = runId(dispatched.payload);
-  if (!dispatched.response.ok || !approvedRunId) {
-    throw dispatchError(dispatched.response, dispatched.payload);
+  if (result.kind === "accepted") return { runId: result.requestId };
+  if (result.kind === "not-found") {
+    throw new Error("The approved Workflow is no longer available");
   }
-  return { runId: approvedRunId };
+  if (result.kind === "invalid") {
+    throw new Error("The approved Workflow or its input is no longer valid");
+  }
+  throw new Error("The approved Workflow could not be dispatched");
 }

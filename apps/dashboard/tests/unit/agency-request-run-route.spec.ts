@@ -8,7 +8,10 @@ const auth = vi.hoisted(() => ({
     repo: "widgets",
     token: "token",
   })),
-  verifyActorLogin: vi.fn(async () => ({ actorLogin: "octocat" })),
+  verifyActorLogin: vi.fn(async () => ({
+    actorLogin: "octocat",
+    identity: { githubId: 1 },
+  })),
   getUserOctokit: vi.fn(async () => ({ rest: {} })),
 }));
 vi.mock("@kody-ade/base/auth", () => auth);

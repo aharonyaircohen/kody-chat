@@ -2,72 +2,76 @@ import { describe, expect, it, vi } from "vitest";
 
 import { dispatchApprovedAgencyWorkflow } from "../../src/dashboard/features/agency/server/approved-agency-workflow";
 
-const request = {
-  url: "https://dash.test/api/kody/agency-requests/keep-ci/run",
-  headers: new Headers({ authorization: "Bearer user" }),
-};
 const execution = {
   workflowId: "ci-repair",
   input: { branch: "main", ciRunId: 123 },
 };
 
+function services(overrides: Record<string, unknown> = {}) {
+  return {
+    loadWorkflow: vi.fn(async () => ({
+      workflow: { id: "ci-repair", inputSchema: {} } as never,
+    })),
+    validateDefinition: vi.fn(() => []),
+    validateInput: vi.fn(() => []),
+    dispatch: vi.fn(async (request: { requestId: string }) => ({
+      requestId: request.requestId,
+      acceptedAt: "2026-08-13T00:00:00.000Z",
+    })),
+    ...overrides,
+  };
+}
+
 describe("approved Agency Workflow dispatch", () => {
-  it("uses one Agency approval to challenge, approve, and dispatch", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json(
-          { error: "approval_required", approvalToken: "challenge" },
-          { status: 409 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ approvalId: "approval-1" }, { status: 201 }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ runId: "run-1" }, { status: 202 }),
-      );
+  it("uses the Agency approval to dispatch through the Workflow service", async () => {
+    const workflowServices = services();
 
-    await expect(
-      dispatchApprovedAgencyWorkflow({
-        request,
-        execution,
-        fetchImpl: fetchImpl as typeof fetch,
+    const result = await dispatchApprovedAgencyWorkflow({
+      actor: "github:1",
+      execution,
+      services: workflowServices,
+    });
+
+    expect(result.runId).toMatch(/^run-/);
+    expect(workflowServices.dispatch).toHaveBeenCalledOnce();
+    expect(workflowServices.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { type: "workflow", id: "ci-repair" },
+        input: execution.input,
       }),
-    ).resolves.toEqual({ runId: "run-1" });
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(await fetchImpl.mock.calls[2]?.[1]?.body).toContain("approval-1");
+    );
   });
 
-  it("dispatches directly when the Workflow needs no separate approval", async () => {
-    const fetchImpl = vi.fn(async () =>
-      Response.json({ runId: "run-direct" }, { status: 202 }),
-    );
+  it("rejects an invalid saved Workflow input before dispatch", async () => {
+    const workflowServices = services({
+      validateInput: vi.fn(() => [
+        { path: "ciRunId", message: "Required" },
+      ]),
+    });
 
     await expect(
       dispatchApprovedAgencyWorkflow({
-        request,
+        actor: "github:1",
         execution,
-        fetchImpl: fetchImpl as typeof fetch,
+        services: workflowServices,
       }),
-    ).resolves.toEqual({ runId: "run-direct" });
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    ).rejects.toThrow("no longer valid");
+    expect(workflowServices.dispatch).not.toHaveBeenCalled();
   });
 
-  it("does not expose a server failure body", async () => {
-    const fetchImpl = vi.fn(async () =>
-      Response.json(
-        { error: "dispatch_failed", message: "secret provider response" },
-        { status: 500 },
-      ),
-    );
+  it("propagates a dispatch failure for the route to sanitize", async () => {
+    const workflowServices = services({
+      dispatch: vi.fn(async () => {
+        throw new Error("secret provider response");
+      }),
+    });
 
     await expect(
       dispatchApprovedAgencyWorkflow({
-        request,
+        actor: "github:1",
         execution,
-        fetchImpl: fetchImpl as typeof fetch,
+        services: workflowServices,
       }),
-    ).rejects.toThrow("Workflow dispatch failed");
+    ).rejects.toThrow("secret provider response");
   });
 });

@@ -13,6 +13,12 @@ import {
   setGitHubContext,
 } from "@kody-ade/workspace/github";
 import { dispatchApprovedAgencyWorkflow } from "@dashboard/features/agency/server/approved-agency-workflow";
+import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
+import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
+import {
+  validateWorkflowDefinition,
+  validateWorkflowInput,
+} from "@dashboard/lib/workflow-definitions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -36,8 +42,9 @@ export async function POST(
 
   setGitHubContext(auth.owner, auth.repo, auth.token);
   try {
-    const actor = await verifyActorLogin(req, undefined);
-    if (actor instanceof NextResponse) return actor;
+    const actorResult = await verifyActorLogin(req, undefined);
+    if (actorResult instanceof NextResponse) return actorResult;
+    const actor = `github:${actorResult.identity.githubId}`;
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
@@ -65,7 +72,26 @@ export async function POST(
         });
       },
       dispatch: (execution) =>
-        dispatchApprovedAgencyWorkflow({ request: req, execution }),
+        dispatchApprovedAgencyWorkflow({
+          actor,
+          execution,
+          services: {
+            loadWorkflow: createCompanyWorkflowLoader({
+              octokit,
+              owner: auth.owner,
+              repo: auth.repo,
+              syncStoreDefinitions: true,
+            }),
+            validateDefinition: validateWorkflowDefinition,
+            validateInput: (schema, input) =>
+              validateWorkflowInput(input, schema),
+            dispatch: createGitHubActionsEngineGateway({
+              octokit,
+              owner: auth.owner,
+              repo: auth.repo,
+            }),
+          },
+        }),
     });
 
     if (result.kind === "not-found") {
