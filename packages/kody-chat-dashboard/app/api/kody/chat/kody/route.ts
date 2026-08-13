@@ -1741,6 +1741,11 @@ async function handleKodyDirectPost(
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
   >;
+  // Some providers stream several tool rounds without reflecting completed
+  // results in prepareStep's `steps` array. Track the actual result stream so
+  // Agency assessment still reaches its mandatory decision boundary.
+  let agencyAssessmentReadResultsSeen = 0;
+  let agencyAssessmentUpdatedSeen = false;
   const forceGuidedFlowIntake =
     (assessmentIntakeRequested || agencyRequestIntakeRequested) &&
     allActiveTools.includes("guided_flow_start");
@@ -1984,23 +1989,28 @@ This turn includes an image from the user. For questions about what is visible i
                   };
                 }
                 if (agencyAssessmentHandoffRequested) {
-                  const agencyAssessmentUpdated = steps.some((step) =>
-                    step.toolResults.some(
-                      (result) =>
-                        result.toolName === "update_agency_request" &&
-                        !isToolErrorOutput(result.output),
-                    ),
-                  );
-                  const agencyAssessmentReadResults = steps.reduce(
-                    (count, step) =>
-                      count +
-                      step.toolResults.filter(
+                  const agencyAssessmentUpdated =
+                    agencyAssessmentUpdatedSeen ||
+                    steps.some((step) =>
+                      step.toolResults.some(
                         (result) =>
-                          result.toolName !== "update_agency_request" &&
-                          result.toolName !== SHOW_VIEW_TOOL &&
-                          result.toolName !== FINAL_ANSWER_TOOL,
-                      ).length,
-                    0,
+                          result.toolName === "update_agency_request" &&
+                          !isToolErrorOutput(result.output),
+                      ),
+                    );
+                  const agencyAssessmentReadResults = Math.max(
+                    agencyAssessmentReadResultsSeen,
+                    steps.reduce(
+                      (count, step) =>
+                        count +
+                        step.toolResults.filter(
+                          (result) =>
+                            result.toolName !== "update_agency_request" &&
+                            result.toolName !== SHOW_VIEW_TOOL &&
+                            result.toolName !== FINAL_ANSWER_TOOL,
+                        ).length,
+                      0,
+                    ),
                   );
                   const agencyAssessmentTools = agencyAssessmentUpdated
                     ? allActiveTools.filter((name) => name === SHOW_VIEW_TOOL)
@@ -2170,6 +2180,16 @@ This turn includes an image from the user. For questions about what is visible i
             chunk.type === "tool-result" &&
             chunk.toolName !== FINAL_ANSWER_TOOL
           ) {
+            if (agencyAssessmentHandoffRequested) {
+              if (
+                chunk.toolName === "update_agency_request" &&
+                !isToolErrorOutput(chunk.output)
+              ) {
+                agencyAssessmentUpdatedSeen = true;
+              } else if (chunk.toolName !== SHOW_VIEW_TOOL) {
+                agencyAssessmentReadResultsSeen += 1;
+              }
+            }
             durableProgress.finishTool(chunk.toolCallId, "success");
           }
         },

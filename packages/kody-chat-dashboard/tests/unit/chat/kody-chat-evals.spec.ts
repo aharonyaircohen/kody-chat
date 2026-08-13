@@ -163,6 +163,8 @@ describe("Kody chat evals", () => {
     expect(route).toContain('name === "update_agency_request"');
     expect(route).toContain("MAX_AGENCY_ASSESSMENT_READ_RESULTS = 8");
     expect(route).toContain("agencyAssessmentReadResults >=");
+    expect(route).toContain("agencyAssessmentReadResultsSeen += 1");
+    expect(route).toContain("agencyAssessmentUpdatedSeen = true");
     expect(route).toContain("NEW_AGENCY_REQUEST_FLOW_ID");
     expect(route).toContain('activeTools: ["guided_flow_start"]');
     expect(route).toContain(
