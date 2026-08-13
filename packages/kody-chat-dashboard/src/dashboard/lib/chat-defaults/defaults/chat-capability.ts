@@ -37,6 +37,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "merge_pr",
     // ── Pipeline / workflow status (repo-gated) ───────────────────────────
     "kody_get_pipeline_status",
+    "kody_get_default_branch_ci",
     "kody_list_workflow_runs",
     "kody_list_open_prs",
     "kody_run_issue",

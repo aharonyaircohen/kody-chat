@@ -880,7 +880,7 @@ async function handleKodyDirectPost(
   const turnSystemInstructions: string[] = [];
   if (agencyAssessmentHandoffRequested) {
     turnSystemInstructions.push(
-      "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility and the Workflow input schema with tools, then save the concrete plan, exact execution.workflowId, validated execution.input, and waiting-approval phase. The server presents the approval action after the save. Do not call show_view and do not delegate ownership of this step.",
+      "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility and the Workflow input schema with tools, then save the concrete plan, exact execution.workflowId, validated execution.input, and waiting-approval phase. For default-branch CI requests, use kody_get_default_branch_ci as the authoritative CI target; never select a repair target from the raw Actions list because Kody orchestration runs are not repository CI. The server presents the approval action after the save. Do not call show_view and do not delegate ownership of this step.",
     );
   }
   if (agencyRequestApproval?.action === "approve") {

@@ -11,6 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
+  fetchDefaultBranchCI,
   getStatusFromBranch,
   fetchWorkflowRuns,
   fetchOpenPRs,
@@ -27,6 +28,43 @@ export function createPipelineTools(ctx: Ctx) {
   const { owner, repo } = ctx;
 
   return {
+    kody_get_default_branch_ci: tool({
+      description:
+        `Read the repository CI rollup at the exact HEAD of the default branch in ${owner}/${repo}. ` +
+        "Use this—not the raw Actions run list—to decide whether branch CI is healthy or which repository-CI failure should be repaired. Kody orchestration runs are not repository CI.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const ci = await fetchDefaultBranchCI();
+          const withRunId = (run: (typeof ci.failingRuns)[number]) => ({
+            ...run,
+            runId:
+              /\/actions\/runs\/(\d+)/.exec(run.html_url)?.[1] ?? null,
+          });
+          return {
+            ...ci,
+            failingRuns: ci.failingRuns.map(withRunId),
+            latestRun: ci.latestRun
+              ? {
+                  ...ci.latestRun,
+                  runId:
+                    /\/actions\/runs\/(\d+)/.exec(ci.latestRun.html_url)?.[1] ??
+                    null,
+                }
+              : undefined,
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo }, "kody_get_default_branch_ci failed");
+          return {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to read default-branch CI",
+          };
+        }
+      },
+    }),
+
     kody_get_pipeline_status: tool({
       description:
         `Read the Kody pipeline status (current stage, started/ended timestamps per ` +

@@ -89,6 +89,7 @@
         "github_comment_on_issue",
         "github_close_issue",
         "kody_get_pipeline_status",
+        "kody_get_default_branch_ci",
         "kody_list_workflow_runs",
         "kody_list_open_prs",
         "list_workflows",
