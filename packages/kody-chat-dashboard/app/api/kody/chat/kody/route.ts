@@ -338,6 +338,9 @@ function permanentToolFailureResult(): StopCondition<ToolSet> {
  */
 export const MAX_SHOW_VIEW_ATTEMPTS = 3;
 
+/** Bound evidence gathering before an Agency request must record a decision. */
+export const MAX_AGENCY_ASSESSMENT_READ_RESULTS = 8;
+
 /**
  * Cap on corrective re-runs after a turn ends with no visible output at
  * all (no output tool, no answer text). See the silent-turn retry block.
@@ -1988,13 +1991,29 @@ This turn includes an image from the user. For questions about what is visible i
                         !isToolErrorOutput(result.output),
                     ),
                   );
+                  const agencyAssessmentReadResults = steps.reduce(
+                    (count, step) =>
+                      count +
+                      step.toolResults.filter(
+                        (result) =>
+                          result.toolName !== "update_agency_request" &&
+                          result.toolName !== SHOW_VIEW_TOOL &&
+                          result.toolName !== FINAL_ANSWER_TOOL,
+                      ).length,
+                    0,
+                  );
                   const agencyAssessmentTools = agencyAssessmentUpdated
                     ? allActiveTools.filter((name) => name === SHOW_VIEW_TOOL)
-                    : allActiveTools.filter(
-                        (name) =>
-                          /^(?:list|read|get|search|fetch)_/.test(name) ||
-                          name === "update_agency_request",
-                      );
+                    : agencyAssessmentReadResults >=
+                        MAX_AGENCY_ASSESSMENT_READ_RESULTS
+                      ? allActiveTools.filter(
+                          (name) => name === "update_agency_request",
+                        )
+                      : allActiveTools.filter(
+                          (name) =>
+                            /^(?:list|read|get|search|fetch)_/.test(name) ||
+                            name === "update_agency_request",
+                        );
                   return {
                     activeTools: agencyAssessmentTools,
                     toolChoice: selectChatOutputToolChoice(
