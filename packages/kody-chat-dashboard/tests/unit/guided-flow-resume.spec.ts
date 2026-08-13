@@ -71,4 +71,28 @@ describe("GuidedFlow resume presentation", () => {
       },
     ]);
   });
+
+  it("shows only unfinished-flow actions", () => {
+    const view = buildGuidedFlowResumeView({
+      sessionId: "chat-1",
+      flows: [
+        {
+          instance: {
+            instanceId: "workflow-1",
+            revision: 2,
+            status: "active",
+          },
+          flow: { title: "Create a workflow", stepIndex: 0, stepCount: 2 },
+          compatibility: { status: "compatible" },
+        },
+      ],
+    });
+
+    expect(view.data.actions).toMatchObject([
+      { id: "resume", variant: "primary" },
+    ]);
+    expect(view.data.actions).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "assess" })]),
+    );
+  });
 });

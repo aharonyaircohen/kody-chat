@@ -114,6 +114,7 @@ import {
   type WidgetOpenRequest,
 } from "../widgets/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
+import { buildRepositoryChatOpeningView } from "../chat/core/chat-opening";
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -227,6 +228,8 @@ export function KodyChat({
     sessionId: string | null;
     message: Message;
   } | null>(null);
+  const [openingStatusCheckedSessionId, setOpeningStatusCheckedSessionId] =
+    useState<string | null>(null);
   const createGuidedFlowSessionRef = useRef<() => string>(() => "");
   const activateGuidedFlowSessionRef = useRef<(sessionId: string) => void>(
     () => undefined,
@@ -1005,6 +1008,7 @@ export function KodyChat({
       return;
     }
     if (!activeSessionId) return;
+    setOpeningStatusCheckedSessionId(null);
 
     const initialParams = new URLSearchParams(window.location.search);
     if (
@@ -1015,7 +1019,10 @@ export function KodyChat({
     }
 
     let cancelled = false;
-    void fetch("/api/kody/guided-flows", { headers: authHeaders() })
+    void fetch(
+      `/api/kody/guided-flows?conversationId=${encodeURIComponent(activeSessionId)}`,
+      { headers: authHeaders() },
+    )
       .then(async (response) => {
         if (!response.ok) return null;
         return (await response.json()) as {
@@ -1090,6 +1097,7 @@ export function KodyChat({
               ]
             : [];
         });
+        setOpeningStatusCheckedSessionId(activeSessionId);
         if (flows.length === 0) return;
         setResumedGuidedFlowMessage((current) => {
           if (
@@ -1114,6 +1122,7 @@ export function KodyChat({
       })
       .catch(() => {
         // Resume is an enhancement; an unavailable endpoint must not break chat.
+        if (!cancelled) setOpeningStatusCheckedSessionId(activeSessionId);
       });
 
     return () => {
@@ -1201,12 +1210,34 @@ export function KodyChat({
       (message) =>
         message.view?.id === resumedGuidedFlowMessage.message.view?.id,
     );
-  const displayMessages =
+  const resumedGuidedFlowDisplayMessage =
     resumedGuidedFlowMessage !== null &&
     resumedGuidedFlowMessage.sessionId === activeChatSessionId &&
     !resumedGuidedFlowMessageIsPersisted
-      ? [...messages, resumedGuidedFlowMessage.message]
-      : messages;
+      ? resumedGuidedFlowMessage.message
+      : null;
+  const repositoryOpeningMessage: Message | null =
+    sessionHook.hydrated &&
+    messages.length === 0 &&
+    !lockedAgentSlug &&
+    auth?.owner &&
+    auth?.repo &&
+    (!activeChatSessionId ||
+      openingStatusCheckedSessionId === activeChatSessionId)
+      ? {
+          role: "assistant",
+          content: "",
+          timestamp: new Date().toISOString(),
+          view: buildRepositoryChatOpeningView(
+            activeChatSessionId ?? "new-conversation",
+          ),
+        }
+      : null;
+  const openingMessage =
+    resumedGuidedFlowDisplayMessage ?? repositoryOpeningMessage;
+  const displayMessages = openingMessage
+    ? [...messages, openingMessage]
+    : messages;
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -1695,6 +1726,7 @@ export function KodyChat({
               },
             );
           }
+          return;
         } else if (action.id === "cancel") {
           const instanceId = action.result?.instanceId;
           const expectedRevision = action.result?.expectedRevision;
@@ -1736,8 +1768,8 @@ export function KodyChat({
                 );
               });
           }
+          return;
         }
-        return;
       }
 
       if (isModelOutputRecoveryView(view)) {

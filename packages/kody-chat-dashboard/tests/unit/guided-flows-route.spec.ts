@@ -37,6 +37,7 @@ vi.mock("@kody-ade/backend/api", () => ({
   api: {
     guidedFlows: {
       get: "get",
+      getConversationBinding: "getConversationBinding",
       listActive: "listActive",
       list: "list",
       upsert: "upsert",
@@ -84,6 +85,16 @@ vi.mock("@kody-ade/backend/client", () => ({
         return store.rows.filter(
           (row) =>
             row.tenantId === args.tenantId && row.actorId === args.actorId,
+        );
+      }
+      if (operation === "getConversationBinding") {
+        return (
+          store.bindings.find(
+            (binding) =>
+              binding.tenantId === args.tenantId &&
+              binding.actorId === args.actorId &&
+              binding.conversationId === args.conversationId,
+          ) ?? null
         );
       }
       if (operation === "listPendingEffects") {
@@ -309,6 +320,32 @@ describe("GuidedFlow route", () => {
         instanceId: store.rows[0]?.instanceId,
       }),
     ]);
+  });
+
+  it("lists only the flow owned by the requested conversation", async () => {
+    await POST(
+      request({
+        action: "start",
+        flowId: "create-workflow",
+        conversationId: "conversation-1",
+      }),
+    );
+
+    const unrelated = await GET(
+      new NextRequest(
+        "https://dash.test/api/kody/guided-flows?conversationId=conversation-2",
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect((await unrelated.json()).flows).toHaveLength(0);
+
+    const owned = await GET(
+      new NextRequest(
+        "https://dash.test/api/kody/guided-flows?conversationId=conversation-1",
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect((await owned.json()).flows).toHaveLength(1);
   });
 
   it("starts a fresh instance instead of reopening the active instance", async () => {

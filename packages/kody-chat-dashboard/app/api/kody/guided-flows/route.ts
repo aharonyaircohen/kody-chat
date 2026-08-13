@@ -80,19 +80,20 @@ function userTenantIdFor(githubId: number): string {
 }
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+const conversationIdSchema = z.string().trim().min(1).max(128);
 
 const startSchema = z.object({
   action: z.literal("start"),
   flowId: z.string().trim().min(1).max(80),
   instanceKey: z.string().trim().min(1).max(128).optional(),
   actorLogin: z.string().trim().min(1).max(200).optional(),
-  conversationId: z.string().trim().min(1).max(128).optional(),
+  conversationId: conversationIdSchema.optional(),
 });
 
 const bindSchema = z.object({
   action: z.literal("bind"),
   instanceId: z.string().trim().min(1).max(128),
-  conversationId: z.string().trim().min(1).max(128),
+  conversationId: conversationIdSchema,
 });
 
 const createDefinitionSchema = z.object({
@@ -255,6 +256,13 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const instanceId = url.searchParams.get("instanceId");
+    const requestedConversationId = url.searchParams.get("conversationId");
+    const conversationId = requestedConversationId
+      ? conversationIdSchema.safeParse(requestedConversationId)
+      : null;
+    if (conversationId && !conversationId.success) {
+      return json({ error: "validation_error" }, { status: 400 });
+    }
     const userInstanceScope = instanceId
       ? await userScopeForInstance(req, instanceId)
       : null;
@@ -311,10 +319,31 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const rows = (await getConvexClient().query(backendApi.guidedFlows.list, {
-      tenantId,
-      actorId: actor,
-    })) as GuidedFlowRow[];
+    const rows = conversationId?.success
+      ? await (async (): Promise<GuidedFlowRow[]> => {
+          const binding = (await getConvexClient().query(
+            backendApi.guidedFlows.getConversationBinding,
+            {
+              tenantId,
+              actorId: actor,
+              conversationId: conversationId.data,
+            },
+          )) as { instanceId?: unknown } | null;
+          if (typeof binding?.instanceId !== "string") return [];
+          const row = (await getConvexClient().query(
+            backendApi.guidedFlows.get,
+            {
+              tenantId,
+              actorId: actor,
+              instanceId: binding.instanceId,
+            },
+          )) as GuidedFlowRow | null;
+          return row ? [row] : [];
+        })()
+      : ((await getConvexClient().query(backendApi.guidedFlows.list, {
+          tenantId,
+          actorId: actor,
+        })) as GuidedFlowRow[]);
     const listRenderers = await loadGuidedFlowRenderers(
       tenantId,
       rows.flatMap((row) => {
