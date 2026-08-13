@@ -2103,6 +2103,7 @@ This turn includes an image from the user. For questions about what is visible i
         // are merged into the same UI stream before giving up.
         try {
           let attempt = result;
+          let malformedToolRetryDeadline: number | null = null;
           for (
             let retryCount = 0;
             retryCount <= MAX_SILENT_TURN_RETRIES;
@@ -2124,10 +2125,21 @@ This turn includes an image from the user. For questions about what is visible i
             const visibleAnswer = parseReasoning(
               steps.map((step) => step.text ?? "").join(""),
             ).answer.trim();
+            const wroteTextualToolCall = containsToolCallMarkup(
+              ...steps.flatMap((step) => [step.text, step.reasoningText]),
+            );
+            if (
+              wroteTextualToolCall &&
+              malformedToolRetryDeadline === null
+            ) {
+              malformedToolRetryDeadline = retryCount + 1;
+            }
+            const retryDeadline =
+              malformedToolRetryDeadline ?? MAX_SILENT_TURN_RETRIES;
             if (
               requireViewOutput &&
               !producedOutputTool &&
-              retryCount >= MAX_SILENT_TURN_RETRIES
+              retryCount >= retryDeadline
             ) {
               const toolCallId = `model-output-recovery-${traceId}`;
               writer.write({
@@ -2154,7 +2166,7 @@ This turn includes an image from the user. For questions about what is visible i
                   requireViewOutput ||
                   providerCapabilities.supportsRequiredToolChoice !== false,
                 retryCount,
-                maxRetries: MAX_SILENT_TURN_RETRIES,
+                maxRetries: retryDeadline,
               })
             ) {
               return;
@@ -2165,11 +2177,14 @@ This turn includes an image from the user. For questions about what is visible i
                 retry: retryCount + 1,
                 requireViewOutput,
                 hadVisibleToollessText: visibleAnswer.length > 0,
+                wroteTextualToolCall,
               },
               "kody-direct: turn ended without a required output tool (retrying)",
             );
             attempt = runModelTurn(modelMessages, [
-              requireViewOutput
+              wroteTextualToolCall
+                ? "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute. Re-issue the operation exactly once as a REAL API tool call. Do not claim any result from the plain-text invocation."
+                : requireViewOutput
                 ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
                 : "Your previous attempt did not make a required API tool call. Plain text cannot read or change data. Re-evaluate the user's request, call the required operation tool first when an operation was requested, then finish with `final_answer`. For a conversational reply, call `final_answer` directly.",
             ]);

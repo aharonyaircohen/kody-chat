@@ -671,6 +671,118 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.merge).toHaveBeenCalledTimes(1);
   });
 
+  it("corrects a plain-text tool call once with a specific instruction", async () => {
+    const malformedResult = () => ({
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        {
+          toolResults: [],
+          text: "<|tool_call>call:show_view{}",
+          reasoningText: "",
+        },
+      ]),
+    });
+    const correctedResult = {
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        {
+          toolResults: [
+            { toolName: "show_view", output: { action: "render_view" } },
+          ],
+          text: "",
+        },
+      ]),
+    };
+    streamTextMock
+      .mockReturnValueOnce(malformedResult())
+      .mockReturnValueOnce(correctedResult);
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "Ask me to approve this plan.",
+          },
+        ],
+      }),
+    );
+
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(2);
+    expect(streamTextMock.mock.calls[1]?.[0]?.system).toContain(
+      "wrote a tool invocation as PLAIN TEXT",
+    );
+    expect(writer.merge).toHaveBeenCalledTimes(2);
+    expect(writer.write).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tool-output-available",
+        output: expect.objectContaining({
+          rendererSlug: "model-output-recovery",
+        }),
+      }),
+    );
+  });
+
+  it("stops after one failed plain-text tool-call correction", async () => {
+    const malformedResult = () => ({
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        {
+          toolResults: [],
+          text: "<|tool_call>call:show_view{}",
+          reasoningText: "",
+        },
+      ]),
+    });
+    streamTextMock
+      .mockReturnValueOnce(malformedResult())
+      .mockReturnValueOnce(malformedResult());
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "Ask me to approve this plan.",
+          },
+        ],
+      }),
+    );
+
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(2);
+    expect(writer.write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tool-output-available",
+        output: expect.objectContaining({
+          rendererSlug: "model-output-recovery",
+        }),
+      }),
+    );
+  });
+
   it("puts textual tool-call correction in the per-step system prompt for reasoning tokens", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
