@@ -146,12 +146,12 @@ describe("Kody chat evals", () => {
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
   });
 
-  it("preserves the deterministic assessment form when repository tools are added", () => {
+  it("starts assessment intake through the existing GuidedFlow tool", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 
-    expect(
-      route.match(/forcedViewInput: buildProjectAssessmentIntakeSpec\(\)/g),
-    ).toHaveLength(2);
+    expect(route).toContain("PROJECT_ASSESSMENT_FLOW_ID");
+    expect(route).toContain("guided_flow_start");
+    expect(route).not.toContain("buildProjectAssessmentIntakeSpec");
   });
 
   it("retries a failed show_view a bounded number of times, not forever", () => {

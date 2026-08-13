@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   MAX_PARALLEL_ASSIGNMENTS,
-  buildProjectAssessmentIntakeInstruction,
-  buildProjectAssessmentIntakeSpec,
   buildPublicAgentRoutingPrompt,
   inferPublicAgentRouteFromDefinitions,
   routeProjectAssessmentSubmission,
@@ -122,52 +120,6 @@ describe("public Agent routing", () => {
         ],
       ),
     ).toBeNull();
-  });
-
-  it("defines seven clearly explained questions without asking for repository facts", () => {
-    const instruction = buildProjectAssessmentIntakeInstruction();
-
-    expect(instruction).toContain("Use exactly these seven editable fields");
-    expect(instruction).toContain("`projectExpectations`");
-    expect(instruction).toContain("`businessCriticality`");
-    expect(instruction).toContain("`teamSizeAndRoles`");
-    expect(instruction).toContain("`relevantExperience`");
-    expect(instruction).toContain("`systemKnowledge`");
-    expect(instruction).toContain("`maintenanceTime`");
-    expect(instruction).toContain("`additionalComments`");
-    expect(instruction).toContain("what happens if the system is unavailable");
-    expect(instruction).toContain("employees, contractors, and AI agents");
-    expect(instruction).toContain("weekly or monthly estimate");
-    expect(instruction).toContain("another language");
-    expect(instruction).toContain(
-      "Do not ask for repository size, architecture, contribution history, or the required team size",
-    );
-  });
-
-  it("builds the assessment form with explanations as guaranteed view data", () => {
-    const spec = buildProjectAssessmentIntakeSpec();
-    const form = spec.elements.form;
-
-    expect(form.type).toBe("GuidedForm");
-    expect(form.props.fields).toHaveLength(7);
-    expect(form.props.fields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "businessCriticality",
-          description: expect.stringContaining("unavailable"),
-        }),
-        expect.objectContaining({
-          name: "teamSizeAndRoles",
-          description: expect.stringContaining("AI agents"),
-        }),
-        expect.objectContaining({
-          name: "additionalComments",
-          label: "Other comments or report preferences",
-          description: expect.stringContaining("another language"),
-        }),
-      ]),
-    );
-    expect(form.props.fields.at(-1)?.name).toBe("additionalComments");
   });
 
   it("accepts ten parallel assessment tasks for one specialist", () => {

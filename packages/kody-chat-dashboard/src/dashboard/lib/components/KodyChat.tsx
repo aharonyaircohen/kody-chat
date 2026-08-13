@@ -104,6 +104,7 @@ import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
 import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
 import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
+import { PROJECT_ASSESSMENT_FLOW_ID } from "../guided-flows/builtins";
 import {
   buildWidgetPreviewView,
   consumeWidgetOpenRequest,
@@ -118,6 +119,7 @@ import {
   buildRepositoryChatOpeningView,
   PROJECT_ASSESSMENT_OPENING_ACTION,
 } from "../chat/core/chat-opening";
+import { buildProjectAssessmentSubmission } from "../chat/core/project-assessment-submission";
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -1728,7 +1730,13 @@ export function KodyChat({
   const handleRenderedViewAction = useCallback(
     (view: RenderedViewDirective, action: RenderedViewAction) => {
       if (view.rendererSlug === "guided-flow-status") {
-        if (action.id === "resume") {
+        if (action.id === PROJECT_ASSESSMENT_OPENING_ACTION.id) {
+          void openGuidedFlow({
+            flowId: PROJECT_ASSESSMENT_FLOW_ID,
+            message: "started",
+          });
+          return;
+        } else if (action.id === "resume") {
           const instanceId = action.result?.instanceId ?? view.data.instanceId;
           if (typeof instanceId === "string" && instanceId.trim()) {
             void openGuidedFlow({ instanceId, message: "resumed" }).then(
@@ -1821,7 +1829,12 @@ export function KodyChat({
             });
             const payload = (await response.json()) as {
               view?: unknown;
-              instance?: { status?: string };
+              instance?: {
+                instanceId?: string;
+                status?: string;
+                data?: Readonly<Record<string, unknown>>;
+              };
+              flow?: { id?: string };
               navigation?: DashboardNavigateDirective;
               error?: string;
             };
@@ -1841,6 +1854,18 @@ export function KodyChat({
                   view: nextView,
                 },
               ]);
+            } else if (
+              payload.instance?.status === "completed" &&
+              payload.flow?.id === PROJECT_ASSESSMENT_FLOW_ID
+            ) {
+              void sendText(
+                buildProjectAssessmentSubmission(
+                  payload.instance.instanceId,
+                  payload.instance.data,
+                ),
+                [],
+                { displayContent: "Assessment answers submitted." },
+              );
             } else {
               setMessages((prev) => [
                 ...prev,

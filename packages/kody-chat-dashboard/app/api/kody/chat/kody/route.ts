@@ -193,12 +193,11 @@ import {
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
 import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
-  buildProjectAssessmentIntakeInstruction,
-  buildProjectAssessmentIntakeSpec,
   isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
   isParentOwnedArchitectureAdvice,
 } from "./public-agent-routing";
+import { PROJECT_ASSESSMENT_FLOW_ID } from "../../../../../src/dashboard/lib/guided-flows/builtins";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { shouldRoutePublicAgentChat } from "./public-agent-routing";
@@ -1241,15 +1240,11 @@ async function handleKodyDirectPost(
     });
   const requireStructuredView =
     !explicitViewRequest &&
-    (assessmentIntakeRequested ||
-      shouldRequireStructuredViewForTurn(latestUserText));
+    shouldRequireStructuredViewForTurn(latestUserText);
   const requireViewOutputForTurn =
     requireInteractiveAction || requireStructuredView;
   let uiToolSet = createUiTools({
     requireInteractiveAction,
-    ...(assessmentIntakeRequested
-      ? { forcedViewInput: buildProjectAssessmentIntakeSpec() }
-      : {}),
   });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
@@ -1262,9 +1257,6 @@ async function handleKodyDirectPost(
     uiToolSet = createUiTools({
       viewRendererDefinitions,
       requireInteractiveAction,
-      ...(assessmentIntakeRequested
-        ? { forcedViewInput: buildProjectAssessmentIntakeSpec() }
-        : {}),
     });
     const workflowApi = createWorkflowApiClient({
       request: repoScopedReq,
@@ -1695,11 +1687,10 @@ async function handleKodyDirectPost(
   const clearlyConversationalTurn = isClearlyConversationalTurn(
     latestUserText ?? "",
   );
-  if (
-    assessmentIntakeRequested &&
-    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL)
-  ) {
-    turnSystemInstructions.push(buildProjectAssessmentIntakeInstruction());
+  if (assessmentIntakeRequested) {
+    turnSystemInstructions.push(
+      `Start the built-in GuidedFlow \`${PROJECT_ASSESSMENT_FLOW_ID}\` with \`guided_flow_start\`. Do not begin assessment work and do not recreate the questions with \`show_view\`; the GuidedFlow owns intake and starts the assessment only after its last step.`,
+    );
   }
   if (
     clearlyConversationalTurn &&
@@ -1720,7 +1711,7 @@ async function handleKodyDirectPost(
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
-    (requireViewOutputForTurn || assessmentIntakeRequested) &&
+    requireViewOutputForTurn &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
   const maxTurnSteps = resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS;
   const allActiveTools = Object.keys(allowlistedTools) as Array<

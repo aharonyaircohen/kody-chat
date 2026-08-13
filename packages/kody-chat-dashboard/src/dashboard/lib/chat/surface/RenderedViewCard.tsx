@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
 import { Check, ChevronRight, X } from "lucide-react";
 import { trackSystemEvent } from "@kody-ade/base/events/client";
 import { MarkdownPreview } from "../../components/MarkdownPreview";
@@ -280,6 +280,18 @@ export function RenderedViewCard({
       );
     }
     if (node.type === "input") {
+      const value = node.name
+        ? (inputValues[node.name] ?? node.value)
+        : node.value;
+      const onChange = (
+        event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+      ) => {
+        if (!node.name || node.readOnly) return;
+        setInputValues((current) => ({
+          ...current,
+          [node.name!]: event.target.value,
+        }));
+      };
       return (
         <label key={key} className="block space-y-1.5">
           {node.label ? (
@@ -287,21 +299,23 @@ export function RenderedViewCard({
               {node.label}
             </span>
           ) : null}
-          <input
-            value={
-              node.name ? (inputValues[node.name] ?? node.value) : node.value
-            }
-            readOnly={node.readOnly ?? true}
-            type={node.inputType ?? "text"}
-            onChange={(event) => {
-              if (!node.name || node.readOnly) return;
-              setInputValues((current) => ({
-                ...current,
-                [node.name!]: event.target.value,
-              }));
-            }}
-            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+          {node.inputType === "textarea" ? (
+            <textarea
+              value={value}
+              readOnly={node.readOnly ?? true}
+              rows={4}
+              onChange={onChange}
+              className="min-h-24 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          ) : (
+            <input
+              value={value}
+              readOnly={node.readOnly ?? true}
+              type={node.inputType ?? "text"}
+              onChange={onChange}
+              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          )}
         </label>
       );
     }

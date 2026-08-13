@@ -138,7 +138,7 @@ export type RenderedViewUiNode =
       value: string;
       label?: string;
       name?: string;
-      inputType?: "text" | "password";
+      inputType?: "text" | "password" | "textarea";
       readOnly?: boolean;
     }
   | {
@@ -297,7 +297,8 @@ function isRenderedViewUiNode(value: unknown): value is RenderedViewUiNode {
       (node.name === undefined || typeof node.name === "string") &&
       (node.inputType === undefined ||
         node.inputType === "text" ||
-        node.inputType === "password") &&
+        node.inputType === "password" ||
+        node.inputType === "textarea") &&
       (node.readOnly === undefined || typeof node.readOnly === "boolean")
     );
   }

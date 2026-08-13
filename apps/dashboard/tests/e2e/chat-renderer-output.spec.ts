@@ -397,76 +397,49 @@ function renderedMultiSelectionView() {
 }
 
 function renderedProjectAssessmentForm() {
-  const fields = [
-    {
-      name: "projectExpectations",
-      label: "Project goals and expected growth",
-      description:
-        "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major changes, and deadlines.",
-    },
-    {
-      name: "businessCriticality",
-      label: "Business importance and acceptable failures",
-      description:
-        "Explain what happens if the system is unavailable, loses data, or has a security incident.",
-    },
-    {
-      name: "teamSizeAndRoles",
-      label: "Active team size and roles",
-      description:
-        "Include employees, contractors, and AI agents, their roles, and whether their involvement is full-time or part-time.",
-    },
-    {
-      name: "relevantExperience",
-      label: "Relevant team experience",
-      description:
-        "Describe experience with the main technologies, architecture, scale, security, and production operations.",
-    },
-    {
-      name: "systemKnowledge",
-      label: "Shared system knowledge and ownership gaps",
-      description:
-        "Explain who understands the important areas, how knowledge is shared, and where ownership gaps remain.",
-    },
-    {
-      name: "maintenanceTime",
-      label: "Real maintenance time available",
-      description:
-        "Give the time actually available for maintenance as a weekly or monthly estimate.",
-    },
-    {
-      name: "additionalComments",
-      label: "Other comments or report preferences",
-      description:
-        "Optional. Add anything else Kody should consider, such as asking for the report in another language or emphasizing a specific concern.",
-    },
-  ];
   return {
     action: "render_view",
     view: "renderer",
     id: "view-project-assessment-e2e",
     rendererSlug: "guided-form",
     rendererName: "Guided form",
-    resultTarget: "chat",
+    resultTarget: "guided-flow",
+    guidedFlow: {
+      instanceId: "assessment-from-chat",
+      stepId: "project-expectations",
+      revision: 0,
+    },
     ui: {
       type: "stack",
       children: [
-        { type: "text", value: "Project assessment", variant: "title" },
-        ...fields.flatMap((field) => [
+        { type: "text", value: "Question 1 of 7", variant: "title" },
+        {
+          type: "markdown",
+          value:
+            "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major changes, and deadlines.",
+        },
+        {
+          type: "list",
+          children: [
           {
-            type: "input",
-            name: field.name,
-            label: field.label,
-            value: "",
-            inputType: "text",
-            readOnly: false,
+            type: "stack",
+            children: [
+              {
+                type: "input",
+                name: "projectExpectations",
+                label: "Project goals and expected growth",
+                value: "",
+                inputType: "textarea",
+                readOnly: false,
+              },
+            ],
           },
-          { type: "text", value: field.description },
-        ]),
-        { type: "submit", label: "Start assessment" },
+          ],
+        },
+        { type: "submit", label: "Continue" },
       ],
     },
-    data: { title: "Project assessment", fields },
+    data: {},
   };
 }
 
@@ -588,8 +561,84 @@ test.describe("Kody chat renderer output", () => {
     page,
   }) => {
     let guidedFlowRequestUrl = "";
+    let chatRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/kody/chat/kody")) chatRequests += 1;
+    });
     await page.route("**/api/kody/guided-flows**", async (route) => {
       guidedFlowRequestUrl = route.request().url();
+      const request = route.request();
+      const body = request.method() === "POST" ? request.postDataJSON() : null;
+      if (body?.action === "start" && body?.flowId === "project-assessment") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            instance: {
+              instanceId: "assessment-flow",
+              revision: 0,
+              status: "active",
+              data: {},
+            },
+            flow: {
+              id: "project-assessment",
+              title: "Project assessment",
+              stepIndex: 0,
+              stepCount: 7,
+            },
+            compatibility: { status: "compatible" },
+            view: {
+              action: "render_view",
+              view: "renderer",
+              id: "guided-flow-assessment-flow-0",
+              rendererSlug: "guided-form",
+              rendererName: "Guided form",
+              resultTarget: "guided-flow",
+              guidedFlow: {
+                instanceId: "assessment-flow",
+                stepId: "project-expectations",
+                revision: 0,
+              },
+              ui: {
+                type: "stack",
+                children: [
+                  {
+                    type: "text",
+                    value: "Question 1 of 7",
+                    variant: "title",
+                  },
+                  {
+                    type: "markdown",
+                    value:
+                      "What should this project achieve over the next 12–24 months? Include expected users or load, growth, major product or technical changes, and important deadlines.",
+                  },
+                  {
+                    type: "list",
+                    children: [
+                      {
+                        type: "stack",
+                        children: [
+                          {
+                            type: "input",
+                            name: "projectExpectations",
+                            label: "Project goals and expected growth",
+                            value: "",
+                            inputType: "textarea",
+                            readOnly: false,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  { type: "submit", label: "Continue" },
+                ],
+              },
+              data: {},
+            },
+          }),
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -637,10 +686,17 @@ test.describe("Kody chat renderer output", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Run project assessment" }).click();
-    await expect(page.getByText("Project assessment")).toBeVisible();
+    await expect(page.getByText("Question 1 of 7")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Start assessment" }),
+      page.getByText("Project goals and expected growth"),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Continue" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Business importance and acceptable failures"),
+    ).toHaveCount(0);
+    expect(chatRequests).toBe(0);
 
     await page.getByRole("button", { name: "New conversation" }).click();
     await expect.poll(() => guidedFlowRequestUrl).toContain("status=active");
@@ -679,40 +735,22 @@ test.describe("Kody chat renderer output", () => {
     await expect(approve).toBeDisabled();
   });
 
-  test("project assessment shows seven explained questions", async ({
+  test("typed project assessment request opens the same first flow step", async ({
     page,
   }) => {
     await openChat(page);
 
     await sendChatMessage(page, "Run a complete project assessment");
 
-    await expect(page.getByText("Project assessment")).toBeVisible();
+    await expect(page.getByText("Question 1 of 7")).toBeVisible();
     await expect(
       page.getByText("Project goals and expected growth"),
     ).toBeVisible();
     await expect(
       page.getByText("Business importance and acceptable failures"),
-    ).toBeVisible();
-    await expect(page.getByText("Active team size and roles")).toBeVisible();
-    await expect(page.getByText("Relevant team experience")).toBeVisible();
+    ).toHaveCount(0);
     await expect(
-      page.getByText("Shared system knowledge and ownership gaps"),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Real maintenance time available"),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Other comments or report preferences"),
-    ).toBeVisible();
-    await expect(page.getByText(/another language/i)).toBeVisible();
-    await expect(
-      page.getByText(/what happens if the system is unavailable/i),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/employees, contractors, and AI agents/i),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Start assessment" }),
+      page.getByRole("button", { name: "Continue" }),
     ).toBeVisible();
   });
 

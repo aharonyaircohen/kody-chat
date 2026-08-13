@@ -190,10 +190,15 @@ function resolveRendererUiTemplate(
         : {}),
       ...(template.inputType
         ? {
-            inputType:
-              resolveTemplateString(template.inputType, scope) === "password"
-                ? "password"
-                : "text",
+            inputType: (() => {
+              const inputType = resolveTemplateString(
+                template.inputType,
+                scope,
+              );
+              return inputType === "password" || inputType === "textarea"
+                ? inputType
+                : "text";
+            })(),
           }
         : {}),
       readOnly: template.readOnly ?? true,
@@ -446,7 +451,9 @@ function normalizeRendererFields(
       label,
       value: fieldValue,
       ...(description ? { description } : {}),
-      ...(item.inputType === "password" ? { inputType: "password" } : {}),
+      ...(item.inputType === "password" || item.inputType === "textarea"
+        ? { inputType: item.inputType }
+        : {}),
     };
   });
   return fields.every(Boolean)
