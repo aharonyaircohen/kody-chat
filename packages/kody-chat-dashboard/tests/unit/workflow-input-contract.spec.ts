@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceWorkflowInput,
   normalizeWorkflowDefinition,
   workflowInputFromFacts,
   validateWorkflowInput,
@@ -52,6 +53,22 @@ describe("workflow input contract", () => {
     expect(
       workflowInputFromFacts({ issue: 42, verdict: "pass" }, undefined),
     ).toEqual({ issue: 42, verdict: "pass" });
+  });
+
+  it("coerces unambiguous primitive strings using the Workflow schema", () => {
+    expect(
+      coerceWorkflowInput(
+        { issue: "42", enabled: "true", label: "42" },
+        {
+          type: "object",
+          properties: {
+            issue: { type: "integer" },
+            enabled: { type: "boolean" },
+            label: { type: "string" },
+          },
+        },
+      ),
+    ).toEqual({ issue: 42, enabled: true, label: "42" });
   });
 
   it("enforces nested, enum, array, and string constraints", () => {

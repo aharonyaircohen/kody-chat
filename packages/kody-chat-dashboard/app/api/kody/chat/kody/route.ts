@@ -100,6 +100,7 @@ import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
 import {
+  coerceWorkflowInput,
   validateWorkflowDefinition,
   validateWorkflowInput,
   type WorkflowDefinition,
@@ -1413,9 +1414,12 @@ async function handleKodyDirectPost(
         validateAgencyExecution: async (execution) => {
           const result = await agencyApi.readWorkflow(execution.workflowId);
           if (typeof result.error === "string") {
-            return [
-              `Workflow ${execution.workflowId} could not be read: ${result.error}`,
-            ];
+            return {
+              execution,
+              issues: [
+                `Workflow ${execution.workflowId} could not be read: ${result.error}`,
+              ],
+            };
           }
           const record =
             result.workflow &&
@@ -1430,12 +1434,22 @@ async function handleKodyDirectPost(
               ? (record.workflow as WorkflowDefinition)
               : null;
           if (!workflow) {
-            return [`Workflow ${execution.workflowId} is unavailable`];
+            return {
+              execution,
+              issues: [`Workflow ${execution.workflowId} is unavailable`],
+            };
           }
-          return [
-            ...validateWorkflowDefinition(workflow),
-            ...validateWorkflowInput(execution.input, workflow.inputSchema),
-          ].map((issue) => `${issue.path}: ${issue.message}`);
+          const input = coerceWorkflowInput(
+            execution.input,
+            workflow.inputSchema,
+          );
+          return {
+            execution: { ...execution, input },
+            issues: [
+              ...validateWorkflowDefinition(workflow),
+              ...validateWorkflowInput(input, workflow.inputSchema),
+            ].map((issue) => `${issue.path}: ${issue.message}`),
+          };
         },
         runAgencyRequest: (slug) => agencyApi.runAgencyRequest(slug),
         removeTodo: (slug) => agencyApi.removeTodo(slug),

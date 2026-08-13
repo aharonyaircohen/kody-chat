@@ -21,7 +21,10 @@ describe("todo chat tools", () => {
     ctx.readTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.saveTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.patchTodo.mockResolvedValue({ todo: { slug: "launch" } });
-    ctx.validateAgencyExecution.mockResolvedValue([]);
+    ctx.validateAgencyExecution.mockImplementation(async (execution) => ({
+      execution,
+      issues: [],
+    }));
     ctx.runAgencyRequest.mockResolvedValue({ runId: "run-1" });
     ctx.removeTodo.mockResolvedValue({ success: true });
   });
@@ -110,9 +113,10 @@ describe("todo chat tools", () => {
   });
 
   it("refuses approval state when the saved input does not match the Workflow schema", async () => {
-    ctx.validateAgencyExecution.mockResolvedValue([
-      "input.ciRunId: Expected number, received string",
-    ]);
+    ctx.validateAgencyExecution.mockImplementation(async (execution) => ({
+      execution,
+      issues: ["input.ciRunId: Expected number, received string"],
+    }));
     const tools = createTodoTools(ctx as never);
 
     const result = await tools.update_agency_request.execute!(
@@ -145,5 +149,53 @@ describe("todo chat tools", () => {
         "Agency execution is invalid: input.ciRunId: Expected number, received string",
     });
     expect(ctx.patchTodo).not.toHaveBeenCalled();
+  });
+
+  it("stores the schema-normalized execution input before approval", async () => {
+    ctx.validateAgencyExecution.mockResolvedValue({
+      execution: {
+        workflowId: "ci-repair",
+        input: { ciRunId: 31714049933 },
+      },
+      issues: [],
+    });
+    const tools = createTodoTools(ctx as never);
+
+    await tools.update_agency_request.execute!(
+      {
+        slug: "launch",
+        agencyRequest: {
+          phase: "waiting-approval",
+          source: {
+            kind: "guided-flow",
+            instanceId: "flow-1",
+            effectId: "effect-1",
+          },
+          requirement: { outcome: "Repair CI" },
+          questions: [],
+          plan: ["Run CI Repair"],
+          execution: {
+            workflowId: "ci-repair",
+            input: { ciRunId: "31714049933" },
+          },
+          evidence: [],
+          blockers: [],
+          related: [{ kind: "workflow", id: "ci-repair" }],
+        },
+      },
+      {} as never,
+    );
+
+    expect(ctx.patchTodo).toHaveBeenCalledWith(
+      "launch",
+      expect.objectContaining({
+        agencyRequest: expect.objectContaining({
+          execution: {
+            workflowId: "ci-repair",
+            input: { ciRunId: 31714049933 },
+          },
+        }),
+      }),
+    );
   });
 });

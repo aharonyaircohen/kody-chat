@@ -15,6 +15,7 @@ import {
 } from "./workflow-input-schema";
 
 export {
+  coerceWorkflowInput,
   validateWorkflowInput,
   validateWorkflowInputSchema,
   workflowInputFromFacts,

@@ -24,7 +24,12 @@ interface Ctx {
     execution: NonNullable<
       z.infer<typeof agencyRequestStateSchema>["execution"]
     >,
-  ): Promise<string[]>;
+  ): Promise<{
+    execution: NonNullable<
+      z.infer<typeof agencyRequestStateSchema>["execution"]
+    >;
+    issues: string[];
+  }>;
   runAgencyRequest(slug: string): Promise<unknown>;
   removeTodo(slug: string): Promise<unknown>;
 }
@@ -110,14 +115,20 @@ export function createTodoTools(ctx: Ctx) {
           agencyRequest.phase === "waiting-approval" &&
           agencyRequest.execution
         ) {
-          const issues = await ctx.validateAgencyExecution(
+          const validation = await ctx.validateAgencyExecution(
             agencyRequest.execution,
           );
-          if (issues.length > 0) {
+          if (validation.issues.length > 0) {
             return {
-              error: `Agency execution is invalid: ${issues.join("; ")}`,
+              error: `Agency execution is invalid: ${validation.issues.join("; ")}`,
             };
           }
+          return ctx.patchTodo(slug, {
+            agencyRequest: {
+              ...agencyRequest,
+              execution: validation.execution,
+            },
+          });
         }
         return ctx.patchTodo(slug, { agencyRequest });
       },

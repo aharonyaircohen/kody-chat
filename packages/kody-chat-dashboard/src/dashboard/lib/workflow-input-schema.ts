@@ -58,6 +58,48 @@ export function validateWorkflowInput(
   }));
 }
 
+/** Converts only unambiguous top-level primitive strings declared by a Workflow. */
+export function coerceWorkflowInput(
+  input: Record<string, unknown>,
+  schema: WorkflowInputSchema | undefined,
+): Record<string, unknown> {
+  if (
+    schema?.type !== "object" ||
+    !schema.properties ||
+    typeof schema.properties !== "object" ||
+    Array.isArray(schema.properties)
+  ) {
+    return { ...input };
+  }
+  const properties = schema.properties as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(input).map(([key, value]) => {
+      const property = properties[key];
+      if (
+        typeof value !== "string" ||
+        !property ||
+        typeof property !== "object" ||
+        Array.isArray(property)
+      ) {
+        return [key, value];
+      }
+      const type = (property as Record<string, unknown>).type;
+      const trimmed = value.trim();
+      if (type === "integer" && /^-?(?:0|[1-9]\d*)$/.test(trimmed)) {
+        const number = Number(trimmed);
+        if (Number.isSafeInteger(number)) return [key, number];
+      }
+      if (type === "number" && trimmed !== "" && Number.isFinite(Number(trimmed))) {
+        return [key, Number(trimmed)];
+      }
+      if (type === "boolean" && (trimmed === "true" || trimmed === "false")) {
+        return [key, trimmed === "true"];
+      }
+      return [key, value];
+    }),
+  );
+}
+
 /** Selects the fields a strict Workflow declares from shared Pipeline facts. */
 export function workflowInputFromFacts(
   facts: Record<string, unknown>,
