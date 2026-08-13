@@ -62,12 +62,20 @@ export async function assessPreparedAgencyRequest(
 ) {
   const record = await ports.read(slug);
   if (!record) return { kind: "not-found" as const };
-  const strategy = record.state.related.find((ref) => ref.kind === "strategy");
-  if (!strategy || !record.state.execution) {
+  const execution = record.state.execution;
+  const relatedStrategy = record.state.related.find(
+    (ref) => ref.kind === "strategy",
+  );
+  const inputBlueprintId =
+    typeof execution?.input.blueprintId === "string"
+      ? execution.input.blueprintId.trim()
+      : "";
+  const strategyId = relatedStrategy?.id ?? inputBlueprintId;
+  if (!strategyId || !execution) {
     return { kind: "requires-reasoning" as const };
   }
 
-  const validation = await ports.validateExecution(record.state.execution);
+  const validation = await ports.validateExecution(execution);
   if (validation.issues.length > 0) {
     const state = createAgencyRequestState({
       ...record.state,
@@ -94,7 +102,7 @@ export async function assessPreparedAgencyRequest(
     execution: validation.execution,
     evidence: [
       ...record.state.evidence,
-      `Validated Strategy Blueprint ${strategy.id} and Workflow ${workflowId}.`,
+      `Validated Strategy Blueprint ${strategyId} and Workflow ${workflowId}.`,
     ],
     blockers: [],
   });

@@ -35,7 +35,7 @@ describe("Agency Request Manager", () => {
           execution,
           evidence: [],
           blockers: ["Workflow is not active"],
-          related: [{ kind: "strategy" as const, id: "healthy-ci" }],
+          related: [],
         },
       })),
       validateExecution: vi.fn(async () => ({ execution, issues: [] })),
