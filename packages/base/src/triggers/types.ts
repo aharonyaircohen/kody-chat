@@ -48,6 +48,8 @@ export const triggerActionSchema = z.discriminatedUnion("type", [
     pipelineId: z.string().trim().min(1).max(200),
     /** Pipeline input key -> event value source. */
     inputMap: eventValueMapSchema,
+    /** Optional mapped input field used to keep equivalent runs exclusive. */
+    concurrencyKey: z.string().trim().min(1).max(100).optional(),
   }),
 ]);
 

@@ -183,10 +183,11 @@ describe("dispatchGitHubWorkflowTriggers", () => {
           type: "start-pipeline",
           pipelineId: "review-and-merge",
           inputMap: { pr: "payload.pr" },
+          concurrencyKey: "branch",
         },
       },
     ]);
-    h.resolveActionData.mockReturnValue({ pr: 3943 });
+    h.resolveActionData.mockReturnValue({ pr: 3943, branch: "main" });
 
     await dispatchGitHubWorkflowTriggers({
       event,
@@ -198,10 +199,38 @@ describe("dispatchGitHubWorkflowTriggers", () => {
       expect.objectContaining({
         pipelineId: "review-and-merge",
         pipelineRunId: expect.stringMatching(/^run-trigger-/),
-        facts: { pr: 3943 },
+        facts: { pr: 3943, branch: "main" },
+        concurrencyKey: "main",
       }),
     );
     expect(h.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("does not start a Pipeline when its concurrency input is missing", async () => {
+    h.getTriggers.mockResolvedValue([
+      {
+        id: "repair-after-ci",
+        name: "Repair after CI",
+        enabled: true,
+        event: "github.workflow_run.completed",
+        conditions: [],
+        action: {
+          type: "start-pipeline",
+          pipelineId: "ci-repair",
+          inputMap: { branch: "payload.branch" },
+          concurrencyKey: "branch",
+        },
+      },
+    ]);
+    h.resolveActionData.mockReturnValue({});
+
+    await dispatchGitHubWorkflowTriggers({
+      event,
+      deliveryId: "delivery-1",
+      octokit,
+    });
+
+    expect(h.startPipelineExecution).not.toHaveBeenCalled();
   });
 
   it("uses a stable source id for a completed Kody workflow run", async () => {

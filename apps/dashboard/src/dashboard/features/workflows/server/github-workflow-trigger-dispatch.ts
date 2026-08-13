@@ -62,8 +62,7 @@ async function sourceRunNeverStarted(input: {
     conclusion?: unknown;
   };
   if (
-    (payload.conclusion !== "failure" &&
-      payload.conclusion !== "cancelled") ||
+    (payload.conclusion !== "failure" && payload.conclusion !== "cancelled") ||
     typeof payload.runId !== "number"
   ) {
     return false;
@@ -186,6 +185,7 @@ export async function dispatchWorkflowTriggers(input: {
   }
   for (const trigger of matchingTriggers) {
     if (trigger.action.type !== "start-pipeline") continue;
+    const action = trigger.action;
     const pipelineInput = resolveActionData(trigger, input.event);
     if (JSON.stringify(pipelineInput).length > MAX_INPUT_BYTES) {
       logger.warn(
@@ -212,13 +212,23 @@ export async function dispatchWorkflowTriggers(input: {
       if (issues.length) {
         throw new Error(issues.map((issue) => issue.message).join("; "));
       }
-      if (
-        await pipelineRequiresApproval(
-          trigger.action.pipelineId,
-          loaded.pipeline,
-        )
-      ) {
+      if (await pipelineRequiresApproval(action.pipelineId, loaded.pipeline)) {
         throw new Error("Pipeline requires approval");
+      }
+      const rawConcurrencyKey = action.concurrencyKey
+        ? pipelineInput[action.concurrencyKey]
+        : undefined;
+      if (
+        action.concurrencyKey &&
+        (rawConcurrencyKey === undefined ||
+          rawConcurrencyKey === null ||
+          (typeof rawConcurrencyKey !== "string" &&
+            typeof rawConcurrencyKey !== "number" &&
+            typeof rawConcurrencyKey !== "boolean"))
+      ) {
+        throw new Error(
+          `Pipeline concurrency input ${action.concurrencyKey} is missing or invalid`,
+        );
       }
       await startPipelineExecution({
         octokit: input.octokit,
@@ -226,6 +236,10 @@ export async function dispatchWorkflowTriggers(input: {
         repo: brand.repo,
         pipelineId: trigger.action.pipelineId,
         pipelineRunId,
+        concurrencyKey:
+          rawConcurrencyKey === undefined
+            ? undefined
+            : String(rawConcurrencyKey),
         pipeline: loaded.pipeline,
         facts: pipelineInput,
       });

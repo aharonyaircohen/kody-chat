@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import { pipelineRunStepValidator } from "./validators";
 import { serviceMutation, serviceQuery } from "./lib/auth";
 
+const PIPELINE_CONCURRENCY_LEASE_MS = 7 * 60 * 60 * 1_000;
+
 export const list = serviceQuery({
   args: {
     tenantId: v.string(),
@@ -37,6 +39,7 @@ export const reserve = serviceMutation({
     tenantId: v.string(),
     pipelineId: v.string(),
     runId: v.string(),
+    concurrencyKey: v.optional(v.string()),
     facts: v.optional(v.record(v.string(), v.any())),
     input: v.optional(v.record(v.string(), v.any())),
     steps: v.array(pipelineRunStepValidator),
@@ -53,10 +56,48 @@ export const reserve = serviceMutation({
       )
       .unique();
     if (existing) return { claimed: false, run: existing };
+    if (args.concurrencyKey) {
+      const active = await ctx.db
+        .query("pipelineRuns")
+        .withIndex("by_concurrency", (q) =>
+          q
+            .eq("tenantId", args.tenantId)
+            .eq("pipelineId", args.pipelineId)
+            .eq("concurrencyKey", args.concurrencyKey)
+            .eq("status", "running"),
+        )
+        .first();
+      if (active) {
+        const activeAt = Date.parse(active.updatedAt);
+        const nowAt = Date.parse(args.now);
+        const expired =
+          Number.isFinite(activeAt) &&
+          Number.isFinite(nowAt) &&
+          nowAt - activeAt >= PIPELINE_CONCURRENCY_LEASE_MS;
+        if (!expired) return { claimed: false, run: active };
+
+        const staleSteps = [...active.steps];
+        if (staleSteps[active.currentStepIndex]) {
+          staleSteps[active.currentStepIndex] = {
+            ...staleSteps[active.currentStepIndex]!,
+            status: "failed",
+            completedAt: args.now,
+          };
+        }
+        await ctx.db.patch(active._id, {
+          status: "failed",
+          steps: staleSteps,
+          activeWorkflowRunId: undefined,
+          error: "Pipeline run expired while still active.",
+          updatedAt: args.now,
+        });
+      }
+    }
     const id = await ctx.db.insert("pipelineRuns", {
       tenantId: args.tenantId,
       pipelineId: args.pipelineId,
       runId: args.runId,
+      concurrencyKey: args.concurrencyKey,
       status: "running",
       facts: args.facts ?? args.input ?? {},
       steps: args.steps,

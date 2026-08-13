@@ -35,6 +35,7 @@ export async function startPipelineExecution(input: {
   repo: string;
   pipelineId: string;
   pipelineRunId: string;
+  concurrencyKey?: string;
   pipeline: PipelineDefinition;
   facts: Record<string, unknown>;
 }): Promise<{ claimed: boolean; acceptedAt: string }> {
@@ -45,6 +46,7 @@ export async function startPipelineExecution(input: {
       tenantId: `${input.owner}/${input.repo}`,
       pipelineId: input.pipelineId,
       runId: input.pipelineRunId,
+      concurrencyKey: input.concurrencyKey,
       facts: input.facts,
       steps: input.pipeline.steps.map((step) => ({
         id: step.id,

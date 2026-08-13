@@ -154,6 +154,7 @@ export default defineSchema({
     tenantId: v.string(),
     pipelineId: v.string(),
     runId: v.string(),
+    concurrencyKey: v.optional(v.string()),
     status: pipelineRunStatusValidator,
     input: v.optional(v.record(v.string(), v.any())),
     facts: v.optional(v.record(v.string(), v.any())),
@@ -166,6 +167,12 @@ export default defineSchema({
   })
     .index("by_run", ["tenantId", "pipelineId", "runId"])
     .index("by_pipeline", ["tenantId", "pipelineId", "updatedAt"])
+    .index("by_concurrency", [
+      "tenantId",
+      "pipelineId",
+      "concurrencyKey",
+      "status",
+    ])
     .index("by_active_workflow", ["tenantId", "activeWorkflowRunId"]),
 
   guidedFlowInstances: defineTable({
