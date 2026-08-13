@@ -434,6 +434,12 @@ function renderedProjectAssessmentForm() {
       description:
         "Give the time actually available for maintenance as a weekly or monthly estimate.",
     },
+    {
+      name: "additionalComments",
+      label: "Other comments or report preferences",
+      description:
+        "Optional. Add anything else Kody should consider, such as asking for the report in another language or emphasizing a specific concern.",
+    },
   ];
   return {
     action: "render_view",
@@ -578,6 +584,23 @@ test.describe("Kody chat renderer output", () => {
     await mockChatStream(page);
   });
 
+  test("new repository conversation opens with useful starting actions", async ({
+    page,
+  }) => {
+    await openChat(page);
+
+    await expect(page.getByText("How can Kody help?")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Run project assessment" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Run project assessment" }).click();
+    await expect(page.getByText("Project assessment")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Start assessment" }),
+    ).toBeVisible();
+  });
+
   test("approval request renders a card and locks after one click", async ({
     page,
   }) => {
@@ -597,7 +620,9 @@ test.describe("Kody chat renderer output", () => {
     await expect(approve).toBeDisabled();
   });
 
-  test("project assessment shows six explained questions", async ({ page }) => {
+  test("project assessment shows seven explained questions", async ({
+    page,
+  }) => {
     await openChat(page);
 
     await sendChatMessage(page, "Run a complete project assessment");
@@ -617,6 +642,10 @@ test.describe("Kody chat renderer output", () => {
     await expect(
       page.getByText("Real maintenance time available"),
     ).toBeVisible();
+    await expect(
+      page.getByText("Other comments or report preferences"),
+    ).toBeVisible();
+    await expect(page.getByText(/another language/i)).toBeVisible();
     await expect(
       page.getByText(/what happens if the system is unavailable/i),
     ).toBeVisible();

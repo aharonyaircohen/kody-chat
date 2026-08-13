@@ -10,6 +10,10 @@ import {
   PUBLIC_AGENT_DEFAULT_MAX_STEPS,
   PUBLIC_AGENT_TASK_TIMEOUT_MS,
 } from "./public-agent-limits";
+import {
+  INVALID_PROJECT_ASSESSMENT_MESSAGE,
+  validateProjectAssessmentReport,
+} from "./project-assessment-report";
 
 export {
   PUBLIC_AGENT_DEFAULT_MAX_STEPS,
@@ -382,6 +386,7 @@ export function buildPublicAgentSynthesisInput({
       ...(completeProjectAssessment
         ? [
             "This is a complete project assessment for a CEO, product owner, and technical leader. Lead with the product and business decision; put technical detail in the second part at the bottom.",
+            "Honor explicit user preferences for report language, emphasis, and presentation. Keep the required English section headings and labels unchanged for reliable validation, but write their explanatory content in the requested language.",
             "Use exactly these main sections in this order: `## Executive verdict`, `## Product readiness`, `## Ranked risks`, `## Maintenance capacity gap`, `## Why Kody matters`, `## Kody coverage and proof`, `## Advanced continuous QA`, `## Recommended 30-day decisions`, `## Recommended 90-day outcomes`, `## Technical assessment`, and `## Specialist findings and evidence`.",
             "Under `## Executive verdict`, write exactly five clear labeled parts in this order: `**Current state:**`, `**Main risk:**`, `**Maintenance capacity:**`, `**Kody's value:**`, and `**Next step:**`. Use plain business language and as much space as needed to preserve important context, but avoid repetition, introductory filler, tables, repository paths, and implementation details.",
             "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections. Put them under `## Technical assessment` and `## Specialist findings and evidence`.",
@@ -448,23 +453,26 @@ export async function synthesizePublicAgentResponse({
     });
   const completeProjectAssessment =
     isCompleteProjectAssessmentAssignments(assignments);
+  const generationOptions = {
+    model,
+    abortSignal: AbortSignal.timeout(
+      completeProjectAssessment
+        ? PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS
+        : assignments.length === 1
+          ? SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS
+          : PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS,
+    ),
+    system,
+    tools: undefined,
+    maxOutputTokens: completeProjectAssessment
+      ? PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS
+      : 1_200,
+  } as const;
   let response: Awaited<ReturnType<typeof generate>>;
   try {
     response = await generate({
-      model,
-      abortSignal: AbortSignal.timeout(
-        completeProjectAssessment
-          ? PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS
-          : assignments.length === 1
-            ? SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS
-            : PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS,
-      ),
-      system,
+      ...generationOptions,
       messages,
-      tools: undefined,
-      maxOutputTokens: completeProjectAssessment
-        ? PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS
-        : 1_200,
     });
   } catch (error) {
     onSynthesisFailure?.(error);
@@ -480,14 +488,48 @@ export async function synthesizePublicAgentResponse({
     }
     throw error;
   }
-  const answer = parsePublicAgentGeneratedAnswer(response.text);
-  if (completeProjectAssessment && !answer) {
-    const failure = describePublicAgentEmptySynthesis({
-      text: response.text,
+  let answer = parsePublicAgentGeneratedAnswer(response.text);
+  if (completeProjectAssessment) {
+    const validation = validateProjectAssessmentReport({
+      text: answer,
       finishReason: response.finishReason,
     });
-    onSynthesisFailure?.(new Error(failure));
-    return failure;
+    if (!validation.valid) {
+      try {
+        response = await generate({
+          ...generationOptions,
+          messages: [
+            ...messages,
+            {
+              role: "user",
+              content: [
+                "The previous report draft was rejected because it was incomplete or contained unfinished tool output.",
+                "Rewrite the final report now from the same specialist source packets.",
+                "Include every required section and label. Do not call tools or emit tool-call JSON.",
+                `Validation issue: ${validation.reason}${validation.detail ? ` (${validation.detail})` : ""}.`,
+              ].join(" "),
+            },
+          ],
+        });
+      } catch (error) {
+        onSynthesisFailure?.(error);
+        return describePublicAgentSynthesisError(error);
+      }
+      answer = parsePublicAgentGeneratedAnswer(response.text);
+      const retryValidation = validateProjectAssessmentReport({
+        text: answer,
+        finishReason: response.finishReason,
+      });
+      if (!retryValidation.valid) {
+        const failureMessage = answer
+          ? INVALID_PROJECT_ASSESSMENT_MESSAGE
+          : describePublicAgentEmptySynthesis(response);
+        onSynthesisFailure?.(
+          new Error(`${failureMessage} (${retryValidation.reason})`),
+        );
+        return failureMessage;
+      }
+    }
   }
   return formatPublicAgentResponse({
     answer:

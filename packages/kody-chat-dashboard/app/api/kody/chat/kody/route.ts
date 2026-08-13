@@ -1230,6 +1230,9 @@ async function handleKodyDirectPost(
   // improvements) — the model picks the right tool from the descriptions,
   // not by guessing from names. Tool building requires repo + actor
   // resolution done above.
+  const assessmentIntakeRequested = isCompleteProjectAssessmentRequest(
+    latestUserText ?? "",
+  );
   const requireInteractiveAction =
     !explicitViewRequest &&
     shouldRequireViewOutputForTurn({
@@ -1237,12 +1240,11 @@ async function handleKodyDirectPost(
       definitions: viewRendererDefinitions,
     });
   const requireStructuredView =
-    !explicitViewRequest && shouldRequireStructuredViewForTurn(latestUserText);
+    !explicitViewRequest &&
+    (assessmentIntakeRequested ||
+      shouldRequireStructuredViewForTurn(latestUserText));
   const requireViewOutputForTurn =
     requireInteractiveAction || requireStructuredView;
-  const assessmentIntakeRequested = isCompleteProjectAssessmentRequest(
-    latestUserText ?? "",
-  );
   let uiToolSet = createUiTools({
     requireInteractiveAction,
     ...(assessmentIntakeRequested

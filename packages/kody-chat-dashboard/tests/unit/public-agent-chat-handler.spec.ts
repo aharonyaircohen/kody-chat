@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { handlePublicAgentChat } from "../../app/api/kody/chat/kody/public-agent-chat-handler";
 import { handleConfiguredPublicAgentChat } from "../../app/api/kody/chat/kody/public-agent-chat-runtime";
 import { publishProjectAssessmentReport } from "../../app/api/kody/chat/kody/public-agent-chat-runtime";
+import { COMPLETE_PROJECT_ASSESSMENT } from "../fixtures/project-assessment-report";
 
 const agents = [
   {
@@ -18,7 +19,7 @@ describe("public Agent chat handler", () => {
 
     await expect(
       publishProjectAssessmentReport({
-        answer: "# Project assessment\n\nHealthy foundations.",
+        answer: COMPLETE_PROJECT_ASSESSMENT,
         repository: { owner: "aharonyaircohen", repo: "kody-chat" },
         publishTool: { execute },
       }),
@@ -32,24 +33,44 @@ describe("public Agent chat handler", () => {
       expect.objectContaining({
         slug: "project-assessment",
         title: "Kody project assessment",
-        body: expect.stringContaining("Healthy foundations"),
+        body: expect.stringContaining("## Executive verdict"),
       }),
     );
   });
 
+  it("does not publish a non-empty but incomplete assessment", async () => {
+    const execute = vi.fn();
+    const brokenReport = [
+      "Deep Project Assessment",
+      "1. Overall Scope",
+      "Partial repository summary.",
+      '{"name":"github_commits_for_path","arguments":{"path":"/"}}',
+    ].join("\n\n");
+
+    const result = await publishProjectAssessmentReport({
+      answer: brokenReport,
+      repository: { owner: "aharonyaircohen", repo: "kody-chat" },
+      publishTool: { execute },
+    });
+
+    expect(result.published).toBe(false);
+    expect(result.answer).toMatch(/^Final report writing failed/);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("does not invent a report link when report publishing fails", async () => {
+    const execute = vi.fn(async () => ({ error: "backend unavailable" }));
     await expect(
       publishProjectAssessmentReport({
-        answer: "Assessment content.",
+        answer: COMPLETE_PROJECT_ASSESSMENT,
         repository: { owner: "aharonyaircohen", repo: "kody-chat" },
-        publishTool: {
-          execute: vi.fn(async () => ({ error: "backend unavailable" })),
-        },
+        publishTool: { execute },
       }),
     ).resolves.toEqual({
       answer: expect.not.stringContaining("/reports/project-assessment"),
       published: false,
     });
+    expect(execute).toHaveBeenCalledOnce();
   });
 
   it("does not publish a failed assessment as a report", async () => {

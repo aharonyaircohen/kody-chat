@@ -21,6 +21,10 @@ import {
 } from "./public-agent-orchestrator";
 import { routePublicAgentTask } from "./public-agent-routing";
 import type { DurableTurn } from "../durable-turn";
+import {
+  INVALID_PROJECT_ASSESSMENT_MESSAGE,
+  validateProjectAssessmentReport,
+} from "./project-assessment-report";
 
 interface PublicAgentTelemetry {
   traceId: string;
@@ -85,6 +89,13 @@ export async function publishProjectAssessmentReport({
       "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?"
   ) {
     return { answer, published: false };
+  }
+  const validation = validateProjectAssessmentReport({ text: answer });
+  if (!validation.valid) {
+    return {
+      answer: INVALID_PROJECT_ASSESSMENT_MESSAGE,
+      published: false,
+    };
   }
   try {
     const result = await publishTool.execute({

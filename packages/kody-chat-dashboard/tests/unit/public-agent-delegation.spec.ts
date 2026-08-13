@@ -20,6 +20,7 @@ import {
   describePublicAgentEmptySynthesis,
 } from "../../app/api/kody/chat/kody/public-agent-delegation";
 import { publicAgentPurpose } from "../../app/api/kody/chat/kody/public-agent-definition";
+import { COMPLETE_PROJECT_ASSESSMENT } from "../fixtures/project-assessment-report";
 
 const roster = [
   {
@@ -317,6 +318,7 @@ describe("public Agent delegation", () => {
       "## Advanced continuous QA",
       "## Technical assessment",
       "## Specialist findings and evidence",
+      "Honor explicit user preferences for report language",
       "one compact block per risk",
       "`**Severity:**`",
       "`**Business impact:**`",
@@ -410,6 +412,58 @@ describe("public Agent delegation", () => {
       "Final report writing failed because it exceeded the 480-second limit.",
     );
     expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it("rewrites an incomplete assessment once using the existing specialist packets", async () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: [
+          "Deep Project Assessment",
+          "1. Overall Scope",
+          "Partial repository summary.",
+          '{"name":"github_commits_for_path","arguments":{"path":"/"}}',
+        ].join("\n\n"),
+        finishReason: "stop",
+      })
+      .mockResolvedValueOnce({
+        text: COMPLETE_PROJECT_ASSESSMENT,
+        finishReason: "stop",
+      });
+
+    await expect(
+      synthesizePublicAgentResponse({
+        userText: "Run the assessment.",
+        assignments,
+        assignedAgents: roster,
+        results: assignments.map(() => ({
+          status: "completed" as const,
+          agent: "repo-scout",
+          result: "Grounded finding.",
+          evidence: "Verified evidence.",
+        })),
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toBe(COMPLETE_PROJECT_ASSESSMENT);
+
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining(
+              "The previous report draft was rejected",
+            ),
+          }),
+        ]),
+      }),
+    );
   });
 
   it("reports the provider finish reason when assessment synthesis returns no text", async () => {
@@ -772,8 +826,22 @@ describe("public Agent delegation", () => {
       stream: stream as never,
     });
 
-    const prepareStep = stream.mock.calls[0]![0].prepareStep;
-    expect(stream.mock.calls[0]![0].toolChoice).toBe("auto");
+    const streamOptions = (
+      stream.mock.calls as unknown as Array<
+        [
+          {
+            prepareStep: (input: {
+              steps: Array<{ toolResults: unknown[] }>;
+            }) => { toolChoice: "auto" | "required" };
+            toolChoice: "auto" | "required";
+          },
+        ]
+      >
+    )[0]?.[0];
+    expect(streamOptions).toBeDefined();
+    if (!streamOptions) return;
+    const { prepareStep } = streamOptions;
+    expect(streamOptions.toolChoice).toBe("auto");
     expect(prepareStep({ steps: [] })).toEqual({ toolChoice: "required" });
     expect(prepareStep({ steps: [{ toolResults: [] }] })).toEqual({
       toolChoice: "auto",

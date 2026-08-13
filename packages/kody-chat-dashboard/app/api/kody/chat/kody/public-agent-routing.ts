@@ -105,6 +105,12 @@ const PROJECT_ASSESSMENT_INTAKE_FIELDS = [
     description:
       "How much time can the team actually spend on maintenance after feature work and support? Include time for technical debt, refactoring, tests, dependencies, and security, using a weekly or monthly estimate.",
   },
+  {
+    name: "additionalComments",
+    label: "Other comments or report preferences",
+    description:
+      "Optional. Add anything else Kody should consider, such as asking for the report in another language or emphasizing a specific concern. You can leave this blank.",
+  },
 ] as const;
 
 export function buildProjectAssessmentIntakeSpec() {
@@ -137,7 +143,7 @@ export function buildProjectAssessmentIntakeInstruction(): string {
     "The user requested a complete project assessment.",
     "Before starting any assessment work, call `show_view` once with purpose `guided-form`.",
     "Use title `Project assessment`, submit label `Start assessment`, and body `Kody will inspect the repository, GitHub history, code size, architecture, and technical state automatically. Add only the business and team context that cannot be learned reliably from the repository. Honest estimates are enough.`",
-    "Use exactly these six editable fields, including each description:",
+    "Use exactly these seven editable fields, including each description:",
     ...fieldInstructions,
     "Do not ask for repository size, architecture, contribution history, or the required team size because Kody must determine those from evidence and report them as findings.",
     "Do not ask these questions in prose and do not add fields.",
@@ -190,7 +196,6 @@ export function isClearlyConversationalTurn(userText: string): boolean {
 }
 
 export function isCompleteProjectAssessmentRequest(userText: string): boolean {
-  if (/<view_result>[\s\S]*<\/view_result>/i.test(userText)) return false;
   const text = userText.trim().toLowerCase();
   const assessment = /\b(?:assessment|assess|audit|review)\b/.test(text);
   const project = /\b(?:project|repository|repo|system)\b/.test(text);
