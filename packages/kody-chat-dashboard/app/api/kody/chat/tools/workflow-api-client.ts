@@ -35,8 +35,10 @@ async function workflowResult(
     ...(response.status < 500 && typeof payload.message === "string"
       ? { message: payload.message }
       : {}),
-    ...(response.status === 409 &&
-    typeof payload.approvalToken === "string"
+    ...(response.status < 500 && Array.isArray(payload.issues)
+      ? { issues: payload.issues }
+      : {}),
+    ...(response.status === 409 && typeof payload.approvalToken === "string"
       ? { approvalToken: payload.approvalToken }
       : {}),
     status: response.status,

@@ -18,6 +18,38 @@ const approval = {
 };
 
 describe("workflow API client", () => {
+  it("returns workflow validation issues to the chat agent", async () => {
+    const issues = [
+      {
+        code: "undeclared_capability",
+        path: "steps[0].capability",
+        message: "Capability ci-health-check is not declared.",
+      },
+    ];
+    const client = createWorkflowApiClient({
+      request,
+      approval,
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: "invalid_workflow",
+            message: "Workflow is invalid and was not dispatched.",
+            issues,
+          }),
+          { status: 409 },
+        ),
+      ),
+    });
+
+    await expect(
+      client.run({ workflowId: "ci-repair", input: {} }),
+    ).resolves.toMatchObject({
+      error: "invalid_workflow",
+      status: 409,
+      issues,
+    });
+  });
+
   it("forwards repository auth to the real workflow list and detail routes", async () => {
     const fetchImpl = vi
       .fn()
