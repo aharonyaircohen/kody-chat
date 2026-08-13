@@ -287,6 +287,43 @@ describe("simple capability folders", () => {
     ).toThrow(/deliveryPolicy/i);
   });
 
+  it("accepts narrowly scoped delivery paths only for agent capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPathAllowlist: [".github/workflows/**"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPathAllowlist: [".github/**"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/deliveryPathAllowlist/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          deliveryPathAllowlist: [".github/workflows/**"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
+      }),
+    ).toThrow(/agent/i);
+  });
+
   it("accepts restricted browser requirements for agent capabilities", () => {
     expect(() =>
       assertSimpleCapabilityFolder({

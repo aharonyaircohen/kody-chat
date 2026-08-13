@@ -354,6 +354,7 @@ export function assertSimpleCapabilityFolder(
 function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
   deliveryPolicy?: "checkpoint";
+  deliveryPathAllowlist?: string[];
   requirements?: {
     browser?: boolean;
     qaCredentials?: boolean;
@@ -525,10 +526,19 @@ function parseCapabilityContract(raw: string): {
       'contract.json requiredSubagents are supported only when execution is "agent"',
     );
   }
+  const deliveryPathAllowlist = parseDeliveryPathAllowlist(
+    value.deliveryPathAllowlist,
+  );
+  if (deliveryPathAllowlist && value.execution !== "agent") {
+    throw new Error(
+      'contract.json deliveryPathAllowlist is supported only when execution is "agent"',
+    );
+  }
   const unsupported = Object.keys(value).filter(
     (key) =>
       key !== "execution" &&
       key !== "deliveryPolicy" &&
+      key !== "deliveryPathAllowlist" &&
       key !== "requirements" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
@@ -546,6 +556,7 @@ function parseCapabilityContract(raw: string): {
     ...(value.deliveryPolicy === "checkpoint"
       ? { deliveryPolicy: value.deliveryPolicy }
       : {}),
+    ...(deliveryPathAllowlist ? { deliveryPathAllowlist } : {}),
     ...(requirements && Object.keys(requirements).length > 0
       ? { requirements }
       : {}),
@@ -555,6 +566,42 @@ function parseCapabilityContract(raw: string): {
     input: value.input as Record<string, unknown>,
     output: value.output as Record<string, unknown>,
   };
+}
+
+function parseDeliveryPathAllowlist(raw: unknown): string[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 64) {
+    throw new Error(
+      "contract.json deliveryPathAllowlist must contain 1 to 64 paths",
+    );
+  }
+  if (!raw.every((value) => typeof value === "string")) {
+    throw new Error(
+      "contract.json deliveryPathAllowlist must contain paths",
+    );
+  }
+  const paths = [...new Set(raw as string[])];
+  for (const value of paths) {
+    const subtree = value.endsWith("/**");
+    const base = subtree ? value.slice(0, -3) : value;
+    const segments = base.split("/");
+    if (
+      !base ||
+      base.startsWith("/") ||
+      (base.startsWith(".") && !base.startsWith(".github/")) ||
+      base.includes("\\") ||
+      base.includes("..") ||
+      base.includes("*") ||
+      segments.some((segment) => !segment) ||
+      (subtree && segments.length < 2) ||
+      value === ".github/**"
+    ) {
+      throw new Error(
+        `contract.json deliveryPathAllowlist contains an unsafe path: ${value}`,
+      );
+    }
+  }
+  return paths;
 }
 
 export async function writeCapabilityFolderFiles(
