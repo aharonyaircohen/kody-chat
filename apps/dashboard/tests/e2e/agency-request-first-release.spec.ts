@@ -12,6 +12,65 @@ function json(route: Route, body: unknown, status = 200) {
   });
 }
 
+function sseBody(events: unknown[]): string {
+  return (
+    [...events, { type: "finish" }]
+      .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+      .join("") + "data: [DONE]\n\n"
+  );
+}
+
+function approvalView() {
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: "agency-request-keep-ci-passing",
+    rendererSlug: "approval-card",
+    rendererName: "Approval card",
+    resultTarget: "chat",
+    ui: {
+      type: "stack",
+      children: [
+        {
+          type: "text",
+          value: "Approve this Agency plan?",
+          variant: "title",
+        },
+        {
+          type: "text",
+          value:
+            "Kody saved the verified plan and boundaries on the Agency request Todo.",
+        },
+        {
+          type: "row",
+          children: [
+            {
+              type: "button",
+              label: "Approve",
+              action: {
+                id: "approve",
+                label: "Approve",
+                response: "approve",
+                variant: "primary",
+              },
+            },
+            {
+              type: "button",
+              label: "Cancel",
+              action: {
+                id: "cancel",
+                label: "Cancel",
+                response: "cancel",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    data: {},
+  };
+}
+
 function view(
   stepId: string,
   revision: number,
@@ -74,7 +133,7 @@ function view(
   };
 }
 
-test("collects an Agency request and hands it back to Kody for assessment", async ({
+test("collects, approves, and starts an Agency request", async ({
   page,
 }) => {
   await page.addInitScript(
@@ -161,19 +220,36 @@ test("collects an Agency request and hands it back to Kody for assessment", asyn
     });
   });
 
-  let assessmentMessage = "";
+  const chatMessages: string[] = [];
   await page.route("**/api/kody/chat/kody", async (route) => {
     const body = route.request().postDataJSON() as {
       messages?: Array<{ content?: string }>;
     };
-    assessmentMessage = body.messages?.at(-1)?.content ?? "";
+    const latest = body.messages?.at(-1)?.content ?? "";
+    chatMessages.push(latest);
+    const approved = latest.includes("<view_result>");
+    const output = approved
+      ? {
+          content:
+            "Agency request started as workflow run run-1 and is being monitored.",
+        }
+      : approvalView();
     return route.fulfill({
       status: 200,
       headers: { "content-type": "text/event-stream" },
-      body:
-        'data: {"type":"text-delta","delta":"I inspected the repository. The plan is ready for approval."}\n\n' +
-        'data: {"type":"finish"}\n\n' +
-        "data: [DONE]\n\n",
+      body: sseBody([
+        {
+          type: "tool-input-available",
+          toolCallId: approved ? "final-run" : "approval-view",
+          toolName: approved ? "final_answer" : "show_view",
+          input: approved ? output : { purpose: "agency-request-approval" },
+        },
+        {
+          type: "tool-output-available",
+          toolCallId: approved ? "final-run" : "approval-view",
+          output,
+        },
+      ]),
     });
   });
 
@@ -208,9 +284,18 @@ test("collects an Agency request and hands it back to Kody for assessment", asyn
     page.getByText("Request submitted for assessment."),
   ).toBeVisible();
   await expect(
+    page.getByText("Approve this Agency plan?"),
+  ).toBeVisible();
+  expect(chatMessages[0]).toBe('Assess Agency Todo "keep-ci-passing" now.');
+
+  await page.getByRole("button", { name: "Approve" }).click();
+
+  await expect(
     page.getByText(
-      "I inspected the repository. The plan is ready for approval.",
+      "Agency request started as workflow run run-1 and is being monitored.",
     ),
   ).toBeVisible();
-  expect(assessmentMessage).toBe('Assess Agency Todo "keep-ci-passing" now.');
+  expect(chatMessages[1]).toContain("<view_result>");
+  expect(chatMessages[1]).toContain('"viewId":"agency-request-keep-ci-passing"');
+  expect(chatMessages[1]).toContain('"actionId":"approve"');
 });

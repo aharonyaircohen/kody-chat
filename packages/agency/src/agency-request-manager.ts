@@ -56,8 +56,8 @@ function handoff(todoSlug: string): AgencyRequestHandoff {
       `Agency request assessment handoff for Todo ${JSON.stringify(todoSlug)}.`,
       "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
       "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
-      "If it is executable, save a concrete plan, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
-      "After approval, use only existing compatible automation in this first release, attach its Run ids, monitor it, and mark the request done only with end-to-end evidence. Otherwise mark it blocked with the precise reason.",
+      "If it is executable, save a concrete plan and the exact verified Workflow id and input in execution, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
+      "After approval, dispatch the saved Workflow once, attach its Run id, monitor its durable completion event, and mark the request done only with end-to-end evidence. Otherwise mark it blocked with the precise reason.",
     ].join("\n"),
   };
 }
@@ -74,6 +74,8 @@ export async function submitAgencyRequest(
     },
     questions: [],
     plan: [],
+    evidence: [],
+    blockers: [],
     related: [],
   }).source;
   const outcome = answer(input.answers, "desiredOutcome");
@@ -108,6 +110,8 @@ export async function submitAgencyRequest(
     },
     questions: [],
     plan: [],
+    evidence: [],
+    blockers: [],
     related: [],
   });
   const created = await ports.create({

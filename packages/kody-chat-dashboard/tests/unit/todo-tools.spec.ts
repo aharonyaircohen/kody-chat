@@ -9,6 +9,7 @@ const ctx = {
   readTodo: vi.fn(),
   saveTodo: vi.fn(),
   patchTodo: vi.fn(),
+  runAgencyRequest: vi.fn(),
   removeTodo: vi.fn(),
 };
 
@@ -19,6 +20,7 @@ describe("todo chat tools", () => {
     ctx.readTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.saveTodo.mockResolvedValue({ todo: { slug: "launch" } });
     ctx.patchTodo.mockResolvedValue({ todo: { slug: "launch" } });
+    ctx.runAgencyRequest.mockResolvedValue({ runId: "run-1" });
     ctx.removeTodo.mockResolvedValue({ success: true });
   });
 
@@ -49,11 +51,15 @@ describe("todo chat tools", () => {
           requirement: { outcome: "Ship safely" },
           questions: [],
           plan: ["Run the release workflow"],
+          execution: { workflowId: "release", input: {} },
+          evidence: [],
+          blockers: [],
           related: [{ kind: "workflow", id: "release" }],
         },
       },
       {} as never,
     );
+    await tools.run_agency_request.execute!({ slug: "launch" }, {} as never);
     await tools.delete_todo_list.execute!({ slug: "launch" }, {} as never);
 
     expect(ctx.listTodos).toHaveBeenCalledOnce();
@@ -67,6 +73,37 @@ describe("todo chat tools", () => {
     expect(ctx.patchTodo).toHaveBeenCalledWith("launch", {
       agencyRequest: expect.objectContaining({ phase: "waiting-approval" }),
     });
+    expect(ctx.runAgencyRequest).toHaveBeenCalledWith("launch");
     expect(ctx.removeTodo).toHaveBeenCalledWith("launch");
+  });
+
+  it("refuses approval state without an executable Workflow contract", async () => {
+    const tools = createTodoTools(ctx as never);
+    const result = await tools.update_agency_request.execute!(
+      {
+        slug: "launch",
+        agencyRequest: {
+          phase: "waiting-approval",
+          source: {
+            kind: "guided-flow",
+            instanceId: "flow-1",
+            effectId: "effect-1",
+          },
+          requirement: { outcome: "Ship safely" },
+          questions: [],
+          plan: ["Run release"],
+          evidence: [],
+          blockers: [],
+          related: [],
+        },
+      },
+      {} as never,
+    );
+
+    expect(result).toEqual({
+      error:
+        "waiting-approval requires execution.workflowId and validated input",
+    });
+    expect(ctx.patchTodo).not.toHaveBeenCalled();
   });
 });

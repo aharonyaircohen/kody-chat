@@ -20,6 +20,7 @@ interface Ctx {
     slug: string,
     input: { agencyRequest: z.infer<typeof agencyRequestStateSchema> },
   ): Promise<unknown>;
+  runAgencyRequest(slug: string): Promise<unknown>;
   removeTodo(slug: string): Promise<unknown>;
 }
 
@@ -84,14 +85,36 @@ export function createTodoTools(ctx: Ctx) {
     update_agency_request: tool({
       description:
         `Update the lifecycle of one Agency request Todo in ${repoRef}. ` +
-        "Read the Todo first, preserve the user's requirement and source exactly, and update phase, questions, plan, and related Agency resources. Use waiting-information only for a real user decision, waiting-approval after feasibility and a concrete plan are verified, running/monitoring after approval, done only with end-to-end evidence recorded on the Todo, and blocked only with a precise blocker.",
+        "Read the Todo first, preserve the user's requirement and source exactly, and update phase, questions, plan, execution, evidence, blockers, and related Agency resources. waiting-approval requires the exact verified Workflow id and validated input in execution. Use waiting-information only for a real user decision, running/monitoring after approval, done only with end-to-end evidence, and blocked only with a precise blocker.",
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         agencyRequest: agencyRequestStateSchema,
       }),
       execute: async ({ slug, agencyRequest }) => {
         if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
+        if (
+          agencyRequest.phase === "waiting-approval" &&
+          !agencyRequest.execution
+        ) {
+          return {
+            error:
+              "waiting-approval requires execution.workflowId and validated input",
+          };
+        }
         return ctx.patchTodo(slug, { agencyRequest });
+      },
+    }),
+
+    run_agency_request: tool({
+      description:
+        `Start one approved Agency request in ${repoRef}. ` +
+        "The server reads the saved Workflow and inputs from the Todo, dispatches it once, records the Run, and moves the request to monitoring.",
+      inputSchema: z.object({
+        slug: z.string().min(1).max(64),
+      }),
+      execute: async ({ slug }) => {
+        if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
+        return ctx.runAgencyRequest(slug);
       },
     }),
 

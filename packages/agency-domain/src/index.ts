@@ -58,12 +58,20 @@ export interface AgencyRequestRelatedRef {
   id: string;
 }
 
+export interface AgencyRequestExecution {
+  workflowId: string;
+  input: Readonly<Record<string, unknown>>;
+}
+
 export interface AgencyRequestState {
   phase: AgencyRequestPhase;
   source: AgencyRequestSource;
   requirement: AgencyRequirement;
   questions: string[];
   plan: string[];
+  execution?: AgencyRequestExecution;
+  evidence: string[];
+  blockers: string[];
   related: AgencyRequestRelatedRef[];
 }
 
@@ -314,7 +322,17 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
   const input = record(value, "Agency request");
   exact(
     input,
-    ["phase", "source", "requirement", "questions", "plan", "related"],
+    [
+      "phase",
+      "source",
+      "requirement",
+      "questions",
+      "plan",
+      "execution",
+      "evidence",
+      "blockers",
+      "related",
+    ],
     "Agency request",
   );
   const phases: AgencyRequestPhase[] = [
@@ -350,6 +368,17 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
   if (!Array.isArray(input.related)) {
     throw new Error("Agency request related must be an array");
   }
+  const execution =
+    input.execution === undefined
+      ? undefined
+      : record(input.execution, "Agency request execution");
+  if (execution) {
+    exact(
+      execution,
+      ["workflowId", "input"],
+      "Agency request execution",
+    );
+  }
   const relatedKinds: AgencyRequestRelatedRef["kind"][] = [
     "solution",
     "trigger",
@@ -375,6 +404,28 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
     }),
     questions: strings(input.questions, "Agency request questions"),
     plan: strings(input.plan, "Agency request plan"),
+    ...(execution
+      ? {
+          execution: Object.freeze({
+            workflowId: identifier(
+              execution.workflowId,
+              "Agency request execution workflowId",
+            ),
+            input: jsonObject(
+              execution.input,
+              "Agency request execution input",
+            ),
+          }),
+        }
+      : {}),
+    evidence:
+      input.evidence === undefined
+        ? []
+        : strings(input.evidence, "Agency request evidence"),
+    blockers:
+      input.blockers === undefined
+        ? []
+        : strings(input.blockers, "Agency request blockers"),
     related: input.related.map((value) => {
       const related = record(value, "Agency request related reference");
       exact(related, ["kind", "id"], "Agency request related reference");

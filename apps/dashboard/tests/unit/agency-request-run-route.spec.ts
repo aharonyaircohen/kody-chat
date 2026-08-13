@@ -1,0 +1,92 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest, NextResponse } from "next/server";
+
+const auth = vi.hoisted(() => ({
+  requireKodyAuth: vi.fn(async (): Promise<NextResponse | null> => null),
+  getRequestAuth: vi.fn(() => ({
+    owner: "acme",
+    repo: "widgets",
+    token: "token",
+  })),
+  verifyActorLogin: vi.fn(async () => ({ actorLogin: "octocat" })),
+  getUserOctokit: vi.fn(async () => ({ rest: {} })),
+}));
+vi.mock("@kody-ade/base/auth", () => auth);
+
+const lifecycle = vi.hoisted(() => ({
+  startAgencyRequest: vi.fn(async (_slug, ports) => {
+    await ports.read("keep-ci");
+    return { kind: "started", runId: "run-1" };
+  }),
+}));
+vi.mock("@kody-ade/agency/agency-request-lifecycle", () => lifecycle);
+
+const todos = vi.hoisted(() => ({
+  readTodoFile: vi.fn(async () => ({
+    slug: "keep-ci",
+    title: "Keep CI healthy",
+    description: "",
+    items: [],
+    createdAt: "2026-08-13T00:00:00.000Z",
+    frontmatter: {},
+    agencyRequest: { phase: "waiting-approval" },
+  })),
+  writeTodoFile: vi.fn(),
+}));
+vi.mock("@kody-ade/workspace/todos/files", () => todos);
+
+const github = vi.hoisted(() => ({
+  setGitHubContext: vi.fn(),
+  clearGitHubContext: vi.fn(),
+}));
+vi.mock("@kody-ade/workspace/github", () => github);
+
+vi.mock("../../src/dashboard/features/agency/server/approved-agency-workflow", () => ({
+  dispatchApprovedAgencyWorkflow: vi.fn(async () => ({ runId: "run-1" })),
+}));
+
+import { POST } from "../../app/api/kody/agency-requests/[slug]/run/route";
+
+const request = () =>
+  new NextRequest("https://dash.test/api/kody/agency-requests/keep-ci/run", {
+    method: "POST",
+    body: "{}",
+  });
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("Agency request run route", () => {
+  it("starts the repository-scoped request through the lifecycle owner", async () => {
+    const response = await POST(request(), {
+      params: Promise.resolve({ slug: "keep-ci" }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      kind: "started",
+      runId: "run-1",
+    });
+    expect(lifecycle.startAgencyRequest).toHaveBeenCalledWith(
+      "keep-ci",
+      expect.objectContaining({
+        read: expect.any(Function),
+        save: expect.any(Function),
+        dispatch: expect.any(Function),
+      }),
+    );
+    expect(github.clearGitHubContext).toHaveBeenCalledOnce();
+  });
+
+  it("requires authenticated Kody access", async () => {
+    auth.requireKodyAuth.mockResolvedValueOnce(
+      NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    );
+
+    const response = await POST(request(), {
+      params: Promise.resolve({ slug: "keep-ci" }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(lifecycle.startAgencyRequest).not.toHaveBeenCalled();
+  });
+});

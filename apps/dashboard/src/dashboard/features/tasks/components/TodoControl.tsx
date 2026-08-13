@@ -1096,6 +1096,30 @@ function TodoListDetail({
                   </ul>
                 </div>
               ) : null}
+              {list.agencyRequest.evidence.length > 0 ? (
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    Evidence
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {list.agencyRequest.evidence.map((entry) => (
+                      <li key={entry}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {list.agencyRequest.blockers.length > 0 ? (
+                <div>
+                  <div className="text-xs font-medium text-foreground">
+                    Blockers
+                  </div>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {list.agencyRequest.blockers.map((blocker) => (
+                      <li key={blocker}>{blocker}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </section>
           ) : null}
 

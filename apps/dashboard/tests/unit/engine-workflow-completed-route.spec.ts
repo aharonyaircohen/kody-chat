@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   dispatchWorkflowTriggers: vi.fn(),
   deliverWorkflowInboxAlert: vi.fn(),
   advancePipelineForWorkflowCompletion: vi.fn(),
+  completeAgencyRequestsForWorkflow: vi.fn(),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
   qualityQuery: vi.fn(),
@@ -53,6 +54,9 @@ vi.mock("@dashboard/features/workflows/server/workflow-inbox-alert", () => ({
 vi.mock("@dashboard/features/pipelines/server/pipeline-orchestrator", () => ({
   advancePipelineForWorkflowCompletion: h.advancePipelineForWorkflowCompletion,
 }));
+vi.mock("@dashboard/features/agency/server/agency-request-completion", () => ({
+  completeAgencyRequestsForWorkflow: h.completeAgencyRequestsForWorkflow,
+}));
 
 import { POST } from "../../app/api/kody/engine/workflow-completed/route";
 
@@ -79,6 +83,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     h.dispatchWorkflowTriggers.mockResolvedValue(undefined);
     h.deliverWorkflowInboxAlert.mockResolvedValue(undefined);
     h.advancePipelineForWorkflowCompletion.mockResolvedValue(undefined);
+    h.completeAgencyRequestsForWorkflow.mockResolvedValue({ updated: 0 });
     h.qualityQuery.mockImplementation((name: string) => {
       if (name === "quality.getRun") {
         return Promise.resolve({
@@ -422,6 +427,13 @@ describe("POST /api/kody/engine/workflow-completed", () => {
     );
 
     expect(response.status).toBe(204);
+    expect(h.completeAgencyRequestsForWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "ci-repair",
+        runId: "workflow-run-7",
+        status: "success",
+      }),
+    );
     expect(h.setGitHubContext).toHaveBeenCalledWith(
       "acme",
       "shop",

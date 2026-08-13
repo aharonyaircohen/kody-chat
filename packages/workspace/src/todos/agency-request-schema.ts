@@ -29,6 +29,18 @@ export const agencyRequestStateSchema = z
       .strict(),
     questions: z.array(z.string().trim().min(1).max(2_000)).max(20),
     plan: z.array(z.string().trim().min(1).max(2_000)).max(50),
+    execution: z
+      .object({
+        workflowId: z
+          .string()
+          .trim()
+          .regex(/^[a-z][a-z0-9-]{0,127}$/),
+        input: z.record(z.string(), z.unknown()),
+      })
+      .strict()
+      .optional(),
+    evidence: z.array(z.string().trim().min(1).max(2_000)).max(100).default([]),
+    blockers: z.array(z.string().trim().min(1).max(2_000)).max(20).default([]),
     related: z
       .array(
         z

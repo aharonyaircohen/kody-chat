@@ -19,6 +19,7 @@ import { dispatchWorkflowTriggers } from "@dashboard/features/workflows/server/g
 import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/workflow-inbox-alert";
 import { advancePipelineForWorkflowCompletion } from "@dashboard/features/pipelines/server/pipeline-orchestrator";
 import { verifyQualityResult } from "@dashboard/features/quality/server/quality-result";
+import { completeAgencyRequestsForWorkflow } from "@dashboard/features/agency/server/agency-request-completion";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -244,6 +245,13 @@ export async function POST(request: Request) {
       workflowRunId: runId,
       status,
       output,
+    });
+    await completeAgencyRequestsForWorkflow({
+      octokit,
+      workflowId,
+      runId,
+      status,
+      ...(summary ? { summary } : {}),
     });
     await dispatchWorkflowTriggers({
       event,

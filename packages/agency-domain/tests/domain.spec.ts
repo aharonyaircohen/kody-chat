@@ -33,6 +33,31 @@ describe("simple AI Agency domain", () => {
       requirement: { outcome: "Keep CI healthy" },
     });
 
+    expect(
+      createAgencyRequestState({
+        phase: "waiting-approval",
+        source: {
+          kind: "guided-flow",
+          instanceId: "request-1",
+          effectId: "effect-1",
+        },
+        requirement: { outcome: "Keep CI healthy" },
+        questions: [],
+        plan: ["Run the installed CI Repair workflow"],
+        execution: {
+          workflowId: "ci-repair",
+          input: { branch: "main", ciRunId: 123 },
+        },
+        evidence: [],
+        blockers: [],
+        related: [{ kind: "workflow", id: "ci-repair" }],
+      }),
+    ).toMatchObject({
+      execution: { workflowId: "ci-repair", input: { branch: "main" } },
+      evidence: [],
+      blockers: [],
+    });
+
     expect(() =>
       createAgencyRequestState({
         phase: "running",
@@ -44,6 +69,8 @@ describe("simple AI Agency domain", () => {
         requirement: { outcome: "Keep CI healthy" },
         questions: [],
         plan: [],
+        evidence: [],
+        blockers: [],
         related: [],
         workflowId: "ci-repair",
       }),

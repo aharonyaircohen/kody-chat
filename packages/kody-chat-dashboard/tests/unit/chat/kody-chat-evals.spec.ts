@@ -166,6 +166,11 @@ describe("Kody chat evals", () => {
     expect(route).toContain("agencyAssessmentReadResultsSeen += 1");
     expect(route).toContain("agencyAssessmentUpdatedSeen = true");
     expect(route).toContain("createAgencyRequestApproval");
+    expect(route).toContain("readAgencyRequestApproval");
+    expect(route).toContain('activeTools: ["run_agency_request"]');
+    expect(route).toContain(
+      'successfulToolResult("update_agency_request")',
+    );
     expect(route).toContain("NEW_AGENCY_REQUEST_FLOW_ID");
     expect(route).toContain('activeTools: ["guided_flow_start"]');
     expect(route).toContain(

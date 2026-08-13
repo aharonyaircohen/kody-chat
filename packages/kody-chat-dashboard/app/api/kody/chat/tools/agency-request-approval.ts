@@ -17,3 +17,34 @@ export function createAgencyRequestApproval(input: {
     },
   });
 }
+
+export function readAgencyRequestApproval(
+  latestUserText: string | null,
+): { action: "approve" | "cancel"; todoSlug: string } | null {
+  if (!latestUserText) return null;
+  const match = latestUserText.match(/<view_result>([\s\S]*?)<\/view_result>/);
+  if (!match) return null;
+  try {
+    const value = JSON.parse(match[1]) as Record<string, unknown>;
+    if (
+      value.kind !== "view_result" ||
+      value.view !== "renderer" ||
+      value.rendererSlug !== "approval-card" ||
+      (value.actionId !== "approve" && value.actionId !== "cancel") ||
+      typeof value.viewId !== "string"
+    ) {
+      return null;
+    }
+    const id = /^agency-request-([a-z0-9][a-z0-9_-]{0,63})$/.exec(
+      value.viewId,
+    );
+    return id
+      ? {
+          action: value.actionId as "approve" | "cancel",
+          todoSlug: id[1],
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}

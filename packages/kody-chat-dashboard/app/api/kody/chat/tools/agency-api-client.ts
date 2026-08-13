@@ -182,6 +182,8 @@ export function createAgencyApiClient({
     createTodo: (input: JsonObject) => send("/api/kody/todos", "POST", input),
     updateTodo: (slug: string, input: JsonObject) =>
       send(itemPath("/api/kody/todos", slug), "PATCH", input),
+    runAgencyRequest: (slug: string) =>
+      send(`${itemPath("/api/kody/agency-requests", slug)}/run`, "POST", {}),
     removeTodo: (slug: string) =>
       send(
         pathWithActor(itemPath("/api/kody/todos", slug), actorLogin),

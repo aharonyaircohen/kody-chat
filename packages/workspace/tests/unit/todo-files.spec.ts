@@ -106,8 +106,14 @@ describe("todo file content", () => {
           success: "Main CI is green",
         },
         questions: [],
-        plan: [],
-        related: [],
+        plan: ["Run CI Repair"],
+        execution: {
+          workflowId: "ci-repair",
+          input: { branch: "main", ciRunId: 123 },
+        },
+        evidence: ["Failed run 123 verified"],
+        blockers: [],
+        related: [{ kind: "workflow", id: "ci-repair" }],
       },
     });
 
@@ -117,6 +123,8 @@ describe("todo file content", () => {
       agencyRequest: {
         phase: "assessing",
         source: { effectId: "effect-1" },
+        execution: { workflowId: "ci-repair" },
+        evidence: ["Failed run 123 verified"],
       },
     });
   });

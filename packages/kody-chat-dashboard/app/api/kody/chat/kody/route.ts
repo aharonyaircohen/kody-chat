@@ -99,7 +99,10 @@ import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
-import { createAgencyRequestApproval } from "../tools/agency-request-approval";
+import {
+  createAgencyRequestApproval,
+  readAgencyRequestApproval,
+} from "../tools/agency-request-approval";
 import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
 import { createKodyTools } from "../tools/kody-tools";
@@ -828,6 +831,7 @@ async function handleKodyDirectPost(
     latestUserText ?? "",
   );
   const agencyAssessmentHandoffRequested = agencyAssessmentTodoSlug !== null;
+  const agencyRequestApproval = readAgencyRequestApproval(latestUserText);
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
@@ -869,7 +873,12 @@ async function handleKodyDirectPost(
   const turnSystemInstructions: string[] = [];
   if (agencyAssessmentHandoffRequested) {
     turnSystemInstructions.push(
-      "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility with tools, save the concrete plan and waiting-approval phase, then present exactly one approval action. Do not delegate ownership of this step.",
+      "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility and the Workflow input schema with tools, then save the concrete plan, exact execution.workflowId, validated execution.input, and waiting-approval phase. The server presents the approval action after the save. Do not call show_view and do not delegate ownership of this step.",
+    );
+  }
+  if (agencyRequestApproval?.action === "approve") {
+    turnSystemInstructions.push(
+      `The user approved Agency request Todo ${JSON.stringify(agencyRequestApproval.todoSlug)}. Call run_agency_request exactly once for that Todo, then report the returned Run id and monitoring state. Do not rediscover or change the approved plan.`,
     );
   }
   if (isParentOwnedArchitectureAdvice(latestUserText ?? "")) {
@@ -1385,6 +1394,7 @@ async function handleKodyDirectPost(
         readTodo: (slug) => agencyApi.readTodo(slug),
         saveTodo: (input) => agencyApi.saveTodo(input),
         patchTodo: (slug, input) => agencyApi.updateTodo(slug, input),
+        runAgencyRequest: (slug) => agencyApi.runAgencyRequest(slug),
         removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),
       ...createInstructionsTools({
@@ -1981,6 +1991,31 @@ This turn includes an image from the user. For questions about what is visible i
         ...(!forceShowViewTool
           ? {
               prepareStep: ({ steps }) => {
+                if (agencyRequestApproval?.action === "approve") {
+                  const started = steps.some((step) =>
+                    step.toolResults.some(
+                      (result) =>
+                        result.toolName === "run_agency_request" &&
+                        !isToolErrorOutput(result.output),
+                    ),
+                  );
+                  if (!started) {
+                    return {
+                      activeTools: ["run_agency_request"],
+                      toolChoice: selectChatOutputToolChoice(
+                        ["run_agency_request"],
+                        providerCapabilities,
+                      ),
+                    };
+                  }
+                  return {
+                    activeTools: [FINAL_ANSWER_TOOL],
+                    toolChoice: selectChatOutputToolChoice(
+                      [FINAL_ANSWER_TOOL],
+                      providerCapabilities,
+                    ),
+                  };
+                }
                 if (forceGuidedFlowIntake && steps.length === 0) {
                   return {
                     activeTools: ["guided_flow_start"],
@@ -2139,6 +2174,9 @@ This turn includes an image from the user. For questions about what is visible i
         // module level so tests can assert the value.
         stopWhen: [
           permanentToolFailureResult(),
+          ...(agencyAssessmentHandoffRequested
+            ? [successfulToolResult("update_agency_request")]
+            : []),
           settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
           successfulToolResult(FINAL_ANSWER_TOOL),
           successfulRenderedViewResult(),

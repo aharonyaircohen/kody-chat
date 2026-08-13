@@ -381,6 +381,7 @@ describe("chat-defaults bundle", () => {
       "read_todo_list",
       "create_or_update_todo_list",
       "update_agency_request",
+      "run_agency_request",
       "delete_todo_list",
     ];
     for (const t of required) {
