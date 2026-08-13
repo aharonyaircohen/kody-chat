@@ -140,6 +140,17 @@ export function isAgencyRequestIntakeRequest(userText: string): boolean {
   return setup && automation && durableOwnership;
 }
 
+/** Trusted internal handoff emitted after Agency request intake completes. */
+export function isAgencyRequestAssessmentHandoff(userText: string): boolean {
+  const text = userText.trim();
+  return (
+    /^Assess Agency Todo "[a-z0-9][a-z0-9_-]{0,63}" now\./.test(text) ||
+    /^Agency request assessment handoff for Todo "[a-z0-9][a-z0-9_-]{0,63}"\./.test(
+      text,
+    )
+  );
+}
+
 export function isParentOwnedArchitectureAdvice(userText: string): boolean {
   const text = userText.trim();
   return (
@@ -353,6 +364,9 @@ export async function routePublicAgentTask({
     return { mode: "self" };
   }
   if (isAgencyRequestIntakeRequest(userText)) {
+    return { mode: "self" };
+  }
+  if (isAgencyRequestAssessmentHandoff(userText)) {
     return { mode: "self" };
   }
   const workflowExecution = routeExplicitWorkflowExecution(

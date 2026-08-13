@@ -53,7 +53,7 @@ function handoff(todoSlug: string): AgencyRequestHandoff {
     type: "kody",
     displayContent: "Request submitted for assessment.",
     message: [
-      `Assess Agency Todo ${JSON.stringify(todoSlug)} now.`,
+      `Agency request assessment handoff for Todo ${JSON.stringify(todoSlug)}.`,
       "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
       "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
       "If it is executable, save a concrete plan, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",

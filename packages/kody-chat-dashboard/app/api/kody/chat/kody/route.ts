@@ -195,6 +195,7 @@ import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
   isCompleteProjectAssessmentRequest,
   isAgencyRequestIntakeRequest,
+  isAgencyRequestAssessmentHandoff,
   isClearlyConversationalTurn,
   isParentOwnedArchitectureAdvice,
 } from "./public-agent-routing";
@@ -858,6 +859,11 @@ async function handleKodyDirectPost(
     ? messages
     : inlineImagePartsForTextModel(messages);
   const turnSystemInstructions: string[] = [];
+  if (isAgencyRequestAssessmentHandoff(latestUserText ?? "")) {
+    turnSystemInstructions.push(
+      "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility with tools, save the concrete plan and waiting-approval phase, then present exactly one approval action. Do not delegate ownership of this step.",
+    );
+  }
   if (isParentOwnedArchitectureAdvice(latestUserText ?? "")) {
     turnSystemInstructions.push(
       "This is an architecture recommendation, not a request to create anything and not a question about configured chat models. Give a direct verdict instead of an inventory or clarification question. Treat the existing Kody Chat path as the current owner and recommend extending it unless verified repository evidence proves a requirement it cannot satisfy. Explain the ownership tradeoff briefly, do not confuse chat systems with configured models or providers, and end with one relevant non-blocking follow-up question.",

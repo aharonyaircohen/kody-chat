@@ -6,6 +6,7 @@ import {
   inferPublicAgentRouteFromDefinitions,
   routeProjectAssessmentSubmission,
   isAgencyRequestIntakeRequest,
+  isAgencyRequestAssessmentHandoff,
   isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
   parsePublicAgentRouteDecision,
@@ -64,6 +65,22 @@ describe("public Agent routing", () => {
       routePublicAgentTask({
         userText:
           "Build an automation for releases and take responsibility for monitoring it.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the request manager assessment handoff with Kody", async () => {
+    const handoff = 'Assess Agency Todo "keep-ci-passing" now.';
+    expect(isAgencyRequestAssessmentHandoff(handoff)).toBe(true);
+
+    const generate = vi.fn();
+    await expect(
+      routePublicAgentTask({
+        userText: handoff,
         assignedAgents,
         model: {} as never,
         generate: generate as never,
