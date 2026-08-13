@@ -608,6 +608,23 @@ test.describe("Kody chat renderer output", () => {
               },
               compatibility: { status: "compatible" },
             },
+            {
+              instance: {
+                instanceId: "unavailable-flow",
+                revision: 1,
+                status: "active",
+              },
+              flow: {
+                title: "Unavailable setup",
+                stepIndex: 0,
+                stepCount: 2,
+              },
+              compatibility: {
+                status: "incompatible",
+                code: "renderer_unavailable",
+                message: "Renderer unavailable",
+              },
+            },
           ],
         }),
       });
@@ -632,11 +649,15 @@ test.describe("Kody chat renderer output", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Resume flow" }),
-    ).toBeVisible();
-    await expect(page.getByText("How can Kody help?")).toBeVisible();
+    ).toBeEnabled();
+    await expect(page.getByText("Unavailable setup")).toHaveCount(0);
+    await expect(page.getByText("How can Kody help?")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Run project assessment" }),
-    ).toBeVisible();
+    ).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Resume flow" })).toHaveClass(
+      /cursor-pointer/,
+    );
   });
 
   test("approval request renders a card and locks after one click", async ({

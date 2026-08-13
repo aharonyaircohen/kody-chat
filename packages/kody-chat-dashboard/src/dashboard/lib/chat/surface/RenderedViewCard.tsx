@@ -10,7 +10,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, MousePointerClick, X } from "lucide-react";
+import { Check, ChevronRight, X } from "lucide-react";
 import { trackSystemEvent } from "@kody-ade/base/events/client";
 import { MarkdownPreview } from "../../components/MarkdownPreview";
 import {
@@ -161,23 +161,34 @@ export function RenderedViewCard({
   ) => {
     const isPrimary = node.action.variant === "primary";
     const isDanger = node.action.variant === "danger";
-    const Icon = isPrimary ? Check : isDanger ? X : MousePointerClick;
-    const tone = isPrimary
+    const rowTone = isPrimary
       ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
       : isDanger
         ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-        : "border-border bg-background hover:bg-accent";
+        : "border-border bg-transparent text-foreground hover:bg-accent";
     if (layout === "list") {
+      const Icon = isDanger ? X : ChevronRight;
+      const listTone = isPrimary
+        ? "bg-primary/10 text-foreground hover:bg-primary/15"
+        : isDanger
+          ? "text-destructive hover:bg-destructive/10"
+          : "text-foreground hover:bg-accent/70";
       return (
         <button
           key={key}
           type="button"
           disabled={disabled}
           onClick={() => trackAction(node.action)}
-          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-start text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+          className={`group flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 px-2 py-3 text-start text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${listTone}`}
         >
-          <span className="min-w-0 truncate font-medium">{node.label}</span>
-          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span dir="auto" className="min-w-0 break-words font-medium">
+            {node.label}
+          </span>
+          <Icon
+            className={`h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5 ${
+              isPrimary ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
         </button>
       );
     }
@@ -187,10 +198,9 @@ export function RenderedViewCard({
         type="button"
         disabled={disabled}
         onClick={() => trackAction(node.action)}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
+        className={`inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${rowTone}`}
       >
-        <Icon className="h-3.5 w-3.5" />
-        {node.label}
+        <span dir="auto">{node.label}</span>
       </button>
     );
   };
@@ -201,7 +211,7 @@ export function RenderedViewCard({
   ): ReactNode => {
     if (node.type === "stack") {
       return (
-        <div key={key} className="space-y-3">
+        <div key={key} className="space-y-4">
           {node.children.map((child, index) =>
             renderNode(child, `${key}-${index}`),
           )}
@@ -210,7 +220,7 @@ export function RenderedViewCard({
     }
     if (node.type === "row") {
       return (
-        <div key={key} className="flex flex-wrap gap-2">
+        <div key={key} className="flex flex-wrap items-center gap-2">
           {node.children.map((child, index) =>
             renderNode(child, `${key}-${index}`, "row"),
           )}
@@ -219,7 +229,10 @@ export function RenderedViewCard({
     }
     if (node.type === "list") {
       return (
-        <div key={key} className="space-y-1.5">
+        <div
+          key={key}
+          className="divide-y divide-border border-y border-border"
+        >
           {node.children.map((child, index) =>
             renderNode(child, `${key}-${index}`, "list"),
           )}
@@ -229,20 +242,30 @@ export function RenderedViewCard({
     if (node.type === "text") {
       if (node.variant === "title") {
         return (
-          <h3 key={key} className={VIEW_RENDERER_TITLE_CLASS}>
+          <h3 key={key} dir="auto" className={VIEW_RENDERER_TITLE_CLASS}>
             {node.value}
           </h3>
         );
       }
       if (node.variant === "label") {
         return (
-          <div key={key} className="text-xs font-medium text-muted-foreground">
+          <div
+            key={key}
+            dir="auto"
+            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+          >
             {node.value}
           </div>
         );
       }
       return (
-        <p key={key} className={VIEW_RENDERER_TEXT_CLASS}>
+        <p
+          key={key}
+          dir="auto"
+          className={`${VIEW_RENDERER_TEXT_CLASS} ${
+            layout === "list" ? "px-2 py-3" : ""
+          }`}
+        >
           {node.value}
         </p>
       );
@@ -258,7 +281,7 @@ export function RenderedViewCard({
     }
     if (node.type === "input") {
       return (
-        <label key={key} className="block space-y-1">
+        <label key={key} className="block space-y-1.5">
           {node.label ? (
             <span className="text-xs font-medium text-muted-foreground">
               {node.label}
@@ -277,7 +300,7 @@ export function RenderedViewCard({
                 [node.name!]: event.target.value,
               }));
             }}
-            className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
+            className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
       );
@@ -292,10 +315,8 @@ export function RenderedViewCard({
       return (
         <label
           key={key}
-          className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-start text-sm transition-colors ${
-            checked
-              ? "border-primary/50 bg-primary/10"
-              : "border-border bg-background hover:bg-accent"
+          className={`flex min-h-11 w-full items-center gap-3 px-2 py-3 text-start text-sm transition-colors ${
+            checked ? "bg-primary/10" : "hover:bg-accent/70"
           } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
         >
           <input
@@ -305,7 +326,7 @@ export function RenderedViewCard({
             onChange={() => toggleFormValue(node.name, node.value, node.label)}
             className="h-4 w-4 shrink-0 rounded border-border accent-primary"
           />
-          <span className="min-w-0 flex-1 truncate font-medium">
+          <span dir="auto" className="min-w-0 flex-1 break-words font-medium">
             {node.label}
           </span>
         </label>
@@ -339,7 +360,7 @@ export function RenderedViewCard({
           type="button"
           disabled={disabled}
           onClick={() => submitForm(node.label)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary bg-primary px-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Check className="h-3.5 w-3.5" />
           {node.label}
@@ -349,7 +370,7 @@ export function RenderedViewCard({
     return null;
   };
   return (
-    <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
+    <div className="mt-2 text-sm">
       {validationError ? (
         <div
           role="alert"

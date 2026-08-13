@@ -223,7 +223,7 @@ describe("guided flow status renderer", () => {
         { type: "text", value: "You have an unfinished GuidedFlow." },
         { type: "text", value: "Create a workflow · Step 1 of 2" },
         {
-          type: "row",
+          type: "list",
           children: [
             {
               type: "button",

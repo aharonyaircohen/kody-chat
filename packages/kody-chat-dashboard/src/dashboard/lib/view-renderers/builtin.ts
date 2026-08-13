@@ -181,7 +181,7 @@ const BUILTIN_SOURCES: readonly string[] = [
         { type: "text", value: "$title" },
         { type: "text", value: "$step" },
         {
-          type: "row",
+          type: "list",
           for: "$actions",
           as: "action",
           item: { type: "button", label: "$action.label", action: "$action" },

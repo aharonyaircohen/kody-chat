@@ -114,7 +114,10 @@ import {
   type WidgetOpenRequest,
 } from "../widgets/chat-launch";
 import { repoScopedHref } from "@kody-ade/base/routes";
-import { buildRepositoryChatOpeningView } from "../chat/core/chat-opening";
+import {
+  buildRepositoryChatOpeningView,
+  PROJECT_ASSESSMENT_OPENING_ACTION,
+} from "../chat/core/chat-opening";
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -1097,7 +1100,10 @@ export function KodyChat({
             : [];
         });
         setOpeningStatusCheckedSessionId(activeSessionId);
-        if (flows.length === 0) return;
+        const resumableFlows = flows.filter(
+          (candidate) => candidate.compatibility.status === "compatible",
+        );
+        if (resumableFlows.length === 0) return;
         setResumedGuidedFlowMessage((current) => {
           if (
             current?.sessionId === activeSessionId &&
@@ -1113,7 +1119,13 @@ export function KodyChat({
               timestamp: new Date().toISOString(),
               view: buildGuidedFlowResumeView({
                 sessionId: activeSessionId,
-                flows,
+                flows: resumableFlows,
+                additionalActions: [
+                  {
+                    ...PROJECT_ASSESSMENT_OPENING_ACTION,
+                    variant: "secondary",
+                  },
+                ],
               }),
             },
           };
@@ -1232,12 +1244,11 @@ export function KodyChat({
           ),
         }
       : null;
-  const openingMessages = [
-    resumedGuidedFlowDisplayMessage,
-    repositoryOpeningMessage,
-  ].filter((message): message is Message => message !== null);
-  const displayMessages =
-    openingMessages.length > 0 ? [...messages, ...openingMessages] : messages;
+  const openingMessage =
+    resumedGuidedFlowDisplayMessage ?? repositoryOpeningMessage;
+  const displayMessages = openingMessage
+    ? [...messages, openingMessage]
+    : messages;
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {

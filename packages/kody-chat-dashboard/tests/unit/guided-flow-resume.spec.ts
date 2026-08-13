@@ -42,7 +42,7 @@ describe("GuidedFlow resume presentation", () => {
     ]);
   });
 
-  it("makes incompatible progress explicit and removable", () => {
+  it("hides flows that cannot be resumed", () => {
     const view = buildGuidedFlowResumeView({
       sessionId: "chat-1",
       flows: [
@@ -62,14 +62,7 @@ describe("GuidedFlow resume presentation", () => {
       ],
     });
 
-    expect(view.data.title).toBe("A saved flow can no longer be opened.");
-    expect(view.data.actions).toMatchObject([
-      {
-        id: "cancel",
-        label: "Remove unavailable flow: Old demo",
-        result: { instanceId: "old-demo", expectedRevision: 4 },
-      },
-    ]);
+    expect(view.data.actions).toEqual([]);
   });
 
   it("shows only unfinished-flow actions", () => {
@@ -94,5 +87,35 @@ describe("GuidedFlow resume presentation", () => {
     expect(view.data.actions).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "assess" })]),
     );
+  });
+
+  it("keeps caller-owned actions in the same card", () => {
+    const view = buildGuidedFlowResumeView({
+      sessionId: "chat-1",
+      flows: [
+        {
+          instance: {
+            instanceId: "workflow-1",
+            revision: 2,
+            status: "active",
+          },
+          flow: { title: "Create a workflow", stepIndex: 0, stepCount: 2 },
+          compatibility: { status: "compatible" },
+        },
+      ],
+      additionalActions: [
+        {
+          id: "run-project-assessment",
+          label: "Run project assessment",
+          response: "Run assessment",
+          variant: "secondary",
+        },
+      ],
+    });
+
+    expect(view.data.actions).toMatchObject([
+      { id: "resume" },
+      { id: "run-project-assessment", variant: "secondary" },
+    ]);
   });
 });
