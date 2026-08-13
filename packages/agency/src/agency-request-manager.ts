@@ -1,5 +1,6 @@
 import {
   createAgencyRequestState,
+  type AgencyRequestExecution,
   type AgencyRequestSource,
   type AgencyRequestState,
 } from "@kody-ade/agency-domain";
@@ -41,6 +42,64 @@ export interface SubmitAgencyRequestResult {
   created: boolean;
   todoSlug: string;
   handoff: AgencyRequestHandoff;
+}
+
+interface PreparedAgencyRequestPorts {
+  read(slug: string): Promise<{
+    slug: string;
+    state: AgencyRequestState;
+  } | null>;
+  validateExecution(execution: AgencyRequestExecution): Promise<{
+    execution: AgencyRequestExecution;
+    issues: string[];
+  }>;
+  save(slug: string, state: AgencyRequestState): Promise<void>;
+}
+
+export async function assessPreparedAgencyRequest(
+  slug: string,
+  ports: PreparedAgencyRequestPorts,
+) {
+  const record = await ports.read(slug);
+  if (!record) return { kind: "not-found" as const };
+  const strategy = record.state.related.find((ref) => ref.kind === "strategy");
+  if (!strategy || !record.state.execution) {
+    return { kind: "requires-reasoning" as const };
+  }
+
+  const validation = await ports.validateExecution(record.state.execution);
+  if (validation.issues.length > 0) {
+    const state = createAgencyRequestState({
+      ...record.state,
+      phase: "blocked",
+      blockers: validation.issues,
+    });
+    await ports.save(slug, state);
+    return { kind: "blocked" as const, issues: validation.issues };
+  }
+
+  const workflowId = validation.execution.workflowId;
+  const activationIds = (validation.execution.activations ?? []).map(
+    (activation) => `${activation.kind}:${activation.id}`,
+  );
+  const state = createAgencyRequestState({
+    ...record.state,
+    phase: "waiting-approval",
+    questions: [],
+    plan: [
+      `Activate the approved Blueprint resources: ${activationIds.join(", ")}.`,
+      `Run Workflow ${workflowId} with the saved Blueprint and repository request.`,
+      "Monitor the Workflow until it reports end-to-end success or a precise blocker.",
+    ],
+    execution: validation.execution,
+    evidence: [
+      ...record.state.evidence,
+      `Validated Strategy Blueprint ${strategy.id} and Workflow ${workflowId}.`,
+    ],
+    blockers: [],
+  });
+  await ports.save(slug, state);
+  return { kind: "ready" as const, workflowId };
 }
 
 function answer(

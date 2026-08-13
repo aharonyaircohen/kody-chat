@@ -22,6 +22,28 @@ export function createAgencyRequestApproval(input: {
   });
 }
 
+export function showAgencyRequestApprovalDirectly(input: {
+  todoSlug: string;
+}): Response {
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      const toolCallId = `agency-assessment-${input.todoSlug}`;
+      writer.write({
+        type: "tool-input-available",
+        toolCallId,
+        toolName: "show_view",
+        input: { purpose: "approval-card" },
+      });
+      writer.write({
+        type: "tool-output-available",
+        toolCallId,
+        output: createAgencyRequestApproval(input),
+      });
+    },
+  });
+  return createUIMessageStreamResponse({ stream });
+}
+
 export function readAgencyRequestApproval(
   latestUserText: string | null,
 ): { action: "approve" | "cancel"; todoSlug: string } | null {

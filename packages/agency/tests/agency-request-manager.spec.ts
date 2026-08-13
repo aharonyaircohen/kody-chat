@@ -1,7 +1,89 @@
 import { describe, expect, it, vi } from "vitest";
-import { submitAgencyRequest } from "../src/agency-request-manager";
+import {
+  assessPreparedAgencyRequest,
+  submitAgencyRequest,
+} from "../src/agency-request-manager";
 
 describe("Agency Request Manager", () => {
+  it("deterministically approves a valid prepared Blueprint execution", async () => {
+    const save = vi.fn(async () => undefined);
+    const execution = {
+      workflowId: "apply-strategy",
+      input: { blueprintId: "healthy-ci" },
+      activations: [
+        { kind: "workflow" as const, id: "apply-strategy" },
+        { kind: "solution" as const, id: "ci-repair" },
+      ],
+    };
+
+    const result = await assessPreparedAgencyRequest("healthy-ci-request", {
+      read: vi.fn(async () => ({
+        slug: "healthy-ci-request",
+        state: {
+          phase: "blocked" as const,
+          source: {
+            kind: "guided-flow" as const,
+            instanceId: "flow-1",
+            effectId: "effect-1",
+          },
+          requirement: {
+            outcome: "Build repository-native CI",
+            success: "CI passes on the proposed commit",
+          },
+          questions: [],
+          plan: [],
+          execution,
+          evidence: [],
+          blockers: ["Workflow is not active"],
+          related: [{ kind: "strategy" as const, id: "healthy-ci" }],
+        },
+      })),
+      validateExecution: vi.fn(async () => ({ execution, issues: [] })),
+      save,
+    });
+
+    expect(result).toMatchObject({ kind: "ready", workflowId: "apply-strategy" });
+    expect(save).toHaveBeenCalledWith(
+      "healthy-ci-request",
+      expect.objectContaining({
+        phase: "waiting-approval",
+        execution,
+        blockers: [],
+        plan: expect.arrayContaining([
+          expect.stringContaining("apply-strategy"),
+        ]),
+      }),
+    );
+  });
+
+  it("leaves requests without a prepared Blueprint for normal assessment", async () => {
+    const save = vi.fn();
+    const result = await assessPreparedAgencyRequest("custom-request", {
+      read: vi.fn(async () => ({
+        slug: "custom-request",
+        state: {
+          phase: "assessing" as const,
+          source: {
+            kind: "guided-flow" as const,
+            instanceId: "flow-2",
+            effectId: "effect-2",
+          },
+          requirement: { outcome: "Build a custom automation" },
+          questions: [],
+          plan: [],
+          evidence: [],
+          blockers: [],
+          related: [],
+        },
+      })),
+      validateExecution: vi.fn(),
+      save,
+    });
+
+    expect(result).toEqual({ kind: "requires-reasoning" });
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("creates one assessing Todo and returns a Kody handoff", async () => {
     const create = vi.fn(async () => ({ slug: "keep-ci-healthy" }));
     const findBySource = vi.fn(async () => null);

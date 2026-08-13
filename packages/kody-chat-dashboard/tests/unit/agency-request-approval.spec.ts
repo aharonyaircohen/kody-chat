@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createAgencyRequestApproval,
+  showAgencyRequestApprovalDirectly,
   readAgencyRequestApproval,
   runApprovedAgencyRequestDirectly,
 } from "../../app/api/kody/chat/tools/agency-request-approval";
@@ -55,5 +56,15 @@ describe("Agency request approval view", () => {
     expect(runAgencyRequest).toHaveBeenCalledOnce();
     expect(runAgencyRequest).toHaveBeenCalledWith("keep-ci-passing");
     expect(body).toContain("Agency request is monitoring workflow run run-123.");
+  });
+
+  it("streams the manager-owned approval without asking a model", async () => {
+    const response = await showAgencyRequestApprovalDirectly({
+      todoSlug: "keep-ci-passing",
+    });
+
+    const body = await response.text();
+    expect(body).toContain("agency-request-keep-ci-passing");
+    expect(body).toContain("approval-card");
   });
 });

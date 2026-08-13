@@ -99,6 +99,8 @@ import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
+import { assessPreparedAgencyRequest } from "@kody-ade/agency/agency-request-manager";
+import type { AgencyRequestState } from "@kody-ade/workspace/todos";
 import {
   coerceWorkflowInput,
   validateWorkflowDefinition,
@@ -109,6 +111,7 @@ import {
   createAgencyRequestApproval,
   readAgencyRequestApproval,
   runApprovedAgencyRequestDirectly,
+  showAgencyRequestApprovalDirectly,
 } from "../tools/agency-request-approval";
 import { createAgencyLifecycleTools } from "../tools/agency-lifecycle-tools";
 import { createReleaseTools } from "../tools/release-tools";
@@ -1306,6 +1309,64 @@ async function handleKodyDirectPost(
       request: repoScopedReq,
       actorLogin: verifiedActorLogin,
     });
+    const validateAgencyExecution = async (
+      execution: NonNullable<AgencyRequestState["execution"]>,
+    ) => {
+      const normalizedExecution = {
+        workflowId: execution.workflowId,
+        input: { ...execution.input },
+        ...(execution.activations
+          ? {
+              activations: execution.activations.map((activation) => ({
+                kind: activation.kind,
+                id: activation.id,
+              })),
+            }
+          : {}),
+      };
+      const result = await agencyApi.readWorkflow(
+        execution.workflowId,
+        execution.activations?.some(
+          (activation) =>
+            activation.kind === "workflow" &&
+            activation.id === execution.workflowId,
+        ),
+      );
+      if (typeof result.error === "string") {
+        return {
+          execution: normalizedExecution,
+          issues: [
+            `Workflow ${execution.workflowId} could not be read: ${result.error}`,
+          ],
+        };
+      }
+      const record =
+        result.workflow &&
+        typeof result.workflow === "object" &&
+        !Array.isArray(result.workflow)
+          ? (result.workflow as Record<string, unknown>)
+          : null;
+      const workflow =
+        record?.workflow &&
+        typeof record.workflow === "object" &&
+        !Array.isArray(record.workflow)
+          ? (record.workflow as WorkflowDefinition)
+          : null;
+      if (!workflow) {
+        return {
+          execution: normalizedExecution,
+          issues: [`Workflow ${execution.workflowId} is unavailable`],
+        };
+      }
+      const input = coerceWorkflowInput(execution.input, workflow.inputSchema);
+      return {
+        execution: { ...normalizedExecution, input },
+        issues: [
+          ...validateWorkflowDefinition(workflow),
+          ...validateWorkflowInput(input, workflow.inputSchema),
+        ].map((issue) => `${issue.path}: ${issue.message}`),
+      };
+    };
     if (agencyRequestApproval) {
       try {
         return await runApprovedAgencyRequestDirectly({
@@ -1314,6 +1375,45 @@ async function handleKodyDirectPost(
         });
       } finally {
         clearGitHubContext();
+      }
+    }
+    if (agencyAssessmentTodoSlug) {
+      const assessment = await assessPreparedAgencyRequest(
+        agencyAssessmentTodoSlug,
+        {
+          read: async (slug) => {
+            const result = await agencyApi.readTodo(slug);
+            const todo =
+              result.todo &&
+              typeof result.todo === "object" &&
+              !Array.isArray(result.todo)
+                ? (result.todo as Record<string, unknown>)
+                : null;
+            if (!todo?.agencyRequest) return null;
+            return {
+              slug,
+              state: todo.agencyRequest as AgencyRequestState,
+            };
+          },
+          validateExecution: validateAgencyExecution,
+          save: async (slug, state) => {
+            const result = await agencyApi.updateTodo(slug, {
+              agencyRequest: state,
+            });
+            if (typeof result.error === "string") {
+              throw new Error(result.error);
+            }
+          },
+        },
+      );
+      if (assessment.kind === "ready") {
+        try {
+          return showAgencyRequestApprovalDirectly({
+            todoSlug: agencyAssessmentTodoSlug,
+          });
+        } finally {
+          clearGitHubContext();
+        }
       }
     }
     extraTools = {
@@ -1411,53 +1511,7 @@ async function handleKodyDirectPost(
         readTodo: (slug) => agencyApi.readTodo(slug),
         saveTodo: (input) => agencyApi.saveTodo(input),
         patchTodo: (slug, input) => agencyApi.updateTodo(slug, input),
-        validateAgencyExecution: async (execution) => {
-          const result = await agencyApi.readWorkflow(
-            execution.workflowId,
-            execution.activations?.some(
-              (activation) =>
-                activation.kind === "workflow" &&
-                activation.id === execution.workflowId,
-            ),
-          );
-          if (typeof result.error === "string") {
-            return {
-              execution,
-              issues: [
-                `Workflow ${execution.workflowId} could not be read: ${result.error}`,
-              ],
-            };
-          }
-          const record =
-            result.workflow &&
-            typeof result.workflow === "object" &&
-            !Array.isArray(result.workflow)
-              ? (result.workflow as Record<string, unknown>)
-              : null;
-          const workflow =
-            record?.workflow &&
-            typeof record.workflow === "object" &&
-            !Array.isArray(record.workflow)
-              ? (record.workflow as WorkflowDefinition)
-              : null;
-          if (!workflow) {
-            return {
-              execution,
-              issues: [`Workflow ${execution.workflowId} is unavailable`],
-            };
-          }
-          const input = coerceWorkflowInput(
-            execution.input,
-            workflow.inputSchema,
-          );
-          return {
-            execution: { ...execution, input },
-            issues: [
-              ...validateWorkflowDefinition(workflow),
-              ...validateWorkflowInput(input, workflow.inputSchema),
-            ].map((issue) => `${issue.path}: ${issue.message}`),
-          };
-        },
+        validateAgencyExecution,
         runAgencyRequest: (slug) => agencyApi.runAgencyRequest(slug),
         removeTodo: (slug) => agencyApi.removeTodo(slug),
       }),
