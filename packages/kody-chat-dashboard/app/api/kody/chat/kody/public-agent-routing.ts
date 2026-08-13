@@ -225,6 +225,29 @@ export function isParentOwnedArchitectureExplanation(
   );
 }
 
+function routeExplicitWorkflowExecution(
+  userText: string,
+  assignedAgents: readonly PublicDelegationAgent[],
+): PublicAgentRouteDecision | null {
+  if (
+    !/\b(?:run|rerun|execute|start|launch|trigger)\b/i.test(userText) ||
+    !/\b(?:workflow|wf)\b/i.test(userText)
+  ) {
+    return null;
+  }
+  const operator = assignedAgents.find((agent) =>
+    /\b(?:operational|operations|runs?|ci|releases?)\b/i.test(
+      publicAgentPurpose(agent),
+    ),
+  );
+  return operator
+    ? {
+        mode: "delegate",
+        assignments: [{ agent: operator.slug, task: userText.trim() }],
+      }
+    : null;
+}
+
 function routingTerms(value: string): Set<string> {
   const normalizeTerm = (term: string): string => {
     if (term.endsWith("ies") && term.length > 4) {
@@ -392,6 +415,11 @@ export async function routePublicAgentTask({
   if (isCompleteProjectAssessmentRequest(userText)) {
     return { mode: "self" };
   }
+  const workflowExecution = routeExplicitWorkflowExecution(
+    userText,
+    assignedAgents,
+  );
+  if (workflowExecution) return workflowExecution;
   if (
     isParentOwnedArchitectureAdvice(userText) ||
     isParentOwnedArchitectureExplanation(userText)

@@ -424,7 +424,7 @@ describe("public Agent routing", () => {
     expect(generate).toHaveBeenCalledOnce();
   });
 
-  it("keeps explicit Workflow ownership when semantic routing selects Operations", async () => {
+  it("routes explicit Workflow execution to the operational owner", async () => {
     const generate = vi.fn(async () => ({
       text: JSON.stringify({
         mode: "delegate",
@@ -444,9 +444,33 @@ describe("public Agent routing", () => {
     ).resolves.toEqual({
       mode: "delegate",
       assignments: [
-        { agent: "agency-specialist", task: "r u able to run merge wf?" },
+        { agent: "operations-specialist", task: "r u able to run merge wf?" },
       ],
     });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("routes a branch-only CI workflow run to one operational owner", async () => {
+    const generate = vi.fn();
+
+    await expect(
+      routePublicAgentTask({
+        userText:
+          "Run the CI Repair workflow for branch main with run ID 31642789167 and no PR.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({
+      mode: "delegate",
+      assignments: [
+        {
+          agent: "operations-specialist",
+          task: "Run the CI Repair workflow for branch main with run ID 31642789167 and no PR.",
+        },
+      ],
+    });
+    expect(generate).not.toHaveBeenCalled();
   });
 
   it("keeps a greeting with Kody without spending a routing model call", async () => {
