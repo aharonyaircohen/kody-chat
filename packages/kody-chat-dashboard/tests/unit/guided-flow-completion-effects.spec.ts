@@ -36,7 +36,10 @@ describe("GuidedFlow completion effects", () => {
     await expect(
       processGuidedFlowCompletionEffects(
         new NextRequest("https://dash.test/api/kody/guided-flows", {
-          headers: { authorization: "Bearer test" },
+          headers: {
+            authorization: "Bearer test",
+            "transfer-encoding": "chunked",
+          },
         }),
         client as never,
         {
@@ -59,6 +62,8 @@ describe("GuidedFlow completion effects", () => {
     if (calledInit?.method !== "POST") {
       throw new Error("Agency request completion did not use POST");
     }
+    const calledHeaders = new Headers(calledInit.headers);
+    expect(calledHeaders.has("transfer-encoding")).toBe(false);
     expect(JSON.parse(String(calledInit.body))).toMatchObject({
       blueprintId: "healthy-ci",
     });

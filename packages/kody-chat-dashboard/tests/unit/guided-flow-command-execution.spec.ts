@@ -9,6 +9,7 @@ function request(): NextRequest {
       "x-kody-owner": "acme",
       "x-kody-repo": "widgets",
       "x-kody-token": "secret",
+      "transfer-encoding": "chunked",
     },
   });
 }
@@ -45,6 +46,7 @@ describe("Guided Flow command execution", () => {
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
     expect(headers.get("x-kody-idempotency-key")).toBe("mutation-1");
     expect(headers.get("x-kody-token")).toBe("secret");
+    expect(headers.has("transfer-encoding")).toBe(false);
   });
 
   it("rejects commands that the shared boundary does not execute", async () => {

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { api as backendApi } from "@kody-ade/backend/api";
 import type { createBackendClient } from "@kody-ade/backend/client";
+import { guidedFlowInternalJsonHeaders } from "./internal-request-headers";
 
 type BackendClient = ReturnType<typeof createBackendClient>;
 
@@ -84,10 +85,7 @@ async function createWorkflowEffect(
   if (!input.success) {
     throw new GuidedFlowCompletionError("guided_flow_invalid_workflow", 400);
   }
-  const headers = new Headers(req.headers);
-  headers.set("content-type", "application/json");
-  headers.set("x-kody-idempotency-key", effect.effectId);
-  headers.delete("content-length");
+  const headers = guidedFlowInternalJsonHeaders(req, effect.effectId);
   const response = await fetch(
     new URL("/api/kody/company/workflows", req.url),
     {
@@ -125,10 +123,7 @@ async function runConsumerEffect(
   instanceKey?: string,
 ): Promise<{ workflow?: unknown; handoff?: GuidedFlowHandoff }> {
   if (effect.action === "agency-request.submit") {
-    const headers = new Headers(req.headers);
-    headers.set("content-type", "application/json");
-    headers.set("x-kody-idempotency-key", effect.effectId);
-    headers.delete("content-length");
+    const headers = guidedFlowInternalJsonHeaders(req, effect.effectId);
     const response = await fetch(
       new URL("/api/kody/agency-requests", req.url),
       {

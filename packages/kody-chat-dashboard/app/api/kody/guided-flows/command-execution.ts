@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { guidedFlowInternalJsonHeaders } from "./internal-request-headers";
 
 export class GuidedFlowCommandError extends Error {
   constructor(
@@ -14,10 +15,7 @@ export async function executeGuidedFlowCommand(
   command: string,
   mutationId: string,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const headers = new Headers(req.headers);
-  headers.set("content-type", "application/json");
-  headers.set("x-kody-idempotency-key", mutationId);
-  headers.delete("content-length");
+  const headers = guidedFlowInternalJsonHeaders(req, mutationId);
   const response = await fetch(new URL("/api/kody/chat/operations", req.url), {
     method: "POST",
     headers,
