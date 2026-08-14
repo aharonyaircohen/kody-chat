@@ -13,6 +13,7 @@ interface CompanyWorkflowLoaderOptions {
   owner: string;
   repo: string;
   syncStoreDefinitions?: boolean;
+  allowedStoreWorkflowIds?: ReadonlySet<string>;
 }
 
 export function createCompanyWorkflowLoader({
@@ -20,6 +21,7 @@ export function createCompanyWorkflowLoader({
   owner,
   repo,
   syncStoreDefinitions = false,
+  allowedStoreWorkflowIds = new Set(),
 }: CompanyWorkflowLoaderOptions) {
   return async function loadWorkflow(
     workflowId: string,
@@ -30,11 +32,8 @@ export function createCompanyWorkflowLoader({
     // Webhook bursts must reuse the normal 60s config cache. A forced GitHub
     // read here would spend one API request per matching event.
     const { config } = await getEngineConfig(octokit, owner, repo);
-    if (
-      !effectiveActiveWorkflowIds(config.company?.activeWorkflows).has(
-        workflowId,
-      )
-    ) {
+    const active = effectiveActiveWorkflowIds(config.company?.activeWorkflows);
+    if (!active.has(workflowId) && !allowedStoreWorkflowIds.has(workflowId)) {
       return null;
     }
     const store = await readCompanyStoreWorkflowDefinitionFile(

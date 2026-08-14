@@ -84,6 +84,7 @@ export async function POST(
               owner: auth.owner,
               repo: auth.repo,
               syncStoreDefinitions: true,
+              allowedStoreWorkflowIds: new Set([execution.workflowId]),
             }),
             validateDefinition: validateWorkflowDefinition,
             validateInput: (schema, input) =>
@@ -106,6 +107,7 @@ export async function POST(
                     kind: activation.kind,
                     slug: activation.id,
                     actorLogin: actorResult.identity.login,
+                    repositoryWriteMode: "defer",
                   }),
                 },
               );
@@ -118,6 +120,10 @@ export async function POST(
                     `Could not activate ${activation.kind}:${activation.id}`,
                 );
               }
+              const payload = (await response.json()) as {
+                configPatch?: Record<string, unknown>;
+              };
+              return { configPatch: payload.configPatch };
             },
           },
         }),

@@ -19,7 +19,9 @@ function services(overrides: Record<string, unknown> = {}) {
       requestId: request.requestId,
       acceptedAt: "2026-08-13T00:00:00.000Z",
     })),
-    activate: vi.fn(async () => undefined),
+    activate: vi.fn(async () => ({
+      configPatch: { activeWorkflows: ["ci-repair"] },
+    })),
     ...overrides,
   };
 }
@@ -44,7 +46,12 @@ describe("approved Agency Workflow dispatch", () => {
     expect(workflowServices.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         target: { type: "workflow", id: "ci-repair" },
-        input: execution.input,
+        input: {
+          ...execution.input,
+          installation: {
+            configPatch: { activeWorkflows: ["ci-repair"] },
+          },
+        },
       }),
     );
   });

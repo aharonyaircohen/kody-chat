@@ -84,9 +84,11 @@ type ActiveField =
   | "activePipelines"
   | "activeCommands"
   | "activeFeatures";
+type RepositoryWriteMode = "commit" | "defer";
 type ActivateResult = {
   imported: boolean;
-  status: "imported" | "already_local";
+  status: "imported" | "already_local" | "prepared";
+  configPatch?: ConfigPatch;
 };
 type DeactivateResult = {
   removed: boolean;
@@ -106,6 +108,7 @@ const requestSchema = z.object({
     "solution",
   ]),
   slug: z.string().min(1).max(128),
+  repositoryWriteMode: z.enum(["commit", "defer"]).default("commit"),
 });
 
 const fieldByKind: Record<
@@ -154,6 +157,42 @@ function append(current: string[] | undefined, values: string[]): string[] {
 
 function without(current: string[] | undefined, value: string): string[] {
   return (current ?? []).filter((entry) => entry !== value);
+}
+
+function mergeConfigPatches(
+  patches: ReadonlyArray<ConfigPatch | undefined>,
+): ConfigPatch | undefined {
+  const merged: Record<string, unknown> = {};
+  for (const patch of patches) {
+    if (!patch) continue;
+    for (const [field, value] of Object.entries(patch)) {
+      const current = merged[field];
+      merged[field] =
+        Array.isArray(current) && Array.isArray(value)
+          ? [...new Set([...current, ...value])]
+          : value;
+    }
+  }
+  return Object.keys(merged).length > 0 ? (merged as ConfigPatch) : undefined;
+}
+
+function combineActivationResults(
+  results: readonly ActivateResult[],
+  ownImported = false,
+): ActivateResult {
+  const configPatch = mergeConfigPatches(
+    results.map((result) => result.configPatch),
+  );
+  const prepared =
+    configPatch !== undefined ||
+    results.some((result) => result.status === "prepared");
+  const imported =
+    ownImported || results.some((result) => result.imported) || prepared;
+  return {
+    imported,
+    status: prepared ? "prepared" : imported ? "imported" : "already_local",
+    ...(configPatch ? { configPatch } : {}),
+  };
 }
 
 async function writeStoreConfigPatch(
@@ -461,30 +500,35 @@ async function activate(
   repo: string,
   kind: ImportKind,
   slug: string,
+  repositoryWriteMode: RepositoryWriteMode,
 ): Promise<ActivateResult> {
   if (kind === "solution") {
     const solution = await resolvedStoreSolution(octokit, slug);
     const results = [];
     for (const entrypoint of solution.entrypoints) {
       results.push(
-        await activate(octokit, owner, repo, entrypoint.kind, entrypoint.id),
+        await activate(
+          octokit,
+          owner,
+          repo,
+          entrypoint.kind,
+          entrypoint.id,
+          repositoryWriteMode,
+        ),
       );
     }
-    const imported = results.some((result) => result.imported);
-    return {
-      imported,
-      status: imported ? ("imported" as const) : ("already_local" as const),
-    };
+    return combineActivationResults(results);
   }
   const asset = await assertExists(octokit, kind, slug);
   if (kind === "trigger") {
     const storeTrigger = asset as StoreTrigger;
-    await activate(
+    const targetResult = await activate(
       octokit,
       owner,
       repo,
       storeTrigger.target.kind,
       storeTrigger.target.id,
+      repositoryWriteMode,
     );
     const existing = (
       await getTriggers(octokit, owner, repo, { cache: false })
@@ -493,25 +537,34 @@ async function activate(
       existing &&
       JSON.stringify(existing) === JSON.stringify(storeTrigger.trigger)
     ) {
-      return { imported: false, status: "already_local" as const };
+      return targetResult;
     }
     await mutateTriggers(octokit, owner, repo, (triggers) => [
       ...triggers.filter((candidate) => candidate.id !== slug),
       storeTrigger.trigger,
     ]);
-    return { imported: true, status: "imported" as const };
+    return combineActivationResults([targetResult], true);
   }
   if (kind === "loop") {
+    if (repositoryWriteMode === "defer") {
+      throw Object.assign(
+        new Error(
+          "Deferred Store activation cannot install Loops until their repository files can be delivered by the recipe Workflow.",
+        ),
+        { status: 422 },
+      );
+    }
     const storeLoop = asset as StoreLoop;
-    await activate(
+    const targetResult = await activate(
       octokit,
       owner,
       repo,
       storeLoop.loop.target.kind,
       storeLoop.loop.target.id,
+      repositoryWriteMode,
     );
     const existing = await readRepositoryLoop(octokit, owner, repo, slug);
-    if (existing) return { imported: false, status: "already_local" as const };
+    if (existing) return targetResult;
     await saveRepositoryLoop(
       octokit,
       owner,
@@ -519,12 +572,22 @@ async function activate(
       storeLoop.loop,
       `chore(kody): add store loop ${slug}`,
     );
-    return { imported: true, status: "imported" as const };
+    return combineActivationResults([targetResult], true);
   }
+  const dependencyResults: ActivateResult[] = [];
   if (kind === "pipeline") {
     const pipeline = asset as PipelineDefinition;
     for (const step of pipeline.steps) {
-      await activate(octokit, owner, repo, "workflow", step.workflow);
+      dependencyResults.push(
+        await activate(
+          octokit,
+          owner,
+          repo,
+          "workflow",
+          step.workflow,
+          repositoryWriteMode,
+        ),
+      );
     }
   }
   const { config, sha } = await getEngineConfig(octokit, owner, repo, {
@@ -592,16 +655,18 @@ async function activate(
         asset as PipelineDefinition,
       );
     }
-    return { imported: false, status: "already_local" as const };
+    return combineActivationResults(dependencyResults);
   }
 
-  await writeStoreConfigPatch(
-    octokit,
-    owner,
-    repo,
-    patch,
-    `chore(kody): add store ${kind} ${slug}`,
-  );
+  if (repositoryWriteMode === "commit") {
+    await writeStoreConfigPatch(
+      octokit,
+      owner,
+      repo,
+      patch,
+      `chore(kody): add store ${kind} ${slug}`,
+    );
+  }
   if (kind === "workflow" && asset) {
     await saveStoreWorkflowProjection(
       owner,
@@ -617,7 +682,17 @@ async function activate(
       asset as PipelineDefinition,
     );
   }
-  return { imported: true, status: "imported" as const };
+  return combineActivationResults(
+    [
+      ...dependencyResults,
+      {
+        imported: true,
+        status:
+          repositoryWriteMode === "defer" ? "prepared" : "imported",
+        ...(repositoryWriteMode === "defer" ? { configPatch: patch } : {}),
+      },
+    ],
+  );
 }
 
 async function deactivate(
@@ -782,7 +857,7 @@ async function handle(req: NextRequest, remove: boolean) {
     }
     const verified = await verifyActorLogin(req, undefined);
     if ("status" in verified) return verified;
-    const { kind, slug } = parsed.data;
+    const { kind, slug, repositoryWriteMode } = parsed.data;
     if (!validSlug(kind, slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
@@ -792,7 +867,14 @@ async function handle(req: NextRequest, remove: boolean) {
     }
     const result = remove
       ? await deactivate(octokit, auth.owner, auth.repo, kind, slug)
-      : await activate(octokit, auth.owner, auth.repo, kind, slug);
+      : await activate(
+          octokit,
+          auth.owner,
+          auth.repo,
+          kind,
+          slug,
+          repositoryWriteMode,
+        );
     return NextResponse.json({
       kind,
       slug,

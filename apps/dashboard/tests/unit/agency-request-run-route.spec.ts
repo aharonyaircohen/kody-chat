@@ -19,6 +19,14 @@ vi.mock("@kody-ade/base/auth", () => auth);
 const lifecycle = vi.hoisted(() => ({
   startAgencyRequest: vi.fn(async (_slug, ports) => {
     await ports.read("keep-ci");
+    await ports.dispatch(
+      {
+        workflowId: "apply-strategy",
+        input: {},
+        activations: [{ kind: "workflow", id: "apply-strategy" }],
+      },
+      "run-1",
+    );
     return { kind: "started", runId: "run-1" };
   }),
 }));
@@ -44,9 +52,17 @@ const github = vi.hoisted(() => ({
 }));
 vi.mock("@kody-ade/workspace/github", () => github);
 
-vi.mock("../../src/dashboard/features/agency/server/approved-agency-workflow", () => ({
-  dispatchApprovedAgencyWorkflow: vi.fn(async () => ({ runId: "run-1" })),
-}));
+vi.mock(
+  "../../src/dashboard/features/agency/server/approved-agency-workflow",
+  () => ({
+    dispatchApprovedAgencyWorkflow: vi.fn(async ({ execution, services }) => {
+      for (const activation of execution.activations ?? []) {
+        await services.activate(activation);
+      }
+      return { runId: "run-1" };
+    }),
+  }),
+);
 
 import { POST } from "../../app/api/kody/agency-requests/[slug]/run/route";
 
@@ -60,6 +76,18 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("Agency request run route", () => {
   it("starts the repository-scoped request through the lifecycle owner", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            imported: true,
+            status: "prepared",
+            configPatch: { activeWorkflows: ["apply-strategy"] },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
     const response = await POST(request(), {
       params: Promise.resolve({ slug: "keep-ci" }),
     });
@@ -78,6 +106,12 @@ describe("Agency request run route", () => {
       }),
     );
     expect(github.clearGitHubContext).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({
+        body: expect.stringContaining('"repositoryWriteMode":"defer"'),
+      }),
+    );
   });
 
   it("requires authenticated Kody access", async () => {

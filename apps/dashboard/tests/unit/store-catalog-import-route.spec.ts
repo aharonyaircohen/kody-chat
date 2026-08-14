@@ -81,4 +81,11 @@ describe("simple Store activation", () => {
       /kind === "solution"[\s\S]*solution\.entrypoints[\s\S]*await activate/,
     );
   });
+
+  it("can prepare recipe activation without committing repository config", () => {
+    expect(source).toContain('repositoryWriteMode: z.enum(["commit", "defer"])');
+    expect(source).toContain('repositoryWriteMode === "defer"');
+    expect(source).toContain("configPatch");
+    expect(source).toContain("Deferred Store activation cannot install Loops");
+  });
 });

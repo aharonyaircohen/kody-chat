@@ -12,8 +12,24 @@ type DispatchServices = Pick<
 > & {
   activate?(
     activation: NonNullable<AgencyRequestExecution["activations"]>[number],
-  ): Promise<void>;
+  ): Promise<{ configPatch?: Record<string, unknown> }>;
 };
+
+function mergeConfigPatch(
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!incoming) return current;
+  const next = { ...current };
+  for (const [key, value] of Object.entries(incoming)) {
+    const previous = next[key];
+    next[key] =
+      Array.isArray(previous) && Array.isArray(value)
+        ? [...new Set([...previous, ...value])]
+        : value;
+  }
+  return next;
+}
 
 export async function dispatchApprovedAgencyWorkflow({
   actor,
@@ -26,19 +42,25 @@ export async function dispatchApprovedAgencyWorkflow({
   runId: string;
   services: DispatchServices;
 }): Promise<{ runId: string }> {
+  let configPatch: Record<string, unknown> = {};
   for (const activation of execution.activations ?? []) {
     if (!services.activate) {
       throw new Error("The approved Agency activation service is unavailable");
     }
-    await services.activate(activation);
+    const result = await services.activate(activation);
+    configPatch = mergeConfigPatch(configPatch, result.configPatch);
   }
+  const input =
+    Object.keys(configPatch).length > 0
+      ? { ...execution.input, installation: { configPatch } }
+      : { ...execution.input };
   const result = await startWorkflow(
     {
       workflowId: execution.workflowId,
       source: "dashboard",
       actor,
       requestId: runId,
-      input: { ...execution.input },
+      input,
     },
     {
       ...services,
