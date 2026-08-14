@@ -15,17 +15,20 @@ export const DELETE = deleteTodo;
 type RouteContext = { params: Promise<{ slug: string }> };
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
-  const notificationRequest = new NextRequest(req.clone());
+  const notificationPayload = req
+    .clone()
+    .json()
+    .catch(() => null) as Promise<{
+    agencyRequest?: { phase?: unknown; questions?: unknown };
+  } | null>;
   const response = await patchTodo(req, context);
   if (!response.ok) return response;
 
   try {
-    const payload = (await notificationRequest.json()) as {
-      agencyRequest?: { phase?: unknown; questions?: unknown };
-    };
-    const questions = payload.agencyRequest?.questions;
+    const payload = await notificationPayload;
+    const questions = payload?.agencyRequest?.questions;
     if (
-      payload.agencyRequest?.phase !== "waiting-information" ||
+      payload?.agencyRequest?.phase !== "waiting-information" ||
       !Array.isArray(questions) ||
       questions.length === 0 ||
       questions.some((question) => typeof question !== "string")
@@ -33,8 +36,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return response;
     }
 
-    const auth = getRequestAuth(notificationRequest);
-    const octokit = await getUserOctokit(notificationRequest);
+    const auth = getRequestAuth(req);
+    const octokit = await getUserOctokit(req);
     if (!auth || !octokit) return response;
     const { slug } = await context.params;
     const result = (await response.clone().json()) as {
@@ -51,7 +54,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       .slice(0, 16);
     const url = new URL(
       `/repo/${encodeURIComponent(auth.owner)}/${encodeURIComponent(auth.repo)}/todos/${encodeURIComponent(slug)}`,
-      notificationRequest.url,
+      req.url,
     ).toString();
     await appendInboxEntries(octokit, auth.owner, auth.repo, [
       {
