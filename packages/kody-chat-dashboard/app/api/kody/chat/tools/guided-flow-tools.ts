@@ -135,8 +135,13 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
                 currentStepId: frame.currentStepId,
               })),
             };
-          case "outline":
-            return { definitions: await reader.getOutline() };
+          case "outline": {
+            const definitions = await reader.getOutline();
+            return {
+              definitions,
+              modelGuides: await reader.getModelGuides(definitions),
+            };
+          }
           case "step": {
             if (!input.flowId || !input.flowVersion || !input.stepId) {
               return {

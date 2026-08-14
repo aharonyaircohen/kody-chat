@@ -1,4 +1,7 @@
-import type { GuidedFlowDefinition } from "../controller";
+import {
+  buildGuidedFlowFromRequestBlueprint,
+  type RequestBlueprintDefinition,
+} from "../../request-blueprints";
 
 export const NEW_AGENCY_REQUEST_FLOW_ID = "new-agency-request";
 
@@ -40,10 +43,12 @@ const questions = [
   },
 ] as const;
 
-export const NEW_AGENCY_REQUEST_FLOW: GuidedFlowDefinition = {
+export const NEW_AGENCY_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
   id: NEW_AGENCY_REQUEST_FLOW_ID,
   version: 1,
   title: "New Agency request",
+  purpose:
+    "Collect one durable automation requirement and hand it to AgencyRequestManager.",
   controls: ["back"],
   onComplete: { action: "agency-request.submit" },
   steps: [
@@ -107,3 +112,7 @@ export const NEW_AGENCY_REQUEST_FLOW: GuidedFlowDefinition = {
     })),
   ],
 };
+
+export const NEW_AGENCY_REQUEST_FLOW = buildGuidedFlowFromRequestBlueprint(
+  NEW_AGENCY_REQUEST_BLUEPRINT,
+);

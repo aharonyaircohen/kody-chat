@@ -1,9 +1,10 @@
 import { api as backendApi } from "@kody-ade/backend/api";
 import type { createBackendClient } from "@kody-ade/backend/client";
 import {
-  buildGuidedFlowDefinition,
+  buildRequestBlueprintDefinition,
   type GuidedFlowDraft,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
+import { buildGuidedFlowFromRequestBlueprint } from "@kody-ade/kody-chat-dashboard/request-blueprints";
 import {
   GuidedFlowCompositionError,
   validateGuidedFlowComposition,
@@ -64,17 +65,21 @@ export async function saveGuidedFlowDefinition(
     (input.flowId
       ? latestStoredDefinition(customDefinitions, input.flowId)?.version
       : 0) ?? 0;
-  const unpinnedDefinition = buildGuidedFlowDefinition(
+  const blueprint = buildRequestBlueprintDefinition(
     input.draft,
     input.flowId,
     nextVersion + 1,
   );
+  const unpinnedDefinition = buildGuidedFlowFromRequestBlueprint(blueprint);
   const renderers = await loadGuidedFlowRenderers(input.tenantId, [
     unpinnedDefinition,
   ]);
-  let candidate;
+  let candidateFlow;
   try {
-    candidate = pinGuidedFlowRendererVersions(unpinnedDefinition, renderers);
+    candidateFlow = pinGuidedFlowRendererVersions(
+      unpinnedDefinition,
+      renderers,
+    );
   } catch (error) {
     return {
       ok: false,
@@ -86,12 +91,16 @@ export async function saveGuidedFlowDefinition(
           : "renderer_contract_invalid",
     };
   }
-  const navigationError = validateGuidedFlowNavigation(candidate);
+  const candidate: StoredGuidedFlowDefinition = {
+    ...candidateFlow,
+    purpose: blueprint.purpose,
+  };
+  const navigationError = validateGuidedFlowNavigation(candidateFlow);
   if (navigationError) {
     return { ok: false, status: 400, error: navigationError };
   }
   try {
-    validateGuidedFlowDefinition(candidate);
+    validateGuidedFlowDefinition(candidateFlow);
   } catch (error) {
     if (error instanceof GuidedFlowDefinitionError) {
       return { ok: false, status: 400, error: error.code };
@@ -99,7 +108,7 @@ export async function saveGuidedFlowDefinition(
     throw error;
   }
   try {
-    validateGuidedFlowComposition(candidate, [
+    validateGuidedFlowComposition(candidateFlow, [
       ...listGuidedFlowDefinitions(),
       ...customDefinitions,
     ]);

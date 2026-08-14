@@ -6,6 +6,8 @@ import {
   type GuidedFlowDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import { guidedFlowDefinitionForReference } from "@kody-ade/kody-chat-dashboard/guided-flows/definitions";
+import { getRequestBlueprintDefinition } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import { buildRequestBlueprintModelGuide } from "@kody-ade/kody-chat-dashboard/request-blueprints";
 import {
   guidedFlowInstanceFromRow,
   type GuidedFlowStoredInstance,
@@ -135,6 +137,30 @@ export class ConvexGuidedFlowReader implements GuidedFlowReader {
       : current.definition;
     if (root) visit(root);
     return definitions;
+  }
+
+  async getModelGuides(
+    definitions: readonly GuidedFlowDefinition[],
+  ): Promise<readonly string[]> {
+    const stored = await this.#definitions();
+    return definitions.flatMap((definition) => {
+      const blueprint =
+        stored.find(
+          (candidate) =>
+            candidate.id === definition.id &&
+            candidate.version === definition.version,
+        ) ?? getRequestBlueprintDefinition(definition.id, definition.version);
+      return blueprint
+        ? [
+            buildRequestBlueprintModelGuide({
+              ...blueprint,
+              purpose:
+                blueprint.purpose ??
+                `Guide the user through ${blueprint.title}.`,
+            }),
+          ]
+        : [];
+    });
   }
 
   async getStep(reference: GuidedFlowRef & { readonly stepId: string }) {

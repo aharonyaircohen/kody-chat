@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  latestAvailableGuidedFlowDefinitions,
   parseGuidedFlowDefinitionRows,
   parseStoredGuidedFlowDefinitions,
 } from "../../src/dashboard/lib/guided-flows/stored";
@@ -22,6 +23,27 @@ function definition(title: string) {
 }
 
 describe("stored guided flow definitions", () => {
+  it("upgrades an older stored flow into a request blueprint", () => {
+    expect(
+      parseStoredGuidedFlowDefinitions([definition("Repository")]),
+    ).toEqual([
+      expect.objectContaining({
+        purpose: "Guide the user through Repository.",
+      }),
+    ]);
+  });
+
+  it("preserves an authored purpose but removes it from the runtime flow", () => {
+    const [blueprint] = parseStoredGuidedFlowDefinitions([
+      { ...definition("Repository"), purpose: "Keep releases healthy." },
+    ]);
+
+    expect(blueprint?.purpose).toBe("Keep releases healthy.");
+    expect(
+      latestAvailableGuidedFlowDefinitions(blueprint ? [blueprint] : []),
+    ).toEqual([expect.not.objectContaining({ purpose: expect.anything() })]);
+  });
+
   it("preserves supported optional controls", () => {
     expect(
       parseGuidedFlowDefinitionRows([

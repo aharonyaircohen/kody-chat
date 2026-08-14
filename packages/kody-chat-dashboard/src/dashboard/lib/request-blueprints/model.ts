@@ -1,25 +1,10 @@
-export interface RequestBlueprintQuestion {
-  readonly id: string;
-  readonly name: string;
-  readonly title: string;
-  readonly explanation: string;
-  readonly optional?: boolean;
-  readonly inputType?: "text" | "textarea";
-  readonly followUps?: readonly RequestBlueprintQuestion[];
-}
+import type { GuidedFlowDefinition } from "../guided-flows/model";
 
-export interface RequestBlueprintDefinition {
-  readonly id: string;
-  readonly version: number;
-  readonly title: string;
-  readonly introduction: {
-    readonly title: string;
-    readonly explanation: string;
-  };
-  readonly modelPurpose: string;
-  readonly questions: readonly RequestBlueprintQuestion[];
-  readonly onComplete: {
-    readonly action: "agency-request.submit";
-  };
+/**
+ * The complete source for both a user Guided Flow and Kody's matching guide.
+ * GuidedFlowDefinition is deliberately the generated runtime shape rather than
+ * a second independently authored model.
+ */
+export interface RequestBlueprintDefinition extends GuidedFlowDefinition {
+  readonly purpose: string;
 }
-

@@ -1,5 +1,9 @@
 import type { GuidedFlowDefinition } from "./controller";
-import { BUILTIN_GUIDED_FLOW_DEFINITIONS } from "./builtins";
+import {
+  BUILTIN_GUIDED_FLOW_DEFINITIONS,
+  BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS,
+} from "./builtins";
+import type { RequestBlueprintDefinition } from "../request-blueprints";
 import { validateGuidedFlowDefinition } from "./validation";
 
 for (const definition of BUILTIN_GUIDED_FLOW_DEFINITIONS) {
@@ -41,4 +45,16 @@ export function listGuidedFlowDefinitions(): readonly GuidedFlowDefinition[] {
     }
   }
   return [...latestById.values()];
+}
+
+export function getRequestBlueprintDefinition(
+  flowId: string,
+  version: number,
+): RequestBlueprintDefinition | null {
+  return (
+    BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS.find(
+      (definition) =>
+        definition.id === flowId && definition.version === version,
+    ) ?? null
+  );
 }

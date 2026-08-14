@@ -1,6 +1,10 @@
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { VIEW_RENDERER_SLUG_RE } from "../view-renderers/definition";
 import {
+  buildGuidedFlowFromRequestBlueprint,
+  type RequestBlueprintDefinition,
+} from "../request-blueprints";
+import {
   type GuidedFlowActionDefinition,
   type GuidedFlowCommandStepDefinition,
   type GuidedFlowDefinition,
@@ -58,6 +62,7 @@ export const guidedFlowDraftCommandStepSchema = z.object({
 
 export const guidedFlowDraftSchema = z.object({
   title: z.string().trim().min(1).max(160),
+  purpose: z.string().trim().max(1_000).optional(),
   completionRouteId: z.string().trim().max(80).optional(),
   completionRouteParameters: routeParametersSchema,
   controls: z
@@ -512,11 +517,11 @@ function rendererDataFor(
   };
 }
 
-export function buildGuidedFlowDefinition(
+export function buildRequestBlueprintDefinition(
   draft: GuidedFlowDraft,
   requestedId?: string,
   version = 1,
-): GuidedFlowDefinition {
+): RequestBlueprintDefinition {
   const errors = validateGuidedFlowDraft(draft);
   if (Object.keys(errors).length > 0) {
     throw new Error(Object.values(errors)[0]);
@@ -589,6 +594,8 @@ export function buildGuidedFlowDefinition(
     id,
     version,
     title: draft.title.trim(),
+    purpose:
+      draft.purpose?.trim() || `Guide the user through ${draft.title.trim()}.`,
     ...(draft.completionRouteId?.trim()
       ? { completionRouteId: draft.completionRouteId.trim() }
       : {}),
@@ -598,4 +605,15 @@ export function buildGuidedFlowDefinition(
       : {}),
     steps,
   };
+}
+
+/** Compatibility helper for runtime consumers. Authoring is blueprint-owned. */
+export function buildGuidedFlowDefinition(
+  draft: GuidedFlowDraft,
+  requestedId?: string,
+  version = 1,
+): GuidedFlowDefinition {
+  return buildGuidedFlowFromRequestBlueprint(
+    buildRequestBlueprintDefinition(draft, requestedId, version),
+  );
 }

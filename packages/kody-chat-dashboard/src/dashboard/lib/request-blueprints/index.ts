@@ -1,142 +1,122 @@
-import type { GuidedFlowDefinition } from "../guided-flows/model";
 import type {
-  RequestBlueprintDefinition,
-  RequestBlueprintQuestion,
-} from "./model";
+  GuidedFlowActionTarget,
+  GuidedFlowDefinition,
+  GuidedFlowStepDefinition,
+} from "../guided-flows/model";
+import type { RequestBlueprintDefinition } from "./model";
 
-export type {
-  RequestBlueprintDefinition,
-  RequestBlueprintQuestion,
-} from "./model";
-
-function flattenQuestions(
-  questions: readonly RequestBlueprintQuestion[],
-): RequestBlueprintQuestion[] {
-  return questions.flatMap((question) => [
-    question,
-    ...flattenQuestions(question.followUps ?? []),
-  ]);
-}
+export type { RequestBlueprintDefinition } from "./model";
 
 function validateRequestBlueprint(
   definition: RequestBlueprintDefinition,
-): RequestBlueprintQuestion[] {
-  if (!definition.id.trim()) throw new Error("Request Blueprint id is required");
+): void {
+  if (!definition.id.trim())
+    throw new Error("Request Blueprint id is required");
   if (!Number.isInteger(definition.version) || definition.version < 1) {
     throw new Error("Request Blueprint version must be a positive integer");
   }
-
-  const questions = flattenQuestions(definition.questions);
-  if (questions.length === 0) {
-    throw new Error("Request Blueprint must define at least one question");
+  if (!definition.title.trim()) {
+    throw new Error("Request Blueprint title is required");
+  }
+  if (!definition.purpose.trim()) {
+    throw new Error("Request Blueprint purpose is required");
+  }
+  if (definition.steps.length === 0) {
+    throw new Error("Request Blueprint must define at least one step");
   }
 
-  const ids = new Set<string>();
-  const names = new Set<string>();
-  for (const question of questions) {
-    if (!question.id.trim()) throw new Error("Request Blueprint question id is required");
-    if (!question.name.trim()) {
-      throw new Error("Request Blueprint answer name is required");
-    }
-    if (ids.has(question.id)) {
-      throw new Error(`Duplicate question id "${question.id}"`);
-    }
-    if (names.has(question.name)) {
-      throw new Error(`Duplicate answer name "${question.name}"`);
-    }
-    ids.add(question.id);
-    names.add(question.name);
+  const stepIds = new Set<string>();
+  for (const step of definition.steps) {
+    if (!step.id.trim())
+      throw new Error("Request Blueprint step id is required");
+    if (stepIds.has(step.id)) throw new Error(`Duplicate step id "${step.id}"`);
+    stepIds.add(step.id);
   }
-  return questions;
+
+  for (const step of definition.steps) {
+    const actionIds = new Set<string>();
+    for (const action of step.actions) {
+      if (actionIds.has(action.id)) {
+        throw new Error(
+          `Duplicate action id "${action.id}" in step "${step.id}"`,
+        );
+      }
+      actionIds.add(action.id);
+      if (action.target.type === "step" && !stepIds.has(action.target.stepId)) {
+        throw new Error(
+          `Unknown step target "${action.target.stepId}" from step "${step.id}"`,
+        );
+      }
+    }
+  }
 }
 
 export function buildGuidedFlowFromRequestBlueprint(
   definition: RequestBlueprintDefinition,
 ): GuidedFlowDefinition {
-  const questions = validateRequestBlueprint(definition);
+  validateRequestBlueprint(definition);
+  const { purpose: _purpose, ...flow } = definition;
+  return flow;
+}
 
-  return {
-    id: definition.id,
-    version: definition.version,
-    title: definition.title,
-    controls: ["back"],
-    onComplete: definition.onComplete,
-    steps: [
-      {
-        id: "introduction",
-        title: definition.introduction.title,
-        explanation: definition.introduction.explanation,
-        rendererSlug: "approval-card",
-        rendererData: {
-          title: definition.title,
-          actions: [
-            {
-              id: "continue",
-              label: "Begin",
-              response: "continue",
-              variant: "primary",
-            },
-          ],
-        },
-        actions: [
-          {
-            id: "continue",
-            target: { type: "step", stepId: questions[0]!.id },
-          },
-        ],
-      },
-      ...questions.map((question, index) => ({
-        id: question.id,
-        title: question.title,
-        explanation: question.explanation,
-        rendererSlug: "guided-form",
-        rendererData: {
-          title: `Question ${index + 1} of ${questions.length}`,
-          fields: [
-            {
-              name: question.name,
-              label: question.title,
-              value: "",
-              inputType: question.inputType ?? "textarea",
-              ...(question.optional ? { description: "Optional" } : {}),
-            },
-          ],
-          submitLabel:
-            index === questions.length - 1 ? "Submit request" : "Continue",
-        },
-        actions: [
-          {
-            id: "submit",
-            target:
-              index === questions.length - 1
-                ? ({ type: "complete" } as const)
-                : ({
-                    type: "step",
-                    stepId: questions[index + 1]!.id,
-                  } as const),
-          },
-        ],
-      })),
-    ],
-  };
+function targetGuide(target: GuidedFlowActionTarget): string {
+  return target.type === "step" ? `step:${target.stepId}` : target.type;
+}
+
+function stepKind(step: GuidedFlowStepDefinition): string {
+  if (step.type === "command") return `command: ${step.command}`;
+  if (step.type === "flow") return `flow: ${step.flowId}@${step.flowVersion}`;
+  return `view: ${step.rendererSlug}${
+    step.rendererVersion ? `@${step.rendererVersion}` : ""
+  }`;
+}
+
+function json(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 export function buildRequestBlueprintModelGuide(
   definition: RequestBlueprintDefinition,
 ): string {
-  const questions = validateRequestBlueprint(definition);
-  const questionGuide = questions
-    .map(
-      (question) =>
-        `- ${question.name}: ${question.title} ${question.explanation}`,
-    )
-    .join("\n");
+  validateRequestBlueprint(definition);
+  const steps = definition.steps.map((step, index) => {
+    const lines = [
+      `${index + 1}. ${step.id} [${stepKind(step)}]`,
+      `   title: ${step.title}`,
+      `   guidance: ${step.explanation}`,
+    ];
+    if (step.authoringGoal) lines.push(`   goal: ${step.authoringGoal}`);
+    if (step.routeId) {
+      lines.push(
+        `   route: ${step.routeId}${
+          step.routeParameters ? ` ${json(step.routeParameters)}` : ""
+        }`,
+      );
+    }
+    if (step.type !== "command" && step.type !== "flow" && step.rendererData) {
+      lines.push(`   renderer data: ${json(step.rendererData)}`);
+    }
+    lines.push(
+      `   actions: ${step.actions
+        .map((action) => `${action.id} -> ${targetGuide(action.target)}`)
+        .join(", ")}`,
+    );
+    return lines.join("\n");
+  });
+
+  const completionRoute = definition.completionRouteId
+    ? `completion route: ${definition.completionRouteId}${
+        definition.completionRouteParameters
+          ? ` ${json(definition.completionRouteParameters)}`
+          : ""
+      }`
+    : "completion route: none";
 
   return [
-    `Purpose: ${definition.modelPurpose}`,
-    "Use this Request Blueprint as the single intake contract:",
-    questionGuide,
-    "Inspect available repository facts before asking the user. Ask only for a missing user decision that cannot be safely inferred. Preserve the answer names when submitting the request.",
+    `Request Blueprint: ${definition.title}`,
+    `Purpose: ${definition.purpose}`,
+    "Follow the same ordered steps, guidance, routes, commands, and action boundaries as the user Guided Flow.",
+    ...steps,
+    completionRoute,
   ].join("\n");
 }
-

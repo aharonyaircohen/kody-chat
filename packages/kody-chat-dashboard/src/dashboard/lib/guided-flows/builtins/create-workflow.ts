@@ -1,11 +1,15 @@
-import type { GuidedFlowDefinition } from "../controller";
+import {
+  buildGuidedFlowFromRequestBlueprint,
+  type RequestBlueprintDefinition,
+} from "../../request-blueprints";
 
 export const CREATE_WORKFLOW_FLOW_ID = "create-workflow";
 
-export const CREATE_WORKFLOW_FLOW: GuidedFlowDefinition = {
+export const CREATE_WORKFLOW_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
   id: CREATE_WORKFLOW_FLOW_ID,
   version: 1,
   title: "Create a workflow",
+  purpose: "Guide the user through creating and reviewing a Workflow.",
   completionRouteId: "workflows",
   controls: ["back"],
   steps: [
@@ -55,3 +59,7 @@ export const CREATE_WORKFLOW_FLOW: GuidedFlowDefinition = {
     },
   ],
 };
+
+export const CREATE_WORKFLOW_FLOW = buildGuidedFlowFromRequestBlueprint(
+  CREATE_WORKFLOW_REQUEST_BLUEPRINT,
+);

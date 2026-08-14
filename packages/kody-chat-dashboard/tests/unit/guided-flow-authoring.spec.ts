@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGuidedFlowDefinition,
+  buildRequestBlueprintDefinition,
   deriveGuidedFlowRendererData,
   migrateLegacyGuidedFlowDefinition,
   validateGuidedFlowDraft,
@@ -38,6 +39,33 @@ const validDraft: GuidedFlowDraft = {
 };
 
 describe("guided flow authoring", () => {
+  it("builds one request blueprint for both the user flow and model guide", () => {
+    const blueprint = buildRequestBlueprintDefinition(
+      { ...validDraft, purpose: "Prepare a release safely." },
+      "review-release",
+    );
+
+    expect(blueprint).toMatchObject({
+      id: "review-release",
+      purpose: "Prepare a release safely.",
+      title: "Review a release",
+    });
+    expect(buildGuidedFlowDefinition(validDraft, "review-release")).toEqual({
+      id: blueprint.id,
+      version: blueprint.version,
+      title: blueprint.title,
+      completionRouteId: blueprint.completionRouteId,
+      controls: blueprint.controls,
+      steps: blueprint.steps,
+    });
+  });
+
+  it("derives a purpose for an older draft that does not have one", () => {
+    expect(buildRequestBlueprintDefinition(validDraft).purpose).toBe(
+      "Guide the user through Review a release.",
+    );
+  });
+
   it("stores a command step as a raw chat command with generic actions", () => {
     const definition = buildGuidedFlowDefinition({
       title: "Initialize Kody",

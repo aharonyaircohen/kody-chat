@@ -339,6 +339,17 @@ describe("guided_flow_start chat tool", () => {
     );
     expect(current).not.toHaveProperty("definition");
 
+    const outline = await tools.guided_flow_read.execute!(
+      { section: "outline" },
+      {} as never,
+    );
+    expect(outline).toMatchObject({
+      definitions: [expect.objectContaining({ id: "custom-lesson" })],
+      modelGuides: [
+        expect.stringContaining("Request Blueprint: Custom lesson"),
+      ],
+    });
+
     const history = await tools.guided_flow_read.execute!(
       { section: "history", limit: 20 },
       {} as never,

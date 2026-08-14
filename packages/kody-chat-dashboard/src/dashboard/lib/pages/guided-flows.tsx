@@ -31,6 +31,7 @@ import {
   isNestedGuidedFlowStep,
   type GuidedFlowDefinition,
 } from "../guided-flows/controller";
+import type { RequestBlueprintDefinition } from "../request-blueprints";
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import { isWidgetViewRenderer } from "../view-renderers/classification";
 import type { ViewRendererDefinition } from "../view-renderers/definition";
@@ -52,7 +53,10 @@ import { MarkdownEditor } from "../components/MarkdownEditor";
 import { useGuidedFlowChat } from "../guided-flows/chat-controller";
 import { WidgetStepFields } from "../guided-flows/WidgetStepFields";
 
-type FlowDefinition = GuidedFlowDefinition & { description?: string };
+type FlowDefinition = GuidedFlowDefinition &
+  Partial<Pick<RequestBlueprintDefinition, "purpose">> & {
+    description?: string;
+  };
 
 const BUILTIN_START_OPTIONS: FlowDefinition[] = [
   ...listGuidedFlowDefinitions(),
@@ -154,6 +158,7 @@ function newDraftStep(): GuidedFlowDraftStep {
 function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
   return {
     title: definition.title,
+    purpose: definition.purpose ?? "",
     completionRouteId: definition.completionRouteId ?? "",
     completionRouteParameters: definition.completionRouteParameters ?? {},
     controls: [...(definition.controls ?? [])],
@@ -279,6 +284,7 @@ function FlowBuilder({
       ? draftFromDefinition(definition)
       : {
           title: "",
+          purpose: "",
           completionRouteId: "",
           controls: [],
           steps: [newDraftStep()],
@@ -414,12 +420,14 @@ function FlowBuilder({
         error?: string;
       };
       if (!response.ok || !payload.definition) {
-        throw new Error(payload.error ?? "Unable to save Guided Flow");
+        throw new Error(payload.error ?? "Unable to save Request Blueprint");
       }
       onSaved(payload.definition);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Unable to save Guided Flow",
+        cause instanceof Error
+          ? cause.message
+          : "Unable to save Request Blueprint",
       );
     } finally {
       setSaving(false);
@@ -432,13 +440,14 @@ function FlowBuilder({
         <DialogHeader>
           <DialogTitle>
             {mode === "create"
-              ? "Create a Guided Flow"
+              ? "Create a Request Blueprint"
               : mode === "edit"
-                ? "Edit Guided Flow"
-                : "View Guided Flow"}
+                ? "Edit Request Blueprint"
+                : "View Request Blueprint"}
           </DialogTitle>
           <DialogDescription>
-            Define the steps and renderer Kody should show.
+            Define one purpose and its steps. Kody generates the Guided Flow and
+            matching model guidance.
             {definition
               ? ` Editing creates a new version; existing runs stay on v${definition.version ?? 1}.`
               : " This flow will be saved as version 1."}
@@ -462,6 +471,22 @@ function FlowBuilder({
                 setDraft((current) => ({
                   ...current,
                   title: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="text-sm text-white/70">
+            Purpose
+            <input
+              aria-label="Purpose"
+              placeholder="Shared goal for the user flow and Kody"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+              value={draft.purpose ?? ""}
+              disabled={readOnly}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  purpose: event.target.value,
                 }))
               }
             />
@@ -867,7 +892,7 @@ function FlowBuilder({
               {saving ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : null}
-              {saving ? "Saving…" : "Save Guided Flow"}
+              {saving ? "Saving…" : "Save Request Blueprint"}
             </Button>
           ) : null}
         </div>
@@ -903,16 +928,16 @@ function GuidedFlowsManager() {
         error?: string;
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load Guided Flows");
+        throw new Error(payload.error ?? "Unable to load Request Blueprints");
       }
       setDefinitions(payload.definitions ?? BUILTIN_START_OPTIONS);
     } catch (cause) {
       setError(
         cause instanceof DOMException && cause.name === "TimeoutError"
-          ? "Guided Flows took too long to load. Try again."
+          ? "Request Blueprints took too long to load. Try again."
           : cause instanceof Error
             ? cause.message
-            : "Unable to load Guided Flows",
+            : "Unable to load Request Blueprints",
       );
     }
   }, [auth]);
@@ -936,7 +961,9 @@ function GuidedFlowsManager() {
         });
         const payload = (await response.json()) as { error?: string };
         if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to delete Guided Flow");
+          throw new Error(
+            payload.error ?? "Unable to delete Request Blueprint",
+          );
         }
         setDefinitions((current) =>
           current.filter((candidate) => candidate.id !== definition.id),
@@ -946,7 +973,7 @@ function GuidedFlowsManager() {
         setError(
           cause instanceof Error
             ? cause.message
-            : "Unable to delete Guided Flow",
+            : "Unable to delete Request Blueprint",
         );
       } finally {
         setDeleting(false);
@@ -957,8 +984,8 @@ function GuidedFlowsManager() {
   useEffect(() => void load(), [load]);
   return (
     <PageShell
-      title="Guided Flow Management"
-      subtitle="View and manage the reusable step-by-step experiences available to users."
+      title="Request Blueprints"
+      subtitle="Define one reusable source for the user Guided Flow and Kody's matching guidance."
       icon={Route}
       iconClassName="text-teal-300"
       width="wide"
@@ -998,20 +1025,20 @@ function GuidedFlowsManager() {
             }}
           />
         ) : null}
-        <section aria-label="Guided Flow definitions">
+        <section aria-label="Request Blueprint definitions">
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-white/90">
-                Flow definitions
+                Blueprint definitions
               </h2>
               <p className="mt-1 text-sm text-white/50">
-                View, edit, and remove reusable Guided Flow definitions.
-                Built-in definitions are read-only.
+                View, edit, and run reusable Request Blueprints. Built-in
+                Blueprints are read-only.
               </p>
             </div>
             <Button size="sm" onClick={() => setEditor({ mode: "create" })}>
               <Plus className="mr-1.5 h-4 w-4" />
-              Add Guided Flow
+              Add Request Blueprint
             </Button>
           </div>
           <ul className="space-y-2">
@@ -1093,7 +1120,7 @@ function GuidedFlowsManager() {
         </section>
         <ConfirmDialog
           open={Boolean(deleteTarget)}
-          title="Delete Guided Flow"
+          title="Delete Request Blueprint"
           description={
             deleteTarget
               ? `Delete “${deleteTarget.title}”? New users will no longer be able to start this definition.`

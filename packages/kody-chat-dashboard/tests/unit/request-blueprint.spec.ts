@@ -7,93 +7,111 @@ import {
 } from "../../src/dashboard/lib/request-blueprints";
 
 const definition: RequestBlueprintDefinition = {
-  id: "create-blueprint",
-  version: 1,
-  title: "Create Blueprint",
-  introduction: {
-    title: "Define the reusable result",
-    explanation: "Answer once so Kody and the Guided Flow use the same brief.",
-  },
-  modelPurpose: "Create a reusable Store Blueprint.",
-  questions: [
+  id: "full-guidance",
+  version: 2,
+  title: "Full guidance",
+  purpose: "Prepare, run, review, and finish one guided operation.",
+  completionRouteId: "chat",
+  completionRouteParameters: { mode: "guided" },
+  controls: ["back"],
+  onComplete: { action: "agency-request.submit" },
+  steps: [
     {
-      id: "desired-outcome",
-      name: "desiredOutcome",
-      title: "What should the Blueprint achieve?",
-      explanation: "Describe the reusable result.",
-      followUps: [
-        {
-          id: "activation",
-          name: "activation",
-          title: "When should the installed Agency act?",
-          explanation: "Describe the trigger.",
-        },
+      id: "prepare",
+      title: "Prepare",
+      explanation: "Confirm the target before continuing.",
+      authoringGoal: "Make the target explicit.",
+      rendererSlug: "approval-card",
+      rendererVersion: 1,
+      rendererData: { title: "Prepare", tone: "caution" },
+      actions: [{ id: "continue", target: { type: "step", stepId: "run" } }],
+    },
+    {
+      id: "run",
+      type: "command",
+      title: "Run",
+      explanation: "Run the repository command.",
+      command: "/init",
+      actions: [
+        { id: "run", target: { type: "stay" } },
+        { id: "continue", target: { type: "step", stepId: "review" } },
       ],
     },
     {
-      id: "success-criteria",
-      name: "successCriteria",
-      title: "What proves it works?",
-      explanation: "Describe end-to-end proof.",
+      id: "review",
+      title: "Review",
+      explanation: "Review the generated files.",
+      routeId: "files",
+      routeParameters: { path: ".github/workflows" },
+      rendererSlug: "approval-card",
+      actions: [{ id: "finish", target: { type: "step", stepId: "details" } }],
+    },
+    {
+      id: "details",
+      type: "flow",
+      title: "Details",
+      explanation: "Complete the nested guidance.",
+      flowId: "nested-details",
+      flowVersion: 3,
+      actions: [{ id: "done", target: { type: "complete" } }],
     },
   ],
-  onComplete: { action: "agency-request.submit" },
 };
 
 describe("Request Blueprint", () => {
-  it("generates one Guided Flow with follow-up questions in order", () => {
-    const flow = buildGuidedFlowFromRequestBlueprint(definition);
-
-    expect(flow).toMatchObject({
-      id: "create-blueprint",
-      version: 1,
-      title: "Create Blueprint",
-      onComplete: { action: "agency-request.submit" },
-    });
-    expect(flow.steps.map(({ id }) => id)).toEqual([
-      "introduction",
-      "desired-outcome",
-      "activation",
-      "success-criteria",
-    ]);
-    expect(flow.steps[1]?.actions[0]?.target).toEqual({
-      type: "step",
-      stepId: "activation",
-    });
-    expect(flow.steps.at(-1)?.actions[0]?.target).toEqual({
-      type: "complete",
+  it("generates the complete Guided Flow contract without losing behavior", () => {
+    expect(buildGuidedFlowFromRequestBlueprint(definition)).toEqual({
+      id: definition.id,
+      version: definition.version,
+      title: definition.title,
+      completionRouteId: definition.completionRouteId,
+      completionRouteParameters: definition.completionRouteParameters,
+      controls: definition.controls,
+      onComplete: definition.onComplete,
+      steps: definition.steps,
     });
   });
 
-  it("generates Kody guidance from the same questions", () => {
+  it("generates Kody guidance for views, commands, routes, nesting, and actions", () => {
     const guide = buildRequestBlueprintModelGuide(definition);
 
-    expect(guide).toContain("Create a reusable Store Blueprint.");
-    expect(guide).toContain("desiredOutcome: What should the Blueprint achieve?");
-    expect(guide).toContain("activation: When should the installed Agency act?");
-    expect(guide).toContain("successCriteria: What proves it works?");
-    expect(guide).toMatch(/ask only for a missing user decision/i);
+    expect(guide).toContain(definition.purpose);
+    expect(guide).toContain("prepare [view: approval-card@1]");
+    expect(guide).toContain(
+      'renderer data: {"title":"Prepare","tone":"caution"}',
+    );
+    expect(guide).toContain("run [command: /init]");
+    expect(guide).toContain("review [view: approval-card]");
+    expect(guide).toContain('route: files {"path":".github/workflows"}');
+    expect(guide).toContain("details [flow: nested-details@3]");
+    expect(guide).toContain("continue -> step:run");
+    expect(guide).toContain("finish -> step:details");
+    expect(guide).toContain('completion route: chat {"mode":"guided"}');
   });
 
-  it("rejects duplicate question ids or answer names", () => {
+  it("rejects duplicate steps and missing action targets", () => {
     expect(() =>
       buildGuidedFlowFromRequestBlueprint({
         ...definition,
-        questions: [
-          definition.questions[0]!,
-          { ...definition.questions[1]!, id: "desired-outcome" },
-        ],
+        steps: [...definition.steps, definition.steps[0]!],
       }),
-    ).toThrow(/duplicate question id/i);
+    ).toThrow(/duplicate step id/i);
 
     expect(() =>
-      buildRequestBlueprintModelGuide({
+      buildGuidedFlowFromRequestBlueprint({
         ...definition,
-        questions: [
-          definition.questions[0]!,
-          { ...definition.questions[1]!, name: "activation" },
+        steps: [
+          {
+            ...definition.steps[0]!,
+            actions: [
+              {
+                id: "continue",
+                target: { type: "step", stepId: "missing" },
+              },
+            ],
+          },
         ],
       }),
-    ).toThrow(/duplicate answer name/i);
+    ).toThrow(/unknown step target/i);
   });
 });

@@ -31,6 +31,7 @@
     "./guided-flows/builtins": "./src/dashboard/lib/guided-flows/builtins/index.ts",
     "./guided-flows/*": "./src/dashboard/lib/guided-flows/*.ts",
     "./guided-flows/chat-controller": "./src/dashboard/lib/guided-flows/chat-controller.tsx",
+    "./request-blueprints": "./src/dashboard/lib/request-blueprints/index.ts",
     "./widgets/*": "./src/dashboard/lib/widgets/*.ts",
     "./platform/*": "./src/dashboard/lib/chat/platform/*.ts",
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",

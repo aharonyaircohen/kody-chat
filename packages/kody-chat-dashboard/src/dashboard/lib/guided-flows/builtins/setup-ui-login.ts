@@ -1,11 +1,15 @@
-import type { GuidedFlowDefinition } from "../controller";
+import {
+  buildGuidedFlowFromRequestBlueprint,
+  type RequestBlueprintDefinition,
+} from "../../request-blueprints";
 
 export const SETUP_UI_LOGIN_FLOW_ID = "setup-ui-login";
 
-export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
+export const SETUP_UI_LOGIN_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
   id: SETUP_UI_LOGIN_FLOW_ID,
   version: 1,
   title: "Set up UI login",
+  purpose: "Guide the user through configuring and verifying UI login.",
   controls: ["back"],
   steps: [
     {
@@ -110,3 +114,7 @@ export const SETUP_UI_LOGIN_FLOW: GuidedFlowDefinition = {
     },
   ],
 };
+
+export const SETUP_UI_LOGIN_FLOW = buildGuidedFlowFromRequestBlueprint(
+  SETUP_UI_LOGIN_REQUEST_BLUEPRINT,
+);

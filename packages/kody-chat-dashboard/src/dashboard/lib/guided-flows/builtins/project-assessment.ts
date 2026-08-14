@@ -1,4 +1,7 @@
-import type { GuidedFlowDefinition } from "../controller";
+import {
+  buildGuidedFlowFromRequestBlueprint,
+  type RequestBlueprintDefinition,
+} from "../../request-blueprints";
 
 export const PROJECT_ASSESSMENT_FLOW_ID = "project-assessment";
 
@@ -54,7 +57,7 @@ const questions = [
   },
 ] as const;
 
-const questionSteps: GuidedFlowDefinition["steps"] = questions.map(
+const questionSteps: RequestBlueprintDefinition["steps"] = questions.map(
   (question, index) => ({
     id: question.id,
     title: question.title,
@@ -89,44 +92,58 @@ const questionSteps: GuidedFlowDefinition["steps"] = questions.map(
   }),
 );
 
-export const PROJECT_ASSESSMENT_FLOW_V1: GuidedFlowDefinition = {
-  id: PROJECT_ASSESSMENT_FLOW_ID,
-  version: 1,
-  title: "Project assessment",
-  controls: ["back"],
-  steps: questionSteps,
-};
+export const PROJECT_ASSESSMENT_REQUEST_BLUEPRINT_V1: RequestBlueprintDefinition =
+  {
+    id: PROJECT_ASSESSMENT_FLOW_ID,
+    version: 1,
+    title: "Project assessment",
+    purpose:
+      "Collect project context before Kody runs an evidence-based assessment.",
+    controls: ["back"],
+    steps: questionSteps,
+  };
 
-export const PROJECT_ASSESSMENT_FLOW: GuidedFlowDefinition = {
-  id: PROJECT_ASSESSMENT_FLOW_ID,
-  version: 2,
-  title: "Project assessment",
-  controls: ["back"],
-  steps: [
-    {
-      id: "introduction",
-      title: "Before the assessment",
-      explanation:
-        "Kody will build an evidence-based view of the project before recommending what to improve.\n\n- Kody automatically inspects the repository, GitHub history, architecture, code quality, tests, security, delivery, operations, scalability, and product QA.\n- You answer seven questions about goals, business risk, team capacity, experience, system knowledge, maintenance time, and report preferences.\n- Each answer is saved as you continue, so you can leave and resume later.\n- After the final answer, Kody runs up to ten assessment tracks in parallel and combines them into one report: a business overview first, followed by technical evidence and priorities.\n\nThe assessment creates a report. It does not change the product code.",
-      rendererSlug: "approval-card",
-      rendererData: {
-        title: "Deep project assessment",
+export const PROJECT_ASSESSMENT_FLOW_V1 = buildGuidedFlowFromRequestBlueprint(
+  PROJECT_ASSESSMENT_REQUEST_BLUEPRINT_V1,
+);
+
+export const PROJECT_ASSESSMENT_REQUEST_BLUEPRINT: RequestBlueprintDefinition =
+  {
+    id: PROJECT_ASSESSMENT_FLOW_ID,
+    version: 2,
+    title: "Project assessment",
+    purpose:
+      "Explain and collect the context required for Kody's full project assessment.",
+    controls: ["back"],
+    steps: [
+      {
+        id: "introduction",
+        title: "Before the assessment",
+        explanation:
+          "Kody will build an evidence-based view of the project before recommending what to improve.\n\n- Kody automatically inspects the repository, GitHub history, architecture, code quality, tests, security, delivery, operations, scalability, and product QA.\n- You answer seven questions about goals, business risk, team capacity, experience, system knowledge, maintenance time, and report preferences.\n- Each answer is saved as you continue, so you can leave and resume later.\n- After the final answer, Kody runs up to ten assessment tracks in parallel and combines them into one report: a business overview first, followed by technical evidence and priorities.\n\nThe assessment creates a report. It does not change the product code.",
+        rendererSlug: "approval-card",
+        rendererData: {
+          title: "Deep project assessment",
+          actions: [
+            {
+              id: "continue",
+              label: "Begin questions",
+              response: "continue",
+              variant: "primary",
+            },
+          ],
+        },
         actions: [
           {
             id: "continue",
-            label: "Begin questions",
-            response: "continue",
-            variant: "primary",
+            target: { type: "step", stepId: "project-expectations" },
           },
         ],
       },
-      actions: [
-        {
-          id: "continue",
-          target: { type: "step", stepId: "project-expectations" },
-        },
-      ],
-    },
-    ...questionSteps,
-  ],
-};
+      ...questionSteps,
+    ],
+  };
+
+export const PROJECT_ASSESSMENT_FLOW = buildGuidedFlowFromRequestBlueprint(
+  PROJECT_ASSESSMENT_REQUEST_BLUEPRINT,
+);
