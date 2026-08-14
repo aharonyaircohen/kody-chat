@@ -9,6 +9,7 @@ interface CompletionInput {
   octokit: Parameters<typeof writeTodoFile>[0]["octokit"];
   workflowId: string;
   runId: string;
+  loopId?: string;
   status: "success" | "failed" | "blocked";
   summary?: string;
 }
@@ -21,12 +22,16 @@ export async function completeAgencyRequestsForWorkflow(
     todos.map((todo) => [todo.slug, todo]),
   );
   return completeAgencyRequestRun(input, {
-    findByRun: async (runId) =>
+    findByRun: async (runId, loopId) =>
       todos
         .filter(
           (todo) =>
-            todo.agencyRequest?.related.some(
-              (ref) => ref.kind === "run" && ref.id === runId,
+            todo.agencyRequest?.related.some((ref) =>
+              ref.kind === "run"
+                ? ref.id === runId
+                : ref.kind === "loop" && loopId
+                  ? ref.id === loopId
+                  : false,
             ) === true,
         )
         .map((todo) => ({

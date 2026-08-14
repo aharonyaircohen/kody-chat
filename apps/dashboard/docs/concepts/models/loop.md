@@ -16,7 +16,7 @@ interface LoopDefinition {
         every: string;
         at?: { time: string; timezone: string };
       };
-    /* event/webhook/condition remain readable for legacy definitions only */
+  /* event/webhook/condition remain readable for legacy definitions only */
   target: { kind: "workflow" | "capability"; id: string };
   input: Record<string, unknown>;
   enabled: boolean;
@@ -35,8 +35,8 @@ interface LoopDefinition {
 
 | Trigger   | Dashboard accepts | Published Engine executes this simple Loop |
 | --------- | ----------------- | ------------------------------------------ |
-| Manual    | Yes               | No                                         |
-| Schedule  | Yes               | No                                         |
+| Manual    | Yes               | Yes                                        |
+| Schedule  | Yes               | Yes                                        |
 | Event     | Legacy read only  | No                                         |
 | Webhook   | Legacy read only  | No                                         |
 | Condition | Legacy read only  | No                                         |
@@ -53,3 +53,4 @@ still parsed and displayed as legacy values while they are migrated.
 3. Each firing needs an idempotency key.
 4. Runtime state and Runs never live inside the Loop definition.
 5. Saving a trigger is not proof that the Engine supports it.
+6. A temporary Agency-request Loop exists only while its Todo remains active.

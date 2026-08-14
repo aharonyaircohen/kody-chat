@@ -29,6 +29,10 @@ const operations = {
   "dailyLogs.append": { kind: "mutation", fn: backendApi.dailyLogs.append },
   "chatEvents.append": { kind: "mutation", fn: backendApi.chatEvents.append },
   "agencyRuns.save": { kind: "mutation", fn: backendApi.agencyRuns.save },
+  "agencyRequestLoops.list": {
+    kind: "query",
+    fn: backendApi.agencyRequestLoops.list,
+  },
   "agencyModel.reserveDispatch": {
     kind: "mutation",
     fn: backendApi.agencyModel.reserveDispatch,

@@ -13,7 +13,10 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@kody-ade/workspace/github";
-import { dispatchApprovedAgencyWorkflow } from "@dashboard/features/agency/server/approved-agency-workflow";
+import {
+  dispatchApprovedAgencyWorkflow,
+  prepareApprovedAgencyExecution,
+} from "@dashboard/features/agency/server/approved-agency-workflow";
 import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
 import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
 import {
@@ -72,6 +75,38 @@ export async function POST(
           sha: todo.sha,
         });
       },
+      prepare: (execution) =>
+        prepareApprovedAgencyExecution(execution, async (activation) => {
+          const headers = new Headers(req.headers);
+          headers.set("content-type", "application/json");
+          headers.delete("content-length");
+          const response = await fetch(
+            new URL("/api/kody/store-catalog/import", req.url),
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                kind: activation.kind,
+                slug: activation.id,
+                actorLogin: actorResult.identity.login,
+                repositoryWriteMode: "defer",
+              }),
+            },
+          );
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as {
+              message?: string;
+            };
+            throw new Error(
+              payload.message ??
+                `Could not activate ${activation.kind}:${activation.id}`,
+            );
+          }
+          const payload = (await response.json()) as {
+            configPatch?: Record<string, unknown>;
+          };
+          return { configPatch: payload.configPatch };
+        }),
       createRunId: () => `run-${randomUUID()}`,
       dispatch: (execution, runId) =>
         dispatchApprovedAgencyWorkflow({
@@ -94,37 +129,6 @@ export async function POST(
               owner: auth.owner,
               repo: auth.repo,
             }),
-            activate: async (activation) => {
-              const headers = new Headers(req.headers);
-              headers.set("content-type", "application/json");
-              headers.delete("content-length");
-              const response = await fetch(
-                new URL("/api/kody/store-catalog/import", req.url),
-                {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify({
-                    kind: activation.kind,
-                    slug: activation.id,
-                    actorLogin: actorResult.identity.login,
-                    repositoryWriteMode: "defer",
-                  }),
-                },
-              );
-              if (!response.ok) {
-                const payload = (await response.json().catch(() => ({}))) as {
-                  message?: string;
-                };
-                throw new Error(
-                  payload.message ??
-                    `Could not activate ${activation.kind}:${activation.id}`,
-                );
-              }
-              const payload = (await response.json()) as {
-                configPatch?: Record<string, unknown>;
-              };
-              return { configPatch: payload.configPatch };
-            },
           },
         }),
     });

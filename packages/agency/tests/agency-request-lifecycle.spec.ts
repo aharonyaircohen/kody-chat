@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  agencyRequestLoopId,
   completeAgencyRequestRun,
   startAgencyRequest,
   type AgencyRequestRecord,
@@ -40,6 +41,7 @@ describe("Agency request lifecycle", () => {
     const result = await startAgencyRequest("keep-ci-healthy", {
       read: vi.fn(async () => baseRecord),
       save,
+      prepare: vi.fn(async (execution) => execution),
       createRunId: () => "run-123",
       dispatch,
     });
@@ -50,7 +52,10 @@ describe("Agency request lifecycle", () => {
     );
     expect(save.mock.calls[0]?.[1]).toMatchObject({
       phase: "monitoring",
-      related: expect.arrayContaining([{ kind: "run", id: "run-123" }]),
+      related: expect.arrayContaining([
+        { kind: "loop", id: "agency-request-keep-ci-healthy" },
+        { kind: "run", id: "run-123" },
+      ]),
     });
     expect(result).toEqual({ kind: "started", runId: "run-123" });
   });
@@ -62,10 +67,7 @@ describe("Agency request lifecycle", () => {
       state: {
         ...baseRecord.state,
         phase: "monitoring",
-        related: [
-          ...baseRecord.state.related,
-          { kind: "run", id: "run-123" },
-        ],
+        related: [...baseRecord.state.related, { kind: "run", id: "run-123" }],
       },
     };
 
@@ -73,6 +75,7 @@ describe("Agency request lifecycle", () => {
       startAgencyRequest(record.slug, {
         read: vi.fn(async () => record),
         save: vi.fn(),
+        prepare: vi.fn(async (execution) => execution),
         createRunId: () => "run-unused",
         dispatch,
       }),
@@ -87,6 +90,7 @@ describe("Agency request lifecycle", () => {
       startAgencyRequest(baseRecord.slug, {
         read: vi.fn(async () => baseRecord),
         save,
+        prepare: vi.fn(async (execution) => execution),
         createRunId: () => "run-123",
         dispatch: vi.fn(async () => {
           throw new Error("Workflow input is invalid");
@@ -109,6 +113,7 @@ describe("Agency request lifecycle", () => {
         phase: "monitoring",
         related: [
           ...baseRecord.state.related,
+          { kind: "loop", id: agencyRequestLoopId(baseRecord.slug) },
           { kind: "run", id: "run-123" },
         ],
       },
@@ -133,12 +138,27 @@ describe("Agency request lifecycle", () => {
           "Workflow ci-repair run run-123 succeeded: Repair PR passed and main CI is green.",
         ],
         blockers: [],
+        related: expect.not.arrayContaining([
+          { kind: "loop", id: agencyRequestLoopId(record.slug) },
+        ]),
       }),
     );
   });
 
-  it("marks a failed run blocked without changing unrelated requests", async () => {
+  it("keeps the Todo loop active after a failed attempt", async () => {
     const save = vi.fn(async () => undefined);
+    const record: AgencyRequestRecord = {
+      ...baseRecord,
+      state: {
+        ...baseRecord.state,
+        phase: "monitoring",
+        related: [
+          ...baseRecord.state.related,
+          { kind: "loop", id: agencyRequestLoopId(baseRecord.slug) },
+          { kind: "run", id: "run-404" },
+        ],
+      },
+    };
 
     const result = await completeAgencyRequestRun(
       {
@@ -147,10 +167,60 @@ describe("Agency request lifecycle", () => {
         status: "failed",
         summary: "Repair exhausted its bounded retries.",
       },
-      { findByRun: vi.fn(async () => []), save },
+      { findByRun: vi.fn(async () => [record]), save },
     );
 
-    expect(result).toEqual({ updated: 0 });
-    expect(save).not.toHaveBeenCalled();
+    expect(result).toEqual({ updated: 1 });
+    expect(save).toHaveBeenCalledWith(
+      record.slug,
+      expect.objectContaining({
+        phase: "monitoring",
+        evidence: [
+          "Workflow ci-repair run run-404 failed: Repair exhausted its bounded retries.",
+        ],
+        blockers: [
+          "Workflow ci-repair run run-404 failed: Repair exhausted its bounded retries.",
+        ],
+        related: expect.arrayContaining([
+          { kind: "loop", id: agencyRequestLoopId(record.slug) },
+        ]),
+      }),
+    );
+  });
+
+  it("matches a scheduled attempt through its Todo loop and records its run", async () => {
+    const save = vi.fn(async () => undefined);
+    const loopId = agencyRequestLoopId(baseRecord.slug);
+    const record: AgencyRequestRecord = {
+      ...baseRecord,
+      state: {
+        ...baseRecord.state,
+        phase: "monitoring",
+        related: [...baseRecord.state.related, { kind: "loop", id: loopId }],
+      },
+    };
+    const findByRun = vi.fn(async () => [record]);
+
+    await completeAgencyRequestRun(
+      {
+        workflowId: "ci-repair",
+        runId: "scheduled-run-1",
+        loopId,
+        status: "failed",
+        summary: "CI still fails.",
+      },
+      { findByRun, save },
+    );
+
+    expect(findByRun).toHaveBeenCalledWith("scheduled-run-1", loopId);
+    expect(save).toHaveBeenCalledWith(
+      record.slug,
+      expect.objectContaining({
+        related: expect.arrayContaining([
+          { kind: "run", id: "scheduled-run-1" },
+          { kind: "loop", id: loopId },
+        ]),
+      }),
+    );
   });
 });

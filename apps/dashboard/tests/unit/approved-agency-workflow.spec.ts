@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dispatchApprovedAgencyWorkflow } from "../../src/dashboard/features/agency/server/approved-agency-workflow";
+import {
+  dispatchApprovedAgencyWorkflow,
+  prepareApprovedAgencyExecution,
+} from "../../src/dashboard/features/agency/server/approved-agency-workflow";
 
 const execution = {
   workflowId: "ci-repair",
@@ -29,10 +32,14 @@ function services(overrides: Record<string, unknown> = {}) {
 describe("approved Agency Workflow dispatch", () => {
   it("uses the Agency approval to dispatch through the Workflow service", async () => {
     const workflowServices = services();
+    const prepared = await prepareApprovedAgencyExecution(
+      execution,
+      workflowServices.activate,
+    );
 
     const result = await dispatchApprovedAgencyWorkflow({
       actor: "github:1",
-      execution,
+      execution: prepared,
       runId: "run-1",
       services: workflowServices,
     });

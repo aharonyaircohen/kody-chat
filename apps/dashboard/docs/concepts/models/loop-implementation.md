@@ -1,6 +1,6 @@
 # Loop implementation
 
-Status: **Dashboard definition management works; Engine integration is P0**
+Status: **Repository and Todo-derived Loops execute through the Engine scheduler**
 
 ## Dashboard
 
@@ -15,25 +15,22 @@ The Dashboard can list, create, update, and delete the simple Loop definition.
 
 ## Engine
 
-The Engine pool runs an Agency tick immediately at startup and then on an
-interval. `dispatchAgencyLoops` loads older versioned Agency definitions and
-Loop state from the backend through `AgencyModelRepository`.
+The generated GitHub Actions workflow wakes the Engine scheduler every 15
+minutes. The scheduler combines repository Loop definitions with temporary
+Loops derived from active Agency-request Todos in Convex.
 
-It does **not** read the Dashboard's
-`.kody-engine/definitions/loops/<id>/loop.json` files.
-
-For the older Engine Loop contract:
-
-- manual dispatch works when explicitly requested;
-- schedule intervals work;
-- idempotency, approval, capacity, retries, and Run recording exist;
-- event, webhook, and condition triggers return “not enabled yet”.
+- manual and schedule dispatch work;
+- idempotency, capacity, leases, and Run recording prevent duplicate work;
+- a failed Agency-request Workflow leaves its temporary Loop active;
+- end-to-end Workflow success removes the Loop reference from the Todo, so the
+  next scheduler wake no longer sees it;
+- event-driven behavior remains owned by Triggers.
 
 ## Required integration
 
-Choose one contract and persistence authority, publish it with a new package
-version, update the Engine loader, and remove the other path. Do not add a
-long-lived fallback or dual reader.
+Repository-authored Loop definitions remain repository content. Temporary
+Agency-request Loops are runtime state derived only from the owning Todo; they
+are never committed to the repository or stored as a second state record.
 
 ## Live verification
 

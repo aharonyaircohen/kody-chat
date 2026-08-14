@@ -12,6 +12,7 @@ export interface AgencyRequestRecord {
 interface StartPorts {
   read(slug: string): Promise<AgencyRequestRecord | null>;
   save(slug: string, state: AgencyRequestState): Promise<void>;
+  prepare(execution: AgencyRequestExecution): Promise<AgencyRequestExecution>;
   createRunId(): string;
   dispatch(
     execution: AgencyRequestExecution,
@@ -20,16 +21,21 @@ interface StartPorts {
 }
 
 interface CompletionPorts {
-  findByRun(runId: string): Promise<AgencyRequestRecord[]>;
+  findByRun(runId: string, loopId?: string): Promise<AgencyRequestRecord[]>;
   save(slug: string, state: AgencyRequestState): Promise<void>;
 }
 
 type CompletionInput = {
   workflowId: string;
   runId: string;
+  loopId?: string;
   status: "success" | "failed" | "blocked";
   summary?: string;
 };
+
+export function agencyRequestLoopId(slug: string): string {
+  return `agency-request-${slug}`;
+}
 
 function normalizedFailure(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -67,23 +73,39 @@ export async function startAgencyRequest(slug: string, ports: StartPorts) {
     return { kind: "blocked" as const, message };
   }
 
+  let execution: AgencyRequestExecution;
+  try {
+    execution = await ports.prepare(record.state.execution);
+  } catch (error) {
+    const message = normalizedFailure(error);
+    await ports.save(
+      slug,
+      withState(record.state, { phase: "blocked", blockers: [message] }),
+    );
+    throw error;
+  }
+
   const reservedRunId = ports.createRunId();
+  const loopId = agencyRequestLoopId(slug);
   const monitoringState = withState(record.state, {
     phase: "monitoring",
+    execution,
     blockers: [],
     related: [
       ...record.state.related.filter(
-        (ref) => !(ref.kind === "run" && ref.id === reservedRunId),
+        (ref) =>
+          !(
+            (ref.kind === "run" && ref.id === reservedRunId) ||
+            (ref.kind === "loop" && ref.id === loopId)
+          ),
       ),
+      { kind: "loop", id: loopId },
       { kind: "run", id: reservedRunId },
     ],
   });
   await ports.save(slug, monitoringState);
   try {
-    const result = await ports.dispatch(
-      record.state.execution,
-      reservedRunId,
-    );
+    const result = await ports.dispatch(execution, reservedRunId);
     if (result.runId !== reservedRunId) {
       throw new Error("Workflow dispatch returned a different Run id");
     }
@@ -92,7 +114,14 @@ export async function startAgencyRequest(slug: string, ports: StartPorts) {
     const message = normalizedFailure(error);
     await ports.save(
       slug,
-      withState(monitoringState, { phase: "blocked", blockers: [message] }),
+      withState(monitoringState, {
+        phase: "blocked",
+        evidence: [
+          ...monitoringState.evidence,
+          `Workflow dispatch ${reservedRunId} failed: ${message}`,
+        ],
+        blockers: [message],
+      }),
     );
     throw error;
   }
@@ -102,27 +131,25 @@ export async function completeAgencyRequestRun(
   input: CompletionInput,
   ports: CompletionPorts,
 ): Promise<{ updated: number }> {
-  const records = await ports.findByRun(input.runId);
+  const records = await ports.findByRun(input.runId, input.loopId);
   const summary = input.summary?.trim().slice(0, 2_000);
   for (const record of records) {
     const succeeded = input.status === "success";
-    const evidence = succeeded
-      ? [
-          ...record.state.evidence,
-          `Workflow ${input.workflowId} run ${input.runId} succeeded${summary ? `: ${summary}` : "."}`,
-        ]
-      : record.state.evidence;
-    const blockers = succeeded
-      ? []
-      : [
-          `Workflow ${input.workflowId} run ${input.runId} ${input.status}${summary ? `: ${summary}` : "."}`,
-        ];
+    const result = `Workflow ${input.workflowId} run ${input.runId} ${
+      succeeded ? "succeeded" : input.status
+    }${summary ? `: ${summary}` : "."}`;
+    const loopId = agencyRequestLoopId(record.slug);
+    const related = record.state.related
+      .filter((ref) => !(succeeded && ref.kind === "loop" && ref.id === loopId))
+      .filter((ref) => !(ref.kind === "run" && ref.id === input.runId));
+    related.push({ kind: "run", id: input.runId });
     await ports.save(
       record.slug,
       withState(record.state, {
-        phase: succeeded ? "done" : "blocked",
-        evidence,
-        blockers,
+        phase: succeeded ? "done" : "monitoring",
+        evidence: [...record.state.evidence, result],
+        blockers: succeeded ? [] : [result],
+        related,
       }),
     );
   }

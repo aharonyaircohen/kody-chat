@@ -9,11 +9,11 @@ import {
 type DispatchServices = Pick<
   WorkflowExecutionDependencies,
   "loadWorkflow" | "validateDefinition" | "validateInput" | "dispatch"
-> & {
-  activate?(
-    activation: NonNullable<AgencyRequestExecution["activations"]>[number],
-  ): Promise<{ configPatch?: Record<string, unknown> }>;
-};
+>;
+
+type Activate = (
+  activation: NonNullable<AgencyRequestExecution["activations"]>[number],
+) => Promise<{ configPatch?: Record<string, unknown> }>;
 
 function mergeConfigPatch(
   current: Record<string, unknown>,
@@ -31,6 +31,22 @@ function mergeConfigPatch(
   return next;
 }
 
+export async function prepareApprovedAgencyExecution(
+  execution: AgencyRequestExecution,
+  activate: Activate,
+): Promise<AgencyRequestExecution> {
+  let configPatch: Record<string, unknown> = {};
+  for (const activation of execution.activations ?? []) {
+    const result = await activate(activation);
+    configPatch = mergeConfigPatch(configPatch, result.configPatch);
+  }
+  const input =
+    Object.keys(configPatch).length > 0
+      ? { ...execution.input, installation: { configPatch } }
+      : { ...execution.input };
+  return { ...execution, input };
+}
+
 export async function dispatchApprovedAgencyWorkflow({
   actor,
   execution,
@@ -42,32 +58,18 @@ export async function dispatchApprovedAgencyWorkflow({
   runId: string;
   services: DispatchServices;
 }): Promise<{ runId: string }> {
-  let configPatch: Record<string, unknown> = {};
-  for (const activation of execution.activations ?? []) {
-    if (!services.activate) {
-      throw new Error("The approved Agency activation service is unavailable");
-    }
-    const result = await services.activate(activation);
-    configPatch = mergeConfigPatch(configPatch, result.configPatch);
-  }
-  const input =
-    Object.keys(configPatch).length > 0
-      ? { ...execution.input, installation: { configPatch } }
-      : { ...execution.input };
   const result = await startWorkflow(
     {
       workflowId: execution.workflowId,
       source: "dashboard",
       actor,
       requestId: runId,
-      input,
+      input: { ...execution.input },
     },
     {
       ...services,
       createRequestId: () => `run-${randomUUID()}`,
       now: () => new Date().toISOString(),
-      // The user approved the exact Workflow and validated input stored on the
-      // Agency request. That approval is the authorization for this dispatch.
       requiresApproval: async () => false,
       consumeApproval: async () => false,
       actionFor: () => "run",

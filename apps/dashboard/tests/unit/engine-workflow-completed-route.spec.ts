@@ -417,6 +417,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
       request({
         workflowId: "ci-repair",
         runId: "workflow-run-7",
+        loopId: "agency-request-build-healthy-ci",
         status: "success",
         output: {
           pr: 3947,
@@ -431,6 +432,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
       expect.objectContaining({
         workflowId: "ci-repair",
         runId: "workflow-run-7",
+        loopId: "agency-request-build-healthy-ci",
         status: "success",
       }),
     );
@@ -448,6 +450,7 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           payload: expect.objectContaining({
             workflowId: "ci-repair",
             runId: "workflow-run-7",
+            loopId: "agency-request-build-healthy-ci",
             status: "success",
             pr: 3947,
             verdict: "pass",

@@ -28,6 +28,7 @@ const requestSchema = z
   .object({
     workflowId: z.string().trim().min(1).max(200),
     runId: z.string().trim().min(1).max(200),
+    loopId: z.string().trim().min(1).max(200).optional(),
     status: z.enum(["success", "failed", "blocked"]),
     summary: z
       .string()
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
       ...output,
       workflowId,
       runId,
+      ...(parsed.data.loopId ? { loopId: parsed.data.loopId } : {}),
       status,
       ...(summary ? { summary } : {}),
       repository: identity.repository,
@@ -250,6 +252,7 @@ export async function POST(request: Request) {
       octokit,
       workflowId,
       runId,
+      ...(parsed.data.loopId ? { loopId: parsed.data.loopId } : {}),
       status,
       ...(summary ? { summary } : {}),
     });

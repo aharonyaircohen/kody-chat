@@ -11,6 +11,7 @@
 import type * as actionStates from "../actionStates.js";
 import type * as agencyModel from "../agencyModel.js";
 import type * as agencyRecords from "../agencyRecords.js";
+import type * as agencyRequestLoops from "../agencyRequestLoops.js";
 import type * as agencyRuns from "../agencyRuns.js";
 import type * as agencyValidators from "../agencyValidators.js";
 import type * as agents from "../agents.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   actionStates: typeof actionStates;
   agencyModel: typeof agencyModel;
   agencyRecords: typeof agencyRecords;
+  agencyRequestLoops: typeof agencyRequestLoops;
   agencyRuns: typeof agencyRuns;
   agencyValidators: typeof agencyValidators;
   agents: typeof agents;
