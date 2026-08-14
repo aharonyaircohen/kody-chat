@@ -312,7 +312,9 @@ export async function submitAgencyRequest(
       : [],
   });
   const draft: AgencyRequestTodoDraft = {
-    title: outcome.slice(0, 160),
+    title: resolved
+      ? `Build ${resolved.blueprint.name}`.slice(0, 160)
+      : outcome.slice(0, 160),
     description: storeAuthorized
       ? "Kody is applying this Store Blueprint and will keep its progress here."
       : "Kody is assessing this request before proposing execution.",

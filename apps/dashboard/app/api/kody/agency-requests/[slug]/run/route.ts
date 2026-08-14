@@ -116,8 +116,12 @@ export async function POST(
           }
           const payload = (await response.json()) as {
             configPatch?: Record<string, unknown>;
+            files?: Array<{ path: string; content: string }>;
           };
-          return { configPatch: payload.configPatch };
+          return {
+            configPatch: payload.configPatch,
+            files: payload.files,
+          };
         }),
       createRunId: () => `run-${randomUUID()}`,
       dispatch: (execution, runId) =>

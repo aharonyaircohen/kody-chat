@@ -60,7 +60,7 @@ describe("simple Store activation", () => {
 
   it("rejects invalid Workflows before installing or publishing them", () => {
     expect(source).toContain("validateWorkflowDefinition(workflow)");
-    expect(source).toContain('status: 422');
+    expect(source).toContain("status: 422");
     expect(source).toContain('"invalid_store_workflow"');
     expect(source).toContain("details.issues");
   });
@@ -83,9 +83,15 @@ describe("simple Store activation", () => {
   });
 
   it("can prepare recipe activation without committing repository config", () => {
-    expect(source).toContain('repositoryWriteMode: z.enum(["commit", "defer"])');
+    expect(source).toContain(
+      'repositoryWriteMode: z.enum(["commit", "defer"])',
+    );
     expect(source).toContain('repositoryWriteMode === "defer"');
     expect(source).toContain("configPatch");
-    expect(source).toContain("Deferred Store activation cannot install Loops");
+    expect(source).toContain("PreparedRepositoryFile");
+    expect(source).toContain("prepareRepositoryLoopFile(storeLoop.loop)");
+    expect(source).not.toContain(
+      "Deferred Store activation cannot install Loops",
+    );
   });
 });

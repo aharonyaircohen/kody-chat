@@ -13,7 +13,10 @@ type DispatchServices = Pick<
 
 type Activate = (
   activation: NonNullable<AgencyRequestExecution["activations"]>[number],
-) => Promise<{ configPatch?: Record<string, unknown> }>;
+) => Promise<{
+  configPatch?: Record<string, unknown>;
+  files?: Array<{ path: string; content: string }>;
+}>;
 
 function mergeConfigPatch(
   current: Record<string, unknown>,
@@ -37,13 +40,36 @@ export async function prepareApprovedAgencyExecution(
 ): Promise<AgencyRequestExecution> {
   const activations = execution.activations ?? [];
   let configPatch: Record<string, unknown> = {};
+  const files = new Map<string, string>();
   for (const activation of activations) {
     const result = await activate(activation);
     configPatch = mergeConfigPatch(configPatch, result.configPatch);
+    for (const file of result.files ?? []) {
+      const existing = files.get(file.path);
+      if (existing !== undefined && existing !== file.content) {
+        throw new Error(
+          `Store activation prepared conflicting file ${file.path}`,
+        );
+      }
+      files.set(file.path, file.content);
+    }
   }
   const input =
     activations.length > 0
-      ? { ...execution.input, installation: { configPatch } }
+      ? {
+          ...execution.input,
+          installation: {
+            configPatch,
+            ...(files.size > 0
+              ? {
+                  files: [...files].map(([path, content]) => ({
+                    path,
+                    content,
+                  })),
+                }
+              : {}),
+          },
+        }
       : { ...execution.input };
   return { ...execution, input };
 }

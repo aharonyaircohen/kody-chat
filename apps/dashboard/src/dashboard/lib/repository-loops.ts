@@ -16,6 +16,19 @@ function loopPath(id: string): string {
   return `${ROOT}/${id}/loop.json`;
 }
 
+export function prepareRepositoryLoopFile(value: unknown): {
+  loop: LoopDefinition;
+  path: string;
+  content: string;
+} {
+  const loop = createLoopDefinition(value);
+  return {
+    loop,
+    path: loopPath(loop.id),
+    content: `${JSON.stringify(loop, null, 2)}\n`,
+  };
+}
+
 function decode(content: string | null): string {
   return Buffer.from((content ?? "").replace(/\n/g, ""), "base64").toString(
     "utf8",
@@ -29,12 +42,7 @@ export async function readRepositoryLoop(
   id: string,
 ): Promise<LoopDefinition | null> {
   if (!ID.test(id)) return null;
-  const file = await readGitHubFileForWrite(
-    octokit,
-    owner,
-    repo,
-    loopPath(id),
-  );
+  const file = await readGitHubFileForWrite(octokit, owner, repo, loopPath(id));
   if (!file?.contentBase64) return null;
   try {
     const loop = createLoopDefinition(JSON.parse(decode(file.contentBase64)));
@@ -82,18 +90,14 @@ export async function saveRepositoryLoop(
   value: unknown,
   message: string,
 ): Promise<{ loop: LoopDefinition; created: boolean }> {
-  const loop = createLoopDefinition(value);
-  const path = loopPath(loop.id);
+  const { loop, path, content } = prepareRepositoryLoopFile(value);
   const existing = await readGitHubFileForWrite(octokit, owner, repo, path);
   await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,
     message,
-    content: Buffer.from(
-      `${JSON.stringify(loop, null, 2)}\n`,
-      "utf8",
-    ).toString("base64"),
+    content: Buffer.from(content, "utf8").toString("base64"),
     sha: existing?.sha,
   });
   return { loop, created: !existing };

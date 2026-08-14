@@ -115,6 +115,7 @@ describe("Agency Request Manager", () => {
           blueprint: {
             id: "healthy-ci",
             version: "1.0.0",
+            name: "Healthy CI",
             application: {
               workflowId: "apply-strategy",
               workflowInput: {
@@ -131,7 +132,7 @@ describe("Agency Request Manager", () => {
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Keep CI healthy on main",
+        title: "Build Healthy CI",
         items: [
           expect.objectContaining({
             title: "Validate the request and Blueprint",
@@ -299,7 +300,7 @@ describe("Agency Request Manager", () => {
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Build repository-native CI and keep it passing",
+        title: "Build Healthy CI",
         agencyRequest: expect.objectContaining({
           phase: "waiting-approval",
           source: {

@@ -60,6 +60,7 @@ import { saveProjectedEngineConfig } from "@dashboard/lib/backend/repo-projectio
 import { publishStoreExecutionDefinitions } from "@dashboard/lib/store-definition-activation";
 import {
   deleteRepositoryLoop,
+  prepareRepositoryLoopFile,
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
@@ -85,10 +86,15 @@ type ActiveField =
   | "activeCommands"
   | "activeFeatures";
 type RepositoryWriteMode = "commit" | "defer";
+type PreparedRepositoryFile = {
+  path: string;
+  content: string;
+};
 type ActivateResult = {
   imported: boolean;
   status: "imported" | "already_local" | "prepared";
   configPatch?: ConfigPatch;
+  files?: PreparedRepositoryFile[];
 };
 type DeactivateResult = {
   removed: boolean;
@@ -188,10 +194,32 @@ function combineActivationResults(
     results.some((result) => result.status === "prepared");
   const imported =
     ownImported || results.some((result) => result.imported) || prepared;
+  const files = new Map<string, string>();
+  for (const result of results) {
+    for (const file of result.files ?? []) {
+      const existing = files.get(file.path);
+      if (existing !== undefined && existing !== file.content) {
+        throw new Error(
+          `Store activation prepared conflicting file ${file.path}`,
+        );
+      }
+      files.set(file.path, file.content);
+    }
+  }
   return {
     imported,
-    status: prepared ? "prepared" : imported ? "imported" : "already_local",
+    status:
+      prepared || files.size > 0
+        ? "prepared"
+        : imported
+          ? "imported"
+          : "already_local",
     ...(configPatch ? { configPatch } : {}),
+    ...(files.size > 0
+      ? {
+          files: [...files].map(([path, content]) => ({ path, content })),
+        }
+      : {}),
   };
 }
 
@@ -546,14 +574,6 @@ async function activate(
     return combineActivationResults([targetResult], true);
   }
   if (kind === "loop") {
-    if (repositoryWriteMode === "defer") {
-      throw Object.assign(
-        new Error(
-          "Deferred Store activation cannot install Loops until their repository files can be delivered by the recipe Workflow.",
-        ),
-        { status: 422 },
-      );
-    }
     const storeLoop = asset as StoreLoop;
     const targetResult = await activate(
       octokit,
@@ -565,6 +585,22 @@ async function activate(
     );
     const existing = await readRepositoryLoop(octokit, owner, repo, slug);
     if (existing) return targetResult;
+    if (repositoryWriteMode === "defer") {
+      const file = prepareRepositoryLoopFile(storeLoop.loop);
+      return combineActivationResults([
+        targetResult,
+        {
+          imported: true,
+          status: "prepared",
+          files: [
+            {
+              path: file.path,
+              content: file.content,
+            },
+          ],
+        },
+      ]);
+    }
     await saveRepositoryLoop(
       octokit,
       owner,
@@ -682,17 +718,14 @@ async function activate(
       asset as PipelineDefinition,
     );
   }
-  return combineActivationResults(
-    [
-      ...dependencyResults,
-      {
-        imported: true,
-        status:
-          repositoryWriteMode === "defer" ? "prepared" : "imported",
-        ...(repositoryWriteMode === "defer" ? { configPatch: patch } : {}),
-      },
-    ],
-  );
+  return combineActivationResults([
+    ...dependencyResults,
+    {
+      imported: true,
+      status: repositoryWriteMode === "defer" ? "prepared" : "imported",
+      ...(repositoryWriteMode === "defer" ? { configPatch: patch } : {}),
+    },
+  ]);
 }
 
 async function deactivate(
@@ -824,7 +857,7 @@ function errorResponse(error: unknown) {
             ? "store_reference_in_use"
             : status === 422
               ? "invalid_store_workflow"
-            : "store_import_failed",
+              : "store_import_failed",
       message: error instanceof Error ? error.message : "Unknown error",
       ...(details.blockers ? { blockers: details.blockers } : {}),
       ...(details.issues ? { issues: details.issues } : {}),

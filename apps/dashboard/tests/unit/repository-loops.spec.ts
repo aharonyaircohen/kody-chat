@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   deleteRepositoryLoop,
   listRepositoryLoops,
+  prepareRepositoryLoopFile,
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
@@ -27,6 +28,14 @@ function file(value = loop, sha = "file-sha") {
 }
 
 describe("repository loops", () => {
+  it("prepares the exact repository file used by deferred installation", () => {
+    expect(prepareRepositoryLoopFile(loop)).toEqual({
+      loop,
+      path: ".kody-engine/definitions/loops/ci-repair/loop.json",
+      content: `${JSON.stringify(loop, null, 2)}\n`,
+    });
+  });
+
   it("lists valid Loop definitions from the consumer runtime folder", async () => {
     const getContent = vi
       .fn()

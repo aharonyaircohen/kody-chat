@@ -91,6 +91,31 @@ describe("approved Agency Workflow dispatch", () => {
     });
   });
 
+  it("delivers prepared maintainer files through the Constructor Workflow", async () => {
+    const prepared = await prepareApprovedAgencyExecution(
+      execution,
+      vi.fn(async () => ({
+        configPatch: { activeWorkflows: ["web-release"] },
+        files: [
+          {
+            path: ".kody-engine/definitions/loops/daily-web-release-loop/loop.json",
+            content: '{"id":"daily-web-release-loop"}\n',
+          },
+        ],
+      })),
+    );
+
+    expect(prepared.input.installation).toEqual({
+      configPatch: { activeWorkflows: ["web-release"] },
+      files: [
+        {
+          path: ".kody-engine/definitions/loops/daily-web-release-loop/loop.json",
+          content: '{"id":"daily-web-release-loop"}\n',
+        },
+      ],
+    });
+  });
+
   it("propagates a dispatch failure for the route to sanitize", async () => {
     const workflowServices = services({
       dispatch: vi.fn(async () => {
