@@ -399,7 +399,7 @@ describe("installEngine", () => {
       expect(parsed.agent?.model).toBe("minimax/MiniMax-M3");
     });
 
-    it("kody.config.json is created even when variables.json does not exist", async () => {
+    it("uses the built-in OpenRouter model when variables.json does not exist", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
@@ -429,12 +429,12 @@ describe("installEngine", () => {
 
       expect(result.ok).toBe(true);
 
-      // kody.config.json should still be created (just without agent.model)
+      // The same built-in model shown in Chat keeps a fresh Engine runnable.
       const configFile = getByPath("kody.config.json");
       expect(configFile).toBeDefined();
       const parsed = JSON.parse(configFile!.content);
       expect(parsed.defaultImplementation).toBeUndefined();
-      expect(parsed.agent).toBeUndefined();
+      expect(parsed.agent?.model).toBe("openrouter/free");
     });
 
     it("merges into an existing kody.config.json, preserving other fields and stripping the legacy model key", async () => {

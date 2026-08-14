@@ -37,6 +37,10 @@ import {
   type ChatModel,
 } from "@kody-ade/base/variables/models";
 import { writeEngineModel } from "@kody-ade/base/engine/config";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
@@ -197,14 +201,19 @@ async function readChatModels(
   owner: string,
   repo: string,
 ): Promise<ChatModel[]> {
+  const withBuiltInModel = (configured: ChatModel[]) =>
+    composeChatModelCatalog<ChatModel>(
+      configured,
+      KODY_OPENROUTER_FREE_CHAT_MODEL,
+    );
   try {
     const { doc } = await readVariables(owner, repo, { force: true });
     const raw = doc.variables[VAR_LLM_MODELS]?.value;
-    if (!raw) return [];
-    return ChatModelsSchema.parse(JSON.parse(raw));
+    if (!raw) return withBuiltInModel([]);
+    return withBuiltInModel(ChatModelsSchema.parse(JSON.parse(raw)));
   } catch (err: unknown) {
     logger.warn({ err, owner, repo }, "install: failed to read chat models");
-    return [];
+    return withBuiltInModel([]);
   }
 }
 
