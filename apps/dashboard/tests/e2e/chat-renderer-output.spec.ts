@@ -677,7 +677,7 @@ test.describe("Kody chat renderer output", () => {
     });
     await openChat(page);
 
-    await expect(page.getByText("How can Kody help?")).toBeVisible();
+    await expect(page.getByText("Hi! I can help you with:")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Run project assessment" }),
     ).toBeVisible();
@@ -704,7 +704,7 @@ test.describe("Kody chat renderer output", () => {
       page.getByRole("button", { name: "Resume flow" }),
     ).toBeEnabled();
     await expect(page.getByText("Unavailable setup")).toHaveCount(0);
-    await expect(page.getByText("How can Kody help?")).toHaveCount(0);
+    await expect(page.getByText("Start with this repository.")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Run project assessment" }),
     ).toBeEnabled();

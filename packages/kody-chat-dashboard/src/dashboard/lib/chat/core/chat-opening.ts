@@ -16,6 +16,7 @@ export const PROJECT_ASSESSMENT_OPENING_ACTION: RenderedViewAction = {
 /** Supplies generic chat data to the existing opening-status renderer. */
 export function buildRepositoryChatOpeningView(
   conversationId: string,
+  additionalActions: readonly RenderedViewAction[] = [],
 ): RenderedViewDirective {
   const renderer = getBuiltinViewRendererDefinition("guided-flow-status");
   if (!renderer) throw new Error("Chat opening status renderer not found");
@@ -24,11 +25,11 @@ export function buildRepositoryChatOpeningView(
     id: `chat-opening-${conversationId}`,
     definition: renderer,
     data: {
-      greeting: "How can Kody help?",
+      greeting: "Hi! I can help you with:",
       title: "Start with this repository.",
       step: "Ask about the code, plan work, or run a deep health check.",
       instanceId: conversationId,
-      actions: [PROJECT_ASSESSMENT_OPENING_ACTION],
+      actions: [PROJECT_ASSESSMENT_OPENING_ACTION, ...additionalActions],
     },
   });
 }

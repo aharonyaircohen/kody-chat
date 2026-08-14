@@ -121,6 +121,8 @@ import {
 } from "../chat/core/chat-opening";
 import { buildProjectAssessmentSubmission } from "../chat/core/project-assessment-submission";
 
+const EMPTY_OPENING_ACTIONS: readonly RenderedViewAction[] = [];
+
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
   const raw =
@@ -163,6 +165,8 @@ export function KodyChat({
   onToggleFullscreen,
   railFullscreen,
   emptyStateWelcome,
+  openingActions = EMPTY_OPENING_ACTIONS,
+  onOpeningAction,
   lockedAgentId,
   lockedModelId,
   lockedAgentSlug,
@@ -1127,6 +1131,7 @@ export function KodyChat({
                     ...PROJECT_ASSESSMENT_OPENING_ACTION,
                     variant: "secondary",
                   },
+                  ...openingActions,
                 ],
               }),
             },
@@ -1146,6 +1151,7 @@ export function KodyChat({
     messages.length,
     activeChatSessionId,
     sessionHook.hydrated,
+    openingActions,
   ]);
 
   useEffect(() => {
@@ -1243,6 +1249,7 @@ export function KodyChat({
           timestamp: new Date().toISOString(),
           view: buildRepositoryChatOpeningView(
             activeChatSessionId ?? "new-conversation",
+            openingActions,
           ),
         }
       : null;
@@ -1730,7 +1737,12 @@ export function KodyChat({
   const handleRenderedViewAction = useCallback(
     (view: RenderedViewDirective, action: RenderedViewAction) => {
       if (view.rendererSlug === "guided-flow-status") {
-        if (action.id === PROJECT_ASSESSMENT_OPENING_ACTION.id) {
+        if (onOpeningAction?.(action)) return;
+        const guidedFlowId = action.result?.guidedFlowId;
+        if (typeof guidedFlowId === "string" && guidedFlowId.trim()) {
+          void openGuidedFlow({ flowId: guidedFlowId, message: "started" });
+          return;
+        } else if (action.id === PROJECT_ASSESSMENT_OPENING_ACTION.id) {
           void openGuidedFlow({
             flowId: PROJECT_ASSESSMENT_FLOW_ID,
             message: "started",
@@ -1943,6 +1955,7 @@ export function KodyChat({
     },
     [
       openGuidedFlow,
+      onOpeningAction,
       runDashboardNavigateFromDirective,
       sendText,
       setAgentMenuOpen,

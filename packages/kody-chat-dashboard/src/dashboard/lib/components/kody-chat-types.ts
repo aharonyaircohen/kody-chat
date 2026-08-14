@@ -10,7 +10,10 @@
 
 import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
-import type { ChatViewDirective } from "../chat-ui-actions";
+import type {
+  ChatViewDirective,
+  RenderedViewAction,
+} from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 
@@ -164,6 +167,10 @@ export interface KodyChatProps {
   railFullscreen?: boolean;
   /** Host override for the global-mode empty-state welcome. */
   emptyStateWelcome?: React.ReactNode;
+  /** Host-owned actions appended to the opening renderer. */
+  openingActions?: readonly RenderedViewAction[];
+  /** Lets the host preserve shell-owned behavior for an opening action. */
+  onOpeningAction?: (action: RenderedViewAction) => boolean;
   /**
    * Force a specific agent and hide the picker. Used by the Vibe page,
    * which is always Kody Live. When set, the chevron + dropdown are

@@ -1,4 +1,4 @@
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
@@ -17,6 +17,13 @@ async function json(route: Route, body: unknown, status = 200) {
     contentType: "application/json",
     body: JSON.stringify(body),
   });
+}
+
+async function openMobileChatIfNeeded(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) >= 768) return;
+  const openChat = page.getByRole("button", { name: "Open chat" });
+  await expect(openChat).toBeVisible();
+  await openChat.click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -93,12 +100,18 @@ test("offers setup and starts the built-in Init Engine flow in Chat", async ({
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
+  await openMobileChatIfNeeded(page);
 
-  const notice = page.getByRole("status", {
-    name: "Kody Engine setup required",
-  });
-  await expect(notice).toContainText("Kody is not set up in this repository");
-  await notice.getByRole("button", { name: "Set up Kody" }).click();
+  const openingRenderer = page
+    .getByTestId("chat-assistant-message")
+    .filter({ hasText: "Hi! I can help you with:" })
+    .filter({ has: page.getByRole("button", { name: "Setup Kody" }) });
+  await expect(openingRenderer).toHaveCount(1);
+  await expect(openingRenderer).toContainText("Hi! I can help you with:");
+  await expect(
+    page.getByText("Kody is not set up in this repository"),
+  ).toHaveCount(0);
+  await openingRenderer.getByRole("button", { name: "Setup Kody" }).click();
 
   await expect(page).toHaveURL("/repo/acme/widgets/chat");
   await expect.poll(() => startedFlowId).toBe("initialize-kody-engine");
@@ -116,8 +129,9 @@ test("stays quiet when the repository is ready", async ({ page }) => {
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
+  await openMobileChatIfNeeded(page);
 
   await expect(
-    page.getByRole("status", { name: "Kody Engine setup required" }),
+    page.getByRole("button", { name: "Setup Kody" }),
   ).toHaveCount(0);
 });

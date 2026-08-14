@@ -1,7 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const token = process.env.E2E_GITHUB_TOKEN ?? "";
 const repository = process.env.E2E_UNINITIALIZED_GITHUB_REPO ?? "";
+
+async function openMobileChatIfNeeded(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) >= 768) return;
+  const openChat = page.getByRole("button", { name: "Open chat" });
+  await expect(openChat).toBeVisible();
+  await openChat.click();
+}
 
 test("a real uninitialized repository can open the built-in Init Engine flow", async ({
   page,
@@ -28,12 +35,17 @@ test("a real uninitialized repository can open the built-in Init Engine flow", a
   await page.goto(`/repo/${owner}/${repo}/guided-flows`, {
     waitUntil: "domcontentloaded",
   });
+  await openMobileChatIfNeeded(page);
+  await page.getByRole("button", { name: "New conversation" }).click();
 
-  const notice = page.getByRole("status", {
-    name: "Kody Engine setup required",
-  });
-  await expect(notice).toContainText("Kody is not set up in this repository");
-  await notice.getByRole("button", { name: "Set up Kody" }).click();
+  const openingRenderer = page
+    .getByTestId("chat-assistant-message")
+    .filter({ has: page.getByRole("button", { name: "Setup Kody" }) });
+  await expect(openingRenderer).toContainText("Hi! I can help you with:");
+  await expect(
+    page.getByText("Kody is not set up in this repository"),
+  ).toHaveCount(0);
+  await openingRenderer.getByRole("button", { name: "Setup Kody" }).click();
 
   await expect(page).toHaveURL(`/repo/${owner}/${repo}/chat`);
   // The real account may already contain an older run of this flow in the

@@ -62,6 +62,6 @@ The `initialize-kody-engine` Guided Flow explains and performs setup through exi
 
 - `apps/dashboard/docs/engine-install.md`
 - `apps/dashboard/docs/dashboard-setup.md`
-- `apps/dashboard/src/dashboard/features/engine-setup/components/EngineSetupNotice.tsx`
+- `apps/dashboard/src/dashboard/features/engine-setup/hooks/useEngineSetupOpeningAction.ts`
 - `apps/dashboard/src/dashboard/features/engine-setup/hooks/useEngineSetupStatus.ts`
 - `packages/kody-chat-dashboard/src/dashboard/lib/guided-flows/builtins/initialize-kody-engine.ts`

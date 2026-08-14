@@ -27,6 +27,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -135,7 +136,7 @@ import {
   workflowsChatPlugin,
   WORKFLOWS_PANEL_ID,
 } from "../chat/plugins/workflows";
-import { EngineSetupNotice } from "@dashboard/features/engine-setup/components/EngineSetupNotice";
+import { useEngineSetupOpeningAction } from "@dashboard/features/engine-setup/hooks/useEngineSetupOpeningAction";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
@@ -304,6 +305,9 @@ const NOOP_API: ChatRailApi = {
 // Routes that must NOT render the dashboard rail. Client chat owns its own
 // full-page shell and must not inherit admin dashboard chrome.
 const PUBLIC_ROUTE_PREFIXES: readonly string[] = ["/client"];
+type OpeningAction = NonNullable<
+  ComponentProps<typeof KodyChat>["openingActions"]
+>[number];
 
 function isPublicRoute(pathname: string | null): boolean {
   if (!pathname) return false;
@@ -314,6 +318,22 @@ function isPublicRoute(pathname: string | null): boolean {
 
 function ChatRailShellInner({ children }: { children: ReactNode }) {
   const guidedFlowChat = useGuidedFlowChat();
+  const engineSetupOpeningAction = useEngineSetupOpeningAction();
+  const openingActions = useMemo(
+    () => (engineSetupOpeningAction ? [engineSetupOpeningAction] : []),
+    [engineSetupOpeningAction],
+  );
+  const handleOpeningAction = useCallback(
+    (action: OpeningAction) => {
+      const guidedFlowId = action.result?.guidedFlowId;
+      if (typeof guidedFlowId !== "string" || !guidedFlowId.trim()) {
+        return false;
+      }
+      guidedFlowChat.startFlowInChat(guidedFlowId);
+      return true;
+    },
+    [guidedFlowChat],
+  );
   const pathname = usePathname();
   const publicRoute = isPublicRoute(pathname);
   const hostAuth = useAuth();
@@ -626,6 +646,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       context={scope}
       actorLogin={githubUser?.login}
       emptyStateWelcome={bootstrapWelcome}
+      openingActions={hasRepository ? openingActions : undefined}
+      onOpeningAction={handleOpeningAction}
       lockedAgentId={lockedAgentId}
       allowAgencyAgentSelection={hasRepository}
       vibeMode={isVibeRoute}
@@ -668,9 +690,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               >
                 {!pageOwnsHeader && <AppHeader />}
                 <div className="flex-1 min-h-0 flex flex-col">
-                  {auth && !repoRouteBlocksPage && !isChatRoute ? (
-                    <EngineSetupNotice />
-                  ) : null}
                   {pageContent}
                 </div>
               </ChatShell>
@@ -696,6 +715,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                       context={scope}
                       actorLogin={githubUser?.login}
                       emptyStateWelcome={bootstrapWelcome}
+                      openingActions={hasRepository ? openingActions : undefined}
+                      onOpeningAction={handleOpeningAction}
                       onClose={() => setMobileOpenPersist(false)}
                       lockedAgentId={lockedAgentId}
                       allowAgencyAgentSelection={hasRepository}

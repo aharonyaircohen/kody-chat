@@ -11,7 +11,7 @@ describe("repository chat opening", () => {
     expect(view.rendererSlug).toBe("guided-flow-status");
     expect(view.id).toBe("chat-opening-conversation-1");
     expect(view.data).toMatchObject({
-      greeting: "How can Kody help?",
+      greeting: "Hi! I can help you with:",
       actions: [
         {
           id: "run-project-assessment",
@@ -20,5 +20,24 @@ describe("repository chat opening", () => {
         },
       ],
     });
+  });
+
+  it("adds host actions through the renderer action list", () => {
+    const setupAction = {
+      id: "setup-kody",
+      label: "Setup Kody",
+      response: "setup-kody",
+      variant: "secondary" as const,
+      result: { guidedFlowId: "initialize-kody-engine" },
+    };
+
+    const view = buildRepositoryChatOpeningView("conversation-1", [
+      setupAction,
+    ]);
+
+    expect(view.data.actions).toEqual([
+      expect.objectContaining({ id: "run-project-assessment" }),
+      setupAction,
+    ]);
   });
 });
