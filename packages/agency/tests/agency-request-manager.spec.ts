@@ -42,7 +42,10 @@ describe("Agency Request Manager", () => {
       save,
     });
 
-    expect(result).toMatchObject({ kind: "ready", workflowId: "apply-strategy" });
+    expect(result).toMatchObject({
+      kind: "ready",
+      workflowId: "apply-strategy",
+    });
     expect(save).toHaveBeenCalledWith(
       "healthy-ci-request",
       expect.objectContaining({
@@ -86,7 +89,7 @@ describe("Agency Request Manager", () => {
 
   it("creates one assessing Todo and returns a Kody handoff", async () => {
     const create = vi.fn(async () => ({ slug: "keep-ci-healthy" }));
-    const findBySource = vi.fn(async () => null);
+    const findExisting = vi.fn(async () => null);
 
     const result = await submitAgencyRequest(
       {
@@ -106,7 +109,8 @@ describe("Agency Request Manager", () => {
       },
       {
         create,
-        findBySource,
+        findExisting,
+        update: vi.fn(),
         resolveBlueprint: vi.fn(async () => ({
           blueprint: {
             id: "healthy-ci",
@@ -128,6 +132,32 @@ describe("Agency Request Manager", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Keep CI healthy on main",
+        items: [
+          expect.objectContaining({
+            title: "Validate the request and Blueprint",
+            meta: { kind: "agency-request-validation" },
+          }),
+          expect.objectContaining({
+            title: "Prepare the repository-specific plan",
+            meta: { kind: "agency-request-plan" },
+          }),
+          expect.objectContaining({
+            title: "Activate the required automation",
+            meta: { kind: "agency-request-activation" },
+          }),
+          expect.objectContaining({
+            title: "Run the Blueprint Workflow",
+            meta: { kind: "agency-request-execution" },
+          }),
+          expect.objectContaining({
+            title: "Verify the result end to end",
+            meta: { kind: "agency-request-verification" },
+          }),
+          expect.objectContaining({
+            title: "Publish the completion report",
+            meta: { kind: "agency-request-report" },
+          }),
+        ],
         agencyRequest: expect.objectContaining({
           phase: "assessing",
           execution: expect.objectContaining({
@@ -155,6 +185,76 @@ describe("Agency Request Manager", () => {
     expect(result.handoff.message).toContain("keep-ci-healthy");
   });
 
+  it("reuses and resets the repository Todo owned by the same Blueprint", async () => {
+    const create = vi.fn();
+    const update = vi.fn(async () => ({ slug: "healthy-ci" }));
+    const findExisting = vi.fn(async () => ({ slug: "healthy-ci" }));
+
+    const result = await submitAgencyRequest(
+      {
+        blueprintId: "healthy-ci",
+        source: {
+          kind: "store-blueprint",
+          blueprintId: "healthy-ci",
+          requestId: "new-click",
+        },
+        answers: {},
+      },
+      {
+        create,
+        update,
+        findExisting,
+        resolveBlueprint: vi.fn(async () => ({
+          blueprint: {
+            schemaVersion: 1,
+            kind: "strategy-blueprint",
+            id: "healthy-ci",
+            version: "1.1.0",
+            name: "Healthy CI",
+            outcome: "Build repository-native CI and keep it passing",
+            instructions: "instructions.md",
+            constraints: ["Open a pull request; do not merge it"],
+            application: {
+              workflowId: "apply-strategy",
+              workflowInput: { waitForCi: true },
+              activate: [{ kind: "solution", id: "ci-repair" }],
+            },
+            verification: { criteria: ["Repository CI passes"] },
+            compatibility: {
+              repositoryTypes: ["javascript"],
+              providers: ["github-actions"],
+            },
+          },
+          instructions: "Inspect the repository and build native CI.",
+        })),
+      },
+    );
+
+    expect(findExisting).toHaveBeenCalledWith({
+      blueprintId: "healthy-ci",
+      source: expect.objectContaining({ requestId: "new-click" }),
+    });
+    expect(update).toHaveBeenCalledWith(
+      "healthy-ci",
+      expect.objectContaining({
+        agencyRequest: expect.objectContaining({
+          phase: "waiting-approval",
+          source: expect.objectContaining({ requestId: "new-click" }),
+          evidence: [],
+          blockers: [],
+          related: expect.not.arrayContaining([
+            expect.objectContaining({ kind: "run" }),
+          ]),
+        }),
+        items: expect.arrayContaining([
+          expect.objectContaining({ completed: false }),
+        ]),
+      }),
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ created: false, todoSlug: "healthy-ci" });
+  });
+
   it("turns a Store Blueprint click into an authorized ready request", async () => {
     const create = vi.fn(async () => ({ slug: "build-healthy-ci" }));
     const result = await submitAgencyRequest(
@@ -169,7 +269,8 @@ describe("Agency Request Manager", () => {
       },
       {
         create,
-        findBySource: vi.fn(async () => null),
+        findExisting: vi.fn(async () => null),
+        update: vi.fn(),
         resolveBlueprint: vi.fn(async () => ({
           blueprint: {
             schemaVersion: 1,
@@ -232,7 +333,8 @@ describe("Agency Request Manager", () => {
         },
         {
           create: vi.fn(),
-          findBySource: vi.fn(async () => null),
+          findExisting: vi.fn(async () => null),
+          update: vi.fn(),
           resolveBlueprint: vi.fn(async () => null),
         },
       ),
@@ -252,7 +354,8 @@ describe("Agency Request Manager", () => {
       },
       {
         create,
-        findBySource: vi.fn(async () => ({ slug: "keep-ci-healthy" })),
+        findExisting: vi.fn(async () => ({ slug: "keep-ci-healthy" })),
+        update: vi.fn(async (slug) => ({ slug })),
       },
     );
 
@@ -276,7 +379,8 @@ describe("Agency Request Manager", () => {
         },
         {
           create: vi.fn(),
-          findBySource: vi.fn(async () => null),
+          findExisting: vi.fn(async () => null),
+          update: vi.fn(),
         },
       ),
     ).rejects.toThrow(/outcome/i);

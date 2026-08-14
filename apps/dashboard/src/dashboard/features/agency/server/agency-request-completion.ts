@@ -4,6 +4,12 @@ import {
   writeTodoFile,
   type TodoFile,
 } from "@kody-ade/workspace/todos/files";
+import { createAgencyRequestState } from "@kody-ade/agency-domain";
+import { writeReportRun } from "@dashboard/lib/reports-files";
+import {
+  agencyRequestReportSlug,
+  buildAgencyRequestCompletionReport,
+} from "./agency-request-report";
 
 interface CompletionInput {
   octokit: Parameters<typeof writeTodoFile>[0]["octokit"];
@@ -12,6 +18,7 @@ interface CompletionInput {
   loopId?: string;
   status: "success" | "failed" | "blocked";
   summary?: string;
+  output?: Readonly<Record<string, unknown>>;
 }
 
 export async function completeAgencyRequestsForWorkflow(
@@ -42,12 +49,40 @@ export async function completeAgencyRequestsForWorkflow(
       const todo = bySlug.get(slug);
       if (!todo) return;
       const done = state.phase === "done";
+      let savedState = state;
+      let description = todo.description;
+      if (done) {
+        const reportSlug = agencyRequestReportSlug(slug);
+        await writeReportRun({
+          slug: reportSlug,
+          runId: input.runId,
+          title: `${todo.title} - completion`,
+          body: buildAgencyRequestCompletionReport({
+            todo,
+            state,
+            workflowId: input.workflowId,
+            runId: input.runId,
+            status: input.status,
+            ...(input.summary ? { summary: input.summary } : {}),
+            ...(input.output ? { output: input.output } : {}),
+          }),
+          generatedAt: new Date().toISOString(),
+        });
+        savedState = createAgencyRequestState({
+          ...state,
+          related: [
+            ...state.related.filter((ref) => ref.kind !== "report"),
+            { kind: "report", id: reportSlug },
+          ],
+        });
+        description = `Kody completed this request and recorded its evidence.\n\n[Open the completion report](/reports/${reportSlug})`;
+      }
       await writeTodoFile({
         octokit: input.octokit,
         slug,
         title: todo.title,
         description: done
-          ? "Kody completed this request and recorded its evidence."
+          ? description
           : state.phase === "blocked"
             ? "Kody stopped because the request needs attention."
             : todo.description,
@@ -62,7 +97,7 @@ export async function completeAgencyRequestsForWorkflow(
         ),
         createdAt: todo.createdAt,
         frontmatter: todo.frontmatter,
-        agencyRequest: state,
+        agencyRequest: savedState,
         sha: todo.sha,
       });
     },

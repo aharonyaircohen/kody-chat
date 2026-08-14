@@ -255,6 +255,7 @@ export async function POST(request: Request) {
       ...(parsed.data.loopId ? { loopId: parsed.data.loopId } : {}),
       status,
       ...(summary ? { summary } : {}),
+      output,
     });
     await dispatchWorkflowTriggers({
       event,

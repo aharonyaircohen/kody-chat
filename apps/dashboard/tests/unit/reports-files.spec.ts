@@ -143,6 +143,23 @@ describe("readReportFile", () => {
 });
 
 describe("writeReportRun", () => {
+  it("uses an explicit stable Run id for idempotent completion reports", async () => {
+    convex.mutation.mockResolvedValue("doc-id");
+    const result = await writeReportRun({
+      slug: "agency-request-healthy-ci",
+      runId: "run-123",
+      title: "Healthy CI completion",
+      body: "Done.",
+      generatedAt: "2026-08-14T12:00:00.000Z",
+    });
+
+    expect(result.runId).toBe("run-123");
+    expect(convex.mutation.mock.calls[0]?.[1]).toMatchObject({
+      slug: "agency-request-healthy-ci",
+      runId: "run-123",
+    });
+  });
+
   it("saves a timestamped run via reports.save scoped to the tenant", async () => {
     convex.mutation.mockResolvedValue("doc-id");
     const result = await writeReportRun({

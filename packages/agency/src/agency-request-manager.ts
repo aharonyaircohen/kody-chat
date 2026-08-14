@@ -19,8 +19,15 @@ export interface AgencyRequestTodoDraft {
 }
 
 export interface AgencyRequestManagerPorts {
-  findBySource(source: AgencyRequestSource): Promise<{ slug: string } | null>;
+  findExisting(input: {
+    blueprintId?: string;
+    source: AgencyRequestSource;
+  }): Promise<{ slug: string } | null>;
   create(input: AgencyRequestTodoDraft): Promise<{ slug: string }>;
+  update(
+    slug: string,
+    input: AgencyRequestTodoDraft,
+  ): Promise<{ slug: string }>;
   resolveBlueprint?(
     id: string,
   ): Promise<{ blueprint: StrategyBlueprint; instructions: string } | null>;
@@ -42,6 +49,50 @@ export interface SubmitAgencyRequestResult {
   created: boolean;
   todoSlug: string;
   handoff: AgencyRequestHandoff;
+}
+
+function requestChecklist(
+  hasBlueprint: boolean,
+): AgencyRequestTodoDraft["items"] {
+  const blueprintLabel = hasBlueprint ? " and Blueprint" : "";
+  return [
+    {
+      title: `Validate the request${blueprintLabel}`,
+      body: "Confirm the requested outcome, repository context, permissions, and success criteria.",
+      completed: false,
+      meta: { kind: "agency-request-validation" },
+    },
+    {
+      title: "Prepare the repository-specific plan",
+      body: "Inspect the repository and turn the request into a concrete execution plan.",
+      completed: false,
+      meta: { kind: "agency-request-plan" },
+    },
+    {
+      title: "Activate the required automation",
+      body: "Install or enable only the resources declared by the approved plan.",
+      completed: false,
+      meta: { kind: "agency-request-activation" },
+    },
+    {
+      title: hasBlueprint ? "Run the Blueprint Workflow" : "Run the Workflow",
+      body: "Execute the saved Workflow and keep every attempt in Run history.",
+      completed: false,
+      meta: { kind: "agency-request-execution" },
+    },
+    {
+      title: "Verify the result end to end",
+      body: "Check the saved success criteria against the real repository result.",
+      completed: false,
+      meta: { kind: "agency-request-verification" },
+    },
+    {
+      title: "Publish the completion report",
+      body: "Save the final state, evidence, and links in Reports.",
+      completed: false,
+      meta: { kind: "agency-request-report" },
+    },
+  ];
 }
 
 interface PreparedAgencyRequestPorts {
@@ -163,7 +214,9 @@ export async function submitAgencyRequest(
     input.source.kind === "store-blueprint" &&
     input.source.blueprintId !== blueprintId
   ) {
-    throw new Error("Store Blueprint source does not match the requested Blueprint");
+    throw new Error(
+      "Store Blueprint source does not match the requested Blueprint",
+    );
   }
   const outcome =
     answer(input.answers, "desiredOutcome") ?? resolved?.blueprint.outcome;
@@ -181,30 +234,21 @@ export async function submitAgencyRequest(
   }).source;
   if (!outcome) throw new Error("Agency request outcome is required");
 
-  const existing = await ports.findBySource(source);
-  if (existing) {
-    return {
-      created: false,
-      todoSlug: existing.slug,
-      handoff: handoff(existing.slug, source),
-    };
-  }
-
   const requirement = {
     outcome,
     ...(answer(input.answers, "activation")
       ? { activation: answer(input.answers, "activation") }
       : {}),
-    ...(answer(input.answers, "allowedActions") ??
-    resolved?.blueprint.constraints.join("\n")
+    ...((answer(input.answers, "allowedActions") ??
+    resolved?.blueprint.constraints.join("\n"))
       ? {
           permissions:
             answer(input.answers, "allowedActions") ??
             resolved!.blueprint.constraints.join("\n"),
         }
       : {}),
-    ...(answer(input.answers, "successCriteria") ??
-    resolved?.blueprint.verification.criteria.join("\n")
+    ...((answer(input.answers, "successCriteria") ??
+    resolved?.blueprint.verification.criteria.join("\n"))
       ? {
           success:
             answer(input.answers, "successCriteria") ??
@@ -267,25 +311,32 @@ export async function submitAgencyRequest(
         ]
       : [],
   });
-  const created = await ports.create({
+  const draft: AgencyRequestTodoDraft = {
     title: outcome.slice(0, 160),
     description: storeAuthorized
       ? "Kody is applying this Store Blueprint and will keep its progress here."
       : "Kody is assessing this request before proposing execution.",
-    items: [
-      {
-        title: "Assess feasibility and prepare the execution plan",
-        body: "Kody must verify the repository, available automation, permissions, and success evidence.",
-        completed: false,
-        meta: { kind: "agency-request-readiness" },
-      },
-    ],
+    items: requestChecklist(Boolean(resolved)),
     agencyRequest,
+  };
+  const existing = await ports.findExisting({
+    ...(blueprintId ? { blueprintId } : {}),
+    source,
   });
+  if (existing) {
+    const updated = await ports.update(existing.slug, draft);
+    return {
+      created: false,
+      todoSlug: updated.slug,
+      handoff: handoff(updated.slug, source),
+    };
+  }
+
+  const created = await ports.create(draft);
 
   return {
     created: true,
     todoSlug: created.slug,
-      handoff: handoff(created.slug, source),
+    handoff: handoff(created.slug, source),
   };
 }

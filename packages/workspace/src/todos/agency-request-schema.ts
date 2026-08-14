@@ -87,6 +87,7 @@ export const agencyRequestStateSchema = z
               "workflow",
               "capability",
               "run",
+              "report",
             ]),
             id: z.string().trim().min(1).max(200),
           })

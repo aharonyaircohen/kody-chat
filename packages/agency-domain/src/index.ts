@@ -67,12 +67,13 @@ export interface AgencyRequestRelatedRef {
     | "loop"
     | "workflow"
     | "capability"
-    | "run";
+    | "run"
+    | "report";
   id: string;
 }
 
 export type AgencyActivationKind =
-  | Exclude<AgencyRequestRelatedRef["kind"], "strategy" | "run">
+  | Exclude<AgencyRequestRelatedRef["kind"], "strategy" | "run" | "report">
   | "agent"
   | "pipeline";
 
@@ -369,11 +370,7 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
 
   const source = record(input.source, "Agency request source");
   if (source.kind === "guided-flow") {
-    exact(
-      source,
-      ["kind", "instanceId", "effectId"],
-      "Agency request source",
-    );
+    exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
   } else if (source.kind === "store-blueprint") {
     exact(
       source,
@@ -417,6 +414,7 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
     "workflow",
     "capability",
     "run",
+    "report",
   ];
 
   return Object.freeze({
@@ -429,10 +427,7 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
               source.instanceId,
               "Agency request source instanceId",
             ),
-            effectId: text(
-              source.effectId,
-              "Agency request source effectId",
-            ),
+            effectId: text(source.effectId, "Agency request source effectId"),
           }
         : {
             kind: "store-blueprint" as const,

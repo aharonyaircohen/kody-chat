@@ -133,9 +133,7 @@ function view(
   };
 }
 
-test("collects, approves, and starts an Agency request", async ({
-  page,
-}) => {
+test("collects, approves, and starts an Agency request", async ({ page }) => {
   await page.addInitScript(
     ({ owner, repo }) => {
       localStorage.setItem(
@@ -277,8 +275,7 @@ test("collects, approves, and starts an Agency request", async ({
     await page
       .locator('[aria-label="Kody chat"] button:enabled')
       .filter({
-        hasText:
-          index === fields.length - 1 ? "Submit request" : "Continue",
+        hasText: index === fields.length - 1 ? "Submit request" : "Continue",
       })
       .last()
       .click();
@@ -287,9 +284,7 @@ test("collects, approves, and starts an Agency request", async ({
   await expect(
     page.getByText("Request submitted for assessment."),
   ).toBeVisible();
-  await expect(
-    page.getByText("Approve this Agency plan?"),
-  ).toBeVisible();
+  await expect(page.getByText("Approve this Agency plan?")).toBeVisible();
   expect(chatMessages[0]).toBe('Assess Agency Todo "keep-ci-passing" now.');
 
   await page.getByRole("button", { name: "Approve" }).click();
@@ -300,6 +295,101 @@ test("collects, approves, and starts an Agency request", async ({
     ),
   ).toBeVisible();
   expect(chatMessages[1]).toContain("<view_result>");
-  expect(chatMessages[1]).toContain('"viewId":"agency-request-keep-ci-passing"');
+  expect(chatMessages[1]).toContain(
+    '"viewId":"agency-request-keep-ci-passing"',
+  );
   expect(chatMessages[1]).toContain('"actionId":"approve"');
+});
+
+test("shows the completed Blueprint checklist and Report link on its Todo", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ owner, repo }) => {
+      localStorage.setItem(
+        "kody_auth",
+        JSON.stringify({
+          repoUrl: `https://github.com/${owner}/${repo}`,
+          owner,
+          repo,
+          token: "agency-e2e-token",
+          user: { login: "agency-e2e", avatar_url: "", id: 1 },
+          loggedInAt: Date.now(),
+        }),
+      );
+    },
+    { owner: OWNER, repo: REPO },
+  );
+  await mockDashboardShellRequests(page);
+  await page.route("**/api/kody/auth/me", (route) =>
+    json(route, {
+      authenticated: true,
+      user: { login: "agency-e2e", avatar_url: "", githubId: 1 },
+      owner: OWNER,
+      repo: REPO,
+    }),
+  );
+  await page.route("**/api/kody/todos", (route) =>
+    json(route, {
+      todos: [
+        {
+          slug: "healthy-ci",
+          path: "todos/healthy-ci.json",
+          title: "Build Healthy CI",
+          description: "Kody completed this request and recorded its evidence.",
+          items: [
+            "Validate the request and Blueprint",
+            "Prepare the repository-specific plan",
+            "Activate the required automation",
+            "Run the Blueprint Workflow",
+            "Verify the result end to end",
+            "Publish the completion report",
+          ].map((title, index) => ({
+            id: `request-${index + 1}`,
+            title,
+            body: "Completed by the Agency request.",
+            assignee: null,
+            completed: true,
+            createdAt: "2026-08-14T10:00:00.000Z",
+            completedAt: "2026-08-14T10:30:00.000Z",
+          })),
+          createdAt: "2026-08-14T10:00:00.000Z",
+          updatedAt: "2026-08-14T10:30:00.000Z",
+          sha: "",
+          htmlUrl: "",
+          agencyRequest: {
+            phase: "done",
+            source: {
+              kind: "store-blueprint",
+              blueprintId: "healthy-ci",
+              requestId: "request-2",
+            },
+            requirement: { outcome: "Build Healthy CI" },
+            questions: [],
+            plan: ["Apply Healthy CI"],
+            evidence: ["Repository CI passed"],
+            blockers: [],
+            related: [
+              { kind: "strategy", id: "healthy-ci" },
+              { kind: "run", id: "run-123" },
+              { kind: "report", id: "agency-request-healthy-ci" },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+
+  await page.goto(`/repo/${OWNER}/${REPO}/todos`, {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.getByText("Build Healthy CI", { exact: true }).click();
+  await expect(page.getByText("6/6 items complete")).toBeVisible();
+  const reportLink = page.getByRole("link", { name: "Completion report" });
+  await expect(reportLink).toBeVisible();
+  await expect(reportLink).toHaveAttribute(
+    "href",
+    `/repo/${OWNER}/${REPO}/reports/agency-request-healthy-ci`,
+  );
 });

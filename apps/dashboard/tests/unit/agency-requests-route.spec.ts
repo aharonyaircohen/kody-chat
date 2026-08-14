@@ -30,6 +30,7 @@ vi.mock("@kody-ade/agency/agency-request-manager", () => manager);
 const todos = vi.hoisted(() => ({
   createTodoSlug: vi.fn(async () => "set-up-ci-repair"),
   listTodoFiles: vi.fn(async () => []),
+  readTodoFile: vi.fn(async () => null),
   writeTodoFile: vi.fn(async () => ({ slug: "set-up-ci-repair" })),
 }));
 vi.mock("@kody-ade/workspace/todos/files", () => todos);
@@ -95,8 +96,9 @@ describe("agency request route", () => {
     expect(manager.submitAgencyRequest).toHaveBeenCalledWith(
       validBody,
       expect.objectContaining({
-        findBySource: expect.any(Function),
+        findExisting: expect.any(Function),
         create: expect.any(Function),
+        update: expect.any(Function),
       }),
     );
     expect(github.clearGitHubContext).toHaveBeenCalledOnce();
@@ -114,6 +116,113 @@ describe("agency request route", () => {
     expect(strategies.readStoreStrategy).toHaveBeenCalledWith(
       expect.anything(),
       "healthy-ci",
+    );
+  });
+
+  it("finds the existing repository Todo by Blueprint instead of click id", async () => {
+    todos.listTodoFiles.mockResolvedValueOnce([
+      {
+        slug: "healthy-ci",
+        agencyRequest: {
+          source: {
+            kind: "store-blueprint",
+            blueprintId: "healthy-ci",
+            requestId: "older-click",
+          },
+          related: [{ kind: "strategy", id: "healthy-ci" }],
+        },
+      },
+    ] as never);
+    await POST(request({ ...validBody, blueprintId: "healthy-ci" }));
+    const ports = manager.submitAgencyRequest.mock.calls[0]![1]! as never as {
+      findExisting(input: {
+        blueprintId: string;
+        source: typeof validBody.source;
+      }): Promise<{ slug: string } | null>;
+    };
+
+    await expect(
+      ports.findExisting({
+        blueprintId: "healthy-ci",
+        source: validBody.source,
+      }),
+    ).resolves.toEqual({ slug: "healthy-ci" });
+  });
+
+  it("resets the owned Todo without losing prior Run and Report history", async () => {
+    todos.readTodoFile.mockResolvedValueOnce({
+      slug: "healthy-ci",
+      title: "Build Healthy CI",
+      description: "Previous completion",
+      items: [],
+      createdAt: "2026-08-13T10:00:00.000Z",
+      frontmatter: {},
+      sha: "",
+      agencyRequest: {
+        phase: "done",
+        source: {
+          kind: "store-blueprint",
+          blueprintId: "healthy-ci",
+          requestId: "older-click",
+        },
+        requirement: { outcome: "Build Healthy CI" },
+        questions: [],
+        plan: [],
+        evidence: ["Run run-old succeeded."],
+        blockers: [],
+        related: [
+          { kind: "strategy", id: "healthy-ci" },
+          { kind: "run", id: "run-old" },
+          { kind: "report", id: "agency-request-healthy-ci" },
+        ],
+      },
+    } as never);
+    await POST(request({ ...validBody, blueprintId: "healthy-ci" }));
+    const ports = manager.submitAgencyRequest.mock.calls[0]![1]! as never as {
+      update(slug: string, draft: Record<string, unknown>): Promise<unknown>;
+    };
+
+    await ports.update("healthy-ci", {
+      title: "Build Healthy CI",
+      description: "Applying Blueprint.",
+      items: [
+        {
+          title: "Validate the request and Blueprint",
+          body: "Validate it.",
+          completed: false,
+          meta: { kind: "agency-request-validation" },
+        },
+      ],
+      agencyRequest: {
+        phase: "waiting-approval",
+        source: {
+          kind: "store-blueprint",
+          blueprintId: "healthy-ci",
+          requestId: "new-click",
+        },
+        requirement: { outcome: "Build Healthy CI" },
+        questions: [],
+        plan: ["Apply Healthy CI"],
+        evidence: [],
+        blockers: [],
+        related: [{ kind: "strategy", id: "healthy-ci" }],
+      },
+    });
+
+    expect(todos.writeTodoFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "healthy-ci",
+        createdAt: "2026-08-13T10:00:00.000Z",
+        agencyRequest: expect.objectContaining({
+          phase: "waiting-approval",
+          evidence: ["Run run-old succeeded."],
+          blockers: [],
+          related: expect.arrayContaining([
+            { kind: "run", id: "run-old" },
+            { kind: "report", id: "agency-request-healthy-ci" },
+          ]),
+        }),
+      }),
     );
   });
 

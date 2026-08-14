@@ -108,6 +108,31 @@ describe("simple AI Agency domain", () => {
     ).toThrow(/unknown field "workflowId"/i);
   });
 
+  it("accepts a completion Report as an Agency request relation", () => {
+    const request = createAgencyRequestState({
+      phase: "done",
+      source: {
+        kind: "store-blueprint",
+        blueprintId: "healthy-ci",
+        requestId: "request-1",
+      },
+      requirement: { outcome: "Build Healthy CI" },
+      questions: [],
+      plan: [],
+      evidence: ["CI passed"],
+      blockers: [],
+      related: [
+        { kind: "strategy", id: "healthy-ci" },
+        { kind: "report", id: "agency-request-healthy-ci" },
+      ],
+    });
+
+    expect(request.related).toContainEqual({
+      kind: "report",
+      id: "agency-request-healthy-ci",
+    });
+  });
+
   it("puts one Agent on the Workflow, not its steps", () => {
     expect(
       createWorkflowDefinition({

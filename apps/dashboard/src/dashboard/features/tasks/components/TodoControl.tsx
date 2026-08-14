@@ -713,6 +713,7 @@ function TodoListDetail({
   onBack: () => void;
   onSelectItem: (item: TodoItem | null, replace?: boolean) => void;
 }) {
+  const scopedHref = useRepoScopedHref();
   const { githubUser } = useGitHubIdentity();
   const { setComposerInjection, openMobileChat } = useChatScope();
   const { data: collaborators = [], isLoading: isLoadingCollaborators } =
@@ -741,6 +742,9 @@ function TodoListDetail({
     : "";
   const listKind = todoListKind(list);
   const stateBadges = todoStateBadges(list);
+  const completionReport = list.agencyRequest?.related.find(
+    (ref) => ref.kind === "report",
+  );
   const progressPercent =
     stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
   const filterCounts = useMemo<Record<TodoItemFilter, number>>(
@@ -1119,6 +1123,15 @@ function TodoListDetail({
                     ))}
                   </ul>
                 </div>
+              ) : null}
+              {completionReport ? (
+                <a
+                  href={scopedHref(`/reports/${completionReport.id}`)}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Completion report
+                </a>
               ) : null}
             </section>
           ) : null}

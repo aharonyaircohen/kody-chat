@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { createAgencyRequestState } from "@kody-ade/agency-domain";
 import {
   getRequestAuth,
   getUserOctokit,
@@ -10,6 +11,7 @@ import { submitAgencyRequest } from "@kody-ade/agency/agency-request-manager";
 import {
   createTodoSlug,
   listTodoFiles,
+  readTodoFile,
   writeTodoFile,
 } from "@kody-ade/workspace/todos/files";
 import {
@@ -82,21 +84,25 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await submitAgencyRequest(parsed.data, {
-      findBySource: async (source) => {
+      findExisting: async ({ blueprintId, source }) => {
         const todos = await listTodoFiles();
-        const existing = todos.find(
-          (todo) => {
-            const candidate = todo.agencyRequest?.source;
-            if (!candidate || candidate.kind !== source.kind) return false;
-            return source.kind === "guided-flow"
-              ? candidate.kind === "guided-flow" &&
-                  candidate.effectId === source.effectId &&
-                  candidate.instanceId === source.instanceId
-              : candidate.kind === "store-blueprint" &&
-                  candidate.blueprintId === source.blueprintId &&
-                  candidate.requestId === source.requestId;
-          },
-        );
+        const existing = todos.find((todo) => {
+          const candidate = todo.agencyRequest?.source;
+          if (!candidate) return false;
+          if (blueprintId) {
+            return todo.agencyRequest?.related.some(
+              (ref) => ref.kind === "strategy" && ref.id === blueprintId,
+            );
+          }
+          if (candidate.kind !== source.kind) return false;
+          return source.kind === "guided-flow"
+            ? candidate.kind === "guided-flow" &&
+                candidate.effectId === source.effectId &&
+                candidate.instanceId === source.instanceId
+            : candidate.kind === "store-blueprint" &&
+                candidate.blueprintId === source.blueprintId &&
+                candidate.requestId === source.requestId;
+        });
         return existing ? { slug: existing.slug } : null;
       },
       create: async (draft) => {
@@ -119,6 +125,57 @@ export async function POST(req: NextRequest) {
           })),
           createdAt: now,
           agencyRequest: draft.agencyRequest,
+        });
+        return { slug: todo.slug };
+      },
+      update: async (slug, draft) => {
+        const existing = await readTodoFile(slug);
+        if (!existing) {
+          throw new Error(`Agency request Todo "${slug}" no longer exists`);
+        }
+        const now = new Date().toISOString();
+        const historicalRelated = (
+          existing.agencyRequest?.related ?? []
+        ).filter((ref) => ref.kind === "run" || ref.kind === "report");
+        const related = [
+          ...draft.agencyRequest.related,
+          ...historicalRelated,
+        ].filter(
+          (ref, index, refs) =>
+            refs.findIndex(
+              (candidate) =>
+                candidate.kind === ref.kind && candidate.id === ref.id,
+            ) === index,
+        );
+        const agencyRequest = createAgencyRequestState({
+          ...draft.agencyRequest,
+          evidence: [
+            ...new Set([
+              ...(existing.agencyRequest?.evidence ?? []),
+              ...draft.agencyRequest.evidence,
+            ]),
+          ],
+          related,
+        });
+        const todo = await writeTodoFile({
+          octokit,
+          slug,
+          title: draft.title,
+          description: draft.description,
+          items: draft.items.map((item, index) => ({
+            id: `request-${index + 1}`,
+            title: item.title,
+            body: item.body,
+            assignee: null,
+            completed: false,
+            createdAt: now,
+            completedAt: null,
+            meta: item.meta,
+          })),
+          createdAt: existing.createdAt,
+          frontmatter: existing.frontmatter,
+          agencyRequest,
+          sha: existing.sha,
         });
         return { slug: todo.slug };
       },

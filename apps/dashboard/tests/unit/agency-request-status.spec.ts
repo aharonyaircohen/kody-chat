@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  resolve(process.cwd(), "src/dashboard/features/tasks/components/TodoControl.tsx"),
+  resolve(
+    process.cwd(),
+    "src/dashboard/features/tasks/components/TodoControl.tsx",
+  ),
   "utf8",
 );
 
@@ -13,5 +16,11 @@ describe("Agency request Todo status", () => {
     expect(source).toContain("Evidence");
     expect(source).toContain("list.agencyRequest.blockers");
     expect(source).toContain("Blockers");
+  });
+
+  it("links a completed Agency request to its report", () => {
+    expect(source).toContain('ref.kind === "report"');
+    expect(source).toContain("Completion report");
+    expect(source).toContain("scopedHref(`/reports/${completionReport.id}`)");
   });
 });

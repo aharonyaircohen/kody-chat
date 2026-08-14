@@ -332,15 +332,16 @@ export async function writeReportRun(input: {
   title: string;
   body: string;
   generatedAt: string;
+  runId?: string;
 }): Promise<{ runId: string; path: string }> {
   if (!isValidSlug(input.slug)) {
     throw new Error(`invalid report slug "${input.slug}"`);
   }
-  const runId = input.generatedAt
-    .replace(/\.\d{3}Z$/, "Z")
-    .replace(/:/g, "-");
+  const runId =
+    input.runId ??
+    input.generatedAt.replace(/\.\d{3}Z$/, "Z").replace(/:/g, "-");
   if (!isValidRunId(runId)) {
-    throw new Error(`invalid generatedAt "${input.generatedAt}"`);
+    throw new Error(`invalid report run id "${runId}"`);
   }
   const raw = `---\ngeneratedAt: ${input.generatedAt}\n---\n# ${input.title}\n\n${input.body.replace(/\n*$/, "\n")}`;
   await getConvexClient().mutation(backendApi.reports.save, {
