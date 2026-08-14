@@ -54,6 +54,7 @@ test.describe("Admin Kody chat regression", () => {
               id: "gpt-x",
               label: "GPT X",
               enabled: true,
+              default: true,
               reasoning: {
                 default: "medium",
                 efforts: [
