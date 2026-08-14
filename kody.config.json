@@ -45,7 +45,9 @@
       "quality-check",
       "fix-ci",
       "run",
-      "finalize-ci-repair"
+      "finalize-ci-repair",
+      "prepare-strategy-application",
+      "apply-strategy"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -54,7 +56,8 @@
       "web-release",
       "merge",
       "review-fix",
-      "quality-run"
+      "quality-run",
+      "apply-strategy"
     ],
     "activePipelines": [
       "review-and-merge",
