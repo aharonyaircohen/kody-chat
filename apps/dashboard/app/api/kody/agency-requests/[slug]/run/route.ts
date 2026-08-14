@@ -80,6 +80,18 @@ export async function POST(
           const headers = new Headers(req.headers);
           headers.set("content-type", "application/json");
           headers.delete("content-length");
+          for (const name of [
+            "connection",
+            "keep-alive",
+            "proxy-authenticate",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "transfer-encoding",
+            "upgrade",
+          ]) {
+            headers.delete(name);
+          }
           const response = await fetch(
             new URL("/api/kody/store-catalog/import", req.url),
             {

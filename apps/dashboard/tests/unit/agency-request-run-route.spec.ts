@@ -70,6 +70,10 @@ import { POST } from "../../app/api/kody/agency-requests/[slug]/run/route";
 const request = () =>
   new NextRequest("https://dash.test/api/kody/agency-requests/keep-ci/run", {
     method: "POST",
+    headers: {
+      connection: "keep-alive",
+      "transfer-encoding": "chunked",
+    },
     body: "{}",
   });
 
@@ -112,6 +116,11 @@ describe("Agency request run route", () => {
         body: expect.stringContaining('"repositoryWriteMode":"defer"'),
       }),
     );
+    const forwardedHeaders = new Headers(
+      fetchMock.mock.calls[0]?.[1]?.headers,
+    );
+    expect(forwardedHeaders.has("connection")).toBe(false);
+    expect(forwardedHeaders.has("transfer-encoding")).toBe(false);
   });
 
   it("requires authenticated Kody access", async () => {
