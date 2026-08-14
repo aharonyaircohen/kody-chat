@@ -59,6 +59,26 @@ describe("Chat operations route", () => {
     );
   });
 
+  it("marks a partial /init result as needing attention", async () => {
+    install.installEngine.mockResolvedValueOnce({
+      ok: true,
+      summary: "Engine installed. Webhook FAILED — Not Found (HTTP 404).",
+      webhook: { ok: false, status: 404, error: "Not Found" },
+      kodyTokenSecret: { ok: true, name: "KODY_TOKEN" },
+      nextSteps: ["Grant webhook permission, then re-run /init."],
+    });
+
+    const response = await POST(request("/init"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      handled: true,
+      result: {
+        status: "needs_attention",
+        summary: "Engine installed. Webhook FAILED — Not Found (HTTP 404).",
+      },
+    });
+  });
+
   it("leaves prompt shortcuts unhandled", async () => {
     const response = await POST(request("/review"));
 

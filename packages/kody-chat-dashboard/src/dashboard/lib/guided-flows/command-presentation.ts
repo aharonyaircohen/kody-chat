@@ -17,6 +17,7 @@ export function buildGuidedFlowCommandView(
   if (!renderer) throw new Error("GuidedFlow command renderer not found");
   const result = guidedFlowStepResult(definition, instance, step.id);
   const completed = result?.status === "completed";
+  const needsAttention = result?.status === "needs_attention";
   const view = buildRenderedViewDirective({
     id: `guided-flow-${instance.instanceId}-${instance.revision}`,
     definition: renderer,
@@ -24,7 +25,11 @@ export function buildGuidedFlowCommandView(
       title: step.title,
       body: step.explanation,
       command: step.command,
-      status: completed ? "completed" : "ready",
+      status: completed
+        ? "completed"
+        : needsAttention
+          ? "needs_attention"
+          : "ready",
       summary:
         typeof result?.summary === "string"
           ? result.summary
@@ -46,14 +51,23 @@ export function buildGuidedFlowCommandView(
               variant: "primary",
             },
           ]
-        : [
-            {
-              id: "run",
-              label: "Run command",
-              response: "run",
-              variant: "primary",
-            },
-          ],
+        : needsAttention
+          ? [
+              {
+                id: "run",
+                label: "Run again",
+                response: "run",
+                variant: "primary",
+              },
+            ]
+          : [
+              {
+                id: "run",
+                label: "Run command",
+                response: "run",
+                variant: "primary",
+              },
+            ],
     },
   });
   return {

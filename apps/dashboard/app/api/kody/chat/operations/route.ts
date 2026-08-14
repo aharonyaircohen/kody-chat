@@ -49,8 +49,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (!result.ok) {
           throw new ChatOperationError(result.error, 502);
         }
+        const needsAttention =
+          result.webhook?.ok === false || result.kodyTokenSecret?.ok === false;
         return {
-          status: "completed" as const,
+          status: needsAttention
+            ? ("needs_attention" as const)
+            : ("completed" as const),
           summary: result.summary,
           workflow: result.workflow,
           nextSteps: result.nextSteps,

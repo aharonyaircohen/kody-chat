@@ -62,4 +62,27 @@ describe("Guided Flow command execution", () => {
       status: 400,
     });
   });
+
+  it("preserves a command result that needs attention", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          handled: true,
+          command: "/init",
+          result: {
+            status: "needs_attention",
+            summary: "Webhook FAILED — Not Found (HTTP 404).",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      executeGuidedFlowCommand(request(), "/init", "mutation-1"),
+    ).resolves.toEqual({
+      status: "needs_attention",
+      summary: "Webhook FAILED — Not Found (HTTP 404).",
+    });
+  });
 });

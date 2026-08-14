@@ -83,6 +83,46 @@ describe("GuidedFlow presenter navigation", () => {
     });
   });
 
+  it("does not offer Continue when a command needs attention", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "initialize-warning",
+      version: 1,
+      title: "Initialize",
+      steps: [
+        {
+          id: "run-init",
+          type: "command",
+          title: "Initialize Kody",
+          explanation: "Resolve every required setup result.",
+          command: "/init",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "continue", target: { type: "complete" } },
+          ],
+        },
+      ],
+    };
+    const warning = advanceGuidedFlow(
+      definition,
+      createGuidedFlowInstance(definition, "instance-warning"),
+      {
+        actionId: "run",
+        result: {
+          status: "needs_attention",
+          summary: "Webhook FAILED — Not Found (HTTP 404).",
+        },
+      },
+    );
+
+    expect(presentGuidedFlow(definition, warning).view).toMatchObject({
+      data: {
+        status: "needs_attention",
+        summary: "Webhook FAILED — Not Found (HTTP 404).",
+        actions: [{ id: "run", label: "Run again" }],
+      },
+    });
+  });
+
   it("navigates to the page owned by the active step", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
     const atConfigure = advanceGuidedFlow(DEFINITION, started, {

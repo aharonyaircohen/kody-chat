@@ -681,6 +681,82 @@ describe("GuidedFlow route", () => {
     }
   });
 
+  it("blocks command continuation while setup needs attention", async () => {
+    const created = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Initialize with warning",
+          steps: [
+            {
+              type: "command",
+              title: "Initialize Kody Engine",
+              explanation: "Resolve setup warnings before continuing.",
+              command: "/init",
+            },
+          ],
+        },
+      }),
+    );
+    const started = await POST(
+      request({ action: "start", flowId: "initialize-with-warning" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          handled: true,
+          command: "/init",
+          result: {
+            status: "needs_attention",
+            summary: "Webhook FAILED — Not Found (HTTP 404).",
+          },
+        }),
+      ),
+    );
+    try {
+      const executed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 0,
+          actionId: "run",
+          mutationId: "run-init-warning",
+        }),
+      );
+      expect(executed.status).toBe(200);
+      expect(await executed.json()).toMatchObject({
+        view: {
+          data: {
+            status: "needs_attention",
+            actions: [{ id: "run", label: "Run again" }],
+          },
+        },
+      });
+
+      const continued = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 1,
+          actionId: "continue",
+          mutationId: "continue-after-warning",
+        }),
+      );
+      expect(continued.status).toBe(409);
+      expect(await continued.json()).toEqual({
+        error: "command_not_completed",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(created.status).toBe(201);
+  });
+
   it("executes an enabled control and persists the returned flow state", async () => {
     const created = await POST(
       request({

@@ -41,7 +41,8 @@ export async function executeGuidedFlowCommand(
   }
   const result = payload.result as Readonly<Record<string, unknown>>;
   return {
-    status: "completed",
+    status:
+      result.status === "needs_attention" ? "needs_attention" : "completed",
     summary:
       typeof result.summary === "string"
         ? result.summary
