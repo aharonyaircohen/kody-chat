@@ -355,6 +355,7 @@ test.describe("Store", () => {
     await mockStoreCatalog(page);
     let engineInstalled = false;
     let requestBody: unknown = null;
+    let startedSlug: string | null = null;
     await page.route("**/api/kody/engine/install", async (route) => {
       engineInstalled = true;
       await json(route, { ok: true });
@@ -369,6 +370,10 @@ test.describe("Store", () => {
           message: "Apply the authorized Healthy CI Blueprint now.",
         },
       }, 201);
+    });
+    await page.route("**/api/kody/agency-requests/*/run", async (route) => {
+      startedSlug = new URL(route.request().url()).pathname.split("/").at(-2) ?? null;
+      await json(route, { kind: "started", runId: "run-1" }, 202);
     });
 
     await openStoreCatalog(page);
@@ -386,6 +391,8 @@ test.describe("Store", () => {
 
     await expect.poll(() => engineInstalled).toBe(true);
     await expect.poll(() => requestBody).not.toBeNull();
+    await expect.poll(() => startedSlug).toBe("build-healthy-ci");
+    await expect(page).toHaveURL(/\/todos\/build-healthy-ci$/);
     expect(requestBody).toMatchObject({
       blueprintId: "healthy-ci",
       source: {

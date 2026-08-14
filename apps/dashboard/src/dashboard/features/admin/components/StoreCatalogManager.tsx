@@ -461,6 +461,50 @@ async function ensureEngineInstalled(
   }
 }
 
+async function applyStoreBlueprint(
+  headers: Record<string, string>,
+  item: StoreCatalogItem,
+): Promise<{ todoSlug: string }> {
+  await ensureEngineInstalled(headers);
+  const requestId = crypto.randomUUID();
+  const requestResponse = await fetch("/api/kody/agency-requests", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify({
+      blueprintId: item.slug,
+      source: {
+        kind: "store-blueprint",
+        blueprintId: item.slug,
+        requestId,
+      },
+      answers: {},
+    }),
+  });
+  const request = (await requestResponse.json().catch(() => ({}))) as {
+    todoSlug?: string;
+    error?: string;
+    message?: string;
+  };
+  if (!requestResponse.ok || !request.todoSlug) {
+    throw new Error(
+      request.message || request.error || `HTTP ${requestResponse.status}`,
+    );
+  }
+
+  const runResponse = await fetch(
+    `/api/kody/agency-requests/${encodeURIComponent(request.todoSlug)}/run`,
+    { method: "POST", headers },
+  );
+  const run = (await runResponse.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!runResponse.ok) {
+    throw new Error(run.message || run.error || `HTTP ${runResponse.status}`);
+  }
+  return { todoSlug: request.todoSlug };
+}
+
 async function addCatalogStoreReference(
   headers: Record<string, string>,
   item: StoreCatalogItem,
@@ -731,17 +775,12 @@ export function StoreCatalogManager({
     },
   });
   const blueprintMutation = useMutation({
-    mutationFn: async (item: StoreCatalogItem) => {
-      await ensureEngineInstalled(headers);
-      return item;
-    },
-    onSuccess: (item) => {
+    mutationFn: (item: StoreCatalogItem) =>
+      applyStoreBlueprint(headers, item),
+    onSuccess: ({ todoSlug }) => {
       if (!auth) return;
-      const requestId = crypto.randomUUID();
-      const chatHref = repoScopedHref(auth, "/chat");
-      router.push(
-        `${chatHref}?applyBlueprint=${encodeURIComponent(item.slug)}&requestId=${encodeURIComponent(requestId)}`,
-      );
+      toast.success("Blueprint started — Kody is monitoring it");
+      router.push(repoScopedHref(auth, `/todos/${encodeURIComponent(todoSlug)}`));
     },
     onError: (error: Error) => {
       toast.error("Couldn't start this Blueprint", {
