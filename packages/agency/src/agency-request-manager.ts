@@ -204,7 +204,7 @@ export async function submitAgencyRequest(
               ...(resolved.blueprint.application.workflowInput ?? {}),
               blueprintId: resolved.blueprint.id,
               blueprintVersion: resolved.blueprint.version,
-              requestId: input.source.effectId,
+              requestId: input.source.kind === "guided-flow" ? input.source.effectId : (input.source as any).requestId || '',
               outcome,
               blueprint: resolved.blueprint,
               instructions: resolved.instructions,

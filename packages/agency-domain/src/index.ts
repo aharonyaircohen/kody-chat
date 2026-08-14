@@ -39,11 +39,19 @@ export type AgencyRequestPhase =
   | "done"
   | "blocked";
 
-export interface AgencyRequestSource {
+export interface GuidedFlowSource {
   kind: "guided-flow";
   instanceId: string;
   effectId: string;
 }
+
+export interface StoreBlueprintSource {
+  kind: "store-blueprint";
+  blueprintId: string;
+  requestId: string;
+}
+
+export type AgencyRequestSource = GuidedFlowSource | StoreBlueprintSource;
 
 export interface AgencyRequirement {
   outcome: string;
@@ -362,8 +370,11 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
   }
 
   const source = record(input.source, "Agency request source");
-  exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
-  if (source.kind !== "guided-flow") {
+  if (source.kind === "guided-flow") {
+    exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
+  } else if (source.kind === "store-blueprint") {
+    exact(source, ["kind", "blueprintId", "requestId"], "Agency request source");
+  } else {
     throw new Error("Agency request source kind is invalid");
   }
 

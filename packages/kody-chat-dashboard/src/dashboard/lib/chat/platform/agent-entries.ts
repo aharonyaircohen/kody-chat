@@ -94,7 +94,7 @@ export function buildAgentList(
   const brain =
     flyConfigured && brainFlyChatEnabled
       ? AGENTS["brain-fly"]
-      : brainConfigured || brainModels.length > 0
+      : brainModels.length > 0
         ? AGENTS.brain
         : null;
   if (brain) {

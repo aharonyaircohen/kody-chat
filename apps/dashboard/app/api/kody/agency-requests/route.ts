@@ -74,8 +74,13 @@ export async function POST(req: NextRequest) {
         const todos = await listTodoFiles();
         const existing = todos.find(
           (todo) =>
-            todo.agencyRequest?.source.effectId === source.effectId &&
-            todo.agencyRequest.source.instanceId === source.instanceId,
+            source.kind === "guided-flow"
+              ? todo.agencyRequest?.source.kind === "guided-flow" &&
+                todo.agencyRequest.source.effectId === source.effectId &&
+                todo.agencyRequest.source.instanceId === source.instanceId
+              : todo.agencyRequest?.source.kind === "store-blueprint" &&
+                todo.agencyRequest.source.blueprintId === source.blueprintId &&
+                todo.agencyRequest.source.requestId === source.requestId
         );
         return existing ? { slug: existing.slug } : null;
       },
