@@ -58,6 +58,11 @@ describe("public Agent routing", () => {
       ),
     ).toBe(true);
     expect(
+      isAgencyRequestIntakeRequest(
+        "Build repository-specific Healthy CI from the approved Blueprint and keep monitoring it until it passes end to end.",
+      ),
+    ).toBe(true);
+    expect(
       isAgencyRequestIntakeRequest("Run the CI Repair workflow on main."),
     ).toBe(false);
 

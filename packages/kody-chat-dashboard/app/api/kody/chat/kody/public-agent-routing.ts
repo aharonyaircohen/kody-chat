@@ -132,9 +132,11 @@ export function isAgencyRequestIntakeRequest(userText: string): boolean {
   const setup =
     /\b(?:set up|setup|build|create|configure|establish|install)\b/.test(text);
   const automation =
-    /\b(?:automation|workflow|pipeline|flow|process|ci repair)\b/.test(text);
+    /\b(?:automation|workflow|pipeline|flow|process|ci(?: repair)?)\b/.test(
+      text,
+    );
   const durableOwnership =
-    /\b(?:take responsibility|keep working|maintain|monitor|own|automatically|whenever)\b/.test(
+    /\b(?:take responsibility|keep working|maintain|monitor(?:ing)?|own|automatically|whenever)\b/.test(
       text,
     ) || /\buntil\b.{0,80}\b(?:pass|work|succeed|complete|done)\b/.test(text);
   return setup && automation && durableOwnership;
