@@ -4,6 +4,8 @@ export interface TableDef {
   naturalKey: string[];
   upsertIndex?: string;
   global?: boolean;
+  /** Runtime coordination data that must not be backed up or restored. */
+  transient?: boolean;
   /** Exactly one row may exist per tenant; tenantId is the complete identity. */
   tenantSingleton?: boolean;
 }
@@ -25,6 +27,12 @@ export const TABLES: readonly TableDef[] = [
     table: "workflowRuns",
     naturalKey: ["workflowId", "runId"],
     upsertIndex: "by_run",
+  },
+  {
+    table: "workflowRunLeases",
+    naturalKey: ["workflowId", "runId"],
+    upsertIndex: "by_run",
+    transient: true,
   },
   {
     table: "workflowEventDeliveries",
@@ -239,11 +247,11 @@ export const TABLES: readonly TableDef[] = [
   { table: "eventLog", naturalKey: ["entryId"], global: true },
 ];
 
-export const IMPORTABLE_TABLES: readonly string[] = TABLES.map(
-  (entry) => entry.table,
-);
+export const IMPORTABLE_TABLES: readonly string[] = TABLES.filter(
+  (entry) => !entry.transient,
+).map((entry) => entry.table);
 
 /** Tables whose rows belong to one repository and are safe to back up or restore there. */
 export const REPO_SCOPED_TABLES: readonly string[] = TABLES.filter(
-  (entry) => !entry.global,
+  (entry) => !entry.global && !entry.transient,
 ).map((entry) => entry.table);

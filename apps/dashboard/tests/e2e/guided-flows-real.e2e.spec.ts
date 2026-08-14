@@ -53,7 +53,7 @@ test("loads real Guided Flow definitions", async ({ page }) => {
   });
 
   await expect(
-    page.getByRole("heading", { name: "Guided Flow Management" }),
+    page.getByRole("heading", { name: "Request Blueprints" }),
   ).toBeVisible();
   await expect(
     page.getByRole("article", { name: "Create a workflow" }),
@@ -81,13 +81,18 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
       waitUntil: "domcontentloaded",
     });
     await page
-      .getByRole("button", { name: "Add Guided Flow", exact: true })
+      .getByRole("button", { name: "Add Request Blueprint", exact: true })
       .click();
     await page.getByLabel("Flow name").fill(flowTitle);
     await page
+      .getByLabel("Purpose")
+      .fill("Verify that a real Request Blueprint persists end to end.");
+    await page
       .getByLabel("Step 1 renderer", { exact: true })
       .selectOption("approval-card");
-    await page.getByRole("button", { name: "Save Guided Flow" }).click();
+    await page
+      .getByRole("button", { name: "Save Request Blueprint" })
+      .click();
     await expect(page.getByRole("article", { name: flowTitle })).toBeVisible();
 
     await page.goto(
@@ -198,9 +203,12 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
       waitUntil: "domcontentloaded",
     });
     await page
-      .getByRole("button", { name: "Add Guided Flow", exact: true })
+      .getByRole("button", { name: "Add Request Blueprint", exact: true })
       .click();
     await page.getByLabel("Flow name").fill(flowTitle);
+    await page
+      .getByLabel("Purpose")
+      .fill("Verify that Chat receives the active Request Blueprint context.");
     await page.getByLabel("Step 1 title").fill(`Answered checkpoint ${suffix}`);
     await page
       .getByLabel("Step 1 renderer", { exact: true })
@@ -216,7 +224,9 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
     await page
       .getByLabel("Step 2 instructions")
       .fill("Wait at this checkpoint while the user asks Chat for help.");
-    await page.getByRole("button", { name: "Save Guided Flow" }).click();
+    await page
+      .getByRole("button", { name: "Save Request Blueprint" })
+      .click();
     await expect(page.getByRole("article", { name: flowTitle })).toBeVisible();
 
     const startResponsePromise = page.waitForResponse(

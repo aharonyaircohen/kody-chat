@@ -7,7 +7,7 @@ import { TABLES, IMPORTABLE_TABLES } from "../../src/table-registry";
 // register it in the entity registry, never in downstream lists.
 describe("entity registry drift", () => {
   const schemaTables = Object.keys(schema.tables).sort();
-  const registryTables = [...IMPORTABLE_TABLES].sort();
+  const registryTables = TABLES.map((entry) => entry.table).sort();
 
   it("covers every schema table", () => {
     expect(registryTables).toEqual(schemaTables);
@@ -16,6 +16,15 @@ describe("entity registry drift", () => {
   it("has no duplicate table entries", () => {
     const tables = TABLES.map((e) => e.table);
     expect(new Set(tables).size).toBe(tables.length);
+  });
+
+  it("keeps transient runtime tables out of backup and restore", () => {
+    const transientTables = TABLES.filter((entry) => entry.transient).map(
+      (entry) => entry.table,
+    );
+
+    expect(transientTables).toContain("workflowRunLeases");
+    expect(IMPORTABLE_TABLES).not.toContain("workflowRunLeases");
   });
 
   it("every entity declares a natural key or an explicit tenant-singleton contract", () => {
