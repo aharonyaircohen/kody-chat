@@ -349,6 +349,70 @@ async function addCatalogItem(
 }
 
 test.describe("Store", () => {
+  test("starts the generated Create Blueprint flow from Strategy Blueprints", async ({
+    page,
+  }) => {
+    await mockStoreCatalog(page);
+    let startedFlow: { flowId?: string; instanceKey?: string } | null = null;
+    await page.route("**/api/kody/guided-flows**", async (route) => {
+      if (route.request().method() === "GET") return json(route, { flows: [] });
+      startedFlow = route.request().postDataJSON() as {
+        flowId?: string;
+        instanceKey?: string;
+      };
+      return json(route, {
+        instance: { status: "active" },
+        flow: { id: "create-blueprint" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "create-blueprint-introduction",
+          rendererSlug: "approval-card",
+          rendererName: "Approval card",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "create-blueprint-instance",
+            stepId: "introduction",
+            revision: 0,
+          },
+          ui: {
+            type: "stack",
+            children: [
+              {
+                type: "text",
+                value: "Create Blueprint",
+                variant: "title",
+              },
+              {
+                type: "button",
+                label: "Begin",
+                action: {
+                  id: "continue",
+                  label: "Begin",
+                  response: "continue",
+                  variant: "primary",
+                },
+              },
+            ],
+          },
+          data: {},
+        },
+      });
+    });
+
+    await openStoreSolutions(page);
+    await page.getByRole("button", { name: "Create Blueprint" }).click();
+
+    await expect.poll(() => startedFlow).toMatchObject({
+      flowId: "create-blueprint",
+      instanceKey: "request-blueprint:create-blueprint",
+    });
+    await expect(
+      page.getByRole("heading", { name: "Create Blueprint" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Begin" })).toBeVisible();
+  });
+
   test("applies a Blueprint in one action and hands it to Agency", async ({
     page,
   }) => {

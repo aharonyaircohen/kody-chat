@@ -47,6 +47,8 @@ import { cn } from "@dashboard/lib/utils";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { PageShell } from "@dashboard/lib/components/PageShell";
+import { useGuidedFlowChat } from "@kody-ade/kody-chat-dashboard/guided-flows/chat-controller";
+import { CREATE_BLUEPRINT_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/builtins";
 
 export type CatalogKind =
   | "all"
@@ -591,6 +593,7 @@ export function StoreCatalogManager({
   selectedKey?: string | null;
 } = {}) {
   const router = useRouter();
+  const { startFlow } = useGuidedFlowChat();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
@@ -945,9 +948,23 @@ export function StoreCatalogManager({
                       repository.
                     </p>
                   </div>
-                  <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
-                    {filteredBlueprints.length}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+                      {filteredBlueprints.length}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        startFlow(
+                          CREATE_BLUEPRINT_FLOW_ID,
+                          "request-blueprint:create-blueprint",
+                        )
+                      }
+                    >
+                      <Play className="mr-1.5 h-4 w-4" />
+                      Create Blueprint
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                   {filteredBlueprints.map((item) => (

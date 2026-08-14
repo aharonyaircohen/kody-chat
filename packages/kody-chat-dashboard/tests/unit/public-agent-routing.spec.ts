@@ -5,6 +5,7 @@ import {
   buildPublicAgentRoutingPrompt,
   inferPublicAgentRouteFromDefinitions,
   routeProjectAssessmentSubmission,
+  isBlueprintCreationIntakeRequest,
   isAgencyRequestIntakeRequest,
   isAgencyRequestAssessmentHandoff,
   getAgencyRequestAssessmentTodoSlug,
@@ -51,6 +52,27 @@ const assignedAgents = [
 ];
 
 describe("public Agent routing", () => {
+  it("recognizes Blueprint creation without confusing it with Blueprint use", () => {
+    expect(
+      isBlueprintCreationIntakeRequest(
+        "Create a reusable Web Release Blueprint for the Store.",
+      ),
+    ).toBe(true);
+    expect(
+      isBlueprintCreationIntakeRequest(
+        "Build a Blueprint that keeps dependency updates healthy.",
+      ),
+    ).toBe(true);
+    expect(
+      isBlueprintCreationIntakeRequest(
+        "Build repository-specific Healthy CI from the approved Blueprint.",
+      ),
+    ).toBe(false);
+    expect(
+      isBlueprintCreationIntakeRequest("Install the Healthy CI Blueprint."),
+    ).toBe(false);
+  });
+
   it("keeps durable automation ownership requests with Kody intake", async () => {
     expect(
       isAgencyRequestIntakeRequest(

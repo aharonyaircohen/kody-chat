@@ -208,15 +208,18 @@ import { startDurableTurn, type DurableTurn } from "../durable-turn";
 import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
   isCompleteProjectAssessmentRequest,
+  isBlueprintCreationIntakeRequest,
   isAgencyRequestIntakeRequest,
   getAgencyRequestAssessmentTodoSlug,
   isClearlyConversationalTurn,
   isParentOwnedArchitectureAdvice,
 } from "./public-agent-routing";
 import {
+  CREATE_BLUEPRINT_FLOW_ID,
   NEW_AGENCY_REQUEST_FLOW_ID,
   PROJECT_ASSESSMENT_FLOW_ID,
 } from "../../../../../src/dashboard/lib/guided-flows/builtins";
+import { CREATE_BLUEPRINT_MODEL_GUIDE } from "../../../../../src/dashboard/lib/request-blueprints/create-blueprint";
 import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { shouldRoutePublicAgentChat } from "./public-agent-routing";
@@ -1269,9 +1272,12 @@ async function handleKodyDirectPost(
   const assessmentIntakeRequested = isCompleteProjectAssessmentRequest(
     latestUserText ?? "",
   );
-  const agencyRequestIntakeRequested = isAgencyRequestIntakeRequest(
+  const blueprintCreationIntakeRequested = isBlueprintCreationIntakeRequest(
     latestUserText ?? "",
   );
+  const agencyRequestIntakeRequested =
+    !blueprintCreationIntakeRequested &&
+    isAgencyRequestIntakeRequest(latestUserText ?? "");
   const requireInteractiveAction =
     !explicitViewRequest &&
     shouldRequireViewOutputForTurn({
@@ -1846,6 +1852,11 @@ async function handleKodyDirectPost(
       `Start the built-in GuidedFlow \`${NEW_AGENCY_REQUEST_FLOW_ID}\` with \`guided_flow_start\` now. Do not delegate, inspect, execute, or recreate the questions with \`show_view\` before intake; the GuidedFlow collects the user's durable automation requirement and hands the completed request back to Kody for assessment.`,
     );
   }
+  if (blueprintCreationIntakeRequested) {
+    turnSystemInstructions.push(
+      `Start the built-in GuidedFlow \`${CREATE_BLUEPRINT_FLOW_ID}\` with \`guided_flow_start\` now. Do not recreate its questions with \`show_view\`. The GuidedFlow and your reasoning use this same Request Blueprint:\n${CREATE_BLUEPRINT_MODEL_GUIDE}`,
+    );
+  }
   if (
     clearlyConversationalTurn &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, FINAL_ANSWER_TOOL)
@@ -1877,7 +1888,9 @@ async function handleKodyDirectPost(
   let agencyAssessmentReadResultsSeen = 0;
   let agencyAssessmentUpdatedSeen = false;
   const forceGuidedFlowIntake =
-    (assessmentIntakeRequested || agencyRequestIntakeRequested) &&
+    (assessmentIntakeRequested ||
+      agencyRequestIntakeRequested ||
+      blueprintCreationIntakeRequested) &&
     allActiveTools.includes("guided_flow_start");
   const shouldAllowPreRenderTools =
     requireViewOutput &&

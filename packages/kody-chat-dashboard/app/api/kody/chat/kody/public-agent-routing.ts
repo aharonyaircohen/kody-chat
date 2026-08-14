@@ -142,6 +142,21 @@ export function isAgencyRequestIntakeRequest(userText: string): boolean {
   return setup && automation && durableOwnership;
 }
 
+/** A request to author a reusable Blueprint, not to apply an existing one. */
+export function isBlueprintCreationIntakeRequest(userText: string): boolean {
+  const text = userText.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!/\bblueprints?\b/.test(text)) return false;
+  if (
+    /\b(?:apply|install|run|use)\b.{0,60}\bblueprints?\b/.test(text) ||
+    /\bfrom\b.{0,40}\b(?:approved|existing|healthy ci|web release)?\s*blueprints?\b/.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+  return /\b(?:create|make|design|author|define|add|publish|build)\b/.test(text);
+}
+
 /** Trusted internal handoff emitted after Agency request intake completes. */
 export function getAgencyRequestAssessmentTodoSlug(
   userText: string,
@@ -370,7 +385,10 @@ export async function routePublicAgentTask({
   if (isCompleteProjectAssessmentRequest(userText)) {
     return { mode: "self" };
   }
-  if (isAgencyRequestIntakeRequest(userText)) {
+  if (
+    isAgencyRequestIntakeRequest(userText) ||
+    isBlueprintCreationIntakeRequest(userText)
+  ) {
     return { mode: "self" };
   }
   if (isAgencyRequestAssessmentHandoff(userText)) {

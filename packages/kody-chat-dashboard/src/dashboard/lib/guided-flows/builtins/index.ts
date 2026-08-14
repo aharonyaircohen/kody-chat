@@ -12,6 +12,7 @@ import {
   ONBOARDING_FLOW_V2,
 } from "./onboarding";
 import { NEW_AGENCY_REQUEST_FLOW } from "./new-agency-request";
+import { CREATE_BLUEPRINT_FLOW } from "../../request-blueprints/create-blueprint";
 
 export { CREATE_WORKFLOW_FLOW_ID } from "./create-workflow";
 export { INITIALIZE_KODY_ENGINE_FLOW_ID } from "./initialize-kody-engine";
@@ -19,6 +20,7 @@ export { ONBOARDING_FLOW_ID } from "./onboarding";
 export { SETUP_UI_LOGIN_FLOW_ID } from "./setup-ui-login";
 export { PROJECT_ASSESSMENT_FLOW_ID } from "./project-assessment";
 export { NEW_AGENCY_REQUEST_FLOW_ID } from "./new-agency-request";
+export { CREATE_BLUEPRINT_FLOW_ID } from "../../request-blueprints/create-blueprint";
 
 export const BUILTIN_GUIDED_FLOW_DEFINITIONS: readonly GuidedFlowDefinition[] =
   [
@@ -31,4 +33,5 @@ export const BUILTIN_GUIDED_FLOW_DEFINITIONS: readonly GuidedFlowDefinition[] =
     PROJECT_ASSESSMENT_FLOW_V1,
     PROJECT_ASSESSMENT_FLOW,
     NEW_AGENCY_REQUEST_FLOW,
+    CREATE_BLUEPRINT_FLOW,
   ];
