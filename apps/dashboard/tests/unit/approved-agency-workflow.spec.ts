@@ -79,6 +79,18 @@ describe("approved Agency Workflow dispatch", () => {
     expect(workflowServices.dispatch).not.toHaveBeenCalled();
   });
 
+  it("keeps an empty installation envelope when activations are already local", async () => {
+    const prepared = await prepareApprovedAgencyExecution(
+      execution,
+      vi.fn(async () => ({})),
+    );
+
+    expect(prepared.input).toEqual({
+      ...execution.input,
+      installation: { configPatch: {} },
+    });
+  });
+
   it("propagates a dispatch failure for the route to sanitize", async () => {
     const workflowServices = services({
       dispatch: vi.fn(async () => {

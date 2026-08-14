@@ -35,13 +35,14 @@ export async function prepareApprovedAgencyExecution(
   execution: AgencyRequestExecution,
   activate: Activate,
 ): Promise<AgencyRequestExecution> {
+  const activations = execution.activations ?? [];
   let configPatch: Record<string, unknown> = {};
-  for (const activation of execution.activations ?? []) {
+  for (const activation of activations) {
     const result = await activate(activation);
     configPatch = mergeConfigPatch(configPatch, result.configPatch);
   }
   const input =
-    Object.keys(configPatch).length > 0
+    activations.length > 0
       ? { ...execution.input, installation: { configPatch } }
       : { ...execution.input };
   return { ...execution, input };
