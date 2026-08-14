@@ -8,6 +8,29 @@ import {
 } from "../src/index";
 
 describe("simple AI Agency domain", () => {
+  it("accepts a Store Blueprint as an Agency request source", () => {
+    const state = createAgencyRequestState({
+      phase: "waiting-approval",
+      source: {
+        kind: "store-blueprint",
+        blueprintId: "healthy-ci",
+        requestId: "request-1",
+      },
+      requirement: { outcome: "Build Healthy CI" },
+      questions: [],
+      plan: ["Apply the Blueprint"],
+      evidence: [],
+      blockers: [],
+      related: [{ kind: "strategy", id: "healthy-ci" }],
+    });
+
+    expect(state.source).toEqual({
+      kind: "store-blueprint",
+      blueprintId: "healthy-ci",
+      requestId: "request-1",
+    });
+  });
+
   it("keeps Agency request lifecycle state inside Todo metadata", () => {
     expect(
       createAgencyRequestState({

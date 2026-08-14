@@ -11,13 +11,25 @@ export const agencyRequestStateSchema = z
       "done",
       "blocked",
     ]),
-    source: z
-      .object({
-        kind: z.literal("guided-flow"),
-        instanceId: z.string().trim().min(1).max(200),
-        effectId: z.string().trim().min(1).max(300),
-      })
-      .strict(),
+    source: z.discriminatedUnion("kind", [
+      z
+        .object({
+          kind: z.literal("guided-flow"),
+          instanceId: z.string().trim().min(1).max(200),
+          effectId: z.string().trim().min(1).max(300),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal("store-blueprint"),
+          blueprintId: z
+            .string()
+            .trim()
+            .regex(/^[a-z][a-z0-9-]{0,127}$/),
+          requestId: z.string().trim().min(1).max(300),
+        })
+        .strict(),
+    ]),
     requirement: z
       .object({
         outcome: z.string().trim().min(1).max(20_000),

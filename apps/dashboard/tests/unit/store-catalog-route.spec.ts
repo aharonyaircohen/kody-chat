@@ -14,6 +14,7 @@ describe("simple Store catalog", () => {
       "trigger",
       "command",
       "feature",
+      "blueprint",
     ]) {
       expect(source).toContain(`| "${kind}"`);
     }
@@ -46,6 +47,12 @@ describe("simple Store catalog", () => {
     expect(source).toContain("listStoreSolutions");
     expect(source).toContain("resolveStoreSolutionTree");
     expect(source).toContain("solutions");
+  });
+
+  it("returns Strategy Blueprints as executable Store entries", () => {
+    expect(source).toContain("readStoreStrategy");
+    expect(source).toContain('kind: "blueprint"');
+    expect(source).toContain("verification.criteria");
   });
 
   it("requires active Agents and Capabilities to exist in the execution backend", () => {

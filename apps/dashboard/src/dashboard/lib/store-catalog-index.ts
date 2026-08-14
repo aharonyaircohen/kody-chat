@@ -16,6 +16,7 @@ export interface StoreCatalogSlugs {
   loops: string[];
   triggers: string[];
   solutions: string[];
+  strategies: string[];
 }
 
 export async function listStoreCatalogSlugs(
@@ -30,6 +31,7 @@ export async function listStoreCatalogSlugs(
     loops,
     triggers,
     solutions,
+    strategies,
   ] = await Promise.all([
     listCompanyStoreAssetSlugs(octokit, "capabilities", isCatalogSlug),
     listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isCatalogSlug),
@@ -39,6 +41,7 @@ export async function listStoreCatalogSlugs(
     listCompanyStoreAssetSlugs(octokit, "loops", isCatalogSlug),
     listCompanyStoreAssetSlugs(octokit, "triggers", isCatalogSlug),
     listCompanyStoreAssetSlugs(octokit, "solutions", isCatalogSlug),
+    listCompanyStoreAssetSlugs(octokit, "strategies", isCatalogSlug),
   ]);
   return {
     capabilities,
@@ -49,6 +52,7 @@ export async function listStoreCatalogSlugs(
     loops,
     triggers,
     solutions,
+    strategies,
   };
 }
 

@@ -120,10 +120,16 @@ function answer(
   return normalized ? normalized.slice(0, 20_000) : undefined;
 }
 
-function handoff(todoSlug: string): AgencyRequestHandoff {
+function handoff(
+  todoSlug: string,
+  source: AgencyRequestSource,
+): AgencyRequestHandoff {
+  const storeAuthorized = source.kind === "store-blueprint";
   return {
     type: "kody",
-    displayContent: "Request submitted for assessment.",
+    displayContent: storeAuthorized
+      ? "Applying Blueprint to this repository."
+      : "Request submitted for assessment.",
     message: [
       `Agency request assessment handoff for Todo ${JSON.stringify(todoSlug)}.`,
       "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
@@ -131,8 +137,12 @@ function handoff(todoSlug: string): AgencyRequestHandoff {
       "A Workflow named in execution.activations may intentionally be absent from the active Workflow list. Read that exact Workflow directly because Store candidates are readable before activation; do not block the request merely because the Workflow is not installed yet.",
       "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
       "For default-branch CI requests, use the repository CI rollup rather than selecting a run from the raw Actions list; Kody orchestration runs are not repository CI.",
-      "If it is executable, save a concrete plan and the exact verified Workflow id and input in execution, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
-      "After approval, dispatch the saved Workflow once, attach its Run id, monitor its durable completion event, and mark the request done only with end-to-end evidence. Otherwise mark it blocked with the precise reason.",
+      storeAuthorized
+        ? "The Store Apply click already authorized the Blueprint's declared actions. If it is executable, preserve the saved plan and execution, then dispatch it immediately without asking for another approval."
+        : "If it is executable, save a concrete plan and the exact verified Workflow id and input in execution, update it to waiting-approval, and present one approval action. Do not make consequential changes before approval.",
+      storeAuthorized
+        ? "Attach the Run id, monitor its durable completion event, and mark the request done only with end-to-end evidence. Otherwise keep it active with the precise blocker or question."
+        : "After approval, dispatch the saved Workflow once, attach its Run id, monitor its durable completion event, and mark the request done only with end-to-end evidence. Otherwise mark it blocked with the precise reason.",
     ].join("\n"),
   };
 }
@@ -141,21 +151,6 @@ export async function submitAgencyRequest(
   input: SubmitAgencyRequestInput,
   ports: AgencyRequestManagerPorts,
 ): Promise<SubmitAgencyRequestResult> {
-  const source = createAgencyRequestState({
-    phase: "assessing",
-    source: input.source,
-    requirement: {
-      outcome: answer(input.answers, "desiredOutcome") ?? "Missing outcome",
-    },
-    questions: [],
-    plan: [],
-    evidence: [],
-    blockers: [],
-    related: [],
-  }).source;
-  const outcome = answer(input.answers, "desiredOutcome");
-  if (!outcome) throw new Error("Agency request outcome is required");
-
   const blueprintId = input.blueprintId?.trim();
   const resolved = blueprintId
     ? await ports.resolveBlueprint?.(blueprintId)
@@ -163,13 +158,35 @@ export async function submitAgencyRequest(
   if (blueprintId && !resolved) {
     throw new Error(`Strategy Blueprint "${blueprintId}" is unavailable`);
   }
+  const storeAuthorized = input.source.kind === "store-blueprint";
+  if (
+    input.source.kind === "store-blueprint" &&
+    input.source.blueprintId !== blueprintId
+  ) {
+    throw new Error("Store Blueprint source does not match the requested Blueprint");
+  }
+  const outcome =
+    answer(input.answers, "desiredOutcome") ?? resolved?.blueprint.outcome;
+  const source = createAgencyRequestState({
+    phase: "assessing",
+    source: input.source,
+    requirement: {
+      outcome: outcome ?? "Missing outcome",
+    },
+    questions: [],
+    plan: [],
+    evidence: [],
+    blockers: [],
+    related: [],
+  }).source;
+  if (!outcome) throw new Error("Agency request outcome is required");
 
   const existing = await ports.findBySource(source);
   if (existing) {
     return {
       created: false,
       todoSlug: existing.slug,
-      handoff: handoff(existing.slug),
+      handoff: handoff(existing.slug, source),
     };
   }
 
@@ -178,22 +195,38 @@ export async function submitAgencyRequest(
     ...(answer(input.answers, "activation")
       ? { activation: answer(input.answers, "activation") }
       : {}),
-    ...(answer(input.answers, "allowedActions")
-      ? { permissions: answer(input.answers, "allowedActions") }
+    ...(answer(input.answers, "allowedActions") ??
+    resolved?.blueprint.constraints.join("\n")
+      ? {
+          permissions:
+            answer(input.answers, "allowedActions") ??
+            resolved!.blueprint.constraints.join("\n"),
+        }
       : {}),
-    ...(answer(input.answers, "successCriteria")
-      ? { success: answer(input.answers, "successCriteria") }
+    ...(answer(input.answers, "successCriteria") ??
+    resolved?.blueprint.verification.criteria.join("\n")
+      ? {
+          success:
+            answer(input.answers, "successCriteria") ??
+            resolved!.blueprint.verification.criteria.join("\n"),
+        }
       : {}),
     ...(answer(input.answers, "additionalContext")
       ? { context: answer(input.answers, "additionalContext") }
       : {}),
   };
   const agencyRequest = createAgencyRequestState({
-    phase: "assessing",
+    phase: storeAuthorized ? "waiting-approval" : "assessing",
     source,
     requirement,
     questions: [],
-    plan: [],
+    plan: storeAuthorized
+      ? [
+          `Apply Strategy Blueprint ${resolved!.blueprint.id}.`,
+          `Run Workflow ${resolved!.blueprint.application.workflowId}.`,
+          "Monitor until the Blueprint verification criteria pass end to end.",
+        ]
+      : [],
     evidence: [],
     blockers: [],
     ...(resolved
@@ -204,7 +237,10 @@ export async function submitAgencyRequest(
               ...(resolved.blueprint.application.workflowInput ?? {}),
               blueprintId: resolved.blueprint.id,
               blueprintVersion: resolved.blueprint.version,
-              requestId: input.source.effectId,
+              requestId:
+                input.source.kind === "guided-flow"
+                  ? input.source.effectId
+                  : input.source.requestId,
               outcome,
               blueprint: resolved.blueprint,
               instructions: resolved.instructions,
@@ -233,7 +269,9 @@ export async function submitAgencyRequest(
   });
   const created = await ports.create({
     title: outcome.slice(0, 160),
-    description: "Kody is assessing this request before proposing execution.",
+    description: storeAuthorized
+      ? "Kody is applying this Store Blueprint and will keep its progress here."
+      : "Kody is assessing this request before proposing execution.",
     items: [
       {
         title: "Assess feasibility and prepare the execution plan",
@@ -248,6 +286,6 @@ export async function submitAgencyRequest(
   return {
     created: true,
     todoSlug: created.slug,
-    handoff: handoff(created.slug),
+      handoff: handoff(created.slug, source),
   };
 }

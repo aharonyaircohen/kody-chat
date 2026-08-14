@@ -20,6 +20,7 @@ describe("Store catalog index", () => {
                   loops: "loops",
                   triggers: "triggers",
                   solutions: "solutions",
+                  strategies: "strategies",
                 },
               }),
             ).toString("base64"),
@@ -49,7 +50,8 @@ describe("Store catalog index", () => {
       loops: ["sample"],
       triggers: ["sample"],
       solutions: ["sample"],
+      strategies: ["sample"],
     });
-    expect(getContent).toHaveBeenCalledTimes(9);
+    expect(getContent).toHaveBeenCalledTimes(10);
   });
 });

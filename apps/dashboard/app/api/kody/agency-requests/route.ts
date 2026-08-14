@@ -28,13 +28,25 @@ const submitSchema = z
       .trim()
       .regex(/^[a-z][a-z0-9-]{0,127}$/)
       .optional(),
-    source: z
-      .object({
-        kind: z.literal("guided-flow"),
-        instanceId: z.string().trim().min(1).max(200),
-        effectId: z.string().trim().min(1).max(300),
-      })
-      .strict(),
+    source: z.discriminatedUnion("kind", [
+      z
+        .object({
+          kind: z.literal("guided-flow"),
+          instanceId: z.string().trim().min(1).max(200),
+          effectId: z.string().trim().min(1).max(300),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal("store-blueprint"),
+          blueprintId: z
+            .string()
+            .trim()
+            .regex(/^[a-z][a-z0-9-]{0,127}$/),
+          requestId: z.string().trim().min(1).max(300),
+        })
+        .strict(),
+    ]),
     answers: z.record(z.string(), z.unknown()),
   })
   .strict();
@@ -73,9 +85,17 @@ export async function POST(req: NextRequest) {
       findBySource: async (source) => {
         const todos = await listTodoFiles();
         const existing = todos.find(
-          (todo) =>
-            todo.agencyRequest?.source.effectId === source.effectId &&
-            todo.agencyRequest.source.instanceId === source.instanceId,
+          (todo) => {
+            const candidate = todo.agencyRequest?.source;
+            if (!candidate || candidate.kind !== source.kind) return false;
+            return source.kind === "guided-flow"
+              ? candidate.kind === "guided-flow" &&
+                  candidate.effectId === source.effectId &&
+                  candidate.instanceId === source.instanceId
+              : candidate.kind === "store-blueprint" &&
+                  candidate.blueprintId === source.blueprintId &&
+                  candidate.requestId === source.requestId;
+          },
         );
         return existing ? { slug: existing.slug } : null;
       },

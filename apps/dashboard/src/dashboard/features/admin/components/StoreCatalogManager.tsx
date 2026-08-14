@@ -19,6 +19,7 @@ import {
   Layers,
   Loader2,
   Package,
+  Play,
   RefreshCw,
   Route,
   Bot,
@@ -41,6 +42,7 @@ import {
 
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { selectionPath } from "@dashboard/lib/selection-routing";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import { cn } from "@dashboard/lib/utils";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { ListSearch } from "@dashboard/lib/components/ListSearch";
@@ -56,7 +58,8 @@ export type CatalogKind =
   | "loop"
   | "trigger"
   | "command"
-  | "feature";
+  | "feature"
+  | "blueprint";
 
 type CatalogItemKind = Exclude<CatalogKind, "all" | "solution">;
 
@@ -92,6 +95,13 @@ interface StoreCatalogItem {
     slug: string;
     title?: string;
   }>;
+  blueprint?: {
+    version: string;
+    constraints: string[];
+    verification: string[];
+    repositoryTypes: string[];
+    providers: string[];
+  };
 }
 
 interface StoreCatalogResponse {
@@ -119,6 +129,7 @@ const KIND_FILTERS: Array<{
   { id: "trigger", label: "Triggers", icon: Zap },
   { id: "command", label: "Commands", icon: Bot },
   { id: "feature", label: "Features", icon: Package },
+  { id: "blueprint", label: "Blueprints", icon: Play },
 ];
 
 const KIND_LABEL: Record<CatalogItemKind, string> = {
@@ -130,6 +141,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   trigger: "Trigger",
   command: "Command",
   feature: "Feature",
+  blueprint: "Blueprint",
 };
 
 const KIND_COLORS: Record<
@@ -252,6 +264,18 @@ const KIND_COLORS: Record<
     borderHover: "hover:border-teal-500/30",
     tint: "bg-teal-500/10",
     text: "text-teal-700 dark:text-teal-100",
+  },
+  blueprint: {
+    tabActive:
+      "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-fuchsia-700 dark:hover:text-fuchsia-100",
+    icon: "text-fuchsia-600 dark:text-fuchsia-300",
+    iconHover:
+      "group-hover:text-fuchsia-600 dark:group-hover:text-fuchsia-300",
+    borderHover: "hover:border-fuchsia-500/30",
+    tint: "bg-fuchsia-500/10",
+    text: "text-fuchsia-700 dark:text-fuchsia-100",
   },
 };
 
@@ -420,6 +444,23 @@ async function mutateStoreSolution(
   }
 }
 
+async function ensureEngineInstalled(
+  headers: Record<string, string>,
+): Promise<void> {
+  const res = await fetch("/api/kody/engine/install", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify({}),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+}
+
 async function addCatalogStoreReference(
   headers: Record<string, string>,
   item: StoreCatalogItem,
@@ -533,6 +574,13 @@ export function StoreCatalogManager({
     [catalog.data],
   );
   const items = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
+  const filteredBlueprints = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter(
+      (item) =>
+        item.kind === "blueprint" && (!q || queryText(item).includes(q)),
+    );
+  }, [items, search]);
   const filteredSolutions = useMemo(() => {
     if (kind !== "solution") return [];
     const q = search.trim().toLowerCase();
@@ -557,9 +605,9 @@ export function StoreCatalogManager({
   );
   const selected = useMemo(
     () =>
-      filtered.find((item) => storeCatalogItemKey(item) === selectedKey) ??
+      items.find((item) => storeCatalogItemKey(item) === selectedKey) ??
       null,
-    [filtered, selectedKey],
+    [items, selectedKey],
   );
   const selectedSolution = useMemo(
     () =>
@@ -678,6 +726,25 @@ export function StoreCatalogManager({
     },
     onError: (error: Error) => {
       toast.error("Couldn't change Store solution", {
+        description: error.message,
+      });
+    },
+  });
+  const blueprintMutation = useMutation({
+    mutationFn: async (item: StoreCatalogItem) => {
+      await ensureEngineInstalled(headers);
+      return item;
+    },
+    onSuccess: (item) => {
+      if (!auth) return;
+      const requestId = crypto.randomUUID();
+      const chatHref = repoScopedHref(auth, "/chat");
+      router.push(
+        `${chatHref}?applyBlueprint=${encodeURIComponent(item.slug)}&requestId=${encodeURIComponent(requestId)}`,
+      );
+    },
+    onError: (error: Error) => {
+      toast.error("Couldn't start this Blueprint", {
         description: error.message,
       });
     },
@@ -812,43 +879,78 @@ export function StoreCatalogManager({
         <EmptyState icon={<Package />} title="Loading store catalog..." />
       ) : items.length === 0 && solutions.length === 0 ? (
         <EmptyState icon={<Package />} title="No store items found" />
-      ) : kind === "solution" && filteredSolutions.length === 0 ? (
+      ) : kind === "solution" &&
+        filteredSolutions.length === 0 &&
+        filteredBlueprints.length === 0 ? (
         <EmptyState icon={<Package />} title="No matching solutions" />
       ) : kind !== "solution" && filtered.length === 0 ? (
         <EmptyState icon={<Package />} title="No matching store items" />
       ) : (
         <div className="space-y-8">
           {kind === "solution" ? (
-            <section
-              aria-labelledby="store-group-solutions"
-              className="space-y-4"
-            >
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2
-                    id="store-group-solutions"
-                    className="text-lg font-semibold text-foreground"
-                  >
-                    Solutions
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Complete setups ready to review and install.
-                  </p>
+            <>
+              <section
+                aria-labelledby="store-group-blueprints"
+                className="space-y-4"
+              >
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2
+                      id="store-group-blueprints"
+                      className="text-lg font-semibold text-foreground"
+                    >
+                      Strategy Blueprints
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Apply a complete outcome and let Kody adapt it to this
+                      repository.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+                    {filteredBlueprints.length}
+                  </span>
                 </div>
-                <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
-                  {filteredSolutions.length}
-                </span>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-                {filteredSolutions.map((solution) => (
-                  <SolutionCard
-                    key={solution.slug}
-                    solution={solution}
-                    onSelect={() => selectSolution(solution)}
-                  />
-                ))}
-              </div>
-            </section>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                  {filteredBlueprints.map((item) => (
+                    <CatalogCard
+                      key={`${item.kind}:${item.slug}`}
+                      item={item}
+                      onSelect={() => selectCatalogItem(item)}
+                    />
+                  ))}
+                </div>
+              </section>
+              <section
+                aria-labelledby="store-group-solutions"
+                className="space-y-4"
+              >
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h2
+                      id="store-group-solutions"
+                      className="text-lg font-semibold text-foreground"
+                    >
+                      Solutions
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Complete setups ready to review and install.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+                    {filteredSolutions.length}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                  {filteredSolutions.map((solution) => (
+                    <SolutionCard
+                      key={solution.slug}
+                      solution={solution}
+                      onSelect={() => selectSolution(solution)}
+                    />
+                  ))}
+                </div>
+              </section>
+            </>
           ) : null}
           {kind !== "solution"
             ? grouped.map((group) => {
@@ -902,9 +1004,15 @@ export function StoreCatalogManager({
             item={selected}
             onInstall={() => installMutation.mutate(selected)}
             onUninstall={() => uninstallMutation.mutate(selected)}
+            onApply={() => blueprintMutation.mutate(selected)}
             busy={
-              pendingStoreItemKey === storeCatalogItemKey(selected) &&
-              (installMutation.isPending || uninstallMutation.isPending)
+              (pendingStoreItemKey === storeCatalogItemKey(selected) &&
+                (installMutation.isPending || uninstallMutation.isPending)) ||
+              (blueprintMutation.variables
+                ? storeCatalogItemKey(blueprintMutation.variables) ===
+                    storeCatalogItemKey(selected) &&
+                  blueprintMutation.isPending
+                : false)
             }
           />
         ) : null}
@@ -1237,11 +1345,13 @@ function CatalogDetail({
   item,
   onInstall,
   onUninstall,
+  onApply,
   busy,
 }: {
   item: StoreCatalogItem;
   onInstall: () => void;
   onUninstall: () => void;
+  onApply: () => void;
   busy: boolean;
 }) {
   const Icon = displayKindIcon(item);
@@ -1300,6 +1410,24 @@ function CatalogDetail({
               </section>
             ) : null}
 
+            {item.kind === "blueprint" && item.blueprint ? (
+              <section className="space-y-3 rounded-md border border-fuchsia-500/20 bg-fuchsia-500/5 p-4">
+                <h3 className="text-sm font-medium text-foreground">
+                  What Kody is allowed to do
+                </h3>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {item.blueprint.constraints.map((constraint) => (
+                    <li key={constraint}>{constraint}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Apply also installs Kody's repository launcher when it is
+                  missing. Kody then works through the saved Todo until the
+                  verification below passes or a real decision needs you.
+                </p>
+              </section>
+            ) : null}
+
             {uninstallBlocked ? (
               <section className="rounded-md border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-100">
                 <h3 className="font-medium">Required by</h3>
@@ -1321,6 +1449,22 @@ function CatalogDetail({
             <InfoRow label="Type" value={displayKindLabel(item)} />
             <InfoRow label="Slug" value={item.slug} mono />
             <InfoRow label="Status" value={statusLabel} />
+            {item.blueprint ? (
+              <>
+                <InfoRow label="Version" value={item.blueprint.version} />
+                <InfoRow
+                  label="Works with"
+                  value={[
+                    ...item.blueprint.repositoryTypes,
+                    ...item.blueprint.providers,
+                  ].join(", ")}
+                />
+                <InfoRow
+                  label="Done when"
+                  value={item.blueprint.verification.join("; ")}
+                />
+              </>
+            ) : null}
             <InfoRow label="Source">
               {item.htmlUrl ? (
                 <a
@@ -1351,7 +1495,13 @@ function CatalogDetail({
         ) : null}
         <Button
           size="sm"
-          onClick={installed ? onUninstall : onInstall}
+          onClick={
+            item.kind === "blueprint"
+              ? onApply
+              : installed
+                ? onUninstall
+                : onInstall
+          }
           disabled={busy || uninstallBlocked}
           data-testid={`store-catalog-import-${item.kind}-${item.slug}`}
           variant={installed ? "outline" : "default"}
@@ -1359,6 +1509,8 @@ function CatalogDetail({
         >
           {busy ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : item.kind === "blueprint" ? (
+            <Play className="h-4 w-4" />
           ) : installed ? (
             <Trash2 className="h-4 w-4" />
           ) : (
@@ -1367,7 +1519,11 @@ function CatalogDetail({
           {busy
             ? installed
               ? "Uninstalling..."
-              : "Installing..."
+              : item.kind === "blueprint"
+                ? "Starting..."
+                : "Installing..."
+            : item.kind === "blueprint"
+              ? "Apply Blueprint"
             : installed
               ? "Uninstall"
               : "Install"}

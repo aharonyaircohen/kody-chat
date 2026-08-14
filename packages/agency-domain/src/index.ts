@@ -39,11 +39,17 @@ export type AgencyRequestPhase =
   | "done"
   | "blocked";
 
-export interface AgencyRequestSource {
-  kind: "guided-flow";
-  instanceId: string;
-  effectId: string;
-}
+export type AgencyRequestSource =
+  | {
+      kind: "guided-flow";
+      instanceId: string;
+      effectId: string;
+    }
+  | {
+      kind: "store-blueprint";
+      blueprintId: string;
+      requestId: string;
+    };
 
 export interface AgencyRequirement {
   outcome: string;
@@ -362,8 +368,19 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
   }
 
   const source = record(input.source, "Agency request source");
-  exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
-  if (source.kind !== "guided-flow") {
+  if (source.kind === "guided-flow") {
+    exact(
+      source,
+      ["kind", "instanceId", "effectId"],
+      "Agency request source",
+    );
+  } else if (source.kind === "store-blueprint") {
+    exact(
+      source,
+      ["kind", "blueprintId", "requestId"],
+      "Agency request source",
+    );
+  } else {
     throw new Error("Agency request source kind is invalid");
   }
 
@@ -404,11 +421,31 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
 
   return Object.freeze({
     phase: input.phase as AgencyRequestPhase,
-    source: Object.freeze({
-      kind: "guided-flow" as const,
-      instanceId: text(source.instanceId, "Agency request source instanceId"),
-      effectId: text(source.effectId, "Agency request source effectId"),
-    }),
+    source: Object.freeze(
+      source.kind === "guided-flow"
+        ? {
+            kind: "guided-flow" as const,
+            instanceId: text(
+              source.instanceId,
+              "Agency request source instanceId",
+            ),
+            effectId: text(
+              source.effectId,
+              "Agency request source effectId",
+            ),
+          }
+        : {
+            kind: "store-blueprint" as const,
+            blueprintId: identifier(
+              source.blueprintId,
+              "Agency request source blueprintId",
+            ),
+            requestId: text(
+              source.requestId,
+              "Agency request source requestId",
+            ),
+          },
+    ),
     requirement: Object.freeze({
       outcome: text(requirement.outcome, "Agency request outcome"),
       ...optionalText("activation"),

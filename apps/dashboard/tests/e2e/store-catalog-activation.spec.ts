@@ -7,7 +7,15 @@
  * verifies that "Add from Store" links Store models without local copies.
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
+
+function json(route: Route, body: unknown, status = 200) {
+  return route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+  });
+}
 
 type CatalogKind =
   | "agent"
@@ -16,7 +24,8 @@ type CatalogKind =
   | "trigger"
   | "workflow"
   | "command"
-  | "solution";
+  | "solution"
+  | "blueprint";
 
 interface CatalogItem {
   slug: string;
@@ -30,6 +39,13 @@ interface CatalogItem {
     slug: string;
     title?: string;
   }>;
+  blueprint?: {
+    version: string;
+    constraints: string[];
+    verification: string[];
+    repositoryTypes: string[];
+    providers: string[];
+  };
 }
 
 const auth = {
@@ -94,6 +110,20 @@ const catalogSeeds: CatalogItem[] = [
     description: "Draft factory changes.",
     kind: "command",
     htmlUrl: null,
+  },
+  {
+    slug: "healthy-ci",
+    title: "Healthy CI",
+    description: "Build repository-native CI and keep it passing.",
+    kind: "blueprint",
+    htmlUrl: "https://github.com/acme/store/tree/main/strategies/healthy-ci",
+    blueprint: {
+      version: "1.0.0",
+      constraints: ["Create a pull request; do not merge it"],
+      verification: ["Repository CI passes"],
+      repositoryTypes: ["javascript", "typescript"],
+      providers: ["github-actions"],
+    },
   },
 ];
 
@@ -319,6 +349,53 @@ async function addCatalogItem(
 }
 
 test.describe("Store", () => {
+  test("applies a Blueprint in one action and hands it to Agency", async ({
+    page,
+  }) => {
+    await mockStoreCatalog(page);
+    let engineInstalled = false;
+    let requestBody: unknown = null;
+    await page.route("**/api/kody/engine/install", async (route) => {
+      engineInstalled = true;
+      await json(route, { ok: true });
+    });
+    await page.route("**/api/kody/agency-requests", async (route) => {
+      requestBody = route.request().postDataJSON();
+      await json(route, {
+        created: true,
+        todoSlug: "build-healthy-ci",
+        handoff: {
+          displayContent: "Applying Blueprint to this repository.",
+          message: "Apply the authorized Healthy CI Blueprint now.",
+        },
+      }, 201);
+    });
+
+    await openStoreCatalog(page);
+    await page.goto("/store-catalog/blueprint/healthy-ci", {
+      waitUntil: "domcontentloaded",
+    });
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Healthy CI" }),
+    ).toBeVisible();
+    await expect(dialog.getByText("Repository CI passes")).toBeVisible();
+    await page
+      .getByTestId("store-catalog-import-blueprint-healthy-ci")
+      .click();
+
+    await expect.poll(() => engineInstalled).toBe(true);
+    await expect.poll(() => requestBody).not.toBeNull();
+    expect(requestBody).toMatchObject({
+      blueprintId: "healthy-ci",
+      source: {
+        kind: "store-blueprint",
+        blueprintId: "healthy-ci",
+      },
+      answers: {},
+    });
+  });
+
   test("keeps Solutions inside Catalog with full dependency details", async ({
     page,
   }) => {
@@ -472,7 +549,9 @@ test.describe("Store", () => {
 
     await openStoreCatalog(page);
 
-    for (const item of catalogSeeds) {
+    for (const item of catalogSeeds.filter(
+      (candidate) => candidate.kind !== "blueprint",
+    )) {
       await addCatalogItem(page, item);
     }
 

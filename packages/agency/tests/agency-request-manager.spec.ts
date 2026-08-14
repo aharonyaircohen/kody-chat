@@ -155,6 +155,69 @@ describe("Agency Request Manager", () => {
     expect(result.handoff.message).toContain("keep-ci-healthy");
   });
 
+  it("turns a Store Blueprint click into an authorized ready request", async () => {
+    const create = vi.fn(async () => ({ slug: "build-healthy-ci" }));
+    const result = await submitAgencyRequest(
+      {
+        blueprintId: "healthy-ci",
+        source: {
+          kind: "store-blueprint",
+          blueprintId: "healthy-ci",
+          requestId: "request-1",
+        },
+        answers: {},
+      },
+      {
+        create,
+        findBySource: vi.fn(async () => null),
+        resolveBlueprint: vi.fn(async () => ({
+          blueprint: {
+            schemaVersion: 1,
+            kind: "strategy-blueprint",
+            id: "healthy-ci",
+            version: "1.0.0",
+            name: "Healthy CI",
+            outcome: "Build repository-native CI and keep it passing",
+            instructions: "instructions.md",
+            constraints: ["Open a pull request; do not merge it"],
+            application: {
+              workflowId: "apply-strategy",
+              workflowInput: { waitForCi: true },
+              activate: [{ kind: "solution", id: "ci-repair" }],
+            },
+            verification: { criteria: ["Repository CI passes"] },
+            compatibility: {
+              repositoryTypes: ["javascript"],
+              providers: ["github-actions"],
+            },
+          },
+          instructions: "Inspect the repository and build native CI.",
+        })),
+      },
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Build repository-native CI and keep it passing",
+        agencyRequest: expect.objectContaining({
+          phase: "waiting-approval",
+          source: {
+            kind: "store-blueprint",
+            blueprintId: "healthy-ci",
+            requestId: "request-1",
+          },
+          requirement: expect.objectContaining({
+            outcome: "Build repository-native CI and keep it passing",
+            permissions: "Open a pull request; do not merge it",
+            success: "Repository CI passes",
+          }),
+        }),
+      }),
+    );
+    expect(result.handoff.message).toContain("already authorized");
+    expect(result.handoff.message).not.toContain("present one approval action");
+  });
+
   it("rejects an unavailable requested Blueprint", async () => {
     await expect(
       submitAgencyRequest(

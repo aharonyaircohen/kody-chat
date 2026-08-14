@@ -1727,6 +1727,69 @@ export function KodyChat({
   // sendText itself.
   sendTextRef.current = sendText;
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !pathname) return;
+    const params = new URLSearchParams(window.location.search);
+    const blueprintId = params.get("applyBlueprint")?.trim() ?? "";
+    const requestId = params.get("requestId")?.trim() ?? "";
+    if (
+      !/^[a-z][a-z0-9-]{0,127}$/.test(blueprintId) ||
+      !requestId ||
+      requestId.length > 300
+    ) {
+      return;
+    }
+    const launchKey = `kody:blueprint-apply:${blueprintId}:${requestId}`;
+    if (window.sessionStorage.getItem(launchKey)) return;
+    window.sessionStorage.setItem(launchKey, "starting");
+
+    params.delete("applyBlueprint");
+    params.delete("requestId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/kody/agency-requests", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders(),
+          },
+          body: JSON.stringify({
+            blueprintId,
+            source: {
+              kind: "store-blueprint",
+              blueprintId,
+              requestId,
+            },
+            answers: {},
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+          handoff?: { message?: string; displayContent?: string };
+        } | null;
+        if (!response.ok || !payload?.handoff?.message) {
+          throw new Error(payload?.error || "blueprint_request_failed");
+        }
+        window.sessionStorage.setItem(launchKey, "sent");
+        await sendText(payload.handoff.message, [], {
+          displayContent:
+            payload.handoff.displayContent ?? "Applying Blueprint.",
+        });
+      } catch (error) {
+        window.sessionStorage.removeItem(launchKey);
+        toast.error("Couldn't apply this Blueprint", {
+          description:
+            error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    })();
+  }, [pathname, router, sendText]);
+
   const handleRenderedViewAction = useCallback(
     (view: RenderedViewDirective, action: RenderedViewAction) => {
       if (view.rendererSlug === "guided-flow-status") {

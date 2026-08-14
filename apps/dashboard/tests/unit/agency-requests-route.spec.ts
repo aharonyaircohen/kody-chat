@@ -117,6 +117,25 @@ describe("agency request route", () => {
     );
   });
 
+  it("accepts an idempotent Store Blueprint application", async () => {
+    const body = {
+      blueprintId: "healthy-ci",
+      source: {
+        kind: "store-blueprint",
+        blueprintId: "healthy-ci",
+        requestId: "request-1",
+      },
+      answers: {},
+    };
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(201);
+    expect(manager.submitAgencyRequest).toHaveBeenCalledWith(
+      body,
+      expect.anything(),
+    );
+  });
+
   it("rejects incomplete request data before creating anything", async () => {
     const response = await POST(request({ answers: {} }));
 

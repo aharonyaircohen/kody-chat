@@ -32,6 +32,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { listRepositoryLoops } from "@dashboard/lib/repository-loops";
 import { getTriggers } from "@kody-ade/base/triggers";
+import { readStoreStrategy } from "@dashboard/lib/store-strategies";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -44,7 +45,8 @@ type CatalogKind =
   | "loop"
   | "trigger"
   | "command"
-  | "feature";
+  | "feature"
+  | "blueprint";
 
 type CatalogItem = {
   slug: string;
@@ -59,6 +61,13 @@ type CatalogItem = {
     slug: string;
     title?: string;
   }>;
+  blueprint?: {
+    version: string;
+    constraints: string[];
+    verification: string[];
+    repositoryTypes: string[];
+    providers: string[];
+  };
 };
 
 type CatalogSolution = {
@@ -147,8 +156,9 @@ export async function GET(req: NextRequest) {
       loops,
       triggers,
       solutions: solutionSlugs,
+      strategies,
     } = await listStoreCatalogSlugs(octokit);
-    const [solutionRecords, solutionCatalog] = await Promise.all([
+    const [solutionRecords, solutionCatalog, strategyRecords] = await Promise.all([
       listStoreSolutions(octokit, solutionSlugs),
       loadStoreSolutionCatalog(octokit, {
         agents,
@@ -158,6 +168,7 @@ export async function GET(req: NextRequest) {
         loops,
         triggers,
       }),
+      Promise.all(strategies.map((id) => readStoreStrategy(octokit, id))),
     ]);
     const activeWorkflows = [...solutionCatalog.workflows.values()].filter(
       (workflow) => active.workflow.has(workflow.id),
@@ -267,6 +278,32 @@ export async function GET(req: NextRequest) {
         installed: active.feature.has(item.slug),
         uninstallBlockedBy: [],
       })),
+      ...strategyRecords.flatMap((record) =>
+        record
+          ? [
+              {
+                slug: record.blueprint.id,
+                title: record.blueprint.name,
+                description: record.blueprint.outcome,
+                kind: "blueprint" as const,
+                htmlUrl: buildCompanyStoreHtmlUrl(
+                  "strategies",
+                  record.blueprint.id,
+                ),
+                installed: false,
+                uninstallBlockedBy: [],
+                blueprint: {
+                  version: record.blueprint.version,
+                  constraints: record.blueprint.constraints,
+                  verification: record.blueprint.verification.criteria,
+                  repositoryTypes:
+                    record.blueprint.compatibility.repositoryTypes,
+                  providers: record.blueprint.compatibility.providers,
+                },
+              },
+            ]
+          : [],
+      ),
     ];
 
     return NextResponse.json(
