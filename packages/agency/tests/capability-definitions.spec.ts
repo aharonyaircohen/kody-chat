@@ -304,7 +304,29 @@ describe("simple capability folders", () => {
         ...FILES,
         "contract.json": JSON.stringify({
           execution: "agent",
+          deliveryPathAllowlist: [".kody-engine/definitions/loops/**"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
           deliveryPathAllowlist: [".github/**"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/deliveryPathAllowlist/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPathAllowlist: [".kody-engine/**"],
           input: {},
           output: {},
         }),

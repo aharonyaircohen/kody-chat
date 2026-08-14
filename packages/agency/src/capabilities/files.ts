@@ -585,10 +585,14 @@ function parseDeliveryPathAllowlist(raw: unknown): string[] | undefined {
     const subtree = value.endsWith("/**");
     const base = subtree ? value.slice(0, -3) : value;
     const segments = base.split("/");
+    const allowedHiddenPath =
+      base.startsWith(".github/") ||
+      base === ".kody-engine/definitions/loops" ||
+      base.startsWith(".kody-engine/definitions/loops/");
     if (
       !base ||
       base.startsWith("/") ||
-      (base.startsWith(".") && !base.startsWith(".github/")) ||
+      (base.startsWith(".") && !allowedHiddenPath) ||
       base.includes("\\") ||
       base.includes("..") ||
       base.includes("*") ||
