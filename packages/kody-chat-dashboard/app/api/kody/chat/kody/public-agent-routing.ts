@@ -96,10 +96,19 @@ export function routeProjectAssessmentSubmission(
 
 /** Whether this parent chat has an assigned specialist roster to route across. */
 export function shouldRoutePublicAgentChat(input: {
+  userText?: string;
   clientSurface: boolean;
   assignedSubagentCount: number;
 }): boolean {
-  return !input.clientSurface && input.assignedSubagentCount > 0;
+  const referenceRequest =
+    /^\s*(?:please\s+)?(?:provide|give|find|get|open|share|send|show)\b[^?\n]{0,120}\b(?:link|url|path|route|page)\b/i.test(
+      input.userText ?? "",
+    );
+  return (
+    !input.clientSurface &&
+    input.assignedSubagentCount > 0 &&
+    !referenceRequest
+  );
 }
 
 /** Short social turns do not need a routing model call or research tools. */

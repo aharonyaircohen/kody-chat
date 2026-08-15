@@ -1784,6 +1784,7 @@ async function handleKodyDirectPost(
   );
   if (
     shouldRoutePublicAgentChat({
+      userText: latestUserText ?? "",
       clientSurface: Boolean(clientSurface),
       assignedSubagentCount: assignedSubagentRoster.length,
     })

@@ -268,6 +268,13 @@ describe("public Agent routing", () => {
         assignedSubagentCount: 0,
       }),
     ).toBe(false);
+    expect(
+      shouldRoutePublicAgentChat({
+        userText: "Provide the link to the CTO agent.",
+        clientSurface: false,
+        assignedSubagentCount: 2,
+      }),
+    ).toBe(false);
   });
 
   it("builds routing guidance entirely from assigned Agent definitions", () => {
