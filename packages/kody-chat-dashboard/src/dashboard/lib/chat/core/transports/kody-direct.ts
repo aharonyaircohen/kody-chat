@@ -12,8 +12,8 @@
  *   the abort controller, and the post-stream directive application
  *   (including preview_act chaining into a synthetic follow-up turn). A clean
  *   EOF (after `finish`/`[DONE]`) emits `done`; an EOF without a terminal
- *   marker is a dropped connection and emits a non-recoverable `error`.
- *   The shared coordinator owns terminal lifecycle state.
+ *   marker throws a typed disconnect so the surface can recover the durable
+ *   server turn. The shared coordinator owns terminal lifecycle state.
  */
 
 import { parseKodyDirectChunk, type KodyDirectChunk } from "./envelope";
@@ -34,11 +34,21 @@ import {
 import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
 import { normalizeModelOperationFailure } from "../silent-turn";
 
-/** `error` ChatEvent code emitted when the stream drops mid-turn. */
+/** Stable code for a stream that dropped while its durable turn continued. */
 export const KODY_DIRECT_ERROR_CODE_DROPPED = "kody-direct-dropped";
 
 export const KODY_DIRECT_DROPPED_MESSAGE =
-  "lost the connection before the reply finished. The server may still be working — send your message again in a moment.";
+  "The connection closed before the reply finished. Kody is still working and the result will appear automatically.";
+
+/** The browser stream ended, but the durable server turn may still complete. */
+export class KodyDirectConnectionDroppedError extends Error {
+  readonly code = KODY_DIRECT_ERROR_CODE_DROPPED;
+
+  constructor() {
+    super(KODY_DIRECT_DROPPED_MESSAGE);
+    this.name = "KodyDirectConnectionDroppedError";
+  }
+}
 
 export interface KodyDirectTurnConfig {
   /** `/api/kody/chat/kody`. */
@@ -481,13 +491,7 @@ export async function sendKodyDirectTurn(
     // EOF with no `finish`, `[DONE]`, or stream error: the connection
     // dropped mid-turn. Surface it — matching the brain adapter's
     // exhaustion semantics — instead of settling as a clean finish.
-    ctx.emit({
-      type: "error",
-      message: KODY_DIRECT_DROPPED_MESSAGE,
-      recoverable: false,
-      code: KODY_DIRECT_ERROR_CODE_DROPPED,
-    });
-    return;
+    throw new KodyDirectConnectionDroppedError();
   }
   ctx.emit({ type: "done" });
 }

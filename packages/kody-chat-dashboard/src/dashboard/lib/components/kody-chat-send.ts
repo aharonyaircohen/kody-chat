@@ -57,6 +57,7 @@ import {
   type BrainTurnConfig,
 } from "../chat/core/transports/brain";
 import {
+  KodyDirectConnectionDroppedError,
   kodyDirectTransport,
   type KodyDirectTurnConfig,
 } from "../chat/core/transports/kody-direct";
@@ -1406,6 +1407,12 @@ async function runSendTextInner(
       const spoken = voiceMode ? stripReasoning(textBuf) : textBuf.trim();
       return spoken || null;
     } catch (err) {
+      if (err instanceof KodyDirectConnectionDroppedError) {
+        setLoading(false);
+        await directPersistence.flush();
+        sessionHook.recoverRunningTurn(uiSessionId);
+        return null;
+      }
       if (
         shouldPreservePendingDirectTurn(
           typeof document === "undefined"

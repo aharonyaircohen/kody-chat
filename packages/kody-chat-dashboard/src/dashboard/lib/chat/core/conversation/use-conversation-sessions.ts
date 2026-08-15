@@ -51,9 +51,7 @@ function writeTabActiveSessionId(
     } else {
       window.sessionStorage.removeItem(activeSessionStorageKey(scope));
     }
-  } catch {
-    // Tab storage can be unavailable in restricted browser contexts.
-  }
+  } catch {}
 }
 
 export interface UseConversationSessionsResult {
@@ -78,6 +76,8 @@ export interface UseConversationSessionsResult {
     sessionId: string,
     message: ChatMessage & { id: string; role: "assistant" },
   ) => Promise<void>;
+  /** Refresh a durable turn now, then keep polling while it is running. */
+  recoverRunningTurn: (sessionId: string) => void;
   setMessages: (messages: MessageUpdater) => void;
   setSessionMessages: (
     sessionId: string,
@@ -339,11 +339,12 @@ export function useConversationSessions(
       error instanceof Error ? error.message : "Conversation refresh failed",
     );
   }, []);
-  useRunningTurnRecovery({
+  const recoverRunningTurn = useRunningTurnRecovery({
     activeSessionId,
     hydrated,
     persistenceEnabled,
     recoveringSessionIds,
+    setRecoveringSessionIds,
     loadDetail,
     onError: handleRunningTurnRefreshError,
   });
@@ -552,7 +553,6 @@ export function useConversationSessions(
     ) => saveAssistantMessage("settle-pending", sessionId, message),
     [saveAssistantMessage],
   );
-
   const setSessionMessages = useCallback(
     (
       sessionId: string,
@@ -820,6 +820,7 @@ export function useConversationSessions(
     persistAssistantMessage,
     persistPendingAssistantMessage,
     settlePendingAssistantMessage,
+    recoverRunningTurn,
     setMessages,
     setSessionMessages,
     getSessionMessages: (sessionId) => messagesBySession[sessionId] ?? [],

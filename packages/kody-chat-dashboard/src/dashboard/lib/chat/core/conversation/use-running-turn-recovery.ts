@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 const RUNNING_TURN_REFRESH_MS = 1_500;
 
@@ -7,17 +7,32 @@ export function useRunningTurnRecovery(input: {
   hydrated: boolean;
   persistenceEnabled: boolean;
   recoveringSessionIds: ReadonlySet<string>;
+  setRecoveringSessionIds: (
+    update: (previous: Set<string>) => Set<string>,
+  ) => void;
   loadDetail: (conversationId: string) => Promise<boolean>;
   onError: (error: unknown) => void;
-}): void {
+}): (sessionId: string) => void {
   const {
     activeSessionId,
     hydrated,
     persistenceEnabled,
     recoveringSessionIds,
+    setRecoveringSessionIds,
     loadDetail,
     onError,
   } = input;
+  const recoverRunningTurn = useCallback(
+    (sessionId: string) => {
+      setRecoveringSessionIds((previous) => {
+        if (previous.has(sessionId)) return previous;
+        const next = new Set(previous);
+        next.add(sessionId);
+        return next;
+      });
+    },
+    [setRecoveringSessionIds],
+  );
   useEffect(() => {
     if (
       !hydrated ||
@@ -55,4 +70,5 @@ export function useRunningTurnRecovery(input: {
     persistenceEnabled,
     recoveringSessionIds,
   ]);
+  return recoverRunningTurn;
 }

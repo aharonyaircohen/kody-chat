@@ -15,6 +15,7 @@ import {
   kodyDirectTransport,
   KODY_DIRECT_DROPPED_MESSAGE,
   KODY_DIRECT_ERROR_CODE_DROPPED,
+  KodyDirectConnectionDroppedError,
   type KodyDirectTurnConfig,
 } from "@kody-ade/kody-chat-dashboard/core/transports/kody-direct";
 import {
@@ -377,7 +378,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([{ type: "token", text: "par" }]);
   });
 
-  it("emits a non-recoverable dropped-connection error when the stream ends without a terminal marker", async () => {
+  it("reports a resumable disconnect when the stream ends without a terminal marker", async () => {
     const { restore } = installScriptedFetch([
       () =>
         sseResponse([
@@ -389,17 +390,19 @@ describe("sendKodyDirectTurn", () => {
     restoreFetch = restore;
     const sink = eventSink();
 
-    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+    await expect(
+      sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit }),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        name: KodyDirectConnectionDroppedError.name,
+        message: KODY_DIRECT_DROPPED_MESSAGE,
+        code: KODY_DIRECT_ERROR_CODE_DROPPED,
+      }),
+    );
 
     expect(sink.events).toEqual([
       { type: "reasoning", text: "thinking\u2026" },
       { type: "token", text: "partial" },
-      {
-        type: "error",
-        message: KODY_DIRECT_DROPPED_MESSAGE,
-        recoverable: false,
-        code: KODY_DIRECT_ERROR_CODE_DROPPED,
-      },
     ]);
   });
 
