@@ -54,12 +54,29 @@
       "merge",
       "review-fix",
       "quality-run",
-      "apply-strategy"
+      "apply-strategy",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
       "ci-repair"
     ]
+  },
+  "release": {
+    "versionFiles": [
+      {
+        "path": "apps/dashboard/package.json",
+        "kind": "package"
+      }
+    ],
+    "validation": {
+      "workflow": "release-validation.yml"
+    },
+    "releaseBranch": "main",
+    "productionUrl": "https://kody-chat.vercel.app",
+    "smokeCommand": "npx playwright test --project=chromium tests/e2e/smoke.spec.ts",
+    "productionDeployRequired": true,
+    "timeoutMs": 1800000
   },
   "access": {
     "allowedAssociations": [

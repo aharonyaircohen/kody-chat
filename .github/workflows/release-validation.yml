@@ -31,4 +31,5 @@ jobs:
     - name: Build
       run: pnpm build
     - name: Smoke test
-      run: echo "noop smoke test"
+      run: |
+        PW_LOCAL=1 BASE_URL=http://127.0.0.1:3333 pnpm --filter kody-dashboard test:smoke
