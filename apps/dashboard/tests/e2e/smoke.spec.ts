@@ -178,7 +178,12 @@ test.describe("Route smoke", () => {
     await expect(page).toHaveURL(conversationUrl);
     expect(detailReads).toBeGreaterThanOrEqual(2);
 
-    await page.getByRole("button", { name: "Toggle conversations" }).click();
+    const conversationToggle = page.getByRole("button", {
+      name: "Toggle conversations",
+    });
+    if ((await conversationToggle.getAttribute("aria-expanded")) !== "true") {
+      await conversationToggle.click();
+    }
     await page.getByText("Another saved conversation").click();
     await expect(page).toHaveURL(
       `${BASE_URL}/repo/test-owner/test-repo/chat/${otherConversationId}`,
