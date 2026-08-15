@@ -14,10 +14,6 @@ on:
         description: 'GitHub issue number (agent mode)'
         type: string
         default: ''
-      requestId:
-        description: 'Unique Kody execution request ID'
-        type: string
-        default: ''
       sessionId:
         description: 'Chat session ID (chat mode, from Kody Dashboard)'
         type: string
@@ -59,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     concurrency:
-      group: kody-${{ inputs.requestId || inputs.sessionId || inputs.issue_number || github.event.issue.number || github.sha }}
+      group: kody-${{ inputs.sessionId || inputs.issue_number || github.event.issue.number || github.sha }}
       cancel-in-progress: false
     permissions:
       issues: write
