@@ -133,8 +133,9 @@ test("user assigns a public Agent as Kody's subagent", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Kody" })).toBeVisible();
   const chatContext = page.getByTestId("chat-context-bar");
   await expect(chatContext.getByTestId("chat-context-title")).toHaveText(
-    "Kody",
+    "New conversation",
   );
+  await expect(chatContext.getByText("Kody", { exact: true })).toHaveCount(0);
   await expect(chatContext.getByText("kody", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Configure specialists" }).click();
   const dialog = page.getByRole("dialog", {

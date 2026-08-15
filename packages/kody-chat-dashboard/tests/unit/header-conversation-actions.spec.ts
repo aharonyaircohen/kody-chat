@@ -59,10 +59,10 @@ describe("chat conversation actions", () => {
     expect(headerRow).not.toContain("messageCount > 0");
   });
 
-  it("keeps the capability chat title without an agent-like slug badge", () => {
+  it("shows the conversation title instead of capability or agent labels", () => {
     expect(SOURCE).toContain('data-testid="chat-context-title"');
-    expect(SOURCE).toContain("props.selectedCapability.title");
-    expect(SOURCE).not.toContain("props.selectedCapability.slug");
+    expect(SOURCE).toContain('props.activeSessionTitle ?? "New conversation"');
+    expect(SOURCE).not.toContain("selectedCapability");
   });
 
   it("places new conversation and conversations in the header", () => {

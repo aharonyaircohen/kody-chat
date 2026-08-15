@@ -2468,7 +2468,6 @@ export function KodyChat({
           isTaskMode={isTaskMode}
           selectedTask={selectedTask}
           isCapabilityMode={isCapabilityMode}
-          selectedCapability={selectedCapability}
           activeSessionTitle={sessionHook.activeSession?.title}
         />
       }

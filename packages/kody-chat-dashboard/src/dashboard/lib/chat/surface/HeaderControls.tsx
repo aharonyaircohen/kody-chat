@@ -68,7 +68,6 @@ interface HeaderControlsProps {
   isTaskMode: boolean;
   selectedTask: KodyTask | null;
   isCapabilityMode: boolean;
-  selectedCapability: { slug: string; title?: string } | null;
   activeSessionTitle?: string;
 }
 
@@ -255,13 +254,13 @@ export function HeaderControls(props: HeaderControlsProps) {
                 </span>
                 {messageCountBadge}
               </div>
-            ) : props.isCapabilityMode && props.selectedCapability ? (
+            ) : props.isCapabilityMode ? (
               <div className="flex items-center gap-2 text-sm">
                 <span
                   data-testid="chat-context-title"
                   className="min-w-0 flex-1 truncate text-muted-foreground"
                 >
-                  {props.selectedCapability.title}
+                  {props.activeSessionTitle ?? "New conversation"}
                 </span>
                 {messageCountBadge}
               </div>
