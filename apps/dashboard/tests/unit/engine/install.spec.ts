@@ -437,6 +437,44 @@ describe("installEngine", () => {
       expect(parsed.agent?.model).toBe("openrouter/free");
     });
 
+    it("preserves the repository model when no configured model replaces it", async () => {
+      const octokit = createMockOctokit();
+      const { getByPath } = captureFileWrites(octokit);
+
+      vi.spyOn(octokit.repos, "getContent").mockImplementation(
+        async (params: any) => {
+          if (params.path === "kody.config.json") {
+            const existingConfig = JSON.stringify({
+              github: { owner: "example", repo: "my-repo" },
+              agent: {
+                model: "openrouter/deepseek/deepseek-v4-flash-latest",
+              },
+            });
+            return {
+              data: {
+                content: Buffer.from(existingConfig).toString("base64"),
+                sha: "existing-sha",
+              },
+            };
+          }
+          return { data: { content: "", sha: "abc123" } };
+        },
+      );
+
+      await installEngine({
+        octokit,
+        owner: "example",
+        repo: "my-repo",
+        token: "ghp_mocktoken",
+        hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      });
+
+      const parsed = JSON.parse(getByPath("kody.config.json")!.content);
+      expect(parsed.agent?.model).toBe(
+        "openrouter/deepseek/deepseek-v4-flash-latest",
+      );
+    });
+
     it("merges into an existing kody.config.json, preserving other fields and stripping the legacy model key", async () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);

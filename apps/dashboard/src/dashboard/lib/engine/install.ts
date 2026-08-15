@@ -36,11 +36,11 @@ import {
   VAR_LLM_MODELS,
   type ChatModel,
 } from "@kody-ade/base/variables/models";
-import { writeEngineModel } from "@kody-ade/base/engine/config";
 import {
-  composeChatModelCatalog,
-  KODY_OPENROUTER_FREE_CHAT_MODEL,
-} from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
+  getEngineConfig,
+  writeEngineModel,
+} from "@kody-ade/base/engine/config";
+import { KODY_OPENROUTER_FREE_CHAT_MODEL } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
@@ -201,19 +201,14 @@ async function readChatModels(
   owner: string,
   repo: string,
 ): Promise<ChatModel[]> {
-  const withBuiltInModel = (configured: ChatModel[]) =>
-    composeChatModelCatalog<ChatModel>(
-      configured,
-      KODY_OPENROUTER_FREE_CHAT_MODEL,
-    );
   try {
     const { doc } = await readVariables(owner, repo, { force: true });
     const raw = doc.variables[VAR_LLM_MODELS]?.value;
-    if (!raw) return withBuiltInModel([]);
-    return withBuiltInModel(ChatModelsSchema.parse(JSON.parse(raw)));
+    if (!raw) return [];
+    return ChatModelsSchema.parse(JSON.parse(raw));
   } catch (err: unknown) {
     logger.warn({ err, owner, repo }, "install: failed to read chat models");
-    return withBuiltInModel([]);
+    return [];
   }
 }
 
@@ -265,11 +260,22 @@ export async function installEngine(
     // configured yet, so the file exists for the engine to extend.
     const models = await readChatModels(octokit, owner, repo);
     const engineModel = pickEngineDefaultModel(models);
+    const { config: existingConfig } = await getEngineConfig(
+      octokit,
+      owner,
+      repo,
+      { force: true },
+    );
+    const existingModel = existingConfig.agent?.model;
     await writeEngineModel(
       octokit,
       owner,
       repo,
-      engineModel ? engineModelSpec(engineModel) : null,
+      engineModel
+        ? engineModelSpec(engineModel)
+        : existingModel
+          ? null
+          : engineModelSpec(KODY_OPENROUTER_FREE_CHAT_MODEL),
     );
 
     const kodyTokenResult = await setRepoActionsSecret(
