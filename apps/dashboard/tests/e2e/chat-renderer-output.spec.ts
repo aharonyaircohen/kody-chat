@@ -1175,7 +1175,7 @@ test.describe("Kody chat renderer output", () => {
     await expect(
       page.getByText("Retried with the selected model."),
     ).toBeVisible();
-    expect(requestedModels).toEqual(["chat-model-pro", "chat-model-pro"]);
+    expect(requestedModels).toEqual(["openrouter/free", "openrouter/free"]);
   });
 
   test("cancel recovery ends the interaction without another model request", async ({
