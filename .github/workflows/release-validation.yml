@@ -1,0 +1,47 @@
+name: Release Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: release-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Tests with coverage thresholds (dashboard)
+        run: pnpm --filter kody-dashboard exec vitest run tests/unit tests/int --coverage
+
+      - name: Tests with coverage thresholds (kody-chat)
+        run: pnpm --filter @kody-ade/kody-chat-dashboard exec vitest run tests/unit tests/int --coverage
+
+      - name: Tests with coverage thresholds (brain)
+        run: pnpm --filter @kody-ade/brain exec vitest run --coverage
+
+      - name: Remaining package tests
+        run: pnpm -r --filter '!kody-dashboard' --filter '!@kody-ade/kody-chat-dashboard' --filter '!@kody-ade/brain' --if-present test

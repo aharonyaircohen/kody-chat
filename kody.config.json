@@ -26,15 +26,68 @@
       "qa"
     ],
     "activeCapabilities": [
-      "qa-engineer"
+      "qa-engineer",
+      "ci-health-check",
+      "review",
+      "fix",
+      "merge",
+      "extract-run-learning",
+      "detect-memory-duplicates",
+      "detect-memory-conflicts",
+      "decide-memory-change",
+      "apply-memory-changes",
+      "verify-memory-change",
+      "detect-stale-memory",
+      "release-prepare",
+      "release-validate",
+      "ui-review",
+      "prepare-ci-repair",
+      "quality-check",
+      "fix-ci",
+      "run",
+      "finalize-ci-repair",
+      "prepare-strategy-application",
+      "apply-strategy",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
-      "qa-scan"
+      "qa-scan",
+      "ci-repair",
+      "learn-from-runs",
+      "maintain-memory-quality",
+      "merge",
+      "review-fix",
+      "quality-run",
+      "apply-strategy",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
       "ci-repair"
     ]
+  },
+  "release": {
+    "version": {
+      "readCommand": "node -p \"require('./apps/dashboard/package.json').version\"",
+      "writeCommand": "node -e \"const fs=require('fs');const p='apps/dashboard/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.version=process.env.KODY_RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\\\n')\"",
+      "files": [
+        "apps/dashboard/package.json"
+      ]
+    },
+    "versionFiles": [
+      "apps/dashboard/package.json"
+    ],
+    "validation": {
+      "workflow": "release-validation.yml"
+    },
+    "productionUrl": "https://kody-dashboard-sable.vercel.app",
+    "smokeCommand": "curl -fsSL --max-time 30 \"$PRODUCTION_URL/\" | grep -q '<title>Happening now</title>'",
+    "productionDeployRequired": true,
+    "releaseBranch": "",
+    "allowAdminMerge": false,
+    "timeoutMs": 1800000
   },
   "access": {
     "allowedAssociations": [
