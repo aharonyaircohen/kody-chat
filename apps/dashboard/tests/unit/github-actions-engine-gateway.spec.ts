@@ -13,7 +13,7 @@ describe("GitHubActionsEngineGateway", () => {
             data: {
               encoding: "base64",
               content: Buffer.from(
-                "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n      storeRepoUrl:\n        type: string\n      storeRef:\n        type: string\n",
+                "on:\n  workflow_dispatch:\n    inputs:\n      requestId:\n        type: string\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n      storeRepoUrl:\n        type: string\n      storeRef:\n        type: string\n",
               ).toString("base64"),
             },
           })),
@@ -47,6 +47,7 @@ describe("GitHubActionsEngineGateway", () => {
       workflow_id: "kody.yml",
       ref: "main",
       inputs: {
+        requestId: "run-memory-1",
         runRequest: JSON.stringify(request),
         dashboardUrl: "https://dashboard.example.test",
         storeRepoUrl: "acme/company-store",

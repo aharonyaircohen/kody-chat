@@ -98,6 +98,37 @@ describe("kody workflow dispatch input mapping", () => {
     ).resolves.toEqual({ implementation: "repo-graph" });
   });
 
+  it("forwards the generic request id when the workflow declares it", async () => {
+    const octokit = octokitWithWorkflow(`
+on:
+  workflow_dispatch:
+    inputs:
+      requestId:
+        type: string
+      runRequest:
+        type: string
+`);
+    const executionRequest = {
+      requestId: "run-quality-1",
+      target: { type: "workflow" as const, id: "quality-run" },
+      intent: "run" as const,
+      source: "dashboard" as const,
+    };
+
+    await expect(
+      buildKodyWorkflowDispatchInputs(octokit, {
+        owner: "test-owner",
+        repo: "test-repo",
+        ref: "main",
+        requestId: executionRequest.requestId,
+        executionRequest,
+      }),
+    ).resolves.toEqual({
+      requestId: "run-quality-1",
+      runRequest: JSON.stringify(executionRequest),
+    });
+  });
+
   it("shares cached workflow input reads for repeated dispatches", async () => {
     const octokit = octokitWithWorkflow(executableWorkflow);
 

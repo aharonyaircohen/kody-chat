@@ -34,6 +34,7 @@ export interface KodyWorkflowDispatchInputRequest {
   ref: string;
   action?: string;
   issueNumber?: string | number;
+  requestId?: string;
   sessionId?: string;
   message?: string;
   model?: string;
@@ -222,6 +223,7 @@ function buildInputsForNames(
   }
 
   addOptionalInput(inputs, inputNames, "issue_number", request.issueNumber);
+  addOptionalInput(inputs, inputNames, "requestId", request.requestId);
   addOptionalInput(inputs, inputNames, "sessionId", request.sessionId);
   addOptionalInput(inputs, inputNames, "message", request.message);
   addOptionalInput(inputs, inputNames, "model", request.model);

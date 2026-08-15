@@ -107,6 +107,7 @@ async function loadWorkflowTemplate(): Promise<{
   const body = await response.text();
   if (
     (!body.trim().startsWith("#") && !body.includes("name: kody")) ||
+    !body.includes("requestId:") ||
     !body.includes("sessionId:") ||
     !body.includes("DASHBOARD_URL:")
   ) {

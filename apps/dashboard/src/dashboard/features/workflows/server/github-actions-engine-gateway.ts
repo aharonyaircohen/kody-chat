@@ -104,6 +104,7 @@ export function createGitHubActionsEngineGateway({
         owner,
         repo,
         ref,
+        requestId: request.requestId,
         executionRequest: request,
         dashboardUrl,
         storeRepoUrl: githubRepositorySlug(storeRepoUrl),
