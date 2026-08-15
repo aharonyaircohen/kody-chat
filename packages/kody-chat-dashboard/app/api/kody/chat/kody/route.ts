@@ -133,7 +133,6 @@ import {
   isFinalAnswerOutput,
   getToolErrorMessage,
   getToollessRecoveryContent,
-  getViewRecoveryContent,
   hasSuccessfulRenderedViewResult,
   hasVisibleChatToolOutput,
   isToolErrorOutput,
@@ -142,6 +141,10 @@ import {
   shouldRetryToollessTurn,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
+import {
+  buildModelOutputRecoveryView,
+  MODEL_OUTPUT_RECOVERY_RENDERER,
+} from "../../../../../src/dashboard/lib/chat/core/model-output-recovery";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
@@ -2599,18 +2602,21 @@ This turn includes an image from the user. For questions about what is visible i
               !producedOutputTool &&
               retryCount >= retryDeadline
             ) {
-              const content = getViewRecoveryContent(visibleAnswer);
               const toolCallId = `view-recovery-${traceId}`;
+              const recoveryView = buildModelOutputRecoveryView({
+                id: toolCallId,
+                modelLabel: resolvedModel.label ?? resolvedModel.id,
+              });
               writer.write({
                 type: "tool-input-available",
                 toolCallId,
-                toolName: FINAL_ANSWER_TOOL,
-                input: { content },
+                toolName: SHOW_VIEW_TOOL,
+                input: { purpose: MODEL_OUTPUT_RECOVERY_RENDERER },
               });
               writer.write({
                 type: "tool-output-available",
                 toolCallId,
-                output: { content },
+                output: recoveryView,
               });
               return;
             }
