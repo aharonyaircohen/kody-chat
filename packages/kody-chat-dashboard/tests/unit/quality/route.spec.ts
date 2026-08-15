@@ -27,6 +27,7 @@ vi.mock("@kody-ade/backend/api", () => ({
       removeJourney: "quality.removeJourney",
       removeScenario: "quality.removeScenario",
       setRunArchived: "quality.setRunArchived",
+      updateRun: "quality.updateRun",
     },
   },
 }));
@@ -147,5 +148,37 @@ describe("Quality routes", () => {
         archived: true,
       }),
     );
+  });
+
+  it("marks an interrupted Quality Run as cancelled", async () => {
+    const response = await PATCH(
+      new NextRequest(
+        "http://localhost/api/kody/quality/runs/reply-persists-run",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "cancel",
+            runId: "run-1",
+          }),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          resource: "runs",
+          slug: "reply-persists-run",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith("quality.updateRun", {
+      tenantId: "acme/widgets",
+      runId: "run-1",
+      status: "cancelled",
+      updatedAt: expect.any(String),
+      finishedAt: expect.any(String),
+      error: "Cancelled by user",
+    });
   });
 });

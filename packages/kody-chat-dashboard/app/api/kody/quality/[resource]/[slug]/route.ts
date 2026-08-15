@@ -41,11 +41,15 @@ export async function PATCH(
     typeof (body as { runId?: unknown }).runId === "string"
       ? (body as { runId: string }).runId.trim()
       : "";
+  const action =
+    typeof body === "object" && body !== null
+      ? (body as { action?: unknown }).action
+      : undefined;
   const archived =
     typeof body === "object" && body !== null
       ? (body as { archived?: unknown }).archived
       : undefined;
-  if (!runId || typeof archived !== "boolean") {
+  if (!runId || (action !== "cancel" && typeof archived !== "boolean")) {
     return NextResponse.json(
       { error: "validation_error" },
       { status: 400, headers },
@@ -53,6 +57,17 @@ export async function PATCH(
   }
 
   try {
+    if (action === "cancel") {
+      await createBackendClient().mutation(backendApi.quality.updateRun, {
+        tenantId: `${auth.owner}/${auth.repo}`,
+        runId,
+        status: "cancelled",
+        updatedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        error: "Cancelled by user",
+      });
+      return NextResponse.json({ ok: true, status: "cancelled" }, { headers });
+    }
     await createBackendClient().mutation(backendApi.quality.setRunArchived, {
       tenantId: `${auth.owner}/${auth.repo}`,
       runId,
