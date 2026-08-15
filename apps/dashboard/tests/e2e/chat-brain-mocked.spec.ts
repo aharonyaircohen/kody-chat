@@ -563,6 +563,7 @@ test.describe("Chat picker backend boundary", () => {
       .locator('button[role="option"]')
       .filter({ hasText: "Kody Test" })
       .click();
+    await expect(setup).toHaveAttribute("title", /Kody · Kody Test/);
 
     const agentMenu = await openChatSetupSection(chat, "Agency agent");
     await agentMenu

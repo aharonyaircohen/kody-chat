@@ -216,25 +216,32 @@ test.describe("Kody direct agent", () => {
     );
     await expect
       .poll(
-        () =>
-          conversationCommands.filter(
-            (command) =>
-              command.kind === "append-message" && command.role === "assistant",
-          ),
+        () => conversationCommands,
         { timeout: 10_000 },
       )
-      .toEqual([
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "append-message",
+            role: "assistant",
+            content: "",
+            status: "pending",
+          }),
+          expect.objectContaining({
+            kind: "update-message",
+            content: "Hello from Kody direct!",
+            status: "committed",
+          }),
+        ]),
+      );
+    expect(conversationCommands).toEqual(
+      expect.arrayContaining([
         expect.objectContaining({
-          content: "Hello from Kody direct!",
+          kind: "update-message",
           status: "committed",
         }),
-      ]);
-    expect(
-      conversationCommands.some(
-        (command) =>
-          command.role === "assistant" && command.status === "pending",
-      ),
-    ).toBe(false);
+      ]),
+    );
   });
 
   test("shows a clear warning when the selected model cannot use operation tools", async ({
