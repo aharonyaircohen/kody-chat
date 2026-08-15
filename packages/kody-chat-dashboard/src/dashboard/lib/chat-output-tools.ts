@@ -7,6 +7,15 @@ export const CHAT_OUTPUT_TOOL_NAMES = [
   SHOW_VIEW_TOOL,
 ] as const;
 
+const TOOLLESS_RECOVERY_CONTENT =
+  "I couldn't complete a reliable answer with this model. Would you like me to retry or use another model?";
+
+/** Preserve useful prose when a provider cannot execute the required output tool. */
+export function getToollessRecoveryContent(visibleAnswer: string): string {
+  const answer = visibleAnswer.trim();
+  return answer || TOOLLESS_RECOVERY_CONTENT;
+}
+
 export interface FinalAnswerOutput {
   content: string;
 }

@@ -3,12 +3,20 @@ import {
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
   getToolErrorMessage,
+  getToollessRecoveryContent,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
 } from "../../../src/dashboard/lib/chat-output-tools";
 
 describe("chat output tools", () => {
+  it("keeps ordinary model text when a provider cannot call final_answer", () => {
+    expect(getToollessRecoveryContent("Hi there!")).toBe("Hi there!");
+    expect(getToollessRecoveryContent("  ")).toContain(
+      "I couldn't complete a reliable answer",
+    );
+  });
+
   it("classifies structured tool error outputs", () => {
     expect(isToolErrorOutput({ error: "show_view requires data" })).toBe(true);
     expect(getToolErrorMessage({ error: "show_view requires data" })).toBe(

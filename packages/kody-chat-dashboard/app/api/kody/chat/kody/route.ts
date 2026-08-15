@@ -132,6 +132,7 @@ import {
   SHOW_VIEW_TOOL,
   isFinalAnswerOutput,
   getToolErrorMessage,
+  getToollessRecoveryContent,
   hasSuccessfulRenderedViewResult,
   hasVisibleChatToolOutput,
   isToolErrorOutput,
@@ -2622,8 +2623,7 @@ This turn includes an image from the user. For questions about what is visible i
               !producedOutputTool &&
               retryCount >= retryDeadline
             ) {
-              const content =
-                "I couldn't complete a reliable answer with this model. Would you like me to retry or use another model?";
+              const content = getToollessRecoveryContent(visibleAnswer);
               const toolCallId = `model-answer-recovery-${traceId}`;
               writer.write({
                 type: "tool-input-available",
