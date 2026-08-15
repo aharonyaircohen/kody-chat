@@ -26,6 +26,22 @@ export function createCompanyWorkflowLoader({
   return async function loadWorkflow(
     workflowId: string,
   ): Promise<{ workflow: WorkflowDefinition } | null> {
+    if (syncStoreDefinitions && allowedStoreWorkflowIds.has(workflowId)) {
+      const approvedStore = await readCompanyStoreWorkflowDefinitionFile(
+        workflowId,
+        octokit,
+      );
+      if (approvedStore) {
+        await syncStoreWorkflowExecutionDefinitions({
+          octokit,
+          owner,
+          repo,
+          workflow: approvedStore.workflow,
+        });
+        return approvedStore;
+      }
+    }
+
     const local = await readWorkflowDefinitionFile(workflowId, owner, repo);
     if (local) return local;
 

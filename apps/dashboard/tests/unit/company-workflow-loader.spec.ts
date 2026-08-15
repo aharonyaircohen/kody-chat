@@ -116,6 +116,42 @@ describe("company workflow loader", () => {
     });
   });
 
+  it("refreshes an explicitly approved Store workflow instead of using a stale projection", async () => {
+    h.readLocal.mockResolvedValue({
+      source: "store",
+      workflow: {
+        name: "Old Apply Strategy Blueprint",
+        agent: "kody",
+        capabilities: ["apply-strategy"],
+      },
+    });
+    const stored = {
+      source: "store",
+      workflow: {
+        name: "Apply Strategy Blueprint",
+        agent: "kody",
+        capabilities: ["prepare-strategy-application", "apply-strategy"],
+      },
+    };
+    h.readStore.mockResolvedValue(stored);
+    const octokit = {} as never;
+    const load = createCompanyWorkflowLoader({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      syncStoreDefinitions: true,
+      allowedStoreWorkflowIds: new Set(["apply-strategy"]),
+    });
+
+    await expect(load("apply-strategy")).resolves.toBe(stored);
+    expect(h.syncStoreWorkflowExecutionDefinitions).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      workflow: stored.workflow,
+    });
+  });
+
   it("never publishes repository-owned workflows", async () => {
     h.readLocal.mockResolvedValue({
       source: "local",
