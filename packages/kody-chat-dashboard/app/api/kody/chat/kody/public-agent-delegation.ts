@@ -827,7 +827,11 @@ export async function runIsolatedPublicAgentTask({
 export async function runIsolatedPublicAgentTaskWithRetry(
   options: RunIsolatedPublicAgentTaskOptions,
 ): Promise<PublicAgentTaskResult & { sessionId: string }> {
-  const firstResult = await runIsolatedPublicAgentTask(options);
+  const firstAttemptReasoning: string[] = [];
+  const firstResult = await runIsolatedPublicAgentTask({
+    ...options,
+    onReasoningDelta: (delta) => firstAttemptReasoning.push(delta),
+  });
   if (
     firstResult.status === "failed" &&
     firstResult.failure.code === "missing_tool_evidence"
@@ -847,6 +851,8 @@ export async function runIsolatedPublicAgentTaskWithRetry(
     firstResult.reference?.trim() ||
     firstResult.evidence?.trim()
   ) {
+    for (const delta of firstAttemptReasoning)
+      options.onReasoningDelta?.(delta);
     return firstResult;
   }
   return runIsolatedPublicAgentTask({

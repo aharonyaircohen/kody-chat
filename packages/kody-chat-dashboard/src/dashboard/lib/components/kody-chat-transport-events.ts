@@ -28,6 +28,7 @@ import {
   getCreatedIssueNumberFromToolOutput,
   type Message,
 } from "./kody-chat-types";
+import { updateActiveAssistant } from "./kody-chat-turn-surface";
 
 /**
  * Per-turn accumulation the surface reads back after the transport
@@ -103,14 +104,13 @@ export function createTransportTurnHandler(
   /** Rewrite the in-flight assistant bubble from the text buffers. */
   const syncComposedContent = () => {
     const content = composeContent();
-    setMessages((prev) => {
-      const copy = [...prev];
-      const idx = copy.findIndex((m) => m.role === "assistant" && m.isLoading);
-      if (idx >= 0) {
-        copy[idx] = { ...copy[idx], content, isLoading: true };
-      }
-      return copy;
-    });
+    setMessages((prev) =>
+      updateActiveAssistant(prev, (message) => ({
+        ...message,
+        content,
+        isLoading: true,
+      })),
+    );
   };
 
   const handleEvent = (event: ChatEvent): void => {
@@ -149,27 +149,24 @@ export function createTransportTurnHandler(
         const role: Message["role"] =
           event.role === "user" ? "user" : "assistant";
         setMessages((prev) => {
-          const copy = [...prev];
-          const idx = copy.findIndex(
-            (m) => m.role === "assistant" && m.isLoading,
-          );
-          if (idx >= 0) {
-            copy[idx] = {
-              ...copy[idx],
-              role,
-              content: event.content ?? "",
-              timestamp: event.timestamp ?? copy[idx].timestamp,
-              isLoading: true,
-            };
-          } else {
-            copy.push({
-              role,
-              content: event.content ?? "",
-              timestamp: event.timestamp ?? new Date().toISOString(),
-              isLoading: true,
-            });
-          }
-          return copy;
+          const updated = updateActiveAssistant(prev, (message) => ({
+            ...message,
+            role,
+            content: event.content ?? "",
+            timestamp: event.timestamp ?? message.timestamp,
+            isLoading: true,
+          }));
+          return updated === prev
+            ? [
+                ...prev,
+                {
+                  role,
+                  content: event.content ?? "",
+                  timestamp: event.timestamp ?? new Date().toISOString(),
+                  isLoading: true,
+                },
+              ]
+            : updated;
         });
         return;
       }
@@ -182,43 +179,31 @@ export function createTransportTurnHandler(
           event.input && typeof event.input === "object" ? event.input : {}
         ) as Record<string, unknown>;
         setMessages((prev) => {
-          const copy = [...prev];
-          let idx = copy.findIndex(
-            (m) => m.role === "assistant" && m.isLoading,
-          );
-          if (idx < 0) {
-            copy.push({
-              role: "assistant",
-              content: "",
-              timestamp: event.timestamp ?? new Date().toISOString(),
-              isLoading: true,
-              toolCalls: [],
-            });
-            idx = copy.length - 1;
-          }
-          const existing = copy[idx].toolCalls ?? [];
-          copy[idx] = {
-            ...copy[idx],
-            toolCalls: [
-              ...existing,
-              {
-                ...(event.id ? { id: event.id } : {}),
-                name: event.toolName,
-                arguments: args,
-                status: event.status ?? "running",
-                ...(event.description
-                  ? { description: event.description }
-                  : {}),
-                ...(event.activityKind
-                  ? { activityKind: event.activityKind }
-                  : {}),
-                ...(event.displayName
-                  ? { displayName: event.displayName }
-                  : {}),
-              },
-            ],
+          const toolCall = {
+            ...(event.id ? { id: event.id } : {}),
+            name: event.toolName,
+            arguments: args,
+            status: event.status ?? "running",
+            ...(event.description ? { description: event.description } : {}),
+            ...(event.activityKind ? { activityKind: event.activityKind } : {}),
+            ...(event.displayName ? { displayName: event.displayName } : {}),
           };
-          return copy;
+          const updated = updateActiveAssistant(prev, (message) => ({
+            ...message,
+            toolCalls: [...(message.toolCalls ?? []), toolCall],
+          }));
+          return updated === prev
+            ? [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: "",
+                  timestamp: event.timestamp ?? new Date().toISOString(),
+                  isLoading: true,
+                  toolCalls: [toolCall],
+                },
+              ]
+            : updated;
         });
         return;
       }
@@ -237,33 +222,25 @@ export function createTransportTurnHandler(
             }
           }
           setMessages((prev) => {
-            const copy = [...prev];
-            const idx = copy.findIndex(
-              (m) => m.role === "assistant" && m.isLoading,
-            );
-            if (idx < 0) return copy;
-            const existing = copy[idx].toolCalls ?? [];
-            const next = existing.map((tc) =>
-              tc.id === event.id
-                ? {
-                    ...tc,
-                    status: "error" as const,
-                    ...((tc.activityKind === "subagent" ||
-                      event.toolName === SHOW_VIEW_TOOL) &&
-                    event.errorText
-                      ? { result: event.errorText }
-                      : {}),
-                  }
-                : tc,
-            );
-            copy[idx] = {
-              ...copy[idx],
+            return updateActiveAssistant(prev, (message) => ({
+              ...message,
               ...(ranWithOutput && event.toolName === SHOW_VIEW_TOOL
                 ? { content: "" }
                 : {}),
-              toolCalls: next,
-            };
-            return copy;
+              toolCalls: (message.toolCalls ?? []).map((toolCall) =>
+                toolCall.id === event.id
+                  ? {
+                      ...toolCall,
+                      status: "error" as const,
+                      ...((toolCall.activityKind === "subagent" ||
+                        event.toolName === SHOW_VIEW_TOOL) &&
+                      event.errorText
+                        ? { result: event.errorText }
+                        : {}),
+                    }
+                  : toolCall,
+              ),
+            }));
           });
           return;
         }
@@ -280,22 +257,14 @@ export function createTransportTurnHandler(
         }
         // Flip the matching running chip to "success".
         setMessages((prev) => {
-          const copy = [...prev];
-          const idx = copy.findIndex(
-            (m) => m.role === "assistant" && m.isLoading,
-          );
-          if (idx < 0) return copy;
-          const existing = copy[idx].toolCalls ?? [];
-          const next = existing.map((tc) =>
-            tc.id === event.id
-              ? {
-                  ...tc,
-                  status: "success" as const,
-                }
-              : tc,
-          );
-          copy[idx] = { ...copy[idx], toolCalls: next };
-          return copy;
+          return updateActiveAssistant(prev, (message) => ({
+            ...message,
+            toolCalls: (message.toolCalls ?? []).map((toolCall) =>
+              toolCall.id === event.id
+                ? { ...toolCall, status: "success" as const }
+                : toolCall,
+            ),
+          }));
         });
         return;
       }
@@ -334,22 +303,23 @@ export function createTransportTurnHandler(
               state.textBuf = "";
             }
             setMessages((prev) => {
-              const copy = [...prev];
-              let idx = copy.findIndex(
-                (m) => m.role === "assistant" && m.isLoading,
-              );
-              if (idx < 0) {
-                copy.push({
-                  role: "assistant",
-                  content: "",
-                  timestamp: new Date().toISOString(),
-                  isLoading: true,
-                  toolCalls: [],
-                });
-                idx = copy.length - 1;
-              }
-              copy[idx] = { ...copy[idx], view: directive.payload };
-              return copy;
+              const updated = updateActiveAssistant(prev, (message) => ({
+                ...message,
+                view: directive.payload,
+              }));
+              return updated === prev
+                ? [
+                    ...prev,
+                    {
+                      role: "assistant",
+                      content: "",
+                      timestamp: new Date().toISOString(),
+                      isLoading: true,
+                      toolCalls: [],
+                      view: directive.payload,
+                    },
+                  ]
+                : updated;
             });
             syncComposedContent();
             return;

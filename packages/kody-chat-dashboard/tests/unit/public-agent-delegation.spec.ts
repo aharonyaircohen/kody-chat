@@ -1054,6 +1054,35 @@ describe("public Agent delegation", () => {
     expect(stream).toHaveBeenCalledTimes(2);
   });
 
+  it("does not publish reasoning from a discarded retry attempt", async () => {
+    const response = (text: string, reasoning: string) => ({
+      fullStream: (async function* () {
+        if (reasoning) yield { type: "reasoning-delta", text: reasoning };
+      })(),
+      text: Promise.resolve(text),
+      reasoningText: Promise.resolve(reasoning),
+      steps: Promise.resolve([]),
+    });
+    const stream = vi
+      .fn()
+      .mockReturnValueOnce(response("", "first attempt"))
+      .mockReturnValueOnce(response("Final result.", "final attempt"));
+    const reasoningDeltas: string[] = [];
+
+    await runIsolatedPublicAgentTaskWithRetry({
+      agent: roster[1]!,
+      task: "Explain the repository structure",
+      system: "Repository Specialist isolated system prompt",
+      model: {} as never,
+      tools: {},
+      sessionId: "retry-reasoning-session",
+      stream: stream as never,
+      onReasoningDelta: (delta) => reasoningDeltas.push(delta),
+    });
+
+    expect(reasoningDeltas).toEqual(["final attempt"]);
+  });
+
   it("does not repeat a slow empty specialist call when authoritative context is already available", async () => {
     const stream = vi.fn(() => ({
       fullStream: (async function* () {})(),

@@ -26,6 +26,9 @@ export type ChatSessionScope = "global" | "vibe-default";
 type MessageUpdater =
   ChatMessage[] | ((previous: ChatMessage[]) => ChatMessage[]);
 
+const persistenceErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Conversation save failed";
+
 function activeSessionStorageKey(scope: ChatSessionScope): string {
   return `kody-chat:active-session:${scope}`;
 }
@@ -222,6 +225,7 @@ export function useConversationSessions(
     () => new Set(),
   );
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const persistenceGenerationRef = useRef(0);
   const locallyCreatedSessionIdsRef = useRef(new Set<string>());
   const preferredSessionIdRef = useRef(preferredSessionId);
   preferredSessionIdRef.current = preferredSessionId;
@@ -231,11 +235,16 @@ export function useConversationSessions(
   }, [sessions]);
 
   const persist = useCallback((operation: Promise<unknown>) => {
-    void operation.catch((error: unknown) =>
-      setPersistenceError(
-        error instanceof Error ? error.message : "Conversation save failed",
-      ),
-    );
+    const generation = ++persistenceGenerationRef.current;
+    void operation
+      .then(() => {
+        if (persistenceGenerationRef.current === generation)
+          setPersistenceError(null);
+      })
+      .catch((error: unknown) => {
+        if (persistenceGenerationRef.current !== generation) return;
+        setPersistenceError(persistenceErrorMessage(error));
+      });
   }, []);
 
   const loadDetail = useCallback(
@@ -461,6 +470,7 @@ export function useConversationSessions(
       const login = actorLogin;
       if (!login)
         throw new Error("Conversation save requires a signed-in user");
+      const generation = ++persistenceGenerationRef.current;
       try {
         await conversationClient.command(sessionId, {
           kind: "append-message",
@@ -476,11 +486,11 @@ export function useConversationSessions(
           ),
           createdAt: message.timestamp,
         });
-        setPersistenceError(null);
+        if (persistenceGenerationRef.current === generation)
+          setPersistenceError(null);
       } catch (error) {
-        setPersistenceError(
-          error instanceof Error ? error.message : "Conversation save failed",
-        );
+        if (persistenceGenerationRef.current !== generation) throw error;
+        setPersistenceError(persistenceErrorMessage(error));
         throw error;
       }
     },
@@ -497,6 +507,7 @@ export function useConversationSessions(
       if (!login)
         throw new Error("Conversation save requires a signed-in user");
       const session = sessionsRef.current.find((item) => item.id === sessionId);
+      const generation = ++persistenceGenerationRef.current;
       try {
         await persistAssistantConversationMessage({
           client: conversationClient,
@@ -509,11 +520,11 @@ export function useConversationSessions(
           },
           mode,
         });
-        setPersistenceError(null);
+        if (persistenceGenerationRef.current === generation)
+          setPersistenceError(null);
       } catch (error) {
-        setPersistenceError(
-          error instanceof Error ? error.message : "Conversation save failed",
-        );
+        if (persistenceGenerationRef.current !== generation) throw error;
+        setPersistenceError(persistenceErrorMessage(error));
         throw error;
       }
     },

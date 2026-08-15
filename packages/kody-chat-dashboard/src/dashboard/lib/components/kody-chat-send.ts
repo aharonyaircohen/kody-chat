@@ -123,6 +123,12 @@ import {
   compactConversationForTurn,
   type CompactionStatus,
 } from "./kody-chat-compaction";
+import {
+  completeActiveAssistant,
+  removeActiveAssistant,
+  replaceActiveAssistantWithError,
+  updateActiveAssistant,
+} from "./kody-chat-turn-surface";
 
 // ─────────────────────────────────────────────────────────────────────
 // Settle seam (review item 11). Per-backend finish/recover behavior is
@@ -248,35 +254,18 @@ export function applySettleDecision(
   if (decision.stopLoading) io.setLoading(false);
   switch (decision.messageOp) {
     case "pop-last":
-      io.setMessages((prev) => prev.slice(0, -1));
+      io.setMessages(removeActiveAssistant);
       return;
     case "unmark-loading":
-      io.setMessages((prev) => {
-        const copy = [...prev];
-        const idx = copy.findIndex(
-          (m) => m.role === "assistant" && m.isLoading,
-        );
-        if (idx >= 0) {
-          copy[idx] = { ...copy[idx], isLoading: false };
-        }
-        return copy;
-      });
+      io.setMessages(completeActiveAssistant);
       return;
     case "error-bubble":
-      io.setMessages((prev) => {
-        const filtered = prev.filter(
-          (m) => !(m.role === "assistant" && m.isLoading),
-        );
-        return [
-          ...filtered,
-          {
-            role: "assistant",
-            content: `Error: ${decision.errorMessage}\n\nWould you like me to try again?`,
-            isLoading: false,
-            isError: true,
-          },
-        ];
-      });
+      io.setMessages((prev) =>
+        replaceActiveAssistantWithError(
+          prev,
+          `Error: ${decision.errorMessage}\n\nWould you like me to try again?`,
+        ),
+      );
       return;
   }
 }
@@ -284,9 +273,7 @@ export function applySettleDecision(
 /** Brain finish: clear typing + unmark every loading bubble. */
 function applyBrainFinish(io: SettleIO): void {
   io.setLoading(false);
-  io.setMessages((prev) =>
-    prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
-  );
+  io.setMessages(completeActiveAssistant);
 }
 
 /**
@@ -309,11 +296,8 @@ export function finalizeKodyDirectTurn(params: {
     pendingDashboardNavigate,
     pendingView,
   } = turn;
-  io.setMessages((prev) => {
-    const copy = [...prev];
-    const idx = copy.findIndex((m) => m.role === "assistant" && m.isLoading);
-    if (idx >= 0) {
-      const m = copy[idx];
+  io.setMessages((prev) =>
+    updateActiveAssistant(prev, (m) => {
       const { reasoning, answer } = parseReasoning(m.content ?? "");
       const hadSuccessfulTools = (m.toolCalls ?? []).some(
         (tc) => tc.status === "success" && tc.activityKind !== "subagent",
@@ -333,7 +317,7 @@ export function finalizeKodyDirectTurn(params: {
         !pendingSwitchAgent &&
         !pendingDashboardNavigate &&
         !pendingView;
-      copy[idx] = shouldSurfaceToolError
+      return shouldSurfaceToolError
         ? {
             ...m,
             isLoading: false,
@@ -354,9 +338,8 @@ export function finalizeKodyDirectTurn(params: {
                 : {}),
               isLoading: false,
             };
-    }
-    return copy;
-  });
+    }),
+  );
   io.setLoading(false);
 }
 
