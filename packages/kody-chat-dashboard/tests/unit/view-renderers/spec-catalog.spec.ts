@@ -265,6 +265,29 @@ describe("validateChatViewSpec", () => {
     }
   });
 
+  it("drops decorative props from prop-less layout atoms", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "card",
+      elements: {
+        card: {
+          type: "Stack",
+          props: { gap: "md" },
+          children: ["steps"],
+        },
+        steps: {
+          type: "Row",
+          props: { gap: "sm", align: "center" },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ success: true });
+    if (result.success) {
+      expect(result.spec.elements.card.props).toEqual({});
+      expect(result.spec.elements.steps.props).toEqual({});
+    }
+  });
+
   it("coerces props flattened onto the element", () => {
     const result = validateChatViewSpec(catalog, {
       root: "t",

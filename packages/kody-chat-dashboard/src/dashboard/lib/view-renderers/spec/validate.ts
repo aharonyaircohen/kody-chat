@@ -55,10 +55,9 @@ function coerceCommonComponentAlias(
 ): Record<string, unknown> {
   if (element.type === "Container") {
     const props = isRecord(element.props) ? element.props : {};
-    return {
+    element = {
       ...element,
       type: props.direction === "row" ? "Row" : "Stack",
-      props: {},
     };
   }
   if (element.type === "Heading") {
@@ -74,6 +73,13 @@ function coerceCommonComponentAlias(
       type: "Text",
       props: { value, variant: "title" },
     };
+  }
+  if (
+    element.type === "Stack" ||
+    element.type === "Row" ||
+    element.type === "List"
+  ) {
+    return { ...element, props: {} };
   }
   return element;
 }
