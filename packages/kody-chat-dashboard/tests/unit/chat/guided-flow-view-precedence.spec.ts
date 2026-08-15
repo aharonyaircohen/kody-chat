@@ -12,11 +12,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import { createTransportTurnHandler } from "../../../src/dashboard/lib/components/kody-chat-transport-events";
 import type { Message } from "../../../src/dashboard/lib/components/kody-chat-types";
 import type { RenderedViewDirective } from "../../../src/dashboard/lib/chat-ui-actions";
+import {
+  hasSuccessfulRenderedViewResult,
+  hasVisibleChatToolOutput,
+} from "../../../src/dashboard/lib/chat-output-tools";
 
 function guidedFlowView(): RenderedViewDirective {
   return {
@@ -122,25 +124,27 @@ describe("guided-flow view precedence in a turn", () => {
 });
 
 describe("kody-direct route ends the turn on a rendered-view tool result", () => {
-  const routeSource = readFileSync(
-    resolve(__dirname, "../../../app/api/kody/chat/kody/route.ts"),
-    "utf8",
-  );
-
   it("stops the model turn once any tool returned a view directive, so the model never re-renders it via show_view", () => {
-    expect(routeSource).toContain("successfulRenderedViewResult");
-    const stopWhenBlock = routeSource.slice(
-      routeSource.indexOf("stopWhen:"),
-      routeSource.indexOf("// Per-provider thinking config"),
-    );
-    expect(stopWhenBlock).toContain("successfulRenderedViewResult()");
+    const steps = [
+      {
+        toolResults: [
+          { toolName: "guided_flow_start", output: guidedFlowView() },
+        ],
+      },
+    ];
+
+    expect(hasSuccessfulRenderedViewResult(steps)).toBe(true);
   });
 
   it("counts a rendered-view tool result as visible output in the silent-turn retry", () => {
-    const retryBlock = routeSource.slice(
-      routeSource.indexOf("producedOutputTool"),
-      routeSource.indexOf("visibleAnswer"),
-    );
-    expect(retryBlock).toContain("isRenderedViewDirective");
+    const steps = [
+      {
+        toolResults: [
+          { toolName: "guided_flow_start", output: guidedFlowView() },
+        ],
+      },
+    ];
+
+    expect(hasVisibleChatToolOutput(steps)).toBe(true);
   });
 });

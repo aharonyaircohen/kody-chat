@@ -84,6 +84,35 @@ export function isToolErrorOutput(output: unknown): output is ToolErrorOutput {
   return getToolErrorMessage(output) !== null;
 }
 
+type ToolResultStep = Readonly<{
+  toolResults: readonly Readonly<{ toolName: string; output: unknown }>[];
+}>;
+
+export function hasSuccessfulRenderedViewResult(
+  steps: readonly ToolResultStep[],
+): boolean {
+  return (
+    steps
+      .at(-1)
+      ?.toolResults.some((result) => isRenderedViewDirective(result.output)) ??
+    false
+  );
+}
+
+export function hasVisibleChatToolOutput(
+  steps: readonly ToolResultStep[],
+): boolean {
+  return steps.some((step) =>
+    step.toolResults.some(
+      (result) =>
+        isRenderedViewDirective(result.output) ||
+        ((result.toolName === SHOW_VIEW_TOOL ||
+          result.toolName === FINAL_ANSWER_TOOL) &&
+          !isToolErrorOutput(result.output)),
+    ),
+  );
+}
+
 /**
  * Per-step tool choice. When a step is locked to `show_view` alone, pin
  * the tool by name — some providers (observed: MiniMax-M3) ignore the
@@ -146,3 +175,4 @@ export function shouldRetryToollessTurn({
   if (producedOutputTool || retryCount >= maxRetries) return false;
   return enforceToolOutput || visibleAnswer.length === 0;
 }
+import { isRenderedViewDirective } from "./chat-ui-actions";

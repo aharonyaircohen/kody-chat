@@ -132,6 +132,8 @@ import {
   SHOW_VIEW_TOOL,
   isFinalAnswerOutput,
   getToolErrorMessage,
+  hasSuccessfulRenderedViewResult,
+  hasVisibleChatToolOutput,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
@@ -338,10 +340,7 @@ function successfulToolResult(toolName: string): StopCondition<ToolSet> {
  * then clobbers the working card in the UI.
  */
 function successfulRenderedViewResult(): StopCondition<ToolSet> {
-  return ({ steps }) =>
-    steps[steps.length - 1]?.toolResults?.some((result) =>
-      isRenderedViewDirective(result.output),
-    ) ?? false;
+  return ({ steps }) => hasSuccessfulRenderedViewResult(steps);
 }
 
 function permanentToolFailureResult(): StopCondition<ToolSet> {
@@ -2554,18 +2553,9 @@ This turn includes an image from the user. For questions about what is visible i
               });
               return;
             }
-            const producedOutputTool = steps.some((step) =>
-              step.toolResults.some(
-                (stepResult) =>
-                  // A rendered-view directive from ANY tool (e.g.
-                  // guided_flow_start) is the turn's visible output —
-                  // do not treat such turns as silent.
-                  isRenderedViewDirective(stepResult.output) ||
-                  ((stepResult.toolName === SHOW_VIEW_TOOL ||
-                    stepResult.toolName === FINAL_ANSWER_TOOL) &&
-                    !isToolErrorOutput(stepResult.output)),
-              ),
-            );
+            // A rendered-view directive from ANY tool (e.g.
+            // guided_flow_start) is the turn's visible output.
+            const producedOutputTool = hasVisibleChatToolOutput(steps);
             const savedAgencyAssessment = steps.some((step) =>
               step.toolResults.some(
                 (stepResult) =>
