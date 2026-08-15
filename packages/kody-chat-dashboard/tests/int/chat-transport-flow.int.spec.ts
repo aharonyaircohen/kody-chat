@@ -454,6 +454,7 @@ describe("kody-direct send→stream→persist", () => {
     const assistant = store.messages[1];
     expect(assistant.content).toBe("");
     expect(assistant.toolCalls?.[0].status).toBe("error");
+    expect(assistant.toolCalls?.[0].result).toBe("renderer failed");
   });
 });
 
