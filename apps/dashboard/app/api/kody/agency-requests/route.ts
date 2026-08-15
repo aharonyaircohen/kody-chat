@@ -36,6 +36,11 @@ const submitSchema = z
           kind: z.literal("guided-flow"),
           instanceId: z.string().trim().min(1).max(200),
           effectId: z.string().trim().min(1).max(300),
+          flowId: z
+            .string()
+            .trim()
+            .regex(/^[a-z][a-z0-9-]{0,127}$/)
+            .optional(),
         })
         .strict(),
       z

@@ -7,7 +7,10 @@ import {
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import { isCommandGuidedFlowStep } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import { validateGuidedFlowNavigation } from "../../app/api/kody/guided-flows/navigation";
-import { availableGuidedFlowDefinitions } from "../../app/api/kody/guided-flows/catalog";
+import {
+  availableGuidedFlowDefinitions,
+  availableRequestBlueprintDefinitions,
+} from "../../app/api/kody/guided-flows/catalog";
 
 describe("guided flow registry", () => {
   it("supports exact versions while exposing only the latest version per flow", () => {
@@ -195,6 +198,34 @@ describe("guided flow registry", () => {
         (definition) => definition.id === INITIALIZE_KODY_ENGINE_FLOW_ID,
       ),
     ).toEqual([builtIn]);
+  });
+
+  it("preserves Request Blueprint purpose in the management catalog", () => {
+    const available = availableRequestBlueprintDefinitions([
+      {
+        id: "release-app",
+        version: 1,
+        title: "Release app",
+        purpose: "Safely release this repository to production.",
+        steps: [
+          {
+            id: "confirm",
+            title: "Confirm release",
+            explanation: "Confirm the release boundary.",
+            rendererSlug: "approval-card",
+            actions: [{ id: "approve", target: { type: "complete" } }],
+          },
+        ],
+      },
+    ]);
+
+    expect(available.find((definition) => definition.id === "release-app"))
+      .toMatchObject({
+        purpose: "Safely release this repository to production.",
+      });
+    expect(available.every((definition) => definition.purpose.length > 0)).toBe(
+      true,
+    );
   });
 
   it("registers only built-in flows with valid dashboard destinations", () => {

@@ -38,7 +38,7 @@ import { sanitizeGuidedFlowData } from "@kody-ade/kody-chat-dashboard/guided-flo
 import { guidedFlowStepResult } from "@kody-ade/kody-chat-dashboard/guided-flows/step-results";
 import { ONBOARDING_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
-  availableGuidedFlowDefinitions,
+  availableRequestBlueprintDefinitions,
   availableUserGuidedFlowDefinitions,
   loadGuidedFlowRenderers,
   loadStoredGuidedFlowDefinitions,
@@ -300,7 +300,7 @@ export async function GET(req: NextRequest) {
         definitions:
           scope.kind === "user"
             ? availableUserGuidedFlowDefinitions()
-            : availableGuidedFlowDefinitions(customDefinitions),
+            : availableRequestBlueprintDefinitions(customDefinitions),
       });
     }
     if (instanceId) {
@@ -383,7 +383,7 @@ export async function GET(req: NextRequest) {
       definitions:
         scope.kind === "user"
           ? availableUserGuidedFlowDefinitions()
-          : availableGuidedFlowDefinitions(customDefinitions),
+          : availableRequestBlueprintDefinitions(customDefinitions),
     });
   } catch (error) {
     console.error("[GuidedFlows] list failed", error);

@@ -137,6 +137,7 @@ async function runConsumerEffect(
             kind: "guided-flow",
             instanceId: effect.instanceId,
             effectId: effect.effectId,
+            flowId: effect.flowId,
           },
           answers: effect.data,
         }),

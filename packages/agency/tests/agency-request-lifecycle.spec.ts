@@ -104,7 +104,7 @@ describe("Agency request lifecycle", () => {
     });
   });
 
-  it("marks a monitored successful run done with evidence", async () => {
+  it("marks a monitored successful run done only after success criteria pass", async () => {
     const save = vi.fn(async () => undefined);
     const record: AgencyRequestRecord = {
       ...baseRecord,
@@ -126,7 +126,14 @@ describe("Agency request lifecycle", () => {
         status: "success",
         summary: "Repair PR passed and main CI is green.",
       },
-      { findByRun: vi.fn(async () => [record]), save },
+      {
+        findByRun: vi.fn(async () => [record]),
+        verify: vi.fn(async () => ({
+          passed: true,
+          evidence: "Main CI is green.",
+        })),
+        save,
+      },
     );
 
     expect(result).toEqual({ updated: 1 });
@@ -136,9 +143,53 @@ describe("Agency request lifecycle", () => {
         phase: "done",
         evidence: [
           "Workflow ci-repair run run-123 succeeded: Repair PR passed and main CI is green.",
+          "Verified success criteria: Main CI is green.",
         ],
         blockers: [],
         related: expect.not.arrayContaining([
+          { kind: "loop", id: agencyRequestLoopId(record.slug) },
+        ]),
+      }),
+    );
+  });
+
+  it("keeps monitoring when a successful workflow did not prove the request", async () => {
+    const save = vi.fn(async () => undefined);
+    const record: AgencyRequestRecord = {
+      ...baseRecord,
+      state: {
+        ...baseRecord.state,
+        phase: "monitoring",
+        related: [
+          ...baseRecord.state.related,
+          { kind: "loop", id: agencyRequestLoopId(baseRecord.slug) },
+          { kind: "run", id: "run-123" },
+        ],
+      },
+    };
+
+    await completeAgencyRequestRun(
+      {
+        workflowId: "ci-repair",
+        runId: "run-123",
+        status: "success",
+      },
+      {
+        findByRun: vi.fn(async () => [record]),
+        verify: vi.fn(async () => ({
+          passed: false,
+          evidence: "Main CI is still failing.",
+        })),
+        save,
+      },
+    );
+
+    expect(save).toHaveBeenCalledWith(
+      record.slug,
+      expect.objectContaining({
+        phase: "monitoring",
+        blockers: ["Success criteria not met: Main CI is still failing."],
+        related: expect.arrayContaining([
           { kind: "loop", id: agencyRequestLoopId(record.slug) },
         ]),
       }),

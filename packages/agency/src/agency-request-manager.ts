@@ -176,6 +176,8 @@ function handoff(
   source: AgencyRequestSource,
 ): AgencyRequestHandoff {
   const storeAuthorized = source.kind === "store-blueprint";
+  const createsBlueprint =
+    source.kind === "guided-flow" && source.flowId === "create-blueprint";
   return {
     type: "kody",
     displayContent: storeAuthorized
@@ -184,6 +186,9 @@ function handoff(
     message: [
       `Agency request assessment handoff for Todo ${JSON.stringify(todoSlug)}.`,
       "Read the Todo and inspect the active repository, installed Store solutions, available Workflows, Triggers, Loops, tools, permissions, and success evidence.",
+      createsBlueprint
+        ? "Create and publish a reusable Store Strategy Blueprint from this request, including its instructions, application Workflow, compatibility, constraints, and end-to-end verification criteria. Then install and live-test it through the existing Agency request lifecycle."
+        : "Preserve the requested outcome and use the existing Agency request lifecycle.",
       "When the Todo already contains a Strategy Blueprint execution, assess that saved Blueprint and preserve its Workflow, inputs, and activations; do not replace it with a different automation path.",
       "A Workflow named in execution.activations may intentionally be absent from the active Workflow list. Read that exact Workflow directly because Store candidates are readable before activation; do not block the request merely because the Workflow is not installed yet.",
       "Decide whether the request is clear and executable. Discover facts yourself. If a user decision is still required, update the request to waiting-information and ask only clear questions with the relevant context and choices.",
@@ -210,6 +215,9 @@ export async function submitAgencyRequest(
     throw new Error(`Strategy Blueprint "${blueprintId}" is unavailable`);
   }
   const storeAuthorized = input.source.kind === "store-blueprint";
+  const createsBlueprint =
+    input.source.kind === "guided-flow" &&
+    input.source.flowId === "create-blueprint";
   if (
     input.source.kind === "store-blueprint" &&
     input.source.blueprintId !== blueprintId
@@ -314,9 +322,13 @@ export async function submitAgencyRequest(
   const draft: AgencyRequestTodoDraft = {
     title: resolved
       ? `Build ${resolved.blueprint.name}`.slice(0, 160)
-      : outcome.slice(0, 160),
+      : createsBlueprint
+        ? `Create Blueprint: ${outcome}`.slice(0, 160)
+        : outcome.slice(0, 160),
     description: storeAuthorized
       ? "Kody is applying this Store Blueprint and will keep its progress here."
+      : createsBlueprint
+        ? "Kody is creating a reusable Store Blueprint, then installing and testing it end to end."
       : "Kody is assessing this request before proposing execution.",
     items: requestChecklist(Boolean(resolved)),
     agencyRequest,

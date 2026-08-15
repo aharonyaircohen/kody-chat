@@ -72,6 +72,13 @@ describe("agency request runtime Loops", () => {
         input: {
           blueprintId: "healthy-ci",
           installation: { configPatch: { workflows: ["ci-repair"] } },
+          agencyRequest: {
+            todoSlug: "build-healthy-ci",
+            outcome: "Build healthy CI",
+            evidence: [],
+            blockers: [],
+            previousRunId: "failed-run",
+          },
         },
         enabled: true,
       },

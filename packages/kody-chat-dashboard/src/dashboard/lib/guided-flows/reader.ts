@@ -35,4 +35,7 @@ export interface GuidedFlowReader {
     readonly beforeRevision?: number;
     readonly limit?: number;
   }): Promise<GuidedFlowSubmissionPage>;
+  getModelGuides(
+    definitions: readonly GuidedFlowDefinition[],
+  ): Promise<readonly string[]>;
 }

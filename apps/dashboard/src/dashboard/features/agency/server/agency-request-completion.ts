@@ -45,6 +45,36 @@ export async function completeAgencyRequestsForWorkflow(
           slug: todo.slug,
           state: todo.agencyRequest!,
         })),
+    verify: async (record) => {
+      const verification = input.output?.agencyVerification;
+      if (
+        verification &&
+        typeof verification === "object" &&
+        !Array.isArray(verification)
+      ) {
+        const value = verification as {
+          passed?: unknown;
+          evidence?: unknown;
+        };
+        if (typeof value.passed === "boolean") {
+          return {
+            passed: value.passed,
+            evidence:
+              typeof value.evidence === "string" && value.evidence.trim()
+                ? value.evidence.trim().slice(0, 2_000)
+                : value.passed
+                  ? "Workflow supplied verified success evidence."
+                  : "Workflow reported that the saved success criteria are not met.",
+          };
+        }
+      }
+      return {
+        passed: false,
+        evidence: record.state.requirement.success
+          ? `No verification evidence was returned for: ${record.state.requirement.success}`
+          : "No end-to-end verification evidence was returned.",
+      };
+    },
     save: async (slug, state) => {
       const todo = bySlug.get(slug);
       if (!todo) return;

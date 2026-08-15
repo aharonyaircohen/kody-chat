@@ -186,6 +186,42 @@ describe("Agency Request Manager", () => {
     expect(result.handoff.message).toContain("keep-ci-healthy");
   });
 
+  it("turns Create Blueprint intake into an explicit Blueprint creation job", async () => {
+    const create = vi.fn(async () => ({ slug: "create-release-blueprint" }));
+
+    const result = await submitAgencyRequest(
+      {
+        source: {
+          kind: "guided-flow",
+          instanceId: "flow-create-1",
+          effectId: "effect-create-1",
+          flowId: "create-blueprint",
+        },
+        answers: {
+          desiredOutcome: "Release web applications safely",
+          activation: "On demand",
+          allowedActions: "Create a pull request; do not merge",
+          successCriteria: "The Blueprint installs and passes its live test",
+        },
+      },
+      {
+        create,
+        findExisting: vi.fn(async () => null),
+        update: vi.fn(),
+      },
+    );
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Create Blueprint: Release web applications safely",
+        description: expect.stringContaining("reusable Store Blueprint"),
+      }),
+    );
+    expect(result.handoff.message).toContain(
+      "Create and publish a reusable Store Strategy Blueprint",
+    );
+  });
+
   it("reuses and resets the repository Todo owned by the same Blueprint", async () => {
     const create = vi.fn();
     const update = vi.fn(async () => ({ slug: "healthy-ci" }));

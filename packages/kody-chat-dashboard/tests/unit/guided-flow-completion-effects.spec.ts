@@ -66,6 +66,10 @@ describe("GuidedFlow completion effects", () => {
     expect(calledHeaders.has("transfer-encoding")).toBe(false);
     expect(JSON.parse(String(calledInit.body))).toMatchObject({
       blueprintId: "healthy-ci",
+      source: {
+        kind: "guided-flow",
+        flowId: "new-agency-request",
+      },
     });
     expect(client.query).toHaveBeenCalledWith(expect.anything(), {
       tenantId: "acme/app",

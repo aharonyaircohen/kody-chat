@@ -12,6 +12,9 @@ function reader(
     getStep: async () => null,
     getData: async () => ({}),
     getHistory: async () => ({ items: [] }),
+    getModelGuides: async () => [
+      "Request Blueprint: Exercise\nPurpose: Help the user answer correctly.\n1. question [view: selection-list]\n   guidance: Choose one.",
+    ],
   };
 }
 
@@ -80,6 +83,8 @@ describe("GuidedFlow Chat turn context", () => {
     expect(context).toContain("exercise@2 / question");
     expect(context).toContain("lesson@1 / exercise");
     expect(context).toContain("guided_flow_read");
+    expect(context).toContain("Purpose: Help the user answer correctly.");
+    expect(context).toContain("guidance: Choose one.");
     expect(context).not.toContain("privateLargeValue");
   });
 

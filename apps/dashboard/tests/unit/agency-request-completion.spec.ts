@@ -99,6 +99,10 @@ describe("Agency request completion", () => {
       output: {
         pullRequestUrl: "https://github.com/acme/widgets/pull/42",
         pullRequestNumber: 42,
+        agencyVerification: {
+          passed: true,
+          evidence: "Repository CI passes on draft PR #42.",
+        },
       },
     });
 

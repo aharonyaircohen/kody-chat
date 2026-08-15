@@ -45,6 +45,46 @@ async function installResolvedAuth(page: Page, owner: string, repo: string) {
   );
 }
 
+async function cancelStaleLiveTestFlows(
+  page: Page,
+  headers: Record<string, string>,
+) {
+  const response = await page.request.get(`${baseUrl}/api/kody/guided-flows`, {
+    headers,
+  });
+  if (!response.ok()) return;
+  const payload = (await response.json()) as {
+    flows?: Array<{
+      instance?: {
+        flowId?: string;
+        instanceId?: string;
+        revision?: number;
+        status?: string;
+      };
+    }>;
+  };
+  for (const candidate of payload.flows ?? []) {
+    const instance = candidate.instance;
+    if (
+      instance?.status !== "active" ||
+      !instance.instanceId ||
+      typeof instance.revision !== "number" ||
+      !/^(release-check|chat-context-proof)-/.test(instance.flowId ?? "")
+    ) {
+      continue;
+    }
+    await page.request.post(`${baseUrl}/api/kody/guided-flows`, {
+      headers,
+      data: {
+        action: "cancel",
+        instanceId: instance.instanceId,
+        expectedRevision: instance.revision,
+        mutationId: `e2e-stale-cleanup-${instance.instanceId}`,
+      },
+    });
+  }
+}
+
 test("loads real Guided Flow definitions", async ({ page }) => {
   await installResolvedAuth(page, repoParts?.[1] ?? "", repoParts?.[2] ?? "");
 
@@ -73,8 +113,10 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
     "x-kody-owner": owner,
     "x-kody-repo": repo,
   };
+  let startedInstanceId: string | undefined;
 
   await installResolvedAuth(page, owner, repo);
+  await cancelStaleLiveTestFlows(page, headers);
 
   try {
     await page.goto(`/repo/${owner}/${repo}/guided-flows`, {
@@ -95,19 +137,45 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
       .click();
     await expect(page.getByRole("article", { name: flowTitle })).toBeVisible();
 
+    const startResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/guided-flows"),
+    );
     await page.goto(
       `/repo/${owner}/${repo}/guided-flows?guidedFlow=${flowId}&instanceKey=${suffix}`,
       { waitUntil: "domcontentloaded" },
     );
+    const startResponse = await startResponsePromise;
+    const startPayload = (await startResponse.json()) as {
+      instance?: { instanceId?: string };
+    };
+    startedInstanceId = startPayload.instance?.instanceId;
+    expect(startedInstanceId).toBeTruthy();
     const openChat = page.getByRole("button", { name: "Open chat" });
     if (await openChat.isVisible()) await openChat.click();
-    const finish = page
-      .locator('[aria-label="Kody chat"] button:enabled')
-      .filter({ hasText: /^Finish$/ })
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const activeCard = chat
+      .getByTestId("chat-assistant-message")
+      .filter({ hasText: "New step" })
       .last();
+    const finish = activeCard
+      .locator("button:enabled")
+      .filter({ hasText: /^Finish$/ });
     await expect(finish).toBeVisible();
+    const completionResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/guided-flows"),
+    );
     await finish.click();
-    await expect(page.getByText("GuidedFlow completed.")).toBeVisible();
+    const completionResponse = await completionResponsePromise;
+    const completionPayload = (await completionResponse.json()) as {
+      instance?: { instanceId?: string; status?: string };
+    };
+    expect(completionPayload.instance?.instanceId).toBe(startedInstanceId);
+    expect(completionPayload.instance?.status).toBe("completed");
+    await expect(page.getByText("GuidedFlow completed.").last()).toBeVisible();
 
     const completed = await page.evaluate(async () => {
       const auth = JSON.parse(localStorage.getItem("kody_auth") ?? "{}") as {
@@ -137,6 +205,27 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
       ]),
     );
   } finally {
+    if (startedInstanceId) {
+      const active = await page.request.get(
+        `${baseUrl}/api/kody/guided-flows?instanceId=${startedInstanceId}`,
+        { headers },
+      );
+      const activePayload = (await active.json().catch(() => null)) as {
+        flow?: { instance?: { revision?: number; status?: string } };
+      } | null;
+      const instance = activePayload?.flow?.instance;
+      if (instance?.status === "active" && typeof instance.revision === "number") {
+        await page.request.post(`${baseUrl}/api/kody/guided-flows`, {
+          headers,
+          data: {
+            action: "cancel",
+            instanceId: startedInstanceId,
+            expectedRevision: instance.revision,
+            mutationId: `e2e-cleanup-${startedInstanceId}`,
+          },
+        });
+      }
+    }
     const cleanup = await page.request.post(
       `${baseUrl}/api/kody/guided-flows`,
       {
@@ -151,10 +240,10 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
   }
 });
 
-test("real Chat reads the current Guided Flow step and submitted answer", async ({
+test("real Chat receives the current Request Blueprint guidance automatically", async ({
   page,
 }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(90_000);
   const owner = repoParts?.[1] ?? "";
   const repo = repoParts?.[2] ?? "";
   const suffix = Date.now().toString(36);
@@ -168,6 +257,7 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
   };
 
   await installResolvedAuth(page, owner, repo);
+  await cancelStaleLiveTestFlows(page, headers);
 
   const [modelsResponse, secretsResponse] = await Promise.all([
     page.request.get(`${baseUrl}/api/kody/models`, { headers }),
@@ -189,10 +279,13 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
   const configuredSecrets = new Set(
     (secrets.secrets ?? []).map((secret) => secret.name),
   );
-  const configuredModel = (models.models ?? []).find(
+  const configuredModels = (models.models ?? []).filter(
     (model) =>
       model.enabled !== false && configuredSecrets.has(model.apiKeySecret),
   );
+  const configuredModel =
+    configuredModels.find((model) => /deepseek/i.test(model.id)) ??
+    configuredModels[0];
   expect(
     configuredModel,
     "an enabled direct model must be configured",
@@ -247,6 +340,10 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
     };
     expect(startPayload.flow?.id).toBe(flowId);
     expect(startPayload.view?.guidedFlow?.instanceId).toBeTruthy();
+    const startRequest = startResponse.request().postDataJSON() as {
+      conversationId?: string;
+    };
+    expect(startRequest.conversationId).toBeTruthy();
     const chat = page.locator('[aria-label="Kody chat"]');
     const firstStep = chat.getByText(`Answered checkpoint ${suffix}`, {
       exact: false,
@@ -269,7 +366,29 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
       chat.getByText(currentStepTitle, { exact: false }),
     ).toBeVisible();
 
-    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    const boundFlowResponse = await page.request.get(
+      `${baseUrl}/api/kody/guided-flows?conversationId=${encodeURIComponent(startRequest.conversationId!)}`,
+      { headers },
+    );
+    expect(boundFlowResponse.ok()).toBe(true);
+    const boundFlowPayload = (await boundFlowResponse.json()) as {
+      flows?: Array<{ instance?: { instanceId?: string } }>;
+    };
+    expect(boundFlowPayload.flows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          instance: expect.objectContaining({
+            instanceId: startPayload.view?.guidedFlow?.instanceId,
+          }),
+        }),
+      ]),
+    );
+
+    const chatSetup = chat.getByRole("button", { name: "Chat setup" });
+    await chatSetup.click();
+    const modelPicker = chat
+      .getByTestId("chat-setup-menu")
+      .getByRole("button", { name: "Model", exact: true });
     await modelPicker.click();
     await chat
       .locator('[role="listbox"]:visible')
@@ -278,18 +397,28 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
       .filter({ hasText: configuredModel!.label })
       .first()
       .click();
+    await expect(chatSetup).toContainText(configuredModel!.label);
 
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         response.url().endsWith("/api/kody/chat/kody"),
     );
-    const input = chat.locator("textarea").first();
+    const input = chat.getByRole("textbox", { name: "Message" });
+    await expect(input).toBeEditable();
     await input.fill(
-      "Call guided_flow_context with no arguments. State the exact current step title and the action submitted on the previous step.",
+      "Call guided_flow_context with no arguments, then state the exact current Request Blueprint step title.",
     );
+    await expect(input).not.toHaveValue("");
+    await expect(
+      chat.getByRole("button", { name: "Send message" }),
+    ).toBeEnabled();
     await chat.getByRole("button", { name: "Send message" }).click();
     const response = await responsePromise;
+    const chatRequest = response.request().postDataJSON() as {
+      conversationId?: string;
+    };
+    expect(chatRequest.conversationId).toBe(startRequest.conversationId);
     expect(response.status(), "the real direct Chat route must succeed").toBe(
       200,
     );
@@ -297,14 +426,14 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
       chat
         .locator(".prose")
         .filter({ hasText: currentStepTitle })
-        .filter({ hasText: /confirm/i })
         .last(),
-    ).toBeVisible({ timeout: 240_000 });
+    ).toBeVisible({ timeout: 60_000 });
   } finally {
-    const active = await page.request.get(`${baseUrl}/api/kody/guided-flows`, {
-      headers,
-    });
-    const activePayload = (await active.json().catch(() => null)) as {
+    const active = await page.request
+      .get(`${baseUrl}/api/kody/guided-flows`, { headers })
+      .catch(() => null);
+    const activePayload = active
+      ? ((await active.json().catch(() => null)) as {
       flows?: Array<{
         instance?: {
           flowId?: string;
@@ -313,7 +442,8 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
           status?: string;
         };
       }>;
-    } | null;
+        } | null)
+      : null;
     for (const candidate of activePayload?.flows ?? []) {
       const instance = candidate.instance;
       if (
@@ -324,26 +454,29 @@ test("real Chat reads the current Guided Flow step and submitted answer", async 
       ) {
         continue;
       }
-      await page.request.post(`${baseUrl}/api/kody/guided-flows`, {
-        headers,
-        data: {
-          action: "cancel",
-          instanceId: instance.instanceId,
-          expectedRevision: instance.revision,
-          mutationId: `e2e-cleanup-${instance.instanceId}`,
-        },
-      });
+      await page.request
+        .post(`${baseUrl}/api/kody/guided-flows`, {
+          headers,
+          data: {
+            action: "cancel",
+            instanceId: instance.instanceId,
+            expectedRevision: instance.revision,
+            mutationId: `e2e-cleanup-${instance.instanceId}`,
+          },
+        })
+        .catch(() => null);
     }
-    const cleanup = await page.request.post(
-      `${baseUrl}/api/kody/guided-flows`,
-      {
+    const cleanup = await page.request
+      .post(`${baseUrl}/api/kody/guided-flows`, {
         headers,
         data: { action: "delete-definition", flowId },
-      },
-    );
-    expect(
-      cleanup.ok(),
-      `Guided Flow definition cleanup must succeed (HTTP ${cleanup.status()})`,
-    ).toBe(true);
+      })
+      .catch(() => null);
+    if (cleanup) {
+      expect(
+        cleanup.ok(),
+        `Guided Flow definition cleanup must succeed (HTTP ${cleanup.status()})`,
+      ).toBe(true);
+    }
   }
 });

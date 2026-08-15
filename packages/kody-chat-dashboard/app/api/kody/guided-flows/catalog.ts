@@ -8,6 +8,7 @@ import {
 import {
   getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
+  listRequestBlueprintDefinitions,
   ONBOARDING_FLOW_ID,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
@@ -15,6 +16,10 @@ import {
   parseGuidedFlowDefinitionRows,
   type StoredGuidedFlowDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
+import {
+  latestStoredGuidedFlowDefinitions,
+} from "@kody-ade/kody-chat-dashboard/guided-flows/stored";
+import type { RequestBlueprintDefinition } from "@kody-ade/kody-chat-dashboard/request-blueprints";
 import { getBuiltinViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/builtin";
 import type { ViewRendererDefinition } from "../../../../src/dashboard/lib/view-renderers/definition";
 import { readViewRendererDefinitionFile } from "../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
@@ -41,6 +46,27 @@ export function availableGuidedFlowDefinitions(
     ...latestAvailableGuidedFlowDefinitions(stored).filter(
       (definition) => !reservedIds.has(definition.id),
     ),
+  ];
+}
+
+export function availableRequestBlueprintDefinitions(
+  stored: readonly StoredGuidedFlowDefinition[],
+): RequestBlueprintDefinition[] {
+  const builtIn = listRequestBlueprintDefinitions();
+  const reservedIds = new Set(builtIn.map((definition) => definition.id));
+  return [
+    ...builtIn,
+    ...latestStoredGuidedFlowDefinitions(stored)
+      .filter(
+        (definition) =>
+          !definition.archived && !reservedIds.has(definition.id),
+      )
+      .map((definition) => ({
+        ...definition,
+        purpose:
+          definition.purpose ??
+          `Guide the user through ${definition.title}.`,
+      })),
   ];
 }
 

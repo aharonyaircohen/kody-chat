@@ -44,6 +44,7 @@ export type AgencyRequestSource =
       kind: "guided-flow";
       instanceId: string;
       effectId: string;
+      flowId?: string;
     }
   | {
       kind: "store-blueprint";
@@ -370,7 +371,11 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
 
   const source = record(input.source, "Agency request source");
   if (source.kind === "guided-flow") {
-    exact(source, ["kind", "instanceId", "effectId"], "Agency request source");
+    exact(
+      source,
+      ["kind", "instanceId", "effectId", "flowId"],
+      "Agency request source",
+    );
   } else if (source.kind === "store-blueprint") {
     exact(
       source,
@@ -428,6 +433,9 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
               "Agency request source instanceId",
             ),
             effectId: text(source.effectId, "Agency request source effectId"),
+            ...(source.flowId === undefined
+              ? {}
+              : { flowId: identifier(source.flowId, "Agency request source flowId") }),
           }
         : {
             kind: "store-blueprint" as const,

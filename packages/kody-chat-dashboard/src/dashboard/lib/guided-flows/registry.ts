@@ -47,6 +47,17 @@ export function listGuidedFlowDefinitions(): readonly GuidedFlowDefinition[] {
   return [...latestById.values()];
 }
 
+export function listRequestBlueprintDefinitions(): readonly RequestBlueprintDefinition[] {
+  const latestById = new Map<string, RequestBlueprintDefinition>();
+  for (const definition of BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS) {
+    const latest = latestById.get(definition.id);
+    if (!latest || definition.version > latest.version) {
+      latestById.set(definition.id, definition);
+    }
+  }
+  return [...latestById.values()];
+}
+
 export function getRequestBlueprintDefinition(
   flowId: string,
   version: number,

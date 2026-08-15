@@ -71,7 +71,19 @@ export const list = query({
             kind: "workflow" as const,
             id: request.execution.workflowId,
           },
-          input: request.execution.input,
+          input: {
+            ...request.execution.input,
+            agencyRequest: {
+              todoSlug: record.kind.slice(TODO_PREFIX.length),
+              outcome: request.requirement.outcome,
+              ...(request.requirement.success
+                ? { successCriteria: request.requirement.success }
+                : {}),
+              evidence: request.evidence,
+              blockers: request.blockers,
+              ...(latestRun ? { previousRunId: latestRun.id } : {}),
+            },
+          },
           enabled: true,
         });
       } catch {

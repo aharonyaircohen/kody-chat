@@ -22,6 +22,10 @@ interface StartPorts {
 
 interface CompletionPorts {
   findByRun(runId: string, loopId?: string): Promise<AgencyRequestRecord[]>;
+  verify?(
+    record: AgencyRequestRecord,
+    input: CompletionInput,
+  ): Promise<{ passed: boolean; evidence: string }>;
   save(slug: string, state: AgencyRequestState): Promise<void>;
 }
 
@@ -134,10 +138,21 @@ export async function completeAgencyRequestRun(
   const records = await ports.findByRun(input.runId, input.loopId);
   const summary = input.summary?.trim().slice(0, 2_000);
   for (const record of records) {
-    const succeeded = input.status === "success";
+    const workflowSucceeded = input.status === "success";
+    const verification = workflowSucceeded
+      ? await ports.verify?.(record, input) ?? {
+          passed: false,
+          evidence: "No end-to-end verification was performed.",
+        }
+      : null;
+    const succeeded = workflowSucceeded && verification?.passed === true;
     const result = `Workflow ${input.workflowId} run ${input.runId} ${
-      succeeded ? "succeeded" : input.status
+      workflowSucceeded ? "succeeded" : input.status
     }${summary ? `: ${summary}` : "."}`;
+    const verificationResult =
+      verification && !verification.passed
+        ? `Success criteria not met: ${verification.evidence}`
+        : null;
     const loopId = agencyRequestLoopId(record.slug);
     const related = record.state.related
       .filter((ref) => !(succeeded && ref.kind === "loop" && ref.id === loopId))
@@ -147,8 +162,16 @@ export async function completeAgencyRequestRun(
       record.slug,
       withState(record.state, {
         phase: succeeded ? "done" : "monitoring",
-        evidence: [...record.state.evidence, result],
-        blockers: succeeded ? [] : [result],
+        evidence: [
+          ...record.state.evidence,
+          result,
+          ...(verification?.passed
+            ? [`Verified success criteria: ${verification.evidence}`]
+            : []),
+        ],
+        blockers: succeeded
+          ? []
+          : [verificationResult ?? result],
         related,
       }),
     );
