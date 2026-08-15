@@ -630,3 +630,43 @@ test("archives and restores a Quality Run while keeping its evidence", async ({
   await page.getByRole("button", { name: "Restore" }).last().click();
   await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
 });
+
+test("cancels a running Quality Run from its detail view", async ({ page }) => {
+  let runs = qualityMap.runs.map((run) => ({
+    ...run,
+    status: "running" as "running" | "cancelled",
+    archived: false,
+  }));
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        runId: string;
+      };
+      runs = runs.map((run) =>
+        run.runId === body.runId && body.action === "cancel"
+          ? { ...run, status: "cancelled" as const }
+          : run,
+      );
+      return json(route, { ok: true, status: "cancelled" });
+    }
+    return json(route, { ...qualityMap, runs });
+  });
+
+  await page.goto("/repo/acme/widgets/quality/runs");
+  await page
+    .getByRole("button", { name: /Reply persists after reload/ })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Cancel Reply persists after reload/ }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /Cancel Reply persists after reload/ })
+    .click();
+  await page.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await expect(page.getByText("Quality Run cancelled")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Cancel Reply persists after reload/ }),
+  ).toHaveCount(0);
+});

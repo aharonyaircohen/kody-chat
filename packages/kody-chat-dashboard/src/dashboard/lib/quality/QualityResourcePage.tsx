@@ -18,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
+  Square,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -588,6 +589,7 @@ function Detail({
   onDelete,
   onRun,
   onArchive,
+  onCancel,
   qualityRootPath,
 }: {
   record: QualityRecord;
@@ -597,6 +599,7 @@ function Detail({
   onDelete?: () => void;
   onRun?: () => void;
   onArchive?: () => void;
+  onCancel?: () => void;
   qualityRootPath: string;
 }) {
   const Icon =
@@ -654,6 +657,18 @@ function Detail({
                 >
                   <Pencil className="h-4 w-4" />
                   <span className="hidden sm:inline">Edit</span>
+                </Button>
+              ) : null}
+              {onCancel ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/30 text-amber-300 hover:border-amber-400/50 hover:text-amber-200"
+                  onClick={onCancel}
+                  aria-label={`Cancel ${recordName(record, map)}`}
+                >
+                  <Square className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cancel run</span>
                 </Button>
               ) : null}
               {onArchive ? (
@@ -889,6 +904,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<QualityRecord | null>(null);
   const [archiving, setArchiving] = useState<QualityRecord | null>(null);
+  const [cancelling, setCancelling] = useState<QualityRun | null>(null);
   const [leavingArchivedRun, setLeavingArchivedRun] = useState(false);
   const [startingRun, setStartingRun] = useState(
     resource === "runs" && !!searchParams.get("scenario"),
@@ -1022,6 +1038,36 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
     },
     onError: (error: Error) =>
       toast.error("Could not update Quality Run", {
+        description: error.message,
+      }),
+  });
+  const cancelRun = useMutation({
+    mutationFn: async (record: QualityRun) => {
+      const response = await fetch(
+        `/api/kody/quality/runs/${encodeURIComponent(record.runSlug)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ action: "cancel", runId: record.runId }),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to cancel Quality Run");
+      }
+      return record;
+    },
+    onSuccess: async () => {
+      setCancelling(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["quality", auth?.owner, auth?.repo],
+      });
+      toast.success("Quality Run cancelled");
+    },
+    onError: (error: Error) =>
+      toast.error("Could not cancel Quality Run", {
         description: error.message,
       }),
   });
@@ -1169,6 +1215,14 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
               onArchive={
                 resource === "runs" ? () => setArchiving(selected) : undefined
               }
+              onCancel={
+                resource === "runs" &&
+                "runSlug" in selected &&
+                !selected.archived &&
+                (selected.status === "running" || selected.status === "queued")
+                  ? () => setCancelling(selected)
+                  : undefined
+              }
               onRun={
                 resource === "scenarios" &&
                 "journeySlugs" in selected &&
@@ -1277,6 +1331,17 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
         onClose={() => setArchiving(null)}
         onConfirm={() => {
           if (archiving) setArchived.mutate(archiving);
+        }}
+      />
+      <ConfirmDialog
+        open={!!cancelling}
+        title={`Cancel ${cancelling ? recordName(cancelling, map) : "Quality Run"}?`}
+        description="Stop this Quality Run and mark it cancelled. Existing evidence will be kept."
+        confirmLabel="Cancel run"
+        variant="destructive"
+        onClose={() => setCancelling(null)}
+        onConfirm={() => {
+          if (cancelling) cancelRun.mutate(cancelling);
         }}
       />
       {resource === "runs" ? (
