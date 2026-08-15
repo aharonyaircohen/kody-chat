@@ -15,10 +15,13 @@ import {
   SETTLE_STRATEGIES,
   FINISH_STRATEGIES,
   classifyTurnFailure,
+  shouldRecoverDurableDirectTurn,
   shouldPreservePendingDirectTurn,
   settleDecision,
   applySettleDecision,
 } from "../../../src/dashboard/lib/components/kody-chat-send";
+import { KodyDirectConnectionDroppedError } from "../../../src/dashboard/lib/chat/core/transports/kody-direct";
+import { ChatTurnStalledError } from "../../../src/dashboard/lib/chat/core/transports/turn-coordinator";
 import type { Message } from "../../../src/dashboard/lib/components/kody-chat-types";
 
 const abortError = () => {
@@ -56,6 +59,18 @@ describe("classifyTurnFailure", () => {
 });
 
 describe("refresh-safe direct turns", () => {
+  it("recovers durable work after either a dropped stream or inactivity timeout", () => {
+    expect(
+      shouldRecoverDurableDirectTurn(new KodyDirectConnectionDroppedError()),
+    ).toBe(true);
+    expect(
+      shouldRecoverDurableDirectTurn(new ChatTurnStalledError(120_000)),
+    ).toBe(true);
+    expect(shouldRecoverDurableDirectTurn(new Error("provider failed"))).toBe(
+      false,
+    );
+  });
+
   it("leaves the durable pending turn untouched while the page unloads", () => {
     expect(shouldPreservePendingDirectTurn("hidden")).toBe(true);
     expect(shouldPreservePendingDirectTurn("visible")).toBe(false);

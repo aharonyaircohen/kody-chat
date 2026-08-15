@@ -65,7 +65,10 @@ import {
   kodyLiveTransport,
   type KodyLiveTurnConfig,
 } from "../chat/core/transports/kody-live";
-import { runChatTurn } from "../chat/core/transports/turn-coordinator";
+import {
+  ChatTurnStalledError,
+  runChatTurn,
+} from "../chat/core/transports/turn-coordinator";
 import { createAssistantTurnPersistenceObserver } from "../chat/core/conversation/turn-persistence-observer";
 import {
   createTransportTurnHandler,
@@ -222,6 +225,13 @@ export function shouldPreservePendingDirectTurn(
   visibilityState: DocumentVisibilityState | undefined,
 ): boolean {
   return visibilityState === "hidden";
+}
+
+export function shouldRecoverDurableDirectTurn(error: unknown): boolean {
+  return (
+    error instanceof KodyDirectConnectionDroppedError ||
+    error instanceof ChatTurnStalledError
+  );
 }
 
 /** Pure decision: (backend, failure) → how the turn settles. */
@@ -1407,7 +1417,7 @@ async function runSendTextInner(
       const spoken = voiceMode ? stripReasoning(textBuf) : textBuf.trim();
       return spoken || null;
     } catch (err) {
-      if (err instanceof KodyDirectConnectionDroppedError) {
+      if (shouldRecoverDurableDirectTurn(err)) {
         setLoading(false);
         await directPersistence.flush();
         sessionHook.recoverRunningTurn(uiSessionId);
