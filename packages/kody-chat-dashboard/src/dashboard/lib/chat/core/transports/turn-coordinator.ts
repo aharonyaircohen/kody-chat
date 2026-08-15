@@ -33,6 +33,11 @@ export interface ChatTurnSnapshot {
   endedAt?: number;
 }
 
+export interface ChatTurnObserver {
+  onPhase?: (turn: ChatTurnSnapshot) => void;
+  onEvent?: (event: ChatEvent, turn: ChatTurnSnapshot) => void;
+}
+
 export class ChatTurnStalledError extends Error {
   constructor(inactivityMs: number) {
     super(
@@ -58,6 +63,7 @@ export interface RunChatTurnOptions {
   inactivityMs: number;
   turnId?: string;
   onPhaseChange?: (turn: ChatTurnSnapshot) => void;
+  observer?: ChatTurnObserver;
 }
 
 function createTurnId(): string {
@@ -89,7 +95,8 @@ function isTerminal(phase: ChatTurnPhase): boolean {
 export async function runChatTurn(
   options: RunChatTurnOptions,
 ): Promise<ChatTurnSnapshot> {
-  const { transport, input, context, inactivityMs, onPhaseChange } = options;
+  const { transport, input, context, inactivityMs, onPhaseChange, observer } =
+    options;
   if (!Number.isFinite(inactivityMs) || inactivityMs <= 0) {
     throw new RangeError("inactivityMs must be a positive finite number");
   }
@@ -112,8 +119,10 @@ export async function runChatTurn(
       ...(isTerminal(phase) ? { endedAt: now } : {}),
     };
     onPhaseChange?.({ ...turn });
+    observer?.onPhase?.({ ...turn });
   };
   onPhaseChange?.({ ...turn });
+  observer?.onPhase?.({ ...turn });
 
   const controller = new AbortController();
   let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -152,6 +161,7 @@ export async function runChatTurn(
     if (turn.phase === "connecting") publish("active");
     armInactivityDeadline();
     context.emit(event);
+    observer?.onEvent?.(event, { ...turn });
     if (event.type === "done") publish("completed");
     else if (event.type === "error" && !event.recoverable) publish("failed");
   };

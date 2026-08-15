@@ -50,6 +50,36 @@ describe("runChatTurn", () => {
     expect(phases).toEqual(["connecting", "active", "completed"]);
   });
 
+  it("publishes lifecycle and transport events through one observer boundary", async () => {
+    const observed: string[] = [];
+    const transport: ChatTransport = {
+      id: "test",
+      async send(_input, ctx) {
+        ctx.emit({ type: "token", text: "hello" });
+        ctx.emit({ type: "done" });
+      },
+    };
+
+    await runChatTurn({
+      transport,
+      input: INPUT,
+      context: { authHeaders: {}, emit: () => {} },
+      inactivityMs: 1_000,
+      observer: {
+        onPhase: (turn) => observed.push(`phase:${turn.phase}`),
+        onEvent: (event) => observed.push(`event:${event.type}`),
+      },
+    });
+
+    expect(observed).toEqual([
+      "phase:connecting",
+      "phase:active",
+      "event:token",
+      "event:done",
+      "phase:completed",
+    ]);
+  });
+
   it("uses a caller-provided turn id for end-to-end correlation", async () => {
     const transport: ChatTransport = {
       id: "test",
