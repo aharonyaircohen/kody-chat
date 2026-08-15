@@ -47,7 +47,8 @@
       "finalize-ci-repair",
       "prepare-strategy-application",
       "apply-strategy",
-      "qa-engineer"
+      "qa-engineer",
+      "verify-strategy-application"
     ],
     "activeWorkflows": [
       "ci-repair",
