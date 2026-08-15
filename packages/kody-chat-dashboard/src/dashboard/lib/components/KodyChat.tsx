@@ -593,17 +593,19 @@ export function KodyChat({
   // reasoning-effort wiring, and the per-session agent sync effect.
   const {
     selectionReady,
-    selectedAgentId,
-    selectedModelId,
+    selection: {
+      agentId: selectedAgentId,
+      modelId: selectedModelId,
+      entry: currentEntry,
+      agent: currentAgent,
+      reasoning: currentReasoning,
+      reasoningEffort: effectiveReasoningEffort,
+    },
     selectEntry,
     agentMenuOpen,
     setAgentMenuOpen,
     setReasoningEffort,
-    currentAgent,
     agentList,
-    currentEntry,
-    currentReasoning,
-    effectiveReasoningEffort,
   } = useAgentSelection({
     lockedAgentId: lockedAgentId ?? (lockedModelId ? "kody" : undefined),
     lockedModelId,

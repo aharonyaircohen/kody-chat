@@ -691,8 +691,8 @@ export function useConversationSessions(
       const from = session.agencyAgent ?? { slug: "kody", title: "Kody" };
       const handoffId = crypto.randomUUID();
       const switchedAt = new Date().toISOString();
-      setSessions((previous) =>
-        previous.map((item) =>
+      setSessions((previous) => {
+        const next = previous.map((item) =>
           item.id === sessionId
             ? {
                 ...item,
@@ -714,8 +714,10 @@ export function useConversationSessions(
                     : item.agentHandoffs,
               }
             : item,
-        ),
-      );
+        );
+        sessionsRef.current = next;
+        return next;
+      });
       const login = actorLogin;
       if (login && session.messageCount > 0) {
         persist(

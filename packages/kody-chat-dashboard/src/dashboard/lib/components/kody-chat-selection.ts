@@ -180,22 +180,21 @@ export interface UseAgentSelectionOptions {
 export interface UseAgentSelectionResult {
   /** True once the current session/default has resolved against the catalog. */
   selectionReady: boolean;
-  selectedAgentId: AgentId;
-  selectedModelId: string | null;
+  /** One resolved target consumed by rendering and turn dispatch. */
+  selection: {
+    agentId: AgentId;
+    modelId: string | null;
+    entry: ChatDropdownEntry | null;
+    agent: AgentConfig;
+    reasoning: ModelReasoning | null;
+    reasoningEffort: string | null;
+  };
   selectEntry: (entry: ChatDropdownEntry) => void;
   agentMenuOpen: boolean;
   setAgentMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setReasoningEffort: React.Dispatch<React.SetStateAction<string | null>>;
-  /** Static agent record for the selected id (AGENT_KODY fallback). */
-  currentAgent: AgentConfig;
   /** Every dropdown row currently available. */
   agentList: ChatDropdownEntry[];
-  /** The dropdown row matching the current agent+model pick, if any. */
-  currentEntry: ChatDropdownEntry | null;
-  /** Effective thinking config for the active model (null = hidden). */
-  currentReasoning: ModelReasoning | null;
-  /** Resolved effort — session pick > stored pref > model default. */
-  effectiveReasoningEffort: string | null;
 }
 
 /**
@@ -312,16 +311,18 @@ export function useAgentSelection(
 
   return {
     selectionReady,
-    selectedAgentId,
-    selectedModelId,
+    selection: {
+      agentId: selectedAgentId,
+      modelId: selectedModelId,
+      entry: currentEntry,
+      agent: currentAgent,
+      reasoning: currentReasoning,
+      reasoningEffort: effectiveReasoningEffort,
+    },
     selectEntry,
     agentMenuOpen,
     setAgentMenuOpen,
     setReasoningEffort,
-    currentAgent,
     agentList,
-    currentEntry,
-    currentReasoning,
-    effectiveReasoningEffort,
   };
 }
