@@ -68,7 +68,7 @@ function makeOctokit() {
           data: {
             encoding: "base64",
             content: Buffer.from(
-              "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n",
+              "on:\n  workflow_dispatch:\n    inputs:\n      runRequest:\n        type: string\n      dashboardUrl:\n        type: string\n      storeRepoUrl:\n        type: string\n      storeRef:\n        type: string\n",
             ).toString("base64"),
           },
         })),
@@ -143,6 +143,11 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
       repo: "widgets",
       workflow_id: "kody.yml",
       ref: "main",
+      inputs: {
+        dashboardUrl: "https://dash.test",
+        storeRepoUrl: "acme/kody-store",
+        storeRef: "main",
+      },
     });
     expect(JSON.parse(dispatch.inputs.runRequest)).toEqual({
       requestId: expect.stringMatching(/^run-/),

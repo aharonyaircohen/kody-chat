@@ -168,6 +168,9 @@ export async function POST(
           octokit,
           owner: auth.owner,
           repo: auth.repo,
+          dashboardUrl: req.nextUrl.origin,
+          storeRepoUrl: auth.storeRepoUrl,
+          storeRef: auth.storeRef,
         }),
       },
     );
