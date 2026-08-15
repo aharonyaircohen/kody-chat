@@ -245,7 +245,7 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/End with direction when useful/i);
+    expect(prompt).toMatch(/End prose with direction/i);
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
       "Great question",
@@ -280,7 +280,7 @@ describe("POST /api/kody/chat/kody", () => {
 
     expect(CRITICAL_REMINDERS_MD).toMatch(/Start with the answer/i);
     expect(CRITICAL_REMINDERS_MD).toMatch(/Verify before claiming/i);
-    expect(CRITICAL_REMINDERS_MD).toMatch(/End with direction when useful/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/End prose with a question/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Re-state last thing you read/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });

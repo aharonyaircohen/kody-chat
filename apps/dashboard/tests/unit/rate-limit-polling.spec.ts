@@ -23,7 +23,7 @@ describe("rate limit polling guardrails", () => {
       source(
         "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/terminal/useChatTerminalRegistry.ts",
       ),
-    ).toContain("setInterval(() => void refreshStatus(), 60_000)");
+    ).not.toContain("refreshStatus");
     expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
       "const AGENCY_RUNS_REFETCH_MS = 120_000",
     );

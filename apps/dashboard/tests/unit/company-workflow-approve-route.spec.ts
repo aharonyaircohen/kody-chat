@@ -32,7 +32,7 @@ vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
 vi.mock("@kody-ade/base/engine/config", () => engineConfig);
 vi.mock("@dashboard/lib/workflow-definition-files", () => workflowFiles);
-vi.mock("@kody-ade/agency/backend/agency-approvals-store", () => approvals);
+vi.mock("@kody-ade/agency/agency-approvals", () => approvals);
 
 import { POST } from "../../app/api/kody/company/workflows/[id]/approve/route";
 
@@ -70,6 +70,12 @@ describe("POST /api/kody/company/workflows/:id/approve", () => {
         name: "Documentation Agency",
         agent: "documentation-lead",
         capabilities: ["define-documentation-brief"],
+        steps: [
+          {
+            id: "define-brief",
+            capability: "define-documentation-brief",
+          },
+        ],
         inputSchema: {
           type: "object",
           properties: { issue: { type: "integer", minimum: 1 } },

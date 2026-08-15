@@ -129,9 +129,11 @@ describe("kody-direct route ends the turn on a rendered-view tool result", () =>
 
   it("stops the model turn once any tool returned a view directive, so the model never re-renders it via show_view", () => {
     expect(routeSource).toContain("successfulRenderedViewResult");
-    expect(routeSource).toMatch(
-      /stopWhen:\s*\[[^\]]*successfulRenderedViewResult\(\)/s,
+    const stopWhenBlock = routeSource.slice(
+      routeSource.indexOf("stopWhen:"),
+      routeSource.indexOf("// Per-provider thinking config"),
     );
+    expect(stopWhenBlock).toContain("successfulRenderedViewResult()");
   });
 
   it("counts a rendered-view tool result as visible output in the silent-turn retry", () => {

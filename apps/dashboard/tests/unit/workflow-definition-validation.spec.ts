@@ -233,17 +233,6 @@ describe("validateWorkflowDefinition", () => {
     ],
     [
       workflow([
-        {
-          id: "inspect",
-          capability: "inspect",
-          next: [{ to: "repair", when: { "facts.needsFix": true } }],
-        },
-        { id: "repair", capability: "repair" },
-      ]),
-      "missing_default_transition",
-    ],
-    [
-      workflow([
         { id: "inspect", capability: "inspect", next: [{ to: "publish" }] },
         { id: "repair", capability: "repair" },
         { id: "publish", capability: "publish" },

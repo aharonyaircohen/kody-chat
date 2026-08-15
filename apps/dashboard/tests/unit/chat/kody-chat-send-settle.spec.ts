@@ -160,7 +160,7 @@ describe("applySettleDecision — the ONE recover implementation", () => {
       { role: "user", content: "hi" },
       {
         role: "assistant",
-        content: "Error: boom",
+        content: "Error: boom\n\nWould you like me to try again?",
         isLoading: false,
         isError: true,
       },

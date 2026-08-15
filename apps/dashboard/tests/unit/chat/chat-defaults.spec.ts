@@ -63,7 +63,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "one direct proceed-style question",
+      "End prose with direction",
       "When no `## Current task` is present",
       "Execute selected issues without another approval",
       "github_search_code",
@@ -259,6 +259,7 @@ describe("chat-defaults bundle", () => {
 
   it("exposes 11 skills — including agency documentation and generic workflow execution", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
+      "author-quality",
       "create-agent",
       "create-capability",
       "create-issue",
@@ -470,9 +471,7 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("Content Entries");
     expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
-    expect(CRITICAL_REMINDERS_MD).toContain(
-      "one direct proceed-style question",
-    );
+    expect(CRITICAL_REMINDERS_MD).toContain("End prose with a question");
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });
 });

@@ -237,10 +237,10 @@ test.describe("Admin Kody chat regression", () => {
     expect(capturedBody).not.toBeNull();
     const body = capturedBody!;
     // Stable payload fields (see KodyChat sendText → /api/kody/chat/kody):
-    // agentId + model come from the seeded "kody:gpt-x" default entry;
+    // agentId + model come from the configured catalog default;
     // currentPage is the dashboard-page context noun phrase.
     expect(body.agentId).toBe("kody");
-    expect(body.model).toBe("gpt-x");
+    expect(body.model).toBe("openrouter/free");
     expect(String(body.currentPage)).toContain("/chat");
     expect(JSON.stringify(body.messages)).toContain("context ping");
     // Repo context rides in the auth headers on every chat call.
