@@ -282,4 +282,63 @@ describe("public Agent parent presentation", () => {
       }),
     ]);
   });
+
+  it("publishes only the final successful presentation result", async () => {
+    const events: unknown[] = [];
+    const first = { content: "Draft answer." };
+    const final = { content: "Final answer." };
+
+    await presentPublicAgentResponse({
+      userText: "Explain Agency structure.",
+      assignments: [assignment],
+      assignedAgents,
+      results,
+      model: {} as never,
+      tools: {
+        final_answer: { description: "plain text" },
+        show_view: { description: "render an interaction" },
+      },
+      writer: { write: (event) => events.push(event) },
+      providerCapabilities: { supportsRequiredToolChoice: true },
+      requireViewOutput: false,
+      generate: vi.fn(async () => ({
+        text: "",
+        steps: [
+          {
+            toolCalls: [
+              { toolCallId: "first", toolName: "final_answer", input: first },
+            ],
+            toolResults: [
+              {
+                toolCallId: "first",
+                toolName: "final_answer",
+                input: first,
+                output: first,
+              },
+            ],
+          },
+          {
+            toolCalls: [
+              { toolCallId: "final", toolName: "final_answer", input: final },
+            ],
+            toolResults: [
+              {
+                toolCallId: "final",
+                toolName: "final_answer",
+                input: final,
+                output: final,
+              },
+            ],
+          },
+        ],
+      })) as never,
+    });
+
+    expect(events).toContainEqual(
+      expect.objectContaining({ toolCallId: "final", output: final }),
+    );
+    expect(events).not.toContainEqual(
+      expect.objectContaining({ toolCallId: "first", output: first }),
+    );
+  });
 });

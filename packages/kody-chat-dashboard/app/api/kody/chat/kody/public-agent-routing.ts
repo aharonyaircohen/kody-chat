@@ -468,8 +468,8 @@ export async function routePublicAgentTask({
       inferred.mode === "delegate" &&
       inferred.assignments.length === 1 &&
       decision.mode === "delegate" &&
-      decision.assignments.length === 1 &&
-      inferred.assignments[0]!.agent !== decision.assignments[0]!.agent
+      (decision.assignments.length > 1 ||
+        inferred.assignments[0]!.agent !== decision.assignments[0]!.agent)
     ) {
       return inferred;
     }

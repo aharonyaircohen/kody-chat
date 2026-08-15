@@ -489,6 +489,32 @@ describe("public Agent routing", () => {
     expect(generate).toHaveBeenCalledOnce();
   });
 
+  it("does not let a multi-agent model decision override one clear domain owner", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "agency-specialist", task: "Explain Agency." },
+          { agent: "experience-specialist", task: "Render the explanation." },
+        ],
+      }),
+    }));
+
+    await expect(
+      routePublicAgentTask({
+        userText: "Explain AI Agency structure.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({
+      mode: "delegate",
+      assignments: [
+        { agent: "agency-specialist", task: "Explain AI Agency structure." },
+      ],
+    });
+  });
+
   it("routes explicit Workflow execution to the operational owner", async () => {
     const generate = vi.fn(async () => ({
       text: JSON.stringify({

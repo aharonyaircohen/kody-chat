@@ -263,26 +263,25 @@ export async function presentPublicAgentResponse({
   });
 
   if (presentedResults.length > 0) {
+    const finalPresentedResult = presentedResults.at(-1)!;
     writer.write({
       type: CHAT_OUTPUT_CONTRACT_DATA_TYPE,
       data: { mode: EXCLUSIVE_TOOL_OUTPUT_MODE },
     });
-    for (const { call, result } of presentedResults) {
-      writer.write({
-        type: "tool-input-available",
-        toolCallId: call.toolCallId,
-        toolName: call.toolName,
-        input: call.input,
-      });
-      writer.write({
-        type: "tool-output-available",
-        toolCallId: result.toolCallId,
-        output: result.output,
-      });
-    }
-    const finalAnswer = presentedResults
-      .map(({ result }) => getFinalAnswerContent(result.output))
-      .find((content): content is string => Boolean(content));
+    writer.write({
+      type: "tool-input-available",
+      toolCallId: finalPresentedResult.call.toolCallId,
+      toolName: finalPresentedResult.call.toolName,
+      input: finalPresentedResult.call.input,
+    });
+    writer.write({
+      type: "tool-output-available",
+      toolCallId: finalPresentedResult.result.toolCallId,
+      output: finalPresentedResult.result.output,
+    });
+    const finalAnswer = getFinalAnswerContent(
+      finalPresentedResult.result.output,
+    );
     return finalAnswer ?? INTERACTIVE_PRESENTATION_TEXT;
   }
 
