@@ -78,4 +78,39 @@ describe("kody-chat company activation", () => {
     expect(workflow).toMatch(/cron: ["'](?:\*|\d+)\/15 \* \* \* \*["']/);
     expect(workflow).toContain("@kody-ade/kody-engine@latest");
   });
+
+  it("runs full QA separately from read-only production smoke", () => {
+    const qaLoop = JSON.parse(
+      readFileSync(
+        resolve(
+          repoRoot,
+          ".kody-engine/definitions/loops/hourly-qa-scan/loop.json",
+        ),
+        "utf8",
+      ),
+    );
+    const productionLoop = JSON.parse(
+      readFileSync(
+        resolve(
+          repoRoot,
+          ".kody-engine/definitions/loops/hourly-production-qa-smoke/loop.json",
+        ),
+        "utf8",
+      ),
+    );
+
+    expect(qaLoop.target).toEqual({ kind: "workflow", id: "qa-scan" });
+    expect(qaLoop.input).toMatchObject({
+      mode: "test",
+      url: expect.stringContaining("kody-dashboard-qa.vercel.app"),
+    });
+    expect(productionLoop.target).toEqual({
+      kind: "workflow",
+      id: "qa-scan",
+    });
+    expect(productionLoop.input).toMatchObject({
+      mode: "read-only",
+      url: expect.stringContaining("kody-dashboard-khaki.vercel.app"),
+    });
+  });
 });

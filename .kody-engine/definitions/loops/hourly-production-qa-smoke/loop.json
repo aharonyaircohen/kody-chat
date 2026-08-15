@@ -1,0 +1,17 @@
+{
+  "id": "hourly-production-qa-smoke",
+  "trigger": {
+    "type": "schedule",
+    "every": "1h"
+  },
+  "target": {
+    "kind": "workflow",
+    "id": "qa-scan"
+  },
+  "input": {
+    "url": "https://kody-dashboard-khaki.vercel.app/repo/aharonyaircohen/kody-chat",
+    "mode": "read-only",
+    "scope": "Production smoke: verify sign-in state, repository-scoped navigation, Chat loading, conversation history, agent and model selectors, visible errors, and responsive layout without sending messages, invoking tools, or changing data"
+  },
+  "enabled": true
+}

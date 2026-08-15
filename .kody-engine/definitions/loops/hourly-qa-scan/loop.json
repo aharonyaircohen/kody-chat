@@ -10,6 +10,7 @@
   },
   "input": {
     "url": "https://kody-dashboard-qa.vercel.app/repo/aharonyaircohen/kody-chat",
+    "mode": "test",
     "scope": "Chat: agent and model selection, tool use, specialist delegation, loading and error recovery, retry and persistence, and repository isolation"
   },
   "enabled": true
