@@ -73,7 +73,14 @@ function withTodoLink(value: unknown, ref: RepoRef, slug: string | null) {
     label: `Open todo: ${slug}`,
   };
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    return { ...(value as Record<string, unknown>), internalLinks: [link] };
+    const record = value as Record<string, unknown>;
+    const todo =
+      record.todo &&
+      typeof record.todo === "object" &&
+      !Array.isArray(record.todo)
+        ? { ...(record.todo as Record<string, unknown>), htmlUrl: link.href }
+        : record.todo;
+    return { ...record, ...(todo ? { todo } : {}), internalLinks: [link] };
   }
   return { result: value, internalLinks: [link] };
 }

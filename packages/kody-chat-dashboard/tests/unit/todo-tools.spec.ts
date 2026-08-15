@@ -81,6 +81,7 @@ describe("todo chat tools", () => {
         {} as never,
       ),
     ).toMatchObject({
+      todo: { htmlUrl: "/repo/acme/app/todos/launch" },
       internalLinks: [
         {
           href: "/repo/acme/app/todos/launch",
