@@ -68,6 +68,12 @@ export async function PATCH(
       });
       return NextResponse.json({ ok: true, status: "cancelled" }, { headers });
     }
+    if (typeof archived !== "boolean") {
+      return NextResponse.json(
+        { error: "validation_error" },
+        { status: 400, headers },
+      );
+    }
     await createBackendClient().mutation(backendApi.quality.setRunArchived, {
       tenantId: `${auth.owner}/${auth.repo}`,
       runId,
