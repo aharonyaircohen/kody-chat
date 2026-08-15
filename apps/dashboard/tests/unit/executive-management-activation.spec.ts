@@ -44,6 +44,10 @@ describe("kody-chat company activation", () => {
       "prepare-ci-repair",
       "quality-check",
       "fix-ci",
+      "run",
+      "finalize-ci-repair",
+      "prepare-strategy-application",
+      "apply-strategy",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
@@ -53,10 +57,11 @@ describe("kody-chat company activation", () => {
       "merge",
       "review-fix",
       "quality-run",
+      "apply-strategy",
     ]);
     expect(config.defaultImplementation).toBe("run");
     expect(config.defaultPrImplementation).toBe("fix");
-    expect(config.company.activeCapabilities).not.toContain("run");
+    expect(config.company.activeCapabilities).toContain("run");
     expect(config).not.toHaveProperty("defaultExecutable");
     expect(config).not.toHaveProperty("defaultPrExecutable");
   });
