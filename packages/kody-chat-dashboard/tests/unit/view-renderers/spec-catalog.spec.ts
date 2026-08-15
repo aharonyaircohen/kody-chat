@@ -236,6 +236,35 @@ describe("validateChatViewSpec", () => {
     }
   });
 
+  it("normalizes common layout aliases into supported renderer atoms", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "card",
+      elements: {
+        card: {
+          type: "Container",
+          props: { direction: "column", gap: "md" },
+          children: ["title"],
+        },
+        title: {
+          type: "Heading",
+          props: { text: "Create Blueprint Flow" },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ success: true });
+    if (result.success) {
+      expect(result.spec.elements).toEqual({
+        card: { type: "Stack", props: {}, children: ["title"] },
+        title: {
+          type: "Text",
+          props: { value: "Create Blueprint Flow", variant: "title" },
+          children: [],
+        },
+      });
+    }
+  });
+
   it("coerces props flattened onto the element", () => {
     const result = validateChatViewSpec(catalog, {
       root: "t",

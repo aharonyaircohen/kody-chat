@@ -46,6 +46,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 const ELEMENT_ENVELOPE_KEYS = new Set(["type", "props", "children"]);
 
 /**
+ * Normalize the two generic layout names models most commonly substitute for
+ * the renderer's exact atoms. The mapping is semantic and provider-agnostic:
+ * Container is a Stack/Row, while Heading is titled Text.
+ */
+function coerceCommonComponentAlias(
+  element: Record<string, unknown>,
+): Record<string, unknown> {
+  if (element.type === "Container") {
+    const props = isRecord(element.props) ? element.props : {};
+    return {
+      ...element,
+      type: props.direction === "row" ? "Row" : "Stack",
+      props: {},
+    };
+  }
+  if (element.type === "Heading") {
+    const props = isRecord(element.props) ? element.props : {};
+    const value =
+      typeof element.props === "string"
+        ? element.props
+        : [props.value, props.text, props.title].find(
+            (candidate): candidate is string => typeof candidate === "string",
+          );
+    return {
+      ...element,
+      type: "Text",
+      props: { value, variant: "title" },
+    };
+  }
+  return element;
+}
+
+/**
  * Repair common model malformations BEFORE strict validation, all observed
  * in real turns: props sent as a JSON string, children sent as a
  * numeric-keyed object or a single string, and props flattened onto the
@@ -57,7 +90,7 @@ export function coerceSpecElementShape(
   raw: unknown,
 ): unknown {
   if (!isRecord(raw)) return raw;
-  const element = { ...raw };
+  let element = { ...raw };
   if (typeof element.props === "string") {
     try {
       const parsed: unknown = JSON.parse(element.props);
@@ -66,18 +99,19 @@ export function coerceSpecElementShape(
       // Not JSON — salvage below.
     }
   }
-  if (typeof element.props === "string" && typeof element.type === "string") {
-    // Bare-string props: map to the component's main text prop, or drop
-    // for prop-less containers.
-    const primary = catalog.primaryTextProps.get(element.type);
-    element.props = primary ? { [primary]: element.props } : {};
-  }
   if (element.props === undefined || element.props === null) {
     const flattened = Object.entries(element).filter(
       ([key]) => !ELEMENT_ENVELOPE_KEYS.has(key),
     );
     element.props = Object.fromEntries(flattened);
     for (const [key] of flattened) delete element[key];
+  }
+  element = coerceCommonComponentAlias(element);
+  if (typeof element.props === "string" && typeof element.type === "string") {
+    // Bare-string props: map to the component's main text prop, or drop
+    // for prop-less containers.
+    const primary = catalog.primaryTextProps.get(element.type);
+    element.props = primary ? { [primary]: element.props } : {};
   }
   if (typeof element.children === "string") {
     element.children = [element.children];
