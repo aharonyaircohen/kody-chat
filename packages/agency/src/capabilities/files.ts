@@ -533,16 +533,6 @@ function parseCapabilityContract(raw: string): {
   const deliveryConfigAllowlist = parseDeliveryConfigAllowlist(
     value.deliveryConfigAllowlist,
   );
-  if (deliveryPathAllowlist && value.execution !== "agent") {
-    throw new Error(
-      'contract.json deliveryPathAllowlist is supported only when execution is "agent"',
-    );
-  }
-  if (deliveryConfigAllowlist && value.execution !== "agent") {
-    throw new Error(
-      'contract.json deliveryConfigAllowlist is supported only when execution is "agent"',
-    );
-  }
   if (
     deliveryConfigAllowlist &&
     Object.keys(deliveryConfigAllowlist).some(

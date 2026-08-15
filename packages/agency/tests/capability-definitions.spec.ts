@@ -287,7 +287,7 @@ describe("simple capability folders", () => {
     ).toThrow(/deliveryPolicy/i);
   });
 
-  it("accepts narrowly scoped delivery paths only for agent capabilities", () => {
+  it("accepts narrowly scoped delivery paths for agent and script capabilities", () => {
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,
@@ -343,7 +343,7 @@ describe("simple capability folders", () => {
         }),
         "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
       }),
-    ).toThrow(/agent/i);
+    ).not.toThrow();
   });
 
   it("accepts config sections only when their config file is deliverable", () => {
@@ -357,6 +357,21 @@ describe("simple capability folders", () => {
           input: {},
           output: {},
         }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          deliveryPathAllowlist: ["kody.config.json"],
+          deliveryConfigAllowlist: {
+            "kody.config.json": ["company.activeWorkflows"],
+          },
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
       }),
     ).not.toThrow();
     expect(() =>
