@@ -346,6 +346,33 @@ describe("simple capability folders", () => {
     ).toThrow(/agent/i);
   });
 
+  it("accepts config sections only when their config file is deliverable", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPathAllowlist: ["kody.config.json"],
+          deliveryConfigAllowlist: { "kody.config.json": ["release"] },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          deliveryPathAllowlist: [".github/workflows/**"],
+          deliveryConfigAllowlist: { "kody.config.json": ["release"] },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/deliveryConfigAllowlist/i);
+  });
+
   it("accepts restricted browser requirements for agent capabilities", () => {
     expect(() =>
       assertSimpleCapabilityFolder({

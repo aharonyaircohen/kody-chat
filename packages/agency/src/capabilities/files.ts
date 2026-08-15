@@ -355,6 +355,7 @@ function parseCapabilityContract(raw: string): {
   execution?: CapabilityExecution;
   deliveryPolicy?: "checkpoint";
   deliveryPathAllowlist?: string[];
+  deliveryConfigAllowlist?: Record<string, string[]>;
   requirements?: {
     browser?: boolean;
     qaCredentials?: boolean;
@@ -529,9 +530,27 @@ function parseCapabilityContract(raw: string): {
   const deliveryPathAllowlist = parseDeliveryPathAllowlist(
     value.deliveryPathAllowlist,
   );
+  const deliveryConfigAllowlist = parseDeliveryConfigAllowlist(
+    value.deliveryConfigAllowlist,
+  );
   if (deliveryPathAllowlist && value.execution !== "agent") {
     throw new Error(
       'contract.json deliveryPathAllowlist is supported only when execution is "agent"',
+    );
+  }
+  if (deliveryConfigAllowlist && value.execution !== "agent") {
+    throw new Error(
+      'contract.json deliveryConfigAllowlist is supported only when execution is "agent"',
+    );
+  }
+  if (
+    deliveryConfigAllowlist &&
+    Object.keys(deliveryConfigAllowlist).some(
+      (filePath) => !deliveryPathAllowlist?.includes(filePath),
+    )
+  ) {
+    throw new Error(
+      "contract.json deliveryConfigAllowlist files must also be deliveryPathAllowlist entries",
     );
   }
   const unsupported = Object.keys(value).filter(
@@ -539,6 +558,7 @@ function parseCapabilityContract(raw: string): {
       key !== "execution" &&
       key !== "deliveryPolicy" &&
       key !== "deliveryPathAllowlist" &&
+      key !== "deliveryConfigAllowlist" &&
       key !== "requirements" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
@@ -557,6 +577,7 @@ function parseCapabilityContract(raw: string): {
       ? { deliveryPolicy: value.deliveryPolicy }
       : {}),
     ...(deliveryPathAllowlist ? { deliveryPathAllowlist } : {}),
+    ...(deliveryConfigAllowlist ? { deliveryConfigAllowlist } : {}),
     ...(requirements && Object.keys(requirements).length > 0
       ? { requirements }
       : {}),
@@ -566,6 +587,38 @@ function parseCapabilityContract(raw: string): {
     input: value.input as Record<string, unknown>,
     output: value.output as Record<string, unknown>,
   };
+}
+
+function parseDeliveryConfigAllowlist(
+  raw: unknown,
+): Record<string, string[]> | undefined {
+  if (raw === undefined) return undefined;
+  const value = asRecord(raw);
+  if (!value || Object.keys(value).length === 0) {
+    throw new Error(
+      "contract.json deliveryConfigAllowlist must be a non-empty object",
+    );
+  }
+  const parsed: Record<string, string[]> = {};
+  for (const [filePath, paths] of Object.entries(value)) {
+    if (
+      filePath !== "kody.config.json" ||
+      !Array.isArray(paths) ||
+      paths.length === 0 ||
+      paths.length > 32 ||
+      !paths.every(
+        (path) =>
+          typeof path === "string" &&
+          /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/.test(path),
+      )
+    ) {
+      throw new Error(
+        "contract.json deliveryConfigAllowlist contains an unsupported config file or path list",
+      );
+    }
+    parsed[filePath] = [...new Set(paths as string[])];
+  }
+  return parsed;
 }
 
 function parseDeliveryPathAllowlist(raw: unknown): string[] | undefined {
