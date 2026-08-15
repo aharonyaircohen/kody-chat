@@ -51,68 +51,25 @@ export const CREATE_BLUEPRINT_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
   title: "Create Blueprint",
   purpose:
     "Create a reusable Store Blueprint that can be adapted to different repositories and verified end to end.",
-  controls: ["back"],
-  onComplete: { action: "agency-request.submit" },
-  steps: [
-    {
-      id: "introduction",
-      title: "Define a reusable Blueprint",
-      explanation:
-        "Describe the reusable result and its boundaries once. Kody will inspect the repository, ask only if an important decision is still missing, and manage the work through the existing Agency request and Todo.",
-      rendererSlug: "approval-card",
-      rendererData: {
-        title: "Create Blueprint",
-        actions: [
-          {
-            id: "continue",
-            label: "Begin",
-            response: "continue",
-            variant: "primary",
-          },
-        ],
-      },
-      actions: [
-        {
-          id: "continue",
-          target: { type: "step", stepId: questions[0].id },
-        },
-      ],
-    },
-    ...questions.map((question, index) => ({
-      id: question.id,
-      title: question.title,
-      explanation: question.explanation,
-      rendererSlug: "guided-form",
-      rendererData: {
-        title: `Question ${index + 1} of ${questions.length}`,
-        fields: [
-          {
-            name: question.name,
-            label: question.title,
-            value: "",
-            inputType: "textarea",
-            ...("optional" in question && question.optional
-              ? { description: "Optional" }
-              : {}),
-          },
-        ],
-        submitLabel:
-          index === questions.length - 1 ? "Submit request" : "Continue",
-      },
-      actions: [
-        {
-          id: "submit",
-          target:
-            index === questions.length - 1
-              ? ({ type: "complete" } as const)
-              : ({
-                  type: "step",
-                  stepId: questions[index + 1]!.id,
-                } as const),
-        },
-      ],
-    })),
-  ],
+  introduction: {
+    title: "Define a reusable Blueprint",
+    guidance:
+      "Describe the reusable result and its boundaries once. Kody will inspect the repository, ask only if an important decision is still missing, and manage the work through the existing Agency request and Todo.",
+    actionLabel: "Begin",
+  },
+  allowBack: true,
+  requirements: questions.map((question) => ({
+    id: question.id,
+    key: question.name,
+    title: question.title,
+    guidance: question.explanation,
+    source: "user" as const,
+    required: !("optional" in question && question.optional),
+  })),
+  completion: {
+    submitLabel: "Submit request",
+    handoff: "agency-request.submit",
+  },
 };
 
 export const CREATE_BLUEPRINT_FLOW = buildGuidedFlowFromRequestBlueprint(

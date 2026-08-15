@@ -15,9 +15,9 @@ The Dashboard owns route mounting and deployment.
 
 ## Project docs
 
-- [Request Blueprints](../../docs/request-blueprints.md) — the shared user and
-  model definition, ownership boundaries, Agency handoff, versioning, and
-  verification.
+- [Request Blueprints](../../docs/request-blueprints.md) — semantic request
+  definitions that generate user and model guidance, with ownership, handoff,
+  versioning, and verification boundaries.
 - [Creating proper GuidedFlows](../../docs/guided-flows.md) — design,
   ownership, persistence, versioning, and verification.
 - [Project behavior](../../docs/project-behavior.md) — route ownership,

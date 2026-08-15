@@ -1,17 +1,12 @@
-import {
-  buildGuidedFlowFromRequestBlueprint,
-  type RequestBlueprintDefinition,
-} from "../../request-blueprints";
+import type { GuidedFlowDefinition } from "../model";
 
 export const INITIALIZE_KODY_ENGINE_FLOW_ID = "initialize-kody-engine";
 
-export const INITIALIZE_KODY_ENGINE_REQUEST_BLUEPRINT: RequestBlueprintDefinition =
+export const INITIALIZE_KODY_ENGINE_FLOW: GuidedFlowDefinition =
   {
     id: INITIALIZE_KODY_ENGINE_FLOW_ID,
     version: 1,
     title: "Initialize Kody Engine",
-    purpose:
-      "Prepare, initialize, review, and verify Kody Engine for the active repository.",
     completionRouteId: "chat",
     controls: ["back"],
     steps: [
@@ -94,7 +89,3 @@ export const INITIALIZE_KODY_ENGINE_REQUEST_BLUEPRINT: RequestBlueprintDefinitio
       },
     ],
   };
-
-export const INITIALIZE_KODY_ENGINE_FLOW = buildGuidedFlowFromRequestBlueprint(
-  INITIALIZE_KODY_ENGINE_REQUEST_BLUEPRINT,
-);

@@ -1,10 +1,9 @@
 import { api as backendApi } from "@kody-ade/backend/api";
 import type { createBackendClient } from "@kody-ade/backend/client";
 import {
-  buildRequestBlueprintDefinition,
+  buildGuidedFlowDefinition,
   type GuidedFlowDraft,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
-import { buildGuidedFlowFromRequestBlueprint } from "@kody-ade/kody-chat-dashboard/request-blueprints";
 import {
   GuidedFlowCompositionError,
   validateGuidedFlowComposition,
@@ -65,12 +64,11 @@ export async function saveGuidedFlowDefinition(
     (input.flowId
       ? latestStoredDefinition(customDefinitions, input.flowId)?.version
       : 0) ?? 0;
-  const blueprint = buildRequestBlueprintDefinition(
+  const unpinnedDefinition = buildGuidedFlowDefinition(
     input.draft,
     input.flowId,
     nextVersion + 1,
   );
-  const unpinnedDefinition = buildGuidedFlowFromRequestBlueprint(blueprint);
   const renderers = await loadGuidedFlowRenderers(input.tenantId, [
     unpinnedDefinition,
   ]);
@@ -93,7 +91,6 @@ export async function saveGuidedFlowDefinition(
   }
   const candidate: StoredGuidedFlowDefinition = {
     ...candidateFlow,
-    purpose: blueprint.purpose,
   };
   const navigationError = validateGuidedFlowNavigation(candidateFlow);
   if (navigationError) {

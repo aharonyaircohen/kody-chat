@@ -569,7 +569,6 @@ describe("GuidedFlow route", () => {
         action: "create-definition",
         draft: {
           title: "Review a release",
-          purpose: "Keep releases safe and repeatable.",
           steps: [
             {
               title: "Confirm the release",
@@ -584,7 +583,6 @@ describe("GuidedFlow route", () => {
 
     expect((await created.json()).definition).toMatchObject({
       id: "review-a-release",
-      purpose: "Keep releases safe and repeatable.",
       steps: [{ rendererSlug: "approval-card" }],
     });
 

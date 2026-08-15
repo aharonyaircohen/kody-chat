@@ -57,38 +57,14 @@ const questions = [
   },
 ] as const;
 
-const questionSteps: RequestBlueprintDefinition["steps"] = questions.map(
+const requirements: RequestBlueprintDefinition["requirements"] = questions.map(
   (question, index) => ({
     id: question.id,
+    key: question.name,
     title: question.title,
-    explanation: question.explanation,
-    rendererSlug: "guided-form",
-    rendererData: {
-      title: `Question ${index + 1} of ${questions.length}`,
-      fields: [
-        {
-          name: question.name,
-          label: question.title,
-          value: "",
-          inputType: "textarea",
-          description:
-            index === questions.length - 1
-              ? "You can leave this blank."
-              : "An honest estimate is enough; Kody will inspect repository evidence separately.",
-        },
-      ],
-      submitLabel:
-        index === questions.length - 1 ? "Start assessment" : "Continue",
-    },
-    actions: [
-      {
-        id: "submit",
-        target:
-          index === questions.length - 1
-            ? { type: "complete" as const }
-            : { type: "step" as const, stepId: questions[index + 1]!.id },
-      },
-    ],
+    guidance: question.explanation,
+    source: "user" as const,
+    required: index !== questions.length - 1,
   }),
 );
 
@@ -99,8 +75,9 @@ export const PROJECT_ASSESSMENT_REQUEST_BLUEPRINT_V1: RequestBlueprintDefinition
     title: "Project assessment",
     purpose:
       "Collect project context before Kody runs an evidence-based assessment.",
-    controls: ["back"],
-    steps: questionSteps,
+    allowBack: true,
+    requirements,
+    completion: { submitLabel: "Start assessment" },
   };
 
 export const PROJECT_ASSESSMENT_FLOW_V1 = buildGuidedFlowFromRequestBlueprint(
@@ -114,34 +91,15 @@ export const PROJECT_ASSESSMENT_REQUEST_BLUEPRINT: RequestBlueprintDefinition =
     title: "Project assessment",
     purpose:
       "Explain and collect the context required for Kody's full project assessment.",
-    controls: ["back"],
-    steps: [
-      {
-        id: "introduction",
-        title: "Before the assessment",
-        explanation:
-          "Kody will build an evidence-based view of the project before recommending what to improve.\n\n- Kody automatically inspects the repository, GitHub history, architecture, code quality, tests, security, delivery, operations, scalability, and product QA.\n- You answer seven questions about goals, business risk, team capacity, experience, system knowledge, maintenance time, and report preferences.\n- Each answer is saved as you continue, so you can leave and resume later.\n- After the final answer, Kody runs up to ten assessment tracks in parallel and combines them into one report: a business overview first, followed by technical evidence and priorities.\n\nThe assessment creates a report. It does not change the product code.",
-        rendererSlug: "approval-card",
-        rendererData: {
-          title: "Deep project assessment",
-          actions: [
-            {
-              id: "continue",
-              label: "Begin questions",
-              response: "continue",
-              variant: "primary",
-            },
-          ],
-        },
-        actions: [
-          {
-            id: "continue",
-            target: { type: "step", stepId: "project-expectations" },
-          },
-        ],
-      },
-      ...questionSteps,
-    ],
+    introduction: {
+      title: "Deep project assessment",
+      guidance:
+        "Kody will build an evidence-based view of the project before recommending what to improve.\n\n- Kody automatically inspects the repository, GitHub history, architecture, code quality, tests, security, delivery, operations, scalability, and product QA.\n- You answer seven questions about goals, business risk, team capacity, experience, system knowledge, maintenance time, and report preferences.\n- Each answer is saved as you continue, so you can leave and resume later.\n- After the final answer, Kody runs up to ten assessment tracks in parallel and combines them into one report: a business overview first, followed by technical evidence and priorities.\n\nThe assessment creates a report. It does not change the product code.",
+      actionLabel: "Begin questions",
+    },
+    allowBack: true,
+    requirements,
+    completion: { submitLabel: "Start assessment" },
   };
 
 export const PROJECT_ASSESSMENT_FLOW = buildGuidedFlowFromRequestBlueprint(

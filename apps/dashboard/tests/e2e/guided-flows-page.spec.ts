@@ -125,7 +125,7 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
     waitUntil: "domcontentloaded",
   });
   await expect(
-    page.getByRole("heading", { name: "Guided Flow Management" }),
+    page.getByRole("heading", { name: "Guided Flows" }),
   ).toBeVisible();
   await expect(
     page.getByText("Create a workflow", { exact: true }),

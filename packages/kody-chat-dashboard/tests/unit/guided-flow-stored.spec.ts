@@ -23,25 +23,33 @@ function definition(title: string) {
 }
 
 describe("stored guided flow definitions", () => {
-  it("upgrades an older stored flow into a request blueprint", () => {
+  it("preserves an older stored Guided Flow", () => {
     expect(
       parseStoredGuidedFlowDefinitions([definition("Repository")]),
     ).toEqual([
       expect.objectContaining({
-        purpose: "Guide the user through Repository.",
+        id: "shared-flow",
+        title: "Repository",
       }),
     ]);
   });
 
-  it("preserves an authored purpose but removes it from the runtime flow", () => {
-    const [blueprint] = parseStoredGuidedFlowDefinitions([
-      { ...definition("Repository"), purpose: "Keep releases healthy." },
+  it("preserves a generated flow's Request Blueprint source", () => {
+    const [flow] = parseStoredGuidedFlowDefinitions([
+      {
+        ...definition("Repository"),
+        source: { type: "request-blueprint", id: "release", version: 2 },
+      },
     ]);
 
-    expect(blueprint?.purpose).toBe("Keep releases healthy.");
+    expect(flow?.source).toEqual({
+      type: "request-blueprint",
+      id: "release",
+      version: 2,
+    });
     expect(
-      latestAvailableGuidedFlowDefinitions(blueprint ? [blueprint] : []),
-    ).toEqual([expect.not.objectContaining({ purpose: expect.anything() })]);
+      latestAvailableGuidedFlowDefinitions(flow ? [flow] : []),
+    ).toEqual([expect.objectContaining({ source: flow?.source })]);
   });
 
   it("preserves supported optional controls", () => {

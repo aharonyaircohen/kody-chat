@@ -1,7 +1,6 @@
 import type { GuidedFlowDefinition } from "./controller";
 import { getGuidedFlowDefinition } from "./registry";
 import type { StoredGuidedFlowDefinition } from "./stored";
-import { buildGuidedFlowFromRequestBlueprint } from "../request-blueprints";
 
 export function guidedFlowDefinitionForReference(
   flowId: string,
@@ -12,14 +11,11 @@ export function guidedFlowDefinitionForReference(
     (definition) =>
       definition.id === flowId && definition.version === flowVersion,
   );
-  return repositoryDefinition
-    ? buildGuidedFlowFromRequestBlueprint({
-        ...repositoryDefinition,
-        purpose:
-          repositoryDefinition.purpose ??
-          `Guide the user through ${repositoryDefinition.title}.`,
-      })
-    : getGuidedFlowDefinition(flowId, flowVersion);
+  if (repositoryDefinition) {
+    const { archived: _archived, ...definition } = repositoryDefinition;
+    return definition;
+  }
+  return getGuidedFlowDefinition(flowId, flowVersion);
 }
 
 export function guidedFlowDefinitionForInstance(

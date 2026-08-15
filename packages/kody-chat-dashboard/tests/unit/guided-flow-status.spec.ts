@@ -9,7 +9,6 @@ import { isCommandGuidedFlowStep } from "@kody-ade/kody-chat-dashboard/guided-fl
 import { validateGuidedFlowNavigation } from "../../app/api/kody/guided-flows/navigation";
 import {
   availableGuidedFlowDefinitions,
-  availableRequestBlueprintDefinitions,
 } from "../../app/api/kody/guided-flows/catalog";
 
 describe("guided flow registry", () => {
@@ -200,13 +199,17 @@ describe("guided flow registry", () => {
     ).toEqual([builtIn]);
   });
 
-  it("preserves Request Blueprint purpose in the management catalog", () => {
-    const available = availableRequestBlueprintDefinitions([
+  it("preserves generated-flow source in the management catalog", () => {
+    const available = availableGuidedFlowDefinitions([
       {
         id: "release-app",
         version: 1,
         title: "Release app",
-        purpose: "Safely release this repository to production.",
+        source: {
+          type: "request-blueprint",
+          id: "release-app",
+          version: 1,
+        },
         steps: [
           {
             id: "confirm",
@@ -221,11 +224,12 @@ describe("guided flow registry", () => {
 
     expect(available.find((definition) => definition.id === "release-app"))
       .toMatchObject({
-        purpose: "Safely release this repository to production.",
+        source: {
+          type: "request-blueprint",
+          id: "release-app",
+          version: 1,
+        },
       });
-    expect(available.every((definition) => definition.purpose.length > 0)).toBe(
-      true,
-    );
   });
 
   it("registers only built-in flows with valid dashboard destinations", () => {

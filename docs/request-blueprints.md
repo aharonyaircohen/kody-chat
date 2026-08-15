@@ -1,191 +1,130 @@
 # Request Blueprints
 
-A Request Blueprint is one reusable definition that gives the user a Guided
-Flow and gives Kody matching instructions. It prevents the form and the model
-prompt from becoming two separate sources that drift apart.
+A Request Blueprint describes the information Kody needs to understand one
+kind of request. From that one semantic definition, Kody generates:
 
-It defines how to understand a request. It does not become a second workflow
-engine, Agency loop, or persistence system.
+- a Guided Flow for information the user must provide;
+- model guidance for facts Kody should discover and decisions it must ask for.
 
-## User journey
+This keeps the user questions and Kody instructions aligned without making the
+two runtime models the same thing.
 
-1. The user opens **Request Blueprints** for a repository.
-2. The user chooses **Start in Chat** for a Blueprint.
-3. The generated Guided Flow asks only the questions and decisions defined by
-   that Blueprint.
-4. Every answer is saved with the Guided Flow instance, so the user can resume.
-5. Kody reads model guidance generated from the same Blueprint.
-6. On completion, the Blueprint either finishes as guidance or invokes its
-   explicitly configured completion action.
-7. When the completion action is `agency-request.submit`, the existing Agency
-   Request Manager creates or updates a Todo and takes over assessment,
-   approval, execution, monitoring, verification, and reporting.
+## Boundary
 
-If Kody can discover a fact safely, it should do so. If a real user decision is
-still missing, it should ask a clear question with enough context to answer.
+`RequestBlueprintDefinition` and `GuidedFlowDefinition` are separate models.
+A Request Blueprint does not contain renderer data, steps, routes, commands, or
+another Guided Flow definition. It contains only request meaning:
 
-## One definition, two generated views
+- stable `id`, `version`, and user-visible `title`;
+- `purpose`;
+- optional introduction text;
+- requirements, including who supplies each value;
+- optional Back behavior and completion handoff.
 
-The Request Blueprint is the source of truth for both paths:
+Each requirement declares `source: "kody" | "user"`:
 
-- **User path:** `buildGuidedFlowFromRequestBlueprint` removes only the
-  Blueprint-specific `purpose` field and produces the normal Guided Flow
-  runtime definition.
-- **Kody path:** `buildRequestBlueprintModelGuide` turns the same purpose,
-  steps, routes, commands, nested flows, and actions into model guidance.
+- `kody`: discover the fact from the repository or connected systems;
+- `user`: ask only when the value was not already supplied.
 
-The generated Guided Flow and model guide must not be edited independently.
-Change the Request Blueprint and generate both again.
+## Generated outputs
+
+`buildGuidedFlowFromRequestBlueprint` creates a normal Guided Flow containing
+only the missing user questions. The generated flow records its source:
+
+```ts
+source: {
+  type: "request-blueprint",
+  id: "prepare-release",
+  version: 2,
+}
+```
+
+That reference makes the flow read-only and ties it to the exact Blueprint
+version. The Guided Flow runtime continues to own rendering, navigation,
+answers, resume, and instances.
+
+`buildRequestBlueprintModelGuide` creates model-readable guidance from the same
+requirements. It tells Kody which facts to discover, which decisions to ask the
+user for, and where to hand the completed request.
+
+Manually authored Guided Flows remain independent. They are not silently
+treated as Request Blueprints and do not receive generated model guidance.
+
+## Current user experience
+
+The **Guided Flows** page manages Guided Flows. Users can create and edit
+manual flows there. Built-in and Blueprint-generated flows are read-only and
+can be started in Chat.
+
+Request Blueprints are background definitions in the first release. A separate
+Request Blueprint management page may be added later; it must not replace or
+rename the Guided Flows page.
 
 ## Ownership
 
 | Responsibility | Owner |
 | --- | --- |
-| Purpose, ordered questions, commands, routes, and completion action | Request Blueprint |
-| Rendering, navigation, Back, resume, answers, and versioned instances | Guided Flow |
-| Repository-specific assessment and missing-information questions | Agency Request Manager and Kody |
-| Durable progress state | Todo |
-| Automation execution and retries | Existing Workflow and Agency loop |
-| Run history and end-to-end evidence | Existing Runs and Reports |
-| Repository data | Existing feature owner |
+| Request purpose and required information | Request Blueprint |
+| Generated user questions | Request Blueprint generator |
+| Rendering, navigation, answers, and resume | Guided Flow |
+| Repository discovery and model instructions | Generated model guide and Kody |
+| Managed-work handoff | Agency Request Manager |
+| Durable work progress | Todo |
+| Execution and retries | Existing Workflow and Agency loop |
 
-The Request Blueprint never owns automation execution or creates another state
-store.
-
-## Definition
-
-A `RequestBlueprintDefinition` is the existing `GuidedFlowDefinition` plus one
-required field:
-
-- `purpose`: the shared outcome Kody and the user are trying to achieve.
-
-The full definition may contain:
-
-- `id`: stable lowercase identifier;
-- `version`: positive integer;
-- `title`: user-visible name;
-- `purpose`: shared outcome and scope;
-- `steps`: at least one ordered step;
-- `controls`: optional controls such as Back;
-- `completionRouteId` and parameters: optional page to show after completion;
-- `onComplete`: optional handoff to an existing owner.
-
-Every step needs a stable id, title, explanation, and explicit actions. An
-action may move to another step, stay on the current step, complete, or cancel.
-Step and action ids must be unique, and every target step must exist.
-
-## Step types
-
-Use the smallest existing step type that fits:
-
-- **View:** show an existing renderer such as `approval-card`, `guided-form`,
-  `selection-list`, or `multi-select-list`.
-- **Command:** run one existing Chat slash command. A command result must be
-  completed before the flow may continue; warnings remain on the step for a
-  retry.
-- **Nested flow:** reuse another versioned Guided Flow for a sub-process.
-
-A step may also point to an existing Dashboard page. The Blueprint identifies
-the route; it does not own that page or its data.
-
-## Completion and Agency execution
-
-Completion is explicit. A normal Request Blueprint may simply finish after its
-last step.
-
-For a Blueprint that should become managed work, set:
-
-```ts
-onComplete: { action: "agency-request.submit" }
-```
-
-That handoff sends the collected answers to the existing Agency Request
-Manager. The manager creates or updates one Todo, checks whether the request is
-clear and executable, prepares a repository-specific plan, asks for approval
-when required, dispatches the chosen Workflow, monitors its Run, verifies the
-success criteria, and records the final evidence.
-
-The Todo is the durable state of that work. The Agency loop exists only while
-the request still needs monitoring; completed work does not keep an active
-loop.
-
-## Request Blueprint versus Store Blueprint
-
-These names describe different responsibilities:
-
-- A **Request Blueprint** defines how the user and Kody understand and complete
-  a request.
-- A **Store Blueprint** is an executable Strategy Blueprint: a reusable recipe
-  with a Workflow, required activations, constraints, and verification rules.
-
-Starting a Request Blueprint opens its Guided Flow. Applying a Store Blueprint
-creates the Agency request from the saved recipe and starts the existing Agency
-execution path. A Request Blueprint can collect the information needed to
-create or select a Store Blueprint, but it is not itself the executor.
-
-## Authoring and versions
-
-Built-in Request Blueprints live under
-`packages/kody-chat-dashboard/src/dashboard/lib/request-blueprints/` and are
-registered with the built-in Guided Flows. Built-ins are read-only.
-
-Repository-created Request Blueprints use the **Request Blueprints** editor and
-the existing repository-scoped Guided Flow API. Saving creates version 1;
-editing creates the next version. Existing instances remain pinned to the
-version they started with.
-
-The editor derives stable step ids, renderer data, and explicit actions from
-the draft. The server validates navigation, renderer compatibility, nested-flow
-composition, and versioned persistence before saving.
+The Request Blueprint does not own execution, persistence for work progress, or
+a second automation loop.
 
 ## Minimal example
 
 ```ts
-const blueprint = {
+const blueprint: RequestBlueprintDefinition = {
   id: "prepare-release",
   version: 1,
   title: "Prepare a release",
-  purpose: "Collect the release decision and hand it to managed execution.",
-  controls: ["back"],
-  onComplete: { action: "agency-request.submit" },
-  steps: [
+  purpose: "Collect missing release decisions and prepare managed execution.",
+  introduction: {
+    title: "Prepare the release",
+    guidance: "Kody checks the repository before asking for decisions.",
+  },
+  allowBack: true,
+  requirements: [
     {
-      id: "confirm",
-      title: "Confirm the release",
-      explanation: "Review the target and confirm that Kody may continue.",
-      rendererSlug: "approval-card",
-      rendererData: {
-        title: "Prepare this release?",
-        actions: [
-          {
-            id: "confirm",
-            label: "Confirm",
-            response: "confirm",
-            variant: "primary",
-          },
-        ],
-      },
-      actions: [{ id: "confirm", target: { type: "complete" } }],
+      id: "target",
+      key: "target",
+      title: "Which environment should receive the release?",
+      guidance: "Choose the intended release environment.",
+      source: "user",
+      required: true,
+    },
+    {
+      id: "release-command",
+      key: "releaseCommand",
+      title: "Repository release command",
+      guidance: "Inspect repository scripts and deployment configuration.",
+      source: "kody",
+      required: true,
     },
   ],
+  completion: {
+    submitLabel: "Submit request",
+    handoff: "agency-request.submit",
+  },
 };
 ```
 
-## Verification checklist
+## Verification
 
 Before calling a Request Blueprint complete, verify:
 
-- one definition generates both the Guided Flow and Kody guidance;
-- the purpose clearly states the reusable outcome;
-- each step asks one coherent question or performs one existing command;
-- all actions and nested-flow targets are valid;
-- answers persist and resume through the Guided Flow runtime;
-- editing creates a new version without breaking active instances;
-- command warnings cannot advance as successful results;
-- any completion action reaches its existing owner exactly once;
-- `agency-request.submit` creates or updates one Todo without duplicating work;
-- the Agency path remains active until real end-to-end evidence exists;
-- no new executor, loop system, renderer, or storage path was introduced.
+- the Blueprint model has no Guided Flow or renderer fields;
+- the generated Guided Flow asks only missing user requirements;
+- Kody-owned requirements appear in the model guide, not as user questions;
+- the generated flow records the exact Blueprint id and version;
+- generated flows cannot be edited independently;
+- manual Guided Flows remain editable and receive no Blueprint guidance;
+- any completion handoff reaches its existing owner exactly once;
+- no new executor, loop system, renderer, or work-state store was introduced.
 
-See [Creating proper GuidedFlows](guided-flows.md) for detailed interaction and
-renderer design rules.
+See [Creating proper GuidedFlows](guided-flows.md) for interaction and renderer
+design rules.

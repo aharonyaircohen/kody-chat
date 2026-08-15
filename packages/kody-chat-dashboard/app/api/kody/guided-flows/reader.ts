@@ -142,23 +142,13 @@ export class ConvexGuidedFlowReader implements GuidedFlowReader {
   async getModelGuides(
     definitions: readonly GuidedFlowDefinition[],
   ): Promise<readonly string[]> {
-    const stored = await this.#definitions();
     return definitions.flatMap((definition) => {
-      const blueprint =
-        stored.find(
-          (candidate) =>
-            candidate.id === definition.id &&
-            candidate.version === definition.version,
-        ) ?? getRequestBlueprintDefinition(definition.id, definition.version);
+      const source = definition.source;
+      const blueprint = source
+        ? getRequestBlueprintDefinition(source.id, source.version)
+        : null;
       return blueprint
-        ? [
-            buildRequestBlueprintModelGuide({
-              ...blueprint,
-              purpose:
-                blueprint.purpose ??
-                `Guide the user through ${blueprint.title}.`,
-            }),
-          ]
+        ? [buildRequestBlueprintModelGuide(blueprint)]
         : [];
     });
   }

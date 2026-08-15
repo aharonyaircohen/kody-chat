@@ -1,16 +1,11 @@
-import {
-  buildGuidedFlowFromRequestBlueprint,
-  type RequestBlueprintDefinition,
-} from "../../request-blueprints";
+import type { GuidedFlowDefinition } from "../model";
 
 export const ONBOARDING_FLOW_ID = "onboarding";
 
-export const ONBOARDING_REQUEST_BLUEPRINT_V1: RequestBlueprintDefinition = {
+export const ONBOARDING_FLOW_V1: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 1,
   title: "Get started with Kody",
-  purpose:
-    "Guide the user through repository access and the first configured Chat.",
   completionRouteId: "chat",
   controls: ["back"],
   steps: [
@@ -132,16 +127,10 @@ export const ONBOARDING_REQUEST_BLUEPRINT_V1: RequestBlueprintDefinition = {
   ],
 };
 
-export const ONBOARDING_FLOW_V1 = buildGuidedFlowFromRequestBlueprint(
-  ONBOARDING_REQUEST_BLUEPRINT_V1,
-);
-
-export const ONBOARDING_REQUEST_BLUEPRINT_V2: RequestBlueprintDefinition = {
+export const ONBOARDING_FLOW_V2: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 2,
   title: "Get started with Kody",
-  purpose:
-    "Introduce private Chat and optionally attach repository tools to it.",
   completionRouteId: "chat",
   controls: ["back"],
   steps: [
@@ -199,20 +188,14 @@ export const ONBOARDING_REQUEST_BLUEPRINT_V2: RequestBlueprintDefinition = {
   ],
 };
 
-export const ONBOARDING_FLOW_V2 = buildGuidedFlowFromRequestBlueprint(
-  ONBOARDING_REQUEST_BLUEPRINT_V2,
-);
-
-export const ONBOARDING_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
+export const ONBOARDING_FLOW: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 3,
   title: "Get started with Kody",
-  purpose:
-    "Introduce private Chat, attach repository tools, and verify the repository connection.",
   completionRouteId: "chat",
   controls: ["back"],
   steps: [
-    ONBOARDING_REQUEST_BLUEPRINT_V2.steps[0]!,
+    ONBOARDING_FLOW_V2.steps[0]!,
     {
       id: "attach-repository",
       title: "Add repository tools",
@@ -252,7 +235,3 @@ export const ONBOARDING_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
     },
   ],
 };
-
-export const ONBOARDING_FLOW = buildGuidedFlowFromRequestBlueprint(
-  ONBOARDING_REQUEST_BLUEPRINT,
-);

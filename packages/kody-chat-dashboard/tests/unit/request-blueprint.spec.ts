@@ -7,111 +7,110 @@ import {
 } from "../../src/dashboard/lib/request-blueprints";
 
 const definition: RequestBlueprintDefinition = {
-  id: "full-guidance",
+  id: "prepare-release",
   version: 2,
-  title: "Full guidance",
-  purpose: "Prepare, run, review, and finish one guided operation.",
-  completionRouteId: "chat",
-  completionRouteParameters: { mode: "guided" },
-  controls: ["back"],
-  onComplete: { action: "agency-request.submit" },
-  steps: [
+  title: "Prepare a release",
+  purpose: "Collect the decisions required to prepare a safe release.",
+  introduction: {
+    title: "Prepare a release request",
+    guidance: "Kody will reuse repository facts and ask only for decisions.",
+    actionLabel: "Begin",
+  },
+  allowBack: true,
+  requirements: [
     {
-      id: "prepare",
-      title: "Prepare",
-      explanation: "Confirm the target before continuing.",
-      authoringGoal: "Make the target explicit.",
-      rendererSlug: "approval-card",
-      rendererVersion: 1,
-      rendererData: { title: "Prepare", tone: "caution" },
-      actions: [{ id: "continue", target: { type: "step", stepId: "run" } }],
+      id: "repository-runtime",
+      key: "repositoryRuntime",
+      title: "Repository runtime",
+      guidance: "Discover the runtime from repository files.",
+      source: "kody",
+      required: true,
     },
     {
-      id: "run",
-      type: "command",
-      title: "Run",
-      explanation: "Run the repository command.",
-      command: "/init",
-      actions: [
-        { id: "run", target: { type: "stay" } },
-        { id: "continue", target: { type: "step", stepId: "review" } },
-      ],
+      id: "release-target",
+      key: "releaseTarget",
+      title: "What should be released?",
+      guidance: "Ask the user to name the release target.",
+      source: "user",
+      required: true,
     },
     {
-      id: "review",
-      title: "Review",
-      explanation: "Review the generated files.",
-      routeId: "files",
-      routeParameters: { path: ".github/workflows" },
-      rendererSlug: "approval-card",
-      actions: [{ id: "finish", target: { type: "step", stepId: "details" } }],
-    },
-    {
-      id: "details",
-      type: "flow",
-      title: "Details",
-      explanation: "Complete the nested guidance.",
-      flowId: "nested-details",
-      flowVersion: 3,
-      actions: [{ id: "done", target: { type: "complete" } }],
+      id: "additional-context",
+      key: "additionalContext",
+      title: "Anything else?",
+      guidance: "Collect optional release context.",
+      source: "user",
+      required: false,
     },
   ],
+  completion: {
+    submitLabel: "Submit release request",
+    handoff: "agency-request.submit",
+  },
 };
 
 describe("Request Blueprint", () => {
-  it("generates the complete Guided Flow contract without losing behavior", () => {
-    expect(buildGuidedFlowFromRequestBlueprint(definition)).toEqual({
-      id: definition.id,
-      version: definition.version,
-      title: definition.title,
-      completionRouteId: definition.completionRouteId,
-      completionRouteParameters: definition.completionRouteParameters,
-      controls: definition.controls,
-      onComplete: definition.onComplete,
-      steps: definition.steps,
+  it("is a standalone request model that generates a Guided Flow", () => {
+    const flow = buildGuidedFlowFromRequestBlueprint(definition);
+
+    expect(flow).toMatchObject({
+      id: "prepare-release",
+      version: 2,
+      title: "Prepare a release",
+      source: {
+        type: "request-blueprint",
+        id: "prepare-release",
+        version: 2,
+      },
+      controls: ["back"],
+      onComplete: { action: "agency-request.submit" },
     });
+    expect(flow.steps.map((step) => step.id)).toEqual([
+      "introduction",
+      "release-target",
+      "additional-context",
+    ]);
+    expect(flow.steps).not.toEqual(definition.requirements);
   });
 
-  it("generates Kody guidance for views, commands, routes, nesting, and actions", () => {
+  it("does not ask for information already known when the flow is generated", () => {
+    const flow = buildGuidedFlowFromRequestBlueprint(definition, {
+      knownValues: { releaseTarget: "dashboard" },
+    });
+
+    expect(flow.steps.map((step) => step.id)).toEqual([
+      "introduction",
+      "additional-context",
+    ]);
+  });
+
+  it("generates Kody guidance from the same request meaning", () => {
     const guide = buildRequestBlueprintModelGuide(definition);
 
     expect(guide).toContain(definition.purpose);
-    expect(guide).toContain("prepare [view: approval-card@1]");
-    expect(guide).toContain(
-      'renderer data: {"title":"Prepare","tone":"caution"}',
-    );
-    expect(guide).toContain("run [command: /init]");
-    expect(guide).toContain("review [view: approval-card]");
-    expect(guide).toContain('route: files {"path":".github/workflows"}');
-    expect(guide).toContain("details [flow: nested-details@3]");
-    expect(guide).toContain("continue -> step:run");
-    expect(guide).toContain("finish -> step:details");
-    expect(guide).toContain('completion route: chat {"mode":"guided"}');
+    expect(guide).toContain("Discover: Repository runtime");
+    expect(guide).toContain("Ask user: What should be released? (required)");
+    expect(guide).toContain("Ask user: Anything else? (optional)");
+    expect(guide).toContain("Handoff: agency-request.submit");
+    expect(guide).not.toContain("renderer");
   });
 
-  it("rejects duplicate steps and missing action targets", () => {
+  it("rejects duplicate requirement ids and keys", () => {
     expect(() =>
       buildGuidedFlowFromRequestBlueprint({
         ...definition,
-        steps: [...definition.steps, definition.steps[0]!],
+        requirements: [definition.requirements[1]!, definition.requirements[1]!],
       }),
-    ).toThrow(/duplicate step id/i);
+    ).toThrow(/duplicate requirement id/i);
 
     expect(() =>
       buildGuidedFlowFromRequestBlueprint({
         ...definition,
-        steps: [
-          {
-            ...definition.steps[0]!,
-            actions: [
-              {
-                id: "continue",
-                target: { type: "step", stepId: "missing" },
-              },
-            ],
-          },
+        requirements: [
+          definition.requirements[1]!,
+          { ...definition.requirements[2]!, key: "releaseTarget" },
         ],
       }),
-    ).toThrow(/unknown step target/i);
+    ).toThrow(/duplicate requirement key/i);
   });
 });

@@ -11,10 +11,6 @@ import { z } from "zod";
 import type { GuidedFlowDefinition } from "./controller";
 import { migrateLegacyGuidedFlowDefinition } from "./authoring";
 import {
-  buildGuidedFlowFromRequestBlueprint,
-  type RequestBlueprintDefinition,
-} from "../request-blueprints";
-import {
   GUIDED_FLOW_CONTROL_IDS,
   hasUniqueGuidedFlowControls,
 } from "./control-contract";
@@ -22,12 +18,7 @@ import { validateGuidedFlowDefinition } from "./validation";
 
 export const GUIDED_FLOW_DEFINITIONS_NAMESPACE = "guided-flow-definitions";
 
-export type StoredGuidedFlowDefinition = Omit<
-  RequestBlueprintDefinition,
-  "purpose"
-> & {
-  /** Missing only on legacy rows; the storage codec derives it on read. */
-  readonly purpose?: string;
+export type StoredGuidedFlowDefinition = GuidedFlowDefinition & {
   readonly archived?: boolean;
 };
 
@@ -91,7 +82,14 @@ export const storedGuidedFlowDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   version: z.number().int().positive(),
   title: z.string().trim().min(1).max(160),
-  purpose: z.string().trim().min(1).max(1_000).optional(),
+  source: z
+    .object({
+      type: z.literal("request-blueprint"),
+      id: z.string().trim().min(1).max(80),
+      version: z.number().int().positive(),
+    })
+    .strict()
+    .optional(),
   completionRouteId: z.string().trim().max(80).optional(),
   completionRouteParameters: z
     .record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200))
@@ -119,15 +117,8 @@ export function parseStoredGuidedFlowDefinitions(
     if (!parsed.success) return [];
     try {
       const definition = migrateLegacyGuidedFlowDefinition(parsed.data);
-      const blueprint = {
-        ...definition,
-        purpose:
-          parsed.data.purpose ?? `Guide the user through ${definition.title}.`,
-      } satisfies RequestBlueprintDefinition;
-      validateGuidedFlowDefinition(
-        buildGuidedFlowFromRequestBlueprint(blueprint),
-      );
-      return [blueprint as StoredGuidedFlowDefinition];
+      validateGuidedFlowDefinition(definition);
+      return [definition as StoredGuidedFlowDefinition];
     } catch {
       return [];
     }
@@ -216,11 +207,5 @@ export function latestAvailableGuidedFlowDefinitions(
 ): GuidedFlowDefinition[] {
   return latestStoredGuidedFlowDefinitions(definitions)
     .filter((definition) => !definition.archived)
-    .map((definition) =>
-      buildGuidedFlowFromRequestBlueprint({
-        ...definition,
-        purpose:
-          definition.purpose ?? `Guide the user through ${definition.title}.`,
-      }),
-    );
+    .map(({ archived: _archived, ...definition }) => definition);
 }

@@ -51,6 +51,11 @@ export interface GuidedFlowDefinition {
   readonly id: string;
   readonly version: number;
   readonly title: string;
+  readonly source?: {
+    readonly type: "request-blueprint";
+    readonly id: string;
+    readonly version: number;
+  };
   readonly steps: readonly GuidedFlowStepDefinition[];
   readonly completionRouteId?: string;
   readonly completionRouteParameters?: Readonly<Record<string, string>>;

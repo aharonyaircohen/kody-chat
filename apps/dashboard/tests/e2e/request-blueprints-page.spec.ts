@@ -17,7 +17,7 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-test("creates and reloads a Request Blueprint without losing its purpose", async ({ page }) => {
+test("creates and reloads a Guided Flow", async ({ page }) => {
   let saved: Record<string, unknown> | null = null;
   await page.addInitScript(
     (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
@@ -39,17 +39,61 @@ test("creates and reloads a Request Blueprint without losing its purpose", async
   });
 
   await page.goto("/repo/acme/widgets/guided-flows", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Request Blueprints" })).toBeVisible();
-  await page.getByRole("button", { name: "Add Request Blueprint", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Guided Flows" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Guided Flow", exact: true }).click();
   await page.getByLabel("Flow name").fill("Release check");
-  await page.getByLabel("Purpose").fill("Release this repository safely and prove production health.");
-  await page.getByRole("button", { name: "Save Request Blueprint" }).click();
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
   await expect(page.getByRole("article", { name: "Release check" })).toBeVisible();
 
   await page.reload({ waitUntil: "domcontentloaded" });
   const article = page.getByRole("article", { name: "Release check" });
   await article.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Purpose")).toHaveValue(
-    "Release this repository safely and prove production health.",
+  await expect(page.getByLabel("Flow name")).toHaveValue("Release check");
+});
+
+test("shows a Blueprint-generated Guided Flow as read-only", async ({ page }) => {
+  await page.addInitScript(
+    (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
+    auth,
   );
+  await page.route("**/api/kody/auth/me", (route) =>
+    json(route, {
+      authenticated: true,
+      user: { login: "e2e-test", avatar_url: "", githubId: 1 },
+    }),
+  );
+  await page.route("**/api/kody/guided-flows**", (route) =>
+    json(route, {
+      definitions: [
+        {
+          id: "prepare-release",
+          version: 2,
+          title: "Prepare release",
+          source: {
+            type: "request-blueprint",
+            id: "prepare-release",
+            version: 2,
+          },
+          steps: [
+            {
+              id: "target",
+              title: "Choose target",
+              explanation: "Choose the release target.",
+              rendererSlug: "guided-form",
+              actions: [{ id: "submit", target: { type: "complete" } }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  const article = page.getByRole("article", { name: "Prepare release" });
+  await expect(article.getByText("Generated", { exact: true })).toBeVisible();
+  await expect(
+    article.getByRole("button", { name: "Edit Prepare release" }),
+  ).toHaveCount(0);
 });

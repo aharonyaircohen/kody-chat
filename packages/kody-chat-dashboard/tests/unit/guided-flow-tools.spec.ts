@@ -345,9 +345,7 @@ describe("guided_flow_start chat tool", () => {
     );
     expect(outline).toMatchObject({
       definitions: [expect.objectContaining({ id: "custom-lesson" })],
-      modelGuides: [
-        expect.stringContaining("Request Blueprint: Custom lesson"),
-      ],
+      modelGuides: [],
     });
 
     const history = await tools.guided_flow_read.execute!(

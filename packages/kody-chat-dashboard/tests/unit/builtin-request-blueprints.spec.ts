@@ -7,15 +7,23 @@ import {
 import { buildGuidedFlowFromRequestBlueprint } from "../../src/dashboard/lib/request-blueprints";
 
 describe("built-in Request Blueprints", () => {
-  it("owns every built-in Guided Flow through one generated source", () => {
-    expect(BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS).toHaveLength(
-      BUILTIN_GUIDED_FLOW_DEFINITIONS.length,
+  it("generates only request-driven Guided Flows", () => {
+    const generated = BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS.map((blueprint) =>
+      buildGuidedFlowFromRequestBlueprint(blueprint),
+    );
+
+    expect(generated).toHaveLength(4);
+    expect(BUILTIN_GUIDED_FLOW_DEFINITIONS).toEqual(
+      expect.arrayContaining(generated),
     );
     expect(
-      BUILTIN_REQUEST_BLUEPRINT_DEFINITIONS.map((blueprint) =>
-        buildGuidedFlowFromRequestBlueprint(blueprint),
+      BUILTIN_GUIDED_FLOW_DEFINITIONS.filter((flow) => flow.source),
+    ).toEqual(generated);
+    expect(
+      BUILTIN_GUIDED_FLOW_DEFINITIONS.some(
+        (flow) => flow.id === "onboarding" && !flow.source,
       ),
-    ).toEqual(BUILTIN_GUIDED_FLOW_DEFINITIONS);
+    ).toBe(true);
   });
 
   it("preserves versioned definitions as separate generated flows", () => {

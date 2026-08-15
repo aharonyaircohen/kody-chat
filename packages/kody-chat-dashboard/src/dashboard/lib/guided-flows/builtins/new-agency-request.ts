@@ -49,68 +49,25 @@ export const NEW_AGENCY_REQUEST_BLUEPRINT: RequestBlueprintDefinition = {
   title: "New Agency request",
   purpose:
     "Collect one durable automation requirement and hand it to AgencyRequestManager.",
-  controls: ["back"],
-  onComplete: { action: "agency-request.submit" },
-  steps: [
-    {
-      id: "introduction",
-      title: "Before Kody takes responsibility",
-      explanation:
-        "Describe the result and the important boundaries once. Kody will then inspect the repository, check whether it can complete the job, ask only for missing decisions, and show the real plan for approval before changing anything.",
-      rendererSlug: "approval-card",
-      rendererData: {
-        title: "Create an Agency request",
-        actions: [
-          {
-            id: "continue",
-            label: "Begin",
-            response: "continue",
-            variant: "primary",
-          },
-        ],
-      },
-      actions: [
-        {
-          id: "continue",
-          target: { type: "step", stepId: questions[0].id },
-        },
-      ],
-    },
-    ...questions.map((question, index) => ({
-      id: question.id,
-      title: question.title,
-      explanation: question.explanation,
-      rendererSlug: "guided-form",
-      rendererData: {
-        title: `Question ${index + 1} of ${questions.length}`,
-        fields: [
-          {
-            name: question.name,
-            label: question.title,
-            value: "",
-            inputType: "textarea",
-            ...(index === questions.length - 1
-              ? { description: "Optional" }
-              : {}),
-          },
-        ],
-        submitLabel:
-          index === questions.length - 1 ? "Submit request" : "Continue",
-      },
-      actions: [
-        {
-          id: "submit",
-          target:
-            index === questions.length - 1
-              ? ({ type: "complete" } as const)
-              : ({
-                  type: "step",
-                  stepId: questions[index + 1]!.id,
-                } as const),
-        },
-      ],
-    })),
-  ],
+  introduction: {
+    title: "Before Kody takes responsibility",
+    guidance:
+      "Describe the result and the important boundaries once. Kody will then inspect the repository, check whether it can complete the job, ask only for missing decisions, and show the real plan for approval before changing anything.",
+    actionLabel: "Begin",
+  },
+  allowBack: true,
+  requirements: questions.map((question, index) => ({
+    id: question.id,
+    key: question.name,
+    title: question.title,
+    guidance: question.explanation,
+    source: "user" as const,
+    required: index !== questions.length - 1,
+  })),
+  completion: {
+    submitLabel: "Submit request",
+    handoff: "agency-request.submit",
+  },
 };
 
 export const NEW_AGENCY_REQUEST_FLOW = buildGuidedFlowFromRequestBlueprint(
