@@ -154,7 +154,9 @@ export function isBlueprintCreationIntakeRequest(userText: string): boolean {
   ) {
     return false;
   }
-  return /\b(?:create|make|design|author|define|add|publish|build)\b/.test(text);
+  return /\b(?:create|make|design|author|define|add|publish|build)\b/.test(
+    text,
+  );
 }
 
 /** Trusted internal handoff emitted after Agency request intake completes. */
@@ -216,6 +218,34 @@ function routeExplicitWorkflowExecution(
         assignments: [{ agent: operator.slug, task: userText.trim() }],
       }
     : null;
+}
+
+function routeTodoRequest(
+  userText: string,
+  assignedAgents: readonly PublicDelegationAgent[],
+): PublicAgentRouteDecision | null {
+  if (!/\bto[- ]?dos?\b/i.test(userText)) return null;
+  const ranked = assignedAgents
+    .map((agent) => {
+      const titleTerms = routingTerms(agent.title);
+      const purposeTerms = routingTerms(publicAgentPurpose(agent));
+      const capabilityTerms = (agent.capabilities ?? []).flatMap(
+        (capability) => [...routingTerms(capability)],
+      );
+      const score =
+        (titleTerms.has("todo") ? 3 : 0) +
+        (purposeTerms.has("todo") ? 2 : 0) +
+        (capabilityTerms.includes("todo") ? 1 : 0);
+      return { agent, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score);
+  const winner = ranked[0];
+  if (!winner || winner.score === ranked[1]?.score) return null;
+  return {
+    mode: "delegate",
+    assignments: [{ agent: winner.agent.slug, task: userText.trim() }],
+  };
 }
 
 function routingTerms(value: string): Set<string> {
@@ -394,6 +424,8 @@ export async function routePublicAgentTask({
   if (isAgencyRequestAssessmentHandoff(userText)) {
     return { mode: "self" };
   }
+  const todoRequest = routeTodoRequest(userText, assignedAgents);
+  if (todoRequest) return todoRequest;
   const workflowExecution = routeExplicitWorkflowExecution(
     userText,
     assignedAgents,

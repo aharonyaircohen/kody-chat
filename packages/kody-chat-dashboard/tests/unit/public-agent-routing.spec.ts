@@ -366,6 +366,33 @@ describe("public Agent routing", () => {
     });
   });
 
+  it("keeps todo requests with the configured todo owner", async () => {
+    const generate = vi.fn(async () => ({
+      text: JSON.stringify({
+        mode: "delegate",
+        assignments: [
+          { agent: "agency-specialist", task: "Create the todo." },
+          { agent: "experience-specialist", task: "Render the todo form." },
+        ],
+      }),
+    }));
+
+    await expect(
+      routePublicAgentTask({
+        userText: "Can you create a new todo?",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({
+      mode: "delegate",
+      assignments: [
+        { agent: "agency-specialist", task: "Can you create a new todo?" },
+      ],
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["Explain AI Agency structure.", "agency-specialist"],
     ["Explain how this repository is structured.", "repository-specialist"],
