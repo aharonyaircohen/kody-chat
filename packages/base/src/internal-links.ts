@@ -28,6 +28,21 @@ export function stripConflictingInternalLinks(
   }, answer);
 }
 
+/** Keep tool-validated Markdown destinations and make untrusted links plain text. */
+export function stripUntrustedMarkdownLinks(
+  answer: string,
+  links: readonly InternalLink[],
+): string {
+  const trusted = new Set(
+    links
+      .filter((link) => isSafeInternalHref(link.href))
+      .map((link) => link.href),
+  );
+  return answer.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, href) =>
+    trusted.has(href) ? match : label,
+  );
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

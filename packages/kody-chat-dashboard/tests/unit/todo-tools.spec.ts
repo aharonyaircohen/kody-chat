@@ -96,6 +96,34 @@ describe("todo chat tools", () => {
     expect(ctx.removeTodo).toHaveBeenCalledWith("launch");
   });
 
+  it("returns canonical links for every real todo in a list", async () => {
+    ctx.listTodos.mockResolvedValue({
+      todos: [
+        { slug: "new-todo-list", title: "New Todo List", htmlUrl: "" },
+        { slug: "test", title: "test", htmlUrl: "" },
+      ],
+    });
+    const tools = createTodoTools(ctx as never);
+
+    await expect(tools.list_todo_lists.execute!({}, {} as never)).resolves.toEqual({
+      todos: [
+        {
+          slug: "new-todo-list",
+          title: "New Todo List",
+          htmlUrl: "/repo/acme/app/todos/new-todo-list",
+        },
+        { slug: "test", title: "test", htmlUrl: "/repo/acme/app/todos/test" },
+      ],
+      internalLinks: [
+        {
+          href: "/repo/acme/app/todos/new-todo-list",
+          label: "Open todo: new-todo-list",
+        },
+        { href: "/repo/acme/app/todos/test", label: "Open todo: test" },
+      ],
+    });
+  });
+
   it("refuses approval state without an executable Workflow contract", async () => {
     const tools = createTodoTools(ctx as never);
     const result = await tools.update_agency_request.execute!(

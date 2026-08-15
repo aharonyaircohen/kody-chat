@@ -2501,6 +2501,7 @@ export function KodyChat({
             onWidgetEvent={handleWidgetEvent}
             roleLayout={messageRoleLayout}
             agentHandoffs={sessionHook.activeSession?.agentHandoffs}
+            onInternalLinkClick={(href) => router.push(href)}
             emptyState={
               <EmptyState
                 welcome={emptyStateWelcome}

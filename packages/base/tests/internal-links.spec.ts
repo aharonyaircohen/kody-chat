@@ -4,6 +4,7 @@ import {
   formatInternalLinks,
   isSafeInternalHref,
   stripConflictingInternalLinks,
+  stripUntrustedMarkdownLinks,
 } from "../src/internal-links";
 
 describe("internal chat links", () => {
@@ -31,5 +32,19 @@ describe("internal chat links", () => {
         [{ href: "/repo/acme/app/todos/test", label: "Open todo: test" }],
       ),
     ).toBe("");
+  });
+
+  it("keeps tool links authoritative over model-invented destinations", () => {
+    expect(
+      stripUntrustedMarkdownLinks(
+        "[Open New Todo List](https://repo.example/todos/todo-new)",
+        [
+          {
+            href: "/repo/acme/app/todos/new-todo-list",
+            label: "Open todo: new-todo-list",
+          },
+        ],
+      ),
+    ).toBe("Open New Todo List");
   });
 });

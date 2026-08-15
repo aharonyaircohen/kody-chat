@@ -5,6 +5,7 @@ import type {
 } from "../../../chat-types";
 import { isRenderedViewDirective } from "../../../chat-ui-actions";
 import { machineAccessForRuntime } from "../machine-access";
+import { parseReasoning } from "../reasoning";
 
 type StoredMessage = {
   kind: "message";
@@ -126,18 +127,27 @@ export function mapConversationDetail(detail: ConversationDetail): {
       : undefined;
     const durableProgress =
       stored.entry.role === "assistant" ? durableTurn?.progress : undefined;
-    const storedContent =
+    const rawStoredContent =
       stored.entry.role === "assistant" &&
       (durableTurn?.status === "failed" || durableTurn?.status === "cancelled")
         ? "Error: The reply could not be completed. Please retry."
         : stored.entry.content;
+    const parsedStoredContent =
+      stored.entry.role === "assistant"
+        ? parseReasoning(rawStoredContent)
+        : { reasoning: "", answer: rawStoredContent };
+    const storedContent =
+      stored.entry.role === "assistant"
+        ? parsedStoredContent.answer.trim()
+        : parsedStoredContent.answer;
+    const reasoning = durableProgress?.reasoning || parsedStoredContent.reasoning;
     return [
       {
         id: stored.entryId,
         turnId: stored.entry.turnId,
         role: stored.entry.role,
-        text: durableProgress?.reasoning
-          ? `<think>${durableProgress.reasoning}</think>\n\n${storedContent}`
+        text: reasoning
+          ? `<think>${reasoning}</think>\n\n${storedContent}`
           : storedContent,
         toolCalls: durableProgress?.toolCalls.map((toolCall) => ({
           name: toolCall.name,

@@ -36,6 +36,7 @@ interface MarkdownPreviewProps {
   className?: string;
   dir?: React.HTMLAttributes<HTMLDivElement>["dir"];
   style?: React.CSSProperties;
+  onInternalLinkClick?: (href: string) => void;
 }
 
 const calloutStyles: Record<
@@ -358,7 +359,10 @@ function Heading({
   );
 }
 
-const markdownComponents: Components = {
+function createMarkdownComponents(
+  onInternalLinkClick?: (href: string) => void,
+): Components {
+  return {
   a: ({ href, children, ...props }) => {
     const isHashLink = href?.startsWith("#");
     const isInternalLink = Boolean(href && isSafeInternalHref(href));
@@ -370,6 +374,18 @@ const markdownComponents: Components = {
         target={opensNewTab ? "_blank" : undefined}
         rel={opensNewTab ? "noopener noreferrer" : undefined}
         {...props}
+        onClick={(event) => {
+          props.onClick?.(event);
+          if (
+            !event.defaultPrevented &&
+            isInternalLink &&
+            onInternalLinkClick &&
+            href
+          ) {
+            event.preventDefault();
+            onInternalLinkClick(href);
+          }
+        }}
       >
         {children}
       </a>
@@ -382,14 +398,20 @@ const markdownComponents: Components = {
   h2: ({ children }) => <Heading level={2}>{children}</Heading>,
   h3: ({ children }) => <Heading level={3}>{children}</Heading>,
   h4: ({ children }) => <Heading level={4}>{children}</Heading>,
-};
+  };
+}
 
 export function MarkdownPreview({
   content,
   className,
   dir,
   style,
+  onInternalLinkClick,
 }: MarkdownPreviewProps) {
+  const markdownComponents = useMemo(
+    () => createMarkdownComponents(onInternalLinkClick),
+    [onInternalLinkClick],
+  );
   return (
     <div
       dir={dir}

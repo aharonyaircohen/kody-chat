@@ -66,6 +66,51 @@ describe("conversation session store", () => {
     expect(result.session.machineAccess).toBe("none");
   });
 
+  it("does not duplicate reasoning already stored in assistant content", () => {
+    const result = mapConversationDetail({
+      conversation: {
+        conversationId: "c-reasoning",
+        title: "Greeting",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "direct", modelId: "model-1" },
+        createdAt: "2026-07-20T10:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:01.000Z",
+      },
+      entries: [
+        {
+          entryId: "a1",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "<think>check greeting</think>\n\nHi there!",
+            status: "committed",
+            turnId: "turn-1",
+            createdAt: "2026-07-20T10:00:01.000Z",
+          },
+        },
+      ],
+      turns: [
+        {
+          turnId: "turn-1",
+          status: "completed",
+          agent: { slug: "kody", title: "Kody" },
+          startedAt: "2026-07-20T10:00:00.000Z",
+          progress: {
+            reasoning: "check greeting",
+            toolCalls: [],
+          },
+        },
+      ],
+      checkpoints: [],
+    });
+
+    expect(result.messages[0]?.text).toBe(
+      "<think>check greeting</think>\n\nHi there!",
+    );
+  });
+
   it("hydrates machine access independently from agent and model", () => {
     const result = mapConversationDetail({
       conversation: {

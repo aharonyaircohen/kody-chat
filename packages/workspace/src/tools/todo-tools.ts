@@ -85,6 +85,36 @@ function withTodoLink(value: unknown, ref: RepoRef, slug: string | null) {
   return { result: value, internalLinks: [link] };
 }
 
+function withTodoListLinks(value: unknown, ref: RepoRef) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.todos)) return value;
+
+  const internalLinks: InternalLink[] = [];
+  const todos = record.todos.map((todo) => {
+    if (!todo || typeof todo !== "object" || Array.isArray(todo)) {
+      return todo;
+    }
+    const item = todo as Record<string, unknown>;
+    const slug = typeof item.slug === "string" ? item.slug : null;
+    if (!slug || !isValidTodoSlug(slug)) return todo;
+    const link: InternalLink = {
+      href: routes.repoTodoList(ref, slug),
+      label: `Open todo: ${slug}`,
+    };
+    internalLinks.push(link);
+    return { ...item, htmlUrl: link.href };
+  });
+
+  return {
+    ...record,
+    todos,
+    ...(internalLinks.length > 0 ? { internalLinks } : {}),
+  };
+}
+
 export function createTodoTools(ctx: Ctx) {
   const repoRef = `${ctx.owner}/${ctx.repo}`;
 
@@ -93,7 +123,10 @@ export function createTodoTools(ctx: Ctx) {
       description: `List todo lists in ${repoRef} through the same Dashboard API used by the Todos page.`,
       inputSchema: z.object({}),
       execute: async () => {
-        return ctx.listTodos();
+        return withTodoListLinks(
+          await ctx.listTodos(),
+          { owner: ctx.owner, repo: ctx.repo },
+        );
       },
     }),
 

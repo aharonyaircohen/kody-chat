@@ -4,6 +4,7 @@ import {
   formatInternalLinks,
   isSafeInternalHref,
   stripConflictingInternalLinks,
+  stripUntrustedMarkdownLinks,
   type InternalLink,
 } from "@kody-ade/base/internal-links";
 import {
@@ -222,7 +223,10 @@ export function appendPublicAgentInternalLinks(
   results: readonly PublicAgentTaskResult[],
 ): string {
   const links = results.flatMap((result) => result.internalLinks ?? []);
-  const cleanedAnswer = stripConflictingInternalLinks(answer, links);
+  const cleanedAnswer = stripUntrustedMarkdownLinks(
+    stripConflictingInternalLinks(answer, links),
+    links,
+  );
   const missingLinks = links.filter(
     (link) => !cleanedAnswer.includes(`[${link.label}](${link.href})`),
   );
