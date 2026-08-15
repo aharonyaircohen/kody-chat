@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "openrouter/deepseek/deepseek-v4-flash-latest"
+    "model": "openrouter/free"
   },
   "company": {
     "activeAgents": [
