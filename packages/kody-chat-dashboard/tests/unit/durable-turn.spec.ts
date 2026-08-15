@@ -85,4 +85,27 @@ describe("durable turn progress", () => {
     );
     expect(mutation).toHaveBeenCalledTimes(3);
   });
+
+  it("ignores writes racing with intentional conversation cleanup", async () => {
+    mutation
+      .mockResolvedValueOnce("turn-document")
+      .mockRejectedValueOnce(new Error("Conversation not found"))
+      .mockRejectedValueOnce(new Error("Conversation not found"));
+    const onProgressError = vi.fn();
+    const turn = startDurableTurn(
+      {
+        tenantId: "tenant",
+        conversationId: "conversation",
+        turnId: "turn",
+        backend: "direct",
+        agent: { slug: "kody", title: "Kody" },
+      },
+      { onProgressError },
+    );
+
+    turn.recordProgress({ reasoning: "Checking", toolCalls: [] });
+
+    await expect(turn.complete("Done.")).resolves.toBeUndefined();
+    expect(onProgressError).not.toHaveBeenCalled();
+  });
 });

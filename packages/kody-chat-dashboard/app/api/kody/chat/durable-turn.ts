@@ -41,6 +41,13 @@ export type DurableTurnOptions = Readonly<{
   onProgressError?: (error: unknown) => void;
 }>;
 
+function isConversationGoneError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.toLowerCase().includes("conversation not found")
+  );
+}
+
 /**
  * Starts persistence without delaying provider dispatch. Completion and failure
  * await that start, preserving ordering while the model and Convex run in
@@ -86,7 +93,7 @@ export function startDurableTurn(
         });
       })
       .catch((error: unknown) => {
-        options.onProgressError?.(error);
+        if (!isConversationGoneError(error)) options.onProgressError?.(error);
       });
     return progressWrites;
   };
@@ -112,26 +119,34 @@ export function startDurableTurn(
       }
     },
     async complete(content) {
-      await started;
-      await flushProgress();
-      await client.mutation(backendApi.conversationTurns.complete, {
-        tenantId: identity.tenantId,
-        conversationId: identity.conversationId,
-        turnId: identity.turnId,
-        content,
-        completedAt: new Date().toISOString(),
-      });
+      try {
+        await started;
+        await flushProgress();
+        await client.mutation(backendApi.conversationTurns.complete, {
+          tenantId: identity.tenantId,
+          conversationId: identity.conversationId,
+          turnId: identity.turnId,
+          content,
+          completedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        if (!isConversationGoneError(error)) throw error;
+      }
     },
     async fail(errorCode) {
-      await started;
-      await flushProgress();
-      await client.mutation(backendApi.conversationTurns.fail, {
-        tenantId: identity.tenantId,
-        conversationId: identity.conversationId,
-        turnId: identity.turnId,
-        errorCode,
-        failedAt: new Date().toISOString(),
-      });
+      try {
+        await started;
+        await flushProgress();
+        await client.mutation(backendApi.conversationTurns.fail, {
+          tenantId: identity.tenantId,
+          conversationId: identity.conversationId,
+          turnId: identity.turnId,
+          errorCode,
+          failedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        if (!isConversationGoneError(error)) throw error;
+      }
     },
   };
 }
