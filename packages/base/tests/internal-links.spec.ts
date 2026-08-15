@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatInternalLinks,
   isSafeInternalHref,
+  shouldInterceptInternalLinkClick,
   stripConflictingInternalLinks,
   stripUntrustedMarkdownLinks,
 } from "../src/internal-links";
@@ -23,6 +24,27 @@ describe("internal chat links", () => {
     expect(
       formatInternalLinks([{ href: "javascript:alert(1)", label: "Bad" }]),
     ).toBe("");
+  });
+
+  it("only intercepts ordinary clicks on safe internal destinations", () => {
+    expect(
+      shouldInterceptInternalLinkClick({ href: "/repo/acme/app/todos/test" }),
+    ).toBe(true);
+    expect(
+      shouldInterceptInternalLinkClick({ href: "#section" }),
+    ).toBe(false);
+    expect(
+      shouldInterceptInternalLinkClick({
+        href: "/repo/acme/app/todos/test",
+        target: "_blank",
+      }),
+    ).toBe(false);
+    expect(
+      shouldInterceptInternalLinkClick({
+        href: "/repo/acme/app/todos/test",
+        metaKey: true,
+      }),
+    ).toBe(false);
   });
 
   it("keeps only the canonical destination for a known link label", () => {

@@ -15,6 +15,7 @@ import { InboxWatcher } from "@dashboard/lib/inbox/useInboxWatcher";
 import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
 import { ConvexClientProvider } from "@dashboard/lib/convex/ConvexClientProvider";
 import { WebhookRegistrationReconciler } from "@dashboard/lib/webhooks/WebhookRegistrationReconciler";
+import { InternalLinkNavigation } from "@dashboard/lib/components/InternalLinkNavigation";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -47,6 +48,7 @@ export function KodyProviders({ children }: { children: React.ReactNode }) {
         <ThemeProvider>
           <AuthProvider>
             <WebhookRegistrationReconciler />
+            <InternalLinkNavigation />
             <ServiceWorkerRegister />
             <InboxWatcher />
             <PageViewTracker />

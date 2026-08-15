@@ -7,6 +7,30 @@ export function isSafeInternalHref(href: string): boolean {
   return href.startsWith("/") && !href.startsWith("//");
 }
 
+export function shouldInterceptInternalLinkClick(input: {
+  href?: string | null;
+  target?: string | null;
+  download?: boolean;
+  button?: number;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+}): boolean {
+  return Boolean(
+    input.href &&
+      isSafeInternalHref(input.href) &&
+      !input.href.startsWith("#") &&
+      input.target !== "_blank" &&
+      !input.download &&
+      (input.button ?? 0) === 0 &&
+      !input.metaKey &&
+      !input.ctrlKey &&
+      !input.shiftKey &&
+      !input.altKey,
+  );
+}
+
 export function formatInternalLinks(links: readonly InternalLink[]): string {
   return links
     .filter((link) => isSafeInternalHref(link.href) && link.label.trim())
