@@ -8,6 +8,7 @@ import {
   buildPublicAgentChildSystem,
   buildPublicAgentReference,
   buildPublicAgentSynthesisInput,
+  appendPublicAgentInternalLinks,
   collectPublicAgentEvidence,
   formatPublicAgentFailure,
   runPublicAgentAssignments,
@@ -67,6 +68,37 @@ it("requires delegated prose to end with a relevant follow-up question", () => {
 });
 
 describe("public Agent delegation", () => {
+  it("appends validated tool links to the user-facing answer once", () => {
+    const answer = appendPublicAgentInternalLinks("Todo saved.", [
+      {
+        status: "completed",
+        agent: "agency-specialist",
+        result: "saved",
+        internalLinks: [
+          { href: "/repo/acme/app/todos/launch", label: "Open todo: launch" },
+        ],
+      },
+    ]);
+
+    expect(answer).toContain(
+      "[Open todo: launch](/repo/acme/app/todos/launch)",
+    );
+    expect(
+      appendPublicAgentInternalLinks(answer, [
+        {
+          status: "completed",
+          agent: "agency-specialist",
+          internalLinks: [
+            {
+              href: "/repo/acme/app/todos/launch",
+              label: "Open todo: launch",
+            },
+          ],
+        },
+      ]),
+    ).toBe(answer);
+  });
+
   it("describes the real synthesis failure without exposing raw provider data", () => {
     expect(
       describePublicAgentSynthesisError(

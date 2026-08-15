@@ -21,6 +21,7 @@
     "./backend/repo-docs": "./src/backend/repo-docs.ts",
     "./active-repo": "./src/active-repo.ts",
     "./routes": "./src/routes.ts",
+    "./internal-links": "./src/internal-links.ts",
     "./slug": "./src/slug.ts",
     "./admin-pages-meta": "./src/admin-pages-meta.ts",
     "./github-issue-create": "./src/github-issue-create.ts",

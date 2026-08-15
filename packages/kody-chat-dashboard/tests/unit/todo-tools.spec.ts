@@ -75,6 +75,19 @@ describe("todo chat tools", () => {
       description: "Ship safely.",
       items: [],
     });
+    expect(
+      await tools.create_or_update_todo_list.execute!(
+        { slug: "launch", title: "Launch", items: [] },
+        {} as never,
+      ),
+    ).toMatchObject({
+      internalLinks: [
+        {
+          href: "/repo/acme/app/todos/launch",
+          label: "Open todo: launch",
+        },
+      ],
+    });
     expect(ctx.patchTodo).toHaveBeenCalledWith("launch", {
       agencyRequest: expect.objectContaining({ phase: "waiting-approval" }),
     });

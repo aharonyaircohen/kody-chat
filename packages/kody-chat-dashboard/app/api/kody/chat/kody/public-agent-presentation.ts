@@ -15,6 +15,7 @@ import {
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 import {
   buildPublicAgentSynthesisInput,
+  appendPublicAgentInternalLinks,
   formatPublicAgentResponse,
   parsePublicAgentGeneratedAnswer,
   PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE,
@@ -296,13 +297,16 @@ export async function presentPublicAgentResponse({
     parsePublicAgentGeneratedAnswer(response.text ?? "") ||
     groundedSpecialistFallback ||
     PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE;
-  const answer = formatPublicAgentResponse({
-    answer: finalAnswerRequestsInteraction(candidateAnswer)
-      ? INTERACTIVE_PRESENTATION_FAILURE
-      : candidateAnswer,
-    assignments,
-    assignedAgents,
-  });
+  const answer = appendPublicAgentInternalLinks(
+    formatPublicAgentResponse({
+      answer: finalAnswerRequestsInteraction(candidateAnswer)
+        ? INTERACTIVE_PRESENTATION_FAILURE
+        : candidateAnswer,
+      assignments,
+      assignedAgents,
+    }),
+    results,
+  );
   const messageId = `specialist-presentation-${randomUUID()}`;
   writer.write({ type: "text-start", id: messageId });
   writer.write({ type: "text-delta", id: messageId, delta: answer });

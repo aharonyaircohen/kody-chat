@@ -8,6 +8,8 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
+import { routes, type RepoRef } from "@kody-ade/base/routes";
+import type { InternalLink } from "@kody-ade/base/internal-links";
 import { agencyRequestStateSchema } from "../todos/agency-request-schema";
 
 interface Ctx {
@@ -56,6 +58,26 @@ function isValidTodoSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
+function todoSlugFromResult(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const todo = (value as { todo?: unknown }).todo;
+  if (!todo || typeof todo !== "object" || Array.isArray(todo)) return null;
+  const slug = (todo as { slug?: unknown }).slug;
+  return typeof slug === "string" && isValidTodoSlug(slug) ? slug : null;
+}
+
+function withTodoLink(value: unknown, ref: RepoRef, slug: string | null) {
+  if (!slug) return value;
+  const link: InternalLink = {
+    href: routes.repoTodoList(ref, slug),
+    label: `Open todo: ${slug}`,
+  };
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return { ...(value as Record<string, unknown>), internalLinks: [link] };
+  }
+  return { result: value, internalLinks: [link] };
+}
+
 export function createTodoTools(ctx: Ctx) {
   const repoRef = `${ctx.owner}/${ctx.repo}`;
 
@@ -75,7 +97,8 @@ export function createTodoTools(ctx: Ctx) {
       }),
       execute: async ({ slug }) => {
         if (!isValidTodoSlug(slug)) return { error: `invalid slug "${slug}"` };
-        return ctx.readTodo(slug);
+        const result = await ctx.readTodo(slug);
+        return withTodoLink(result, { owner: ctx.owner, repo: ctx.repo }, slug);
       },
     }),
 
@@ -88,7 +111,12 @@ export function createTodoTools(ctx: Ctx) {
         if (input.slug && !isValidTodoSlug(input.slug)) {
           return { error: `invalid slug "${input.slug}"` };
         }
-        return ctx.saveTodo(input);
+        const result = await ctx.saveTodo(input);
+        return withTodoLink(
+          result,
+          { owner: ctx.owner, repo: ctx.repo },
+          input.slug ?? todoSlugFromResult(result),
+        );
       },
     }),
 
@@ -130,7 +158,8 @@ export function createTodoTools(ctx: Ctx) {
             },
           });
         }
-        return ctx.patchTodo(slug, { agencyRequest });
+        const result = await ctx.patchTodo(slug, { agencyRequest });
+        return withTodoLink(result, { owner: ctx.owner, repo: ctx.repo }, slug);
       },
     }),
 
