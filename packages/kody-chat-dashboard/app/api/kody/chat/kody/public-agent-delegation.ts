@@ -3,6 +3,7 @@ import { generateText, stepCountIs, streamText, type ToolSet } from "ai";
 import {
   formatInternalLinks,
   isSafeInternalHref,
+  stripConflictingInternalLinks,
   type InternalLink,
 } from "@kody-ade/base/internal-links";
 import {
@@ -221,11 +222,12 @@ export function appendPublicAgentInternalLinks(
   results: readonly PublicAgentTaskResult[],
 ): string {
   const links = results.flatMap((result) => result.internalLinks ?? []);
+  const cleanedAnswer = stripConflictingInternalLinks(answer, links);
   const missingLinks = links.filter(
-    (link) => !answer.includes(`[${link.label}](${link.href})`),
+    (link) => !cleanedAnswer.includes(`[${link.label}](${link.href})`),
   );
   const formatted = formatInternalLinks(missingLinks);
-  return formatted ? `${answer.trim()}\n\n${formatted}` : answer;
+  return formatted ? `${cleanedAnswer.trim()}\n\n${formatted}` : cleanedAnswer;
 }
 
 function isSubstantivePublicAgentResult(value: string): boolean {
@@ -829,7 +831,10 @@ export async function runIsolatedPublicAgentTask({
       response.steps,
     ]);
     const rawResult = stripProviderReasoningMetadata(text).trim();
-    const result = containsToolCallMarkup(rawResult) ? "" : rawResult;
+    const parsedResult = parseAssistantContent(rawResult);
+    const result = containsToolCallMarkup(rawResult)
+      ? ""
+      : parsedResult.answer.trim();
     const reasoning = collectPublicAgentReasoning({
       reasoningText: reasoningText || streamedReasoning,
       steps,

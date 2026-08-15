@@ -21,6 +21,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
+import { isSafeInternalHref } from "@kody-ade/base/internal-links";
 import { cn } from "../utils/ui";
 import {
   detectCalloutKind,
@@ -360,12 +361,14 @@ function Heading({
 const markdownComponents: Components = {
   a: ({ href, children, ...props }) => {
     const isHashLink = href?.startsWith("#");
+    const isInternalLink = Boolean(href && isSafeInternalHref(href));
+    const opensNewTab = !isHashLink && !isInternalLink;
 
     return (
       <a
         href={href}
-        target={isHashLink ? undefined : "_blank"}
-        rel={isHashLink ? undefined : "noopener noreferrer"}
+        target={opensNewTab ? "_blank" : undefined}
+        rel={opensNewTab ? "noopener noreferrer" : undefined}
         {...props}
       >
         {children}

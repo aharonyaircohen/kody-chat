@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatInternalLinks, isSafeInternalHref } from "../src/internal-links";
+import {
+  formatInternalLinks,
+  isSafeInternalHref,
+  stripConflictingInternalLinks,
+} from "../src/internal-links";
 
 describe("internal chat links", () => {
   it("formats validated internal links as Markdown", () => {
@@ -17,6 +21,15 @@ describe("internal chat links", () => {
     expect(isSafeInternalHref("/repo/acme/app/todos/launch")).toBe(true);
     expect(
       formatInternalLinks([{ href: "javascript:alert(1)", label: "Bad" }]),
+    ).toBe("");
+  });
+
+  it("keeps only the canonical destination for a known link label", () => {
+    expect(
+      stripConflictingInternalLinks(
+        "[Open todo: test](https://repo.example/todos/test)",
+        [{ href: "/repo/acme/app/todos/test", label: "Open todo: test" }],
+      ),
     ).toBe("");
   });
 });

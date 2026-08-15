@@ -11,6 +11,7 @@ import {
   appendPublicAgentInternalLinks,
   collectPublicAgentEvidence,
   formatPublicAgentFailure,
+  parsePublicAgentGeneratedAnswer,
   runPublicAgentAssignments,
   runIsolatedPublicAgentTask,
   runIsolatedPublicAgentTaskWithRetry,
@@ -97,6 +98,14 @@ describe("public Agent delegation", () => {
         },
       ]),
     ).toBe(answer);
+  });
+
+  it("does not carry specialist scratchpad into the visible result", () => {
+    expect(
+      parsePublicAgentGeneratedAnswer(
+        "<think>private scratchpad</think>Visible answer",
+      ),
+    ).toBe("Visible answer");
   });
 
   it("describes the real synthesis failure without exposing raw provider data", () => {
