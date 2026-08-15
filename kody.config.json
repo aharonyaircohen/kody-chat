@@ -26,37 +26,9 @@
       "qa"
     ],
     "activeCapabilities": [
-      "ci-health-check",
-      "review",
-      "fix",
-      "merge",
-      "extract-run-learning",
-      "detect-memory-duplicates",
-      "detect-memory-conflicts",
-      "decide-memory-change",
-      "apply-memory-changes",
-      "verify-memory-change",
-      "detect-stale-memory",
-      "release-prepare",
-      "release-validate",
-      "ui-review",
-      "prepare-ci-repair",
-      "quality-check",
-      "fix-ci",
-      "run",
-      "finalize-ci-repair",
-      "prepare-strategy-application",
-      "apply-strategy",
       "qa-engineer"
     ],
     "activeWorkflows": [
-      "ci-repair",
-      "learn-from-runs",
-      "maintain-memory-quality",
-      "merge",
-      "review-fix",
-      "quality-run",
-      "apply-strategy",
       "qa-scan"
     ],
     "activePipelines": [
