@@ -108,6 +108,22 @@ function unknownTypeMessage(
  */
 function coerceSpecEnvelope(input: unknown): unknown {
   if (!isRecord(input)) return input;
+  if (Array.isArray(input.elements)) {
+    const keyedElements = input.elements.map((rawElement) => {
+      if (!isRecord(rawElement)) return null;
+      const { key, ...element } = rawElement;
+      return typeof key === "string" && key.trim()
+        ? ([key.trim(), element] as const)
+        : null;
+    });
+    const keys = keyedElements.flatMap((entry) => (entry ? [entry[0]] : []));
+    if (
+      keyedElements.every((entry) => entry !== null) &&
+      new Set(keys).size === keyedElements.length
+    ) {
+      return { ...input, elements: Object.fromEntries(keyedElements) };
+    }
+  }
   if (input.root !== undefined || input.elements !== undefined) return input;
   const type = input.type ?? input.component;
   if (typeof type !== "string") return input;

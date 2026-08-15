@@ -1142,6 +1142,57 @@ test.describe("Kody chat renderer output", () => {
     await expect(page.getByText(unfinishedProse)).toHaveCount(0);
   });
 
+  test("a recovered renderer retry keeps the first validation error visible", async ({
+    page,
+  }) => {
+    const validationError =
+      "spec: elements: Invalid input: expected record, received array";
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-render-invalid",
+            toolName: "show_view",
+            input: { root: "card", elements: [] },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-render-invalid",
+            output: { error: validationError },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-render-retry",
+            toolName: "show_view",
+            input: { root: "card", elements: {} },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-render-retry",
+            output: renderedApprovalView({ title: "Retry succeeded" }),
+          },
+        ]),
+      });
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "Ask me to approve this plan.");
+
+    await expect(page.getByText("Retry succeeded")).toBeVisible();
+    await chatRail(page).getByRole("button", { name: /Thought/ }).click();
+    await page.getByRole("button", { name: "Show view" }).first().click();
+    await expect(
+      chatRail(page).locator("code").filter({ hasText: validationError }),
+    ).toBeVisible();
+  });
+
   test("recovery card keeps model choice under user control", async ({
     page,
   }) => {

@@ -205,6 +205,37 @@ describe("validateChatViewSpec", () => {
     }
   });
 
+  it("coerces a keyed elements array into the required elements map", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "card",
+      elements: [
+        {
+          key: "card",
+          type: "Stack",
+          props: "",
+          children: ["title"],
+        },
+        {
+          key: "title",
+          type: "Text",
+          props: { value: "Request Blueprint", variant: "title" },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({ success: true });
+    if (result.success) {
+      expect(result.spec.elements).toEqual({
+        card: { type: "Stack", props: {}, children: ["title"] },
+        title: {
+          type: "Text",
+          props: { value: "Request Blueprint", variant: "title" },
+          children: [],
+        },
+      });
+    }
+  });
+
   it("coerces props flattened onto the element", () => {
     const result = validateChatViewSpec(catalog, {
       root: "t",
