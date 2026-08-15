@@ -437,7 +437,7 @@ test.describe("Admin Kody chat regression", () => {
     await expect(sidebar).toBeVisible({ timeout: 15_000 });
     await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
       "title",
-      /GPT X/,
+      /OpenRouter Free/,
     );
 
     const modelMenu = await openChatSetupSection(chat, "Model");
@@ -458,10 +458,10 @@ test.describe("Admin Kody chat regression", () => {
 
     await expect
       .poll(() => createdRuntimes)
-      .toEqual([{ kind: "direct", modelId: "kody:gpt-x" }]);
+      .toEqual([{ kind: "direct", modelId: "kody:openrouter/free" }]);
     await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
       "title",
-      /GPT X/,
+      /OpenRouter Free/,
     );
   });
 
@@ -523,7 +523,7 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
       "title",
-      /GPT X/,
+      /OpenRouter Free/,
     );
     const input = chat.locator("textarea").first();
     await input.fill("Hello");
@@ -531,8 +531,8 @@ test.describe("Admin Kody chat regression", () => {
 
     await expect
       .poll(() => createdRuntimes)
-      .toEqual([{ kind: "direct", modelId: "kody:gpt-x" }]);
-    await expect.poll(() => requestedModels).toEqual(["gpt-x"]);
+      .toEqual([{ kind: "direct", modelId: "kody:openrouter/free" }]);
+    await expect.poll(() => requestedModels).toEqual(["openrouter/free"]);
     await expect(chat.getByRole("alert")).toHaveCount(0);
   });
 
