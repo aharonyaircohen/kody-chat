@@ -19,6 +19,29 @@
   "agent": {
     "model": "openrouter/deepseek/deepseek-v4-flash-0731"
   },
+  "release": {
+    "versionFiles": [
+      {
+        "path": "apps/dashboard/package.json",
+        "kind": "package"
+      }
+    ],
+    "version": {
+      "readCommand": "node -e \"const fs=require('fs');const d=JSON.parse(fs.readFileSync('apps/dashboard/package.json','utf8'));process.stdout.write(d.version)\"",
+      "writeCommand": "node -e \"const fs=require('fs');const p='apps/dashboard/package.json';const d=JSON.parse(fs.readFileSync(p,'utf8'));d.version=process.env.KODY_RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\n')\"",
+      "files": [
+        "apps/dashboard/package.json"
+      ]
+    },
+    "validation": {
+      "workflow": "release-validation.yml"
+    },
+    "releaseBranch": "main",
+    "productionDeployRequired": true,
+    "productionUrl": "https://kody-dashboard-sable.vercel.app",
+    "smokeCommand": "curl -fsSL --max-time 30 \"${PRODUCTION_URL}/\" >/dev/null",
+    "timeoutMs": 1800000
+  },
   "company": {
     "activeAgents": [
       "kody",
@@ -45,7 +68,10 @@
       "run",
       "finalize-ci-repair",
       "prepare-strategy-application",
-      "apply-strategy"
+      "apply-strategy",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -54,7 +80,8 @@
       "merge",
       "review-fix",
       "quality-run",
-      "apply-strategy"
+      "apply-strategy",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
