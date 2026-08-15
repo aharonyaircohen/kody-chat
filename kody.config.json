@@ -45,7 +45,10 @@
       "run",
       "finalize-ci-repair",
       "prepare-strategy-application",
-      "apply-strategy"
+      "apply-strategy",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -54,7 +57,8 @@
       "merge",
       "review-fix",
       "quality-run",
-      "apply-strategy"
+      "apply-strategy",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
