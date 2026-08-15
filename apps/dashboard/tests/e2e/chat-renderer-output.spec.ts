@@ -1279,4 +1279,56 @@ test.describe("Kody chat renderer output", () => {
       page.getByText("I need to inspect the direct chat stream."),
     ).toBeVisible();
   });
+
+  test("exclusive chat output shows one committed answer across retries", async ({
+    page,
+  }) => {
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
+            type: "reasoning-delta",
+            delta: "The user said hi. I should answer normally.",
+          },
+          { type: "text-delta", delta: "first draft" },
+          {
+            type: "reasoning-delta",
+            delta: "The first attempt missed final_answer. Retrying.",
+          },
+          { type: "text-delta", delta: "second draft" },
+          {
+            type: "tool-input-available",
+            toolCallId: "final-retry-answer",
+            toolName: "final_answer",
+            input: { content: "Hello! How can I help?" },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "final-retry-answer",
+            output: { content: "Hello! How can I help?" },
+          },
+        ]),
+      });
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "hi");
+
+    await expect(page.getByText("Hello! How can I help?")).toBeVisible();
+    await expect(page.getByText(/first draft|second draft/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /thought/i })).toHaveCount(0);
+    await expect(
+      page.getByText(/The user said hi|missed final_answer/i),
+    ).toHaveCount(0);
+  });
 });

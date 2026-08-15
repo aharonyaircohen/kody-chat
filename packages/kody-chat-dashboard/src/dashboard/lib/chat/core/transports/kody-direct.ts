@@ -279,7 +279,10 @@ export async function sendKodyDirectTurn(
       ctx.emit({ type: "token", text: chunk.delta });
     } else if (
       chunk.type === "reasoning-delta" &&
-      typeof chunk.delta === "string"
+      typeof chunk.delta === "string" &&
+      // Exclusive output means every model attempt is private until an
+      // output tool commits the one user-visible result.
+      !exclusiveToolOutput
     ) {
       ctx.emit({ type: "reasoning", text: chunk.delta });
     } else if (chunk.type === "error" && typeof chunk.errorText === "string") {

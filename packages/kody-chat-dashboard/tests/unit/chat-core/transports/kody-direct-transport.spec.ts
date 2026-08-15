@@ -360,7 +360,7 @@ describe("sendKodyDirectTurn", () => {
     });
   });
 
-  it("commits final_answer text after hiding provider draft text in exclusive mode", async () => {
+  it("publishes only the committed answer across private model attempts", async () => {
     const { restore } = installScriptedFetch([
       () =>
         sseResponse([
@@ -368,7 +368,16 @@ describe("sendKodyDirectTurn", () => {
             type: "data-chat-output-contract",
             data: { mode: "exclusive-tool" },
           }),
-          chunk({ type: "text-delta", delta: "draft..." }),
+          chunk({
+            type: "reasoning-delta",
+            delta: "The user said hi. I should answer normally.",
+          }),
+          chunk({ type: "text-delta", delta: "first draft" }),
+          chunk({
+            type: "reasoning-delta",
+            delta: "The first attempt missed final_answer. Retrying.",
+          }),
+          chunk({ type: "text-delta", delta: "second draft" }),
           chunk({
             type: "tool-input-available",
             toolCallId: "final-1",
