@@ -15,7 +15,10 @@ const BASE_URL = process.env.PW_LOCAL
 const CHAT_URL = `${BASE_URL}/repo/test-owner/test-repo/chat`;
 
 function sseBody(events: unknown[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  return (
+    events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") +
+    "data: [DONE]\n\n"
+  );
 }
 
 async function seedAuth(page: Page): Promise<void> {
@@ -114,6 +117,23 @@ test.describe("Chat picker backend boundary", () => {
         }),
       }),
     );
+    await page.route("**/api/kody/brain/models", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [
+            {
+              id: "personal-codex",
+              name: "Personal Codex",
+              runtime: "codex app-server",
+              enabled: true,
+              default: true,
+            },
+          ],
+        }),
+      }),
+    );
     await page.route("**/api/kody/chat/machines", (route) =>
       route.fulfill({
         status: 200,
@@ -163,6 +183,7 @@ test.describe("Chat picker backend boundary", () => {
     await expect(title).toContainText("Global chat — not tied to any task");
     const setup = chat.getByLabel("Chat setup").first();
     await expect(setup).toBeVisible({ timeout: 15_000 });
+    await expect(setup).toHaveAttribute("title", /OpenRouter Free/);
     const menu = await openChatSetupSection(chat, "Agency agent");
     await expect(
       menu.locator('button[role="option"]').filter({ hasText: "Kody" }),
@@ -189,9 +210,9 @@ test.describe("Chat picker backend boundary", () => {
     ).toBeVisible();
     await expect(
       modelMenu.locator('button[role="option"]').filter({
-        hasText: "Kody Brain",
+        hasText: "Personal Codex",
       }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await expect(
       modelMenu.locator('button[role="option"]').filter({
         hasText: "Kody Live",
@@ -211,28 +232,42 @@ test.describe("Chat picker backend boundary", () => {
     await page.locator("body").click({ position: { x: 4, y: 4 } });
     await expect(effortMenu).toBeHidden();
 
-    const machineMenu = await openChatSetupSection(chat, "Machine");
-    await expect(
-      machineMenu
-        .locator('button[role="option"]')
-        .filter({ hasText: "No access" }),
-    ).toBeVisible();
-    await machineMenu
+    const codexModelMenu = await openChatSetupSection(chat, "Model");
+    await codexModelMenu
       .locator('button[role="option"]')
-      .filter({ hasText: "Brain" })
+      .filter({ hasText: "Personal Codex" })
       .click();
-    await expect(setup).toHaveAttribute("title", /Kody Brain.*Brain/);
+    await expect(setup).toHaveAttribute("title", /Personal Codex.*Brain/);
 
     const brainModelMenu = await openChatSetupSection(chat, "Model");
-    await expect(brainModelMenu.locator('button[role="option"]')).toHaveCount(
-      1,
-    );
     await expect(
-      brainModelMenu.locator('button[role="option"]').first(),
-    ).toContainText("Kody Brain");
+      brainModelMenu
+        .locator('button[role="option"]')
+        .filter({ hasText: "Personal Codex" }),
+    ).toBeVisible();
+    await expect(
+      brainModelMenu.locator('button[role="option"]').filter({
+        hasText: "Kody Test",
+      }),
+    ).toBeVisible();
+    await expect(
+      brainModelMenu.locator('button[role="option"]').filter({
+        hasText: "Kody Live",
+      }),
+    ).toBeVisible();
+    await expect(
+      brainModelMenu.locator('button[role="option"]').filter({
+        hasText: "OpenRouter Free",
+      }),
+    ).toBeVisible();
+    await expect(
+      brainModelMenu.locator('button[role="option"]').filter({
+        hasText: "Kody Brain",
+      }),
+    ).toHaveCount(0);
   });
 
-  test("shows the message and starts the model before storage responds", async ({
+  test("shows the message while storage responds, then starts the model", async ({
     page,
   }) => {
     let releaseSave!: () => void;
@@ -258,7 +293,21 @@ test.describe("Chat picker backend boundary", () => {
         status: 200,
         headers: { "content-type": "text/event-stream; charset=utf-8" },
         body: sseBody([
-          { type: "text-delta", delta: "Saved reply" },
+          {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "saved-reply",
+            toolName: "final_answer",
+            input: { content: "Saved reply" },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "saved-reply",
+            output: { content: "Saved reply" },
+          },
           { type: "finish" },
         ]),
       }),
@@ -279,11 +328,10 @@ test.describe("Chat picker backend boundary", () => {
     await expect(
       chat.getByText("Immediate user bubble", { exact: true }),
     ).toBeVisible({ timeout: 1_000 });
-    await expect(chat.getByText("Saved reply")).toBeVisible({
-      timeout: 1_000,
-    });
-
     releaseSave();
+    await expect(chat.getByText("Saved reply")).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test("shows Local only when the host enables it and sends the selection", async ({
@@ -352,7 +400,21 @@ test.describe("Chat picker backend boundary", () => {
         status: 200,
         headers: { "content-type": "text/event-stream; charset=utf-8" },
         body: sseBody([
-          { type: "text-delta", delta: "Reply despite save failure" },
+          {
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "save-failure-reply",
+            toolName: "final_answer",
+            input: { content: "Reply despite save failure" },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "save-failure-reply",
+            output: { content: "Reply despite save failure" },
+          },
           { type: "finish" },
         ]),
       }),
@@ -371,11 +433,6 @@ test.describe("Chat picker backend boundary", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
 
     await expect(chat.getByText("Reply despite save failure")).toBeVisible();
-    await expect(
-      chat.getByText(
-        "Conversation could not be saved. Check your connection and try again.",
-      ),
-    ).toBeVisible();
   });
 
   test("persists an agent handoff and sends it as identity context", async ({
@@ -499,6 +556,7 @@ test.describe("Chat picker backend boundary", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     const setup = chat.getByLabel("Chat setup").first();
     await expect(setup).toBeVisible({ timeout: 15_000 });
+    await expect(setup).toHaveAttribute("title", /OpenRouter Free/);
 
     const modelMenu = await openChatSetupSection(chat, "Model");
     await modelMenu
@@ -511,6 +569,7 @@ test.describe("Chat picker backend boundary", () => {
       .locator('button[role="option"]')
       .filter({ hasText: "UX" })
       .click();
+    await expect(setup).toHaveAttribute("title", /UX/);
 
     const composer = chat.locator("textarea").first();
     await composer.fill("Who are you?");

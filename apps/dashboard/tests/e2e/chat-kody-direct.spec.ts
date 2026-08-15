@@ -184,9 +184,9 @@ test.describe("Kody direct agent", () => {
         status: 200,
         headers: { "content-type": "text/event-stream" },
         body:
-          'data: {"type":"text-delta","delta":"Hello "}\n\n' +
-          'data: {"type":"text-delta","delta":"from Kody "}\n\n' +
-          'data: {"type":"text-delta","delta":"direct!"}\n\n' +
+          'data: {"type":"data-chat-output-contract","data":{"mode":"exclusive-tool"}}\n\n' +
+          'data: {"type":"tool-input-available","toolCallId":"direct-final","toolName":"final_answer","input":{"content":"Hello from Kody direct!"}}\n\n' +
+          'data: {"type":"tool-output-available","toolCallId":"direct-final","output":{"content":"Hello from Kody direct!"}}\n\n' +
           'data: {"type":"finish"}\n\n' +
           "data: [DONE]\n\n",
       }),
