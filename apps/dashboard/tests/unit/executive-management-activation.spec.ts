@@ -23,7 +23,11 @@ describe("kody-chat company activation", () => {
       readFileSync(resolve(repoRoot, "kody.config.json"), "utf8"),
     );
 
-    expect(config.company.activeAgents).toEqual(["kody", "memory-steward"]);
+    expect(config.company.activeAgents).toEqual([
+      "kody",
+      "memory-steward",
+      "qa",
+    ]);
     expect(config.company.activeCapabilities).toEqual([
       "ci-health-check",
       "review",
@@ -46,6 +50,7 @@ describe("kody-chat company activation", () => {
       "finalize-ci-repair",
       "prepare-strategy-application",
       "apply-strategy",
+      "qa-engineer",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
@@ -55,6 +60,7 @@ describe("kody-chat company activation", () => {
       "review-fix",
       "quality-run",
       "apply-strategy",
+      "qa-scan",
     ]);
     expect(config.defaultImplementation).toBe("run");
     expect(config.defaultPrImplementation).toBe("fix");
