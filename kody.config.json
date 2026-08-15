@@ -22,7 +22,8 @@
   "company": {
     "activeAgents": [
       "kody",
-      "memory-steward"
+      "memory-steward",
+      "qa"
     ],
     "activeCapabilities": [
       "ci-health-check",
