@@ -1,5 +1,12 @@
 import type { ChatViewDirective } from "../../../chat-ui-actions";
 import type { MachineAccess } from "../../../chat-types";
+import type {
+  AgentIdentity,
+  ConversationRuntime,
+  MessageStatus,
+} from "./prepare-turn";
+
+export type { ConversationRuntime } from "./prepare-turn";
 
 export type ConversationCommand =
   | {
@@ -63,14 +70,6 @@ export type ConversationCommand =
       createdAt: string;
     }
   | { kind: "clear"; actorLogin: string };
-
-type MessageStatus = "pending" | "committed" | "failed" | "cancelled";
-type AgentIdentity = { slug: string; title: string };
-export type ConversationRuntime =
-  | { kind: "direct"; modelId: string }
-  | { kind: "brain"; brainId: string }
-  | { kind: "engine"; profileId: string }
-  | { kind: "live"; profileId: string };
 
 function shouldKeepCommandAlive(command: ConversationCommand): boolean {
   return (

@@ -3,6 +3,8 @@ export type AgentIdentity = Readonly<{
   title: string;
 }>;
 
+export type MessageStatus = "pending" | "committed" | "failed" | "cancelled";
+
 export type ConversationScope =
   | Readonly<{
       kind: "global";
@@ -48,7 +50,7 @@ export type ConversationMessageEntry = Readonly<{
   role: "user" | "assistant";
   author: ConversationAuthor;
   content: string;
-  status: "pending" | "committed" | "failed" | "cancelled";
+  status: MessageStatus;
   createdAt: string;
 }>;
 

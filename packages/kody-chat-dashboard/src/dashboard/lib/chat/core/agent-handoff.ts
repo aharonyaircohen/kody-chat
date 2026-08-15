@@ -1,9 +1,5 @@
 import type { AgentHandoff } from "../../chat-types";
-
-interface AgentIdentity {
-  slug: string;
-  title: string;
-}
+import type { AgentIdentity } from "./conversation/prepare-turn";
 
 interface HandoffMessage {
   role: "user" | "assistant";
