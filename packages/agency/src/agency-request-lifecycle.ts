@@ -137,7 +137,9 @@ export async function completeAgencyRequestRun(
 ): Promise<{ updated: number }> {
   const records = await ports.findByRun(input.runId, input.loopId);
   const summary = input.summary?.trim().slice(0, 2_000);
+  let updated = 0;
   for (const record of records) {
+    if (record.state.phase === "done") continue;
     const workflowSucceeded = input.status === "success";
     const verification = workflowSucceeded
       ? await ports.verify?.(record, input) ?? {
@@ -175,6 +177,7 @@ export async function completeAgencyRequestRun(
         related,
       }),
     );
+    updated += 1;
   }
-  return { updated: records.length };
+  return { updated };
 }

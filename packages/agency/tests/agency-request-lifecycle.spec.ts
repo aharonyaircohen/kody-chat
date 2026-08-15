@@ -274,4 +274,40 @@ describe("Agency request lifecycle", () => {
       }),
     );
   });
+
+  it("does not reopen a completed request when a completion callback is repeated", async () => {
+    const save = vi.fn(async () => undefined);
+    const record: AgencyRequestRecord = {
+      ...baseRecord,
+      state: {
+        ...baseRecord.state,
+        phase: "done",
+        related: [
+          ...baseRecord.state.related,
+          { kind: "run", id: "run-123" },
+          { kind: "report", id: "agency-request-build-healthy-ci" },
+        ],
+      },
+    };
+
+    const result = await completeAgencyRequestRun(
+      {
+        workflowId: "apply-strategy",
+        runId: "run-123",
+        status: "success",
+        summary: "CI is healthy.",
+      },
+      {
+        findByRun: vi.fn(async () => [record]),
+        verify: vi.fn(async () => ({
+          passed: false,
+          evidence: "Duplicate callback omitted verification.",
+        })),
+        save,
+      },
+    );
+
+    expect(result).toEqual({ updated: 0 });
+    expect(save).not.toHaveBeenCalled();
+  });
 });
