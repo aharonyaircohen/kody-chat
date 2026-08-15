@@ -177,7 +177,7 @@ describe("validateChatViewSpec", () => {
     expect(result.success).toBe(false);
   });
 
-  it("repairs a wrong root when the spec has one element", () => {
+  it("rejects a wrong root even when the spec has one element", () => {
     const result = validateChatViewSpec(catalog, {
       root: "card",
       elements: {
@@ -188,7 +188,10 @@ describe("validateChatViewSpec", () => {
       },
     });
 
-    expect(result).toMatchObject({ success: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("card");
+    }
   });
 
   it("coerces stringified props and numeric-keyed children (regression: MiniMax malformed elements)", () => {
