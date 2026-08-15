@@ -51,6 +51,10 @@ describe("kody-chat company activation", () => {
       "prepare-strategy-application",
       "apply-strategy",
       "qa-engineer",
+      "verify-strategy-application",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
@@ -61,6 +65,7 @@ describe("kody-chat company activation", () => {
       "quality-run",
       "apply-strategy",
       "qa-scan",
+      "web-release",
     ]);
     expect(config.defaultImplementation).toBe("run");
     expect(config.defaultPrImplementation).toBe("fix");

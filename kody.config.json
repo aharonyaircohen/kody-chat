@@ -47,7 +47,11 @@
       "finalize-ci-repair",
       "prepare-strategy-application",
       "apply-strategy",
-      "qa-engineer"
+      "qa-engineer",
+      "verify-strategy-application",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -57,12 +61,28 @@
       "review-fix",
       "quality-run",
       "apply-strategy",
-      "qa-scan"
+      "qa-scan",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
       "ci-repair"
     ]
+  },
+  "release": {
+    "version": {
+      "readCommand": "node -p \"require('./apps/dashboard/package.json').version\"",
+      "writeCommand": "node -e 'const fs=require(\"fs\");const p=\"apps/dashboard/package.json\";const d=JSON.parse(fs.readFileSync(p));d.version=process.env.KODY_RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(d,null,2)+\"\\n\")'"
+    },
+    "versionFiles": [
+      "apps/dashboard/package.json"
+    ],
+    "validation": {
+      "workflow": "release-validation.yml"
+    },
+    "timeoutMs": 1800000,
+    "releaseBranch": "main",
+    "productionDeployRequired": true
   },
   "access": {
     "allowedAssociations": [

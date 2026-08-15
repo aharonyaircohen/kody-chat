@@ -516,8 +516,10 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     nextSpecialistStream = {
       text: "A Todo list requires a name before creation.",
     };
-    queueAgencyRoute("can u create new todo");
 
+    // Todo routing is deterministic (routeTodoRequest), so it never calls the
+    // mocked generateText. Do not queue a route mock here — it would leak into
+    // the next test's generateText queue and corrupt that test's mock sequence.
     const { status, response } = await postAndCaptureToolNames(
       "can u create new todo",
     );
