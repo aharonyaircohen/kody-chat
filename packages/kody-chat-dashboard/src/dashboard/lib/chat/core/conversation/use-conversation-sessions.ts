@@ -385,11 +385,9 @@ export function useConversationSessions(
         agencyAgent: { slug: "kody", title: "Kody" },
         machineAccess: opts?.machineAccess ?? "none",
       };
-      setSessions((previous) => {
-        const next = [session, ...previous];
-        sessionsRef.current = next;
-        return next;
-      });
+      const nextSessions = [session, ...sessionsRef.current];
+      sessionsRef.current = nextSessions;
+      setSessions(nextSessions);
       setMessagesBySession((previous) => ({ ...previous, [id]: [] }));
       setActiveSessionId(id);
       if (login) {
