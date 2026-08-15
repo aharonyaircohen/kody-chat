@@ -1,0 +1,16 @@
+{
+  "id": "hourly-qa-scan",
+  "trigger": {
+    "type": "schedule",
+    "every": "1h"
+  },
+  "target": {
+    "kind": "workflow",
+    "id": "qa-scan"
+  },
+  "input": {
+    "url": "https://kody-dashboard-qa.vercel.app/repo/aharonyaircohen/kody-chat",
+    "scope": "Chat: agent and model selection, tool use, specialist delegation, loading and error recovery, retry and persistence, and repository isolation"
+  },
+  "enabled": true
+}
