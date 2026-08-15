@@ -80,6 +80,36 @@ describe("runChatTurn", () => {
     ]);
   });
 
+  it("settles the surface before observers receive completion", async () => {
+    let surfaceSettled = false;
+    const completionObservations: boolean[] = [];
+    const transport: ChatTransport = {
+      id: "test",
+      async send(_input, ctx) {
+        ctx.emit({ type: "done" });
+      },
+    };
+
+    await runChatTurn({
+      transport,
+      input: INPUT,
+      context: { authHeaders: {}, emit: () => {} },
+      inactivityMs: 1_000,
+      settle: () => {
+        surfaceSettled = true;
+      },
+      observer: {
+        onPhase: (snapshot) => {
+          if (snapshot.phase === "completed") {
+            completionObservations.push(surfaceSettled);
+          }
+        },
+      },
+    });
+
+    expect(completionObservations).toEqual([true]);
+  });
+
   it("uses a caller-provided turn id for end-to-end correlation", async () => {
     const transport: ChatTransport = {
       id: "test",

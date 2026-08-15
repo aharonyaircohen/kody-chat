@@ -65,6 +65,7 @@ import {
   type KodyLiveTurnConfig,
 } from "../chat/core/transports/kody-live";
 import { runChatTurn } from "../chat/core/transports/turn-coordinator";
+import { createAssistantTurnPersistenceObserver } from "../chat/core/conversation/turn-persistence-observer";
 import {
   createTransportTurnHandler,
   type TransportTurnState,
@@ -818,19 +819,6 @@ async function runSendTextInner(
     timestamp: new Date().toISOString(),
   };
   setMessages((prev) => [...prev, pendingAssistantMessage]);
-  if (effectiveAgent.backend === "kody-direct") {
-    await sessionHook
-      .persistPendingAssistantMessage(uiSessionId, {
-        id: pendingAssistantMessage.id,
-        turnId: durableTurnId,
-        role: "assistant",
-        text: "",
-        isLoading: true,
-        timestamp: pendingAssistantMessage.timestamp,
-        agent: preparedTurn.speaker,
-      })
-      .catch(() => undefined);
-  }
 
   // ─── Brain backend: sync SSE stream from a Brain server ───
   // Two flavors share this branch, distinguished by selectedAgentId:
@@ -1180,6 +1168,33 @@ async function runSendTextInner(
       emitVoiceDelta,
       voiceMode,
     });
+    const directPersistence = createAssistantTurnPersistenceObserver({
+      persistPending: () =>
+        sessionHook.persistPendingAssistantMessage(uiSessionId, {
+          id: pendingAssistantMessage.id,
+          turnId: durableTurnId,
+          role: "assistant",
+          text: "",
+          isLoading: true,
+          timestamp: pendingAssistantMessage.timestamp,
+          agent: preparedTurn.speaker,
+        }),
+      readSettledMessage: () => {
+        const message = turnMessages.find(
+          (item) => item.id === pendingAssistantMessage.id,
+        );
+        if (!message || message.isLoading) return null;
+        const stored = messageToChat(message);
+        return {
+          ...stored,
+          id: stored.id ?? pendingAssistantMessage.id,
+          role: "assistant" as const,
+          turnId: durableTurnId,
+        };
+      },
+      persistSettled: (message) =>
+        sessionHook.settlePendingAssistantMessage(uiSessionId, message),
+    });
     try {
       const kodyTurnConfig = {
         endpoint: "/api/kody/chat/kody",
@@ -1281,6 +1296,28 @@ async function runSendTextInner(
         },
         inactivityMs: KODY_DIRECT_INACTIVITY_MS,
         turnId: durableTurnId,
+        observer: directPersistence.observer,
+        settle: () => {
+          const assistantText = kodyTurn.state.textBuf.trim();
+          let assistantDisplayOverride: string | null | void = undefined;
+          if (options.onAssistantTextComplete) {
+            try {
+              assistantDisplayOverride =
+                options.onAssistantTextComplete(assistantText);
+            } catch (err) {
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : "Failed to handle Kody terminal response",
+              );
+            }
+          }
+          finalizeKodyDirectTurn({
+            io: { setMessages, setLoading },
+            turn: kodyTurn.state,
+            assistantDisplayOverride,
+          });
+        },
       });
 
       // Per-turn results accumulated by the event handler. Pending UI
@@ -1295,30 +1332,8 @@ async function runSendTextInner(
         pendingCreatedIssue,
       } = kodyTurn.state;
 
-      const assistantText = textBuf.trim();
-      let assistantDisplayOverride: string | null | void = undefined;
-      if (options.onAssistantTextComplete) {
-        try {
-          assistantDisplayOverride =
-            options.onAssistantTextComplete(assistantText);
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : "Failed to handle Kody terminal response",
-          );
-        }
-      }
-
-      // FINISH_STRATEGIES["kody-direct"] — empty-turn fallback, tool
-      // error surfacing, and the display override live in the settle
-      // module's finalizer so the behavior is declared in one place.
-      finalizeKodyDirectTurn({
-        io: { setMessages, setLoading },
-        turn: kodyTurn.state,
-        assistantDisplayOverride,
-      });
-      await persistSettledAssistant();
+      // Storage follows the lifecycle in order, but never delays the reply.
+      void directPersistence.flush();
       // Apply any UI-control directives the model emitted. Done after
       // the assistant bubble settles so the agent flip doesn't race
       // the in-flight render or interrupt voice TTS that is still

@@ -16,12 +16,7 @@ import type {
 } from "./transport-types";
 
 export type ChatTurnPhase =
-  | "connecting"
-  | "active"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "stalled";
+  "connecting" | "active" | "completed" | "failed" | "cancelled" | "stalled";
 
 export interface ChatTurnSnapshot {
   turnId: string;
@@ -64,6 +59,8 @@ export interface RunChatTurnOptions {
   turnId?: string;
   onPhaseChange?: (turn: ChatTurnSnapshot) => void;
   observer?: ChatTurnObserver;
+  /** Finalize the user-visible turn before completion observers run. */
+  settle?: (turn: ChatTurnSnapshot) => void | Promise<void>;
 }
 
 function createTurnId(): string {
@@ -126,6 +123,7 @@ export async function runChatTurn(
 
   const controller = new AbortController();
   let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+  let completionRequested = false;
   let rejectLifecycle!: (reason: unknown) => void;
   const lifecycleFailure = new Promise<never>((_resolve, reject) => {
     rejectLifecycle = reject;
@@ -162,19 +160,25 @@ export async function runChatTurn(
     armInactivityDeadline();
     context.emit(event);
     observer?.onEvent?.(event, { ...turn });
-    if (event.type === "done") publish("completed");
+    if (event.type === "done") completionRequested = true;
     else if (event.type === "error" && !event.recoverable) publish("failed");
   };
 
   armInactivityDeadline();
   const transportRun = transport
-    .send({ ...input, turnId }, {
-      authHeaders: context.authHeaders,
-      signal: controller.signal,
-      emit,
-    })
-    .then(() => {
-      if (turn.phase !== "completed" && turn.phase !== "failed") {
+    .send(
+      { ...input, turnId },
+      {
+        authHeaders: context.authHeaders,
+        signal: controller.signal,
+        emit,
+      },
+    )
+    .then(async () => {
+      if (completionRequested) {
+        await options.settle?.({ ...turn });
+        publish("completed");
+      } else if (turn.phase !== "failed") {
         throw new ChatTurnProtocolError(transport.id);
       }
       return { ...turn };
