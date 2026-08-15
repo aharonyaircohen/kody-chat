@@ -8,6 +8,22 @@
   "git": {
     "defaultBranch": "main"
   },
+  "release": {
+    "versionFiles": [
+      "apps\/dashboard\/package.json"
+    ],
+    "version": {
+      "readCommand": "node -e \"console.log(require('./apps/dashboard/package.json').version)\"",
+      "writeCommand": "node -e \"const fs=require('fs');const p='./apps/dashboard/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.env.KODY_RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n')\""
+    },
+    "validation": {
+      "workflow": "release-validation.yml"
+    },
+    "releaseBranch": "main",
+    "allowAdminMerge": false,
+    "productionDeployRequired": true,
+    "timeoutMs": 2700000
+  },
   "github": {
     "owner": "aharonyaircohen",
     "repo": "kody-chat",
@@ -45,7 +61,11 @@
       "run",
       "finalize-ci-repair",
       "prepare-strategy-application",
-      "apply-strategy"
+      "apply-strategy",
+      "verify-strategy-application",
+      "release-merge",
+      "release-promote",
+      "vercel-production-deploy"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -54,7 +74,8 @@
       "merge",
       "review-fix",
       "quality-run",
-      "apply-strategy"
+      "apply-strategy",
+      "web-release"
     ],
     "activePipelines": [
       "review-and-merge",
