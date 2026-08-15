@@ -2638,6 +2638,21 @@ This turn includes an image from the user. For questions about what is visible i
               });
               return;
             }
+            if (!requireViewOutput && !producedOutputTool && visibleAnswer) {
+              const toolCallId = `model-answer-${traceId}`;
+              writer.write({
+                type: "tool-input-available",
+                toolCallId,
+                toolName: FINAL_ANSWER_TOOL,
+                input: { content: visibleAnswer },
+              });
+              writer.write({
+                type: "tool-output-available",
+                toolCallId,
+                output: { content: visibleAnswer },
+              });
+              return;
+            }
             if (
               !shouldRetryToollessTurn({
                 producedOutputTool,
