@@ -103,6 +103,12 @@ function isInformationalRequest(text: string): boolean {
   );
 }
 
+function isLinkOrPathRequest(text: string): boolean {
+  return /^\s*(?:please\s+)?(?:provide|give|find|get|open|share|send|show)\b[^?\n]{0,120}\b(?:link|url|path|route|page)\b/i.test(
+    text,
+  );
+}
+
 function isNonInteractiveOperation(text: string): boolean {
   if (
     !/^\s*(?:read|rewrite|publish|update|delete|remove|rename|move|copy|archive)\b/i.test(
@@ -144,6 +150,7 @@ export function shouldRequireViewOutputForTurn({
 }): boolean {
   const text = userText ?? "";
   if (/<view_result>[\s\S]*<\/view_result>/i.test(text)) return false;
+  if (isLinkOrPathRequest(text)) return false;
   // "Ask the Repository Specialist to ..." is an instruction to execute an
   // assigned Agent, not a request for Kody to ask the user for approval.
   if (isDirectAgentAsk(text)) return false;

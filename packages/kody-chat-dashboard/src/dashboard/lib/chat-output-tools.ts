@@ -9,11 +9,18 @@ export const CHAT_OUTPUT_TOOL_NAMES = [
 
 const TOOLLESS_RECOVERY_CONTENT =
   "I couldn't complete a reliable answer with this model. Would you like me to retry or use another model?";
+const VIEW_RECOVERY_CONTENT =
+  "I couldn't display that UI card. Would you like me to retry?";
 
 /** Preserve useful prose when a provider cannot execute the required output tool. */
 export function getToollessRecoveryContent(visibleAnswer: string): string {
   const answer = visibleAnswer.trim();
   return answer || TOOLLESS_RECOVERY_CONTENT;
+}
+
+export function getViewRecoveryContent(visibleAnswer: string): string {
+  const answer = visibleAnswer.trim();
+  return answer ? `${answer}\n\nWould you like me to retry?` : VIEW_RECOVERY_CONTENT;
 }
 
 export interface FinalAnswerOutput {

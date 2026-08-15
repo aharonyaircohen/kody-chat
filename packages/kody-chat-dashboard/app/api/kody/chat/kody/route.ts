@@ -133,6 +133,7 @@ import {
   isFinalAnswerOutput,
   getToolErrorMessage,
   getToollessRecoveryContent,
+  getViewRecoveryContent,
   hasSuccessfulRenderedViewResult,
   hasVisibleChatToolOutput,
   isToolErrorOutput,
@@ -143,10 +144,6 @@ import {
 import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
-import {
-  buildModelOutputRecoveryView,
-  MODEL_OUTPUT_RECOVERY_RENDERER,
-} from "../../../../../src/dashboard/lib/chat/core/model-output-recovery";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
@@ -2601,20 +2598,18 @@ This turn includes an image from the user. For questions about what is visible i
               !producedOutputTool &&
               retryCount >= retryDeadline
             ) {
-              const toolCallId = `model-output-recovery-${traceId}`;
+              const content = getViewRecoveryContent(visibleAnswer);
+              const toolCallId = `view-recovery-${traceId}`;
               writer.write({
                 type: "tool-input-available",
                 toolCallId,
-                toolName: SHOW_VIEW_TOOL,
-                input: { purpose: MODEL_OUTPUT_RECOVERY_RENDERER },
+                toolName: FINAL_ANSWER_TOOL,
+                input: { content },
               });
               writer.write({
                 type: "tool-output-available",
                 toolCallId,
-                output: buildModelOutputRecoveryView({
-                  id: toolCallId,
-                  modelLabel: resolvedModel.label || resolvedModel.modelName,
-                }),
+                output: { content },
               });
               return;
             }

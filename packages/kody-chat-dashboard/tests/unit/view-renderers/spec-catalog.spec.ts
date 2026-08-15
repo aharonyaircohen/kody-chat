@@ -169,9 +169,26 @@ describe("validateChatViewSpec", () => {
   it("rejects a missing root element", () => {
     const result = validateChatViewSpec(catalog, {
       root: "nope",
-      elements: { a: { type: "Stack", props: {} } },
+      elements: {
+        a: { type: "Stack", props: {} },
+        b: { type: "Text", props: { value: "Other" } },
+      },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("repairs a wrong root when the spec has one element", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "card",
+      elements: {
+        view: {
+          type: "Text",
+          props: { value: "Ready" },
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ success: true });
   });
 
   it("coerces stringified props and numeric-keyed children (regression: MiniMax malformed elements)", () => {

@@ -209,7 +209,12 @@ export function validateChatViewSpec(
   if (issues.length > 0) {
     return { success: false, error: issues.join("; ") };
   }
-  const spec: ChatViewSpec = { root: envelope.data.root, elements };
+  const root = Object.prototype.hasOwnProperty.call(elements, envelope.data.root)
+    ? envelope.data.root
+    : Object.keys(elements).length === 1
+      ? Object.keys(elements)[0]
+      : envelope.data.root;
+  const spec: ChatViewSpec = { root, elements };
   const structural = validateSpec(spec);
   if (!structural.valid) {
     return {

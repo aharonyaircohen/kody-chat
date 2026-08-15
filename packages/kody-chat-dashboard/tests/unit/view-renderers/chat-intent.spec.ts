@@ -156,6 +156,22 @@ describe("view renderer chat intent", () => {
     ).toBe(false);
   });
 
+  it("keeps link requests as plain answers even when a resource matches a renderer", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText: "Provide the link to the CTO agent.",
+        definitions: [
+          {
+            ...approvalRenderer,
+            name: "Agent",
+            purpose: "agent",
+            rule: "Use for Agent records.",
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
   it("allows plain output when no renderer definitions are available", () => {
     expect(
       shouldRequireViewOutputForTurn({

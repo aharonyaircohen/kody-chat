@@ -3,6 +3,7 @@ import {
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
   getToolErrorMessage,
+  getViewRecoveryContent,
   getToollessRecoveryContent,
   isToolErrorOutput,
   selectChatOutputActiveTools,
@@ -24,6 +25,15 @@ describe("chat output tools", () => {
     );
     expect(isToolErrorOutput({ error: "" })).toBe(false);
     expect(isToolErrorOutput({ content: "ok" })).toBe(false);
+  });
+
+  it("falls back to plain text after a broken rendered card", () => {
+    expect(getViewRecoveryContent("")).toBe(
+      "I couldn't display that UI card. Would you like me to retry?",
+    );
+    expect(getViewRecoveryContent("I found the agent.")).toBe(
+      "I found the agent.\n\nWould you like me to retry?",
+    );
   });
 
   it("keeps renderer tools available for ordinary answer turns", () => {
