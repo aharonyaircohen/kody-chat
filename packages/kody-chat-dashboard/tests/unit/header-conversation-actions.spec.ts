@@ -59,6 +59,12 @@ describe("chat conversation actions", () => {
     expect(headerRow).not.toContain("messageCount > 0");
   });
 
+  it("does not show an unused context label in capability chat", () => {
+    expect(SOURCE).toContain("props.isCapabilityMode ? null");
+    expect(SOURCE).not.toContain("selectedCapability");
+    expect(SOURCE).not.toContain('data-testid="chat-context-title"');
+  });
+
   it("places new conversation and conversations in the header", () => {
     const conversationActions = SOURCE.slice(
       SOURCE.indexOf("const conversationActions"),

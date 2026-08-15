@@ -15,7 +15,6 @@ import {
   Minimize2,
   PanelLeftClose,
   Plus,
-  Target,
   X,
 } from "lucide-react";
 import type { KodyTask } from "@kody-ade/base/types";
@@ -69,7 +68,6 @@ interface HeaderControlsProps {
   isTaskMode: boolean;
   selectedTask: KodyTask | null;
   isCapabilityMode: boolean;
-  selectedCapability: { slug: string; title?: string } | null;
   activeSessionTitle?: string;
 }
 
@@ -240,54 +238,39 @@ export function HeaderControls(props: HeaderControlsProps) {
           {conversationActions}
         </div>
       </div>
-      <div
-        data-testid="chat-context-bar"
-        className="border-b bg-background/80 px-3 py-0.5 sm:px-5"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 flex-1">
-            {props.isTaskMode && props.selectedTask ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="rounded bg-primary px-1.5 py-0.5 font-medium text-primary-foreground">
-                  #{props.selectedTask.issueNumber}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                  {props.selectedTask.title}
-                </span>
-                {messageCountBadge}
-              </div>
-            ) : props.isCapabilityMode && props.selectedCapability ? (
-              <div className="flex items-center gap-2 text-sm">
-                {props.selectedCapability.slug !==
-                props.selectedAgencyAgentSlug ? (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-400">
-                    <Target className="h-3 w-3" aria-hidden="true" />
-                    {props.selectedCapability.slug}
+      {props.isCapabilityMode ? null : (
+        <div
+          data-testid="chat-context-bar"
+          className="border-b bg-background/80 px-3 py-0.5 sm:px-5"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {props.isTaskMode && props.selectedTask ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="rounded bg-primary px-1.5 py-0.5 font-medium text-primary-foreground">
+                    #{props.selectedTask.issueNumber}
                   </span>
-                ) : null}
-                <span
-                  data-testid="chat-context-title"
-                  className="min-w-0 flex-1 truncate text-muted-foreground"
-                >
-                  {props.selectedCapability.title}
-                </span>
-                {messageCountBadge}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Globe className="h-3 w-3 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">
-                  {props.activeSessionTitle &&
-                  props.activeSessionTitle !== "New conversation"
-                    ? props.activeSessionTitle
-                    : "Global chat — not tied to any task"}
-                </span>
-                {messageCountBadge}
-              </div>
-            )}
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {props.selectedTask.title}
+                  </span>
+                  {messageCountBadge}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Globe className="h-3 w-3 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {props.activeSessionTitle &&
+                    props.activeSessionTitle !== "New conversation"
+                      ? props.activeSessionTitle
+                      : "Global chat — not tied to any task"}
+                  </span>
+                  {messageCountBadge}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
