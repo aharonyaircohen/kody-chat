@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "openrouter/free",
+    "model": "automatic",
     "automaticModels": [
       {
         "spec": "xkiro/deepseek/deepseek-v4-flash",
