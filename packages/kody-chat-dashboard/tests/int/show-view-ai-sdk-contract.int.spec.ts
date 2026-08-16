@@ -115,9 +115,7 @@ describe("show_view AI SDK contract", () => {
 
     const result = streamText({
       model,
-      messages: [
-        { role: "user", content: "ask me a q and ask for approval" },
-      ],
+      messages: [{ role: "user", content: "ask me a q and ask for approval" }],
       tools: { show_view: tools.show_view },
       toolChoice: { type: "tool", toolName: "show_view" },
       stopWhen: ({ steps }) => steps.length > 0,
@@ -132,9 +130,7 @@ describe("show_view AI SDK contract", () => {
             required?: string[];
             properties?: {
               elements?: {
-                additionalProperties?: {
-                  properties?: { type?: { enum?: string[] } };
-                };
+                items?: { properties?: { type?: { enum?: string[] } } };
               };
             };
           };
@@ -143,8 +139,8 @@ describe("show_view AI SDK contract", () => {
 
     expect(showViewTool?.inputSchema?.required).toEqual(["root", "elements"]);
     expect(
-      showViewTool?.inputSchema?.properties?.elements?.additionalProperties
-        ?.properties?.type?.enum,
+      showViewTool?.inputSchema?.properties?.elements?.items?.properties?.type
+        ?.enum,
     ).toEqual(expect.arrayContaining(["ApprovalCard", "Stack", "Button"]));
     expect(toolResults).toEqual([
       expect.objectContaining({

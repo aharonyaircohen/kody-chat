@@ -373,12 +373,11 @@ describe("ui tools", () => {
     const schema = (await asSchema(showView.inputSchema).jsonSchema) as {
       properties: {
         elements: {
-          additionalProperties: { properties: { type: { enum: string[] } } };
+          items: { properties: { type: { enum: string[] } } };
         };
       };
     };
-    const typeEnum =
-      schema.properties.elements.additionalProperties.properties.type.enum;
+    const typeEnum = schema.properties.elements.items.properties.type.enum;
 
     expect(typeEnum).toContain("DecisionCard");
     expect(typeEnum).toContain("Stack");

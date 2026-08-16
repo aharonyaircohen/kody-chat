@@ -220,13 +220,14 @@ export function buildShowViewInputJsonSchema(
         description: "Key of the root element in `elements`.",
       },
       elements: {
-        type: "object",
+        type: "array",
         description:
-          "Flat map of elements keyed by short ids you invent. " +
+          "Flat array of elements with short unique keys you invent. " +
           "Containers reference other elements via `children` keys.",
-        additionalProperties: {
+        items: {
           type: "object",
           properties: {
+            key: { type: "string" },
             type: { type: "string", enum: catalog.componentNames },
             props: { type: "object", additionalProperties: true },
             children: {
@@ -234,7 +235,7 @@ export function buildShowViewInputJsonSchema(
               items: { type: "string" },
             },
           },
-          required: ["type", "props"],
+          required: ["key", "type", "props"],
           additionalProperties: false,
         },
       },

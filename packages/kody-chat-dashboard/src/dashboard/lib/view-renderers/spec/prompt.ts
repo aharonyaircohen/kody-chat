@@ -45,26 +45,27 @@ function definitionComponentLine(
 
 const SINGLE_COMPONENT_EXAMPLE = `{
   "root": "card",
-  "elements": {
-    "card": {
+  "elements": [
+    {
+      "key": "card",
       "type": "MultiSelectList",
       "props": {
         "title": "Pick a few items",
         "items": [ { "label": "Alpha" }, { "label": "Beta" }, { "label": "Gamma" } ]
       }
     }
-  }
+  ]
 }`;
 
 const SPEC_EXAMPLE = `{
   "root": "card",
-  "elements": {
-    "card": { "type": "Stack", "props": {}, "children": ["title", "actions"] },
-    "title": { "type": "Text", "props": { "value": "Publish the lesson?", "variant": "title" } },
-    "actions": { "type": "Row", "props": {}, "children": ["ok", "no"] },
-    "ok": { "type": "Button", "props": { "label": "Publish", "response": "publish", "variant": "primary" } },
-    "no": { "type": "Button", "props": { "label": "Cancel", "response": "cancel" } }
-  }
+  "elements": [
+    { "key": "card", "type": "Stack", "props": {}, "children": ["title", "actions"] },
+    { "key": "title", "type": "Text", "props": { "value": "Publish the lesson?", "variant": "title" } },
+    { "key": "actions", "type": "Row", "props": {}, "children": ["ok", "no"] },
+    { "key": "ok", "type": "Button", "props": { "label": "Publish", "response": "publish", "variant": "primary" } },
+    { "key": "no", "type": "Button", "props": { "label": "Cancel", "response": "cancel" } }
+  ]
 }`;
 
 /**
@@ -76,14 +77,14 @@ export function buildShowViewGuidance(catalog: ChatViewCatalog): string {
     ([name, definition]) => definitionComponentLine(name, definition),
   );
   return [
-    "Spec format: `{ root, elements }` — `elements` is a flat map keyed by short ids you invent; `root` names the top element; containers list child keys in `children`.",
+    "Spec format: `{ root, elements }` — `elements` is a flat array; every element has a short unique `key`; `root` names the top key; containers list child keys in `children`.",
     definitionLines.length > 0
       ? `View components (prefer one of these when its purpose matches the interaction):\n${definitionLines.join("\n")}`
       : null,
     `Atoms for custom layouts:\n${Object.values(ATOM_PROMPT_SIGNATURES)
       .map((line) => `- ${line}`)
       .join("\n")}`,
-    "Buttons and choices send their `response` text back as the user's next message — make responses short, stable tokens (e.g. \"approve\"), not sentences.",
+    'Buttons and choices send their `response` text back as the user\'s next message — make responses short, stable tokens (e.g. "approve"), not sentences.',
     "If the user's new message is NOT an answer to the previous card, that card is dismissed — build the new view only for the new message; never re-render or merge the previous card's question into it.",
     "Write all user-visible text (labels, titles) in the user's language.",
     "Every element MUST have a `type` from the lists above and an object `props`. Most interactions need only ONE view component element:",
@@ -98,7 +99,9 @@ export function buildShowViewGuidance(catalog: ChatViewCatalog): string {
  * Short per-component rule list for the system prompt (when to end a turn
  * with `show_view` at all).
  */
-export function buildViewComponentRules(catalog: ChatViewCatalog): string | null {
+export function buildViewComponentRules(
+  catalog: ChatViewCatalog,
+): string | null {
   const lines = [...catalog.definitionComponents.entries()]
     .filter(([, definition]) => definition.rule?.trim())
     .map(([name, definition]) => `- ${name}: ${definition.rule?.trim()}`);

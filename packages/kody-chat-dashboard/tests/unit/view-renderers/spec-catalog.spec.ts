@@ -58,12 +58,17 @@ describe("chat view catalog", () => {
     const schema = buildShowViewInputJsonSchema(catalog) as {
       properties: {
         elements: {
-          additionalProperties: { properties: { type: { enum: string[] } } };
+          type: string;
+          items: {
+            required: string[];
+            properties: { type: { enum: string[] } };
+          };
         };
       };
     };
-    const names =
-      schema.properties.elements.additionalProperties.properties.type.enum;
+    expect(schema.properties.elements.type).toBe("array");
+    expect(schema.properties.elements.items.required).toContain("key");
+    const names = schema.properties.elements.items.properties.type.enum;
     expect(names).toContain("ApprovalCard");
     expect(names).toContain("Stack");
     expect(names).toContain("Button");
