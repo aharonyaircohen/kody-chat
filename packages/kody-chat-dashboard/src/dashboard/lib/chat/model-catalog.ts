@@ -21,6 +21,24 @@ export const KODY_OPENROUTER_FREE_CHAT_MODEL = Object.freeze({
   engineDefault: false,
 } as const satisfies ChatModel);
 
+export const KODY_XKIRO_FREE_CHAT_MODEL = Object.freeze({
+  id: "xkiro/deepseek/deepseek-v4-flash",
+  label: "xKiro Free",
+  provider: "xkiro",
+  protocol: "openai",
+  baseURL: "https://api.xkiro.com/v1",
+  modelName: "deepseek/deepseek-v4-flash",
+  apiKeySecret: "XKIRO_API_KEY",
+  enabled: true,
+  default: false,
+  engineDefault: false,
+} as const satisfies ChatModel);
+
+export const KODY_BUILT_IN_CHAT_MODELS = Object.freeze([
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+  KODY_XKIRO_FREE_CHAT_MODEL,
+]);
+
 export interface CatalogModel {
   id: string;
   enabled?: boolean;
@@ -29,17 +47,32 @@ export interface CatalogModel {
 
 export function composeChatModelCatalog<T extends CatalogModel>(
   configuredModels: readonly T[],
-  builtInModel: T,
+  builtInModels: T | readonly T[],
 ): T[] {
   const configured = [...configuredModels];
-  const sameId = configured.find((model) => model.id === builtInModel.id);
+  const builtIns = Array.isArray(builtInModels)
+    ? builtInModels
+    : [builtInModels];
   const hasExplicitDefault = configured.some(
     (model) => model.enabled !== false && model.default === true,
   );
-  if (sameId) return configured;
+  const hasConfiguredBuiltIn = configured.some((model) =>
+    builtIns.some((builtIn) => builtIn.id === model.id),
+  );
+  const missingBuiltIns = builtIns.filter(
+    (builtIn) => !configured.some((model) => model.id === builtIn.id),
+  );
+  if (missingBuiltIns.length === 0) return configured;
 
   return [
-    { ...builtInModel, default: !hasExplicitDefault } as T,
+    ...missingBuiltIns.map(
+      (builtIn, index) =>
+        ({
+          ...builtIn,
+          default:
+            !hasExplicitDefault && !hasConfiguredBuiltIn && index === 0,
+        }) as T,
+    ),
     ...configured,
   ];
 }

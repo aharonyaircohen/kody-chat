@@ -207,6 +207,7 @@ export async function sendKodyDirectTurn(
   // flag a drop is indistinguishable from a clean finish and the chat
   // goes silent with no error.
   let sawTerminal = false;
+  let receivedRenderedView = false;
 
   const applyChunk = (chunk: KodyDirectChunk): void => {
     if (
@@ -215,9 +216,17 @@ export async function sendKodyDirectTurn(
       typeof chunk.data.from === "string" &&
       typeof chunk.data.to === "string"
     ) {
+      const reason =
+        chunk.data.reason === "timeout"
+          ? "timed out"
+          : chunk.data.reason === "network"
+            ? "had a network error"
+            : chunk.data.reason === "server_error"
+              ? "had a temporary server error"
+              : "is rate limited";
       ctx.emit({
         type: "notice",
-        message: `${chunk.data.from} is rate limited. Continuing with ${chunk.data.to}.`,
+        message: `${chunk.data.from} ${reason}. Continuing with ${chunk.data.to}.`,
       });
     } else if (chunk.type === "finish") {
       sawTerminal = true;
@@ -445,6 +454,7 @@ export async function sendKodyDirectTurn(
             presentation: hasVisibleTextOutput ? "append" : "replace",
           },
         });
+        receivedRenderedView = true;
       }
       ctx.emit({
         type: "tool-result",
@@ -495,6 +505,14 @@ export async function sendKodyDirectTurn(
       } catch {
         // Ignore malformed chunks rather than aborting the stream.
       }
+      if (receivedRenderedView) break;
+    }
+    if (receivedRenderedView) {
+      // A rendered view is the completed user-facing result for this turn.
+      // Do not leave the UI waiting when a provider keeps the stream open.
+      sawTerminal = true;
+      await reader.cancel().catch(() => undefined);
+      break;
     }
   }
   if (!sawTerminal && ctx.signal?.aborted !== true) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatModel } from "@kody-ade/base/variables/models";
 import {
+  KODY_XKIRO_FREE_CHAT_MODEL,
   KODY_OPENROUTER_FREE_CHAT_MODEL,
   composeChatModelCatalog,
 } from "../../../src/dashboard/lib/chat/model-catalog";
@@ -28,6 +29,32 @@ describe("Kody Chat model catalog", () => {
       modelName: "openrouter/free",
       apiKeySecret: "OPENROUTER_API_KEY",
     });
+  });
+
+  it("defines the xKiro Free configuration", () => {
+    expect(KODY_XKIRO_FREE_CHAT_MODEL).toMatchObject({
+      id: "xkiro/deepseek/deepseek-v4-flash",
+      label: "xKiro Free",
+      provider: "xkiro",
+      protocol: "openai",
+      baseURL: "https://api.xkiro.com/v1",
+      modelName: "deepseek/deepseek-v4-flash",
+      apiKeySecret: "XKIRO_API_KEY",
+    });
+  });
+
+  it("composes both built-in models without overwriting configured models", () => {
+    const catalog = composeChatModelCatalog(
+      [minimaxModel()],
+      [KODY_OPENROUTER_FREE_CHAT_MODEL, KODY_XKIRO_FREE_CHAT_MODEL],
+    );
+
+    expect(catalog.map((model) => model.id)).toEqual([
+      "openrouter/free",
+      "xkiro/deepseek/deepseek-v4-flash",
+      "minimax/MiniMax-M3",
+    ]);
+    expect(catalog[0]).toMatchObject({ default: true });
   });
 
   it("uses the embedded model as the default only when no user default exists", () => {

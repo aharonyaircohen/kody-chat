@@ -172,6 +172,23 @@ test.describe("Chat picker backend boundary", () => {
     await seedAuth(page);
   });
 
+  test("keeps Personal Codex visible and selects its Brain machine", async ({
+    page,
+  }) => {
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const setup = chat.getByLabel("Chat setup").first();
+
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    const personalCodex = modelMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "Personal Codex" });
+    await expect(personalCodex).toBeVisible();
+    await personalCodex.click();
+
+    await expect(setup).toHaveAttribute("title", /Personal Codex.*Brain/);
+  });
+
   test("keeps agent, model, and machine selection separate", async ({
     page,
   }) => {
@@ -267,7 +284,7 @@ test.describe("Chat picker backend boundary", () => {
     ).toHaveCount(0);
   });
 
-  test("shows the message while storage responds, then starts the model", async ({
+  test("shows the message and starts the model before storage responds", async ({
     page,
   }) => {
     let releaseSave!: () => void;
@@ -328,10 +345,10 @@ test.describe("Chat picker backend boundary", () => {
     await expect(
       chat.getByText("Immediate user bubble", { exact: true }),
     ).toBeVisible({ timeout: 1_000 });
-    releaseSave();
     await expect(chat.getByText("Saved reply")).toBeVisible({
-      timeout: 5_000,
+      timeout: 1_000,
     });
+    releaseSave();
   });
 
   test("shows Local only when the host enables it and sends the selection", async ({

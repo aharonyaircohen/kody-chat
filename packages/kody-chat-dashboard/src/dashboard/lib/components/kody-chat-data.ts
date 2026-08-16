@@ -23,8 +23,8 @@ import type {
 } from "../chat/platform/agent-entries";
 import { authHeaders } from "../kody-chat-live-session";
 import {
+  KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
-  KODY_OPENROUTER_FREE_CHAT_MODEL,
 } from "../chat/model-catalog";
 
 export interface ChatDataSources {
@@ -78,7 +78,7 @@ export function useChatDataSources(): ChatDataSources {
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   const [flyConfigured, setFlyConfigured] = useState(false);
 
-  // Compose the server-backed model list with the built-in OpenRouter entry.
+  // Compose the server-backed model list with Kody's built-in free providers.
   // The built-in entry remains available even when the request fails.
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +101,7 @@ export function useChatDataSources(): ChatDataSources {
         setChatModels(
           composeChatModelCatalog<ChatModelEntry>(
             configuredModels,
-            KODY_OPENROUTER_FREE_CHAT_MODEL,
+            KODY_BUILT_IN_CHAT_MODELS,
           ),
         );
         setBrainModels(Array.isArray(brainJson.models) ? brainJson.models : []);

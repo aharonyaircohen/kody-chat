@@ -9,4 +9,4 @@ import "./dashboard-feature-guides";
 export { POST } from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800;

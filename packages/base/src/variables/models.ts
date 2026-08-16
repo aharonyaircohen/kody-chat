@@ -58,6 +58,14 @@ export const PROVIDER_PRESETS = {
     baseURL: "https://openrouter.ai/api/v1",
     keyHint: "OPENROUTER_API_KEY",
   },
+  xkiro: {
+    label: "xKiro",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://api.xkiro.com/v1",
+    protocol: "openai" as const,
+    baseURL: "https://api.xkiro.com/v1",
+    keyHint: "XKIRO_API_KEY",
+  },
   groq: {
     label: "Groq",
     adapter: "openai-compatible" as const,

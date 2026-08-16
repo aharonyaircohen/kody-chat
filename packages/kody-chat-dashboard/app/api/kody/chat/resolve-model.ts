@@ -20,8 +20,8 @@ import { chatModelAdapter, chatModelAdapterBaseURL } from "./model-adapters";
 import { supportsVision } from "@kody-ade/kody-chat-dashboard/core/vision-support";
 import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import {
+  KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
-  KODY_OPENROUTER_FREE_CHAT_MODEL,
 } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
   AUTOMATIC_MODEL_ID,
@@ -35,6 +35,10 @@ import {
   createAutomaticLanguageModel,
   type AutomaticFallbackEvent,
 } from "@kody-ade/kody-chat-dashboard/core/automatic-language-model";
+import {
+  observeLanguageModelCalls,
+  type ModelCallEvent,
+} from "@kody-ade/kody-chat-dashboard/core/model-call-observer";
 
 export type ResolvedChatModel = {
   model: LanguageModel;
@@ -45,7 +49,17 @@ export type ResolvedChatModel = {
 export type ResolveChatModelOptions = {
   preferVision?: boolean;
   onAutomaticFallback?: (event: AutomaticFallbackEvent) => void;
+  onModelCall?: (event: ModelCallEvent) => void;
 };
+
+function observeModel(
+  model: LanguageModelV3,
+  options: ResolveChatModelOptions,
+): LanguageModelV3 {
+  return options.onModelCall
+    ? observeLanguageModelCalls(model, { onEvent: options.onModelCall })
+    : model;
+}
 
 const ENGINE_PROVIDER_ALIASES: Record<string, ProviderPreset> = {
   anthropic: "anthropic",
@@ -181,7 +195,7 @@ export async function resolveChatModel(
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
   const availableModels = composeChatModelCatalog(
     await loadChatModels(req),
-    KODY_OPENROUTER_FREE_CHAT_MODEL,
+    KODY_BUILT_IN_CHAT_MODELS,
   );
   if (modelId === AUTOMATIC_MODEL_ID) {
     const candidates = availableModels.filter(
@@ -237,7 +251,10 @@ export async function resolveChatModel(
       }
       resolvedCandidates.push({
         id: resolved.label || resolved.modelName,
-        model: adapter.create(resolved, apiKey) as LanguageModelV3,
+        model: observeModel(
+          adapter.create(resolved, apiKey) as LanguageModelV3,
+          options,
+        ),
       });
     }
     const first = candidates[0]!;
@@ -321,7 +338,10 @@ export async function resolveChatModel(
       ),
     };
   }
-  const model: LanguageModel = adapter.create(resolvedModel, apiKey);
+  const model: LanguageModel = observeModel(
+    adapter.create(resolvedModel, apiKey) as LanguageModelV3,
+    options,
+  ) as LanguageModel;
 
   return { model, resolvedModel, apiKey };
 }

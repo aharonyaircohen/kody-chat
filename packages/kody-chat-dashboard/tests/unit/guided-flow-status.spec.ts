@@ -35,51 +35,20 @@ describe("guided flow registry", () => {
       title: "Get started with Kody",
       version: 3,
       completionRouteId: "chat",
-      steps: [
+    });
+    const initializeStep = onboarding?.steps.find(
+      (step) => step.id === "initialize-repository",
+    );
+    expect(initializeStep).toMatchObject({
+      type: "command",
+      command: "/init",
+      actions: expect.arrayContaining([
+        { id: "run", target: { type: "stay" } },
         {
-          id: "welcome",
-          rendererSlug: "approval-card",
-          rendererData: {
-            actions: expect.any(Array),
-          },
-          actions: [
-            {
-              id: "finish",
-              target: { type: "complete" },
-            },
-            {
-              id: "repository",
-              target: {
-                type: "step",
-                stepId: "attach-repository",
-              },
-            },
-          ],
+          id: "finish",
+          target: { type: "step", stepId: "choose-chat-provider" },
         },
-        {
-          id: "attach-repository",
-          routeId: "org",
-          rendererSlug: "approval-card",
-          rendererData: {
-            actions: expect.any(Array),
-          },
-          actions: [
-            {
-              id: "continue",
-              target: { type: "step", stepId: "initialize-repository" },
-            },
-          ],
-        },
-        {
-          id: "initialize-repository",
-          type: "command",
-          command: "/init",
-          actions: [
-            { id: "run", target: { type: "stay" } },
-            { id: "finish", target: { type: "complete" } },
-          ],
-        },
-      ],
+      ]),
     });
     expect(onboarding?.steps[1]?.explanation).toContain(
       "Webhooks: Read and write",
@@ -88,8 +57,13 @@ describe("guided flow registry", () => {
     expect(onboarding?.steps.map((step) => step.id)).not.toContain(
       "create-github-pat",
     );
-    expect(onboarding?.steps.map((step) => step.routeId)).not.toContain(
-      "secrets",
+    expect(onboarding?.steps.map((step) => step.routeId)).toContain("secrets");
+    expect(onboarding?.steps.map((step) => step.id)).toEqual(
+      expect.arrayContaining([
+        "choose-chat-provider",
+        "add-openrouter-key",
+        "add-xkiro-key",
+      ]),
     );
     expect(getGuidedFlowDefinition("onboarding", 1)).not.toBeNull();
     expect(getGuidedFlowDefinition("onboarding", 2)).not.toBeNull();

@@ -18,7 +18,11 @@ export interface AutomaticLanguageModelCandidate {
 export interface AutomaticFallbackEvent {
   from: string;
   to: string;
+  reason: TemporaryFailureReason;
 }
+
+export type TemporaryFailureReason =
+  "rate_limit" | "timeout" | "network" | "server_error";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object"
@@ -26,17 +30,28 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-export function isRateLimitError(error: unknown): boolean {
+export function getTemporaryFailureReason(
+  error: unknown,
+): TemporaryFailureReason | null {
   const seen = new Set<unknown>();
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current !== undefined; depth += 1) {
     if (seen.has(current)) break;
     seen.add(current);
     const item = record(current);
-    const status = item?.statusCode ?? item?.status;
-    if (status === 429 || status === "429") return true;
+    if (item?.name === "AbortError") return null;
+    const status = Number(item?.statusCode ?? item?.status);
+    if (status === 429) return "rate_limit";
+    if (status === 408) return "timeout";
+    if (status >= 500 && status <= 599) return "server_error";
     const type = `${item?.type ?? ""} ${item?.code ?? ""}`.toLowerCase();
-    if (/rate[_ -]?limit|too[_ -]?many[_ -]?requests/.test(type)) return true;
+    if (/rate[_ -]?limit|too[_ -]?many[_ -]?requests/.test(type)) {
+      return "rate_limit";
+    }
+    if (/timeout|timed[_ -]?out|etimedout/.test(type)) return "timeout";
+    if (/econn|eai_again|enotfound|network|fetch/.test(type)) {
+      return "network";
+    }
     const message =
       current instanceof Error
         ? current.message
@@ -47,12 +62,24 @@ export function isRateLimitError(error: unknown): boolean {
             : "";
     if (
       /\b429\b|rate[ -]?limit(?:ed| exceeded)?|too many requests/i.test(message)
+    )
+      return "rate_limit";
+    if (/\b408\b|timeout|timed out/i.test(message)) return "timeout";
+    if (/\b5\d\d\b|server error|service unavailable/i.test(message)) {
+      return "server_error";
+    }
+    if (
+      /econn|eai_again|enotfound|network|fetch failed|socket/i.test(message)
     ) {
-      return true;
+      return "network";
     }
     current = item?.cause;
   }
-  return false;
+  return null;
+}
+
+export function isRateLimitError(error: unknown): boolean {
+  return getTemporaryFailureReason(error) === "rate_limit";
 }
 
 function startsSemanticOutput(part: LanguageModelV3StreamPart): boolean {
@@ -99,8 +126,9 @@ async function openAutomaticStream(
       result = await candidate.model.doStream(options);
     } catch (error) {
       lastThrown = error;
-      if (!nextCandidate || !isRateLimitError(error)) throw error;
-      onFallback?.({ from: candidate.id, to: nextCandidate.id });
+      const reason = getTemporaryFailureReason(error);
+      if (!nextCandidate || !reason) throw error;
+      onFallback?.({ from: candidate.id, to: nextCandidate.id, reason });
       continue;
     }
 
@@ -112,13 +140,14 @@ async function openAutomaticStream(
         next = await reader.read();
       } catch (error) {
         lastThrown = error;
-        if (!nextCandidate || !isRateLimitError(error)) {
+        const reason = getTemporaryFailureReason(error);
+        if (!nextCandidate || !reason) {
           reader.releaseLock();
           throw error;
         }
         await reader.cancel(error).catch(() => undefined);
         reader.releaseLock();
-        onFallback?.({ from: candidate.id, to: nextCandidate.id });
+        onFallback?.({ from: candidate.id, to: nextCandidate.id, reason });
         break;
       }
       if (next.done) {
@@ -126,10 +155,11 @@ async function openAutomaticStream(
       }
       buffered.push(next.value);
       if (next.value.type === "error") {
-        if (nextCandidate && isRateLimitError(next.value.error)) {
+        const reason = getTemporaryFailureReason(next.value.error);
+        if (nextCandidate && reason) {
           await reader.cancel(next.value.error).catch(() => undefined);
           reader.releaseLock();
-          onFallback?.({ from: candidate.id, to: nextCandidate.id });
+          onFallback?.({ from: candidate.id, to: nextCandidate.id, reason });
           break;
         }
         return { ...result, stream: replayStream(buffered, reader) };
@@ -165,10 +195,12 @@ export function createAutomaticLanguageModel(
           return await candidate.model.doGenerate(callOptions);
         } catch (error) {
           lastError = error;
-          if (!nextCandidate || !isRateLimitError(error)) throw error;
+          const reason = getTemporaryFailureReason(error);
+          if (!nextCandidate || !reason) throw error;
           options.onFallback?.({
             from: candidate.id,
             to: nextCandidate.id,
+            reason,
           });
         }
       }

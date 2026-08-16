@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createAutomaticLanguageModel,
+  getTemporaryFailureReason,
   isRateLimitError,
 } from "../../src/dashboard/lib/chat/core/automatic-language-model";
 
@@ -69,6 +70,16 @@ describe("Automatic language model", () => {
     expect(isRateLimitError(new Error("provider unavailable"))).toBe(false);
   });
 
+  it("recognizes temporary provider failures and classifies their reason", () => {
+    expect(getTemporaryFailureReason({ statusCode: 408 })).toBe("timeout");
+    expect(getTemporaryFailureReason({ statusCode: 429 })).toBe("rate_limit");
+    expect(getTemporaryFailureReason({ statusCode: 503 })).toBe("server_error");
+    expect(getTemporaryFailureReason(new Error("fetch failed"))).toBe(
+      "network",
+    );
+    expect(getTemporaryFailureReason({ statusCode: 401 })).toBeNull();
+  });
+
   it("falls back in order when generation is rate limited", async () => {
     const onFallback = vi.fn();
     const automatic = createAutomaticLanguageModel(
@@ -84,7 +95,34 @@ describe("Automatic language model", () => {
 
     const result = await automatic.doGenerate({ prompt: [] });
     expect(result.content).toEqual([{ type: "text", text: "second" }]);
-    expect(onFallback).toHaveBeenCalledWith({ from: "first", to: "second" });
+    expect(onFallback).toHaveBeenCalledWith({
+      from: "first",
+      to: "second",
+      reason: "rate_limit",
+    });
+  });
+
+  it("falls back in order when generation has a temporary server error", async () => {
+    const onFallback = vi.fn();
+    const automatic = createAutomaticLanguageModel(
+      [
+        {
+          id: "first",
+          model: model("first", { generateError: { statusCode: 503 } }),
+        },
+        { id: "second", model: model("second") },
+      ],
+      { onFallback },
+    );
+
+    await expect(automatic.doGenerate({ prompt: [] })).resolves.toMatchObject({
+      content: [{ type: "text", text: "second" }],
+    });
+    expect(onFallback).toHaveBeenCalledWith({
+      from: "first",
+      to: "second",
+      reason: "server_error",
+    });
   });
 
   it("falls back when a stream reports rate limiting before model output", async () => {
@@ -119,7 +157,32 @@ describe("Automatic language model", () => {
       { type: "text-delta", id: "text", delta: "ok" },
       { type: "text-end", id: "text" },
     ]);
-    expect(onFallback).toHaveBeenCalledWith({ from: "first", to: "second" });
+    expect(onFallback).toHaveBeenCalledWith({
+      from: "first",
+      to: "second",
+      reason: "rate_limit",
+    });
+  });
+
+  it("falls back when the stream has a network failure before output", async () => {
+    const onFallback = vi.fn();
+    const automatic = createAutomaticLanguageModel(
+      [
+        {
+          id: "first",
+          model: model("first", { streamError: new Error("fetch failed") }),
+        },
+        { id: "second", model: model("second") },
+      ],
+      { onFallback },
+    );
+
+    await expect(readParts(automatic)).resolves.toEqual([]);
+    expect(onFallback).toHaveBeenCalledWith({
+      from: "first",
+      to: "second",
+      reason: "network",
+    });
   });
 
   it("does not fallback for authentication errors or after output begins", async () => {

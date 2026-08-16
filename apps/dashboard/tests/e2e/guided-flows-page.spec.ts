@@ -173,6 +173,9 @@ test("runs onboarding manually and lets the user advance after completing each p
     actionId,
     actionLabel,
     body = "Complete the task, then return to Chat.",
+    actions = [
+      { id: actionId, label: actionLabel, variant: "primary" as const },
+    ],
   }: {
     id: string;
     stepId: string;
@@ -181,6 +184,11 @@ test("runs onboarding manually and lets the user advance after completing each p
     actionId: string;
     actionLabel: string;
     body?: string;
+    actions?: readonly {
+      id: string;
+      label: string;
+      variant: "primary" | "secondary";
+    }[];
   }) => ({
     action: "render_view",
     view: "renderer",
@@ -201,16 +209,16 @@ test("runs onboarding manually and lets the user advance after completing each p
         {
           type: "row",
           children: [
-            {
+            ...actions.map((action) => ({
               type: "button",
-              label: actionLabel,
+              label: action.label,
               action: {
-                id: actionId,
-                label: actionLabel,
-                response: actionId,
-                variant: "primary",
+                id: action.id,
+                label: action.label,
+                response: action.id,
+                variant: action.variant,
               },
-            },
+            })),
           ],
         },
       ],
@@ -317,24 +325,44 @@ test("runs onboarding manually and lets the user advance after completing each p
         },
       });
     }
+    if (body.stepId === "choose-chat-provider") {
+      return json(route, {
+        instance: { status: "active" },
+        compatibility: { status: "compatible" },
+        view: view({
+          id: "onboarding-xkiro-4",
+          stepId: "add-xkiro-key",
+          revision: 4,
+          title: "Activate xKiro Free",
+          actionId: "next",
+          actionLabel: "Continue",
+          body: "Add `XKIRO_API_KEY` on the Secrets page.",
+        }),
+        navigation: {
+          action: "dashboard_navigate",
+          routeId: "secrets",
+          href: "/secrets",
+          label: "Secrets",
+          reason: "Open Add your xKiro key",
+        },
+      });
+    }
     return json(route, {
       instance: { status: "active" },
       compatibility: { status: "compatible" },
       view: view({
-        id: "onboarding-openrouter-3",
-        stepId: "add-openrouter-key",
+        id: "onboarding-provider-choice-3",
+        stepId: "choose-chat-provider",
         revision: 3,
-        title: "Activate built-in Chat",
-        actionId: "next",
-        actionLabel: "Next",
+        title: "Choose a free Chat provider",
+        actionId: "openrouter",
+        actionLabel: "Set up OpenRouter",
+        actions: [
+          { id: "openrouter", label: "Set up OpenRouter", variant: "primary" },
+          { id: "xkiro", label: "Set up xKiro", variant: "secondary" },
+          { id: "skip", label: "Skip for now", variant: "secondary" },
+        ],
       }),
-      navigation: {
-        action: "dashboard_navigate",
-        routeId: "secrets",
-        href: "/secrets",
-        label: "Secrets",
-        reason: "Open Add your OpenRouter key",
-      },
     });
   });
 
@@ -382,9 +410,22 @@ test("runs onboarding manually and lets the user advance after completing each p
     .getByRole("button", { name: "Next", exact: true })
     .last()
     .click();
+  await expect(
+    chat.getByRole("heading", { name: "Choose a free Chat provider" }),
+  ).toBeVisible();
+  await expect(
+    chat.getByRole("button", { name: "Set up OpenRouter", exact: true }),
+  ).toBeVisible();
+  await expect(
+    chat.getByRole("button", { name: "Set up xKiro", exact: true }),
+  ).toBeVisible();
+  await expect(
+    chat.getByRole("button", { name: "Skip for now", exact: true }),
+  ).toBeVisible();
+  await chat.getByRole("button", { name: "Set up xKiro", exact: true }).click();
   await expect(page).toHaveURL("/repo/acme/widgets/secrets");
   await expect(
-    page.getByText("Activate built-in Chat", { exact: true }),
+    page.getByText("Activate xKiro Free", { exact: true }),
   ).toBeVisible();
 });
 

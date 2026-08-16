@@ -226,12 +226,77 @@ export const ONBOARDING_FLOW: GuidedFlowDefinition = {
       type: "command",
       title: "Verify the repository connection",
       explanation:
-        "Run `/init` for the active repository. It installs or updates Kody Engine and verifies the repository webhook.\n\n> Select **Run command** and wait for the summary. If webhook setup failed, update the token permission and run `/init` again before finishing.",
+        "Run `/init` for the active repository. It installs or updates Kody Engine and verifies the repository webhook.\n\n> Select **Run command** and wait for the summary. If webhook setup failed, update the token permission and run `/init` again before continuing.",
       command: "/init",
       actions: [
         { id: "run", target: { type: "stay" } },
-        { id: "finish", target: { type: "complete" } },
+        { id: "finish", target: { type: "step", stepId: "choose-chat-provider" } },
       ],
+    },
+    {
+      id: "choose-chat-provider",
+      title: "Set up Chat (optional)",
+      explanation:
+        "Choose a free provider for Kody Chat, or skip this step and configure a model later from **Models**.\n\nBoth providers use one API key and work with Kody's OpenAI-compatible Chat setup.",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Choose a free Chat provider",
+        actions: [
+          {
+            id: "openrouter",
+            label: "Set up OpenRouter",
+            response: "openrouter",
+            variant: "primary",
+          },
+          {
+            id: "xkiro",
+            label: "Set up xKiro",
+            response: "xkiro",
+            variant: "secondary",
+          },
+          {
+            id: "skip",
+            label: "Skip for now",
+            response: "skip",
+            variant: "secondary",
+          },
+        ],
+      },
+      actions: [
+        { id: "openrouter", target: { type: "step", stepId: "add-openrouter-key" } },
+        { id: "xkiro", target: { type: "step", stepId: "add-xkiro-key" } },
+        { id: "skip", target: { type: "complete" } },
+      ],
+    },
+    {
+      id: "add-openrouter-key",
+      title: "Add your OpenRouter key",
+      explanation:
+        "The built-in OpenRouter Free model becomes available after its API key is saved.\n\n**On the Secrets page:**\n\n1. Add a secret named `OPENROUTER_API_KEY`.\n2. Paste your OpenRouter API key as the value.\n3. Save the secret.\n\nYou can continue without adding it and configure Chat later.",
+      routeId: "secrets",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Activate OpenRouter Free",
+        actions: [
+          { id: "next", label: "Continue", response: "next", variant: "primary" },
+        ],
+      },
+      actions: [{ id: "next", target: { type: "complete" } }],
+    },
+    {
+      id: "add-xkiro-key",
+      title: "Add your xKiro key",
+      explanation:
+        "The built-in xKiro Free model becomes available after its API key is saved. xKiro currently offers free access without a credit card.\n\n**On the Secrets page:**\n\n1. Create a free account at [xkiro.com](https://xkiro.com/).\n2. Create and copy an API key.\n3. Add a secret named `XKIRO_API_KEY`.\n4. Paste the key as the value and save it.\n\nYou can continue without adding it and configure Chat later.",
+      routeId: "secrets",
+      rendererSlug: "approval-card",
+      rendererData: {
+        title: "Activate xKiro Free",
+        actions: [
+          { id: "next", label: "Continue", response: "next", variant: "primary" },
+        ],
+      },
+      actions: [{ id: "next", target: { type: "complete" } }],
     },
   ],
 };

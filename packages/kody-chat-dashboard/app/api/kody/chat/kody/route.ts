@@ -862,6 +862,22 @@ async function handleKodyDirectPost(
   const resolution = await resolveChatModel(repoScopedReq, modelOverride, {
     preferVision: hasImageParts,
     onAutomaticFallback: (event) => publishAutomaticFallback(event),
+    onModelCall: (event) => {
+      const { error, ...details } = event;
+      if (event.phase === "failed") {
+        traceError(
+          {
+            traceId,
+            ...details,
+            err: formatProviderError(error),
+            ...extractProviderErrorMeta(error),
+          },
+          "kody-direct: model call failed",
+        );
+        return;
+      }
+      traceLog({ traceId, ...details }, "kody-direct: model call");
+    },
   });
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel } = resolution;
@@ -2107,6 +2123,7 @@ This turn includes an image from the user. For questions about what is visible i
     ) =>
       streamText({
         model,
+        abortSignal: req.signal,
         system: buildTurnSystemPrompt(additionalSystemInstructions),
         messages: turnMessages,
         tools,

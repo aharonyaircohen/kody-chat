@@ -16,6 +16,7 @@ import {
   Building2,
   Wand2,
   CheckCircle2,
+  Cloud,
   Code,
   Cpu,
   Database,
@@ -729,6 +730,12 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
+    ...settingsSection("Fly"),
+    icon: Cloud,
+    tint: "text-sky-300",
+    collapsible: true,
+  },
+  {
     title: "System",
     icon: SlidersHorizontal,
     tint: "text-slate-300",
@@ -736,7 +743,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     items: [
       navItemForHref("/activity"),
       ...settingsSection("Brain").items,
-      ...settingsSection("Fly").items,
       navItemForHref("/config"),
       navItemForHref("/secrets"),
       navItemForHref("/variables"),

@@ -42,13 +42,69 @@ afterEach(() => {
 });
 
 describe("sendKodyDirectTurn", () => {
+  it("finishes and cancels a hanging response after a rendered view is complete", async () => {
+    const encoded = new TextEncoder().encode(
+      chunk({
+        type: "tool-input-available",
+        toolCallId: "guided-flow-1",
+        toolName: "guided_flow_start",
+        input: {},
+      }) +
+        chunk({
+          type: "tool-output-available",
+          toolCallId: "guided-flow-1",
+          output: {
+            action: "render_view",
+            view: "renderer",
+            id: "assessment-intake",
+            rendererSlug: "guided-flow",
+            rendererName: "Project assessment",
+            resultTarget: "guided-flow",
+            guidedFlow: {
+              instanceId: "assessment-1",
+              stepId: "intake",
+              revision: 1,
+            },
+            ui: { type: "stack", children: [] },
+            data: {},
+          },
+        }),
+    );
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoded);
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { status: 200 },
+    );
+    const { restore } = installScriptedFetch([() => response]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(cancelled).toBe(true);
+    expect(sink.events.at(-1)).toEqual({ type: "done" });
+    expect(sink.events).toContainEqual(
+      expect.objectContaining({
+        type: "directive",
+        directive: expect.objectContaining({ kind: "rendered-view" }),
+      }),
+    );
+  });
+
   it("emits a visible notice when Automatic switches models", async () => {
     const { restore } = installScriptedFetch([
       () =>
         sseResponse([
           chunk({
             type: "data-automatic-fallback",
-            data: { from: "Model A", to: "Model B" },
+            data: { from: "Model A", to: "Model B", reason: "timeout" },
           }),
           "data: [DONE]\n\n",
         ]),
@@ -61,7 +117,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       {
         type: "notice",
-        message: "Model A is rate limited. Continuing with Model B.",
+        message: "Model A timed out. Continuing with Model B.",
       },
       { type: "done" },
     ]);

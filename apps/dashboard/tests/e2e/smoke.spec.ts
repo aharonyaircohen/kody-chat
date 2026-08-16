@@ -164,6 +164,41 @@ test.describe("Route smoke", () => {
       });
     });
 
+    const sideChatUrl = `${BASE_URL}/repo/test-owner/test-repo/tasks`;
+    await page.evaluate((id) => {
+      sessionStorage.setItem("kody-chat:active-session:global", id);
+    }, otherConversationId);
+    await page.goto(sideChatUrl);
+    await expect(page.getByText("Another saved message").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.reload();
+    await expect(page.getByText("Another saved message").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.locator('summary[aria-label="More compose options"]').click();
+    await page.getByRole("button", { name: /^Terminal / }).click();
+    await expect(page.getByLabel("Terminal target")).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const raw = sessionStorage.getItem(
+            "kody-chat-terminal-v1:test-owner/test-repo",
+          );
+          if (!raw) return null;
+          return JSON.parse(raw).modeBySessionId?.["conversation-other"];
+        }),
+      )
+      .toBe("terminal");
+    await page.reload();
+    await expect(page.getByLabel("Terminal target")).toBeVisible();
+    await expect(page).toHaveURL(sideChatUrl);
+    await page.evaluate(() => {
+      sessionStorage.removeItem(
+        "kody-chat-terminal-v1:test-owner/test-repo",
+      );
+    });
+
     const conversationUrl = `${BASE_URL}/repo/test-owner/test-repo/chat/${conversationId}`;
     await page.goto(conversationUrl);
     await expect(

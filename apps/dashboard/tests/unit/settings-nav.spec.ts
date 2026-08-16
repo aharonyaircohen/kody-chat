@@ -141,6 +141,7 @@ describe("settings navigation", () => {
       "Content",
       "Chat",
       "Client",
+      "Fly",
       "System",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")).toEqual([
@@ -186,6 +187,18 @@ describe("settings navigation", () => {
         "/constraints",
       ]),
     );
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Fly")).toEqual([
+      "/fly/config",
+      "/fly/previews",
+      "/fly/brain-images",
+      "/fly/machines",
+      "/fly/history",
+    ]);
+    expect(
+      sectionHrefs(SIDEBAR_NAV_SECTIONS, "System").some((href) =>
+        href.startsWith("/fly/"),
+      ),
+    ).toBe(false);
     expect(SIDEBAR_NAV_SECTIONS.every((section) => section.collapsible)).toBe(
       true,
     );
@@ -214,6 +227,13 @@ describe("settings navigation", () => {
     expect(
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");
+    expect(
+      activeCollapsibleNavSectionTitle(
+        SIDEBAR_NAV_SECTIONS,
+        "/fly/machines",
+        "",
+      ),
+    ).toBe("Fly");
   });
 
   it("does not expose the redundant settings page", () => {

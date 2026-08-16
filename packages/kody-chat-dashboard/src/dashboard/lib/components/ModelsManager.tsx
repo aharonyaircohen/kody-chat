@@ -64,8 +64,8 @@ import {
   type ProviderPreset,
 } from "@kody-ade/base/variables/models";
 import {
+  KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
-  KODY_OPENROUTER_FREE_CHAT_MODEL,
 } from "../chat/model-catalog";
 
 export interface ModelsQueryScope {
@@ -188,7 +188,7 @@ function ModelsManagerInner() {
   });
   const models = composeChatModelCatalog<ChatModel>(
     data?.models ?? [],
-    KODY_OPENROUTER_FREE_CHAT_MODEL,
+    KODY_BUILT_IN_CHAT_MODELS,
   );
   const automatic = data?.automatic ?? { engineDefault: false };
   const selectedAutomaticModels = models.filter(
@@ -414,7 +414,9 @@ function ModelsManagerInner() {
                         <span className="font-medium text-sm text-white/90 truncate">
                           {m.label || m.modelName || m.id}
                         </span>
-                        {m.id === KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
+                        {KODY_BUILT_IN_CHAT_MODELS.some(
+                          (builtIn) => builtIn.id === m.id,
+                        ) && (
                           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
                             Built in
                           </span>
@@ -511,7 +513,9 @@ function ModelsManagerInner() {
                           <Pencil className="h-3.5 w-3.5" />
                           Edit
                         </DropdownMenuItem>
-                        {m.id !== KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
+                        {!KODY_BUILT_IN_CHAT_MODELS.some(
+                          (builtIn) => builtIn.id === m.id,
+                        ) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

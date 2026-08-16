@@ -25,6 +25,17 @@ describe("chat model adapters", () => {
     });
   });
 
+  it("defines the xKiro OpenAI-compatible provider preset", () => {
+    expect(PROVIDER_PRESETS.xkiro).toMatchObject({
+      label: "xKiro",
+      adapter: "openai-compatible",
+      adapterBaseURL: "https://api.xkiro.com/v1",
+      baseURL: "https://api.xkiro.com/v1",
+      protocol: "openai",
+      keyHint: "XKIRO_API_KEY",
+    });
+  });
+
   it("builds the Engine Automatic queue from selected enabled models in saved order", () => {
     const first = ChatModelSchema.parse({
       ...baseModel,

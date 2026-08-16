@@ -465,6 +465,106 @@ test.describe("Admin Kody chat regression", () => {
     );
   });
 
+  test("an existing conversation keeps its selected model across two reloads", async ({
+    page,
+  }) => {
+    const conversationId = "existing-model-session";
+    const timestamp = "2026-08-10T10:00:00.000Z";
+    let runtime: { kind: string; modelId?: string; profileId?: string } = {
+      kind: "live",
+      profileId: "kody-live",
+    };
+    let runtimeWrites = 0;
+
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (
+        request.method() === "GET" &&
+        url.pathname.endsWith("/conversations")
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversations: [
+              {
+                conversationId,
+                title: "Persistent model conversation",
+                pinned: false,
+                activeAgent: { slug: "kody", title: "Kody" },
+                machineAccess: "none",
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
+            ],
+          }),
+        });
+        return;
+      }
+      if (request.method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversation: {
+              conversationId,
+              title: "Persistent model conversation",
+              pinned: false,
+              activeAgent: { slug: "kody", title: "Kody" },
+              runtime,
+              machineAccess: "none",
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            },
+            entries: [],
+            checkpoints: [],
+            runtimeBindings: [],
+            attachments: [],
+          }),
+        });
+        return;
+      }
+      const command = request.postDataJSON() as {
+        kind?: string;
+        runtime?: typeof runtime;
+      };
+      if (command.kind === "runtime" && command.runtime) {
+        runtime = command.runtime;
+        runtimeWrites += 1;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    let chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /Kody Live/,
+    );
+
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "GPT X" })
+      .click();
+    await expect.poll(() => runtimeWrites).toBe(1);
+
+    for (let reload = 0; reload < 2; reload += 1) {
+      await page.reload();
+      chat = page.locator('[aria-label="Kody chat"]').first();
+      await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+        "title",
+        /GPT X/,
+      );
+    }
+    expect(runtimeWrites).toBe(1);
+  });
+
   test("first send creates one conversation with the selected model", async ({
     page,
   }) => {
@@ -525,14 +625,23 @@ test.describe("Admin Kody chat regression", () => {
       "title",
       /OpenRouter Free/,
     );
+    const modelMenu = await openChatSetupSection(chat, "Model");
+    await modelMenu
+      .locator('button[role="option"]')
+      .filter({ hasText: "GPT X" })
+      .click();
+    await expect(chat.getByLabel("Chat setup")).toHaveAttribute(
+      "title",
+      /GPT X/,
+    );
     const input = chat.locator("textarea").first();
     await input.fill("Hello");
     await chat.getByRole("button", { name: "Send message" }).click();
 
     await expect
       .poll(() => createdRuntimes)
-      .toEqual([{ kind: "direct", modelId: "kody:openrouter/free" }]);
-    await expect.poll(() => requestedModels).toEqual(["openrouter/free"]);
+      .toEqual([{ kind: "direct", modelId: "kody:gpt-x" }]);
+    await expect.poll(() => requestedModels).toEqual(["gpt-x"]);
     await expect(chat.getByRole("alert")).toHaveCount(0);
   });
 
