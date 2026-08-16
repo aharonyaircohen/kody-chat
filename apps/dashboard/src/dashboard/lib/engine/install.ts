@@ -31,14 +31,19 @@ import {
 import { readVariables } from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
+  AutomaticModelSchema,
+  AUTOMATIC_MODEL_ID,
+  engineAutomaticModelConfigs,
   pickEngineDefaultModel,
   engineModelSpec,
   VAR_LLM_MODELS,
+  VAR_LLM_AUTOMATIC,
+  type AutomaticModel,
   type ChatModel,
 } from "@kody-ade/base/variables/models";
 import {
   getEngineConfig,
-  writeEngineModel,
+  writeEngineModelSelection,
 } from "@kody-ade/base/engine/config";
 import { KODY_OPENROUTER_FREE_CHAT_MODEL } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
@@ -213,6 +218,21 @@ async function readChatModels(
   }
 }
 
+async function readAutomaticModel(
+  owner: string,
+  repo: string,
+): Promise<AutomaticModel> {
+  try {
+    const { doc } = await readVariables(owner, repo, { force: true });
+    const raw = doc.variables[VAR_LLM_AUTOMATIC]?.value;
+    return raw
+      ? AutomaticModelSchema.parse(JSON.parse(raw))
+      : AutomaticModelSchema.parse({});
+  } catch {
+    return AutomaticModelSchema.parse({});
+  }
+}
+
 export async function installEngine(
   input: InstallEngineInput,
 ): Promise<InstallEngineResult | InstallEngineFailure> {
@@ -260,6 +280,7 @@ export async function installEngine(
     // writes a baseline (github + agent when available) even when no model is
     // configured yet, so the file exists for the engine to extend.
     const models = await readChatModels(octokit, owner, repo);
+    const automatic = await readAutomaticModel(owner, repo);
     const engineModel = pickEngineDefaultModel(models);
     const { config: existingConfig } = await getEngineConfig(
       octokit,
@@ -268,16 +289,16 @@ export async function installEngine(
       { force: true },
     );
     const existingModel = existingConfig.agent?.model;
-    await writeEngineModel(
-      octokit,
-      owner,
-      repo,
-      engineModel
-        ? engineModelSpec(engineModel)
-        : existingModel
-          ? null
-          : engineModelSpec(KODY_OPENROUTER_FREE_CHAT_MODEL),
-    );
+    await writeEngineModelSelection(octokit, owner, repo, {
+      modelSpec: automatic.engineDefault
+        ? AUTOMATIC_MODEL_ID
+        : engineModel
+          ? engineModelSpec(engineModel)
+          : existingModel
+            ? null
+            : engineModelSpec(KODY_OPENROUTER_FREE_CHAT_MODEL),
+      automaticModels: engineAutomaticModelConfigs(models),
+    });
 
     const kodyTokenResult = await setRepoActionsSecret(
       octokit,

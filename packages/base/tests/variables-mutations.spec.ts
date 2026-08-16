@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const updateVariablesMock = vi.hoisted(() => vi.fn());
 const getEngineConfigMock = vi.hoisted(() => vi.fn());
-const writeEngineModelMock = vi.hoisted(() => vi.fn());
+const writeEngineModelSelectionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../src/variables/store", () => ({
   updateVariables: updateVariablesMock,
 }));
 vi.mock("../src/engine/config", () => ({
   getEngineConfig: getEngineConfigMock,
-  writeEngineModel: writeEngineModelMock,
+  writeEngineModelSelection: writeEngineModelSelectionMock,
 }));
 
 import {
@@ -26,7 +26,7 @@ describe("shared variable mutations", () => {
       doc: mutate(EMPTY_DOC),
     }));
     getEngineConfigMock.mockResolvedValue({ config: {}, sha: null });
-    writeEngineModelMock.mockResolvedValue({ sha: "commit" });
+    writeEngineModelSelectionMock.mockResolvedValue({ sha: "commit" });
   });
 
   it("upserts variables with the verified actor metadata", async () => {
@@ -71,11 +71,64 @@ describe("shared variable mutations", () => {
     });
 
     expect(result.engineSyncWarning).toBeUndefined();
-    expect(writeEngineModelMock).toHaveBeenCalledWith(
+    expect(writeEngineModelSelectionMock).toHaveBeenCalledWith(
       expect.anything(),
       "acme",
       "app",
-      "openrouter/free",
+      {
+        modelSpec: "openrouter/free",
+        automaticModels: [],
+      },
+    );
+  });
+
+  it("selects Automatic for Engine without changing the chat default", async () => {
+    const models = [
+      {
+        id: "anthropic/claude-a",
+        label: "Claude A",
+        provider: "anthropic" as const,
+        protocol: "anthropic" as const,
+        baseURL: "https://api.anthropic.com/v1",
+        modelName: "claude-a",
+        apiKeySecret: "ANTHROPIC_API_KEY",
+        enabled: true,
+        automatic: true,
+        default: true,
+      },
+      {
+        id: "openai/gpt-b",
+        label: "GPT B",
+        provider: "openai" as const,
+        protocol: "openai" as const,
+        baseURL: "https://api.openai.com/v1",
+        modelName: "gpt-b",
+        apiKeySecret: "OPENAI_API_KEY",
+        enabled: true,
+        automatic: true,
+      },
+    ];
+
+    await saveManagedChatModels({
+      octokit: {} as never,
+      owner: "acme",
+      repo: "app",
+      models,
+      automatic: { engineDefault: true },
+    });
+
+    expect(models[0].default).toBe(true);
+    expect(writeEngineModelSelectionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "acme",
+      "app",
+      expect.objectContaining({
+        modelSpec: "automatic",
+        automaticModels: [
+          expect.objectContaining({ spec: "anthropic/claude-a" }),
+          expect.objectContaining({ spec: "openai/gpt-b" }),
+        ],
+      }),
     );
   });
 });

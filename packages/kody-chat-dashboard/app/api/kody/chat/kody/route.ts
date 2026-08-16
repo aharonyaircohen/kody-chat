@@ -855,8 +855,13 @@ async function handleKodyDirectPost(
   // route via resolveChatModel so the two can't drift. Voice mode does
   // not affect model selection; it's a per-turn prompt overlay only.
   const modelOverride = clientSurface ? surfaceBrand?.modelId : body.model;
+  const pendingAutomaticFallbacks: Array<{ from: string; to: string }> = [];
+  let publishAutomaticFallback = (event: { from: string; to: string }) => {
+    pendingAutomaticFallbacks.push(event);
+  };
   const resolution = await resolveChatModel(repoScopedReq, modelOverride, {
     preferVision: hasImageParts,
+    onAutomaticFallback: (event) => publishAutomaticFallback(event),
   });
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel } = resolution;
@@ -2498,6 +2503,12 @@ This turn includes an image from the user. For questions about what is visible i
     // the SDK would have produced on its own.
     const uiStream = createUIMessageStream({
       execute: async ({ writer }) => {
+        publishAutomaticFallback = (event) => {
+          writer.write({ type: "data-automatic-fallback", data: event });
+        };
+        for (const event of pendingAutomaticFallbacks.splice(0)) {
+          publishAutomaticFallback(event);
+        }
         writer.write({
           type: "data-tools-index",
           data: toolDescriptionByName,

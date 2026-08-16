@@ -47,7 +47,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
     }
   });
   page.on("requestfailed", (request) =>
-    failedRequests.push(`${request.method()} ${request.url()}`),
+    failedRequests.push(
+      `${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown"}`,
+    ),
   );
   page.on("response", (response) => {
     if (response.status() >= 400) {
@@ -56,6 +58,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   });
 
   await seedAuth(page);
+  await page.route("**/api/kody/chat/machines**", (route) =>
+    json(route, { machines: [] }),
+  );
   await mockDashboardShellRequests(page);
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
@@ -80,6 +85,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   await page.route("**/api/kody/workflow-events**", (route) =>
     json(route, { deliveries: [] }),
   );
+  await page.route("**/api/kody/system-events**", (route) =>
+    json(route, { ok: true }),
+  );
   await page.route("**/api/kody/guided-flows**", (route) =>
     json(route, { flows: [], definitions: [] }),
   );
@@ -90,27 +98,53 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
     return json(route, isCollection ? { conversations: [] } : { ok: true });
   });
 
-  let models: unknown[] = [];
-  let savedBody: { models?: Array<Record<string, unknown>> } | null = null;
+  let models: unknown[] = [
+    {
+      id: "anthropic/primary",
+      label: "Primary",
+      provider: "anthropic",
+      adapter: "anthropic",
+      adapterBaseURL: "https://api.anthropic.com/v1",
+      protocol: "anthropic",
+      baseURL: "https://api.anthropic.com/v1",
+      modelName: "primary",
+      apiKeySecret: "ANTHROPIC_API_KEY",
+      enabled: true,
+      default: true,
+      engineDefault: false,
+    },
+  ];
+  let automatic = { engineDefault: false };
+  let savedBody: {
+    models?: Array<Record<string, unknown>>;
+    automatic?: { engineDefault?: boolean };
+  } | null = null;
   await page.route("**/api/kody/models", async (route) => {
     if (route.request().method() === "PUT") {
       savedBody = route.request().postDataJSON() as typeof savedBody;
       models = savedBody?.models ?? [];
+      automatic = {
+        engineDefault: savedBody?.automatic?.engineDefault === true,
+      };
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, models }),
+        body: JSON.stringify({ ok: true, models, automatic }),
       });
       return;
     }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ models }),
+      body: JSON.stringify({ models, automatic }),
     });
   });
 
+  const machineResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/kody/chat/machines"),
+  );
   await page.goto(`${BASE_URL}/repo/test-owner/test-repo/models`);
+  await machineResponse;
   await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/models$/);
 
   const openRouterRow = page.locator("li").filter({
@@ -118,11 +152,51 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   });
   await expect(openRouterRow).toBeVisible();
   await expect(openRouterRow).toContainText("OpenRouter · openrouter/free");
+  await expect(openRouterRow.getByRole("checkbox")).toHaveCount(1);
+
+  const primaryRow = page.locator("li").filter({
+    has: page.getByText("Primary", { exact: true }),
+  });
+  const automaticEngineDefault = page.getByRole("checkbox", {
+    name: "Use Automatic as the Engine default",
+  });
+  await expect(automaticEngineDefault).toBeDisabled();
   await expect(
-    openRouterRow.getByRole("button", { name: "Delete" }),
+    primaryRow.getByRole("button", { name: /Move Primary .*Automatic/ }),
   ).toHaveCount(0);
 
-  await openRouterRow.getByRole("button", { name: "Edit" }).click();
+  await openRouterRow
+    .getByRole("checkbox", { name: "Include OpenRouter Free in Automatic" })
+    .click();
+  await primaryRow
+    .getByRole("checkbox", { name: "Include Primary in Automatic" })
+    .click();
+  await expect(automaticEngineDefault).toBeEnabled();
+  await expect(page.getByText("Uses 2 selected models in order")).toBeVisible();
+
+  await primaryRow
+    .getByRole("button", { name: "Move Primary up in Automatic" })
+    .click();
+  await expect(page.locator("li").first()).toContainText("Primary");
+  expect(
+    (
+      savedBody as unknown as {
+        models: Array<{ id: string; automatic?: boolean }>;
+      }
+    ).models.map((model) => ({ id: model.id, automatic: model.automatic })),
+  ).toEqual([
+    { id: "anthropic/primary", automatic: true },
+    { id: "openrouter/free", automatic: true },
+  ]);
+
+  await openRouterRow
+    .getByRole("button", { name: "More actions for OpenRouter Free" })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "Disable model" }),
+  ).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit model" });
   await dialog
     .getByText("Default for engine (Kody Live, issue + PR runs)")
@@ -140,8 +214,30 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
       engineDefault: true,
     }),
   );
+
+  await automaticEngineDefault.click();
+  await expect(page.getByText("Automatic").first()).toBeVisible();
+  const automaticSavedBody = savedBody as unknown as {
+    models: Array<Record<string, unknown>>;
+    automatic: { engineDefault?: boolean };
+  };
+  expect(automaticSavedBody.automatic).toEqual({ engineDefault: true });
+  expect(
+    automaticSavedBody.models.find((model) => model.id === "anthropic/primary"),
+  ).toMatchObject({
+    default: true,
+    engineDefault: false,
+  });
+  expect(
+    automaticSavedBody.models.every((model) => model.engineDefault !== true),
+  ).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(failedResponses).toEqual([]);
   expect(consoleErrors).toEqual([]);
-  expect(failedRequests).toEqual([]);
+  expect(
+    failedRequests.filter(
+      (failure) =>
+        !failure.includes("/api/kody/chat/machines net::ERR_ABORTED"),
+    ),
+  ).toEqual([]);
 });

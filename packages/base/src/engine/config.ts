@@ -27,6 +27,15 @@ export interface KodyConfig {
    * (e.g. `{ "research": "anthropic/claude-opus-4-7" }`). */
   agent?: {
     model?: string;
+    /** Ordered non-secret model metadata used when `model` is `automatic`. */
+    automaticModels?: Array<{
+      spec: string;
+      provider: string;
+      protocol: string;
+      baseURL?: string;
+      modelName: string;
+      apiKeyEnvVar: string;
+    }>;
     perImplementation?: Record<string, string>;
     /**
      * Thinking level for the engine. Written by the dashboard's
@@ -85,6 +94,10 @@ export interface KodyConfig {
    * builder lives here so the Fly panel can edit it. */
   fly?: KodyFlyConfig;
 }
+
+export type KodyAutomaticModel = NonNullable<
+  NonNullable<KodyConfig["agent"]>["automaticModels"]
+>[number];
 
 /** Per-repo Fly preview-machine settings. All optional; absent fields fall
  * back to {@link resolveFlyPreviews} defaults. These used to be hardcoded in
@@ -375,6 +388,25 @@ export async function writeEngineModel(
   modelSpec: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
+  return writeEngineModelSelection(
+    octokit,
+    owner,
+    repo,
+    { modelSpec },
+    commitMessage,
+  );
+}
+
+export async function writeEngineModelSelection(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  selection: {
+    modelSpec: string | null;
+    automaticModels?: KodyAutomaticModel[];
+  },
+  commitMessage?: string,
+): Promise<{ sha: string | null }> {
   return mutateConfig(
     octokit,
     owner,
@@ -386,7 +418,16 @@ export async function writeEngineModel(
           : {};
       // Set agent.model when we have a spec; otherwise preserve whatever the
       // repo already had (so a no-model install still leaves a valid baseline).
-      const agent = modelSpec ? { ...prevAgent, model: modelSpec } : prevAgent;
+      const agent: Record<string, unknown> = selection.modelSpec
+        ? { ...prevAgent, model: selection.modelSpec }
+        : { ...prevAgent };
+      if (selection.automaticModels !== undefined) {
+        if (selection.automaticModels.length > 0) {
+          agent.automaticModels = selection.automaticModels;
+        } else {
+          delete agent.automaticModels;
+        }
+      }
       const next: Record<string, unknown> = {
         ...existing,
         github: existing.github ?? { owner, repo },
@@ -804,8 +845,7 @@ export async function writeConfigPatch(
             )
           : {};
         const previous =
-          typeof existing.execution === "object" &&
-          existing.execution !== null
+          typeof existing.execution === "object" && existing.execution !== null
             ? (existing.execution as Record<string, unknown>)
             : {};
         if (Object.keys(cleaned).length > 0) {

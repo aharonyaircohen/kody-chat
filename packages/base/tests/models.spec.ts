@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { ChatModelSchema, PROVIDER_PRESETS } from "../src/variables/models";
+import {
+  AUTOMATIC_MODEL_ID,
+  AutomaticModelSchema,
+  ChatModelSchema,
+  engineAutomaticModelConfigs,
+  PROVIDER_PRESETS,
+} from "../src/variables/models";
 
 const baseModel = {
   id: "google/gemini-next",
@@ -12,6 +18,69 @@ const baseModel = {
 };
 
 describe("chat model adapters", () => {
+  it("keeps Automatic separate from the concrete model schema", () => {
+    expect(AUTOMATIC_MODEL_ID).toBe("automatic");
+    expect(AutomaticModelSchema.parse({ engineDefault: true })).toEqual({
+      engineDefault: true,
+    });
+  });
+
+  it("builds the Engine Automatic queue from selected enabled models in saved order", () => {
+    const first = ChatModelSchema.parse({
+      ...baseModel,
+      protocol: "openai",
+      automatic: true,
+    });
+    const disabled = ChatModelSchema.parse({
+      ...baseModel,
+      id: "openai/off",
+      label: "Off",
+      provider: "openai",
+      protocol: "openai",
+      baseURL: "https://api.openai.com/v1",
+      modelName: "off",
+      apiKeySecret: "OPENAI_API_KEY",
+      enabled: false,
+      automatic: true,
+    });
+    const second = ChatModelSchema.parse({
+      ...baseModel,
+      id: "anthropic/claude-next",
+      label: "Claude Next",
+      provider: "anthropic",
+      protocol: "anthropic",
+      baseURL: "https://api.anthropic.com/v1",
+      modelName: "claude-next",
+      apiKeySecret: "ANTHROPIC_API_KEY",
+      automatic: true,
+    });
+    const enabledButNotSelected = ChatModelSchema.parse({
+      ...baseModel,
+      id: "openai/other",
+      label: "Other",
+      provider: "openai",
+      protocol: "openai",
+      baseURL: "https://api.openai.com/v1",
+      modelName: "other",
+      apiKeySecret: "OPENAI_API_KEY",
+    });
+
+    expect(
+      engineAutomaticModelConfigs([
+        first,
+        disabled,
+        enabledButNotSelected,
+        second,
+      ]),
+    ).toEqual([
+      expect.objectContaining({ spec: first.id, modelName: first.modelName }),
+      expect.objectContaining({
+        spec: second.id,
+        modelName: second.modelName,
+      }),
+    ]);
+  });
+
   it("preserves declared tool-choice capabilities", () => {
     expect(
       ChatModelSchema.parse({

@@ -2,10 +2,15 @@ import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
 import {
+  AUTOMATIC_MODEL_ID,
+  AutomaticModelSchema,
+  engineAutomaticModelConfigs,
   engineModelSpec,
   pickEngineDefaultModel,
   ChatModelsSchema,
+  VAR_LLM_AUTOMATIC,
   VAR_LLM_MODELS,
+  type AutomaticModel,
   type ChatModel,
 } from "./models";
 import {
@@ -14,7 +19,7 @@ import {
   updateVariables,
   type VariablesDocument,
 } from "./store";
-import { getEngineConfig, writeEngineModel } from "../engine/config";
+import { getEngineConfig, writeEngineModelSelection } from "../engine/config";
 import { ConfigNameSchema, ConfigValueSchema } from "../config-input";
 
 export { ConfigNameSchema, ConfigValueSchema } from "../config-input";
@@ -37,12 +42,39 @@ export const ManagedChatModelsSchema = ChatModelsSchema.superRefine(
   },
 );
 
-export const ModelsWriteSchema = z.object({
-  models: ManagedChatModelsSchema,
-  actorLogin: z.string().optional(),
-});
+export const ModelsWriteSchema = z
+  .object({
+    models: ManagedChatModelsSchema,
+    automatic: AutomaticModelSchema.optional(),
+    actorLogin: z.string().optional(),
+  })
+  .superRefine((input, context) => {
+    if (
+      input.automatic?.engineDefault === true &&
+      input.models.some((model) => model.engineDefault === true)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Only one Engine default may be selected.",
+      });
+    }
+    if (
+      input.automatic?.engineDefault === true &&
+      input.models.filter(
+        (model) => model.enabled !== false && model.automatic === true,
+      ).length < 2
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Automatic requires at least two selected models.",
+      });
+    }
+  });
 
-export const RESERVED_VARIABLE_NAMES = new Set([VAR_LLM_MODELS]);
+export const RESERVED_VARIABLE_NAMES = new Set([
+  VAR_LLM_MODELS,
+  VAR_LLM_AUTOMATIC,
+]);
 
 export const ManagedVariableUpsertSchema = VariableUpsertSchema.refine(
   (input) => !RESERVED_VARIABLE_NAMES.has(input.name),
@@ -60,6 +92,18 @@ export function readManagedChatModels(doc: VariablesDocument): ChatModel[] {
     return ManagedChatModelsSchema.parse(JSON.parse(raw));
   } catch {
     return [];
+  }
+}
+
+export function readManagedAutomaticModel(
+  doc: VariablesDocument,
+): AutomaticModel {
+  const raw = doc.variables[VAR_LLM_AUTOMATIC]?.value;
+  if (!raw) return AutomaticModelSchema.parse({});
+  try {
+    return AutomaticModelSchema.parse(JSON.parse(raw));
+  } catch {
+    return AutomaticModelSchema.parse({});
   }
 }
 
@@ -114,34 +158,69 @@ export async function saveManagedChatModels(input: {
   owner: string;
   repo: string;
   models: ChatModel[];
+  automatic?: AutomaticModel;
   actorLogin?: string | null;
   now?: string;
 }): Promise<{ models: ChatModel[]; engineSyncWarning?: string }> {
   const models = ManagedChatModelsSchema.parse(input.models);
-  await updateVariables(input.owner, input.repo, (doc) => ({
-    ...doc,
-    variables: {
-      ...doc.variables,
-      [VAR_LLM_MODELS]: {
-        value: JSON.stringify(models),
-        updatedAt: input.now ?? new Date().toISOString(),
-        ...(input.actorLogin ? { updatedBy: input.actorLogin } : {}),
+  const requestedAutomatic = input.automatic
+    ? AutomaticModelSchema.parse(input.automatic)
+    : undefined;
+  let effectiveAutomatic: AutomaticModel | undefined;
+  const { doc } = await updateVariables(input.owner, input.repo, (current) => {
+    effectiveAutomatic =
+      requestedAutomatic ?? readManagedAutomaticModel(current);
+    ModelsWriteSchema.parse({ models, automatic: effectiveAutomatic });
+    const metadata = {
+      updatedAt: input.now ?? new Date().toISOString(),
+      ...(input.actorLogin ? { updatedBy: input.actorLogin } : {}),
+    };
+    return {
+      ...current,
+      variables: {
+        ...current.variables,
+        [VAR_LLM_MODELS]: {
+          value: JSON.stringify(models),
+          ...metadata,
+        },
+        ...(requestedAutomatic
+          ? {
+              [VAR_LLM_AUTOMATIC]: {
+                value: JSON.stringify(requestedAutomatic),
+                ...metadata,
+              },
+            }
+          : {}),
       },
-    },
-  }));
+    };
+  });
+
+  const automatic = effectiveAutomatic ?? readManagedAutomaticModel(doc);
 
   const engineModel = pickEngineDefaultModel(models);
-  if (!engineModel) return { models };
+  const modelSpec = automatic.engineDefault
+    ? AUTOMATIC_MODEL_ID
+    : engineModel
+      ? engineModelSpec(engineModel)
+      : null;
+  if (!modelSpec) return { models };
+  const automaticModels = engineAutomaticModelConfigs(models);
   try {
-    const spec = engineModelSpec(engineModel);
     const { config } = await getEngineConfig(
       input.octokit,
       input.owner,
       input.repo,
       { force: true },
     );
-    if (config.agent?.model !== spec) {
-      await writeEngineModel(input.octokit, input.owner, input.repo, spec);
+    if (
+      config.agent?.model !== modelSpec ||
+      JSON.stringify(config.agent?.automaticModels ?? []) !==
+        JSON.stringify(automaticModels)
+    ) {
+      await writeEngineModelSelection(input.octokit, input.owner, input.repo, {
+        modelSpec,
+        automaticModels,
+      });
     }
     return { models };
   } catch (error) {
@@ -162,6 +241,7 @@ export async function setManagedDefaultModel(input: {
 }): Promise<{ found: boolean; engineSyncWarning?: string }> {
   const { doc } = await readVariables(input.owner, input.repo, { force: true });
   const models = readManagedChatModels(doc);
+  const automatic = readManagedAutomaticModel(doc);
   if (!models.some((model) => model.id === input.id)) return { found: false };
   const next = models.map((model) => ({
     ...model,
@@ -172,7 +252,14 @@ export async function setManagedDefaultModel(input: {
       ? { engineDefault: model.id === input.id }
       : {}),
   }));
-  const result = await saveManagedChatModels({ ...input, models: next });
+  const result = await saveManagedChatModels({
+    ...input,
+    models: next,
+    automatic:
+      input.scope === "engine" || input.scope === "both"
+        ? { ...automatic, engineDefault: false }
+        : automatic,
+  });
   return {
     found: true,
     ...(result.engineSyncWarning
@@ -191,12 +278,14 @@ export async function setManagedModelEnabled(input: {
 }): Promise<{ found: boolean; engineSyncWarning?: string }> {
   const { doc } = await readVariables(input.owner, input.repo, { force: true });
   const models = readManagedChatModels(doc);
+  const automatic = readManagedAutomaticModel(doc);
   if (!models.some((model) => model.id === input.id)) return { found: false };
   const result = await saveManagedChatModels({
     ...input,
     models: models.map((model) =>
       model.id === input.id ? { ...model, enabled: input.enabled } : model,
     ),
+    automatic,
   });
   return {
     found: true,

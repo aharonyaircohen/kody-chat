@@ -209,7 +209,17 @@ export async function sendKodyDirectTurn(
   let sawTerminal = false;
 
   const applyChunk = (chunk: KodyDirectChunk): void => {
-    if (chunk.type === "finish") {
+    if (
+      chunk.type === "data-automatic-fallback" &&
+      chunk.data &&
+      typeof chunk.data.from === "string" &&
+      typeof chunk.data.to === "string"
+    ) {
+      ctx.emit({
+        type: "notice",
+        message: `${chunk.data.from} is rate limited. Continuing with ${chunk.data.to}.`,
+      });
+    } else if (chunk.type === "finish") {
       sawTerminal = true;
       return;
     }

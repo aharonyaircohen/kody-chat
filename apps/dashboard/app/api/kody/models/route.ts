@@ -22,6 +22,7 @@ import {
 import { readVariables } from "@kody-ade/base/variables/store";
 import {
   ModelsWriteSchema,
+  readManagedAutomaticModel,
   readManagedChatModels,
   saveManagedChatModels,
 } from "@kody-ade/base/variables/mutations";
@@ -54,7 +55,10 @@ export async function GET(req: NextRequest) {
   try {
     const { doc } = await readVariables(auth.owner, auth.repo);
     return NextResponse.json(
-      { models: readManagedChatModels(doc) },
+      {
+        models: readManagedChatModels(doc),
+        automatic: readManagedAutomaticModel(doc),
+      },
       { headers: NO_STORE_HEADERS },
     );
   } catch (err) {
@@ -107,11 +111,13 @@ export async function PUT(req: NextRequest) {
       owner: auth.owner,
       repo: auth.repo,
       models: parsed.data.models,
+      automatic: parsed.data.automatic,
       actorLogin,
     });
     return NextResponse.json({
       ok: true,
       models: result.models,
+      automatic: parsed.data.automatic,
       ...(result.engineSyncWarning
         ? { engineSyncWarning: result.engineSyncWarning }
         : {}),

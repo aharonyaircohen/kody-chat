@@ -86,15 +86,38 @@ describe("buildAgentList", () => {
 
   it("keeps custom models in input order", () => {
     const list = buildAgentList(true, true, true, [
-      model({ id: "a" }),
-      model({ id: "b" }),
+      model({ id: "a", automatic: true }),
+      model({ id: "b", automatic: true }),
     ]);
     expect(list.map((entry) => entry.key)).toEqual([
       "kody-live-fly",
       "brain-fly",
+      "kody:automatic",
       "kody:a",
       "kody:b",
     ]);
+  });
+
+  it("offers Automatic only when at least two selected enabled models can form a queue", () => {
+    expect(
+      buildAgentList(false, false, false, [model({ id: "only" })]).some(
+        (entry) => entry.key === "kody:automatic",
+      ),
+    ).toBe(false);
+
+    expect(
+      buildAgentList(false, false, false, [
+        model({ id: "first", automatic: true }),
+        model({ id: "not-selected" }),
+        model({ id: "disabled", enabled: false, automatic: true }),
+        model({ id: "second", automatic: true }),
+      ]).find((entry) => entry.key === "kody:automatic"),
+    ).toMatchObject({
+      agentId: "kody",
+      modelId: "automatic",
+      name: "Automatic",
+      reasoning: null,
+    });
   });
 
   it("does not add a built-in Claude row even when a custom model uses Claude", () => {

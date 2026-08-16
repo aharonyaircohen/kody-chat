@@ -11,6 +11,14 @@
 import { z } from "zod";
 
 export const VAR_LLM_MODELS = "LLM_MODELS";
+export const VAR_LLM_AUTOMATIC = "LLM_AUTOMATIC";
+export const AUTOMATIC_MODEL_ID = "automatic";
+
+export const AutomaticModelSchema = z.object({
+  /** Engine uses the ordered enabled-model list instead of one fixed model. */
+  engineDefault: z.boolean().optional().default(false),
+});
+export type AutomaticModel = z.infer<typeof AutomaticModelSchema>;
 
 /**
  * Built-in provider presets. The UI uses these to auto-fill `baseURL` and
@@ -146,6 +154,8 @@ const ChatModelConfigSchema = z.object({
   apiKeySecret: z.string().min(1).max(128),
   /** Hide from dropdown without deleting. */
   enabled: z.boolean().optional().default(true),
+  /** Include this model in the ordered Automatic fallback queue. */
+  automatic: z.boolean().optional(),
   /** Marks this entry as the default selection when chat opens. At most
    * one. Beats Brain auto-default. */
   default: z.boolean().optional(),
@@ -295,4 +305,13 @@ export function engineRuntimeModelConfig(
     modelName: m.modelName.trim(),
     apiKeyEnvVar: m.apiKeySecret.trim(),
   };
+}
+
+/** Engine-ready Automatic queue in the same order shown on Chat Models. */
+export function engineAutomaticModelConfigs(
+  models: ChatModel[],
+): EngineRuntimeModelConfig[] {
+  return models
+    .filter((model) => model.enabled !== false && model.automatic === true)
+    .map(engineRuntimeModelConfig);
 }

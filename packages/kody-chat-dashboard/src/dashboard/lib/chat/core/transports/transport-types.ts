@@ -56,6 +56,7 @@ export type ChatTransportStatus =
  */
 export type ChatEvent =
   | { type: "token"; text: string }
+  | { type: "notice"; message: string }
   | { type: "reasoning"; text: string }
   | { type: "text-replace"; text: string }
   | {

@@ -17,10 +17,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Bot,
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   Loader2,
+  MoreHorizontal,
   Pencil,
+  Power,
   Cpu,
   Plus,
   Save,
@@ -33,6 +37,13 @@ import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
 import { Checkbox } from "@kody-ade/base/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@kody-ade/base/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +59,7 @@ import {
   PROVIDER_PRESET_IDS,
   type ChatAdapter,
   type ChatModel,
+  type AutomaticModel,
   type ChatProtocol,
   type ProviderPreset,
 } from "@kody-ade/base/variables/models";
@@ -80,31 +92,36 @@ const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
 async function fetchModels(
   headers: Record<string, string>,
-): Promise<ChatModel[]> {
+): Promise<{ models: ChatModel[]; automatic: AutomaticModel }> {
   const res = await fetch("/api/kody/models", {
     headers,
     cache: "no-store",
   });
   const json = (await res.json().catch(() => ({}))) as {
     models?: ChatModel[];
+    automatic?: AutomaticModel;
     error?: string;
     message?: string;
   };
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
-  return json.models ?? [];
+  return {
+    models: json.models ?? [],
+    automatic: json.automatic ?? { engineDefault: false },
+  };
 }
 
 async function saveModels(
   headers: Record<string, string>,
   models: ChatModel[],
+  automatic: AutomaticModel,
   actorLogin?: string,
 ): Promise<void> {
   const res = await fetch("/api/kody/models", {
     method: "PUT",
     headers,
-    body: JSON.stringify({ models, actorLogin }),
+    body: JSON.stringify({ models, automatic, actorLogin }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
@@ -128,6 +145,7 @@ function blankModel(): ChatModel {
     modelName: "",
     apiKeySecret: p.keyHint,
     enabled: true,
+    automatic: false,
     default: false,
     engineDefault: false,
   };
@@ -159,19 +177,35 @@ function ModelsManagerInner() {
   const listQueryKey = modelsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
-  const { data, isLoading, error, refetch } = useQuery<ChatModel[]>({
+  const { data, isLoading, error, refetch } = useQuery<{
+    models: ChatModel[];
+    automatic: AutomaticModel;
+  }>({
     queryKey: listQueryKey,
     queryFn: () => fetchModels(headers),
     enabled: !!auth,
     staleTime: 30_000,
   });
   const models = composeChatModelCatalog<ChatModel>(
-    data ?? [],
+    data?.models ?? [],
     KODY_OPENROUTER_FREE_CHAT_MODEL,
+  );
+  const automatic = data?.automatic ?? { engineDefault: false };
+  const selectedAutomaticModels = models.filter(
+    (model) => model.automatic === true,
+  );
+  const automaticModels = models.filter(
+    (model) => model.enabled !== false && model.automatic === true,
   );
 
   const save = useMutation({
-    mutationFn: (list: ChatModel[]) => saveModels(headers, list, actorLogin),
+    mutationFn: ({
+      list,
+      automatic: nextAutomatic,
+    }: {
+      list: ChatModel[];
+      automatic: AutomaticModel;
+    }) => saveModels(headers, list, nextAutomatic, actorLogin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -207,7 +241,10 @@ function ModelsManagerInner() {
         i === savedIdx ? m : { ...m, engineDefault: false },
       );
     }
-    return save.mutateAsync(list).then(() => {
+    const nextAutomatic = next.engineDefault
+      ? { ...automatic, engineDefault: false }
+      : automatic;
+    return save.mutateAsync({ list, automatic: nextAutomatic }).then(() => {
       toast.success("Model saved");
       setEditing(null);
     });
@@ -217,12 +254,57 @@ function ModelsManagerInner() {
     const list = models.map((m, i) =>
       i === idx ? { ...m, enabled: m.enabled === false } : m,
     );
-    save.mutate(list);
+    const automaticCount = list.filter(
+      (model) => model.enabled !== false && model.automatic === true,
+    ).length;
+    save.mutate({
+      list,
+      automatic:
+        automaticCount < 2 ? { ...automatic, engineDefault: false } : automatic,
+    });
+  };
+
+  const toggleAutomatic = (idx: number) => {
+    const list = models.map((model, modelIdx) =>
+      modelIdx === idx
+        ? { ...model, automatic: model.automatic !== true }
+        : model,
+    );
+    const automaticCount = list.filter(
+      (model) => model.enabled !== false && model.automatic === true,
+    ).length;
+    save.mutate({
+      list,
+      automatic:
+        automaticCount < 2 ? { ...automatic, engineDefault: false } : automatic,
+    });
+  };
+
+  const moveAutomatic = (idx: number, offset: -1 | 1) => {
+    const selectedIndices = models.flatMap((model, modelIdx) =>
+      model.automatic === true ? [modelIdx] : [],
+    );
+    const selectedPosition = selectedIndices.indexOf(idx);
+    const target = selectedIndices[selectedPosition + offset];
+    if (target === undefined) return;
+    const list = [...models];
+    [list[idx], list[target]] = [list[target]!, list[idx]!];
+    save.mutate({ list, automatic });
+  };
+
+  const setAutomaticEngineDefault = (checked: boolean) => {
+    const list = checked
+      ? models.map((model) => ({ ...model, engineDefault: false }))
+      : models;
+    save.mutate({
+      list,
+      automatic: { ...automatic, engineDefault: checked },
+    });
   };
 
   const remove = (idx: number) => {
     const list = models.filter((_, i) => i !== idx);
-    save.mutateAsync(list).then(() => {
+    save.mutateAsync({ list, automatic }).then(() => {
       toast.success("Model deleted");
       setDeleting(null);
     });
@@ -284,18 +366,50 @@ function ModelsManagerInner() {
           </Card>
         )}
 
+        {!isLoading && !error && (
+          <Card className="border-sky-500/20 bg-sky-500/[0.05]">
+            <CardContent className="p-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-white/90">
+                    Automatic
+                  </span>
+                  {automatic.engineDefault && (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
+                      <Cpu className="w-3 h-3" /> Engine
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-white/45 mt-0.5">
+                  {automaticModels.length >= 2
+                    ? `Uses ${automaticModels.length} selected models in order when one is rate limited.`
+                    : "Select at least two models below."}
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-white/70">
+                <Checkbox
+                  checked={automatic.engineDefault === true}
+                  disabled={automaticModels.length < 2}
+                  onCheckedChange={(checked) =>
+                    setAutomaticEngineDefault(checked === true)
+                  }
+                  aria-label="Use Automatic as the Engine default"
+                />
+                Engine default
+              </label>
+            </CardContent>
+          </Card>
+        )}
+
         <ul className="space-y-2">
           {models.map((m, idx) => (
             <li key={idx}>
               <Card className="border-white/[0.08] bg-white/[0.03]">
-                <CardContent className="p-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1 flex items-center gap-3">
-                    <Checkbox
-                      checked={m.enabled !== false}
-                      onCheckedChange={() => toggleEnabled(idx)}
-                      aria-label={m.enabled === false ? "Enable" : "Disable"}
-                    />
-                    <div className="min-w-0">
+                <CardContent className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`min-w-0 ${m.enabled === false ? "opacity-55" : ""}`}
+                    >
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm text-white/90 truncate">
                           {m.label || m.modelName || m.id}
@@ -303,6 +417,11 @@ function ModelsManagerInner() {
                         {m.id === KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
                           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
                             Built in
+                          </span>
+                        )}
+                        {m.enabled === false && (
+                          <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+                            Disabled
                           </span>
                         )}
                         {m.default && (
@@ -330,27 +449,82 @@ function ModelsManagerInner() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1"
-                      onClick={() => setEditing({ mode: "edit", idx })}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Edit
-                    </Button>
-                    {m.id !== KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-rose-300 hover:text-rose-200"
-                        onClick={() => setDeleting(idx)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </Button>
+                  <div className="flex shrink-0 items-center justify-end gap-1">
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-white/60 hover:bg-white/[0.04] hover:text-white/80">
+                      <Checkbox
+                        checked={m.automatic === true}
+                        disabled={m.enabled === false || save.isPending}
+                        onCheckedChange={() => toggleAutomatic(idx)}
+                        aria-label={`Include ${m.label || m.modelName} in Automatic`}
+                      />
+                      Auto
+                    </label>
+                    {m.automatic === true && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={
+                            selectedAutomaticModels[0]?.id === m.id ||
+                            save.isPending
+                          }
+                          onClick={() => moveAutomatic(idx, -1)}
+                          aria-label={`Move ${m.label || m.modelName} up in Automatic`}
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={
+                            selectedAutomaticModels.at(-1)?.id === m.id ||
+                            save.isPending
+                          }
+                          onClick={() => moveAutomatic(idx, 1)}
+                          aria-label={`Move ${m.label || m.modelName} down in Automatic`}
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`More actions for ${m.label || m.modelName}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-36">
+                        <DropdownMenuItem onClick={() => toggleEnabled(idx)}>
+                          <Power className="h-3.5 w-3.5" />
+                          {m.enabled === false
+                            ? "Enable model"
+                            : "Disable model"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setEditing({ mode: "edit", idx })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </DropdownMenuItem>
+                        {m.id !== KODY_OPENROUTER_FREE_CHAT_MODEL.id && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-rose-300 focus:text-rose-200"
+                              onClick={() => setDeleting(idx)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardContent>
               </Card>

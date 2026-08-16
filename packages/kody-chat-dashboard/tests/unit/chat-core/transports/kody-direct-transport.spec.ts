@@ -42,6 +42,31 @@ afterEach(() => {
 });
 
 describe("sendKodyDirectTurn", () => {
+  it("emits a visible notice when Automatic switches models", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-automatic-fallback",
+            data: { from: "Model A", to: "Model B" },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "notice",
+        message: "Model A is rate limited. Continuing with Model B.",
+      },
+      { type: "done" },
+    ]);
+  });
+
   it("POSTs the body once and emits token/reasoning deltas in order", async () => {
     const { calls, restore } = installScriptedFetch([
       () =>

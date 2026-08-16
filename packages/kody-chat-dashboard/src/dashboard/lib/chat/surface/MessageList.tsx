@@ -303,6 +303,16 @@ export function MessageList({
                       : "max-w-[92%] sm:max-w-[85%]"
                   } min-w-0 break-words rounded-lg px-3 py-2 leading-relaxed`}
                 >
+                  {msg.role === "assistant" &&
+                    msg.notices?.map((notice) => (
+                      <div
+                        key={notice}
+                        className="mb-2 rounded-md bg-sky-500/10 px-2 py-1 text-xs text-sky-200"
+                        role="status"
+                      >
+                        {notice}
+                      </div>
+                    ))}
                   {/* Message Actions */}
                   <MessageActions
                     role={msg.role}

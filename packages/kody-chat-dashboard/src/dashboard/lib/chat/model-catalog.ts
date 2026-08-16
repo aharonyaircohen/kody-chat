@@ -36,13 +36,10 @@ export function composeChatModelCatalog<T extends CatalogModel>(
   const hasExplicitDefault = configured.some(
     (model) => model.enabled !== false && model.default === true,
   );
-  const embedded = sameId ?? {
-    ...builtInModel,
-    default: !hasExplicitDefault,
-  };
+  if (sameId) return configured;
 
   return [
-    embedded as T,
-    ...configured.filter((model) => model.id !== builtInModel.id),
+    { ...builtInModel, default: !hasExplicitDefault } as T,
+    ...configured,
   ];
 }

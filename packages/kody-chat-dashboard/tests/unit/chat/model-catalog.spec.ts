@@ -68,4 +68,19 @@ describe("Kody Chat model catalog", () => {
 
     expect(catalog).toEqual([configured]);
   });
+
+  it("preserves the saved position of the built-in model", () => {
+    const primary = minimaxModel({ default: true });
+    const builtIn = {
+      ...KODY_OPENROUTER_FREE_CHAT_MODEL,
+      default: false,
+    } satisfies ChatModel;
+
+    expect(
+      composeChatModelCatalog<ChatModel>(
+        [primary, builtIn],
+        KODY_OPENROUTER_FREE_CHAT_MODEL,
+      ).map((model) => model.id),
+    ).toEqual(["minimax/MiniMax-M3", "openrouter/free"]);
+  });
 });

@@ -10,10 +10,7 @@
 
 import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
-import type {
-  ChatViewDirective,
-  RenderedViewAction,
-} from "../chat-ui-actions";
+import type { ChatViewDirective, RenderedViewAction } from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 
@@ -21,6 +18,8 @@ export interface Message {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  /** Ephemeral runtime notices, such as an Automatic model switch. */
+  notices?: string[];
   isLoading?: boolean;
   timestamp?: string;
   toolCalls?: Array<{

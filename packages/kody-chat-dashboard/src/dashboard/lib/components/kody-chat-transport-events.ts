@@ -115,6 +115,15 @@ export function createTransportTurnHandler(
 
   const handleEvent = (event: ChatEvent): void => {
     switch (event.type) {
+      case "notice": {
+        setMessages((prev) =>
+          updateActiveAssistant(prev, (message) => ({
+            ...message,
+            notices: [...(message.notices ?? []), event.message],
+          })),
+        );
+        return;
+      }
       case "token": {
         state.textBuf += event.text;
         hooks.emitVoiceDelta?.(stripReasoning(state.textBuf));
@@ -232,7 +241,7 @@ export function createTransportTurnHandler(
                   ? {
                       ...toolCall,
                       status: "error" as const,
-                      ...((toolCall.activityKind === "subagent") &&
+                      ...(toolCall.activityKind === "subagent" &&
                       event.errorText
                         ? { result: event.errorText }
                         : {}),

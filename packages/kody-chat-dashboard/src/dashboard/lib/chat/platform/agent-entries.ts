@@ -11,6 +11,7 @@ import {
   resolveReasoning,
   type ModelReasoning,
 } from "../core/reasoning-adapter";
+import { AUTOMATIC_MODEL_ID } from "@kody-ade/base/variables/models";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {
@@ -36,6 +37,7 @@ export interface ChatModelEntry {
   id: string;
   label: string;
   enabled?: boolean;
+  automatic?: boolean;
   speech?: boolean;
   default?: boolean;
 }
@@ -131,6 +133,20 @@ export function buildAgentList(
   // gateway path (`/api/kody/chat/kody`) with the model id forwarded in the
   // request body.
   const kody = AGENTS.kody;
+  const automaticModels = models.filter(
+    (model) => model.enabled !== false && model.automatic === true,
+  );
+  if (automaticModels.length >= 2) {
+    entries.push({
+      key: `kody:${AUTOMATIC_MODEL_ID}`,
+      agentId: "kody",
+      modelId: AUTOMATIC_MODEL_ID,
+      name: "Automatic",
+      description: "Uses selected models in order when rate limited",
+      icon: kody.icon,
+      reasoning: null,
+    });
+  }
   for (const m of models) {
     if (m.enabled === false) continue;
     entries.push({

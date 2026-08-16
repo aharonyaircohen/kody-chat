@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import type { LanguageModel } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
@@ -23,12 +24,17 @@ import {
   KODY_OPENROUTER_FREE_CHAT_MODEL,
 } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
+  AUTOMATIC_MODEL_ID,
   PROVIDER_PRESETS,
   pickModelById,
   pickDefaultModel,
   type ChatModel,
   type ProviderPreset,
 } from "@kody-ade/base/variables/models";
+import {
+  createAutomaticLanguageModel,
+  type AutomaticFallbackEvent,
+} from "@kody-ade/kody-chat-dashboard/core/automatic-language-model";
 
 export type ResolvedChatModel = {
   model: LanguageModel;
@@ -38,6 +44,7 @@ export type ResolvedChatModel = {
 
 export type ResolveChatModelOptions = {
   preferVision?: boolean;
+  onAutomaticFallback?: (event: AutomaticFallbackEvent) => void;
 };
 
 const ENGINE_PROVIDER_ALIASES: Record<string, ProviderPreset> = {
@@ -176,6 +183,78 @@ export async function resolveChatModel(
     await loadChatModels(req),
     KODY_OPENROUTER_FREE_CHAT_MODEL,
   );
+  if (modelId === AUTOMATIC_MODEL_ID) {
+    const candidates = availableModels.filter(
+      (candidate) =>
+        candidate.enabled !== false &&
+        candidate.automatic === true &&
+        !isEmbeddingModel(candidate),
+    );
+    if (candidates.length < 2) {
+      return {
+        error: NextResponse.json(
+          {
+            error: "automatic_requires_models",
+            fallback: "kody-live",
+            message:
+              "Automatic requires at least two selected chat models under /models.",
+          },
+          { status: 409 },
+        ),
+      };
+    }
+    const resolvedCandidates: Array<{ id: string; model: LanguageModelV3 }> =
+      [];
+    for (const candidate of candidates) {
+      const resolved = options.preferVision
+        ? pickVisionModel(candidate, availableModels)
+        : candidate;
+      const apiKey = await getSecret(resolved.apiKeySecret, { req });
+      if (!apiKey) {
+        return {
+          error: NextResponse.json(
+            {
+              error: "model_api_key_missing",
+              fallback: "kody-live",
+              message: `${resolved.apiKeySecret} is not set. Automatic cannot use ${resolved.label || resolved.modelName}.`,
+            },
+            { status: 409 },
+          ),
+        };
+      }
+      const adapter = chatModelAdapter(resolved);
+      if (adapter.requiresBaseURL && !chatModelAdapterBaseURL(resolved)) {
+        return {
+          error: NextResponse.json(
+            {
+              error: "model_base_url_missing",
+              fallback: "kody-live",
+              message: `Model ${resolved.id} has no baseURL. Edit it under /models.`,
+            },
+            { status: 409 },
+          ),
+        };
+      }
+      resolvedCandidates.push({
+        id: resolved.label || resolved.modelName,
+        model: adapter.create(resolved, apiKey) as LanguageModelV3,
+      });
+    }
+    const first = candidates[0]!;
+    return {
+      model: createAutomaticLanguageModel(resolvedCandidates, {
+        onFallback: options.onAutomaticFallback,
+      }) as LanguageModel,
+      resolvedModel: {
+        ...first,
+        id: AUTOMATIC_MODEL_ID,
+        label: "Automatic",
+        default: false,
+        engineDefault: false,
+      },
+      apiKey: "",
+    };
+  }
   const requestedModel = modelId
     ? pickModelById(availableModels, modelId)
     : null;
