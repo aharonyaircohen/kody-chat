@@ -15,6 +15,7 @@ describe("ui tools", () => {
     name: "Decision card",
     purpose: "decision",
     rule: "Use this purpose when Kody presents a decision.",
+    description: "Use this purpose when Kody presents a decision. Represents a decision card with title, body, and actions.",
     data: {
       title: { type: "text", description: "Short heading." },
       body: { type: "text", description: "Supporting text." },
