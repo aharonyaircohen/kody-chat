@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "automatic",
+    "model": "openrouter/free",
     "automaticModels": [
       {
         "spec": "openrouter/free",
