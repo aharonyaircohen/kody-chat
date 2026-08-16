@@ -1,3 +1,15 @@
+import type { GuidedFlowOpenRequest } from "./chat-controller";
+
+export function conversationIdForGuidedFlowOpen(
+  request: GuidedFlowOpenRequest,
+  activeConversationId: string | null,
+  createConversation: () => string,
+): string {
+  return "flowId" in request
+    ? createConversation()
+    : (activeConversationId ?? createConversation());
+}
+
 export function locationAfterGuidedFlowLaunch(
   pathname: string,
   search: string,

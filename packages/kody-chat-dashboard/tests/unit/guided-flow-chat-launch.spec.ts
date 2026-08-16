@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { locationAfterGuidedFlowLaunch } from "../../src/dashboard/lib/guided-flows/chat-launch";
+import {
+  conversationIdForGuidedFlowOpen,
+  locationAfterGuidedFlowLaunch,
+} from "../../src/dashboard/lib/guided-flows/chat-launch";
 
 describe("GuidedFlow chat launch location", () => {
   it("keeps a definition launch so a new conversation starts the flow again", () => {
@@ -29,5 +32,37 @@ describe("GuidedFlow chat launch location", () => {
         "?guidedFlow=onboarding&guidedFlowOnce=1",
       ),
     ).toBe("/chat");
+  });
+});
+
+describe("GuidedFlow chat conversation selection", () => {
+  it("creates a fresh conversation for a new flow start", () => {
+    expect(
+      conversationIdForGuidedFlowOpen(
+        { flowId: "onboarding", message: "started" },
+        "existing-session",
+        () => "new-session",
+      ),
+    ).toBe("new-session");
+  });
+
+  it("keeps the active conversation when explicitly resuming", () => {
+    expect(
+      conversationIdForGuidedFlowOpen(
+        { instanceId: "instance-1", message: "resumed" },
+        "existing-session",
+        () => "unexpected-new-session",
+      ),
+    ).toBe("existing-session");
+  });
+
+  it("creates a conversation when resuming without an active session", () => {
+    expect(
+      conversationIdForGuidedFlowOpen(
+        { instanceId: "instance-1", message: "resumed" },
+        null,
+        () => "new-session",
+      ),
+    ).toBe("new-session");
   });
 });

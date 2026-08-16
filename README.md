@@ -159,6 +159,9 @@ pnpm install
 pnpm dev
 ```
 
+This starts both the Dashboard and the local Convex backend. The backend keeps
+the Dashboard's database functions synchronized while you develop.
+
 The Dashboard runs at <http://localhost:3333>. Repository-owned pages use the
 canonical route:
 

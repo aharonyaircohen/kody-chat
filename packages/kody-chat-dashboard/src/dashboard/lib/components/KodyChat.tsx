@@ -101,7 +101,10 @@ import { isRenderedViewDirective } from "../chat-ui-actions";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
-import { locationAfterGuidedFlowLaunch } from "../guided-flows/chat-launch";
+import {
+  conversationIdForGuidedFlowOpen,
+  locationAfterGuidedFlowLaunch,
+} from "../guided-flows/chat-launch";
 import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
 import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
 import { PROJECT_ASSESSMENT_FLOW_ID } from "../guided-flows/builtins";
@@ -252,9 +255,15 @@ export function KodyChat({
       if (guidedFlowOpenInFlightRef.current.has(requestKey)) return false;
       guidedFlowOpenInFlightRef.current.add(requestKey);
       try {
-        const conversationId =
-          activeGuidedFlowSessionIdRef.current ??
-          createGuidedFlowSessionRef.current();
+        // Starting a flow is a new chat run. Reusing the current conversation
+        // leaves the previous completed flow visible and makes a restart look
+        // like it resumed from the old run. Explicit resume requests below
+        // intentionally keep the current conversation.
+        const conversationId = conversationIdForGuidedFlowOpen(
+          request,
+          activeGuidedFlowSessionIdRef.current,
+          createGuidedFlowSessionRef.current,
+        );
         activeGuidedFlowSessionIdRef.current = conversationId;
         const response =
           "flowId" in request

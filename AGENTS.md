@@ -21,6 +21,23 @@
 - Read [`docs/testing-policy.md`](docs/testing-policy.md) for the required
   verification layers and completion standard for every change.
 
+## Non-negotiable verification gates
+
+- Every bug fix or behavior change must add or update an automated regression
+  test at the boundary where the bug occurred. Existing tests do not count
+  unless they assert the changed behavior.
+- Every user-facing change must be tested through the real mounted local app;
+  mocked browser tests are not live verification.
+- Critical user-facing or persistence changes must also be tested against the
+  deployed candidate before they can be reported as complete. A local pass is
+  not a deployment pass.
+- If a required test or live check cannot run, report the change as
+  unverified. Never claim it works based only on source inspection or unit
+  tests.
+- The final report must list separately: regression test, typecheck/lint,
+  mocked browser test, live local test, and deployed live test, including
+  explicit `not run` or `failed` status.
+
 ## Generic System Architecture
 
 - Reuse or extend the existing system that already owns a responsibility before
