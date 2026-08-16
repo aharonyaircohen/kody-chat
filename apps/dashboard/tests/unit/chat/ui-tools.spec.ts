@@ -154,10 +154,12 @@ describe("ui tools", () => {
 
     await expect(
       finalAnswer.execute({
-        content: "The bug is in the login redirect handler.",
+        content:
+          "The bug is in the login redirect handler. Would you like me to explain the failing path?",
       }),
     ).resolves.toEqual({
-      content: "The bug is in the login redirect handler.",
+      content:
+        "The bug is in the login redirect handler. Would you like me to explain the failing path?",
     });
   });
 
