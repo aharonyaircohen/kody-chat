@@ -249,7 +249,7 @@ describe("public Agent routing", () => {
     ).toEqual({ mode: "self" });
   });
 
-  it("lets specialist routing run before parent-owned presentation", () => {
+  it("routes specialist work but keeps explicit presentation with Kody", () => {
     expect(
       shouldRoutePublicAgentChat({
         clientSurface: false,
@@ -271,6 +271,14 @@ describe("public Agent routing", () => {
     expect(
       shouldRoutePublicAgentChat({
         userText: "Provide the link to the CTO agent.",
+        clientSurface: false,
+        assignedSubagentCount: 2,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRoutePublicAgentChat({
+        userText:
+          "Render a compact visual card titled Renderer compatibility check with three steps: Alpha, Beta, Gamma. Do not start a Guided Flow. Use show_view.",
         clientSurface: false,
         assignedSubagentCount: 2,
       }),

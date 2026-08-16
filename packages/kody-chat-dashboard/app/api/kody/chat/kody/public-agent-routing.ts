@@ -6,6 +6,7 @@ import {
   type PublicDelegationAgent,
 } from "./public-agent-definition";
 import { MAX_PARALLEL_ASSIGNMENTS } from "./public-agent-limits";
+import { parseExplicitViewRequest } from "./view-request";
 
 export { MAX_PARALLEL_ASSIGNMENTS } from "./public-agent-limits";
 const PUBLIC_AGENT_ROUTING_TIMEOUT_MS = 10_000;
@@ -100,6 +101,7 @@ export function shouldRoutePublicAgentChat(input: {
   clientSurface: boolean;
   assignedSubagentCount: number;
 }): boolean {
+  const explicitViewRequest = parseExplicitViewRequest(input.userText);
   const referenceRequest =
     /^\s*(?:please\s+)?(?:provide|give|find|get|open|share|send|show)\b[^?\n]{0,120}\b(?:link|url|path|route|page)\b/i.test(
       input.userText ?? "",
@@ -107,6 +109,7 @@ export function shouldRoutePublicAgentChat(input: {
   return (
     !input.clientSurface &&
     input.assignedSubagentCount > 0 &&
+    !explicitViewRequest &&
     !referenceRequest
   );
 }

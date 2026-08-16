@@ -18,6 +18,17 @@ describe("explicit view requests", () => {
     );
   });
 
+  it("parses a natural explicit show_view card request", () => {
+    expect(
+      parseExplicitViewRequest(
+        "Render a compact visual card titled Renderer compatibility check with three steps: Alpha, Beta, Gamma. Do not start a Guided Flow. Use show_view.",
+      ),
+    ).toEqual({
+      purpose: "renderer-compatibility-check",
+      title: "Renderer compatibility check",
+    });
+  });
+
   it("does not hardcode natural wording as an explicit renderer request", () => {
     expect(
       parseExplicitViewRequest(
