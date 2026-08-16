@@ -17,16 +17,8 @@
     ]
   },
   "agent": {
-    "model": "openrouter/free",
+    "model": "openrouter/~deepseek/deepseek-v4-flash-latest",
     "automaticModels": [
-      {
-        "spec": "openrouter/free",
-        "provider": "openrouter",
-        "protocol": "openai",
-        "baseURL": "https://openrouter.ai/api/v1",
-        "modelName": "openrouter/free",
-        "apiKeyEnvVar": "OPENROUTER_API_KEY"
-      },
       {
         "spec": "openrouter/~deepseek/deepseek-v4-flash-latest",
         "provider": "openrouter",
