@@ -883,7 +883,7 @@ function FlowBuilder({
 }
 
 function GuidedFlowsManager() {
-  const { startFlow } = useGuidedFlowChat();
+  const { openInstance } = useGuidedFlowChat();
   const { auth } = useAuth();
   const [definitions, setDefinitions] = useState<FlowDefinition[]>(
     BUILTIN_START_OPTIONS,
@@ -894,7 +894,44 @@ function GuidedFlowsManager() {
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FlowDefinition | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [startingFlowId, setStartingFlowId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const startFlowFromPage = useCallback(
+    async (flowId: string) => {
+      if (!auth || startingFlowId) return;
+      setStartingFlowId(flowId);
+      setError(null);
+      try {
+        const response = await fetch("/api/kody/guided-flows", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(auth),
+          },
+          body: JSON.stringify({ action: "start", flowId }),
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          instance?: { instanceId?: unknown };
+        };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to start Guided Flow");
+        }
+        const instanceId = payload.instance?.instanceId;
+        if (typeof instanceId !== "string" || !instanceId) {
+          throw new Error("Guided Flow did not return an instance");
+        }
+        openInstance(instanceId, "started");
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to start Guided Flow",
+        );
+      } finally {
+        setStartingFlowId(null);
+      }
+    },
+    [auth, openInstance, startingFlowId],
+  );
   const load = useCallback(async () => {
     if (!auth) return;
     setError(null);
@@ -1056,10 +1093,13 @@ function GuidedFlowsManager() {
                       <Button
                         size="sm"
                         aria-label={`Start ${option.title} in Chat`}
-                        onClick={() => startFlow(option.id)}
+                        disabled={Boolean(startingFlowId)}
+                        onClick={() => void startFlowFromPage(option.id)}
                       >
                         <Play className="mr-1.5 h-4 w-4" />
-                        Start in Chat
+                        {startingFlowId === option.id
+                          ? "Starting…"
+                          : "Start in Chat"}
                       </Button>
                       <Button
                         variant="ghost"

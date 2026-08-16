@@ -56,6 +56,16 @@ describe("GuidedFlow chat conversation selection", () => {
     ).toBe("existing-session");
   });
 
+  it("creates a fresh conversation when an exact instance is explicitly started", () => {
+    expect(
+      conversationIdForGuidedFlowOpen(
+        { instanceId: "instance-1", message: "started" },
+        "existing-session",
+        () => "new-session",
+      ),
+    ).toBe("new-session");
+  });
+
   it("creates a conversation when resuming without an active session", () => {
     expect(
       conversationIdForGuidedFlowOpen(

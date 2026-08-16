@@ -1167,6 +1167,7 @@ export function KodyChat({
 
   useEffect(() => {
     if (!sessionHook.hydrated) return;
+    if (guidedFlowRequest) return;
     if (lockedAgentSlug) return;
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("guidedFlow");
@@ -1228,6 +1229,7 @@ export function KodyChat({
   }, [
     activeChatSessionId,
     createSelectedChatSession,
+    guidedFlowRequest,
     lockedAgentSlug,
     pathname,
     router,

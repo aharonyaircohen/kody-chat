@@ -5,7 +5,7 @@ export function conversationIdForGuidedFlowOpen(
   activeConversationId: string | null,
   createConversation: () => string,
 ): string {
-  return "flowId" in request
+  return request.message === "started"
     ? createConversation()
     : (activeConversationId ?? createConversation());
 }

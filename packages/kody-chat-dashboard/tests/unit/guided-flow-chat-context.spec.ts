@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { buildGuidedFlowTurnContext } from "../../app/api/kody/chat/guided-flow-context";
+import {
+  guidedFlowChatReducer,
+  initialGuidedFlowChatState,
+} from "../../src/dashboard/lib/guided-flows/chat-controller";
 import type { GuidedFlowReader } from "../../src/dashboard/lib/guided-flows/reader";
 
 function reader(
@@ -90,5 +94,20 @@ describe("GuidedFlow Chat turn context", () => {
 
   it("adds nothing when the conversation has no bound flow", async () => {
     await expect(buildGuidedFlowTurnContext(reader(null))).resolves.toBeNull();
+  });
+});
+
+describe("GuidedFlow explicit launch contract", () => {
+  it("carries the exact instance to Chat instead of asking Chat to find one", () => {
+    const next = guidedFlowChatReducer(initialGuidedFlowChatState, {
+      type: "request",
+      requestId: "request-1",
+      request: { instanceId: "instance-1", message: "started" },
+    });
+
+    expect(next.pending?.request).toEqual({
+      instanceId: "instance-1",
+      message: "started",
+    });
   });
 });
