@@ -354,7 +354,7 @@ test("runs onboarding manually and lets the user advance after completing each p
         id: "onboarding-provider-choice-3",
         stepId: "choose-chat-provider",
         revision: 3,
-        title: "Choose a free Chat provider",
+          title: "Set up Chat",
         actionId: "openrouter",
         actionLabel: "Set up OpenRouter",
         actions: [
@@ -411,7 +411,7 @@ test("runs onboarding manually and lets the user advance after completing each p
     .last()
     .click();
   await expect(
-    chat.getByRole("heading", { name: "Choose a free Chat provider" }),
+    chat.getByRole("heading", { name: "Set up Chat" }),
   ).toBeVisible();
   await expect(
     chat.getByRole("button", { name: "Set up OpenRouter", exact: true }),

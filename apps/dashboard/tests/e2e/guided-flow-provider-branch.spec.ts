@@ -33,7 +33,7 @@ function providerChoiceView(stepId: string, revision: number) {
     ui: {
       type: "stack",
       children: [
-        { type: "text", value: "Choose a free Chat provider", variant: "title" },
+        { type: "text", value: "Set up Chat", variant: "title" },
         {
           type: "row",
           children: [
@@ -71,7 +71,7 @@ function providerChoiceView(stepId: string, revision: number) {
         },
       ],
     },
-    data: { title: "Choose a free Chat provider" },
+    data: { title: "Set up Chat" },
   };
 }
 
