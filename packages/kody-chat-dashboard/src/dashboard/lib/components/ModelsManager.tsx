@@ -390,6 +390,14 @@ function ModelsManagerInner() {
                   <span className="font-medium text-sm text-white/90">
                     Automatic
                   </span>
+                  {automatic.default && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-300"
+                      title="Used for new conversations"
+                    >
+                      <Star className="h-3 w-3" /> Chat
+                    </span>
+                  )}
                   {automatic.engineDefault && (
                     <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
                       <Cpu className="w-3 h-3" /> Engine

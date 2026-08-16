@@ -225,7 +225,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
 
   await automaticEngineDefault.click();
   await automaticChatDefault.click();
-  await expect(page.getByText("Automatic").first()).toBeVisible();
+  await expect(
+    page.locator('[title="Used for new conversations"]'),
+  ).toContainText("Chat");
   const automaticSavedBody = savedBody as unknown as {
     models: Array<Record<string, unknown>>;
     automatic: { default?: boolean; engineDefault?: boolean };
