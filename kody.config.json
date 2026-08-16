@@ -20,19 +20,19 @@
     "model": "openrouter/free",
     "automaticModels": [
       {
-        "spec": "openrouter/free",
-        "provider": "openrouter",
-        "protocol": "openai",
-        "baseURL": "https://openrouter.ai/api/v1",
-        "modelName": "openrouter/free",
-        "apiKeyEnvVar": "OPENROUTER_API_KEY"
-      },
-      {
         "spec": "openrouter/~deepseek/deepseek-v4-flash-latest",
         "provider": "openrouter",
         "protocol": "openai",
         "baseURL": "https://openrouter.ai/api/v1",
         "modelName": "~deepseek/deepseek-v4-flash-latest",
+        "apiKeyEnvVar": "OPENROUTER_API_KEY"
+      },
+      {
+        "spec": "openrouter/free",
+        "provider": "openrouter",
+        "protocol": "openai",
+        "baseURL": "https://openrouter.ai/api/v1",
+        "modelName": "openrouter/free",
         "apiKeyEnvVar": "OPENROUTER_API_KEY"
       }
     ]
