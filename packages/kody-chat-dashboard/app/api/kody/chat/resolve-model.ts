@@ -18,7 +18,10 @@ import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { chatModelAdapter, chatModelAdapterBaseURL } from "./model-adapters";
 import { supportsVision } from "@kody-ade/kody-chat-dashboard/core/vision-support";
-import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
+import {
+  loadAutomaticModel,
+  loadChatModels,
+} from "@kody-ade/base/variables/load-chat-models";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
@@ -197,7 +200,10 @@ export async function resolveChatModel(
     await loadChatModels(req),
     KODY_BUILT_IN_CHAT_MODELS,
   );
-  if (modelId === AUTOMATIC_MODEL_ID) {
+  const automatic = await loadAutomaticModel(req);
+  const effectiveModelId =
+    modelId ?? (automatic.default === true ? AUTOMATIC_MODEL_ID : undefined);
+  if (effectiveModelId === AUTOMATIC_MODEL_ID) {
     const candidates = availableModels.filter(
       (candidate) =>
         candidate.enabled !== false &&
@@ -272,8 +278,8 @@ export async function resolveChatModel(
       apiKey: "",
     };
   }
-  const requestedModel = modelId
-    ? pickModelById(availableModels, modelId)
+  const requestedModel = effectiveModelId
+    ? pickModelById(availableModels, effectiveModelId)
     : null;
   if (requestedModel && isEmbeddingModel(requestedModel)) {
     return {

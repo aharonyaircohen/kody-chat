@@ -114,16 +114,17 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
       engineDefault: false,
     },
   ];
-  let automatic = { engineDefault: false };
+  let automatic = { default: false, engineDefault: false };
   let savedBody: {
     models?: Array<Record<string, unknown>>;
-    automatic?: { engineDefault?: boolean };
+    automatic?: { default?: boolean; engineDefault?: boolean };
   } | null = null;
   await page.route("**/api/kody/models", async (route) => {
     if (route.request().method() === "PUT") {
       savedBody = route.request().postDataJSON() as typeof savedBody;
       models = savedBody?.models ?? [];
       automatic = {
+        default: savedBody?.automatic?.default === true,
         engineDefault: savedBody?.automatic?.engineDefault === true,
       };
       await route.fulfill({
@@ -160,7 +161,11 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   const automaticEngineDefault = page.getByRole("checkbox", {
     name: "Use Automatic as the Engine default",
   });
+  const automaticChatDefault = page.getByRole("checkbox", {
+    name: "Use Automatic as the Chat default",
+  });
   await expect(automaticEngineDefault).toBeDisabled();
+  await expect(automaticChatDefault).toBeDisabled();
   await expect(
     primaryRow.getByRole("button", { name: /Move Primary .*Automatic/ }),
   ).toHaveCount(0);
@@ -172,6 +177,7 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
     .getByRole("checkbox", { name: "Include Primary in Automatic" })
     .click();
   await expect(automaticEngineDefault).toBeEnabled();
+  await expect(automaticChatDefault).toBeEnabled();
   await expect(page.getByText("Uses 2 selected models in order")).toBeVisible();
 
   await primaryRow
@@ -183,7 +189,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
       savedBody as unknown as {
         models: Array<{ id: string; automatic?: boolean }>;
       }
-    ).models.map((model) => ({ id: model.id, automatic: model.automatic })),
+    ).models
+      .filter((model) => model.automatic === true)
+      .map((model) => ({ id: model.id, automatic: model.automatic })),
   ).toEqual([
     { id: "anthropic/primary", automatic: true },
     { id: "openrouter/free", automatic: true },
@@ -216,20 +224,27 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   );
 
   await automaticEngineDefault.click();
+  await automaticChatDefault.click();
   await expect(page.getByText("Automatic").first()).toBeVisible();
   const automaticSavedBody = savedBody as unknown as {
     models: Array<Record<string, unknown>>;
-    automatic: { engineDefault?: boolean };
+    automatic: { default?: boolean; engineDefault?: boolean };
   };
-  expect(automaticSavedBody.automatic).toEqual({ engineDefault: true });
+  expect(automaticSavedBody.automatic).toEqual({
+    default: true,
+    engineDefault: true,
+  });
   expect(
     automaticSavedBody.models.find((model) => model.id === "anthropic/primary"),
   ).toMatchObject({
-    default: true,
+    default: false,
     engineDefault: false,
   });
   expect(
     automaticSavedBody.models.every((model) => model.engineDefault !== true),
+  ).toBe(true);
+  expect(
+    automaticSavedBody.models.every((model) => model.default !== true),
   ).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(failedResponses).toEqual([]);

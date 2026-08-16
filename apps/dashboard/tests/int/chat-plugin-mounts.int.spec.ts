@@ -36,6 +36,9 @@ vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
 });
 
 vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
+  loadAutomaticModel: vi
+    .fn()
+    .mockResolvedValue({ default: false, engineDefault: false }),
   loadChatModels: vi.fn(async () => []),
 }));
 

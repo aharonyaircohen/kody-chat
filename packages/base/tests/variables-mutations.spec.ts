@@ -131,4 +131,42 @@ describe("shared variable mutations", () => {
       }),
     );
   });
+
+  it("allows Automatic as the Chat default without changing the Engine default", async () => {
+    const models = [
+      {
+        id: "anthropic/claude-a",
+        label: "Claude A",
+        provider: "anthropic" as const,
+        protocol: "anthropic" as const,
+        baseURL: "https://api.anthropic.com/v1",
+        modelName: "claude-a",
+        apiKeySecret: "ANTHROPIC_API_KEY",
+        enabled: true,
+        automatic: true,
+        engineDefault: true,
+      },
+      {
+        id: "openai/gpt-b",
+        label: "GPT B",
+        provider: "openai" as const,
+        protocol: "openai" as const,
+        baseURL: "https://api.openai.com/v1",
+        modelName: "gpt-b",
+        apiKeySecret: "OPENAI_API_KEY",
+        enabled: true,
+        automatic: true,
+      },
+    ];
+
+    await saveManagedChatModels({
+      octokit: {} as never,
+      owner: "acme",
+      repo: "app",
+      models,
+      automatic: { default: true, engineDefault: false },
+    });
+
+    expect(models[0].engineDefault).toBe(true);
+  });
 });

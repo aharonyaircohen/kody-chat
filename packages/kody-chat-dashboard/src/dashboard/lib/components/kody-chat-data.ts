@@ -21,6 +21,7 @@ import type {
   BrainChatModelEntry,
   ChatModelEntry,
 } from "../chat/platform/agent-entries";
+import type { AutomaticModel } from "@kody-ade/base/variables/models";
 import { authHeaders } from "../kody-chat-live-session";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
@@ -35,6 +36,7 @@ export interface ChatDataSources {
    */
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
+  automatic: AutomaticModel;
   /** Personal Brain models configured on /brain. */
   brainModels: BrainChatModelEntry[];
   /**
@@ -74,6 +76,10 @@ export function hasSecretMetadata(
 export function useChatDataSources(): ChatDataSources {
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
   const [chatModelsLoaded, setChatModelsLoaded] = useState(false);
+  const [automatic, setAutomatic] = useState<AutomaticModel>({
+    default: false,
+    engineDefault: false,
+  });
   const [brainModels, setBrainModels] = useState<BrainChatModelEntry[]>([]);
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   const [flyConfigured, setFlyConfigured] = useState(false);
@@ -91,7 +97,7 @@ export function useChatDataSources(): ChatDataSources {
       request("/api/kody/brain/models"),
     ]).then(
       ([modelsJson, brainJson]: [
-        { models?: ChatModelEntry[] },
+        { models?: ChatModelEntry[]; automatic?: AutomaticModel },
         { models?: BrainChatModelEntry[] },
       ]) => {
         if (cancelled) return;
@@ -103,6 +109,12 @@ export function useChatDataSources(): ChatDataSources {
             configuredModels,
             KODY_BUILT_IN_CHAT_MODELS,
           ),
+        );
+        setAutomatic(
+          modelsJson.automatic ?? {
+            default: false,
+            engineDefault: false,
+          },
         );
         setBrainModels(Array.isArray(brainJson.models) ? brainJson.models : []);
         setChatModelsLoaded(true);
@@ -168,6 +180,7 @@ export function useChatDataSources(): ChatDataSources {
   return {
     chatModels,
     chatModelsLoaded,
+    automatic,
     brainModels,
     brainFlyChatEnabled,
     flyConfigured,

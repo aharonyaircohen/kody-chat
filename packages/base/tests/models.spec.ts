@@ -21,6 +21,7 @@ describe("chat model adapters", () => {
   it("keeps Automatic separate from the concrete model schema", () => {
     expect(AUTOMATIC_MODEL_ID).toBe("automatic");
     expect(AutomaticModelSchema.parse({ engineDefault: true })).toEqual({
+      default: false,
       engineDefault: true,
     });
   });

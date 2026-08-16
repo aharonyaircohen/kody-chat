@@ -11,8 +11,11 @@
 import type { NextRequest } from "next/server";
 import { getVariable } from "./get-variable";
 import {
+  VAR_LLM_AUTOMATIC,
   VAR_LLM_MODELS,
+  AutomaticModelSchema,
   ChatModelsSchema,
+  type AutomaticModel,
   type ChatModel,
 } from "./models";
 
@@ -26,5 +29,17 @@ export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
     return result.data;
   } catch {
     return [];
+  }
+}
+
+export async function loadAutomaticModel(
+  req: NextRequest,
+): Promise<AutomaticModel> {
+  try {
+    const raw = await getVariable(VAR_LLM_AUTOMATIC, { req });
+    if (!raw) return AutomaticModelSchema.parse({});
+    return AutomaticModelSchema.parse(JSON.parse(raw));
+  } catch {
+    return AutomaticModelSchema.parse({});
   }
 }

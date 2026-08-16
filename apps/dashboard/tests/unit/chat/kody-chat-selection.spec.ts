@@ -37,6 +37,21 @@ function list(opts?: {
 }
 
 describe("resolveDefaultAgentEntry", () => {
+  it("uses Automatic when it is the Chat default", () => {
+    const models: ChatModelEntry[] = [
+      { id: "claude-sonnet", label: "Claude Sonnet", automatic: true },
+      { id: "gpt-5", label: "GPT-5", automatic: true },
+    ];
+    const agentList = list({ models });
+    const entry = resolveDefaultAgentEntry({
+      chatModels: models,
+      automaticDefault: true,
+      brainConfigured: false,
+      agentList,
+    });
+    expect(entry?.key).toBe("kody:automatic");
+  });
+
   it("uses the configured default model", () => {
     const agentList = list({ models: MODELS, brain: true });
     const entry = resolveDefaultAgentEntry({

@@ -15,6 +15,8 @@ export const VAR_LLM_AUTOMATIC = "LLM_AUTOMATIC";
 export const AUTOMATIC_MODEL_ID = "automatic";
 
 export const AutomaticModelSchema = z.object({
+  /** New chats select the ordered enabled-model list by default. */
+  default: z.boolean().optional().default(false),
   /** Engine uses the ordered enabled-model list instead of one fixed model. */
   engineDefault: z.boolean().optional().default(false),
 });

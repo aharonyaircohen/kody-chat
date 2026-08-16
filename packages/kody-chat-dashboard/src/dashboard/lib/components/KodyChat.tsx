@@ -515,6 +515,7 @@ export function KodyChat({
   const {
     chatModels,
     chatModelsLoaded,
+    automatic,
     brainModels,
     brainFlyChatEnabled,
     flyConfigured,
@@ -623,6 +624,7 @@ export function KodyChat({
     brainFlyChatEnabled,
     chatModels,
     chatModelsLoaded,
+    automaticDefault: automatic.default === true,
     brainModels,
     sessionHook,
   });

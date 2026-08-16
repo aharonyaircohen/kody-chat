@@ -108,7 +108,7 @@ async function fetchModels(
   }
   return {
     models: json.models ?? [],
-    automatic: json.automatic ?? { engineDefault: false },
+    automatic: json.automatic ?? { default: false, engineDefault: false },
   };
 }
 
@@ -190,7 +190,7 @@ function ModelsManagerInner() {
     data?.models ?? [],
     KODY_BUILT_IN_CHAT_MODELS,
   );
-  const automatic = data?.automatic ?? { engineDefault: false };
+  const automatic = data?.automatic ?? { default: false, engineDefault: false };
   const selectedAutomaticModels = models.filter(
     (model) => model.automatic === true,
   );
@@ -241,9 +241,11 @@ function ModelsManagerInner() {
         i === savedIdx ? m : { ...m, engineDefault: false },
       );
     }
-    const nextAutomatic = next.engineDefault
-      ? { ...automatic, engineDefault: false }
-      : automatic;
+    const nextAutomatic = {
+      ...automatic,
+      ...(next.default ? { default: false } : {}),
+      ...(next.engineDefault ? { engineDefault: false } : {}),
+    };
     return save.mutateAsync({ list, automatic: nextAutomatic }).then(() => {
       toast.success("Model saved");
       setEditing(null);
@@ -260,7 +262,9 @@ function ModelsManagerInner() {
     save.mutate({
       list,
       automatic:
-        automaticCount < 2 ? { ...automatic, engineDefault: false } : automatic,
+        automaticCount < 2
+          ? { ...automatic, default: false, engineDefault: false }
+          : automatic,
     });
   };
 
@@ -276,7 +280,9 @@ function ModelsManagerInner() {
     save.mutate({
       list,
       automatic:
-        automaticCount < 2 ? { ...automatic, engineDefault: false } : automatic,
+        automaticCount < 2
+          ? { ...automatic, default: false, engineDefault: false }
+          : automatic,
     });
   };
 
@@ -299,6 +305,16 @@ function ModelsManagerInner() {
     save.mutate({
       list,
       automatic: { ...automatic, engineDefault: checked },
+    });
+  };
+
+  const setAutomaticChatDefault = (checked: boolean) => {
+    const list = checked
+      ? models.map((model) => ({ ...model, default: false }))
+      : models;
+    save.mutate({
+      list,
+      automatic: { ...automatic, default: checked },
     });
   };
 
@@ -386,17 +402,30 @@ function ModelsManagerInner() {
                     : "Select at least two models below."}
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-xs text-white/70">
-                <Checkbox
-                  checked={automatic.engineDefault === true}
-                  disabled={automaticModels.length < 2}
-                  onCheckedChange={(checked) =>
-                    setAutomaticEngineDefault(checked === true)
-                  }
-                  aria-label="Use Automatic as the Engine default"
-                />
-                Engine default
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <Checkbox
+                    checked={automatic.default === true}
+                    disabled={automaticModels.length < 2}
+                    onCheckedChange={(checked) =>
+                      setAutomaticChatDefault(checked === true)
+                    }
+                    aria-label="Use Automatic as the Chat default"
+                  />
+                  Chat default
+                </label>
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <Checkbox
+                    checked={automatic.engineDefault === true}
+                    disabled={automaticModels.length < 2}
+                    onCheckedChange={(checked) =>
+                      setAutomaticEngineDefault(checked === true)
+                    }
+                    aria-label="Use Automatic as the Engine default"
+                  />
+                  Engine default
+                </label>
+              </div>
             </CardContent>
           </Card>
         )}

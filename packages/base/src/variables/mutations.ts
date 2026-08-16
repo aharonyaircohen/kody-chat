@@ -50,6 +50,15 @@ export const ModelsWriteSchema = z
   })
   .superRefine((input, context) => {
     if (
+      input.automatic?.default === true &&
+      input.models.some((model) => model.default === true)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Only one Chat default may be selected.",
+      });
+    }
+    if (
       input.automatic?.engineDefault === true &&
       input.models.some((model) => model.engineDefault === true)
     ) {
@@ -59,7 +68,8 @@ export const ModelsWriteSchema = z
       });
     }
     if (
-      input.automatic?.engineDefault === true &&
+      (input.automatic?.default === true ||
+        input.automatic?.engineDefault === true) &&
       input.models.filter(
         (model) => model.enabled !== false && model.automatic === true,
       ).length < 2

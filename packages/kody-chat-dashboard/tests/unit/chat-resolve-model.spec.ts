@@ -6,7 +6,10 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
-import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
+import {
+  loadAutomaticModel,
+  loadChatModels,
+} from "@kody-ade/base/variables/load-chat-models";
 import { resolveChatModel } from "../../app/api/kody/chat/resolve-model";
 
 vi.mock("@ai-sdk/anthropic", () => ({
@@ -39,6 +42,7 @@ vi.mock("@kody-ade/base/vault/get-secret", () => ({
 }));
 
 vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
+  loadAutomaticModel: vi.fn(),
   loadChatModels: vi.fn(),
 }));
 
@@ -57,6 +61,10 @@ describe("resolveChatModel", () => {
     vi.resetAllMocks();
     vi.unstubAllEnvs();
     vi.mocked(loadChatModels).mockResolvedValue([]);
+    vi.mocked(loadAutomaticModel).mockResolvedValue({
+      default: false,
+      engineDefault: false,
+    });
     vi.mocked(getRequestAuth).mockReturnValue({
       owner: "owner",
       repo: "repo",
@@ -98,6 +106,43 @@ describe("resolveChatModel", () => {
         transformRequestBody: expect.any(Function),
       }),
     );
+  });
+
+  it("uses Automatic when it is the saved Chat default", async () => {
+    vi.mocked(loadAutomaticModel).mockResolvedValue({
+      default: true,
+      engineDefault: false,
+    });
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "model-a",
+        label: "Model A",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://a.test/v1",
+        modelName: "model-a",
+        apiKeySecret: "MODEL_A_KEY",
+        enabled: true,
+        automatic: true,
+      },
+      {
+        id: "model-b",
+        label: "Model B",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://b.test/v1",
+        modelName: "model-b",
+        apiKeySecret: "MODEL_B_KEY",
+        enabled: true,
+        automatic: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(request());
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel.id).toBe("automatic");
   });
 
   it("keeps MiniMax M3 for ordinary text turns", async () => {

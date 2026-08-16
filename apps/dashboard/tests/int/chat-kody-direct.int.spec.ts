@@ -27,6 +27,9 @@ vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
 });
 
 vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
+  loadAutomaticModel: vi
+    .fn()
+    .mockResolvedValue({ default: false, engineDefault: false }),
   loadChatModels: vi.fn(async () => []),
 }));
 
@@ -178,10 +181,15 @@ describe("POST /api/kody/chat/kody", () => {
   it("treats preview make-page requests as issue-creation requests", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");
-    const prompt = buildSystemPrompt("base", { owner: "acme", repo: "app" }, undefined, {
-      previewContext:
-        "[Preview context]\n- Source path: views/demo-123\n- Preview URL: /api/kody/views/demo-123/index.html",
-    });
+    const prompt = buildSystemPrompt(
+      "base",
+      { owner: "acme", repo: "app" },
+      undefined,
+      {
+        previewContext:
+          "[Preview context]\n- Source path: views/demo-123\n- Preview URL: /api/kody/views/demo-123/index.html",
+      },
+    );
 
     expect(prompt).toContain("## Current preview reference");
     expect(prompt).toContain('"make this page"');
@@ -269,7 +277,9 @@ describe("POST /api/kody/chat/kody", () => {
 
     expect(DEFAULT_IDENTITY_MD).toMatch(/Kody reply contract/i);
     expect(DEFAULT_IDENTITY_MD).toMatch(/Final replies start with one plain/i);
-    expect(DEFAULT_IDENTITY_MD).toMatch(/Progress lines are not final answers/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(
+      /Progress lines are not final answers/i,
+    );
     expect(DEFAULT_IDENTITY_MD).not.toMatch(/Emit a status line/i);
     expect(DEFAULT_IDENTITY_MD).not.toMatch(/This applies to EVERY reply/i);
   });
@@ -286,9 +296,8 @@ describe("POST /api/kody/chat/kody", () => {
   });
 
   it("vibe prompt keeps Kody chat out of direct runner handoff", async () => {
-    const { buildSystemPrompt } = await import(
-      "../../app/api/kody/chat/kody/system-prompt"
-    );
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
 
     const prompt = buildSystemPrompt(
       "base",

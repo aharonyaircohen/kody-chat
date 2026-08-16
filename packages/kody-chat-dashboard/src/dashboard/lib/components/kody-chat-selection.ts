@@ -28,6 +28,7 @@ import {
 import { readReasoningEffort } from "../reasoning-pref";
 import type { ModelReasoning } from "../chat/core/reasoning-adapter";
 import type { UseConversationSessionsResult } from "../chat/core/conversation/use-conversation-sessions";
+import { AUTOMATIC_MODEL_ID } from "@kody-ade/base/variables/models";
 
 /**
  * Resolve the configured catalog default — the value a session with
@@ -48,10 +49,17 @@ import type { UseConversationSessionsResult } from "../chat/core/conversation/us
  */
 export function resolveDefaultAgentEntry(options: {
   chatModels: ChatModelEntry[];
+  automaticDefault?: boolean;
   brainConfigured: boolean;
   agentList: ChatDropdownEntry[];
 }): ChatDropdownEntry | null {
-  const { chatModels, brainConfigured, agentList } = options;
+  const { chatModels, automaticDefault, brainConfigured, agentList } = options;
+  if (automaticDefault) {
+    const entry = agentList.find(
+      (candidate) => candidate.key === `kody:${AUTOMATIC_MODEL_ID}`,
+    );
+    if (entry) return entry;
+  }
   const defModel = chatModels.find(
     (m) => m.default === true && m.enabled !== false,
   );
@@ -171,6 +179,7 @@ export interface UseAgentSelectionOptions {
   /** User-managed model list + loaded flag (kody-chat-data). */
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
+  automaticDefault?: boolean;
   /** Personal Brain model list from /brain. */
   brainModels: BrainChatModelEntry[];
   /** The session store — saved conversation model picks live on it. */
@@ -213,6 +222,7 @@ export function useAgentSelection(
     brainFlyChatEnabled,
     chatModels,
     chatModelsLoaded,
+    automaticDefault,
     brainModels,
     sessionHook,
   } = options;
@@ -247,10 +257,11 @@ export function useAgentSelection(
     () =>
       resolveDefaultAgentEntry({
         chatModels,
+        automaticDefault,
         brainConfigured,
         agentList,
       }),
-    [chatModels, brainConfigured, agentList],
+    [chatModels, automaticDefault, brainConfigured, agentList],
   );
 
   const catalogReady = !shouldWaitForChatCatalogResolution({
