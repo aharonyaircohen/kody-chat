@@ -259,7 +259,7 @@ describe("ui tools", () => {
       };
     };
     const typeEnum =
-      schema.properties.elements.items.additionalProperties.properties.type.enum;
+      schema.properties.elements.additionalProperties.properties.type.enum;
 
     expect(typeEnum).toContain("DecisionCard");
     expect(typeEnum).toContain("Stack");
