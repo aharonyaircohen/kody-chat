@@ -11,7 +11,9 @@
 "use client";
 
 import React from "react";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexReactClient } from "convex/react";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { kodyAuthClient } from "@dashboard/lib/auth/kody-auth-client";
 
 /** Build-time constant — identical for every render of this deployment. */
 export const CONVEX_LIVE_ENABLED = !!process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -27,10 +29,20 @@ function getConvexReactClient(): ConvexReactClient | null {
 
 export function ConvexClientProvider({
   children,
+  initialToken,
 }: {
   children: React.ReactNode;
+  initialToken?: string | null;
 }) {
   const convex = getConvexReactClient();
   if (!convex) return <>{children}</>;
-  return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+  return (
+    <ConvexBetterAuthProvider
+      client={convex}
+      authClient={kodyAuthClient}
+      initialToken={initialToken}
+    >
+      {children}
+    </ConvexBetterAuthProvider>
+  );
 }

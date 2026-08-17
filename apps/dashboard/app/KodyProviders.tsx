@@ -39,12 +39,18 @@ function getQueryClient() {
   }
 }
 
-export function KodyProviders({ children }: { children: React.ReactNode }) {
+export function KodyProviders({
+  children,
+  initialAuthToken,
+}: {
+  children: React.ReactNode;
+  initialAuthToken?: string | null;
+}) {
   const queryClient = getQueryClient();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConvexClientProvider>
+      <ConvexClientProvider initialToken={initialAuthToken}>
         <ThemeProvider>
           <AuthProvider>
             <WebhookRegistrationReconciler />

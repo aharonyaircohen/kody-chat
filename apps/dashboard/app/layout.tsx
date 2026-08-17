@@ -19,6 +19,7 @@ import {
   themeLocalStorageKey,
 } from "@dashboard/providers/Theme/shared";
 import "@dashboard/globals.css";
+import { getKodyAuthToken } from "@dashboard/lib/auth/kody-auth-server";
 
 const assistant = Assistant({
   subsets: ["latin", "hebrew"],
@@ -50,11 +51,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function KodyLayout({
+export default async function KodyLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const initialAuthToken = await getKodyAuthToken();
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
@@ -91,7 +93,7 @@ export default function KodyLayout({
         <link href="/favicon.svg" rel="icon" type="image/svg+xml" />
       </head>
       <body>
-        <KodyProviders>
+        <KodyProviders initialAuthToken={initialAuthToken}>
           <ChatRailShell>{children}</ChatRailShell>
           <Toaster />
         </KodyProviders>

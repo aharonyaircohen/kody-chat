@@ -15,6 +15,8 @@ import type * as agencyRequestLoops from "../agencyRequestLoops.js";
 import type * as agencyRuns from "../agencyRuns.js";
 import type * as agencyValidators from "../agencyValidators.js";
 import type * as agents from "../agents.js";
+import type * as auth from "../auth.js";
+import type * as betterAuth_auth from "../betterAuth/auth.js";
 import type * as capabilityState from "../capabilityState.js";
 import type * as catalog from "../catalog.js";
 import type * as channelsSeen from "../channelsSeen.js";
@@ -29,6 +31,7 @@ import type * as definitionProposals from "../definitionProposals.js";
 import type * as definitions from "../definitions.js";
 import type * as eventLog from "../eventLog.js";
 import type * as guidedFlows from "../guidedFlows.js";
+import type * as http from "../http.js";
 import type * as importExport from "../importExport.js";
 import type * as inbox from "../inbox.js";
 import type * as intents from "../intents.js";
@@ -71,6 +74,8 @@ declare const fullApi: ApiFromModules<{
   agencyRuns: typeof agencyRuns;
   agencyValidators: typeof agencyValidators;
   agents: typeof agents;
+  auth: typeof auth;
+  "betterAuth/auth": typeof betterAuth_auth;
   capabilityState: typeof capabilityState;
   catalog: typeof catalog;
   channelsSeen: typeof channelsSeen;
@@ -85,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   definitions: typeof definitions;
   eventLog: typeof eventLog;
   guidedFlows: typeof guidedFlows;
+  http: typeof http;
   importExport: typeof importExport;
   inbox: typeof inbox;
   intents: typeof intents;
@@ -140,4 +146,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+};

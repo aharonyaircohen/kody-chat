@@ -16,18 +16,21 @@ import {
   type SettingsNavSection,
 } from "./settings-nav";
 import { useFileSpaces } from "@dashboard/features/file-spaces/use-file-spaces";
+import { useAuth } from "@dashboard/lib/auth-context";
 
 const KNOWLEDGE_SECTION_TITLE = "Knowledge";
 const DOCS_HREF = "/docs";
 
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
+  repositoryConnected?: boolean;
 }
 
 export function extendSidebarNavSections(
   sections: readonly SettingsNavSection[],
-  { customSpaceItems }: SidebarNavExtensions,
+  { customSpaceItems, repositoryConnected = true }: SidebarNavExtensions,
 ): readonly SettingsNavSection[] {
+  if (!repositoryConnected) return [];
   return sections.map((section) => {
     if (section.title === KNOWLEDGE_SECTION_TITLE && customSpaceItems.length) {
       const docsIndex = section.items.findIndex(
@@ -48,6 +51,7 @@ export function extendSidebarNavSections(
 }
 
 export function useSidebarNavSections(): readonly SettingsNavSection[] {
+  const { auth } = useAuth();
   const fileSpacesQuery = useFileSpaces();
 
   return useMemo(() => {
@@ -64,6 +68,7 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
       }));
     return extendSidebarNavSections(SIDEBAR_NAV_SECTIONS, {
       customSpaceItems,
+      repositoryConnected: Boolean(auth?.owner && auth.repo),
     });
-  }, [fileSpacesQuery.data]);
+  }, [auth?.owner, auth?.repo, fileSpacesQuery.data]);
 }

@@ -22,22 +22,22 @@
   },
   "dependencies": {
     "@kody-ade/agency-domain": "workspace:*",
-    "@kody-ade/base": "workspace:*",
     "@kody-ade/backend": "workspace:*",
+    "@kody-ade/base": "workspace:*",
     "@kody-ade/engine-contracts": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.16",
-    "convex": "^1.17.0",
-    "typescript": "5.9.3",
     "@types/react": "^19.2.17",
+    "@vitest/coverage-v8": "4.0.16",
+    "convex": "^1.44.0",
     "next": "16.2.9",
+    "typescript": "5.9.3",
     "vitest": "4.0.16"
   },
   "peerDependencies": {
-    "react": "19.2.7",
-    "next": "16.2.9"
+    "next": "16.2.9",
+    "react": "19.2.7"
   }
 }
