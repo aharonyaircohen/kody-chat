@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireUserAuth } from "@kody-ade/base/auth";
-import { verifyOperatorActor } from "@kody-ade/kody-chat-dashboard/auth/operator-actor";
+import { getRequestAuth } from "@kody-ade/base/auth";
 import { z } from "zod";
 import {
   backendApi,
@@ -8,6 +7,7 @@ import {
   userTenantIdFor,
 } from "@dashboard/lib/backend/convex-backend";
 import { logger } from "@kody-ade/base/logger";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 
 export const runtime = "nodejs";
 
@@ -46,12 +46,7 @@ const createConversationSchema = z.object({
 });
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireUserAuth(req);
-  if (authError instanceof NextResponse) return authError;
-  const actor = await verifyOperatorActor(
-    req,
-    req.headers.get("x-kody-user-login") ?? undefined,
-  );
+  const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
 
   try {
@@ -61,7 +56,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         : "global";
     const conversations = await getConvexClient().query(
       backendApi.conversations.list,
-      { tenantId: userTenantIdFor(actor.identity.githubId), surface },
+      { tenantId: userTenantIdFor(actor.id), surface },
     );
     return NextResponse.json(
       { conversations },
@@ -77,8 +72,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireUserAuth(req);
-  if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
 
   const parsed = createConversationSchema.safeParse(
@@ -91,11 +84,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const actor = await verifyOperatorActor(req, parsed.data.actorLogin);
+  const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
 
   const now = new Date().toISOString();
-  const tenantId = userTenantIdFor(actor.identity.githubId);
+  const tenantId = userTenantIdFor(actor.id);
   try {
     await getConvexClient().mutation(backendApi.conversations.create, {
       tenantId,
@@ -109,7 +102,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       activeAgent: parsed.data.activeAgent,
       runtime: parsed.data.runtime,
       machineAccess: parsed.data.machineAccess,
-      createdBy: `github:${actor.identity.login}`,
+      createdBy: `kody:${actor.id}`,
       createdAt: now,
       updatedAt: now,
     });

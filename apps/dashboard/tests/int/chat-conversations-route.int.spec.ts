@@ -2,14 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  requireUserAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
+  requireKodyUser: vi.fn<
+    () => Promise<
+      | { id: string; label: string; email?: string }
+      | NextResponse
+    >
+  >(async () => ({
+    id: "kody-user-1",
+    label: "Alice",
+    email: "alice@example.com",
+  })),
   getRequestAuth: vi.fn(() => ({
     owner: "acme",
     repo: "widgets",
     token: "token",
-  })),
-  verifyActorLogin: vi.fn(async () => ({
-    identity: { login: "alice", githubId: 42 },
   })),
   query: vi.fn(),
   mutation: vi.fn(),
@@ -17,9 +23,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
-  requireUserAuth: mocks.requireUserAuth,
   getRequestAuth: mocks.getRequestAuth,
-  verifyActorLogin: mocks.verifyActorLogin,
+}));
+
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: mocks.requireKodyUser,
 }));
 
 vi.mock("@kody-ade/base/logger", () => ({
@@ -47,7 +55,7 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
     mutation: mocks.mutation,
   }),
   tenantIdFor: (owner: string, repo: string) => `${owner}/${repo}`,
-  userTenantIdFor: (githubId: number) => `user:${githubId}`,
+  userTenantIdFor: (userId: string | number) => `user:${userId}`,
 }));
 
 import { GET, POST } from "../../app/api/kody/chat/conversations/route";
@@ -56,14 +64,15 @@ import { POST as POST_COMMAND } from "../../app/api/kody/chat/conversations/[con
 describe("chat conversations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireUserAuth.mockResolvedValue(null);
+    mocks.requireKodyUser.mockResolvedValue({
+      id: "kody-user-1",
+      label: "Alice",
+      email: "alice@example.com",
+    });
     mocks.getRequestAuth.mockReturnValue({
       owner: "acme",
       repo: "widgets",
       token: "token",
-    });
-    mocks.verifyActorLogin.mockResolvedValue({
-      identity: { login: "alice", githubId: 42 },
     });
   });
 
@@ -90,18 +99,17 @@ describe("chat conversations route", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(201);
-    expect(mocks.verifyActorLogin).toHaveBeenCalledWith(request, "alice");
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.create",
       expect.objectContaining({
-        tenantId: "user:42",
+        tenantId: "user:kody-user-1",
         conversationId: "conversation-1",
         scope: {
           kind: "repository",
           owner: "acme",
           repo: "widgets",
         },
-        createdBy: "github:alice",
+        createdBy: "kody:kody-user-1",
         machineAccess: "none",
       }),
     );
@@ -130,7 +138,7 @@ describe("chat conversations route", () => {
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.updateMachineAccess",
       {
-        tenantId: "user:42",
+        tenantId: "user:kody-user-1",
         conversationId: "conversation-1",
         machineAccess: "local",
         updatedAt: "2026-07-20T10:00:00.000Z",
@@ -151,7 +159,7 @@ describe("chat conversations route", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.query).toHaveBeenCalledWith("conversations.list", {
-      tenantId: "user:42",
+      tenantId: "user:kody-user-1",
       surface: "global",
     });
   });
@@ -168,13 +176,13 @@ describe("chat conversations route", () => {
       conversations: [{ conversationId: "conversation-1" }],
     });
     expect(mocks.query).toHaveBeenCalledWith("conversations.list", {
-      tenantId: "user:42",
+      tenantId: "user:kody-user-1",
       surface: "global",
     });
   });
 
   it("stops before storage when authentication fails", async () => {
-    mocks.requireUserAuth.mockResolvedValueOnce(
+    mocks.requireKodyUser.mockResolvedValueOnce(
       NextResponse.json({ error: "unauthorized" }, { status: 401 }),
     );
 
@@ -215,10 +223,10 @@ describe("chat conversations route", () => {
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.appendEntry",
       expect.objectContaining({
-        tenantId: "user:42",
+        tenantId: "user:kody-user-1",
         conversationId: "conversation-1",
         entry: expect.objectContaining({
-          author: { kind: "user", actorId: "github:alice" },
+          author: { kind: "user", actorId: "kody:kody-user-1" },
         }),
       }),
     );
@@ -291,7 +299,7 @@ describe("chat conversations route", () => {
     expect(mocks.mutation).toHaveBeenCalledWith(
       "conversations.removeMessage",
       {
-        tenantId: "user:42",
+        tenantId: "user:kody-user-1",
         conversationId: "conversation-1",
         entryId: "guided-flow-1",
       },

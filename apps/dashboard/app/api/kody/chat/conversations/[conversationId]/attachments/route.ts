@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyActorLogin } from "@kody-ade/base/auth";
 import {
   backendApi,
   getConvexClient,
@@ -32,18 +31,14 @@ export async function POST(
   if (context instanceof NextResponse) return context;
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
-  const actorLogin = form?.get("actorLogin");
   if (
     !(file instanceof File) ||
-    typeof actorLogin !== "string" ||
     file.size < 1 ||
     file.size > MAX_ATTACHMENT_BYTES ||
     !allowedMediaType(file.type)
   ) {
     return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
   }
-  const actor = await verifyActorLogin(req, actorLogin);
-  if (actor instanceof NextResponse) return actor;
   const { conversationId } = await route.params;
   const client = getConvexClient();
   const uploadUrl = await client.mutation(

@@ -12,6 +12,7 @@ function convexSiteUrl(): string {
 
 export const {
   handler: kodyAuthHandler,
+  fetchAuthQuery,
   getToken: getKodyAuthToken,
   isAuthenticated: isKodyAuthenticated,
 } = convexBetterAuthNextJs({

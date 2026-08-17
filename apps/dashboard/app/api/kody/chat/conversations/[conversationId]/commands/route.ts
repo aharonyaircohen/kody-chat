@@ -114,9 +114,6 @@ export async function POST(
   ) {
     return invalidBody("Invalid rendered view");
   }
-  if (parsed.data.actorLogin !== context.actorLogin) {
-    return NextResponse.json({ error: "actor_mismatch" }, { status: 403 });
-  }
   const { conversationId } = await route.params;
   const client = getConvexClient();
 
@@ -138,7 +135,7 @@ export async function POST(
               parsed.data.role === "user"
                 ? {
                     kind: "user",
-                    actorId: `github:${context.actorLogin}`,
+                    actorId: `kody:${context.actorId}`,
                   }
                 : { kind: "agent", ...parsed.data.agent! },
             content: parsed.data.content,

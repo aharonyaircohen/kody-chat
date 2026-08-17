@@ -23,7 +23,6 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-  verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import { emitSystemEvent } from "@kody-ade/base/events";
@@ -38,6 +37,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 
 export const runtime = "nodejs";
 
@@ -132,12 +132,9 @@ export async function POST(req: NextRequest) {
   if (messages.length === 0) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
-  const actor = await verifyActorLogin(
-    req,
-    req.headers.get("x-kody-user-login") ?? undefined,
-  );
+  const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
-  const conversationTenantId = `user:${actor.identity.githubId}`;
+  const conversationTenantId = `user:${actor.id}`;
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();

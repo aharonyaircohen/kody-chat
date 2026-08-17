@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyActorLogin } from "@kody-ade/base/auth";
 import {
   backendApi,
   getConvexClient,
@@ -49,9 +48,6 @@ export async function DELETE(
 ): Promise<NextResponse> {
   const context = await requireConversationContext(req);
   if (context instanceof NextResponse) return context;
-  const actorLogin = req.nextUrl.searchParams.get("actorLogin");
-  const actor = await verifyActorLogin(req, actorLogin ?? undefined);
-  if (actor instanceof NextResponse) return actor;
   const { conversationId, attachmentId } = await route.params;
   await getConvexClient().mutation(backendApi.conversations.removeAttachment, {
     tenantId: context.tenantId,

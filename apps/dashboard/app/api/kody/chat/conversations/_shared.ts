@@ -1,32 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireUserAuth } from "@kody-ade/base/auth";
-import { verifyOperatorActor } from "@kody-ade/kody-chat-dashboard/auth/operator-actor";
+import { getRequestAuth } from "@kody-ade/base/auth";
 import { userTenantIdFor } from "@dashboard/lib/backend/convex-backend";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 
 export type ConversationRequestContext = Readonly<{
   owner?: string;
   repo?: string;
   tenantId: string;
   actorLogin: string;
-  actorGithubId: number;
+  actorId: string;
 }>;
 
 export async function requireConversationContext(
   req: NextRequest,
 ): Promise<ConversationRequestContext | NextResponse> {
-  const authError = await requireUserAuth(req);
-  if (authError instanceof NextResponse) return authError;
-  const actor = await verifyOperatorActor(
-    req,
-    req.headers.get("x-kody-user-login") ?? undefined,
-  );
+  const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
   const auth = getRequestAuth(req);
   return {
     ...(auth ? { owner: auth.owner, repo: auth.repo } : {}),
-    tenantId: userTenantIdFor(actor.identity.githubId),
-    actorLogin: actor.identity.login,
-    actorGithubId: actor.identity.githubId,
+    tenantId: userTenantIdFor(actor.id),
+    actorLogin: actor.label,
+    actorId: actor.id,
   };
 }
 
