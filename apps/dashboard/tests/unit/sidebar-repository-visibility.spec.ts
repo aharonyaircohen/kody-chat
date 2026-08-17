@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   extendSidebarNavSections,
 } from "@dashboard/lib/components/use-sidebar-nav-sections";
@@ -26,5 +28,19 @@ describe("repository navigation visibility", () => {
         repositoryConnected: true,
       }),
     ).toHaveLength(SIDEBAR_NAV_SECTIONS.length);
+  });
+
+  it("renders personal navigation and uses Kody sign-in state without a repository", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/lib/components/ChatRailShell.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(source).toContain("sections={navSections}");
+    expect(source).toContain("const bootstrapWelcome = !kodySession?.user");
+    expect(source).toContain("Sign in to Kody");
   });
 });

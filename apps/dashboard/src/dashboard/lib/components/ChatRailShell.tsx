@@ -55,6 +55,7 @@ import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { trace } from "@kody-ade/kody-chat-dashboard/platform";
 import { kodyAuthClient } from "../auth/kody-auth-client";
+import { Button } from "@kody-ade/base/ui/button";
 import type { ChatContext } from "../chat-types";
 import {
   legacyRepoRedirectPath,
@@ -602,12 +603,15 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     !repoRouteBlocksPage &&
     (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
-  const bootstrapWelcome = !auth ? (
+  const bootstrapWelcome = !kodySession?.user ? (
     <div className="space-y-2">
       <p className="font-medium text-foreground">Welcome to Kody</p>
       <p className="mx-auto max-w-sm text-sm">
-        Sign in from the welcome page to start your private Chat.
+        Sign in to start your private Chat.
       </p>
+      <Button size="sm" onClick={() => router.push("/")}>
+        Sign in to Kody
+      </Button>
     </div>
   ) : !hasRepository ? (
     <div className="space-y-2">
@@ -681,7 +685,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               Preview included), so the old Vibe/Engineer toggle is gone. */}
               <ChatShell
                 title="Kody"
-                sections={hasRepository ? navSections : []}
+                sections={navSections}
                 pinnedItem={hasRepository ? DASHBOARD_NAV_ITEM : HOME_NAV_ITEM}
                 sidebarBrandExtra={<SidebarNotifications />}
                 sidebarAccount={
