@@ -72,6 +72,11 @@ type NavItem = SettingsNavItem;
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
 
 export interface SidebarProps {
+  account?: {
+    label: string;
+    imageUrl?: string;
+    onSignOut: () => void;
+  };
   /** Selects the persistent desktop rail or the mobile sheet presentation. */
   presentation?: "desktop" | "mobile";
   /** Called after a navigation action, allowing a mobile sheet to close. */
@@ -127,6 +132,7 @@ function SidebarContent({
   extras,
   bottomCta,
   onReportIssue,
+  account,
 }: SidebarProps) {
   const mobile = presentation === "mobile";
   const pathname = usePathname() ?? "/";
@@ -745,12 +751,14 @@ function SidebarContent({
       <div className="space-y-1 border-t border-white/[0.06] p-2.5">
         {/* GitHub identity — click to reveal connected repo + sign out.
             Persistent app chrome, moved here from the page header. */}
-        {(githubUser || connectedRepo) && (
+        {(account || githubUser || connectedRepo) && (
           <div className="relative">
             <SimpleTooltip
               content={
-                githubUser
-                  ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ""}`
+                account
+                  ? `${account.label}${connectedRepo ? ` · ${connectedRepo}` : ""}`
+                  : githubUser
+                    ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ""}`
                   : (connectedRepo ?? "Connected")
               }
               side="right"
@@ -767,14 +775,11 @@ function SidebarContent({
                   isCollapsed && "justify-center px-0",
                 )}
               >
-                {githubUser ? (
+                {account || githubUser ? (
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarImage
-                      src={githubUser.avatar_url}
-                      alt={githubUser.login}
-                    />
+                    <AvatarImage src={account?.imageUrl ?? githubUser?.avatar_url} alt={account?.label ?? githubUser?.login} />
                     <AvatarFallback>
-                      {githubUser.login[0]?.toUpperCase()}
+                      {(account?.label ?? githubUser?.login ?? "K")[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
@@ -782,7 +787,7 @@ function SidebarContent({
                 )}
                 {!isCollapsed && (
                   <span className="truncate flex-1 text-left">
-                    {githubUser ? `@${githubUser.login}` : "Connected"}
+                    {account?.label ?? (githubUser ? `@${githubUser.login}` : "Connected")}
                   </span>
                 )}
               </button>
@@ -795,11 +800,12 @@ function SidebarContent({
                     {connectedRepo}
                   </div>
                 )}
-                {githubUser ? (
+                {account || githubUser ? (
                   <button
                     type="button"
                     onClick={() => {
-                      clearGitHubUser();
+                      account?.onSignOut();
+                      if (!account) clearGitHubUser();
                       setUserMenuOpen(false);
                     }}
                     className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-sm hover:bg-accent"

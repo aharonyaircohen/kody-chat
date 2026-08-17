@@ -54,6 +54,8 @@ export interface ChatShellProps {
   sidebarCollapsedHeaderExtra?: ReactNode;
   /** Slot at the right of the sidebar brand row (e.g. notifications). */
   sidebarBrandExtra?: ReactNode;
+  /** Kody-owned account identity shown in the sidebar. */
+  sidebarAccount?: React.ComponentProps<typeof Sidebar>["account"];
   /** Plugins registered on the DEFAULT chat mount (ignored when `chat` set). */
   chatPlugins?: Array<{ plugin: ChatPlugin }>;
   /** Custom chat pane. Hosts with their own KodyChat wiring pass it here. */
@@ -80,6 +82,7 @@ export function ChatShell({
   sidebarHeaderExtra,
   sidebarCollapsedHeaderExtra,
   sidebarBrandExtra,
+  sidebarAccount,
   chatPlugins,
   chat,
   onReportIssue,
@@ -200,6 +203,7 @@ export function ChatShell({
             sections={sections}
             pinnedItem={pinnedItem}
             headerExtra={resolvedSidebarHeaderExtra}
+            account={sidebarAccount}
           />
         </>
       )}
@@ -214,6 +218,7 @@ export function ChatShell({
           headerExtra={resolvedSidebarHeaderExtra}
           collapsedHeaderExtra={resolvedSidebarCollapsedHeaderExtra}
           brandRowExtra={sidebarBrandExtra}
+          account={sidebarAccount}
           onReportIssue={reportIssueAction}
         />
 

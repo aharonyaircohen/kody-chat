@@ -21,6 +21,7 @@ import { RepoSwitcher } from "./RepoSwitcher";
 import { Sidebar } from "./Sidebar";
 
 interface MobileMenuProps {
+  account?: React.ComponentProps<typeof Sidebar>["account"];
   open: boolean;
   onOpenChange: (next: boolean) => void;
   sections: readonly SettingsNavSection[];
@@ -40,6 +41,7 @@ export function MobileMenu({
   workspacePrimary,
   extras,
   bottomCta,
+  account,
 }: MobileMenuProps) {
   const close = () => onOpenChange(false);
 
@@ -63,6 +65,7 @@ export function MobileMenu({
           navigationExtra={workspacePrimary}
           extras={extras}
           bottomCta={bottomCta}
+          account={account}
         />
       </SheetContent>
     </Sheet>

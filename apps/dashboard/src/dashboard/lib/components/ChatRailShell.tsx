@@ -54,6 +54,7 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { trace } from "@kody-ade/kody-chat-dashboard/platform";
+import { kodyAuthClient } from "../auth/kody-auth-client";
 import type { ChatContext } from "../chat-types";
 import {
   legacyRepoRedirectPath,
@@ -340,6 +341,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const { auth, loading } = hostAuth;
   const hostTheme = useTheme();
   const { githubUser } = useGitHubIdentity();
+  const { data: kodySession } = kodyAuthClient.useSession();
   const navSections = useSidebarNavSections();
   const [scope, setScope] = useState<ChatContext | null>(null);
   // Mobile "chat open" — persisted per-device (same as the desktop expand
@@ -682,6 +684,17 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                 sections={hasRepository ? navSections : []}
                 pinnedItem={hasRepository ? DASHBOARD_NAV_ITEM : HOME_NAV_ITEM}
                 sidebarBrandExtra={<SidebarNotifications />}
+                sidebarAccount={
+                  kodySession?.user
+                    ? {
+                        label: kodySession.user.email || kodySession.user.name,
+                        ...(kodySession.user.image
+                          ? { imageUrl: kodySession.user.image }
+                          : {}),
+                        onSignOut: () => void kodyAuthClient.signOut(),
+                      }
+                    : undefined
+                }
                 chat={chatPane}
                 onReportIssue={openIssueReport}
                 isChatHome={isChatRoute}

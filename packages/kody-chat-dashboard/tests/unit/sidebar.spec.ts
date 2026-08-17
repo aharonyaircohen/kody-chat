@@ -137,3 +137,10 @@ describe("Sidebar navigation callback", () => {
     expect(SOURCE).toContain("onNavigate?.()");
   });
 });
+
+describe("Sidebar account identity", () => {
+  it("allows the host-owned Kody identity to replace the GitHub label", () => {
+    expect(SOURCE).toContain("account?.label");
+    expect(SOURCE).toContain("account?.onSignOut");
+  });
+});
