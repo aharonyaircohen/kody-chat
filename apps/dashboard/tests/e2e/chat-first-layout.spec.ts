@@ -12,6 +12,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
@@ -43,6 +44,10 @@ async function seedAuth(
 
 test.describe("Chat-first layout (beta toggle)", () => {
   test.beforeEach(async ({ page }) => {
+    await mockKodyAccountSession(page, {
+      id: "chat-first-e2e",
+      name: "Chat First E2E",
+    });
     await page.route("**/api/kody/models", (route) =>
       route.fulfill({
         status: 200,
@@ -237,6 +242,8 @@ test.describe("Chat-first layout (beta toggle)", () => {
       const url = route.request().url();
       if (
         url.includes("/api/kody/models") ||
+        url.includes("/api/auth/get-session") ||
+        url.includes("/api/kody/account/repositories") ||
         url.includes("/api/kody/auth/me") ||
         url.includes("/api/kody/commands") ||
         url.includes("/api/kody/tasks")

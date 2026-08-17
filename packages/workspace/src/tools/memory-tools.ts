@@ -12,8 +12,10 @@ import { findDuplicateMemory } from "./memory-duplicates";
 
 interface MemoryToolContext {
   readonly actorId: string;
-  readonly owner: string;
-  readonly repo: string;
+  readonly tenantId?: string;
+  readonly owner?: string;
+  readonly repo?: string;
+  readonly includeRepositoryScope?: boolean;
   readonly conversationId?: string;
   readonly messageId?: string;
 }
@@ -48,12 +50,18 @@ function evidence(context: MemoryToolContext): Readonly<EvidenceRef> {
 }
 
 export function createMemoryTools(context: MemoryToolContext) {
-  const tenantId = `${context.owner}/${context.repo}`;
+  const tenantId =
+    context.tenantId ??
+    (context.owner && context.repo
+      ? `${context.owner}/${context.repo}`
+      : null);
+  if (!tenantId) throw new Error("Memory tools require a tenant");
   let currentRuntime: ReturnType<typeof createMemoryRuntime> | null = null;
   const runtime = () => {
     currentRuntime ??= createMemoryRuntime({
       actor: { kind: "user", id: context.actorId },
       tenantId,
+      includeRepositoryScope: context.includeRepositoryScope,
     });
     return currentRuntime;
   };
@@ -72,7 +80,7 @@ export function createMemoryTools(context: MemoryToolContext) {
       execute: async (input) => {
         try {
           const scope =
-            input.scope === "user"
+            input.scope === "user" || context.includeRepositoryScope === false
               ? {
                   kind: "user" as const,
                   userId: runtime().principal.actor.id,

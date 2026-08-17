@@ -9,13 +9,12 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
 async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     const auth = {
       repoUrl: "https://github.com/test-owner/test-repo",
       owner: "test-owner",
@@ -31,6 +30,7 @@ async function seedAuth(page: Page): Promise<void> {
     );
     localStorage.setItem("kody:chat-first-layout", "0");
   });
+  await mockDashboardShellRequests(page);
 }
 
 test.describe("Route smoke", () => {
@@ -194,9 +194,7 @@ test.describe("Route smoke", () => {
     await expect(page.getByLabel("Terminal target")).toBeVisible();
     await expect(page).toHaveURL(sideChatUrl);
     await page.evaluate(() => {
-      sessionStorage.removeItem(
-        "kody-chat-terminal-v1:test-owner/test-repo",
-      );
+      sessionStorage.removeItem("kody-chat-terminal-v1:test-owner/test-repo");
     });
 
     const conversationUrl = `${BASE_URL}/repo/test-owner/test-repo/chat/${conversationId}`;

@@ -41,6 +41,12 @@ import {
   CLIENT_BRAND_REPO_COOKIE,
   serializeClientBrandRepoCookie,
 } from "./client-brand-repo-cookie";
+import {
+  clearAccountRepositoryAuth,
+  loadAccountRepositoryAuth,
+  savePendingBrowserRepositoryAuth,
+  saveAccountRepositoryAuth,
+} from "./account-repository-persistence";
 
 export { DEFAULT_KODY_STORE_REF, DEFAULT_KODY_STORE_REPO_URL };
 
@@ -279,7 +285,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
   };
 }
 
-function persist(next: KodyAuth): void {
+function persistBrowser(next: KodyAuth): void {
   localStorage.setItem("kody_auth", JSON.stringify(next));
   syncClientBrandRepoCookie(next);
 }
@@ -301,6 +307,11 @@ function syncClientBrandRepoCookie(auth: KodyAuth): void {
 
 function clearClientBrandRepoCookie(): void {
   document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+export function clearBrowserRepositorySession(): void {
+  localStorage.removeItem("kody_auth");
+  clearClientBrandRepoCookie();
 }
 
 export async function refreshRepoIdentity(
@@ -349,10 +360,25 @@ export async function refreshRepoIdentity(
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  persistence = "browser",
+}: {
+  children: React.ReactNode;
+  persistence?: "browser" | "account";
+}) {
   const [storedAuth, setStoredAuth] = useState<KodyAuth | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const persistAuth = useCallback(
+    (next: KodyAuth) => {
+      persistBrowser(next);
+      if (persistence === "account") {
+        void saveAccountRepositoryAuth(next);
+      }
+    },
+    [persistence],
+  );
 
   // The URL is the source of truth for the active repo: derive the flat
   // fields + currentRepoIndex from the pathname every render. The stored
@@ -380,15 +406,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // wins on every read — this is a fallback hint, never a competing truth.
   useEffect(() => {
     if (!auth || auth === storedAuth) return;
-    persist(auth);
+    persistAuth(auth);
     setStoredAuth(auth);
-  }, [auth, storedAuth]);
+  }, [auth, persistAuth, storedAuth]);
 
   // Load auth from localStorage on mount, migrating legacy shape if needed.
   useEffect(() => {
     let cancelled = false;
     async function loadAuth() {
       try {
+        if (persistence === "account") {
+          let browserAuth: KodyAuth | null = null;
+          try {
+            browserAuth = migrateAuth(
+              JSON.parse(localStorage.getItem("kody_auth") ?? "null"),
+            );
+          } catch {
+            // Ignore malformed legacy browser state; account state still loads.
+          }
+          clearBrowserRepositorySession();
+          const accountResult = await loadAccountRepositoryAuth();
+          const migrated =
+            accountResult.status === "loaded"
+              ? migrateAuth(accountResult.auth)
+              : accountResult.status === "unauthenticated"
+                ? browserAuth
+                : null;
+          if (cancelled) return;
+          if (migrated) {
+            const refreshed = await refreshRepoIdentity(
+              migrated,
+              window.location.pathname,
+            );
+            if (cancelled) return;
+            setStoredAuth(refreshed);
+            persistBrowser(refreshed);
+          } else {
+            if (accountResult.status === "loaded" && browserAuth) {
+              savePendingBrowserRepositoryAuth(browserAuth);
+            }
+            setStoredAuth(null);
+          }
+          return;
+        }
         const stored = localStorage.getItem("kody_auth");
         if (stored) {
           const parsed = JSON.parse(stored);
@@ -401,7 +461,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (cancelled) return;
             // Persist migration result so subsequent loads skip the legacy branch.
             setStoredAuth(refreshed);
-            persist(refreshed);
+            persistBrowser(refreshed);
           } else {
             localStorage.removeItem("kody_auth");
           }
@@ -417,31 +477,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [persistence]);
 
   const logout = useCallback(() => {
     void fetch("/api/kody/auth/me", { method: "DELETE" }).finally(() => {
-      localStorage.removeItem("kody_auth");
-      clearClientBrandRepoCookie();
+      if (persistence === "account") {
+        void clearAccountRepositoryAuth();
+      }
+      clearBrowserRepositorySession();
       setStoredAuth(null);
       window.location.href = "/";
     });
-  }, []);
+  }, [persistence]);
 
-  const signIn = useCallback((token: string, user: KodyUser) => {
-    const next: KodyAuth = {
-      repoUrl: "",
-      owner: "",
-      repo: "",
-      token: token.trim(),
-      user,
-      loggedInAt: Date.now(),
-      repos: [],
-      currentRepoIndex: -1,
-    };
-    persist(next);
-    setStoredAuth(next);
-  }, []);
+  const signIn = useCallback(
+    (token: string, user: KodyUser) => {
+      const next: KodyAuth = {
+        repoUrl: "",
+        owner: "",
+        repo: "",
+        token: token.trim(),
+        user,
+        loggedInAt: Date.now(),
+        repos: [],
+        currentRepoIndex: -1,
+      };
+      persistAuth(next);
+      setStoredAuth(next);
+    },
+    [persistAuth],
+  );
 
   const addRepo = useCallback(
     (
@@ -492,7 +557,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             repos: [loginEntry],
             currentRepoIndex: 0,
           };
-          persist(next);
+          persistAuth(next);
           return next;
         }
         const ownerLc = nextEntry.owner.toLowerCase();
@@ -533,63 +598,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               token: firstRepo.token,
             }
           : { ...prev, repos: nextRepos };
-        persist(next);
+        persistAuth(next);
         return next;
       });
     },
-    [],
+    [persistAuth],
   );
 
-  const removeRepo = useCallback((index: number) => {
-    setStoredAuth((prev) => {
-      if (!prev) return prev;
-      if (index < 0 || index >= prev.repos.length) return prev;
+  const removeRepo = useCallback(
+    (index: number) => {
+      setStoredAuth((prev) => {
+        if (!prev) return prev;
+        if (index < 0 || index >= prev.repos.length) return prev;
 
-      const removing = prev.repos[index];
-      if (removing.isLogin) {
-        // Removing the login repo == logout.
-        localStorage.removeItem("kody_auth");
-        clearClientBrandRepoCookie();
-        window.location.href = "/";
-        return null;
-      }
+        const removing = prev.repos[index];
+        if (removing.isLogin) {
+          // Removing the login repo == logout.
+          if (persistence === "account") {
+            void clearAccountRepositoryAuth();
+          }
+          localStorage.removeItem("kody_auth");
+          clearClientBrandRepoCookie();
+          window.location.href = "/";
+          return null;
+        }
 
-      const nextRepos = prev.repos.filter((_, i) => i !== index);
-      if (nextRepos.length === 0) {
-        // Shouldn't happen (login is non-removable), but bail to logout.
-        localStorage.removeItem("kody_auth");
-        clearClientBrandRepoCookie();
-        window.location.href = "/";
-        return null;
-      }
+        const nextRepos = prev.repos.filter((_, i) => i !== index);
+        if (nextRepos.length === 0) {
+          // Shouldn't happen (login is non-removable), but bail to logout.
+          if (persistence === "account") {
+            void clearAccountRepositoryAuth();
+          }
+          localStorage.removeItem("kody_auth");
+          clearClientBrandRepoCookie();
+          window.location.href = "/";
+          return null;
+        }
 
-      // Recompute current index. If we removed the current one, fall back to 0.
-      let nextIdx = prev.currentRepoIndex;
-      if (index === prev.currentRepoIndex) {
-        nextIdx = 0;
-      } else if (index < prev.currentRepoIndex) {
-        nextIdx = prev.currentRepoIndex - 1;
-      }
-      const cur = nextRepos[nextIdx];
-      const next: KodyAuth = {
-        ...prev,
-        repos: nextRepos,
-        currentRepoIndex: nextIdx,
-        repoUrl: cur.repoUrl,
-        owner: cur.owner,
-        repo: cur.repo,
-        token: cur.token,
-        user: cur.user ?? prev.user,
-      };
-      persist(next);
-      // Removing the active repo: its URL is now dead — do a full-page
-      // navigation to the fallback repo's home (also clears caches).
-      if (index === prev.currentRepoIndex) {
-        window.location.assign(repoBasePath(cur));
-      }
-      return next;
-    });
-  }, []);
+        // Recompute current index. If we removed the current one, fall back to 0.
+        let nextIdx = prev.currentRepoIndex;
+        if (index === prev.currentRepoIndex) {
+          nextIdx = 0;
+        } else if (index < prev.currentRepoIndex) {
+          nextIdx = prev.currentRepoIndex - 1;
+        }
+        const cur = nextRepos[nextIdx];
+        const next: KodyAuth = {
+          ...prev,
+          repos: nextRepos,
+          currentRepoIndex: nextIdx,
+          repoUrl: cur.repoUrl,
+          owner: cur.owner,
+          repo: cur.repo,
+          token: cur.token,
+          user: cur.user ?? prev.user,
+        };
+        persistAuth(next);
+        // Removing the active repo: its URL is now dead — do a full-page
+        // navigation to the fallback repo's home (also clears caches).
+        if (index === prev.currentRepoIndex) {
+          window.location.assign(repoBasePath(cur));
+        }
+        return next;
+      });
+    },
+    [persistAuth, persistence],
+  );
 
   const replaceRepoToken = useCallback(
     (index: number, token: string, user: KodyUser): boolean => {
@@ -607,11 +681,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         repos,
         ...(replacingActive ? { token: trimmedToken, user } : {}),
       };
-      persist(next);
+      persistAuth(next);
       setStoredAuth(next);
       return true;
     },
-    [auth],
+    [auth, persistAuth],
   );
 
   const setCurrentRepo = useCallback(
@@ -636,10 +710,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // repo-less-page fallback and the brand cookie, then a full-page
       // navigation to the target repo's URL wipes React Query cache,
       // in-flight polls, and chat state.
-      persist(next);
+      persistAuth(next);
       window.location.assign(options?.redirectTo ?? repoBasePath(cur));
     },
-    [auth],
+    [auth, persistAuth],
   );
 
   const updateIntegrations = useCallback(
@@ -691,11 +765,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const storeRef = patch.storeRef?.trim();
           next.storeRef = storeRef ? storeRef : undefined;
         }
-        persist(next);
+        persistAuth(next);
         return next;
       });
     },
-    [],
+    [persistAuth],
   );
 
   return (

@@ -1125,7 +1125,7 @@ export function FilesPage({
             <FolderOpen className="h-7 w-7 text-primary" />
           </div>
           <p className="mt-6 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            File workspace
+            Workspace
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
             Choose what you want to work on
@@ -1353,7 +1353,7 @@ export function FilesPage({
                   title="Open workspace root"
                 >
                   <FolderOpen className="h-4 w-4 text-primary" />
-                  {workspaceRoot || "Repository"}
+                  {workspaceRoot || "Workspace"}
                 </Button>
                 {breadcrumbs.map((crumb, i) => (
                   <div key={crumb.path} className="flex items-center gap-1">

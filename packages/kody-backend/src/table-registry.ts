@@ -214,6 +214,12 @@ export const TABLES: readonly TableDef[] = [
     global: true,
   },
   {
+    table: "userCredentials",
+    naturalKey: ["userKey", "name"],
+    upsertIndex: "by_user_name",
+    global: true,
+  },
+  {
     table: "agencyRecords",
     naturalKey: ["kind", "recordId"],
     upsertIndex: "by_tenant",

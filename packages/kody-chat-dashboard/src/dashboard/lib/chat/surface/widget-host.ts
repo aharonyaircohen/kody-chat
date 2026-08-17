@@ -221,16 +221,18 @@ export function normalizeWidgetSubmitResult(
  */
 export function buildWidgetBundleUrl(
   slug: string,
-  auth: WidgetBundleAuth,
+  auth?: WidgetBundleAuth,
   version?: number,
 ): string {
-  const query = new URLSearchParams({
-    owner: auth.owner,
-    repo: auth.repo,
-    token: auth.token,
-  });
+  const query = new URLSearchParams();
+  if (auth) {
+    query.set("owner", auth.owner);
+    query.set("repo", auth.repo);
+    query.set("token", auth.token);
+  }
   if (version !== undefined) query.set("version", String(version));
-  return `/api/kody/widgets/${encodeURIComponent(slug)}?${query.toString()}`;
+  const suffix = query.toString();
+  return `/api/kody/widgets/${encodeURIComponent(slug)}${suffix ? `?${suffix}` : ""}`;
 }
 
 /**

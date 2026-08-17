@@ -55,6 +55,7 @@ import {
   type RequestAuth,
 } from "@kody-ade/base/auth";
 import { verifyOperatorActor } from "../../../../../src/dashboard/lib/auth/operator-actor";
+import { getChatRequestContextProvider } from "@kody-ade/kody-chat-dashboard/chat/request-context-provider";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import {
   createUserOctokit,
@@ -158,6 +159,7 @@ import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
 import { createInstructionsTools } from "../tools/instructions-tools";
+import { createPersonalChatTools } from "../tools/personal-tools";
 import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
 import { createModelTools } from "../tools/models-tools";
@@ -180,6 +182,7 @@ import { readBuiltinAgentCapability } from "@kody-ade/agency/builtin-agents";
 import { loadRelevantMemoryForPrompt } from "@kody-ade/workspace/memory";
 import {
   loadViewRendererContextForPrompt,
+  loadViewRendererContextForTenant,
   type ViewRendererDefinition,
 } from "../../../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
@@ -694,7 +697,11 @@ async function handleKodyDirectPost(
   // restricted client scope (agent forced, tools filtered below). Neither →
   // today's 401 via requireKodyAuth, unchanged.
   const surfaceScope = resolveSurfaceScope(req.headers);
-  if (surfaceScope.kind === "none") {
+  const hostUser =
+    surfaceScope.kind === "none"
+      ? ((await getChatRequestContextProvider()?.resolveUser(req)) ?? null)
+      : null;
+  if (surfaceScope.kind === "none" && !hostUser) {
     const authError = await requireUserAuth(req);
     if (authError) return authError;
   }
@@ -898,14 +905,21 @@ async function handleKodyDirectPost(
   // verify — actor-gated tools (remote_*) simply stay off (null login).
   let verifiedActorLogin: string | null = null;
   let verifiedActorGithubId: number | null = null;
+  let verifiedUserId: string | null = hostUser?.id ?? null;
+  const repo = getRequestAuth(repoScopedReq);
   if (!clientSurface) {
-    const actorResult = await verifyOperatorActor(
-      repoScopedReq,
-      body.actorLogin,
-    );
-    if (actorResult instanceof NextResponse) return actorResult;
-    verifiedActorLogin = actorResult.identity.login;
-    verifiedActorGithubId = actorResult.identity.githubId;
+    if (repo || !hostUser) {
+      const actorResult = await verifyOperatorActor(
+        repoScopedReq,
+        body.actorLogin,
+      );
+      if (actorResult instanceof NextResponse) return actorResult;
+      verifiedActorLogin = actorResult.identity.login;
+      verifiedActorGithubId = actorResult.identity.githubId;
+      verifiedUserId ??= `github:${actorResult.identity.githubId}`;
+    } else {
+      verifiedActorLogin = hostUser.label;
+    }
   }
   // Only vision-capable models get real image parts. For text-only models
   // (looked up from LiteLLM's supports_vision data) inline the image as text
@@ -931,9 +945,8 @@ async function handleKodyDirectPost(
       "This is an architecture recommendation, not a request to create anything and not a question about configured chat models. Give a direct verdict instead of an inventory or clarification question. Treat the existing Kody Chat path as the current owner and recommend extending it unless verified repository evidence proves a requirement it cannot satisfy. Explain the ownership tradeoff briefly, do not confuse chat systems with configured models or providers, and end with one relevant non-blocking follow-up question.",
     );
   }
-  const repo = getRequestAuth(repoScopedReq);
   const durableIdentity =
-    verifiedActorGithubId !== null &&
+    verifiedUserId !== null &&
     typeof body.conversationId === "string" &&
     body.conversationId.trim() &&
     typeof body.turnId === "string" &&
@@ -942,7 +955,7 @@ async function handleKodyDirectPost(
     typeof body.conversationAgent.slug === "string" &&
     typeof body.conversationAgent.title === "string"
       ? {
-          tenantId: `user:${verifiedActorGithubId}`,
+          tenantId: `user:${verifiedUserId}`,
           conversationId: body.conversationId.trim(),
           turnId: body.turnId.trim(),
           backend: "direct" as const,
@@ -960,20 +973,31 @@ async function handleKodyDirectPost(
         }
       : null;
   if (
-    repo &&
-    verifiedActorLogin &&
+    verifiedUserId &&
     typeof body.conversationId === "string" &&
     body.conversationId.trim()
   ) {
     try {
-      const guidedFlowContext = await buildGuidedFlowTurnContext(
+      const personalGuidedFlowContext = await buildGuidedFlowTurnContext(
         new ConvexGuidedFlowReader({
-          tenantId: `${repo.owner}/${repo.repo}`,
-          actorId: verifiedActorLogin,
+          tenantId: `user:${verifiedUserId}`,
+          actorId: verifiedUserId,
           conversationId: body.conversationId.trim(),
         }),
       );
-      if (guidedFlowContext) turnSystemInstructions.push(guidedFlowContext);
+      if (personalGuidedFlowContext)
+        turnSystemInstructions.push(personalGuidedFlowContext);
+      if (repo && verifiedActorLogin) {
+        const repositoryGuidedFlowContext = await buildGuidedFlowTurnContext(
+          new ConvexGuidedFlowReader({
+            tenantId: `${repo.owner}/${repo.repo}`,
+            actorId: verifiedActorLogin,
+            conversationId: body.conversationId.trim(),
+          }),
+        );
+        if (repositoryGuidedFlowContext)
+          turnSystemInstructions.push(repositoryGuidedFlowContext);
+      }
     } catch (error) {
       traceWarn(
         { err: error, conversationId: body.conversationId },
@@ -1015,6 +1039,37 @@ async function handleKodyDirectPost(
   let featureGuidePromptSection: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
+  if (verifiedUserId && !clientSurface) {
+    const personalTenantId = `user:${verifiedUserId}`;
+    if (!repo) try {
+      memoryContext = await loadRelevantMemoryForPrompt(
+        {
+          actor: { kind: "user", id: verifiedUserId },
+          tenantId: personalTenantId,
+          includeRepositoryScope: false,
+        },
+        latestUserText ?? "",
+      );
+    } catch (err) {
+      traceWarn({ traceId, err }, "personal memory unavailable");
+    }
+    try {
+      const row = (await createBackendClient().query(backendApi.repoDocs.get, {
+        tenantId: personalTenantId,
+        kind: "instructions",
+      })) as { doc?: { body?: string } } | null;
+      userInstructions = row?.doc?.body?.trim() || null;
+    } catch (err) {
+      traceWarn({ traceId, err }, "personal instructions unavailable");
+    }
+    try {
+      const rendererContext = await loadViewRendererContextForTenant(personalTenantId);
+      viewRendererRules = rendererContext.rules;
+      viewRendererDefinitions = rendererContext.definitions;
+    } catch (err) {
+      traceWarn({ traceId, err }, "personal renderers unavailable");
+    }
+  }
   if (repo && clientSurface) {
     // Client-surface turns still need the module github context for
     // repo-scoped reads (e.g. the brand's agent file) — but skip the
@@ -1045,16 +1100,14 @@ async function handleKodyDirectPost(
       repo.storeRef,
     );
     try {
-      memoryContext = await loadRelevantMemoryForPrompt(
+      const repositoryMemory = await loadRelevantMemoryForPrompt(
         {
-          actor: {
-            kind: "user",
-            id: `github:${verifiedActorGithubId}`,
-          },
+          actor: { kind: "user", id: verifiedUserId! },
           tenantId: `${repo.owner}/${repo.repo}`,
         },
         latestUserText ?? "",
       );
+      memoryContext = repositoryMemory;
     } catch (err) {
       // Memory is best-effort; never block the chat. Log and continue.
       traceWarn(
@@ -1063,7 +1116,15 @@ async function handleKodyDirectPost(
       );
     }
     try {
-      userInstructions = await loadInstructionsForPrompt();
+      const repositoryInstructions = await loadInstructionsForPrompt();
+      userInstructions = [
+        userInstructions ? `## Personal instructions\n${userInstructions}` : null,
+        repositoryInstructions
+          ? `## Repository instructions\n${repositoryInstructions}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n") || null;
     } catch (err) {
       // Instructions are best-effort; never block the chat. Log and continue.
       traceWarn(
@@ -1111,8 +1172,18 @@ async function handleKodyDirectPost(
         owner: repo.owner,
         repo: repo.repo,
       });
-      viewRendererRules = viewRendererContext.rules;
-      viewRendererDefinitions = viewRendererContext.definitions;
+      const mergedDefinitions = new Map(
+        viewRendererDefinitions.map((definition) => [definition.slug, definition]),
+      );
+      for (const definition of viewRendererContext.definitions) {
+        mergedDefinitions.set(definition.slug, definition);
+      }
+      viewRendererDefinitions = [...mergedDefinitions.values()].sort((a, b) =>
+        a.slug.localeCompare(b.slug),
+      );
+      viewRendererRules = buildViewComponentRules(
+        buildChatViewCatalog(viewRendererDefinitions),
+      );
     } catch (err) {
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
@@ -1477,7 +1548,7 @@ async function handleKodyDirectPost(
         createAgent: (input) => agencyApi.createAgent(input),
       }),
       ...createMemoryTools({
-        actorId: `github:${verifiedActorGithubId}`,
+        actorId: verifiedUserId!,
         owner: repo.owner,
         repo: repo.repo,
         ...(typeof body.conversationId === "string"
@@ -1611,16 +1682,32 @@ async function handleKodyDirectPost(
   }
   extraTools = {
     ...extraTools,
+    ...(!repo && !clientSurface && verifiedUserId
+      ? createPersonalChatTools(verifiedUserId)
+      : {}),
     ...(!clientSurface
       ? createMachineTools({
           machineAccess: requestedMachineAccess,
           localEnabled: localMachineAccessEnabled,
         })
       : {}),
-    ...(repo && !clientSurface && verifiedActorLogin
+    ...(!repo && !clientSurface && verifiedUserId
+      ? createMemoryTools({
+          actorId: verifiedUserId,
+          tenantId: `user:${verifiedUserId}`,
+          includeRepositoryScope: false,
+          ...(typeof body.conversationId === "string"
+            ? { conversationId: body.conversationId }
+            : {}),
+          ...(typeof body.turnId === "string" ? { messageId: body.turnId } : {}),
+        })
+      : {}),
+    ...(verifiedUserId && !clientSurface
       ? createGuidedFlowTools({
-          tenantId: `${repo.owner}/${repo.repo}`,
-          actorId: verifiedActorLogin,
+          tenantId: repo
+            ? `${repo.owner}/${repo.repo}`
+            : `user:${verifiedUserId}`,
+          actorId: repo && verifiedActorLogin ? verifiedActorLogin : verifiedUserId,
           ...(typeof body.conversationId === "string" &&
           body.conversationId.trim()
             ? { conversationId: body.conversationId.trim() }

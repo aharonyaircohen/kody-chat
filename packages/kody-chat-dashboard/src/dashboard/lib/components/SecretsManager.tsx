@@ -2,8 +2,7 @@
  * @fileType component
  * @domain vault
  * @pattern secrets-manager
- * @ai-summary CRUD UI for the dashboard secrets vault. Per-repo encrypted
- *   vault stored in the connected repo's external backend. Values
+ * @ai-summary CRUD UI for personal and repository dashboard secrets. Values
  *   are write-only after creation — the GitHub Contents API returns
  *   ciphertext only and the server never echoes plaintext back to the client.
  */
@@ -40,7 +39,6 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { VercelBypassCard } from "./VercelBypassCard";
-import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 
 interface SecretRow {
@@ -172,11 +170,7 @@ async function deleteSecret(
 }
 
 export function SecretsManager() {
-  return (
-    <AuthGuard>
-      <SecretsManagerInner />
-    </AuthGuard>
-  );
+  return <SecretsManagerInner />;
 }
 
 function SecretsManagerInner() {
@@ -193,7 +187,7 @@ function SecretsManagerInner() {
   const { data, isLoading, error, refetch } = useQuery<SecretRow[]>({
     queryKey: listQueryKey,
     queryFn: () => listSecrets(headers),
-    enabled: !!auth,
+    enabled: true,
     staleTime: 30_000,
   });
   // POOL_MIN is per-repo Fly config managed on /runner, not a credential.
@@ -320,10 +314,9 @@ function SecretsManagerInner() {
               <ShieldCheck className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No secrets stored yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
-                Secrets are AES-256-GCM-encrypted and stored as{" "}
-                <code className="text-white/55">secrets.enc</code> in the state
-                repo. Use them in place of Vercel env vars — the dashboard reads
-                them at request time.
+                Secrets are encrypted and stored for{" "}
+                {auth ? "this repository" : "your Kody account"}. Kody reads
+                them only when a configured feature needs them.
               </p>
               <Button
                 size="sm"
@@ -493,7 +486,7 @@ function SecretsManagerInner() {
         </p>
       </div>
 
-      <VercelBypassCard />
+      {auth ? <VercelBypassCard /> : null}
 
       {editing && (
         <SecretEditor

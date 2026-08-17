@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { encrypt, isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { logger } from "@kody-ade/base/logger";
+import { isInternalKodyCredential } from "@kody-ade/base/auth/internal-credentials";
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 import {
   backendApi,
@@ -14,7 +15,10 @@ export const revalidate = 0;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 const CredentialSchema = z.object({
   name: z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
-  value: z.string().min(1).max(64 * 1024),
+  value: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
 });
 
 function unconfigured() {
@@ -34,7 +38,14 @@ export async function GET(_req?: NextRequest) {
       backendApi.userCredentials.list,
       { userKey: actor.id },
     );
-    return NextResponse.json({ credentials }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json(
+      {
+        credentials: credentials.filter(
+          (credential) => !isInternalKodyCredential(credential.name),
+        ),
+      },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
     logger.error(
       { error, userId: actor.id },
@@ -74,6 +85,9 @@ export async function PUT(req: NextRequest) {
       { error, userId: actor.id, name: parsed.data.name },
       "personal credentials: write failed",
     );
-    return NextResponse.json({ error: "credentials_write_failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "credentials_write_failed" },
+      { status: 500 },
+    );
   }
 }

@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Blocks, Loader2, Play, Upload } from "lucide-react";
-import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
@@ -109,11 +108,7 @@ async function publishWidgetApi(
 }
 
 export function WidgetsManager({ initialSlug }: { initialSlug?: string }) {
-  return (
-    <AuthGuard>
-      <WidgetsManagerInner initialSlug={initialSlug} />
-    </AuthGuard>
-  );
+  return <WidgetsManagerInner initialSlug={initialSlug} />;
 }
 
 function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
@@ -141,7 +136,7 @@ function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
   const { data, isLoading, error, refetch } = useQuery<WidgetRow[]>({
     queryKey: listQueryKey,
     queryFn: () => listWidgetsApi(headers),
-    enabled: !!auth,
+    enabled: true,
     staleTime: 30_000,
   });
   const widgets = useMemo(() => data ?? [], [data]);
@@ -237,7 +232,7 @@ function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
             title={widgets.length === 0 ? "No widgets yet" : "No matches"}
             hint={
               widgets.length === 0
-                ? "Widgets are precompiled JS bundles published per tenant. Upload the first bundle to serve it from this repo's widget store."
+                ? `Widgets are precompiled JS bundles published to ${auth ? "this repository" : "your Kody account"}. Upload the first bundle to make it available in Chat.`
                 : "Try another search."
             }
             action={
@@ -429,7 +424,7 @@ function WidgetUploadDialog({
           <DialogTitle>Upload widget</DialogTitle>
           <DialogDescription>
             Publish a precompiled JS bundle as the next version of a widget for
-            this repo.
+            this Kody scope.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 px-5 py-4">

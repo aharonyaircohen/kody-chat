@@ -1,137 +1,119 @@
-/**
- * @fileType api-endpoint
- * @domain vault
- * @pattern secrets-api
- * @ai-summary GET — list secret names + last-modified for the connected repo.
- *   POST — upsert a secret { name, value }. Values are never returned.
- */
-
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { encrypt, isVaultConfigured } from "@kody-ade/base/vault/crypto";
+import { isInternalKodyCredential } from "@kody-ade/base/auth/internal-credentials";
 import {
+  getRequestAuth,
+  getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
-  getRequestAuth,
 } from "@kody-ade/base/auth";
 import { listSecretMetadata, readVault } from "@kody-ade/base/vault/store";
+import { upsertSecret } from "@kody-ade/base/vault/mutations";
+import { resolveKodyRequestScope } from "@dashboard/lib/auth/kody-request-scope";
 import {
-  SecretWriteSchema,
-  upsertSecret,
-} from "@kody-ade/base/vault/mutations";
-import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
-import { recordAudit } from "@dashboard/lib/activity/audit";
-import { logger } from "@kody-ade/base/logger";
+  backendApi,
+  getConvexClient,
+} from "@dashboard/lib/backend/convex-backend";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+const schema = z.object({
+  name: z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
+  value: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+});
 
-function vaultUnconfiguredResponse() {
+function unavailable() {
   return NextResponse.json(
-    {
-      error: "vault_not_configured",
-      message:
-        "KODY_MASTER_KEY is not set on the server. Run `pnpm vault:init` and add the key to Vercel env.",
-    },
+    { error: "vault_not_configured" },
     { status: 503, headers: NO_STORE_HEADERS },
   );
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-  if (!isVaultConfigured()) return vaultUnconfiguredResponse();
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json(
-      { error: "no_repo_context" },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
-  }
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json(
-      { error: "no_octokit" },
-      { status: 401, headers: NO_STORE_HEADERS },
-    );
-
-  try {
-    const { doc } = await readVault(octokit, auth.owner, auth.repo);
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
+  const repository = getRequestAuth(req);
+  if (repository) {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+    if (!isVaultConfigured()) return unavailable();
+    const octokit = await getUserOctokit(req);
+    if (!octokit)
+      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    const { doc } = await readVault(octokit, repository.owner, repository.repo);
     return NextResponse.json(
       { secrets: listSecretMetadata(doc) },
       { headers: NO_STORE_HEADERS },
     );
-  } catch (err) {
-    logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
-      "vault: list failed",
-    );
-    return NextResponse.json(
-      { error: "vault_read_failed", message: (err as Error).message },
-      { status: 500, headers: NO_STORE_HEADERS },
-    );
   }
+  if (!isVaultConfigured()) return unavailable();
+  const secrets = await getConvexClient().query(
+    backendApi.userCredentials.list,
+    {
+      userKey: resolved.user.id,
+    },
+  );
+  return NextResponse.json(
+    {
+      secrets: secrets.filter(
+        (secret) => !isInternalKodyCredential(secret.name),
+      ),
+    },
+    { headers: NO_STORE_HEADERS },
+  );
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-  if (!isVaultConfigured()) return vaultUnconfiguredResponse();
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
-
-  const parsed = SecretWriteSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "validation_error", details: parsed.error.format() },
-      { status: 400 },
-    );
-  }
-
-  const verify = await verifyActorLogin(req, parsed.data.actorLogin);
-  if ("status" in verify) return verify;
-  const actorLogin = verify.identity.login;
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
-  try {
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
+  const repository = getRequestAuth(req);
+  if (repository) {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+    if (!isVaultConfigured()) return unavailable();
+    const parsed = schema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success)
+      return NextResponse.json({ error: "validation_error" }, { status: 400 });
+    const verified = await verifyActorLogin(req, undefined);
+    if (verified instanceof NextResponse) return verified;
+    const octokit = await getUserOctokit(req);
+    if (!octokit)
+      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
     const result = await upsertSecret({
       octokit,
-      owner: auth.owner,
-      repo: auth.repo,
+      owner: repository.owner,
+      repo: repository.repo,
       name: parsed.data.name,
       value: parsed.data.value,
-      actorLogin,
-    });
-    recordAudit(req, {
-      action: "vault.write",
-      resource: parsed.data.name,
-      detail: "upsert secret",
+      actorLogin: verified.identity.login,
     });
     return NextResponse.json({ ok: true, secrets: result.secrets });
-  } catch (err) {
-    logger.error(
-      { err, owner: auth.owner, repo: auth.repo, name: parsed.data.name },
-      "vault: upsert failed",
-    );
-    return NextResponse.json(
-      { error: "vault_write_failed", message: (err as Error).message },
-      { status: 500 },
-    );
   }
+  if (!isVaultConfigured()) return unavailable();
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "validation_error" }, { status: 400 });
+  }
+  const updatedAt = new Date().toISOString();
+  await getConvexClient().mutation(backendApi.userCredentials.upsert, {
+    userKey: resolved.user.id,
+    name: parsed.data.name,
+    encryptedValue: encrypt(parsed.data.value),
+    updatedAt,
+  });
+  const secrets = await getConvexClient().query(
+    backendApi.userCredentials.list,
+    {
+      userKey: resolved.user.id,
+    },
+  );
+  return NextResponse.json({
+    ok: true,
+    secrets: secrets.filter((secret) => !isInternalKodyCredential(secret.name)),
+  });
 }

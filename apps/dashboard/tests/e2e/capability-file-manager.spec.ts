@@ -42,6 +42,13 @@ test("Capabilities open as folders in the shared Files workspace", async ({
   page.on("console", (message) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failures.push(
+        `response: ${response.status()} ${new URL(response.url()).pathname}`,
+      );
+    }
+  });
   await seedAuth(page);
   await mockDashboardShellRequests(page);
 

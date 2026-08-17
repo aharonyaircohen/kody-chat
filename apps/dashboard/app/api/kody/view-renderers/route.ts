@@ -7,19 +7,16 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  getRequestAuth,
-  requireKodyAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { resolveKodyRequestScope } from "@dashboard/lib/auth/kody-request-scope";
+import { verifyActorLogin } from "@kody-ade/base/auth";
 import {
   isValidViewRendererSlug,
-  listViewRendererDefinitionFiles,
+  listViewRendererDefinitionsForTenant,
   parseViewRendererDefinition,
-  readViewRendererDefinitionFile,
+  readViewRendererDefinitionForTenant,
   serializeViewRendererDefinition,
-  writeViewRendererDefinitionFile,
+  writeViewRendererDefinitionForTenant,
   type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
 
@@ -32,19 +29,6 @@ const saveSchema = z.object({
   definition: z.string().min(2).max(20_000),
   actorLogin: z.string().optional(),
 });
-
-function requireRepo(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return {
-      response: NextResponse.json(
-        { error: "missing_repo_context" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      ),
-    };
-  }
-  return { auth };
-}
 
 function toRow(
   definition: ViewRendererDefinition,
@@ -68,16 +52,13 @@ function toRow(
 }
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
-  if (authResult instanceof NextResponse) return authResult;
-  const required = requireRepo(req);
-  if ("response" in required) return required.response;
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
 
   try {
-    const files = await listViewRendererDefinitionFiles({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
-    });
+    const files = await listViewRendererDefinitionsForTenant(
+      resolved.tenantId,
+    );
     const rows = files
       .map((file) => toRow(file.definition, file.htmlUrl, file.source))
       .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -99,10 +80,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
-  if (authResult instanceof NextResponse) return authResult;
-  const required = requireRepo(req);
-  if ("response" in required) return required.response;
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
 
   try {
     const payload = saveSchema.parse(await req.json());
@@ -110,11 +89,12 @@ export async function POST(req: NextRequest) {
     if (!isValidViewRendererSlug(definition.slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const actorResult = await verifyActorLogin(req, payload.actorLogin);
-    if (actorResult instanceof NextResponse) return actorResult;
-    const existing = await readViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    if (resolved.repository) {
+      const verified = await verifyActorLogin(req, payload.actorLogin);
+      if (verified instanceof NextResponse) return verified;
+    }
+    const existing = await readViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       slug: definition.slug,
     });
     if (existing) {
@@ -126,9 +106,8 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-    const written = await writeViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    const written = await writeViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       definition,
     });
     recordAudit(req, {

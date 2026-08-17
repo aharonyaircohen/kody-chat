@@ -19,7 +19,7 @@
  * @domain chat-contract
  */
 
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../src/dashboard/lib/view-renderers/builtin";
@@ -204,6 +204,7 @@ vi.mock("ai", async (importOriginal) => {
 });
 
 import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
+import { setChatRequestContextProvider } from "../../app/api/kody/chat/request-context-provider";
 import { getChatServerToolRegistry } from "../../src/dashboard/lib/chat/platform/server-tools";
 import type { ChatToolServerContext } from "../../src/dashboard/lib/chat/platform";
 
@@ -216,6 +217,14 @@ function makeRequest(userText = "Inspect repository status"): NextRequest {
       "x-kody-owner": "owner",
       "x-kody-repo": "repo",
     },
+    body: JSON.stringify({ messages: [{ role: "user", content: userText }] }),
+  });
+}
+
+function makePersonalRequest(userText = "Show my Kody setup"): NextRequest {
+  return new NextRequest("https://dash.test/api/kody/chat/kody", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ messages: [{ role: "user", content: userText }] }),
   });
 }
@@ -249,6 +258,17 @@ function queueAgencyRoute(task: string): void {
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "chat-plugin-mounts-test-secret";
+});
+
+afterEach(() => {
+  setChatRequestContextProvider(null);
+  nextUiMessageChunks = null;
+  nextSpecialistStream = null;
+  nextSpecialistStreams = [];
+  generateTextMock.mockReset();
+  generateTextMock.mockResolvedValue({
+    text: '{"mode":"self","assignments":[]}',
+  });
 });
 
 // The server tool registry is a module-scope singleton with no unregister,
@@ -641,6 +661,34 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(status).toBe(200);
     expect(toolNames).toContain("fetch_url");
     expect(toolNames).not.toContain("user_state_get");
+  });
+
+  it("gives a signed-in Kody user full personal Chat without GitHub", async () => {
+    setChatRequestContextProvider({
+      resolveUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
+    });
+
+    const before = streamTextCalls.length;
+    const response = await kodyChatPOST(makePersonalRequest());
+    const tools = (streamTextCalls[before]?.tools ?? {}) as Record<
+      string,
+      unknown
+    >;
+
+    expect(response.status).toBe(200);
+    expect(tools).toEqual(
+      expect.objectContaining({
+        list_commands: expect.any(Object),
+        read_instructions: expect.any(Object),
+        list_secret_names: expect.any(Object),
+        list_memories: expect.any(Object),
+        guided_flow_start: expect.any(Object),
+        show_view: expect.any(Object),
+      }),
+    );
+    expect(tools).not.toHaveProperty("github_get_file");
+    expect(tools).not.toHaveProperty("list_workflows");
+    expect(tools).not.toHaveProperty("list_todos");
   });
 
   it("fixture plugin tool is exposed additively and zod-validated with the request server context", async () => {

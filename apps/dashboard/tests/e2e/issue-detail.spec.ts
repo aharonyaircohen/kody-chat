@@ -5,6 +5,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const OWNER = "test-owner";
@@ -30,6 +31,23 @@ async function seedAuthenticatedFixture(
   page: Page,
   fixtureTask = task,
 ): Promise<void> {
+  await page.addInitScript(
+    ({ owner, repo }) => {
+      localStorage.setItem(
+        "kody_auth",
+        JSON.stringify({
+          repoUrl: `https://github.com/${owner}/${repo}`,
+          owner,
+          repo,
+          token: "ghp_placeholder",
+          user: { login: "issue-detail-e2e", avatar_url: "", id: 1 },
+          loggedInAt: Date.now(),
+        }),
+      );
+    },
+    { owner: OWNER, repo: REPO },
+  );
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/tasks/issue-4242**", (route) =>
     route.fulfill({
       status: 200,
@@ -69,24 +87,6 @@ async function seedAuthenticatedFixture(
         user: { login: "issue-detail-e2e", avatar_url: "", id: 1 },
       }),
     }),
-  );
-
-  await page.goto(`${BASE_URL}/login`);
-  await page.evaluate(
-    ({ owner, repo }) => {
-      localStorage.setItem(
-        "kody_auth",
-        JSON.stringify({
-          repoUrl: `https://github.com/${owner}/${repo}`,
-          owner,
-          repo,
-          token: "ghp_placeholder",
-          user: { login: "issue-detail-e2e", avatar_url: "", id: 1 },
-          loggedInAt: Date.now(),
-        }),
-      );
-    },
-    { owner: OWNER, repo: REPO },
   );
 }
 

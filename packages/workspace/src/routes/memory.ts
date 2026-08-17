@@ -34,10 +34,7 @@ export async function GET(req: NextRequest) {
   try {
     const memories = await context.application.list({
       principal: context.principal,
-      scopes: [
-        { kind: "user", userId: context.principal.actor.id },
-        { kind: "repository", tenantId: context.tenantId },
-      ],
+      scopes: context.scopes,
     });
     return NextResponse.json({ memories }, { headers: NO_STORE_HEADERS });
   } catch (error) {

@@ -20,9 +20,8 @@ describe("Sidebar navigation items", () => {
   });
 
   it("scopes nav hrefs only when a repository is connected", () => {
-    expect(SOURCE).toContain(
-      "auth?.owner && auth.repo ? repoScopedHref(auth, href) : href",
-    );
+    expect(SOURCE).toContain('scope !== "personal" && auth?.owner && auth.repo');
+    expect(SOURCE).toContain("? repoScopedHref(auth, href)");
   });
 
   it("renders the special badges only on their matching routes", () => {
@@ -122,7 +121,9 @@ describe("Sidebar inline search", () => {
   it("clears the query on Escape and navigates to the first match on Enter", () => {
     expect(SOURCE).toContain('if (e.key === "Escape")');
     expect(SOURCE).toContain('e.key === "Enter" && firstMatch');
-    expect(SOURCE).toContain("router.push(scopedHref(firstMatch.href))");
+    expect(SOURCE).toContain(
+      "router.push(scopedHref(firstMatch.href, firstMatch.scope))",
+    );
   });
 
   it("shows an empty state when no items match", () => {

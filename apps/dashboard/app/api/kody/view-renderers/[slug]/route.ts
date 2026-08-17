@@ -6,15 +6,16 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getRequestAuth, requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { resolveKodyRequestScope } from "@dashboard/lib/auth/kody-request-scope";
+import { verifyActorLogin } from "@kody-ade/base/auth";
 import {
-  deleteViewRendererDefinitionFile,
+  deleteViewRendererDefinitionForTenant,
   isValidViewRendererSlug,
   parseViewRendererDefinition,
-  readViewRendererDefinitionFile,
+  readViewRendererDefinitionForTenant,
   serializeViewRendererDefinition,
-  writeViewRendererDefinitionFile,
+  writeViewRendererDefinitionForTenant,
   type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
 
@@ -22,19 +23,6 @@ const saveSchema = z.object({
   definition: z.string().min(2).max(20_000),
   actorLogin: z.string().optional(),
 });
-
-function requireRepo(req: NextRequest) {
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return {
-      response: NextResponse.json(
-        { error: "missing_repo_context" },
-        { status: 401 },
-      ),
-    };
-  }
-  return { auth };
-}
 
 function toRow(
   definition: ViewRendererDefinition,
@@ -61,19 +49,16 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
-  if (authResult instanceof NextResponse) return authResult;
-  const required = requireRepo(req);
-  if ("response" in required) return required.response;
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
 
   try {
     const { slug } = await params;
     if (!isValidViewRendererSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const existing = await readViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    const existing = await readViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       slug,
     });
     if (existing) {
@@ -99,10 +84,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
-  if (authResult instanceof NextResponse) return authResult;
-  const required = requireRepo(req);
-  if ("response" in required) return required.response;
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
 
   try {
     const { slug } = await params;
@@ -117,19 +100,19 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const actorResult = await verifyActorLogin(req, payload.actorLogin);
-    if (actorResult instanceof NextResponse) return actorResult;
-    const existing = await readViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    if (resolved.repository) {
+      const verified = await verifyActorLogin(req, payload.actorLogin);
+      if (verified instanceof NextResponse) return verified;
+    }
+    const existing = await readViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       slug,
     });
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    const written = await writeViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    const written = await writeViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       definition,
     });
     recordAudit(req, {
@@ -163,31 +146,28 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
-  if (authResult instanceof NextResponse) return authResult;
-  const required = requireRepo(req);
-  if ("response" in required) return required.response;
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
 
   try {
     const { slug } = await params;
     if (!isValidViewRendererSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const { searchParams } = new URL(req.url);
-    const actorLogin = searchParams.get("actorLogin") ?? undefined;
-    const actorResult = await verifyActorLogin(req, actorLogin);
-    if (actorResult instanceof NextResponse) return actorResult;
-    const existing = await readViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    if (resolved.repository) {
+      const actorLogin = new URL(req.url).searchParams.get("actorLogin") ?? undefined;
+      const verified = await verifyActorLogin(req, actorLogin);
+      if (verified instanceof NextResponse) return verified;
+    }
+    const existing = await readViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       slug,
     });
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    await deleteViewRendererDefinitionFile({
-      owner: required.auth.owner,
-      repo: required.auth.repo,
+    await deleteViewRendererDefinitionForTenant({
+      tenantId: resolved.tenantId,
       slug,
     });
     recordAudit(req, {

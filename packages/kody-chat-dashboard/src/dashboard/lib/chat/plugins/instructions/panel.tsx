@@ -10,7 +10,6 @@
  */
 "use client";
 
-import { AuthGuard } from "../../../auth-guard";
 import { InstructionsManager } from "../../../components/InstructionsManager";
 import type { ChatPanelViewProps } from "../../platform";
 
@@ -19,9 +18,7 @@ export const INSTRUCTIONS_PANEL_TESTID = "chat-panel-instructions";
 export function InstructionsPanelView(_props: ChatPanelViewProps) {
   return (
     <div className="contents" data-testid={INSTRUCTIONS_PANEL_TESTID}>
-      <AuthGuard>
-        <InstructionsManager />
-      </AuthGuard>
+      <InstructionsManager />
     </div>
   );
 }

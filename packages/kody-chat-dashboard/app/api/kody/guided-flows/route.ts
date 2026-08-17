@@ -65,6 +65,7 @@ import {
   executeGuidedFlowCommand,
   GuidedFlowCommandError,
 } from "./command-execution";
+import { getChatRequestContextProvider } from "../chat/request-context-provider";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -189,6 +190,14 @@ async function userScope(
   req: NextRequest,
   actorLogin?: string,
 ): Promise<GuidedFlowRequestScope | NextResponse> {
+  const hostUser = await getChatRequestContextProvider()?.resolveUser(req);
+  if (hostUser) {
+    return {
+      tenantId: `user:${hostUser.id}`,
+      actorId: hostUser.id,
+      kind: "user",
+    };
+  }
   const authError = await requireUserAuth(req);
   if (authError) return authError;
   if (!getUserRequestAuth(req)) {
@@ -203,13 +212,30 @@ async function userScope(
   };
 }
 
+async function legacyUserScope(
+  req: NextRequest,
+): Promise<GuidedFlowRequestScope | NextResponse> {
+  const authError = await requireUserAuth(req);
+  if (authError) return authError;
+  if (!getUserRequestAuth(req)) {
+    return json({ error: "request_auth_required" }, { status: 401 });
+  }
+  const actor = await verifyActorLogin(req, undefined);
+  if (actor instanceof NextResponse) return actor;
+  return {
+    tenantId: userTenantIdFor(actor.identity.githubId),
+    actorId: `github:${actor.identity.githubId}`,
+    kind: "user",
+  };
+}
+
 async function userScopeForInstance(
   req: NextRequest,
   instanceId: string,
 ): Promise<GuidedFlowRequestScope | null> {
   const scope = await userScope(req);
   if (scope instanceof NextResponse) return null;
-  const instanceRow = (await getConvexClient().query(
+  let instanceRow = (await getConvexClient().query(
     backendApi.guidedFlows.get,
     {
       tenantId: scope.tenantId,
@@ -217,6 +243,17 @@ async function userScopeForInstance(
       instanceId,
     },
   )) as GuidedFlowRow | null;
+  if (!instanceRow && getUserRequestAuth(req)) {
+    const legacy = await legacyUserScope(req);
+    if (!(legacy instanceof NextResponse) && legacy.tenantId !== scope.tenantId) {
+      instanceRow = (await getConvexClient().query(backendApi.guidedFlows.get, {
+        tenantId: legacy.tenantId,
+        actorId: legacy.actorId,
+        instanceId,
+      })) as GuidedFlowRow | null;
+      if (instanceRow) return { ...legacy, instanceRow };
+    }
+  }
   return instanceRow ? { ...scope, instanceRow } : null;
 }
 
@@ -280,7 +317,7 @@ export async function GET(req: NextRequest) {
         ? bootstrapScope
         : getRequestAuth(req)
           ? await repositoryScope(req)
-          : getUserRequestAuth(req)
+          : getUserRequestAuth(req) || getChatRequestContextProvider()
             ? await userScope(req)
             : existingBootstrap
               ? requestScopeForBootstrap(existingBootstrap)
@@ -296,11 +333,20 @@ export async function GET(req: NextRequest) {
       tenantId,
     );
     if (url.searchParams.get("view") === "templates") {
+      const definitions =
+        scope.kind === "user"
+          ? [
+              ...customDefinitions,
+              ...availableUserGuidedFlowDefinitions().filter(
+                (definition) =>
+                  !customDefinitions.some(
+                    (custom) => custom.id === definition.id,
+                  ),
+              ),
+            ]
+          : availableGuidedFlowDefinitions(customDefinitions);
       return json({
-        definitions:
-          scope.kind === "user"
-            ? availableUserGuidedFlowDefinitions()
-            : availableGuidedFlowDefinitions(customDefinitions),
+        definitions,
       });
     }
     if (instanceId) {
@@ -433,24 +479,28 @@ export async function POST(req: NextRequest) {
   try {
     let scope: GuidedFlowRequestScope | NextResponse;
     if (changesDefinition) {
-      const authError = await requireKodyAuth(req);
-      if (authError) return authError;
-      const auth = requireRepo(req);
-      if (auth instanceof NextResponse) return auth;
-      const verified = await verifyRepoWriteAccess(req);
-      if (verified instanceof NextResponse) return verified;
-      scope = {
-        tenantId: tenantIdFor(auth.owner, auth.repo),
-        actorId: verified.actorLogin,
-        kind: "repository",
-      };
+      if (getRequestAuth(req)) {
+        const authError = await requireKodyAuth(req);
+        if (authError) return authError;
+        const auth = requireRepo(req);
+        if (auth instanceof NextResponse) return auth;
+        const verified = await verifyRepoWriteAccess(req);
+        if (verified instanceof NextResponse) return verified;
+        scope = {
+          tenantId: tenantIdFor(auth.owner, auth.repo),
+          actorId: verified.actorLogin,
+          kind: "repository",
+        };
+      } else {
+        scope = await userScope(req);
+      }
     } else if (parsed.data.action === "start") {
       if (parsed.data.flowId === ONBOARDING_FLOW_ID) {
         scope = await userScope(req, parsed.data.actorLogin);
       } else if (getRequestAuth(req)) {
         scope = await repositoryScope(req, parsed.data.actorLogin);
       } else {
-        return json({ error: "repository_required" }, { status: 401 });
+        scope = await userScope(req, parsed.data.actorLogin);
       }
     } else if ("instanceId" in parsed.data) {
       scope =

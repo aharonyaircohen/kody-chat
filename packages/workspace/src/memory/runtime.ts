@@ -10,6 +10,7 @@ import {
 export interface MemoryRuntimeContext {
   readonly actor: Readonly<MemoryActor>;
   readonly tenantId: string;
+  readonly includeRepositoryScope?: boolean;
 }
 
 export function createMemoryRuntime(
@@ -29,7 +30,9 @@ export function createMemoryRuntime(
     ...(context.actor.kind === "user"
       ? [{ kind: "user" as const, userId: context.actor.id }]
       : []),
-    { kind: "repository", tenantId: context.tenantId },
+    ...(context.includeRepositoryScope === false
+      ? []
+      : [{ kind: "repository" as const, tenantId: context.tenantId }]),
   ];
   return Object.freeze({
     application,

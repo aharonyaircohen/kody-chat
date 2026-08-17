@@ -241,10 +241,7 @@ export function createTransportTurnHandler(
                   ? {
                       ...toolCall,
                       status: "error" as const,
-                      ...(toolCall.activityKind === "subagent" &&
-                      event.errorText
-                        ? { result: event.errorText }
-                        : {}),
+                      ...(event.errorText ? { result: event.errorText } : {}),
                     }
                   : toolCall,
               ),

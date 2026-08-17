@@ -47,7 +47,10 @@ import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
-import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat-dashboard/auth-context";
+import {
+  clearBrowserRepositorySession,
+  KodyAuthBridgeProvider,
+} from "@kody-ade/kody-chat-dashboard/auth-context";
 import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat-dashboard/theme";
 import { useTheme } from "../../providers/Theme";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
@@ -139,18 +142,26 @@ import {
   WORKFLOWS_PANEL_ID,
 } from "../chat/plugins/workflows";
 import { useEngineSetupOpeningAction } from "@dashboard/features/engine-setup/hooks/useEngineSetupOpeningAction";
+import { isPersonalDashboardPath } from "@dashboard/lib/kody-scope";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
 // rail + mobile sheet) register the same set under the default FULL_GRANT.
 // Order matches the pre-Step-6 built-in registration order: terminal,
 // commands, then vibe.
-const ADMIN_CHAT_PLUGINS = [
+const PERSONAL_CHAT_PLUGINS = [
   // Live transport (Convex chatEvents subscription) — inert without
   // NEXT_PUBLIC_CONVEX_URL; the live runner then keeps interval polling.
   { plugin: liveEventsChatPlugin },
-  { plugin: terminalChatPlugin },
   { plugin: commandsChatPlugin },
+  { plugin: commandsPageChatPlugin },
+  { plugin: instructionsChatPlugin },
+  { plugin: modelsChatPlugin },
+  { plugin: secretsChatPlugin },
+];
+
+const REPOSITORY_CHAT_PLUGINS = [
+  { plugin: terminalChatPlugin },
   { plugin: vibeChatPlugin },
   // Tasks page-plugin (phase 2 step 3 pilot) — contributes the "tasks"
   // panel view the flipped layout renders in place of the raw /tasks route
@@ -163,23 +174,24 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: brandsChatPlugin },
   ...PACKAGE_ADMIN_PAGES.map((page) => ({ plugin: page.plugin })),
   { plugin: changelogChatPlugin },
-  { plugin: commandsPageChatPlugin },
   { plugin: companyChatPlugin },
   { plugin: configChatPlugin },
   { plugin: docsChatPlugin },
   { plugin: filesChatPlugin },
   { plugin: inboxChatPlugin },
-  { plugin: instructionsChatPlugin },
   { plugin: messagesChatPlugin },
-  { plugin: modelsChatPlugin },
   { plugin: notificationsChatPlugin },
   { plugin: previewChatPlugin },
   { plugin: reportsChatPlugin },
-  { plugin: secretsChatPlugin },
   { plugin: storeCatalogChatPlugin },
   { plugin: todosChatPlugin },
   { plugin: variablesChatPlugin },
   { plugin: workflowsChatPlugin },
+];
+
+const ADMIN_CHAT_PLUGINS = [
+  ...PERSONAL_CHAT_PLUGINS,
+  ...REPOSITORY_CHAT_PLUGINS,
 ];
 
 // ─── Route → plugin panel mapping (phase 2 step 3 pilot) ───────────────
@@ -340,6 +352,16 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const publicRoute = isPublicRoute(pathname);
   const hostAuth = useAuth();
   const { auth, loading } = hostAuth;
+  const hasRepository = Boolean(auth?.owner && auth.repo);
+  const repositoryActive =
+    hasRepository && !isPersonalDashboardPath(pathname ?? "");
+  const personalPageAuth = useMemo(
+    () =>
+      isPersonalDashboardPath(pathname ?? "")
+        ? { ...hostAuth, auth: null }
+        : hostAuth,
+    [hostAuth, pathname],
+  );
   const hostTheme = useTheme();
   const { githubUser } = useGitHubIdentity();
   const { data: kodySession } = kodyAuthClient.useSession();
@@ -385,7 +407,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       !auth?.owner ||
       !auth.repo ||
       !pathname ||
-      isChatRoute
+      isChatRoute ||
+      isPersonalDashboardPath(pathname)
     )
       return;
     const target = legacyRepoRedirectPath(auth, pathname);
@@ -415,8 +438,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   }, [flipActive, currentRepoPath, isChatRoute]);
   const scopedHref = useCallback(
     (href: string) =>
-      auth?.owner && auth.repo ? repoScopedHref(auth, href) : href,
-    [auth],
+      repositoryActive && auth ? repoScopedHref(auth, href) : href,
+    [auth, repositoryActive],
   );
   const toggleExpandedChat = useCallback(() => {
     if (isChatRoute) {
@@ -493,13 +516,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       return;
     }
     openMobileChat();
-  }, [
-    isChatRoute,
-    guidedFlowChat.pending,
-    openMobileChat,
-    router,
-    scopedHref,
-  ]);
+  }, [isChatRoute, guidedFlowChat.pending, openMobileChat, router, scopedHref]);
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -589,7 +606,6 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   const isOrgRoute =
     pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   const repoRouteBlocksPage = repoRouteAuthSync.status === "missing";
-  const hasRepository = Boolean(auth?.owner && auth.repo);
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -613,7 +629,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
         Sign in to Kody
       </Button>
     </div>
-  ) : !hasRepository ? (
+  ) : !repositoryActive ? (
     <div className="space-y-2">
       <p className="font-medium text-foreground">Your private Chat</p>
       <p className="mx-auto max-w-sm text-sm">
@@ -639,35 +655,39 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     );
 
   const chatPane = (
-    <KodyChat
-      conversationId={conversationIdFromRoute}
-      onConversationChange={syncConversationRoute}
-      guidedFlowRequest={
-        (isDesktop || isChatRoute) &&
-        !(guidedFlowChat.pending?.destination === "chat" && !isChatRoute)
-          ? guidedFlowChat.pending
-          : null
-      }
-      onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
-      context={scope}
-      actorLogin={githubUser?.login}
-      emptyStateWelcome={bootstrapWelcome}
-      openingActions={hasRepository ? openingActions : undefined}
-      onOpeningAction={handleOpeningAction}
-      lockedAgentId={lockedAgentId}
-      allowAgencyAgentSelection={hasRepository}
-      vibeMode={isVibeRoute}
-      onIssueCreated={dispatchIssueCreated}
-      onIssueReportReady={setIssueReporter}
-      composerInjection={composerInjection}
-      attachmentInjection={attachmentInjection}
-      previewContext={previewContext}
-      plugins={hasRepository ? ADMIN_CHAT_PLUGINS : []}
-      // Expand = navigate to the /chat page; restore = back to the previous
-      // page. On /chat the button reads as "restore" (railFullscreen).
-      onToggleFullscreen={toggleExpandedChat}
-      railFullscreen={isChatRoute}
-    />
+    <KodyAuthBridgeProvider value={personalPageAuth}>
+      <KodyChat
+        conversationId={conversationIdFromRoute}
+        onConversationChange={syncConversationRoute}
+        guidedFlowRequest={
+          (isDesktop || isChatRoute) &&
+          !(guidedFlowChat.pending?.destination === "chat" && !isChatRoute)
+            ? guidedFlowChat.pending
+            : null
+        }
+        onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
+        context={repositoryActive ? scope : null}
+        actorLogin={
+          repositoryActive ? githubUser?.login : kodySession?.user.id
+        }
+        emptyStateWelcome={bootstrapWelcome}
+        openingActions={repositoryActive ? openingActions : undefined}
+        onOpeningAction={handleOpeningAction}
+        lockedAgentId={lockedAgentId}
+        allowAgencyAgentSelection={repositoryActive}
+        vibeMode={isVibeRoute}
+        onIssueCreated={dispatchIssueCreated}
+        onIssueReportReady={setIssueReporter}
+        composerInjection={composerInjection}
+        attachmentInjection={attachmentInjection}
+        previewContext={previewContext}
+        plugins={repositoryActive ? ADMIN_CHAT_PLUGINS : PERSONAL_CHAT_PLUGINS}
+        // Expand = navigate to the /chat page; restore = back to the previous
+        // page. On /chat the button reads as "restore" (railFullscreen).
+        onToggleFullscreen={toggleExpandedChat}
+        railFullscreen={isChatRoute}
+      />
+    </KodyAuthBridgeProvider>
   );
 
   return (
@@ -695,7 +715,12 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                         ...(kodySession.user.image
                           ? { imageUrl: kodySession.user.image }
                           : {}),
-                        onSignOut: () => void kodyAuthClient.signOut(),
+                        onSignOut: () => {
+                          clearBrowserRepositorySession();
+                          void kodyAuthClient.signOut().then(() => {
+                            window.location.href = "/";
+                          });
+                        },
                       }
                     : undefined
                 }
@@ -707,7 +732,9 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               >
                 {!pageOwnsHeader && <AppHeader />}
                 <div className="flex-1 min-h-0 flex flex-col">
-                  {pageContent}
+                  <KodyAuthBridgeProvider value={personalPageAuth}>
+                    {pageContent}
+                  </KodyAuthBridgeProvider>
                 </div>
               </ChatShell>
 
@@ -721,29 +748,41 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                 !isChatRoute &&
                 !currentRepoPath.startsWith("/messages") && (
                   <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
-                    <KodyChat
-                      guidedFlowRequest={
-                        !isDesktop &&
-                        guidedFlowChat.pending?.destination !== "chat"
-                          ? guidedFlowChat.pending
-                          : null
-                      }
-                      onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
-                      context={scope}
-                      actorLogin={githubUser?.login}
-                      emptyStateWelcome={bootstrapWelcome}
-                      openingActions={hasRepository ? openingActions : undefined}
-                      onOpeningAction={handleOpeningAction}
-                      onClose={() => setMobileOpenPersist(false)}
-                      lockedAgentId={lockedAgentId}
-                      allowAgencyAgentSelection={hasRepository}
-                      vibeMode={isVibeRoute}
-                      onIssueCreated={dispatchIssueCreated}
-                      composerInjection={composerInjection}
-                      attachmentInjection={attachmentInjection}
-                      previewContext={previewContext}
-                      plugins={hasRepository ? ADMIN_CHAT_PLUGINS : []}
-                    />
+                    <KodyAuthBridgeProvider value={personalPageAuth}>
+                      <KodyChat
+                        guidedFlowRequest={
+                          !isDesktop &&
+                          guidedFlowChat.pending?.destination !== "chat"
+                            ? guidedFlowChat.pending
+                            : null
+                        }
+                        onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
+                        context={repositoryActive ? scope : null}
+                        actorLogin={
+                          repositoryActive
+                            ? githubUser?.login
+                            : kodySession?.user.id
+                        }
+                        emptyStateWelcome={bootstrapWelcome}
+                        openingActions={
+                          repositoryActive ? openingActions : undefined
+                        }
+                        onOpeningAction={handleOpeningAction}
+                        onClose={() => setMobileOpenPersist(false)}
+                        lockedAgentId={lockedAgentId}
+                        allowAgencyAgentSelection={repositoryActive}
+                        vibeMode={isVibeRoute}
+                        onIssueCreated={dispatchIssueCreated}
+                        composerInjection={composerInjection}
+                        attachmentInjection={attachmentInjection}
+                        previewContext={previewContext}
+                        plugins={
+                          repositoryActive
+                            ? ADMIN_CHAT_PLUGINS
+                            : PERSONAL_CHAT_PLUGINS
+                        }
+                      />
+                    </KodyAuthBridgeProvider>
                   </div>
                 )}
             </SettingsDrawerProvider>

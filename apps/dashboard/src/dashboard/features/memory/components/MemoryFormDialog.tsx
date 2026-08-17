@@ -33,6 +33,7 @@ interface MemoryFormDialogProps {
   onOpenChange: (open: boolean) => void;
   onSaved: (memory: Readonly<Memory>) => void;
   memory?: Readonly<Memory> | null;
+  allowRepositoryScope?: boolean;
 }
 
 export function MemoryFormDialog({
@@ -40,6 +41,7 @@ export function MemoryFormDialog({
   onOpenChange,
   onSaved,
   memory = null,
+  allowRepositoryScope = true,
 }: MemoryFormDialogProps) {
   const [saving, setSaving] = useState(false);
 
@@ -87,7 +89,7 @@ export function MemoryFormDialog({
         </DialogHeader>
         <form key={memory?.currentRevisionId ?? "new"} onSubmit={submit}>
           <div className="space-y-4">
-            {!memory ? (
+            {!memory && allowRepositoryScope ? (
               <Field label="Scope" htmlFor="memory-scope">
                 <Select name="scope" defaultValue="user">
                   <SelectTrigger id="memory-scope">
@@ -100,7 +102,11 @@ export function MemoryFormDialog({
                 </Select>
               </Field>
             ) : (
-              <Input type="hidden" name="scope" value={memory.scope.kind} />
+              <Input
+                type="hidden"
+                name="scope"
+                value={memory?.scope.kind ?? "user"}
+              />
             )}
             <Field label="Kind" htmlFor="memory-kind">
               <Select name="kind" defaultValue={memory?.kind ?? "fact"}>

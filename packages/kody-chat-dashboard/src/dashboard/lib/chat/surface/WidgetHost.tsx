@@ -70,15 +70,15 @@ export function WidgetHost({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    if (!owner || !repo || !token) {
-      setStatus("error");
-      return;
-    }
     let cancelled = false;
     let cleanup: (() => void) | undefined;
     setStatus("loading");
     importWidgetModule(
-      buildWidgetBundleUrl(slug, { owner, repo, token }, version),
+      buildWidgetBundleUrl(
+        slug,
+        owner && repo && token ? { owner, repo, token } : undefined,
+        version,
+      ),
     )
       .then((module) => {
         if (cancelled) return;

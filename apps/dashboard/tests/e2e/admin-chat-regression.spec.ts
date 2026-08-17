@@ -9,6 +9,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { openChatSetupSection } from "./support/chat-setup";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
@@ -44,6 +45,10 @@ async function seedAuth(page: Page): Promise<void> {
 
 test.describe("Admin Kody chat regression", () => {
   test.beforeEach(async ({ page }) => {
+    await mockKodyAccountSession(page, {
+      id: "admin-chat-e2e",
+      name: "Admin Chat E2E",
+    });
     await page.route("**/api/kody/models", (route) =>
       route.fulfill({
         status: 200,
@@ -813,7 +818,9 @@ test.describe("Admin Kody chat regression", () => {
       }),
     );
 
-    await page.goto(`${BASE_URL}/todos/inject-list`);
+    await page.goto(`${BASE_URL}/repo/test-owner/test-repo/todos/inject-list`);
+
+    await page.getByRole("button", { name: /Inject list/ }).click();
 
     const askKody = page.getByRole("button", {
       name: "Ask Kody about Wire the header",

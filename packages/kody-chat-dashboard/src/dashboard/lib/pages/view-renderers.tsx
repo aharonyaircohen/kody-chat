@@ -5,13 +5,8 @@
  * @ai-summary Canonical View Renderers page — hosts serve it as a one-line
  *   re-export (see pages-coverage specs in each host).
  */
-import { AuthGuard } from "../auth-guard";
 import { ViewRenderersManager } from "../components/ViewRenderersManager";
 
 export default function ViewRenderersPage() {
-  return (
-    <AuthGuard>
-      <ViewRenderersManager />
-    </AuthGuard>
-  );
+  return <ViewRenderersManager />;
 }

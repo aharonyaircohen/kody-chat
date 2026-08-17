@@ -5,7 +5,6 @@
  * @ai-summary Canonical Widget detail page — resolves the selected widget from
  *   the route slug while the manager owns list and detail rendering.
  */
-import { AuthGuard } from "../auth-guard";
 import { WidgetsManager } from "../components/WidgetsManager";
 
 export default async function WidgetDetailPage({
@@ -15,9 +14,5 @@ export default async function WidgetDetailPage({
 }) {
   const { slug } = await params;
 
-  return (
-    <AuthGuard>
-      <WidgetsManager initialSlug={slug} />
-    </AuthGuard>
-  );
+  return <WidgetsManager initialSlug={slug} />;
 }

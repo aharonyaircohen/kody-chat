@@ -9,8 +9,7 @@
  *   crawlers need metadata without auth; AuthGuard gates the live content.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { DashboardHome } from "@dashboard/lib/components/DashboardHome";
-import { WelcomeSetup } from "@dashboard/features/onboarding/components/WelcomeSetup";
+import { KodyHome } from "@dashboard/lib/components/KodyHome";
 import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -27,8 +26,8 @@ export const metadata = buildKodyMetadata({
 
 export default function KodyPage() {
   return (
-    <AuthGuard fallback={<WelcomeSetup />}>
-      <DashboardHome />
+    <AuthGuard>
+      <KodyHome />
     </AuthGuard>
   );
 }

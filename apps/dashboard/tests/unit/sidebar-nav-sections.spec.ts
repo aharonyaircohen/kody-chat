@@ -30,6 +30,41 @@ const sections: readonly SettingsNavSection[] = [
 ];
 
 describe("sidebar navigation extensions", () => {
+  it("keeps personal Chat features visible without a repository", () => {
+    const personalSections: readonly SettingsNavSection[] = [
+      { title: "Knowledge", items: [item("/memory", "Memory"), item("/docs", "Docs")] },
+      {
+        title: "Configure",
+        items: [
+          item("/models", "Models"),
+          item("/commands", "Commands"),
+          item("/instructions", "Instructions"),
+          item("/secrets", "Secrets"),
+          item("/views/renderers", "Renderers"),
+          item("/views/widgets", "Widgets"),
+          item("/guided-flows", "Guided Flows"),
+          item("/workflows", "Workflows"),
+        ],
+      },
+    ];
+
+    const result = extendSidebarNavSections(personalSections, {
+      customSpaceItems: [],
+      repositoryConnected: false,
+    });
+
+    expect(result.flatMap((section) => section.items.map((entry) => entry.href))).toEqual([
+      "/memory",
+      "/models",
+      "/commands",
+      "/instructions",
+      "/secrets",
+      "/views/renderers",
+      "/views/widgets",
+      "/guided-flows",
+    ]);
+  });
+
   it("places custom document spaces immediately after Docs in Knowledge", () => {
     const extensions: SidebarNavExtensions = {
       customSpaceItems: [

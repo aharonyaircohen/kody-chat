@@ -19,6 +19,7 @@ import {
   widgetNameFromSlug,
   widgetSlugFromName,
 } from "../../../../src/dashboard/lib/widgets/identity";
+import { getChatRequestContextProvider } from "../chat/request-context-provider";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -69,18 +70,22 @@ function json(data: unknown, init?: ResponseInit): NextResponse {
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const hostUser = await getChatRequestContextProvider()?.resolveUser(req);
   const auth = getRequestAuth(req);
-  if (!auth) {
+  if (auth) {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+  }
+  if (!hostUser && !auth) {
     return json({ error: "missing_repo_context" }, { status: 401 });
   }
+  const tenantId = auth ? `${auth.owner}/${auth.repo}` : `user:${hostUser!.id}`;
 
   try {
     const widgets = (await createBackendClient().query(
       backendApi.widgets.list,
       {
-        tenantId: `${auth.owner}/${auth.repo}`,
+        tenantId,
       },
     )) as WidgetListRow[];
     return json({
@@ -96,12 +101,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const hostUser = await getChatRequestContextProvider()?.resolveUser(req);
   const auth = getRequestAuth(req);
-  if (!auth) {
+  if (auth) {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+  }
+  if (!hostUser && !auth) {
     return json({ error: "missing_repo_context" }, { status: 401 });
   }
+  const tenantId = auth ? `${auth.owner}/${auth.repo}` : `user:${hostUser!.id}`;
 
   let input: z.infer<typeof publishSchema>;
   try {
@@ -131,7 +140,7 @@ export async function POST(req: NextRequest) {
     const version = (await createBackendClient().mutation(
       backendApi.widgets.publish,
       {
-        tenantId: `${auth.owner}/${auth.repo}`,
+        tenantId,
         slug,
         bundle: input.bundle,
         ...(input.commitSha ? { commitSha: input.commitSha } : {}),

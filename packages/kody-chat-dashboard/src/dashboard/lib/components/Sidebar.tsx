@@ -207,8 +207,10 @@ function SidebarContent({
     });
   };
 
-  const scopedHref = (href: string) =>
-    auth?.owner && auth.repo ? repoScopedHref(auth, href) : href;
+  const scopedHref = (href: string, scope?: NavItem["scope"]) =>
+    scope !== "personal" && auth?.owner && auth.repo
+      ? repoScopedHref(auth, href)
+      : href;
 
   useEffect(() => {
     setExpandedSectionTitle(activeCollapsibleSectionTitle);
@@ -251,7 +253,7 @@ function SidebarContent({
     } else if (e.key === "Enter" && firstMatch) {
       e.preventDefault();
       e.currentTarget.blur();
-      router.push(scopedHref(firstMatch.href));
+      router.push(scopedHref(firstMatch.href, firstMatch.scope));
       setQuery("");
       setCollapsedSearchOpen(false);
       onNavigate?.();
@@ -272,7 +274,7 @@ function SidebarContent({
     const favorite = favoriteHrefs.includes(item.href);
     const link = (
       <Link
-        href={scopedHref(item.href)}
+        href={scopedHref(item.href, item.scope)}
         prefetch={item.href === "/" ? false : undefined}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
@@ -510,7 +512,7 @@ function SidebarContent({
                       return (
                         <DropdownMenuItem key={item.href} asChild>
                           <Link
-                            href={scopedHref(item.href)}
+                            href={scopedHref(item.href, item.scope)}
                             prefetch={item.href === "/" ? false : undefined}
                             onClick={onNavigate}
                             aria-current={active ? "page" : undefined}
@@ -650,7 +652,7 @@ function SidebarContent({
                             return (
                               <DropdownMenuItem key={item.href} asChild>
                                 <Link
-                                  href={scopedHref(item.href)}
+                                  href={scopedHref(item.href, item.scope)}
                                   prefetch={
                                     item.href === "/" ? false : undefined
                                   }

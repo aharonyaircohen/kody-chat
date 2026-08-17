@@ -1,19 +1,29 @@
 import "server-only";
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   AutomaticModelSchema,
   ChatModelsSchema,
 } from "@kody-ade/base/variables/models";
 import { decrypt } from "@kody-ade/base/vault/crypto";
 import { setChatModelSettingsProvider } from "@kody-ade/kody-chat-dashboard/chat/model-settings-provider";
+import { setChatRequestContextProvider } from "@kody-ade/kody-chat-dashboard/chat/request-context-provider";
 import {
   backendApi,
   getConvexClient,
 } from "@dashboard/lib/backend/convex-backend";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 
 const USER_HEADER = "x-kody-authenticated-user";
 const MODELS_NAMESPACE = "chat-models";
+
+setChatRequestContextProvider({
+  async resolveUser() {
+    const actor = await requireKodyUser();
+    if (actor instanceof NextResponse) return null;
+    return { id: actor.id, label: actor.label };
+  },
+});
 
 export function withPersonalChatUser(
   request: NextRequest,
@@ -23,9 +33,6 @@ export function withPersonalChatUser(
   headers.delete(USER_HEADER);
   if (userId) {
     headers.set(USER_HEADER, userId);
-    // The package route only needs proof of a user here. Repository identity
-    // still requires owner/repo headers, so this never enables GitHub tools.
-    headers.set("x-kody-token", `kody-user:${userId}`);
   }
   return new NextRequest(request, { headers });
 }

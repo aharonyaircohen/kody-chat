@@ -60,6 +60,8 @@ export interface SettingsNavItem {
   exact?: boolean;
   /** Extra route shapes owned by this item, e.g. task issue-number pages. */
   activePathPatterns?: readonly RegExp[];
+  /** Personal destinations stay outside the active repository URL. */
+  scope?: "personal" | "repository";
 }
 
 /**

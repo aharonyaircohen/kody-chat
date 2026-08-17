@@ -20,7 +20,6 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { cn } from "../utils";
@@ -485,11 +484,7 @@ export function ViewRenderersManager({
 }: {
   initialSlug?: string | null;
 }) {
-  return (
-    <AuthGuard>
-      <ViewRenderersManagerInner initialSlug={initialSlug} />
-    </AuthGuard>
-  );
+  return <ViewRenderersManagerInner initialSlug={initialSlug} />;
 }
 
 function ViewRenderersManagerInner({
@@ -520,7 +515,7 @@ function ViewRenderersManagerInner({
   const { data, isLoading, error, refetch } = useQuery<RendererRow[]>({
     queryKey: listQueryKey,
     queryFn: () => listRenderersApi(headers),
-    enabled: !!auth,
+    enabled: true,
     staleTime: 30_000,
   });
   const renderers = useMemo(() => data ?? [], [data]);

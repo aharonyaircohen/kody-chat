@@ -17,6 +17,7 @@ export type DashboardFilesPageProps = Omit<
   "resolveHref" | "subtitle" | "transport"
 > & {
   transport?: FilesTransport;
+  subtitle?: string;
 };
 
 /**
@@ -25,6 +26,7 @@ export type DashboardFilesPageProps = Omit<
  */
 export function DashboardFilesPage({
   transport,
+  subtitle,
   ...props
 }: DashboardFilesPageProps) {
   const { auth } = useAuth();
@@ -48,7 +50,7 @@ export function DashboardFilesPage({
       transport={transport ?? githubTransport}
       resolveHref={resolveFileHref}
       subtitle={
-        auth ? `${auth.owner}/${auth.repo}` : "Browse and edit repository files"
+        subtitle ?? (auth ? `${auth.owner}/${auth.repo}` : "Your files")
       }
     />
   );

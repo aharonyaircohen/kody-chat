@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  resolveUnifiedActor: vi.fn(),
+  requireKodyUser: vi.fn(),
   query: vi.fn(),
   mutation: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth/unified-actor", () => ({
-  resolveUnifiedActor: mocks.resolveUnifiedActor,
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: mocks.requireKodyUser,
 }));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
@@ -19,14 +19,17 @@ vi.mock("@kody-ade/backend/client", () => ({
 
 beforeEach(() => {
   vi.resetModules();
-  mocks.resolveUnifiedActor.mockReset();
+  mocks.requireKodyUser.mockReset();
   mocks.query.mockReset();
   mocks.mutation.mockReset();
 });
 
 describe("navigation favorites API", () => {
   it("rejects unauthenticated reads and writes", async () => {
-    mocks.resolveUnifiedActor.mockResolvedValue(null);
+    const { NextResponse } = await import("next/server");
+    mocks.requireKodyUser.mockResolvedValue(
+      NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    );
     const { GET, PUT } = await import(
       "../../app/api/kody/navigation-favorites/route"
     );
@@ -48,9 +51,7 @@ describe("navigation favorites API", () => {
   });
 
   it("reads preferences using only the authenticated actor identity", async () => {
-    mocks.resolveUnifiedActor.mockResolvedValue({
-      userId: "operator:alice",
-    });
+    mocks.requireKodyUser.mockResolvedValue({ id: "user-alice", label: "Alice" });
     mocks.query.mockResolvedValue({
       data: { favoriteHrefs: ["/tasks", "/reports"] },
     });
@@ -69,16 +70,14 @@ describe("navigation favorites API", () => {
       expect.anything(),
       expect.objectContaining({
         namespace: "navigation",
-        userKey: expect.stringMatching(/^operator-alice-[a-f0-9]{8}$/),
+        userKey: "user-alice",
       }),
     );
     expect(mocks.query.mock.calls[0]?.[1]).not.toHaveProperty("tenantId");
   });
 
   it("rejects malformed and oversized writes", async () => {
-    mocks.resolveUnifiedActor.mockResolvedValue({
-      userId: "operator:alice",
-    });
+    mocks.requireKodyUser.mockResolvedValue({ id: "user-alice", label: "Alice" });
     const { PUT } = await import(
       "../../app/api/kody/navigation-favorites/route"
     );
@@ -105,9 +104,7 @@ describe("navigation favorites API", () => {
   });
 
   it("writes validated preferences under the authenticated actor", async () => {
-    mocks.resolveUnifiedActor.mockResolvedValue({
-      userId: "operator:alice",
-    });
+    mocks.requireKodyUser.mockResolvedValue({ id: "user-alice", label: "Alice" });
     const { PUT } = await import(
       "../../app/api/kody/navigation-favorites/route"
     );
@@ -124,7 +121,7 @@ describe("navigation favorites API", () => {
       expect.anything(),
       expect.objectContaining({
         namespace: "navigation",
-        userKey: expect.stringMatching(/^operator-alice-[a-f0-9]{8}$/),
+        userKey: "user-alice",
         data: { favoriteHrefs: ["/tasks", "/preview"] },
       }),
     );

@@ -107,7 +107,7 @@ function normalizeTreePath(path: string): string {
 
 export function fileTreeHeaderLabel(rootPath: string): string {
   const normalized = normalizeTreePath(rootPath);
-  if (!normalized) return "Repository";
+  if (!normalized) return "Workspace";
   if (normalized === "docs") return "Documents";
   return normalized.split("/").pop() ?? normalized;
 }

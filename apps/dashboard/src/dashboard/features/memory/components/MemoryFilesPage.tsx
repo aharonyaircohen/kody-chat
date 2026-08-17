@@ -13,6 +13,7 @@ import {
 import { DashboardFilesPage } from "@dashboard/features/file-spaces/DashboardFilesPage";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { useAuth } from "@dashboard/lib/auth-context";
+import { kodyAuthClient } from "@dashboard/lib/auth/kody-auth-client";
 import {
   memoryApi,
   type Memory,
@@ -58,17 +59,25 @@ export function MemoryFilesPage({
   initialPath?: string;
 }) {
   const { auth } = useAuth();
+  const { data: kodySession } = kodyAuthClient.useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
   const repositoryScope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
+  const personalScope = kodySession?.user.id ?? "anonymous";
+  const activeScope = auth ? repositoryScope : `user:${personalScope}`;
+  const visibleScopeFolders = useMemo<readonly MemoryScopeFolder[]>(
+    () => (auth ? MEMORY_SCOPE_FOLDERS : ["personal"]),
+    [auth],
+  );
+  const routeBase = auth ? `/repo/${repositoryScope}/memory` : "/memory";
   const queryKey = useMemo(
-    () => ["memory-files", repositoryScope] as const,
-    [repositoryScope],
+    () => ["memory-files", activeScope] as const,
+    [activeScope],
   );
   const memoriesQuery = useQuery({
     queryKey,
     queryFn: memoryApi.list,
-    enabled: Boolean(auth),
+    enabled: Boolean(kodySession?.user),
     staleTime: 30_000,
     refetchInterval: 5_000,
     refetchIntervalInBackground: false,
@@ -91,13 +100,13 @@ export function MemoryFilesPage({
 
   const transport = useMemo<FilesTransport>(
     () => ({
-      cacheKey: `memory:${repositoryScope}`,
+      cacheKey: `memory:${activeScope}`,
       dataVersion: latestUpdate(memories),
       async listDir(path: string): Promise<FileEntry[]> {
         if (memoriesQuery.error instanceof Error) throw memoriesQuery.error;
         const parts = normalizedPath(path).split("/").filter(Boolean);
         if (parts.length === 0) {
-          return MEMORY_SCOPE_FOLDERS.map((scope) =>
+          return visibleScopeFolders.map((scope) =>
             directoryEntry(
               titleCase(scope),
               scope,
@@ -106,7 +115,7 @@ export function MemoryFilesPage({
           );
         }
         const scope = parts[0] as MemoryScopeFolder;
-        if (!MEMORY_SCOPE_FOLDERS.includes(scope)) return [];
+        if (!visibleScopeFolders.includes(scope)) return [];
         if (parts.length === 1) {
           return MEMORY_KINDS.map((kind) =>
             directoryEntry(
@@ -150,7 +159,7 @@ export function MemoryFilesPage({
         };
       },
     }),
-    [memories, memoriesQuery.error, repositoryScope],
+    [activeScope, memories, memoriesQuery.error, visibleScopeFolders],
   );
 
   const memoryForPath = useCallback(
@@ -173,7 +182,7 @@ export function MemoryFilesPage({
     try {
       await memoryApi.remove(memory.id);
       activePathRef.current = "";
-      router.replace(`/repo/${repositoryScope}/memory`);
+      router.replace(routeBase);
       void invalidate();
       toast.success("Memory deleted");
     } catch (error) {
@@ -248,9 +257,9 @@ export function MemoryFilesPage({
     (memory: Readonly<Memory>) => {
       const path = memoryFilePath(memory);
       activePathRef.current = path;
-      router.replace(`/repo/${repositoryScope}/memory/${path}`);
+      router.replace(`${routeBase}/${path}`);
     },
-    [repositoryScope, router],
+    [routeBase, router],
   );
 
   const handleSavedMemory = useCallback(
@@ -277,6 +286,7 @@ export function MemoryFilesPage({
     <AuthGuard>
       <DashboardFilesPage
         title="Memory"
+        subtitle={auth ? `${auth.owner}/${auth.repo}` : "Your Kody memory"}
         routeBase="/memory"
         initialPath={activePathRef.current}
         transport={transport}
@@ -289,6 +299,7 @@ export function MemoryFilesPage({
       <MemoryFormDialog
         open={creating}
         onOpenChange={setCreating}
+        allowRepositoryScope={Boolean(auth)}
         onSaved={(memory) => {
           setCreating(false);
           handleSavedMemory(memory);

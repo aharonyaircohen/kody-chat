@@ -52,7 +52,7 @@ export function KodyProviders({
     <QueryClientProvider client={queryClient}>
       <ConvexClientProvider initialToken={initialAuthToken}>
         <ThemeProvider>
-          <AuthProvider>
+          <AuthProvider persistence="account">
             <WebhookRegistrationReconciler />
             <InternalLinkNavigation />
             <ServiceWorkerRegister />

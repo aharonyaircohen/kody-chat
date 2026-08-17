@@ -15,7 +15,10 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { buildAuthHeaders, type KodyAuth } from "../../../auth-context";
-import { substitute, type SubstituteResult } from "@kody-ade/workspace/commands/substitute";
+import {
+  substitute,
+  type SubstituteResult,
+} from "@kody-ade/workspace/commands/substitute";
 
 export interface SlashCommand {
   slug: string;
@@ -30,6 +33,10 @@ interface ListResponse {
 }
 
 export const slashCommandsQueryKey = ["kody-commands"] as const;
+
+export function slashCommandsScopeKey(auth: KodyAuth | null): string {
+  return auth?.owner && auth.repo ? `${auth.owner}/${auth.repo}` : "personal";
+}
 
 async function fetchCommands(
   headers: Record<string, string>,
@@ -91,9 +98,8 @@ export function useSlashCommands(auth: KodyAuth | null): {
     [auth],
   );
   const { data, isLoading } = useQuery<SlashCommand[]>({
-    queryKey: slashCommandsQueryKey,
+    queryKey: [...slashCommandsQueryKey, slashCommandsScopeKey(auth)],
     queryFn: () => fetchCommands(headers),
-    enabled: !!auth,
     staleTime: 60_000,
   });
   return { commands: data ?? [], loading: isLoading };

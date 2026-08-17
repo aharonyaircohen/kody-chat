@@ -10,7 +10,6 @@
  */
 "use client";
 
-import { AuthGuard } from "../../../auth-guard";
 import { CommandsManager } from "../../../components/CommandsManager";
 import type { ChatPanelViewProps } from "../../platform";
 
@@ -19,9 +18,7 @@ export const COMMANDS_PAGE_PANEL_TESTID = "chat-panel-commands-page";
 export function CommandsPagePanelView(_props: ChatPanelViewProps) {
   return (
     <div className="contents" data-testid={COMMANDS_PAGE_PANEL_TESTID}>
-      <AuthGuard>
-        <CommandsManager />
-      </AuthGuard>
+      <CommandsManager />
     </div>
   );
 }

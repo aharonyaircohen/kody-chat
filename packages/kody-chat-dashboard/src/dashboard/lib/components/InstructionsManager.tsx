@@ -28,7 +28,6 @@ import { Label } from "@kody-ade/base/ui/label";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SystemPromptOverrideCard } from "./SystemPromptOverrideCard";
-import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 
 interface InstructionsResource {
@@ -155,11 +154,7 @@ export interface InstructionsManagerProps {
 }
 
 export function InstructionsManager({ footerSlot }: InstructionsManagerProps) {
-  return (
-    <AuthGuard>
-      <InstructionsManagerInner footerSlot={footerSlot} />
-    </AuthGuard>
-  );
+  return <InstructionsManagerInner footerSlot={footerSlot} />;
 }
 
 function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
@@ -177,7 +172,7 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
     useQuery<InstructionsResource | null>({
       queryKey: fileQueryKey,
       queryFn: () => fetchInstructions(headers),
-      enabled: !!auth,
+      enabled: true,
       staleTime: 30_000,
     });
 
@@ -266,9 +261,7 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
         <p className="text-sm text-white/60">
           Free-form markdown appended to every chat turn for the in-process Kody
           agent. Use it to set tone, length, formatting, or behavioral
-          preferences for this repo. Stored at{" "}
-          <code className="text-white/80">instructions.md</code> in the state
-          repo.
+          preferences for {auth ? "this repository" : "your Kody account"}.
         </p>
 
         {isLoading && (

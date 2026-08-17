@@ -19,8 +19,8 @@ describe("repo-scoped navigation surfaces", () => {
       "utf8",
     );
     expect(sidebar).toContain("repoScopedHref");
-    expect(sidebar).toContain("scopedHref(item.href)");
-    expect(sidebar).toContain('scopedHref("/")');
+    expect(sidebar).toContain("scopedHref(item.href, item.scope)");
+    expect(sidebar).toContain("renderLink(pinnedItem");
   });
 
   it("scopes mobile menu links through the shared sidebar", () => {

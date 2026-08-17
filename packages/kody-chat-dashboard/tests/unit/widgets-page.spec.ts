@@ -56,7 +56,7 @@ describe("widgets management page", () => {
     expect(manager).not.toContain("widgetChatHref");
     expect(manager).not.toContain("next/link");
     expect(manager).toContain("No widgets yet");
-    expect(manager).toContain("published per tenant");
+    expect(manager).toContain("precompiled JS bundles published to");
     expect(manager).toContain("<Dialog open={open}");
     expect(manager).toContain("900_000");
   });

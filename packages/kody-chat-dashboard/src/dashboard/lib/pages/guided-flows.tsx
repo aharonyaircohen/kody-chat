@@ -15,7 +15,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { repoScopedHref } from "@kody-ade/base/routes";
-import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { DASHBOARD_NAVIGATION_TARGETS } from "../dashboard-navigation";
 import {
@@ -317,7 +316,6 @@ function FlowBuilder({
   );
 
   useEffect(() => {
-    if (!auth) return;
     const controller = new AbortController();
     setRendererCatalogError(null);
     void fetch("/api/kody/view-renderers", {
@@ -392,7 +390,6 @@ function FlowBuilder({
   }
 
   async function save() {
-    if (!auth) return;
     const validationErrors = validateGuidedFlowDraft(draft);
     if (Object.keys(validationErrors).length > 0) {
       setError(Object.values(validationErrors)[0]);
@@ -423,9 +420,7 @@ function FlowBuilder({
       onSaved(payload.definition);
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to save Guided Flow",
+        cause instanceof Error ? cause.message : "Unable to save Guided Flow",
       );
     } finally {
       setSaving(false);
@@ -865,11 +860,7 @@ function FlowBuilder({
             {readOnly ? "Close" : "Cancel"}
           </Button>
           {!readOnly ? (
-            <Button
-              size="sm"
-              onClick={() => void save()}
-              disabled={saving || !auth}
-            >
+            <Button size="sm" onClick={() => void save()} disabled={saving}>
               {saving ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : null}
@@ -896,7 +887,6 @@ function GuidedFlowsManager() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
-    if (!auth) return;
     setError(null);
     try {
       const response = await fetch("/api/kody/guided-flows?view=templates", {
@@ -925,7 +915,6 @@ function GuidedFlowsManager() {
 
   const deleteDefinition = useCallback(
     async (definition: FlowDefinition) => {
-      if (!auth) return;
       setDeleting(true);
       setError(null);
       try {
@@ -942,9 +931,7 @@ function GuidedFlowsManager() {
         });
         const payload = (await response.json()) as { error?: string };
         if (!response.ok) {
-          throw new Error(
-            payload.error ?? "Unable to delete Guided Flow",
-          );
+          throw new Error(payload.error ?? "Unable to delete Guided Flow");
         }
         setDefinitions((current) =>
           current.filter((candidate) => candidate.id !== definition.id),
@@ -1105,7 +1092,7 @@ function GuidedFlowsManager() {
         </section>
         <ConfirmDialog
           open={Boolean(deleteTarget)}
-        title="Delete Guided Flow"
+          title="Delete Guided Flow"
           description={
             deleteTarget
               ? `Delete “${deleteTarget.title}”? New users will no longer be able to start this definition.`
@@ -1126,9 +1113,5 @@ function GuidedFlowsManager() {
 }
 
 export default function GuidedFlowsPage() {
-  return (
-    <AuthGuard>
-      <GuidedFlowsManager />
-    </AuthGuard>
-  );
+  return <GuidedFlowsManager />;
 }

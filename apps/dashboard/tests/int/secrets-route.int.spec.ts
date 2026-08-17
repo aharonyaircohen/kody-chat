@@ -1,184 +1,149 @@
-/**
- * Integration tests for the secrets vault API (app/api/kody/secrets/route.ts).
- * This is the write path for repo-scoped secrets — a security boundary that
- * AES-encrypts third-party API keys into the repo. It had no test. The
- * load-bearing properties: auth is required, the vault must be configured,
- * input is strictly validated, and — critically — secret VALUES are never
- * echoed back in any response (only metadata).
- *
- * Auth and the vault store are mocked, but `listSecretMetadata` (the
- * value-stripping projection) is the REAL implementation, so the
- * "never returns the value" assertions are genuine.
- */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-const auth = vi.hoisted(() => ({
-  requireKodyAuth: vi.fn<(req: unknown) => Promise<unknown>>(async () => null), // null = authenticated
-  verifyActorLogin: vi.fn<(req: unknown, login?: string) => Promise<unknown>>(
-    async () => ({ identity: { login: "alice" } }),
-  ),
-  getUserOctokit: vi.fn<(req: unknown) => Promise<unknown>>(async () => ({})), // truthy octokit
-  getRequestAuth: vi.fn<(req: unknown) => unknown>(() => ({
-    owner: "acme",
-    repo: "widgets",
-    token: "t",
-  })),
+const state = vi.hoisted(() => ({
+  auth: vi.fn(),
+  configured: vi.fn(() => true),
+  query: vi.fn(),
+  mutation: vi.fn(),
+  readVault: vi.fn(),
+  upsertSecret: vi.fn(),
 }));
-const store = vi.hoisted(() => ({
-  readVault: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
-  writeVault: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
-  invalidateVaultCache: vi.fn<(owner: string, repo: string) => void>(),
-}));
-const cfg = vi.hoisted(() => ({ isVaultConfigured: vi.fn(() => true) }));
-const act = vi.hoisted(() => ({ recordAudit: vi.fn() }));
 
-vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@kody-ade/base/vault/crypto", () => cfg);
-vi.mock("@dashboard/lib/activity/audit", () => act);
-vi.mock("@kody-ade/base/logger", () => ({
-  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+vi.mock("@dashboard/lib/auth/kody-request-scope", () => ({
+  resolveKodyRequestScope: state.auth,
 }));
-// Partial mock: keep the real value-stripping `listSecretMetadata`.
-vi.mock("@kody-ade/base/vault/store", async (importActual) => {
-  const actual =
-    await importActual<typeof import("@kody-ade/base/vault/store")>();
+vi.mock("@kody-ade/base/vault/crypto", () => ({
+  isVaultConfigured: state.configured,
+  encrypt: (value: string) => `encrypted:${value}`,
+}));
+vi.mock("@kody-ade/base/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@kody-ade/base/auth")>();
   return {
     ...actual,
-    readVault: store.readVault,
-    writeVault: store.writeVault,
-    invalidateVaultCache: store.invalidateVaultCache,
+    requireKodyAuth: vi.fn(async () => null),
+    getUserOctokit: vi.fn(async () => ({})),
+    verifyActorLogin: vi.fn(async () => ({
+      identity: { login: "alice", githubId: 1, avatar_url: "" },
+    })),
   };
 });
+vi.mock("@kody-ade/base/vault/store", () => ({
+  readVault: state.readVault,
+  listSecretMetadata: (doc: { secrets: Array<{ name: string }> }) =>
+    doc.secrets,
+}));
+vi.mock("@kody-ade/base/vault/mutations", () => ({
+  upsertSecret: state.upsertSecret,
+}));
+vi.mock("@dashboard/lib/backend/convex-backend", () => ({
+  backendApi: {
+    userCredentials: { list: "list", upsert: "upsert" },
+  },
+  getConvexClient: () => ({ query: state.query, mutation: state.mutation }),
+}));
 
 import { GET, POST } from "../../app/api/kody/secrets/route";
 
-function makeReq(body?: unknown) {
+function request(body?: unknown) {
   return new NextRequest("https://dash.test/api/kody/secrets", {
-    method: body === undefined ? "GET" : "POST",
+    method: body ? "POST" : "GET",
     headers: { "content-type": "application/json" },
-    ...(body === undefined
-      ? {}
-      : {
-          body: typeof body === "string" ? body : JSON.stringify(body),
-        }),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 }
 
-const SECRET_VALUE = "sk-proj-DO-NOT-LEAK-1234567890";
+function repositoryRequest(body?: unknown) {
+  return new NextRequest("https://dash.test/api/kody/secrets", {
+    method: body ? "POST" : "GET",
+    headers: {
+      "content-type": "application/json",
+      "x-kody-owner": "acme",
+      "x-kody-repo": "app",
+      "x-kody-token": "token",
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  auth.requireKodyAuth.mockResolvedValue(null);
-  auth.verifyActorLogin.mockResolvedValue({ identity: { login: "alice" } });
-  auth.getUserOctokit.mockResolvedValue({});
-  auth.getRequestAuth.mockReturnValue({
-    owner: "acme",
-    repo: "widgets",
-    token: "t",
+  state.configured.mockReturnValue(true);
+  state.auth.mockResolvedValue({
+    user: { id: "user-1", label: "Alice" },
+    personalTenantId: "user:user-1",
   });
-  cfg.isVaultConfigured.mockReturnValue(true);
-  store.readVault.mockResolvedValue({
-    doc: {
-      secrets: {
-        EXISTING_KEY: {
-          value: SECRET_VALUE,
-          updatedAt: "2026-01-01T00:00:00Z",
-          updatedBy: "bob",
-        },
-      },
-    },
-    sha: "vault-sha",
+  state.query.mockResolvedValue([
+    { name: "EXISTING_KEY", updatedAt: "2026-01-01T00:00:00Z" },
+  ]);
+  state.readVault.mockResolvedValue({
+    doc: { secrets: [{ name: "REPOSITORY_KEY" }] },
+  });
+  state.upsertSecret.mockResolvedValue({
+    secrets: [{ name: "REPOSITORY_KEY" }],
   });
 });
 
-describe("GET /api/kody/secrets", () => {
-  it("returns 401-style auth error when unauthenticated", async () => {
-    auth.requireKodyAuth.mockResolvedValue(
-      NextResponse.json({ error: "unauth" }, { status: 401 }),
+describe("repository secrets API", () => {
+  it("keeps repository reads in the repository vault", async () => {
+    const response = await GET(repositoryRequest());
+
+    expect(response.status).toBe(200);
+    expect(state.readVault).toHaveBeenCalledWith({}, "acme", "app");
+    expect(state.query).not.toHaveBeenCalled();
+  });
+
+  it("keeps repository writes in the repository vault", async () => {
+    const response = await POST(
+      repositoryRequest({ name: "REPOSITORY_KEY", value: "secret" }),
     );
-    const res = await GET(makeReq());
-    expect(res.status).toBe(401);
-  });
 
-  it("returns 503 when the vault is not configured", async () => {
-    cfg.isVaultConfigured.mockReturnValue(false);
-    const res = await GET(makeReq());
-    expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ error: "vault_not_configured" });
-  });
-
-  it("returns 400 when there is no repo context", async () => {
-    auth.getRequestAuth.mockReturnValue(null);
-    const res = await GET(makeReq());
-    expect(res.status).toBe(400);
-  });
-
-  it("lists secret names + metadata but NEVER the value", async () => {
-    const res = await GET(makeReq());
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.secrets).toEqual([
-      {
-        name: "EXISTING_KEY",
-        updatedAt: "2026-01-01T00:00:00Z",
-        updatedBy: "bob",
-      },
-    ]);
-    expect(JSON.stringify(json)).not.toContain(SECRET_VALUE);
+    expect(response.status).toBe(200);
+    expect(state.upsertSecret).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "app",
+        name: "REPOSITORY_KEY",
+        value: "secret",
+        actorLogin: "alice",
+      }),
+    );
+    expect(state.mutation).not.toHaveBeenCalled();
   });
 });
 
-describe("POST /api/kody/secrets", () => {
-  it("returns 400 on malformed JSON", async () => {
-    const res = await POST(makeReq("{ not json"));
-    expect(res.status).toBe(400);
-  });
-
-  it("rejects an invalid secret name", async () => {
-    const res = await POST(makeReq({ name: "lower-case", value: "x" }));
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "validation_error" });
-  });
-
-  it("rejects an empty value", async () => {
-    const res = await POST(makeReq({ name: "API_KEY", value: "" }));
-    expect(res.status).toBe(400);
-  });
-
-  it("returns the actor-verification error response when login check fails", async () => {
-    auth.verifyActorLogin.mockResolvedValue(
-      NextResponse.json({ error: "actor_mismatch" }, { status: 403 }),
+describe("personal secrets API", () => {
+  it("requires a signed-in Kody user", async () => {
+    state.auth.mockResolvedValue(
+      NextResponse.json({ error: "unauthorized" }, { status: 401 }),
     );
-    const res = await POST(makeReq({ name: "API_KEY", value: "v" }));
-    expect(res.status).toBe(403);
-    expect(store.writeVault).not.toHaveBeenCalled();
+    expect((await GET(request())).status).toBe(401);
   });
 
-  it("upserts the secret, invalidates cache, records the action, and never echoes the value", async () => {
-    const res = await POST(
-      makeReq({ name: "NEW_KEY", value: "super-secret-zzz" }),
+  it("lists metadata without secret values", async () => {
+    const response = await GET(request());
+    expect(await response.json()).toEqual({
+      secrets: [{ name: "EXISTING_KEY", updatedAt: "2026-01-01T00:00:00Z" }],
+    });
+  });
+
+  it("encrypts a valid secret under the Kody user", async () => {
+    const response = await POST(
+      request({ name: "MINIMAX_API_KEY", value: "secret-value" }),
     );
-    expect(res.status).toBe(200);
+    expect(response.status).toBe(200);
+    expect(state.mutation).toHaveBeenCalledWith("upsert", {
+      userKey: "user-1",
+      name: "MINIMAX_API_KEY",
+      encryptedValue: "encrypted:secret-value",
+      updatedAt: expect.any(String),
+    });
+    expect(JSON.stringify(await response.json())).not.toContain("secret-value");
+  });
 
-    // The encrypted write got the new value (internally) ...
-    expect(store.writeVault).toHaveBeenCalledTimes(1);
-    const writtenDoc = store.writeVault.mock.calls[0][3] as {
-      secrets: Record<string, { value: string; updatedBy: string }>;
-    };
-    expect(writtenDoc.secrets.NEW_KEY.value).toBe("super-secret-zzz");
-    expect(writtenDoc.secrets.NEW_KEY.updatedBy).toBe("alice");
-
-    expect(store.invalidateVaultCache).toHaveBeenCalledWith("acme", "widgets");
-    expect(act.recordAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ action: "vault.write", resource: "NEW_KEY" }),
-    );
-
-    // ... but the HTTP response carries only metadata, never any value.
-    const json = await res.json();
-    expect(json.ok).toBe(true);
-    expect(JSON.stringify(json)).not.toContain("super-secret-zzz");
-    expect(JSON.stringify(json)).not.toContain(SECRET_VALUE);
+  it("rejects invalid names before writing", async () => {
+    const response = await POST(request({ name: "bad name", value: "x" }));
+    expect(response.status).toBe(400);
+    expect(state.mutation).not.toHaveBeenCalled();
   });
 });

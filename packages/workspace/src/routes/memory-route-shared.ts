@@ -2,6 +2,7 @@ import {
   verifyRepoReadAccess,
   verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
+import { getKodyRequestUserProvider } from "@kody-ade/base/auth/request-user-provider";
 import {
   MemoryAccessDeniedError,
   MemoryNotFoundError,
@@ -17,6 +18,14 @@ export async function requestMemoryContext(
   request: NextRequest,
   mode: AccessMode,
 ) {
+  const hostUser = await getKodyRequestUserProvider()?.resolveUser(request);
+  if (hostUser) {
+    return createMemoryRuntime({
+      actor: { kind: "user", id: hostUser.id },
+      tenantId: `user:${hostUser.id}`,
+      includeRepositoryScope: false,
+    });
+  }
   const access =
     mode === "read"
       ? await verifyRepoReadAccess(request)

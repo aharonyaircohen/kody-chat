@@ -5,7 +5,6 @@
  * @ai-summary Canonical View Renderer detail page — hosts serve it as a
  *   one-line re-export (see pages-coverage specs in each host).
  */
-import { AuthGuard } from "../auth-guard";
 import { ViewRenderersManager } from "../components/ViewRenderersManager";
 
 export default async function ViewRendererDetailPage({
@@ -14,9 +13,5 @@ export default async function ViewRendererDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return (
-    <AuthGuard>
-      <ViewRenderersManager initialSlug={slug} />
-    </AuthGuard>
-  );
+  return <ViewRenderersManager initialSlug={slug} />;
 }

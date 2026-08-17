@@ -18,6 +18,7 @@
     "./chat/model-catalog": "./src/dashboard/lib/chat/model-catalog.ts",
     "./chat/resolve-model": "./app/api/kody/chat/resolve-model.ts",
     "./chat/model-settings-provider": "./app/api/kody/chat/model-settings-provider.ts",
+    "./chat/request-context-provider": "./app/api/kody/chat/request-context-provider.ts",
     "./routes/guided-flows": "./app/api/kody/guided-flows/route.ts",
     "./routes/kody/widgets": "./app/api/kody/widgets/route.ts",
     "./routes/kody/widgets-detail": "./app/api/kody/widgets/[slug]/route.ts",

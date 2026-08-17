@@ -21,7 +21,7 @@ export function FileWorkspaceShell({
           <div className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-3">
             <div className="min-w-0">
               <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Repository workspace
+                Workspace
               </p>
               <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
                 {title}

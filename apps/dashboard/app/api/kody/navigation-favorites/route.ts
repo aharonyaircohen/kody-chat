@@ -9,8 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { userFileKey } from "@kody-ade/kody-chat-dashboard/user-state/user-key";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 import {
   MAX_NAVIGATION_FAVORITES,
   normalizeFavoriteHrefs,
@@ -43,16 +42,14 @@ interface StoredNavigationPreferences {
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const actor = await resolveUnifiedActor(req);
-  if (!actor) {
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
-  }
+  const actor = await requireKodyUser();
+  if (actor instanceof NextResponse) return actor;
 
   const record = (await createBackendClient().query(
     backendApi.userPreferences.get,
     {
       namespace: NAVIGATION_NAMESPACE,
-      userKey: userFileKey(actor.userId),
+      userKey: actor.id,
     },
   )) as StoredNavigationPreferences | null;
   return NextResponse.json({
@@ -64,10 +61,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function PUT(req: NextRequest): Promise<NextResponse> {
-  const actor = await resolveUnifiedActor(req);
-  if (!actor) {
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
-  }
+  const actor = await requireKodyUser();
+  if (actor instanceof NextResponse) return actor;
 
   const parsed = updateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -79,7 +74,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
 
   await createBackendClient().mutation(backendApi.userPreferences.save, {
     namespace: NAVIGATION_NAMESPACE,
-    userKey: userFileKey(actor.userId),
+    userKey: actor.id,
     data: { favoriteHrefs: parsed.data.favoriteHrefs },
     updatedAt: new Date().toISOString(),
   });

@@ -21,6 +21,11 @@ import {
   type AssistantMessagePersistenceMode,
 } from "./assistant-message-persistence";
 import { useRunningTurnRecovery } from "./use-running-turn-recovery";
+import {
+  runtimeForAgentKey,
+  sessionFromList,
+  storedAttachmentId,
+} from "./conversation-session-mapping";
 
 export type ChatSessionScope = "global" | "vibe-default";
 type MessageUpdater =
@@ -109,23 +114,6 @@ export interface UseConversationSessionsResult {
   ) => void;
 }
 
-function runtimeForAgentKey(agentKey?: string) {
-  if (agentKey === "brain" || agentKey === "brain-fly") {
-    return { kind: "brain" as const, brainId: agentKey };
-  }
-  if (agentKey === "kody-live") {
-    return { kind: "live" as const, profileId: agentKey };
-  }
-  if (agentKey?.startsWith("engine")) {
-    return { kind: "engine" as const, profileId: agentKey };
-  }
-  return { kind: "direct" as const, modelId: agentKey ?? "default" };
-}
-
-function storedAttachmentId(id: string): string {
-  return id.includes("::") ? id.slice(id.indexOf("::") + 2) : id;
-}
-
 export function mergeHydratedSessions(
   loaded: SessionMeta[],
   locallyCreated: SessionMeta[],
@@ -171,36 +159,6 @@ export function preferredHydratedSessionId(
     return preferredSessionId;
   }
   return loaded[0]?.id ?? "";
-}
-
-function sessionFromList(value: Record<string, unknown>): SessionMeta {
-  const storedScope =
-    value.scope && typeof value.scope === "object"
-      ? (value.scope as Record<string, unknown>)
-      : null;
-  return {
-    id: String(value.conversationId),
-    title: String(value.title ?? "New conversation"),
-    preview: typeof value.preview === "string" ? value.preview : undefined,
-    createdAt: String(value.createdAt),
-    updatedAt: String(value.updatedAt),
-    messageCount: 0,
-    pinned: value.pinned === true,
-    repository:
-      storedScope?.kind === "repository" &&
-      typeof storedScope.owner === "string" &&
-      typeof storedScope.repo === "string"
-        ? { owner: storedScope.owner, repo: storedScope.repo }
-        : undefined,
-    agencyAgent:
-      value.activeAgent && typeof value.activeAgent === "object"
-        ? (value.activeAgent as AgencyAgentIdentity)
-        : { slug: "kody", title: "Kody" },
-    machineAccess:
-      value.machineAccess === "local" || value.machineAccess === "brain"
-        ? value.machineAccess
-        : "none",
-  };
 }
 
 export function useConversationSessions(

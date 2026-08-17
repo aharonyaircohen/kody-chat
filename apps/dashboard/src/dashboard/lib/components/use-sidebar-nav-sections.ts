@@ -17,11 +17,11 @@ import {
 } from "./settings-nav";
 import { useFileSpaces } from "@dashboard/features/file-spaces/use-file-spaces";
 import { useAuth } from "@dashboard/lib/auth-context";
+import { PERSONAL_DASHBOARD_PATHS } from "@dashboard/lib/kody-scope";
 
 const KNOWLEDGE_SECTION_TITLE = "Knowledge";
-const CHAT_SECTION_TITLE = "Chat";
 const DOCS_HREF = "/docs";
-const PERSONAL_CHAT_HREFS = new Set(["/models"]);
+const PERSONAL_CHAT_HREFS = new Set(PERSONAL_DASHBOARD_PATHS);
 
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
@@ -33,15 +33,14 @@ export function extendSidebarNavSections(
   { customSpaceItems, repositoryConnected = true }: SidebarNavExtensions,
 ): readonly SettingsNavSection[] {
   if (!repositoryConnected) {
-    return sections
-      .filter((section) => section.title === CHAT_SECTION_TITLE)
-      .map((section) => ({
-        ...section,
-        items: section.items.filter((item) =>
-          PERSONAL_CHAT_HREFS.has(item.href),
+    return [
+      {
+        title: "Customize",
+        items: sections.flatMap((section) =>
+          section.items.filter((item) => PERSONAL_CHAT_HREFS.has(item.href)),
         ),
-      }))
-      .filter((section) => section.items.length > 0);
+      },
+    ];
   }
   return sections.map((section) => {
     if (section.title === KNOWLEDGE_SECTION_TITLE && customSpaceItems.length) {
@@ -78,7 +77,15 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
         description: `Markdown files from /${space.rootPath}.`,
         tint: "text-amber-300 bg-amber-500/10",
       }));
-    return extendSidebarNavSections(SIDEBAR_NAV_SECTIONS, {
+    const scopedSections = SIDEBAR_NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.map((item) =>
+        PERSONAL_CHAT_HREFS.has(item.href)
+          ? { ...item, scope: "personal" as const }
+          : item,
+      ),
+    }));
+    return extendSidebarNavSections(scopedSections, {
       customSpaceItems,
       repositoryConnected: Boolean(auth?.owner && auth.repo),
     });

@@ -6,7 +6,6 @@
  *   re-export (see pages-coverage specs in each host).
  */
 import type { ReactNode } from "react";
-import { AuthGuard } from "../auth-guard";
 import { InstructionsManager } from "../components/InstructionsManager";
 
 export default function InstructionsPage({
@@ -14,9 +13,5 @@ export default function InstructionsPage({
 }: {
   footerSlot?: ReactNode;
 } = {}) {
-  return (
-    <AuthGuard>
-      <InstructionsManager footerSlot={footerSlot} />
-    </AuthGuard>
-  );
+  return <InstructionsManager footerSlot={footerSlot} />;
 }

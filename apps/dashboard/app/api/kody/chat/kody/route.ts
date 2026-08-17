@@ -12,12 +12,8 @@ import { withPersonalChatUser } from "@dashboard/lib/chat/personal-model-setting
 
 export async function POST(request: NextRequest) {
   const actor = await requireKodyUser();
-  return packagePost(
-    withPersonalChatUser(
-      request,
-      actor instanceof NextResponse ? null : actor.id,
-    ),
-  );
+  if (actor instanceof NextResponse) return actor;
+  return packagePost(withPersonalChatUser(request, actor.id));
 }
 
 export const runtime = "nodejs";

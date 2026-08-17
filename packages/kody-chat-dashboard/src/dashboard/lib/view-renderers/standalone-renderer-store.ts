@@ -158,7 +158,14 @@ export async function loadViewRendererContextForPrompt({
   owner: string;
   repo: string;
 }): Promise<ViewRendererPromptContext> {
-  const files = await listViewRendererDefinitionFiles({ octokit, owner, repo });
+  void octokit;
+  return loadViewRendererContextForTenant(`${owner}/${repo}`);
+}
+
+export async function loadViewRendererContextForTenant(
+  tenantId: string,
+): Promise<ViewRendererPromptContext> {
+  const files = await listViewRendererDefinitionsForTenant(tenantId);
   const definitions = files
     .map((file) => file.definition)
     .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -178,8 +185,14 @@ export async function listViewRendererDefinitionFiles({
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
   void octokit;
+  return listViewRendererDefinitionsForTenant(`${owner}/${repo}`);
+}
+
+export async function listViewRendererDefinitionsForTenant(
+  tenantId: string,
+): Promise<ViewRendererDefinitionFile[]> {
   const rows = (await createBackendClient().query(api.viewRenderers.list, {
-    tenantId: `${owner}/${repo}`,
+    tenantId,
   })) as Array<{ definition: ViewRendererDefinition; updatedAt?: string }>;
   const repoFiles = rows.map((row) => ({
     definition: row.definition,

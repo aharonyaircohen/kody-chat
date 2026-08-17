@@ -38,7 +38,6 @@ import {
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import { MarkdownEditor } from "./MarkdownEditor";
 
@@ -165,11 +164,7 @@ async function deleteCommandApi(
 }
 
 export function CommandsManager() {
-  return (
-    <AuthGuard>
-      <CommandsManagerInner />
-    </AuthGuard>
-  );
+  return <CommandsManagerInner />;
 }
 
 function CommandsManagerInner() {
@@ -186,7 +181,7 @@ function CommandsManagerInner() {
   const { data, isLoading, error, refetch } = useQuery<CommandRow[]>({
     queryKey: listQueryKey,
     queryFn: () => listCommandsApi(headers),
-    enabled: !!auth,
+    enabled: true,
     staleTime: 30_000,
   });
   const commands = useMemo(() => data ?? [], [data]);
@@ -347,7 +342,7 @@ function CommandsManagerInner() {
                       )}
                       {p.source === "repo" && (
                         <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
-                          repo
+                          {auth ? "repo" : "personal"}
                         </span>
                       )}
                     </div>
@@ -393,8 +388,8 @@ function CommandsManagerInner() {
         <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
           <FileText className="w-3 h-3" />
           Built-ins ship with the dashboard. Editing one saves a same-slug copy
-          to <code className="text-white/50 mx-1">commands/</code> in the state
-          repo, which then takes over the slot.
+          to {auth ? "this repository" : "your Kody account"}, which then takes
+          over the slot.
         </p>
       </div>
 
@@ -417,8 +412,8 @@ function CommandsManagerInner() {
         title={`${deleting?.source === "store" ? "Remove" : "Delete"} /${deleting?.slug}?`}
         description={
           deleting?.source === "store"
-            ? "The Store command will be removed from this repo's active commands. The Store asset is not deleted."
-            : "The command file will be removed from repo. If a Store or fallback command exists with same slug, it can take over again."
+            ? `The Store command will be removed from ${auth ? "this repository's" : "your account's"} active commands. The Store asset is not deleted.`
+            : `The command will be removed from ${auth ? "this repository" : "your Kody account"}. If a Store or fallback command exists with the same slug, it can take over again.`
         }
         confirmLabel={
           remove.isPending

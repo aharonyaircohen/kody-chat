@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const OWNER = "test-owner";
 const REPO = "test-repo";
@@ -59,6 +60,7 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   });
 
   await seedAuth(page);
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/navigation-favorites", async (route) => {
     if (route.request().method() === "PUT") {
       const body = route.request().postDataJSON() as {

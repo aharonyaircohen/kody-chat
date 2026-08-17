@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
+import { getChatRequestContextProvider } from "../../chat/request-context-provider";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -84,8 +85,9 @@ export async function GET(
     return json({ error: "invalid_widget_slug" }, { status: 400 });
   }
 
+  const hostUser = await getChatRequestContextProvider()?.resolveUser(req);
   const auth = resolveWidgetRequestAuth(req);
-  if (!auth) {
+  if (!hostUser && !auth) {
     return json(
       {
         error: "not_authenticated",
@@ -110,12 +112,12 @@ export async function GET(
     const row =
       Number.isInteger(requestedVersion) && requestedVersion > 0
         ? ((await client.query(backendApi.widgets.getVersion, {
-            tenantId: tenantIdFor(auth),
+            tenantId: auth ? tenantIdFor(auth) : `user:${hostUser!.id}`,
             slug,
             version: requestedVersion,
           })) as WidgetRow | null)
         : ((await client.query(backendApi.widgets.latest, {
-            tenantId: tenantIdFor(auth),
+            tenantId: auth ? tenantIdFor(auth) : `user:${hostUser!.id}`,
             slug,
           })) as WidgetRow | null);
     if (!row) {

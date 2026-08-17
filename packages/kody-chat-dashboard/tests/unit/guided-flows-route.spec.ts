@@ -443,7 +443,7 @@ describe("GuidedFlow route", () => {
     expect(auth.verifyActorLogin).toHaveBeenCalledOnce();
   });
 
-  it("does not allow repository GuidedFlows before a repository is attached", async () => {
+  it("allows a user-owned GuidedFlow before a repository is attached", async () => {
     auth.getRequestAuth.mockReturnValue(null);
 
     const response = await POST(
@@ -453,9 +453,14 @@ describe("GuidedFlow route", () => {
       ),
     );
 
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "repository_required" });
-    expect(store.rows).toHaveLength(0);
+    expect(response.status).toBe(201);
+    expect(store.rows).toEqual([
+      expect.objectContaining({
+        tenantId: "user:42",
+        actorId: "github:42",
+        rootFlowId: "create-workflow",
+      }),
+    ]);
   });
 
   it("does not start onboarding without a verified user", async () => {
@@ -487,6 +492,7 @@ describe("GuidedFlow route", () => {
     );
     const instance = (await started.json()).instance as {
       instanceId: string;
+      currentStepId: string;
       revision: number;
     };
 
@@ -495,8 +501,8 @@ describe("GuidedFlow route", () => {
       request({
         action: "submit",
         instanceId: instance.instanceId,
-        stepId: "welcome",
-        actionId: "finish",
+        stepId: instance.currentStepId,
+        actionId: "skip",
         expectedRevision: instance.revision,
         mutationId: "bootstrap-next",
       }),
@@ -506,7 +512,7 @@ describe("GuidedFlow route", () => {
     expect((await response.json()).instance).toMatchObject({
       instanceId: instance.instanceId,
       currentStepId: "welcome",
-      status: "completed",
+      status: "active",
       revision: 1,
     });
     expect(store.rows[0]).toMatchObject({

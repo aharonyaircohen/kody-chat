@@ -89,9 +89,22 @@ export async function readViewRendererDefinitionFile({
   repo: string;
   slug: string;
 }): Promise<ViewRendererDefinitionFile | null> {
+  return readViewRendererDefinitionForTenant({
+    tenantId: tenantIdFor(owner, repo),
+    slug,
+  });
+}
+
+export async function readViewRendererDefinitionForTenant({
+  tenantId,
+  slug,
+}: {
+  tenantId: string;
+  slug: string;
+}): Promise<ViewRendererDefinitionFile | null> {
   if (!isValidViewRendererSlug(slug)) return null;
   const docs = (await getConvexClient().query(backendApi.viewRenderers.list, {
-    tenantId: tenantIdFor(owner, repo),
+    tenantId,
   })) as ViewRendererDoc[];
   const doc = docs.find((d) => d.slug === slug);
   if (doc) return fileFromDoc(doc);
@@ -134,7 +147,13 @@ export async function loadViewRendererContextForPrompt({
   owner: string;
   repo: string;
 }): Promise<ViewRendererPromptContext> {
-  const files = await listViewRendererDefinitionFiles({ owner, repo });
+  return loadViewRendererContextForTenant(tenantIdFor(owner, repo));
+}
+
+export async function loadViewRendererContextForTenant(
+  tenantId: string,
+): Promise<ViewRendererPromptContext> {
+  const files = await listViewRendererDefinitionsForTenant(tenantId);
   const definitions = files
     .map((file) => file.definition)
     .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -151,8 +170,14 @@ export async function listViewRendererDefinitionFiles({
   owner: string;
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
+  return listViewRendererDefinitionsForTenant(tenantIdFor(owner, repo));
+}
+
+export async function listViewRendererDefinitionsForTenant(
+  tenantId: string,
+): Promise<ViewRendererDefinitionFile[]> {
   const docs = (await getConvexClient().query(backendApi.viewRenderers.list, {
-    tenantId: tenantIdFor(owner, repo),
+    tenantId,
   })) as ViewRendererDoc[];
   const repoFiles = docs
     .map((doc) => {
@@ -179,6 +204,19 @@ export async function writeViewRendererDefinitionFile({
   repo: string;
   definition: ViewRendererDefinition;
 }): Promise<ViewRendererDefinitionFile> {
+  return writeViewRendererDefinitionForTenant({
+    tenantId: tenantIdFor(owner, repo),
+    definition,
+  });
+}
+
+export async function writeViewRendererDefinitionForTenant({
+  tenantId,
+  definition,
+}: {
+  tenantId: string;
+  definition: ViewRendererDefinition;
+}): Promise<ViewRendererDefinitionFile> {
   // Round-trip through the serializer so only schema-valid data persists.
   const validated = JSON.parse(
     serializeViewRendererDefinition(definition),
@@ -186,7 +224,7 @@ export async function writeViewRendererDefinitionFile({
   const savedVersion = await getConvexClient().mutation(
     backendApi.viewRenderers.save,
     {
-      tenantId: tenantIdFor(owner, repo),
+      tenantId,
       slug: definition.slug,
       definition: validated,
       updatedAt: new Date().toISOString(),
@@ -213,8 +251,21 @@ export async function deleteViewRendererDefinitionFile({
   repo: string;
   slug: string;
 }): Promise<void> {
-  await getConvexClient().mutation(backendApi.viewRenderers.remove, {
+  return deleteViewRendererDefinitionForTenant({
     tenantId: tenantIdFor(owner, repo),
+    slug,
+  });
+}
+
+export async function deleteViewRendererDefinitionForTenant({
+  tenantId,
+  slug,
+}: {
+  tenantId: string;
+  slug: string;
+}): Promise<void> {
+  await getConvexClient().mutation(backendApi.viewRenderers.remove, {
+    tenantId,
     slug,
   });
 }

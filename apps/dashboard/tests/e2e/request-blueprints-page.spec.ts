@@ -1,4 +1,5 @@
 import { expect, test, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -23,6 +24,7 @@ test("creates and reloads a Guided Flow", async ({ page }) => {
     (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
     auth,
   );
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
       authenticated: true,
@@ -33,17 +35,27 @@ test("creates and reloads a Guided Flow", async ({ page }) => {
     if (route.request().method() === "GET") {
       return json(route, { definitions: saved ? [saved] : [] });
     }
-    const body = route.request().postDataJSON() as { draft: Record<string, unknown> };
+    const body = route.request().postDataJSON() as {
+      draft: Record<string, unknown>;
+    };
     saved = { id: "release-check", version: 1, ...body.draft };
     return json(route, { definition: saved }, 201);
   });
 
-  await page.goto("/repo/acme/widgets/guided-flows", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Guided Flows" })).toBeVisible();
-  await page.getByRole("button", { name: "Add Guided Flow", exact: true }).click();
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(
+    page.getByRole("heading", { name: "Guided Flows" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
   await page.getByLabel("Flow name").fill("Release check");
   await page.getByRole("button", { name: "Save Guided Flow" }).click();
-  await expect(page.getByRole("article", { name: "Release check" })).toBeVisible();
+  await expect(
+    page.getByRole("article", { name: "Release check" }),
+  ).toBeVisible();
 
   await page.reload({ waitUntil: "domcontentloaded" });
   const article = page.getByRole("article", { name: "Release check" });
@@ -51,11 +63,14 @@ test("creates and reloads a Guided Flow", async ({ page }) => {
   await expect(page.getByLabel("Flow name")).toHaveValue("Release check");
 });
 
-test("shows a Blueprint-generated Guided Flow as read-only", async ({ page }) => {
+test("shows a Blueprint-generated Guided Flow as read-only", async ({
+  page,
+}) => {
   await page.addInitScript(
     (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
     auth,
   );
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
       authenticated: true,

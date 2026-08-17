@@ -15,8 +15,12 @@ describe("repository navigation visibility", () => {
       }),
     ).toEqual([
       expect.objectContaining({
-        title: "Chat",
-        items: [expect.objectContaining({ href: "/models" })],
+        title: "Customize",
+        items: expect.arrayContaining([
+          expect.objectContaining({ href: "/models" }),
+          expect.objectContaining({ href: "/commands" }),
+          expect.objectContaining({ href: "/secrets" }),
+        ]),
       }),
     ]);
   });
