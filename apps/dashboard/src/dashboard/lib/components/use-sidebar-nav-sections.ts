@@ -19,7 +19,9 @@ import { useFileSpaces } from "@dashboard/features/file-spaces/use-file-spaces";
 import { useAuth } from "@dashboard/lib/auth-context";
 
 const KNOWLEDGE_SECTION_TITLE = "Knowledge";
+const CHAT_SECTION_TITLE = "Chat";
 const DOCS_HREF = "/docs";
+const PERSONAL_CHAT_HREFS = new Set(["/models"]);
 
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
@@ -30,7 +32,17 @@ export function extendSidebarNavSections(
   sections: readonly SettingsNavSection[],
   { customSpaceItems, repositoryConnected = true }: SidebarNavExtensions,
 ): readonly SettingsNavSection[] {
-  if (!repositoryConnected) return [];
+  if (!repositoryConnected) {
+    return sections
+      .filter((section) => section.title === CHAT_SECTION_TITLE)
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) =>
+          PERSONAL_CHAT_HREFS.has(item.href),
+        ),
+      }))
+      .filter((section) => section.items.length > 0);
+  }
   return sections.map((section) => {
     if (section.title === KNOWLEDGE_SECTION_TITLE && customSpaceItems.length) {
       const docsIndex = section.items.findIndex(

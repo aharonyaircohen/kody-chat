@@ -11,6 +11,7 @@ import {
   loadChatModels,
 } from "@kody-ade/base/variables/load-chat-models";
 import { resolveChatModel } from "../../app/api/kody/chat/resolve-model";
+import { setChatModelSettingsProvider } from "../../app/api/kody/chat/model-settings-provider";
 
 vi.mock("@ai-sdk/anthropic", () => ({
   createAnthropic: vi.fn(() => vi.fn((modelName: string) => ({ modelName }))),
@@ -72,6 +73,43 @@ describe("resolveChatModel", () => {
     });
     vi.mocked(getUserOctokit).mockResolvedValue({} as never);
     vi.mocked(getSecret).mockResolvedValue("provider-key");
+    setChatModelSettingsProvider(null);
+  });
+
+  it("uses host-owned personal settings without repository access", async () => {
+    vi.mocked(getRequestAuth).mockReturnValue(null);
+    setChatModelSettingsProvider({
+      load: vi.fn(async () => ({
+        models: [
+          {
+            id: "minimax/MiniMax-M3",
+            label: "Personal MiniMax",
+            provider: "minimax" as const,
+            protocol: "openai" as const,
+            baseURL: "https://api.minimax.io/v1",
+            modelName: "MiniMax-M3",
+            apiKeySecret: "MINIMAX_API_KEY",
+            enabled: true,
+            default: true,
+          },
+        ],
+        automatic: { default: false, engineDefault: false },
+      })),
+      getCredential: vi.fn(async () => "personal-provider-key"),
+    });
+
+    const result = await resolveChatModel(
+      new NextRequest("https://dash.test/api/kody/chat/kody"),
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel.label).toBe("Personal MiniMax");
+    expect(loadChatModels).not.toHaveBeenCalled();
+    expect(getSecret).not.toHaveBeenCalled();
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "personal-provider-key" }),
+    );
   });
 
   it("uses the embedded OpenRouter model when LLM_MODELS is empty", async () => {

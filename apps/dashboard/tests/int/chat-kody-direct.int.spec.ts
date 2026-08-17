@@ -12,7 +12,26 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+const dashboardAuth = vi.hoisted(() => ({
+  requireKodyUser: vi.fn<
+    () => Promise<{ id: string; label: string } | NextResponse>
+  >(async () => ({ id: "user-1", label: "Alice" })),
+  query: vi.fn(async () => null),
+}));
+
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: dashboardAuth.requireKodyUser,
+}));
+
+vi.mock("@dashboard/lib/backend/convex-backend", () => ({
+  backendApi: {
+    userPreferences: { get: "userPreferences.get" },
+    userCredentials: { get: "userCredentials.get" },
+  },
+  getConvexClient: () => ({ query: dashboardAuth.query }),
+}));
 
 vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
@@ -56,6 +75,11 @@ beforeAll(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  dashboardAuth.requireKodyUser.mockResolvedValue({
+    id: "user-1",
+    label: "Alice",
+  });
+  dashboardAuth.query.mockResolvedValue(null);
 });
 
 function disableEngineModelFallbackEnv() {
@@ -118,6 +142,9 @@ describe("POST /api/kody/chat/kody", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
     });
+    dashboardAuth.requireKodyUser.mockResolvedValueOnce(
+      NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    );
     const res = await kodyChatPOST(req);
     expect([401, 403]).toContain(res.status);
   });

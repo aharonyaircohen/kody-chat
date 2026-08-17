@@ -1,95 +1,83 @@
-/**
- * @fileType api-endpoint
- * @domain variables
- * @pattern models-api
- * @ai-summary GET — list chat models from the LLM_MODELS variable.
- *   PUT — replace the entire list with a validated ChatModel[] array.
- *   Backing storage is the LLM_MODELS entry in backend variables.json.
- *
- *   Why a dedicated route instead of /api/kody/variables: validation. The
- *   chat UI dropdown and the chat route both depend on the shape, so we
- *   parse with the Zod schema here and reject anything malformed before
- *   it lands on disk.
- */
-
+/** User-owned chat model settings. Repository Engine models are configured separately. */
 import { NextRequest, NextResponse } from "next/server";
-import {
-  requireKodyAuth,
-  verifyActorLogin,
-  getUserOctokit,
-  getRequestAuth,
-} from "@kody-ade/base/auth";
-import { readVariables } from "@kody-ade/base/variables/store";
-import {
-  ModelsWriteSchema,
-  readManagedAutomaticModel,
-  readManagedChatModels,
-  saveManagedChatModels,
-} from "@kody-ade/base/variables/mutations";
+import { AutomaticModelSchema, ChatModelsSchema } from "@kody-ade/base/variables/models";
+import { ModelsWriteSchema } from "@kody-ade/base/variables/mutations";
 import { logger } from "@kody-ade/base/logger";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
+import {
+  backendApi,
+  getConvexClient,
+} from "@dashboard/lib/backend/convex-backend";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
+const NAMESPACE = "chat-models";
 
-export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json(
-      { error: "no_repo_context" },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
+function parseStoredSettings(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return { models: [], automatic: AutomaticModelSchema.parse({}) };
   }
+  const stored = value as { models?: unknown; automatic?: unknown };
+  const models = ChatModelsSchema.safeParse(stored.models);
+  const automatic = AutomaticModelSchema.safeParse(stored.automatic);
+  return {
+    models: models.success ? models.data : [],
+    automatic: automatic.success
+      ? { ...automatic.data, engineDefault: false }
+      : AutomaticModelSchema.parse({}),
+  };
+}
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json(
-      { error: "no_octokit" },
-      { status: 401, headers: NO_STORE_HEADERS },
-    );
+export async function GET(_req?: NextRequest) {
+  const actor = await requireKodyUser();
+  if (actor instanceof NextResponse) return actor;
 
   try {
-    const { doc } = await readVariables(auth.owner, auth.repo);
+    const stored = await getConvexClient().query(backendApi.userPreferences.get, {
+      namespace: NAMESPACE,
+      userKey: actor.id,
+    });
+    return NextResponse.json(parseStoredSettings(stored?.data), {
+      headers: NO_STORE_HEADERS,
+    });
+  } catch (error) {
+    logger.error({ error, userId: actor.id }, "personal models: list failed");
     return NextResponse.json(
-      {
-        models: readManagedChatModels(doc),
-        automatic: readManagedAutomaticModel(doc),
-      },
-      { headers: NO_STORE_HEADERS },
-    );
-  } catch (err) {
-    logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
-      "models: list failed",
-    );
-    return NextResponse.json(
-      { error: "models_read_failed", message: (err as Error).message },
+      { error: "models_read_failed" },
       { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }
 
 export async function PUT(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const actor = await requireKodyUser();
+  if (actor instanceof NextResponse) return actor;
 
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
-
-  const parsed = ModelsWriteSchema.safeParse(body);
+  const raw = await req.json().catch(() => null);
+  const userOnlyInput =
+    raw && typeof raw === "object"
+      ? {
+          ...(raw as Record<string, unknown>),
+          models: Array.isArray((raw as { models?: unknown }).models)
+            ? ((raw as { models: unknown[] }).models.map((model) =>
+                model && typeof model === "object"
+                  ? { ...(model as Record<string, unknown>), engineDefault: false }
+                  : model,
+              ) as unknown[])
+            : (raw as { models?: unknown }).models,
+          automatic:
+            (raw as { automatic?: unknown }).automatic &&
+            typeof (raw as { automatic?: unknown }).automatic === "object"
+              ? {
+                  ...((raw as { automatic: Record<string, unknown> }).automatic),
+                  engineDefault: false,
+                }
+              : (raw as { automatic?: unknown }).automatic,
+        }
+      : raw;
+  const parsed = ModelsWriteSchema.safeParse(userOnlyInput);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "validation_error", details: parsed.error.format() },
@@ -97,39 +85,27 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  const verify = await verifyActorLogin(req, parsed.data.actorLogin);
-  if ("status" in verify) return verify;
-  const actorLogin = verify.identity.login;
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+  const data = {
+    models: parsed.data.models.map((model) => ({
+      ...model,
+      engineDefault: false,
+    })),
+    automatic: {
+      ...(parsed.data.automatic ?? AutomaticModelSchema.parse({})),
+      engineDefault: false,
+    },
+  };
 
   try {
-    const result = await saveManagedChatModels({
-      octokit,
-      owner: auth.owner,
-      repo: auth.repo,
-      models: parsed.data.models,
-      automatic: parsed.data.automatic,
-      actorLogin,
+    await getConvexClient().mutation(backendApi.userPreferences.save, {
+      namespace: NAMESPACE,
+      userKey: actor.id,
+      data,
+      updatedAt: new Date().toISOString(),
     });
-    return NextResponse.json({
-      ok: true,
-      models: result.models,
-      automatic: parsed.data.automatic,
-      ...(result.engineSyncWarning
-        ? { engineSyncWarning: result.engineSyncWarning }
-        : {}),
-    });
-  } catch (err) {
-    logger.error(
-      { err, owner: auth.owner, repo: auth.repo },
-      "models: write failed",
-    );
-    return NextResponse.json(
-      { error: "models_write_failed", message: (err as Error).message },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: true, ...data });
+  } catch (error) {
+    logger.error({ error, userId: actor.id }, "personal models: write failed");
+    return NextResponse.json({ error: "models_write_failed" }, { status: 500 });
   }
 }

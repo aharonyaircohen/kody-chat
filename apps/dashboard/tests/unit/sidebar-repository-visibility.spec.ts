@@ -5,13 +5,18 @@ import {
 import { SIDEBAR_NAV_SECTIONS } from "@dashboard/lib/components/settings-nav";
 
 describe("repository navigation visibility", () => {
-  it("hides repository-only navigation without a connected repository", () => {
+  it("keeps personal models while hiding repository-only navigation", () => {
     expect(
       extendSidebarNavSections(SIDEBAR_NAV_SECTIONS, {
         customSpaceItems: [],
         repositoryConnected: false,
       }),
-    ).toEqual([]);
+    ).toEqual([
+      expect.objectContaining({
+        title: "Chat",
+        items: [expect.objectContaining({ href: "/models" })],
+      }),
+    ]);
   });
 
   it("keeps repository navigation when a repository is connected", () => {

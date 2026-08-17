@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, type ModelMessage } from "ai";
 import { z } from "zod";
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { stripReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 import { resolveChatModel } from "../resolve-model";
 
 export const runtime = "nodejs";
@@ -32,8 +32,8 @@ open work. Preserve uncertainty. Do not invent facts. Return only the compact
 memory in clear short sections; no preamble.`;
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const actor = await requireKodyUser();
+  if (actor instanceof NextResponse) return actor;
 
   let parsed: z.infer<typeof requestSchema>;
   try {

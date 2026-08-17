@@ -11,7 +11,6 @@
  */
 "use client";
 
-import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,7 +24,6 @@ import {
   MoreHorizontal,
   Pencil,
   Power,
-  Cpu,
   Plus,
   Save,
   Star,
@@ -52,8 +50,6 @@ import {
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   PROVIDER_PRESETS,
   PROVIDER_PRESET_IDS,
@@ -63,29 +59,16 @@ import {
   type ChatProtocol,
   type ProviderPreset,
 } from "@kody-ade/base/variables/models";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
 } from "../chat/model-catalog";
 
-export interface ModelsQueryScope {
-  owner?: string | null;
-  repo?: string | null;
-}
-
-function modelsQueryScopeFromAuth(
-  auth: { owner?: string | null; repo?: string | null } | null | undefined,
-): ModelsQueryScope {
-  return {
-    owner: auth?.owner ?? null,
-    repo: auth?.repo ?? null,
-  };
-}
-
 export const modelsQueryKeys = {
   all: ["kody-chat-models"] as const,
-  list: (scope: ModelsQueryScope = {}) =>
-    ["kody-chat-models", scope.owner ?? null, scope.repo ?? null] as const,
+  list: (_legacyRepoScope?: unknown) =>
+    ["kody-chat-models", "personal"] as const,
 };
 
 const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
@@ -116,12 +99,11 @@ async function saveModels(
   headers: Record<string, string>,
   models: ChatModel[],
   automatic: AutomaticModel,
-  actorLogin?: string,
 ): Promise<void> {
   const res = await fetch("/api/kody/models", {
     method: "PUT",
     headers,
-    body: JSON.stringify({ models, automatic, actorLogin }),
+    body: JSON.stringify({ models, automatic }),
   });
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
@@ -130,6 +112,41 @@ async function saveModels(
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
+}
+
+type CredentialMetadata = { name: string; updatedAt: string };
+
+async function fetchCredentials(): Promise<CredentialMetadata[]> {
+  const res = await fetch("/api/kody/account/credentials", { cache: "no-store" });
+  const json = (await res.json().catch(() => ({}))) as {
+    credentials?: CredentialMetadata[];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json.credentials ?? [];
+}
+
+async function saveCredential(name: string, value: string): Promise<void> {
+  const res = await fetch("/api/kody/account/credentials", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, value }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+}
+
+async function importRepositoryCredential(
+  name: string,
+  headers: Record<string, string>,
+): Promise<void> {
+  const res = await fetch("/api/kody/account/credentials/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify({ name }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
 }
 
 function blankModel(): ChatModel {
@@ -159,22 +176,9 @@ function deriveId(m: ChatModel): string {
 }
 
 export function ModelsManager() {
-  return (
-    <AuthGuard>
-      <ModelsManagerInner />
-    </AuthGuard>
-  );
-}
-
-function ModelsManagerInner() {
   const { auth } = useAuth();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...buildAuthHeaders(auth),
-  };
-  const actorLogin = auth?.user.login;
-  const queryScope = modelsQueryScopeFromAuth(auth);
-  const listQueryKey = modelsQueryKeys.list(queryScope);
+  const headers = { "Content-Type": "application/json" };
+  const listQueryKey = modelsQueryKeys.list();
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<{
@@ -183,7 +187,11 @@ function ModelsManagerInner() {
   }>({
     queryKey: listQueryKey,
     queryFn: () => fetchModels(headers),
-    enabled: !!auth,
+    staleTime: 30_000,
+  });
+  const { data: credentials = [] } = useQuery({
+    queryKey: ["kody-user-credentials"],
+    queryFn: fetchCredentials,
     staleTime: 30_000,
   });
   const models = composeChatModelCatalog<ChatModel>(
@@ -205,7 +213,7 @@ function ModelsManagerInner() {
     }: {
       list: ChatModel[];
       automatic: AutomaticModel;
-    }) => saveModels(headers, list, nextAutomatic, actorLogin),
+    }) => saveModels(headers, list, nextAutomatic),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -219,7 +227,7 @@ function ModelsManagerInner() {
   >(null);
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  const upsert = (next: ChatModel) => {
+  const upsert = async (next: ChatModel, credentialValue?: string) => {
     let list = [...models];
     if (editing?.mode === "edit") {
       list[editing.idx] = next;
@@ -227,29 +235,25 @@ function ModelsManagerInner() {
       list.push(next);
     }
     // Enforce "at most one default" client-side by clearing the flag on
-    // every other entry when this one sets it. Without this the server
-    // rejects the save. Chat default and engine default are independent
-    // flags, so clear each one separately.
+    // every other entry when this one sets it.
     const savedIdx = editing?.mode === "edit" ? editing.idx : list.length - 1;
     if (next.default) {
       list = list.map((m, i) =>
         i === savedIdx ? m : { ...m, default: false },
       );
     }
-    if (next.engineDefault) {
-      list = list.map((m, i) =>
-        i === savedIdx ? m : { ...m, engineDefault: false },
-      );
-    }
     const nextAutomatic = {
       ...automatic,
       ...(next.default ? { default: false } : {}),
-      ...(next.engineDefault ? { engineDefault: false } : {}),
+      engineDefault: false,
     };
-    return save.mutateAsync({ list, automatic: nextAutomatic }).then(() => {
-      toast.success("Model saved");
-      setEditing(null);
-    });
+    if (credentialValue) {
+      await saveCredential(next.apiKeySecret, credentialValue);
+      await queryClient.invalidateQueries({ queryKey: ["kody-user-credentials"] });
+    }
+    await save.mutateAsync({ list, automatic: nextAutomatic });
+    toast.success("Model saved");
+    setEditing(null);
   };
 
   const toggleEnabled = (idx: number) => {
@@ -298,16 +302,6 @@ function ModelsManagerInner() {
     save.mutate({ list, automatic });
   };
 
-  const setAutomaticEngineDefault = (checked: boolean) => {
-    const list = checked
-      ? models.map((model) => ({ ...model, engineDefault: false }))
-      : models;
-    save.mutate({
-      list,
-      automatic: { ...automatic, engineDefault: checked },
-    });
-  };
-
   const setAutomaticChatDefault = (checked: boolean) => {
     const list = checked
       ? models.map((model) => ({ ...model, default: false }))
@@ -331,7 +325,6 @@ function ModelsManagerInner() {
       title="Chat Models"
       icon={Bot}
       iconClassName="text-violet-400"
-      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
         <Button
           size="sm"
@@ -345,14 +338,7 @@ function ModelsManagerInner() {
     >
       <div className="space-y-3">
         <p className="text-sm text-white/55">
-          Add an API key in{" "}
-          <RepoScopedLink
-            href="/secrets"
-            className="font-medium text-emerald-300 underline decoration-emerald-300/70 underline-offset-2 hover:text-emerald-200"
-          >
-            Secrets
-          </RepoScopedLink>
-          .
+          Your chat models and API keys belong to your Kody account.
         </p>
 
         {isLoading && (
@@ -398,11 +384,6 @@ function ModelsManagerInner() {
                       <Star className="h-3 w-3" /> Chat
                     </span>
                   )}
-                  {automatic.engineDefault && (
-                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
-                      <Cpu className="w-3 h-3" /> Engine
-                    </span>
-                  )}
                 </div>
                 <p className="text-[11px] text-white/45 mt-0.5">
                   {automaticModels.length >= 2
@@ -421,17 +402,6 @@ function ModelsManagerInner() {
                     aria-label="Use Automatic as the Chat default"
                   />
                   Chat default
-                </label>
-                <label className="flex items-center gap-2 text-xs text-white/70">
-                  <Checkbox
-                    checked={automatic.engineDefault === true}
-                    disabled={automaticModels.length < 2}
-                    onCheckedChange={(checked) =>
-                      setAutomaticEngineDefault(checked === true)
-                    }
-                    aria-label="Use Automatic as the Engine default"
-                  />
-                  Engine default
                 </label>
               </div>
             </CardContent>
@@ -470,15 +440,6 @@ function ModelsManagerInner() {
                           >
                             <Star className="w-3 h-3" />
                             Chat
-                          </span>
-                        )}
-                        {m.engineDefault && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300"
-                            title="The model the engine runs (Kody Live, issue + PR runs)"
-                          >
-                            <Cpu className="w-3 h-3" />
-                            Engine
                           </span>
                         )}
                       </div>
@@ -580,6 +541,20 @@ function ModelsManagerInner() {
           existing={models}
           editingIdx={editing.mode === "edit" ? editing.idx : null}
           saving={save.isPending}
+          configuredCredentialNames={credentials.map(
+            (credential) => credential.name,
+          )}
+          onImportCredential={
+            auth
+              ? async (name) => {
+                  await importRepositoryCredential(name, buildAuthHeaders(auth));
+                  await queryClient.invalidateQueries({
+                    queryKey: ["kody-user-credentials"],
+                  });
+                  toast.success("API key copied to your Kody account");
+                }
+              : undefined
+          }
           onClose={() => setEditing(null)}
           onSave={upsert}
         />
@@ -588,7 +563,7 @@ function ModelsManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title="Delete this model?"
-        description="The model is removed from LLM_MODELS. The chat dropdown updates immediately; the underlying API key under /secrets is not touched."
+        description="The model is removed from your account. Its saved API key is kept in case another model uses it."
         confirmLabel={save.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -605,8 +580,10 @@ interface ModelEditorProps {
   existing: ChatModel[];
   editingIdx: number | null;
   saving: boolean;
+  configuredCredentialNames: string[];
+  onImportCredential?: (name: string) => Promise<void>;
   onClose: () => void;
-  onSave: (m: ChatModel) => Promise<void>;
+  onSave: (m: ChatModel, credentialValue?: string) => Promise<void>;
 }
 
 function ModelEditor({
@@ -614,13 +591,23 @@ function ModelEditor({
   existing,
   editingIdx,
   saving,
+  configuredCredentialNames,
+  onImportCredential,
   onClose,
   onSave,
 }: ModelEditorProps) {
   const [draft, setDraft] = useState<ChatModel>(initial);
+  const [credentialValue, setCredentialValue] = useState("");
+  const [importedCredentialName, setImportedCredentialName] = useState<
+    string | null
+  >(null);
+  const [importingCredential, setImportingCredential] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(
     initial.provider === "custom",
   );
+  const credentialConfigured =
+    configuredCredentialNames.includes(draft.apiKeySecret) ||
+    importedCredentialName === draft.apiKeySecret;
 
   // When the user picks a different preset, refresh the auto-managed
   // fields. The user's modelName + label survive — only adapter/protocol,
@@ -668,6 +655,10 @@ function ModelEditor({
         ? "Required for OpenAI-compatible chat"
         : null,
     id: idClash ? "Another model already uses this id" : null,
+    credential:
+      credentialConfigured || credentialValue.trim()
+        ? null
+        : "Enter an API key",
   };
   const canSave =
     !saving &&
@@ -676,7 +667,8 @@ function ModelEditor({
     !errors.apiKeySecret &&
     !errors.baseURL &&
     !errors.adapterBaseURL &&
-    !errors.id;
+    !errors.id &&
+    !errors.credential;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -684,7 +676,7 @@ function ModelEditor({
       ...draft,
       id: derivedId,
     };
-    onSave(finalModel);
+    onSave(finalModel, credentialValue.trim() || undefined);
   };
 
   return (
@@ -767,30 +759,49 @@ function ModelEditor({
           <div>
             <Label className="text-sm">API key</Label>
             <Input
-              value={draft.apiKeySecret}
-              onChange={(ev) =>
-                setDraft((cur) => ({
-                  ...cur,
-                  apiKeySecret: ev.target.value.toUpperCase(),
-                }))
+              type="password"
+              value={credentialValue}
+              onChange={(ev) => setCredentialValue(ev.target.value)}
+              placeholder={
+                credentialConfigured
+                  ? "Leave blank to keep the saved key"
+                  : "Paste your provider API key"
               }
-              placeholder="ANTHROPIC_API_KEY"
+              autoComplete="off"
               className="font-mono text-xs"
             />
-            <p className="text-sm text-white/45 mt-1">
-              Store this key in{" "}
-              <RepoScopedLink
-                href="/secrets"
-                className="text-white/60 hover:text-white/80 underline"
-              >
-                /secrets
-              </RepoScopedLink>
-              .
-            </p>
-            {errors.apiKeySecret && (
+            {errors.credential && (
               <p className="text-[11px] text-rose-300 mt-1">
-                {errors.apiKeySecret}
+                {errors.credential}
               </p>
+            )}
+            {!credentialConfigured && onImportCredential && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                disabled={importingCredential || Boolean(errors.apiKeySecret)}
+                onClick={async () => {
+                  setImportingCredential(true);
+                  try {
+                    await onImportCredential(draft.apiKeySecret);
+                    setImportedCredentialName(draft.apiKeySecret);
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not import the repository key",
+                    );
+                  } finally {
+                    setImportingCredential(false);
+                  }
+                }}
+              >
+                {importingCredential
+                  ? "Copying…"
+                  : "Copy existing repository key"}
+              </Button>
             )}
           </div>
 
@@ -803,17 +814,6 @@ function ModelEditor({
             />
             <Star className="w-3.5 h-3.5 text-white/40" />
             Default for chat (used for new conversations)
-          </label>
-
-          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
-            <Checkbox
-              checked={draft.engineDefault === true}
-              onCheckedChange={(checked) =>
-                setDraft((cur) => ({ ...cur, engineDefault: checked === true }))
-              }
-            />
-            <Cpu className="w-3.5 h-3.5 text-white/40" />
-            Default for engine (Kody Live, issue + PR runs)
           </label>
 
           <button
@@ -831,6 +831,25 @@ function ModelEditor({
 
           {advancedOpen && (
             <div className="space-y-3 pt-1 border-t border-white/[0.06]">
+              <div>
+                <Label className="text-xs">Credential name</Label>
+                <Input
+                  value={draft.apiKeySecret}
+                  onChange={(ev) =>
+                    setDraft((cur) => ({
+                      ...cur,
+                      apiKeySecret: ev.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="ANTHROPIC_API_KEY"
+                  className="font-mono text-xs"
+                />
+                {errors.apiKeySecret && (
+                  <p className="text-[11px] text-rose-300 mt-1">
+                    {errors.apiKeySecret}
+                  </p>
+                )}
+              </div>
               <div>
                 <Label className="text-xs">Chat adapter</Label>
                 <select

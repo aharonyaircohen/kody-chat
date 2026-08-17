@@ -14,7 +14,9 @@ describe("dashboard Kody chat route boundary", () => {
     expect(source).toContain(
       'from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody"',
     );
-    expect(source).toContain("export { POST }");
+    expect(source).toContain("export async function POST");
+    expect(source).toContain("requireKodyUser");
+    expect(source).toContain("withPersonalChatUser");
     expect(source.split("\n").length).toBeLessThan(30);
   });
 });

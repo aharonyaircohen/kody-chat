@@ -42,6 +42,7 @@ import {
   observeLanguageModelCalls,
   type ModelCallEvent,
 } from "@kody-ade/kody-chat-dashboard/core/model-call-observer";
+import { getChatModelSettingsProvider } from "./model-settings-provider";
 
 export type ResolvedChatModel = {
   model: LanguageModel;
@@ -196,11 +197,17 @@ export async function resolveChatModel(
   modelId?: string,
   options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
+  const settingsProvider = getChatModelSettingsProvider();
+  const personalSettings = settingsProvider
+    ? await settingsProvider.load(req)
+    : null;
+  const requestSettingsProvider = personalSettings ? settingsProvider : null;
   const availableModels = composeChatModelCatalog(
-    await loadChatModels(req),
+    personalSettings?.models ?? (await loadChatModels(req)),
     KODY_BUILT_IN_CHAT_MODELS,
   );
-  const automatic = await loadAutomaticModel(req);
+  const automatic =
+    personalSettings?.automatic ?? (await loadAutomaticModel(req));
   const effectiveModelId =
     modelId ?? (automatic.default === true ? AUTOMATIC_MODEL_ID : undefined);
   if (effectiveModelId === AUTOMATIC_MODEL_ID) {
@@ -229,7 +236,9 @@ export async function resolveChatModel(
       const resolved = options.preferVision
         ? pickVisionModel(candidate, availableModels)
         : candidate;
-      const apiKey = await getSecret(resolved.apiKeySecret, { req });
+      const apiKey = requestSettingsProvider
+        ? await requestSettingsProvider.getCredential(req, resolved.apiKeySecret)
+        : await getSecret(resolved.apiKeySecret, { req });
       if (!apiKey) {
         return {
           error: NextResponse.json(
@@ -317,7 +326,9 @@ export async function resolveChatModel(
     ? pickVisionModel(selectedModel, availableModels)
     : selectedModel;
 
-  const apiKey = await getSecret(resolvedModel.apiKeySecret, { req });
+  const apiKey = requestSettingsProvider
+    ? await requestSettingsProvider.getCredential(req, resolvedModel.apiKeySecret)
+    : await getSecret(resolvedModel.apiKeySecret, { req });
   if (!apiKey) {
     return {
       error: NextResponse.json(

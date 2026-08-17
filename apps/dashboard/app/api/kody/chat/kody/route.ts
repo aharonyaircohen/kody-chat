@@ -5,8 +5,20 @@
  */
 import "./dashboard-host-tools";
 import "./dashboard-feature-guides";
+import { NextRequest, NextResponse } from "next/server";
+import { POST as packagePost } from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
+import { withPersonalChatUser } from "@dashboard/lib/chat/personal-model-settings";
 
-export { POST } from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody";
+export async function POST(request: NextRequest) {
+  const actor = await requireKodyUser();
+  return packagePost(
+    withPersonalChatUser(
+      request,
+      actor instanceof NextResponse ? null : actor.id,
+    ),
+  );
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 800;

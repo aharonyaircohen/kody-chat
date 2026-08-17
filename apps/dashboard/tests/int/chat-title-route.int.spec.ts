@@ -7,13 +7,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const auth = vi.hoisted(() => ({
-  requireKodyAuth: vi.fn(async () => null),
+  requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
 }));
 
 const generateTextMock = vi.hoisted(() => vi.fn());
 const resolveChatModelMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@dashboard/lib/auth/kody-user", () => auth);
 vi.mock("ai", () => ({
   generateText: generateTextMock,
 }));
@@ -33,7 +33,7 @@ function makeReq(body: unknown): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  auth.requireKodyAuth.mockResolvedValue(null);
+  auth.requireKodyUser.mockResolvedValue({ id: "user-1", label: "Alice" });
   resolveChatModelMock.mockResolvedValue({
     model: { modelId: "mock-model" },
     resolvedModel: { id: "mock-model" },

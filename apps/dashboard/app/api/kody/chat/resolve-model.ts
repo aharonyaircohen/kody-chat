@@ -1,11 +1,25 @@
-/**
- * Dashboard compatibility boundary for package-owned model resolution.
- *
- * Keep all provider routing in the mounted chat package so direct chat,
- * compact, title, and analysis routes cannot drift.
- */
-export {
-  resolveChatModel,
-  type ResolvedChatModel,
+import { NextRequest, NextResponse } from "next/server";
+import {
+  resolveChatModel as resolvePackageChatModel,
   type ResolveChatModelOptions,
 } from "@kody-ade/kody-chat-dashboard/chat/resolve-model";
+import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
+import { withPersonalChatUser } from "@dashboard/lib/chat/personal-model-settings";
+
+export type { ResolvedChatModel, ResolveChatModelOptions } from "@kody-ade/kody-chat-dashboard/chat/resolve-model";
+
+export async function resolveChatModel(
+  request: NextRequest,
+  modelId?: string,
+  options: ResolveChatModelOptions = {},
+) {
+  const actor = await requireKodyUser();
+  return resolvePackageChatModel(
+    withPersonalChatUser(
+      request,
+      actor instanceof NextResponse ? null : actor.id,
+    ),
+    modelId,
+    options,
+  );
+}

@@ -49,6 +49,7 @@ import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
 import type * as runEvents from "../runEvents.js";
 import type * as taskState from "../taskState.js";
+import type * as userCredentials from "../userCredentials.js";
 import type * as userJourneys from "../userJourneys.js";
 import type * as userPreferences from "../userPreferences.js";
 import type * as userState from "../userState.js";
@@ -108,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   reports: typeof reports;
   runEvents: typeof runEvents;
   taskState: typeof taskState;
+  userCredentials: typeof userCredentials;
   userJourneys: typeof userJourneys;
   userPreferences: typeof userPreferences;
   userState: typeof userState;

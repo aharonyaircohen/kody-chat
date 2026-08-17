@@ -727,6 +727,15 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_user", ["namespace", "userKey"]),
 
+  userCredentials: defineTable({
+    userKey: v.string(),
+    name: v.string(),
+    encryptedValue: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_user", ["userKey"])
+    .index("by_user_name", ["userKey", "name"]),
+
   notificationPrefs: defineTable({
     tenantId: v.string(),
     login: v.string(),

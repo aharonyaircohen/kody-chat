@@ -82,8 +82,7 @@ describe("repo-scoped dashboard caches", () => {
     ]);
     expect(modelsQueryKeys.list(scope)).toEqual([
       "kody-chat-models",
-      "A-Guy-educ",
-      "A-Guy",
+      "personal",
     ]);
 
     expect(agentQueryKeys.list(scope)).not.toEqual(agentQueryKeys.list(other));
@@ -108,9 +107,7 @@ describe("repo-scoped dashboard caches", () => {
     expect(instructionsQueryKeys.file(scope)).not.toEqual(
       instructionsQueryKeys.file(other),
     );
-    expect(modelsQueryKeys.list(scope)).not.toEqual(
-      modelsQueryKeys.list(other),
-    );
+    expect(modelsQueryKeys.list(scope)).toEqual(modelsQueryKeys.list(other));
   });
 
   it("fetches repo-owned lists without browser cache", async () => {

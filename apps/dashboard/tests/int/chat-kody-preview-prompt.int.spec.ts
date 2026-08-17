@@ -38,6 +38,10 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: vi.fn(async () => ({})),
 }));
 
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: vi.fn(async () => ({ id: "user_alice" })),
+}));
+
 vi.mock(
   "../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client",
   async (importOriginal) => {
