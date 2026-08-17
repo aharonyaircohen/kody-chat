@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getRequestAuth,
-  requireUserAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireUserAuth } from "@kody-ade/base/auth";
+import { verifyOperatorActor } from "@kody-ade/kody-chat-dashboard/auth/operator-actor";
 import { userTenantIdFor } from "@dashboard/lib/backend/convex-backend";
 
 export type ConversationRequestContext = Readonly<{
@@ -19,7 +16,7 @@ export async function requireConversationContext(
 ): Promise<ConversationRequestContext | NextResponse> {
   const authError = await requireUserAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const actor = await verifyActorLogin(
+  const actor = await verifyOperatorActor(
     req,
     req.headers.get("x-kody-user-login") ?? undefined,
   );

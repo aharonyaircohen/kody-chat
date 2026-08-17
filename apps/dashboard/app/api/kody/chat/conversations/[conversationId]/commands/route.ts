@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyActorLogin } from "@kody-ade/base/auth";
 import { z } from "zod";
 import {
   backendApi,
@@ -46,6 +45,11 @@ const commandSchema = z.discriminatedUnion("kind", [
     view: z.unknown().optional(),
     status: statusSchema,
     updatedAt: z.string().datetime(),
+  }),
+  z.object({
+    kind: z.literal("remove-message"),
+    actorLogin: z.string().min(1).max(100),
+    entryId: z.string().min(1).max(120),
   }),
   z.object({
     kind: z.literal("set-agent"),
@@ -110,8 +114,9 @@ export async function POST(
   ) {
     return invalidBody("Invalid rendered view");
   }
-  const actor = await verifyActorLogin(req, parsed.data.actorLogin);
-  if (actor instanceof NextResponse) return actor;
+  if (parsed.data.actorLogin !== context.actorLogin) {
+    return NextResponse.json({ error: "actor_mismatch" }, { status: 403 });
+  }
   const { conversationId } = await route.params;
   const client = getConvexClient();
 
@@ -133,7 +138,7 @@ export async function POST(
               parsed.data.role === "user"
                 ? {
                     kind: "user",
-                    actorId: `github:${actor.identity.login}`,
+                    actorId: `github:${context.actorLogin}`,
                   }
                 : { kind: "agent", ...parsed.data.agent! },
             content: parsed.data.content,
@@ -155,6 +160,13 @@ export async function POST(
           view: parsed.data.view,
           status: parsed.data.status,
           updatedAt: parsed.data.updatedAt,
+        });
+        break;
+      case "remove-message":
+        await client.mutation(backendApi.conversations.removeMessage, {
+          tenantId: context.tenantId,
+          conversationId,
+          entryId: parsed.data.entryId,
         });
         break;
       case "handoff":
@@ -188,15 +200,12 @@ export async function POST(
         });
         break;
       case "machine-access":
-        await client.mutation(
-          backendApi.conversations.updateMachineAccess,
-          {
-            tenantId: context.tenantId,
-            conversationId,
-            machineAccess: parsed.data.machineAccess,
-            updatedAt: parsed.data.updatedAt,
-          },
-        );
+        await client.mutation(backendApi.conversations.updateMachineAccess, {
+          tenantId: context.tenantId,
+          conversationId,
+          machineAccess: parsed.data.machineAccess,
+          updatedAt: parsed.data.updatedAt,
+        });
         break;
       case "checkpoint":
         await client.mutation(backendApi.conversations.saveCheckpoint, {

@@ -61,6 +61,23 @@ export function getMessageDirection(text: string) {
 
 export const messageTextDirectionStyle = textIsolationStyle;
 
+export function getAssessmentWriterRetryTurnId(
+  message: Message,
+): string | null {
+  if (
+    message.role !== "assistant" ||
+    !parseAssistantContent(message.content).answer.startsWith(
+      "Final report writing failed:",
+    )
+  ) {
+    return null;
+  }
+  if (message.turnId) return message.turnId;
+  return message.id?.startsWith("assistant:")
+    ? message.id.slice("assistant:".length)
+    : null;
+}
+
 const USER_MESSAGE_THEME_STYLE = {
   backgroundColor: "hsl(var(--chat-user, var(--primary)))",
   color: "hsl(var(--chat-user-foreground, var(--primary-foreground)))",
@@ -94,6 +111,8 @@ interface MessageListProps {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   /** Resubmit a user turn after retry/edit trimmed the transcript. */
   onResend: (content: string) => void;
+  /** Retries only final report writing from a failed turn's saved checkpoint. */
+  onRetryAssessmentWriting?: (turnId: string) => void;
   /** True while a turn is in flight (streaming or awaiting first byte). */
   activeLoading: boolean;
   /** Temporary, non-transcript status for automatic model-memory compaction. */
@@ -158,6 +177,7 @@ export function MessageList({
   messages,
   setMessages,
   onResend,
+  onRetryAssessmentWriting,
   activeLoading,
   compactionStatus,
   activeSessionId,
@@ -280,6 +300,7 @@ export function MessageList({
               msg.role === "assistant" &&
               !!msg.view &&
               isRenderedViewDirective(msg.view);
+            const assessmentRetryTurnId = getAssessmentWriterRetryTurnId(msg);
 
             return (
               <div
@@ -324,6 +345,13 @@ export function MessageList({
                     onRetry={
                       msg.role === "assistant" && i === messages.length - 1
                         ? () => {
+                            if (
+                              assessmentRetryTurnId &&
+                              onRetryAssessmentWriting
+                            ) {
+                              onRetryAssessmentWriting(assessmentRetryTurnId);
+                              return;
+                            }
                             // Walk back to the last user message. Drop both that
                             // user turn AND the failed assistant reply — sendText
                             // pushes a fresh user bubble, so trimming both keeps
@@ -340,6 +368,11 @@ export function MessageList({
                             setMessages((prev) => prev.slice(0, userIdx));
                             onResend(lastUserContent);
                           }
+                        : undefined
+                    }
+                    retryLabel={
+                      assessmentRetryTurnId
+                        ? "Retry report writing only"
                         : undefined
                     }
                     onEdit={

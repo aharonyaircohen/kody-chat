@@ -33,6 +33,7 @@ vi.mock("@dashboard/lib/backend/convex-backend", () => ({
       create: "conversations.create",
       get: "conversations.get",
       appendEntry: "conversations.appendEntry",
+      removeMessage: "conversations.removeMessage",
       updateMessage: "conversations.updateMessage",
       updateRuntime: "conversations.updateRuntime",
       updateMachineAccess: "conversations.updateMachineAccess",
@@ -265,6 +266,35 @@ describe("chat conversations route", () => {
       expect.objectContaining({
         entry: expect.objectContaining({ view }),
       }),
+    );
+  });
+
+  it("removes a message from the authenticated user's conversation", async () => {
+    mocks.mutation.mockResolvedValue("entry-id");
+    const request = new NextRequest(
+      "http://localhost/api/kody/chat/conversations/conversation-1/commands",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "remove-message",
+          actorLogin: "alice",
+          entryId: "guided-flow-1",
+        }),
+      },
+    );
+
+    const response = await POST_COMMAND(request, {
+      params: Promise.resolve({ conversationId: "conversation-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith(
+      "conversations.removeMessage",
+      {
+        tenantId: "user:42",
+        conversationId: "conversation-1",
+        entryId: "guided-flow-1",
+      },
     );
   });
 

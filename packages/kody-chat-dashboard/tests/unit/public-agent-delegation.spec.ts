@@ -20,6 +20,7 @@ import {
   synthesizePublicAgentResponse,
   describePublicAgentSynthesisError,
   describePublicAgentEmptySynthesis,
+  retryProjectAssessmentSynthesis,
 } from "../../app/api/kody/chat/kody/public-agent-delegation";
 import { publicAgentPurpose } from "../../app/api/kody/chat/kody/public-agent-definition";
 import { COMPLETE_PROJECT_ASSESSMENT } from "../fixtures/project-assessment-report";
@@ -122,21 +123,23 @@ describe("public Agent delegation", () => {
         data: { error: { message: "maximum context length exceeded" } },
       }),
     ).toBe(
-      "Final report writing failed because DeepSeek rejected the combined input as too large.",
+      "Final report writing failed because the selected model rejected the combined input as too large.",
     );
     expect(
       describePublicAgentSynthesisError({
         statusCode: 429,
         responseBody: "private provider response",
       }),
-    ).toBe("Final report writing failed because DeepSeek was rate-limited.");
+    ).toBe(
+      "Final report writing failed because the selected model was rate-limited.",
+    );
   });
 
-  it("describes why DeepSeek returned no usable final report", () => {
+  it("describes why the selected model returned no usable final report", () => {
     expect(
       describePublicAgentEmptySynthesis({ text: "", finishReason: "length" }),
     ).toBe(
-      "Final report writing failed because DeepSeek returned no text after reaching its output limit.",
+      "Final report writing failed because the selected model returned no text after reaching its output limit.",
     );
     expect(
       describePublicAgentEmptySynthesis({
@@ -144,7 +147,7 @@ describe("public Agent delegation", () => {
         finishReason: "stop",
       }),
     ).toBe(
-      "Final report writing failed because DeepSeek returned reasoning without a final report.",
+      "Final report writing failed because the selected model returned reasoning without a final report.",
     );
     expect(
       describePublicAgentEmptySynthesis({
@@ -152,7 +155,7 @@ describe("public Agent delegation", () => {
         finishReason: "tool-calls",
       }),
     ).toBe(
-      "Final report writing failed because DeepSeek returned a tool call instead of the report.",
+      "Final report writing failed because the selected model returned a tool call instead of the report.",
     );
   });
 
@@ -228,7 +231,7 @@ describe("public Agent delegation", () => {
   });
 
   it("has Kody synthesize one user-facing answer from grounded specialist reports", async () => {
-    const generate = vi.fn(async () => ({
+    const generate = vi.fn(async (_options: unknown) => ({
       text: "Agency is implemented through the inspected repository modules.",
     }));
 
@@ -342,46 +345,56 @@ describe("public Agent delegation", () => {
     });
 
     for (const requiredInstruction of [
-      "## Executive verdict",
+      "Begin with one H1 report title written in the requested report language",
+      "Create exactly 11 H2 sections in the required semantic order",
       "exactly five clear labeled parts",
-      "**Current state:**",
-      "**Main risk:**",
-      "**Maintenance capacity:**",
-      "**Kody's value:**",
-      "**Next step:**",
-      "as much space as needed",
+      "current state, main risk, maintenance capacity, Kody's value, and next step",
+      "proofread the complete report in its requested language",
+      "hard maximum of 2,200 words",
+      "at most five ranked risks",
+      "one compact evidence bullet per specialist",
       "avoid repetition",
-      "## Product readiness",
-      "## Ranked risks",
-      "## Maintenance capacity gap",
-      "## Why Kody matters",
-      "## Kody coverage and proof",
-      "## Advanced continuous QA",
-      "## Technical assessment",
-      "## Specialist findings and evidence",
       "Honor explicit user preferences for report language",
+      "Translate every required section heading and field label into the requested report language",
+      "The assessment must produce a bounded weekly maintenance workload estimate",
+      "separate four capacity dimensions",
+      "repository maintenance, product development, operational ownership and support, and experienced decision authority",
+      "Do not present maintenance hours as total human capacity",
+      "current available capacity against the required capacity",
+      "total weekly experienced-human capacity before and after Kody",
+      "Show Kody-eligible hours separately",
+      "recommend capabilities before roles or headcount",
+      "Do not invent user-count, country-count, revenue, or calendar triggers",
+      "current team experience",
+      "skills required now",
+      "skills required for the stated vision",
+      "product-decision capability",
+      "capability gaps",
+      "development plan",
+      "Evaluate product decisions against the current product size and the user's 12–24 month vision",
+      "current MVP",
+      "early growth",
+      "international scale",
+      "capabilities and weekly human time ranges before suggesting roles",
+      "Subtract Kody only from repeatable work",
       "one compact block per risk",
-      "`**Severity:**`",
-      "`**Business impact:**`",
-      "`**Evidence:**`",
-      "`**Action:**`",
-      "Without Kody versus with Kody",
-      "up to 20 independent maintenance tasks in parallel",
+      "severity, business impact, evidence, and action",
+      "without Kody against operation with Kody",
       "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections",
-      "Proven now, available but untested, or planned",
+      "proven now, available but untested, or planned",
       "continuous user-level QA",
       "predefined Quality Runs, free-form browser QA, continuous scheduling, bug creation, and automatic repair",
-      "Do not invent staffing multipliers or FTE ranges",
+      "explicit work categories and weekly hour ranges",
       "available capacity, tested capacity, and useful capacity",
       "test coverage, maintenance automation, security advice, coding-agent documentation, and continuous product QA",
-      "classify every material claim as `Verified`, `User-provided`, `Inferred`, or `Unverified`",
+      "classify every material claim using four localized classes",
       "A configured file, dependency, test, capability, workflow, or integration proves only that it exists",
       "Proven now requires direct evidence of a relevant successful completed run",
       "Inspect the complete CI workflow",
       "most recent relevant run",
       "Error-reporting code does not prove live alert delivery",
       "Treat an account as automated only when",
-      "Do not estimate required staffing or maintenance time",
+      "do not avoid the estimate merely because exact time tracking is unavailable",
       "Product readiness requires evidence from live behavior",
       "Do not let one section claim a capability is proven while another says it is absent",
       "Recommendations must trace directly to a ranked finding",
@@ -398,6 +411,16 @@ describe("public Agent delegation", () => {
     expect(generate).not.toHaveBeenCalledWith(
       expect.objectContaining({
         system: expect.stringContaining("provide an ordered table"),
+      }),
+    );
+    expect(generate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining("## Executive verdict"),
+      }),
+    );
+    expect(generate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining("**Current state:**"),
       }),
     );
   });
@@ -507,6 +530,124 @@ describe("public Agent delegation", () => {
     );
   });
 
+  it("returns the final validation failure after four writer attempts", async () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+    const onSynthesisFailure = vi.fn();
+
+    const generate = vi.fn(async () => ({
+      text: "# Project assessment\n\n## Executive verdict\n\nStill incomplete.",
+      finishReason: "stop",
+    }));
+    const answer = await synthesizePublicAgentResponse({
+      userText: "Run the assessment.",
+      assignments,
+      assignedAgents: roster,
+      results: assignments.map(() => ({
+        status: "completed" as const,
+        agent: "repo-scout",
+        result: "Grounded finding.",
+        evidence: "Verified evidence.",
+      })),
+      model: {} as never,
+      generate: generate as never,
+      onSynthesisFailure,
+    });
+
+    expect(answer).toBe(
+      "Final report writing failed: missing section ‘2’. The same-run specialist findings were preserved for a writer-only retry.",
+    );
+    expect(onSynthesisFailure).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("missing_section (2)"),
+      }),
+    );
+    expect(generate).toHaveBeenCalledTimes(4);
+  });
+
+  it("accepts a valid assessment on the fourth writer attempt", async () => {
+    const assignments = Array.from({ length: 10 }, (_, index) => ({
+      agent: "repo-scout",
+      capability: `assess-track-${index}`,
+      task: `Assess track ${index}.`,
+    }));
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: "<think>drafting</think>",
+        finishReason: "stop",
+      })
+      .mockResolvedValueOnce({
+        text: "<think>still drafting</think>",
+        finishReason: "stop",
+      })
+      .mockResolvedValueOnce({ text: "", finishReason: "stop" })
+      .mockResolvedValueOnce({
+        text: COMPLETE_PROJECT_ASSESSMENT,
+        finishReason: "stop",
+      });
+
+    const answer = await synthesizePublicAgentResponse({
+      userText: "Run the assessment.",
+      assignments,
+      assignedAgents: roster,
+      results: assignments.map(() => ({
+        status: "completed" as const,
+        agent: "repo-scout",
+        result: "Grounded finding.",
+        evidence: "Verified evidence.",
+      })),
+      model: {} as never,
+      generate: generate as never,
+    });
+
+    expect(answer).toBe(COMPLETE_PROJECT_ASSESSMENT);
+    expect(generate).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries assessment writing from only the saved same-run packet", async () => {
+    const generate = vi.fn(async (_options: unknown) => ({
+      text: COMPLETE_PROJECT_ASSESSMENT,
+      finishReason: "stop",
+    }));
+
+    const answer = await retryProjectAssessmentSynthesis({
+      recovery: {
+        kind: "project-assessment-synthesis",
+        version: 1,
+        system: "assessment writer",
+        userMessage: "same-run specialist packet",
+        internalLinks: [],
+        repository: { owner: "A-Guy-educ", repo: "A-Guy-Web" },
+        createdAt: "2026-08-16T00:00:00.000Z",
+      },
+      model: {} as never,
+      generate: generate as never,
+    });
+
+    expect(answer).toBe(COMPLETE_PROJECT_ASSESSMENT);
+    expect(generate).toHaveBeenCalledTimes(1);
+    const generationOptions = generate.mock.calls[0]?.[0] as
+      { system?: string } | undefined;
+    expect(generationOptions?.system).not.toContain(
+      "Keep the required English section headings and labels unchanged",
+    );
+    expect(generationOptions?.system).not.toContain(
+      "up to 20 independent maintenance tasks in parallel",
+    );
+    expect(generate.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        system: expect.stringContaining("hard maximum of 2,200 words"),
+        messages: expect.arrayContaining([
+          { role: "user", content: "same-run specialist packet" },
+        ]),
+      }),
+    );
+  });
+
   it("reports the provider finish reason when assessment synthesis returns no text", async () => {
     const assignments = Array.from({ length: 10 }, (_, index) => ({
       agent: "repo-scout",
@@ -534,7 +675,7 @@ describe("public Agent delegation", () => {
         onSynthesisFailure,
       }),
     ).resolves.toBe(
-      "Final report writing failed because DeepSeek returned no text after reaching its output limit.",
+      "Final report writing failed because the selected model returned no text after reaching its output limit.",
     );
     expect(onSynthesisFailure).toHaveBeenCalledWith(expect.any(Error));
   });

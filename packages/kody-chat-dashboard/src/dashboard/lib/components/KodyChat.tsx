@@ -102,8 +102,10 @@ import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import {
-  conversationIdForGuidedFlowOpen,
+  guidedFlowMessageId,
   locationAfterGuidedFlowLaunch,
+  replaceGuidedFlowChatMessage,
+  shouldAutoResumeGuidedFlows,
 } from "../guided-flows/chat-launch";
 import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
 import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
@@ -255,15 +257,9 @@ export function KodyChat({
       if (guidedFlowOpenInFlightRef.current.has(requestKey)) return false;
       guidedFlowOpenInFlightRef.current.add(requestKey);
       try {
-        // Starting a flow is a new chat run. Reusing the current conversation
-        // leaves the previous completed flow visible and makes a restart look
-        // like it resumed from the old run. Explicit resume requests below
-        // intentionally keep the current conversation.
-        const conversationId = conversationIdForGuidedFlowOpen(
-          request,
-          activeGuidedFlowSessionIdRef.current,
-          createGuidedFlowSessionRef.current,
-        );
+        const conversationId =
+          activeGuidedFlowSessionIdRef.current ??
+          createGuidedFlowSessionRef.current();
         activeGuidedFlowSessionIdRef.current = conversationId;
         const response =
           "flowId" in request
@@ -354,7 +350,11 @@ export function KodyChat({
     void openGuidedFlow(guidedFlowRequest.request).finally(() => {
       onGuidedFlowRequestHandled?.(guidedFlowRequest.id);
     });
-  }, [guidedFlowRequest, onGuidedFlowRequestHandled, openGuidedFlow]);
+  }, [
+    guidedFlowRequest,
+    onGuidedFlowRequestHandled,
+    openGuidedFlow,
+  ]);
 
   useEffect(() => {
     if (
@@ -1019,16 +1019,29 @@ export function KodyChat({
   }, [activeChatSessionId]);
 
   useEffect(() => {
-    if (!sessionHook.hydrated) return;
-    const activeSessionId = activeChatSessionId;
-    if (lockedAgentSlug || messages.length > 0) {
-      setResumedGuidedFlowMessage((current) =>
-        current?.message.view?.rendererSlug === "guided-flow-status"
-          ? null
-          : current,
-      );
+    if (guidedFlowRequest) {
+      setResumedGuidedFlowMessage(null);
       return;
     }
+    if (
+      !shouldAutoResumeGuidedFlows({
+        hydrated: sessionHook.hydrated,
+        activeSessionId: activeChatSessionId,
+        lockedAgentSlug,
+        messageCount: messages.length,
+        guidedFlowRequest,
+      })
+    ) {
+      if (lockedAgentSlug || messages.length > 0) {
+        setResumedGuidedFlowMessage((current) =>
+          current?.message.view?.rendererSlug === "guided-flow-status"
+            ? null
+            : current,
+        );
+      }
+      return;
+    }
+    const activeSessionId = activeChatSessionId;
     if (!activeSessionId) return;
     setOpeningStatusCheckedSessionId(null);
 
@@ -1163,6 +1176,7 @@ export function KodyChat({
     lockedAgentSlug,
     messages.length,
     activeChatSessionId,
+    guidedFlowRequest,
     sessionHook.hydrated,
     openingActions,
   ]);
@@ -1344,7 +1358,15 @@ export function KodyChat({
       : `${sessionId}:${message.timestamp}`;
     if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
     persistedGuidedFlowViewKeysRef.current.add(viewKey);
-    setMessagesForSession(sessionId, (previous) => [...previous, message]);
+    const persistedMessage = {
+      ...message,
+      ...(guidedFlowMessageId(message)
+        ? { id: guidedFlowMessageId(message) }
+        : {}),
+    };
+    setMessagesForSession(sessionId, (previous) =>
+      replaceGuidedFlowChatMessage(previous, persistedMessage),
+    );
   };
   const activeLoading = messages.some((m) => m.isLoading);
   const { compactionStatus, setCompactionStatus } = useCompactionStatus(
@@ -2493,8 +2515,7 @@ export function KodyChat({
               role="alert"
               className="mx-4 mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              Conversation could not be saved. Check your connection and try
-              again.
+              {sessionHook.persistenceError}
             </div>
           ) : null}
           <MessageList
@@ -2503,6 +2524,11 @@ export function KodyChat({
             setMessages={setMessages}
             onResend={(content) => {
               void sendText(content, []);
+            }}
+            onRetryAssessmentWriting={(turnId) => {
+              void sendText("Retry report writing only", [], {
+                retryAssessmentTurnId: turnId,
+              });
             }}
             activeLoading={activeLoading}
             compactionStatus={compactionStatus}

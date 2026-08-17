@@ -1,4 +1,5 @@
 export const COMPLETE_PROJECT_ASSESSMENT = [
+  "# Project assessment",
   "## Executive verdict",
   "**Current state:** The product has a working foundation.",
   "**Main risk:** Maintenance ownership is too concentrated.",

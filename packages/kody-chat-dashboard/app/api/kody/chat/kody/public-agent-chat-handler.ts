@@ -4,7 +4,10 @@ import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import type { PublicAgentTaskResult } from "./public-agent-delegation";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentRouteDecision } from "./public-agent-routing";
-import type { DurableTurn } from "../durable-turn";
+import type {
+  DurableTurn,
+  ProjectAssessmentSynthesisRecovery,
+} from "../durable-turn";
 import {
   writePublicAgentResponse,
   type PublicAgentResponseWriter,
@@ -18,7 +21,7 @@ type FailedPublicAgentTaskResult = Extract<
 
 type PublicAgentDurableTurn = Pick<
   DurableTurn,
-  "recordProgress" | "complete" | "fail"
+  "recordProgress" | "saveRecovery" | "complete" | "fail"
 >;
 
 interface PublicAgentOrchestrationResult {
@@ -42,6 +45,10 @@ interface HandlePublicAgentChatOptions {
     decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
     results: readonly PublicAgentTaskResult[],
   ): Promise<string>;
+  buildRecovery?: (
+    decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
+    results: readonly PublicAgentTaskResult[],
+  ) => ProjectAssessmentSynthesisRecovery | null;
   present?: (
     decision: Extract<PublicAgentRouteDecision, { mode: "delegate" }>,
     results: readonly PublicAgentTaskResult[],
@@ -75,6 +82,7 @@ export async function handlePublicAgentChat({
   route,
   orchestrate,
   synthesize,
+  buildRecovery,
   present,
   startDurableTurn,
   formatStreamError,
@@ -127,6 +135,9 @@ export async function handlePublicAgentChat({
             }
           : {}),
         synthesize: (results) => synthesize(decision, results),
+        ...(buildRecovery
+          ? { buildRecovery: (results) => buildRecovery(decision, results) }
+          : {}),
         startDurableTurn,
         onDurableStartFailure,
         onDurableCompleteFailure,

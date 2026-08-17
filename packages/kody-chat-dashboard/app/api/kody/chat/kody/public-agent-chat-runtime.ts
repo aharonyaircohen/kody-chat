@@ -2,6 +2,7 @@ import { generateText, type ToolSet } from "ai";
 
 import {
   buildPublicAgentChildSystem,
+  buildPublicAgentSynthesisInput,
   buildPublicAgentReference,
   requiresPublicAgentToolEvidence,
   runIsolatedPublicAgentTaskWithRetry,
@@ -21,8 +22,11 @@ import {
 } from "./public-agent-orchestrator";
 import { routePublicAgentTask } from "./public-agent-routing";
 import type { DurableTurn } from "../durable-turn";
+import type { ProjectAssessmentSynthesisRecovery } from "../durable-turn";
 import {
   INVALID_PROJECT_ASSESSMENT_MESSAGE,
+  projectAssessmentBody,
+  projectAssessmentTitle,
   validateProjectAssessmentReport,
 } from "./project-assessment-report";
 
@@ -57,7 +61,7 @@ interface HandleConfiguredPublicAgentChatOptions {
   requireViewOutput: boolean;
   startDurableTurn?: () => Pick<
     DurableTurn,
-    "recordProgress" | "complete" | "fail"
+    "recordProgress" | "saveRecovery" | "complete" | "fail"
   >;
   telemetry: PublicAgentTelemetry;
 }
@@ -97,11 +101,15 @@ export async function publishProjectAssessmentReport({
       published: false,
     };
   }
+  const title = projectAssessmentTitle(answer);
+  if (!title) {
+    return { answer: INVALID_PROJECT_ASSESSMENT_MESSAGE, published: false };
+  }
   try {
     const result = await publishTool.execute({
       slug: "project-assessment",
-      title: "Kody project assessment",
-      body: answer,
+      title,
+      body: projectAssessmentBody(answer),
     });
     if (
       result &&
@@ -229,6 +237,34 @@ export async function handleConfiguredPublicAgentChat({
         publishTool: specialistTools.publish_report as PublishTool | undefined,
       });
       return published.answer;
+    },
+    buildRecovery: (
+      decision,
+      results,
+    ): ProjectAssessmentSynthesisRecovery | null => {
+      if (
+        !isCompleteProjectAssessmentAssignments(decision.assignments) ||
+        !repository
+      ) {
+        return null;
+      }
+      const input = buildPublicAgentSynthesisInput({
+        userText,
+        assignments: decision.assignments,
+        assignedAgents,
+        results,
+      });
+      const userMessage = input.messages[0]?.content;
+      if (typeof userMessage !== "string") return null;
+      return {
+        kind: "project-assessment-synthesis",
+        version: 1,
+        system: input.system,
+        userMessage,
+        internalLinks: results.flatMap((result) => result.internalLinks ?? []),
+        repository,
+        createdAt: new Date().toISOString(),
+      };
     },
     present: (decision, results, parentTools, writer) => {
       if (isCompleteProjectAssessmentAssignments(decision.assignments)) {

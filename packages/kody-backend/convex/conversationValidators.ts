@@ -46,6 +46,16 @@ export const conversationTurnProgressValidator = v.object({
   ),
 });
 
+export const conversationTurnRecoveryValidator = v.object({
+  kind: v.literal("project-assessment-synthesis"),
+  version: v.literal(1),
+  system: v.string(),
+  userMessage: v.string(),
+  internalLinks: v.array(v.object({ href: v.string(), label: v.string() })),
+  repository: v.object({ owner: v.string(), repo: v.string() }),
+  createdAt: v.string(),
+});
+
 export const conversationAuthorValidator = v.union(
   v.object({ kind: v.literal("user"), actorId: v.string() }),
   v.object({

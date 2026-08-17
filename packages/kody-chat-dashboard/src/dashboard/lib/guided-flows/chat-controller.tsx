@@ -78,10 +78,6 @@ export function isGuidedFlowOpenRequest(
 export interface GuidedFlowChatController {
   readonly pending: GuidedFlowChatState["pending"];
   readonly startFlow: (flowId: string, instanceKey?: string) => void;
-  readonly openInstance: (
-    instanceId: string,
-    message?: "started" | "resumed",
-  ) => void;
   readonly startFlowInChat: (flowId: string, instanceKey?: string) => void;
   readonly resumeFlow: (instanceId: string) => void;
   readonly acknowledge: (requestId: string) => void;
@@ -123,11 +119,6 @@ export function GuidedFlowChatProvider({
       }),
     [request],
   );
-  const openInstance = useCallback(
-    (instanceId: string, message: "started" | "resumed" = "resumed") =>
-      request({ instanceId, message }),
-    [request],
-  );
   const startFlowInChat = useCallback(
     (flowId: string, instanceKey?: string) =>
       request(
@@ -151,7 +142,6 @@ export function GuidedFlowChatProvider({
   const value = useMemo<GuidedFlowChatController>(
     () => ({
       pending: state.pending,
-      openInstance,
       startFlow,
       startFlowInChat,
       resumeFlow,
@@ -159,7 +149,6 @@ export function GuidedFlowChatProvider({
     }),
     [
       acknowledge,
-      openInstance,
       resumeFlow,
       startFlow,
       startFlowInChat,

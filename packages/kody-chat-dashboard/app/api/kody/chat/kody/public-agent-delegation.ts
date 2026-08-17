@@ -18,9 +18,10 @@ import {
   PUBLIC_AGENT_TASK_TIMEOUT_MS,
 } from "./public-agent-limits";
 import {
-  INVALID_PROJECT_ASSESSMENT_MESSAGE,
+  describeProjectAssessmentValidationFailure,
   validateProjectAssessmentReport,
 } from "./project-assessment-report";
+import type { ProjectAssessmentSynthesisRecovery } from "../durable-turn";
 
 export {
   PUBLIC_AGENT_DEFAULT_MAX_STEPS,
@@ -79,6 +80,13 @@ const MAX_PROJECT_ASSESSMENT_CONCLUSION_CHARS = 1_800;
 const PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS = 25_000;
 export const PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS = 480_000;
 export const PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS = 12_000;
+export const PROJECT_ASSESSMENT_WRITER_MAX_ATTEMPTS = 4;
+const PROJECT_ASSESSMENT_REPORT_BUDGET_INSTRUCTIONS = [
+  "The complete report has a hard maximum of 2,200 words. Finish every required section within that limit; never trade completeness for extra detail.",
+  "Include at most five ranked risks. Deduplicate related findings and keep each labeled risk line to one sentence.",
+  "In the final specialist-findings section, include one compact evidence bullet per specialist, with no more than two sentences per bullet.",
+  "Keep each other section concise: use short paragraphs or bullets, retain only decision-relevant evidence, and avoid repeating the same fact across sections.",
+].join("\n");
 const SINGLE_PUBLIC_AGENT_SYNTHESIS_TIMEOUT_MS = 25_000;
 export const PUBLIC_AGENT_SYNTHESIS_FAILURE_MESSAGE =
   "I could not prepare a reliable answer from the available specialist evidence. Would you like me to retry or use another model?";
@@ -116,13 +124,13 @@ export function describePublicAgentSynthesisError(error: unknown): string {
       detail,
     )
   ) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek rejected the combined input as too large.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model rejected the combined input as too large.`;
   }
   if (candidate.statusCode === 429 || /rate.?limit/.test(detail)) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek was rate-limited.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model was rate-limited.`;
   }
   if (/max(?:imum)? output|output tokens|length limit/.test(detail)) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek reached its output limit.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model reached its output limit.`;
   }
   return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the model provider rejected or ended the request unexpectedly.`;
 }
@@ -136,21 +144,21 @@ export function describePublicAgentEmptySynthesis({
 }): string {
   const normalizedFinishReason = finishReason?.trim().toLowerCase();
   if (!text.trim() && normalizedFinishReason === "length") {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned no text after reaching its output limit.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model returned no text after reaching its output limit.`;
   }
   if (containsToolCallMarkup(text)) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned a tool call instead of the report.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model returned a tool call instead of the report.`;
   }
   if (/<think>|<\/think>|\breasoning\b/i.test(text)) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned reasoning without a final report.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model returned reasoning without a final report.`;
   }
   if (!text.trim()) {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned no report text (finish reason: ${normalizedFinishReason || "unknown"}).`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model returned no report text (finish reason: ${normalizedFinishReason || "unknown"}).`;
   }
   if (normalizedFinishReason === "length") {
-    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek reached its output limit before producing a usable report.`;
+    return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model reached its output limit before producing a usable report.`;
   }
-  return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because DeepSeek returned text that could not be used as the report (finish reason: ${normalizedFinishReason || "unknown"}).`;
+  return `${PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX} because the selected model returned text that could not be used as the report (finish reason: ${normalizedFinishReason || "unknown"}).`;
 }
 
 export function isCompleteProjectAssessmentAssignments(
@@ -444,22 +452,32 @@ export function buildPublicAgentSynthesisInput({
       ...(completeProjectAssessment
         ? [
             "This is a complete project assessment for a CEO, product owner, and technical leader. Lead with the product and business decision; put technical detail in the second part at the bottom.",
-            "Honor explicit user preferences for report language, emphasis, and presentation. Keep the required English section headings and labels unchanged for reliable validation, but write their explanatory content in the requested language.",
-            "Use exactly these main sections in this order: `## Executive verdict`, `## Product readiness`, `## Ranked risks`, `## Maintenance capacity gap`, `## Why Kody matters`, `## Kody coverage and proof`, `## Advanced continuous QA`, `## Recommended 30-day decisions`, `## Recommended 90-day outcomes`, `## Technical assessment`, and `## Specialist findings and evidence`.",
-            "Under `## Executive verdict`, write exactly five clear labeled parts in this order: `**Current state:**`, `**Main risk:**`, `**Maintenance capacity:**`, `**Kody's value:**`, and `**Next step:**`. Use plain business language and as much space as needed to preserve important context, but avoid repetition, introductory filler, tables, repository paths, and implementation details.",
-            "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections. Put them under `## Technical assessment` and `## Specialist findings and evidence`.",
-            "In `## Ranked risks`, present risks in priority order using one compact block per risk, not a table. Start each block with a numbered risk title, followed by exactly four short labeled lines: `**Severity:**`, `**Business impact:**`, `**Evidence:**`, and `**Action:**`. Use Critical, High, Medium, or Low severity; include confidence in Evidence and urgency plus the accountable owner in Action. Explain what happens to customers, delivery, revenue, trust, or operations if each risk is ignored.",
-            "Under `## Maintenance capacity gap`, use exactly these labeled parts in order: `**Current humans:**`, `**Available human time:**`, `**Required maintenance:**`, `**Gap:**`, `**Kody assistance:**`, and `**Human ownership:**`. Compare the people currently doing maintenance and their real available time with the maintainable capacity the evidence supports. Explain the business consequence, the work Kody can assist with, and the work that still requires an accountable person. Do not estimate required staffing or maintenance time unless explicit work categories, hours, and supported bounds are available; otherwise state exactly what is unknown and how to measure it.",
-            "Under `## Why Kody matters`, compare Without Kody versus with Kody and use exactly these labeled parts in order: `**Without Kody:**`, `**With Kody:**`, `**Advantages:**`, and `**Limits:**`. Present Kody as continuous assistance to the human team: detection, explanation, prioritization, proposed fixes, safe routine execution, and validation. Explain the supported advantages, including continuous attention, repository context, consistent prioritization, and reduced repeated investigation. Cover continuous remote operation and the declared capacity for up to 20 independent maintenance tasks in parallel, but present that capacity as unverified unless current platform evidence proves it. Do not imply that Kody replaces product judgment, prioritization, architecture decisions, security approval, review, or ownership.",
-            "Add `## Kody coverage and proof` before the recommendations. Evaluate test coverage, maintenance automation, security advice, coding-agent documentation, and continuous product QA. For each area state the customer outcome, current evidence, human responsibility, success metric, and one status: Proven now, available but untested, or planned.",
-            "Add `## Advanced continuous QA` immediately after `## Kody coverage and proof`. Treat continuous user-level QA as distinct from ordinary test coverage. Verify predefined Quality Runs, free-form browser QA, continuous scheduling, bug creation, and automatic repair; then verify fix validation and human approval separately. Never describe a read-only QA pass as an automatic fix loop.",
-            "For Kody's parallelism, distinguish available capacity, tested capacity, and useful capacity. Available machines or uncapped workflows do not prove safe throughput; useful capacity means independently completed work that passes validation and human review.",
-            "Do not invent staffing multipliers or FTE ranges. Estimate the maintenance gap from explicit work categories and hours, show assumptions, and use a range only when evidence supports its bounds.",
+            "Honor explicit user preferences for report language, emphasis, and presentation. Translate every required section heading and field label into the requested report language; do not leave structural text in English unless English was requested.",
+            "Begin with one H1 report title written in the requested report language. The title must describe the complete project assessment, not only its first section.",
+            "Create exactly 11 H2 sections in the required semantic order: executive decision summary; product readiness; ranked risks; maintenance-capacity gap; why Kody matters; Kody coverage and proof; advanced continuous product QA; recommended decisions for the next 30 days; recommended outcomes for the next 90 days; technical assessment; specialist findings and evidence. Write each heading naturally in the requested report language instead of copying these English descriptions.",
+            "Before returning the report, proofread the complete report in its requested language. Correct spelling, grammar, truncated words, mixed-language structural labels, and malformed sentences without changing facts, numbers, evidence classifications, or recommendations.",
+            PROJECT_ASSESSMENT_REPORT_BUDGET_INSTRUCTIONS,
+            "In the first H2 section, write exactly five clear labeled parts in this order: current state, main risk, maintenance capacity, Kody's value, and next step. Localize every label. Use plain business language, preserve important context, and avoid repetition, introductory filler, tables, repository paths, and implementation details.",
+            "Keep repository paths, implementation details, and specialist-level evidence out of the leadership sections. Put them in the technical-assessment and final specialist-findings sections.",
+            "In the ranked-risks section, present risks in priority order using one compact block per risk, not a table. Start each block with a numbered risk title, followed by exactly four short localized labeled lines covering severity, business impact, evidence, and action. Use four descending localized severity levels equivalent to critical, high, medium, and low; include confidence in the evidence and urgency plus the accountable owner in the action. Explain what happens to customers, delivery, revenue, trust, or operations if each risk is ignored.",
+            "In the maintenance-capacity section, use exactly six localized labeled parts in this order: current humans, available human time, required maintenance, gap, Kody assistance, and human ownership. Compare the people currently doing maintenance and their real available time with the maintainable capacity the evidence supports. Explain the business consequence, the work Kody can assist with, and the work that still requires an accountable person. The assessment must produce a bounded weekly maintenance workload estimate: derive explicit ranges for testing and QA, dependencies and security, operations and incidents, and technical debt from repository size, change activity, automation gaps, and the user's operating context. Show assumptions and confidence; do not avoid the estimate merely because exact time tracking is unavailable.",
+            "For human-capacity analysis, separate four capacity dimensions: repository maintenance, product development, operational ownership and support, and experienced decision authority. Estimate each dimension independently before calculating the total. Do not present maintenance hours as total human capacity, and do not treat code volume alone as proof of staffing need.",
+            "Compare the current available capacity against the required capacity in both weekly hours and capability coverage. Separate lack of time from lack of experience, name the uncovered accountable decisions, and explain the business consequence of each material gap.",
+            "Inside the maintenance-capacity section, add an H3 subsection about team experience and product leadership after the workload comparison. Use exactly six localized labeled parts in this order covering current team experience, skills required now, skills required for the stated vision, product-decision capability, capability gaps, and the development plan. Treat user-provided team experience as authoritative operating context. Separate lack of available time from lack of experience. Identify the concrete product, educational-domain, UX research, architecture, security and privacy, production operations, data, localization, and customer-support skills that are required now versus at the stated future scale. Recommend staged access to experienced leadership, mentoring, hiring, or specialist review without inventing named roles or headcount unsupported by the gap.",
+            "Evaluate product decisions against the current product size and the user's 12–24 month vision. State whether the team can presently make and validate decisions about target users, learning outcomes, roadmap priority, internationalization, architecture, operating cost, privacy, and scale. Explain which decisions need customer evidence, educational expertise, technical validation, or accountable senior review. Do not treat repository quality as proof of product-decision quality.",
+            "Inside the maintenance-capacity section, add an H3 subsection about growth-stage human capacity after the team-experience subsection. Analyze exactly three localized stages equivalent to the current MVP, early growth, and international scale. For each stage state the capabilities required, a bounded weekly range of experienced human involvement, the evidence and assumptions behind the range, which responsibilities need accountable ownership, and the trigger that makes the next stage necessary. Present capabilities and weekly human time ranges before suggesting roles or headcount; one person may cover multiple capabilities when the evidence supports it.",
+            "For every growth stage, provide total weekly experienced-human capacity before and after Kody across all four dimensions. Show Kody-eligible hours separately from work that cannot be delegated, avoid double-counting overlapping responsibilities, and recommend capabilities before roles or headcount. Do not invent user-count, country-count, revenue, or calendar triggers; use only evidence-backed triggers and clearly label unknown thresholds.",
+            "Subtract Kody only from repeatable work such as continuous QA, investigation, prioritization support, routine low-risk fixes, documentation, and validation. Do not reduce experienced-human estimates for product judgment, educational quality, architecture approval, privacy and security accountability, incident ownership, customer discovery, or final prioritization. Show the human requirement both before and after Kody assistance so Kody's contribution is explicit and credible.",
+            "In the section explaining why Kody matters, compare operation without Kody against operation with Kody and use exactly four localized labeled parts covering the two states, advantages, and limits. Present Kody as continuous assistance to the human team: detection, explanation, prioritization, proposed fixes, safe routine execution, and validation. Explain the supported advantages, including continuous attention, repository context, consistent prioritization, and reduced repeated investigation. Mention throughput or parallel-task capacity only when current evidence from the assessed repository makes it relevant. Do not imply that Kody replaces product judgment, prioritization, architecture decisions, security approval, review, or ownership.",
+            "In the Kody coverage-and-proof section, evaluate test coverage, maintenance automation, security advice, coding-agent documentation, and continuous product QA. For each area state the customer outcome, current evidence, human responsibility, success metric, and one localized status equivalent to proven now, available but untested, or planned.",
+            "In the advanced continuous-QA section, treat continuous user-level QA as distinct from ordinary test coverage. Verify predefined Quality Runs, free-form browser QA, continuous scheduling, bug creation, and automatic repair; then verify fix validation and human approval separately. Never describe a read-only QA pass as an automatic fix loop.",
+            "When repository evidence makes Kody parallelism relevant, distinguish available capacity, tested capacity, and useful capacity. Available machines or uncapped workflows do not prove safe throughput; useful capacity means independently completed work that passes validation and human review.",
+            "Estimate the maintenance gap from explicit work categories and weekly hour ranges, show assumptions, and label confidence. Never substitute 'not measured' for the bounded estimate this assessment is responsible for producing.",
             "Do not call the whole product unready for production when the evidence supports only a narrower limit. State the exact operating mode that is unsafe, such as unattended multi-customer production.",
             "Keep risks separate when they have different causes, owners, or remedies. Preserve material security findings across tracks, resolve contradictions explicitly, and label absence claims as `not found` or `not confirmed` rather than proven absence.",
             "Make Kody's value measurable through outcomes such as maintenance backlog reduction, time to detect, time to repair, CI health, security-update latency, and human maintenance time saved. State plainly when Kody is not yet reliable enough to deliver those outcomes.",
             "Keep uncertainties explicit, separate facts from estimates, and preserve concrete technical evidence only in the technical sections.",
-            "Evidence discipline: classify every material claim as `Verified`, `User-provided`, `Inferred`, or `Unverified`. Put the classification in the nearest Evidence line or technical evidence entry so leadership prose stays readable. Verified requires direct current evidence; User-provided must preserve the submitted wording and remain separate from repository evidence; Inferred must state the reasoning; Unverified must state what proof is missing.",
+            "Evidence discipline: classify every material claim using four localized classes equivalent to directly verified, user-provided, inferred, or unverified. Put the classification in the nearest evidence line or technical evidence entry so leadership prose stays readable. Direct verification requires current evidence; user-provided context must preserve the submitted wording and remain separate from repository evidence; inference must state the reasoning; unverified claims must state what proof is missing.",
             "A configured file, dependency, test, capability, workflow, or integration proves only that it exists. It does not prove correct configuration, live operation, reliability, customer outcome, security, or scale. Proven now requires direct evidence of a relevant successful completed run and its validation; configuration alone means available but untested, and an absent implementation means planned.",
             "Inspect the complete CI workflow, including commands, job conditions, event filters, and required dependencies, before describing coverage. Distinguish always-run tests, release-only gates, manually dispatched suites, and tests that merely exist. Determine current health from the most recent relevant run at the assessment cutoff; describe older failures as a trend, not the current state, when a newer success exists.",
             "Separate application error capture, workflow-failure notification, escalation, and human acknowledgement. Error-reporting code does not prove live alert delivery, but its presence also forbids a broad claim that no observability or alerting exists; state the exact unconfirmed path and configuration.",
@@ -551,11 +569,15 @@ export async function synthesizePublicAgentResponse({
   }
   let answer = parsePublicAgentGeneratedAnswer(response.text);
   if (completeProjectAssessment) {
-    const validation = validateProjectAssessmentReport({
+    let validation = validateProjectAssessmentReport({
       text: answer,
       finishReason: response.finishReason,
     });
-    if (!validation.valid) {
+    for (
+      let attempt = 1;
+      !validation.valid && attempt < PROJECT_ASSESSMENT_WRITER_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
       try {
         response = await generate({
           ...generationOptions,
@@ -577,19 +599,21 @@ export async function synthesizePublicAgentResponse({
         return describePublicAgentSynthesisError(error);
       }
       answer = parsePublicAgentGeneratedAnswer(response.text);
-      const retryValidation = validateProjectAssessmentReport({
+      validation = validateProjectAssessmentReport({
         text: answer,
         finishReason: response.finishReason,
       });
-      if (!retryValidation.valid) {
-        const failureMessage = answer
-          ? INVALID_PROJECT_ASSESSMENT_MESSAGE
-          : describePublicAgentEmptySynthesis(response);
-        onSynthesisFailure?.(
-          new Error(`${failureMessage} (${retryValidation.reason})`),
-        );
-        return failureMessage;
-      }
+    }
+    if (!validation.valid) {
+      const failureMessage = answer
+        ? describeProjectAssessmentValidationFailure(validation)
+        : describePublicAgentEmptySynthesis(response);
+      onSynthesisFailure?.(
+        new Error(
+          `${failureMessage} (${validation.reason}${validation.detail ? ` (${validation.detail})` : ""})`,
+        ),
+      );
+      return failureMessage;
     }
   }
   return appendPublicAgentInternalLinks(
@@ -603,6 +627,72 @@ export async function synthesizePublicAgentResponse({
     }),
     results,
   );
+}
+
+/** Rewrites a failed assessment from that turn's saved specialist packet only. */
+export async function retryProjectAssessmentSynthesis({
+  recovery,
+  model,
+  generate = generateText,
+  onSynthesisFailure,
+}: {
+  recovery: ProjectAssessmentSynthesisRecovery;
+  model: Parameters<typeof generateText>[0]["model"];
+  generate?: typeof generateText;
+  onSynthesisFailure?: (error: unknown) => void;
+}): Promise<string> {
+  const generationOptions = {
+    model,
+    abortSignal: AbortSignal.timeout(PROJECT_ASSESSMENT_SYNTHESIS_TIMEOUT_MS),
+    system: `${recovery.system}\n${PROJECT_ASSESSMENT_REPORT_BUDGET_INSTRUCTIONS}`,
+    tools: undefined,
+    maxOutputTokens: PROJECT_ASSESSMENT_SYNTHESIS_MAX_OUTPUT_TOKENS,
+  } as const;
+  let validationIssue = "The previous report draft was incomplete.";
+  for (
+    let attempt = 0;
+    attempt < PROJECT_ASSESSMENT_WRITER_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    try {
+      const response = await generate({
+        ...generationOptions,
+        messages: [
+          { role: "user", content: recovery.userMessage },
+          {
+            role: "user",
+            content: `${validationIssue} Rewrite the final report from these same specialist source packets. Include every required section and label. Do not call tools or emit tool-call JSON.`,
+          },
+        ],
+      });
+      const answer = parsePublicAgentGeneratedAnswer(response.text);
+      const validation = validateProjectAssessmentReport({
+        text: answer,
+        finishReason: response.finishReason,
+      });
+      if (validation.valid) {
+        return appendPublicAgentInternalLinks(answer, [
+          {
+            agent: "assessment-retry",
+            status: "completed",
+            result: "",
+            internalLinks: recovery.internalLinks,
+          },
+        ]);
+      }
+      validationIssue = `Validation issue: ${validation.reason}${validation.detail ? ` (${validation.detail})` : ""}.`;
+      if (attempt === PROJECT_ASSESSMENT_WRITER_MAX_ATTEMPTS - 1) {
+        const failureMessage =
+          describeProjectAssessmentValidationFailure(validation);
+        onSynthesisFailure?.(new Error(`${failureMessage} ${validationIssue}`));
+        return failureMessage;
+      }
+    } catch (error) {
+      onSynthesisFailure?.(error);
+      return describePublicAgentSynthesisError(error);
+    }
+  }
+  throw new Error("Unreachable assessment retry state");
 }
 
 export function buildPublicAgentChildSystem({

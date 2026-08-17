@@ -424,6 +424,16 @@ export function useConversationSessions(
       if (!login) return;
       for (const change of reconcileConversationMessages(previous, next)) {
         const message = change.message;
+        if (change.kind === "remove") {
+          persist(
+            conversationClient.command(session.id, {
+              kind: "remove-message",
+              actorLogin: login,
+              entryId: message.id!,
+            }),
+          );
+          continue;
+        }
         const status = message.isLoading ? "pending" : "committed";
         const command: ConversationCommand =
           change.kind === "append"

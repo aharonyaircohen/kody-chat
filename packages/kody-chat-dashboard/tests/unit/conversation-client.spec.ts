@@ -94,6 +94,27 @@ describe("ConversationClient", () => {
     await second;
   });
 
+  it("supports removing a durable message", async () => {
+    fetcher.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+
+    await client.command("c1", {
+      kind: "remove-message",
+      actorLogin: "alice",
+      entryId: "guided-flow-1",
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/kody/chat/conversations/c1/commands",
+      expect.objectContaining({
+        body: JSON.stringify({
+          kind: "remove-message",
+          actorLogin: "alice",
+          entryId: "guided-flow-1",
+        }),
+      }),
+    );
+  });
+
   it("waits for a new conversation to finish saving before deleting it", async () => {
     const releases: Array<() => void> = [];
     fetcher.mockImplementation(
@@ -135,6 +156,21 @@ describe("ConversationClient", () => {
 
     await expect(client.remove("c1")).rejects.toThrow(
       "Conversation request failed (500)",
+    );
+  });
+
+  it("surfaces a useful server persistence error", async () => {
+    fetcher.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: "GitHub is temporarily unavailable. Try again shortly.",
+        }),
+        { status: 503 },
+      ),
+    );
+
+    await expect(client.remove("c1")).rejects.toThrow(
+      "GitHub is temporarily unavailable. Try again shortly.",
     );
   });
 

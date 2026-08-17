@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getRequestAuth,
-  requireUserAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireUserAuth } from "@kody-ade/base/auth";
+import { verifyOperatorActor } from "@kody-ade/kody-chat-dashboard/auth/operator-actor";
 import { z } from "zod";
 import {
   backendApi,
@@ -51,7 +48,7 @@ const createConversationSchema = z.object({
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = await requireUserAuth(req);
   if (authError instanceof NextResponse) return authError;
-  const actor = await verifyActorLogin(
+  const actor = await verifyOperatorActor(
     req,
     req.headers.get("x-kody-user-login") ?? undefined,
   );
@@ -94,7 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const actor = await verifyActorLogin(req, parsed.data.actorLogin);
+  const actor = await verifyOperatorActor(req, parsed.data.actorLogin);
   if (actor instanceof NextResponse) return actor;
 
   const now = new Date().toISOString();

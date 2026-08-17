@@ -4,6 +4,7 @@ import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import {
   agentIdentityValidator,
   conversationTurnProgressValidator,
+  conversationTurnRecoveryValidator,
 } from "./conversationValidators";
 
 type DatabaseContext = Pick<QueryCtx | MutationCtx, "db">;
@@ -211,6 +212,7 @@ export const complete = mutation({
     await ctx.db.patch(turn._id, {
       status: "completed",
       assistantEntryId,
+      recovery: undefined,
       completedAt: args.completedAt,
       updatedAt: args.completedAt,
     });
@@ -245,12 +247,63 @@ export const updateProgress = mutation({
   },
 });
 
+export const saveRecovery = mutation({
+  args: {
+    tenantId: v.string(),
+    conversationId: v.string(),
+    turnId: v.string(),
+    recovery: conversationTurnRecoveryValidator,
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireConversation(ctx, args.tenantId, args.conversationId);
+    const turn = await findTurn(
+      ctx,
+      args.tenantId,
+      args.conversationId,
+      args.turnId,
+    );
+    if (!turn) throw new Error("Conversation turn not found");
+    if (turn.status === "completed") return turn._id;
+    await ctx.db.patch(turn._id, {
+      recovery: args.recovery,
+      updatedAt: args.updatedAt,
+    });
+    return turn._id;
+  },
+});
+
+export const clearRecovery = mutation({
+  args: {
+    tenantId: v.string(),
+    conversationId: v.string(),
+    turnId: v.string(),
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireConversation(ctx, args.tenantId, args.conversationId);
+    const turn = await findTurn(
+      ctx,
+      args.tenantId,
+      args.conversationId,
+      args.turnId,
+    );
+    if (!turn) throw new Error("Conversation turn not found");
+    await ctx.db.patch(turn._id, {
+      recovery: undefined,
+      updatedAt: args.updatedAt,
+    });
+    return turn._id;
+  },
+});
+
 export const fail = mutation({
   args: {
     tenantId: v.string(),
     conversationId: v.string(),
     turnId: v.string(),
     errorCode: v.string(),
+    errorDetail: v.optional(v.string()),
     failedAt: v.string(),
   },
   handler: async (ctx, args) => {
@@ -266,6 +319,7 @@ export const fail = mutation({
     await ctx.db.patch(turn._id, {
       status: "failed",
       errorCode: args.errorCode,
+      errorDetail: args.errorDetail?.slice(0, 500),
       completedAt: args.failedAt,
       updatedAt: args.failedAt,
     });

@@ -15,7 +15,11 @@ const agents = [
 
 describe("public Agent chat handler", () => {
   it("publishes a completed assessment through the existing report owner", async () => {
-    const execute = vi.fn(async () => ({ published: true }));
+    const execute = vi.fn(
+      async (_input: { slug: string; title: string; body: string }) => ({
+        published: true,
+      }),
+    );
 
     await expect(
       publishProjectAssessmentReport({
@@ -32,9 +36,12 @@ describe("public Agent chat handler", () => {
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
         slug: "project-assessment",
-        title: "Kody project assessment",
+        title: "Project assessment",
         body: expect.stringContaining("## Executive verdict"),
       }),
+    );
+    expect(execute.mock.calls[0]?.[0]?.body).not.toContain(
+      "# Project assessment",
     );
   });
 

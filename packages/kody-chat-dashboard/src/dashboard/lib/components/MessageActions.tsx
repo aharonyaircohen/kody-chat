@@ -19,6 +19,7 @@ interface MessageActionsProps {
   hasToolCalls?: boolean;
   onCopy: () => string;
   onRetry?: () => void;
+  retryLabel?: string;
   onEdit?: (content: string) => void;
   onDelete: () => void;
   className?: string;
@@ -31,6 +32,7 @@ export function MessageActions({
   hasToolCalls,
   onCopy,
   onRetry,
+  retryLabel = "Regenerate response",
   onEdit,
   onDelete,
   className,
@@ -99,7 +101,7 @@ export function MessageActions({
           <button
             onClick={onRetry}
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            title="Regenerate response"
+            title={retryLabel}
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>

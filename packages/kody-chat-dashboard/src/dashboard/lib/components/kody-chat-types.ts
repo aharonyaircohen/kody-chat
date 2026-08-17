@@ -16,6 +16,7 @@ import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 
 export interface Message {
   id?: string;
+  turnId?: string;
   role: "user" | "assistant";
   content: string;
   /** Ephemeral runtime notices, such as an Automatic model switch. */
@@ -69,6 +70,7 @@ export interface Message {
 export function chatToMessage(chat: ChatMessage): Message {
   return {
     id: chat.id,
+    turnId: chat.turnId,
     role: chat.role,
     content: chat.text,
     timestamp: chat.timestamp,
@@ -86,6 +88,7 @@ export function chatToMessage(chat: ChatMessage): Message {
 export function messageToChat(msg: Message): ChatMessage {
   return {
     id: msg.id,
+    turnId: msg.turnId,
     role: msg.role,
     text: msg.content,
     timestamp: msg.timestamp || new Date().toISOString(),

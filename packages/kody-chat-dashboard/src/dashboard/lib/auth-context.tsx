@@ -420,10 +420,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem("kody_auth");
-    clearClientBrandRepoCookie();
-    setStoredAuth(null);
-    window.location.href = "/";
+    void fetch("/api/kody/auth/me", { method: "DELETE" }).finally(() => {
+      localStorage.removeItem("kody_auth");
+      clearClientBrandRepoCookie();
+      setStoredAuth(null);
+      window.location.href = "/";
+    });
   }, []);
 
   const signIn = useCallback((token: string, user: KodyUser) => {

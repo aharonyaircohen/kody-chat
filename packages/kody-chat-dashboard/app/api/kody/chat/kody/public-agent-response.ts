@@ -5,7 +5,10 @@ import {
   type PublicAgentTaskResult,
 } from "./public-agent-delegation";
 import type { PublicAgentAssignment } from "./public-agent-routing";
-import type { DurableTurn } from "../durable-turn";
+import type {
+  DurableTurn,
+  ProjectAssessmentSynthesisRecovery,
+} from "../durable-turn";
 import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 type FailedPublicAgentTaskResult = Extract<
   PublicAgentTaskResult,
@@ -52,7 +55,7 @@ export interface PublicAgentResponseWriter {
 
 type PublicAgentDurableTurn = Pick<
   DurableTurn,
-  "recordProgress" | "complete" | "fail"
+  "recordProgress" | "saveRecovery" | "complete" | "fail"
 >;
 
 interface WritePublicAgentResponseOptions {
@@ -77,6 +80,9 @@ interface WritePublicAgentResponseOptions {
     writer: PublicAgentResponseWriter,
   ) => Promise<string | null>;
   synthesize(results: readonly PublicAgentTaskResult[]): Promise<string>;
+  buildRecovery?: (
+    results: readonly PublicAgentTaskResult[],
+  ) => ProjectAssessmentSynthesisRecovery | null;
   startDurableTurn?: () => PublicAgentDurableTurn;
   onDurableStartFailure?: (error: unknown) => void;
   onDurableCompleteFailure?: (error: unknown) => void;
@@ -104,6 +110,7 @@ export async function writePublicAgentResponse({
   runOrchestration,
   present,
   synthesize,
+  buildRecovery,
   startDurableTurn,
   onDurableStartFailure,
   onDurableCompleteFailure,
@@ -262,6 +269,17 @@ export async function writePublicAgentResponse({
     );
   const returnedFailure = allSpecialistsFailed && !canRecoverEmptyResults;
 
+  if (!returnedFailure && durableTurn && buildRecovery) {
+    const recovery = buildRecovery(results);
+    if (recovery) {
+      try {
+        await durableTurn.saveRecovery(recovery);
+      } catch (error) {
+        onDurableCompleteFailure?.(error);
+      }
+    }
+  }
+
   let text: string;
   let presentationWritten = false;
   if (returnedFailure) {
@@ -323,7 +341,11 @@ export async function writePublicAgentResponse({
               )
             ? "specialist_orchestration_failed"
             : "specialist_failed";
-        await durableTurn.fail(errorCode);
+        if (synthesisFailed) {
+          await durableTurn.fail(errorCode, text);
+        } else {
+          await durableTurn.fail(errorCode);
+        }
       } else {
         await durableTurn.complete(text);
       }

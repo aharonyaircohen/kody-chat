@@ -321,6 +321,7 @@ describe("public Agent response", () => {
           complete,
           fail: vi.fn(async () => undefined),
           recordProgress,
+          saveRecovery: vi.fn(async () => undefined),
         }),
       }),
     ).resolves.toEqual({
@@ -492,13 +493,17 @@ describe("public Agent response", () => {
       ),
       startDurableTurn: () => ({
         recordProgress: vi.fn(),
+        saveRecovery: vi.fn(async () => undefined),
         complete,
         fail,
       }),
     });
 
     expect(outcome).toMatchObject({ synthesisFailed: true });
-    expect(fail).toHaveBeenCalledWith("specialist_synthesis_failed");
+    expect(fail).toHaveBeenCalledWith(
+      "specialist_synthesis_failed",
+      "Final report writing failed because the provider rejected the request.",
+    );
     expect(complete).not.toHaveBeenCalled();
   });
 
@@ -559,6 +564,7 @@ describe("public Agent response", () => {
         synthesize,
         startDurableTurn: () => ({
           recordProgress: vi.fn(),
+          saveRecovery: vi.fn(async () => undefined),
           complete: vi.fn(async () => undefined),
           fail,
         }),

@@ -33,6 +33,11 @@ export type ConversationCommand =
       updatedAt: string;
     }
   | {
+      kind: "remove-message";
+      actorLogin: string;
+      entryId: string;
+    }
+  | {
       kind: "set-agent";
       actorLogin: string;
       agent: AgentIdentity;
@@ -106,7 +111,14 @@ export class ConversationClient {
       },
     });
     if (!response.ok) {
-      throw new Error(`Conversation request failed (${response.status})`);
+      const body = (await response.json().catch(() => null)) as {
+        message?: unknown;
+      } | null;
+      const message =
+        typeof body?.message === "string" && body.message.trim()
+          ? body.message
+          : `Conversation request failed (${response.status})`;
+      throw new Error(message);
     }
     return (await response.json()) as T;
   }

@@ -1,8 +1,41 @@
 import { describe, expect, it } from "vitest";
+import type { Message } from "../../src/dashboard/lib/components/kody-chat-types";
 import {
-  conversationIdForGuidedFlowOpen,
+  guidedFlowMessageId,
+  isGuidedFlowChatMessage,
   locationAfterGuidedFlowLaunch,
+  replaceGuidedFlowChatMessage,
+  shouldAutoResumeGuidedFlows,
 } from "../../src/dashboard/lib/guided-flows/chat-launch";
+
+describe("GuidedFlow automatic resume", () => {
+  it("does not resume an old active flow while a new start request is pending", () => {
+    expect(
+      shouldAutoResumeGuidedFlows({
+        hydrated: true,
+        activeSessionId: "conversation-1",
+        lockedAgentSlug: null,
+        messageCount: 0,
+        guidedFlowRequest: {
+          flowId: "onboarding",
+          message: "started",
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("resumes an active flow when Chat opens normally", () => {
+    expect(
+      shouldAutoResumeGuidedFlows({
+        hydrated: true,
+        activeSessionId: "conversation-1",
+        lockedAgentSlug: null,
+        messageCount: 0,
+        guidedFlowRequest: null,
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("GuidedFlow chat launch location", () => {
   it("keeps a definition launch so a new conversation starts the flow again", () => {
@@ -35,44 +68,54 @@ describe("GuidedFlow chat launch location", () => {
   });
 });
 
-describe("GuidedFlow chat conversation selection", () => {
-  it("creates a fresh conversation for a new flow start", () => {
+describe("GuidedFlow chat messages", () => {
+  const guidedView = {
+    resultTarget: "guided-flow",
+  } as Message["view"];
+
+  it("recognizes flow status messages and rendered flow cards", () => {
     expect(
-      conversationIdForGuidedFlowOpen(
-        { flowId: "onboarding", message: "started" },
-        "existing-session",
-        () => "new-session",
-      ),
-    ).toBe("new-session");
+      isGuidedFlowChatMessage({
+        content: "GuidedFlow completed.",
+      }),
+    ).toBe(true);
+    expect(
+      isGuidedFlowChatMessage({ content: "Step", view: guidedView }),
+    ).toBe(true);
+    expect(isGuidedFlowChatMessage({ content: "Normal assistant reply" })).toBe(
+      false,
+    );
   });
 
-  it("keeps the active conversation when explicitly resuming", () => {
-    expect(
-      conversationIdForGuidedFlowOpen(
-        { instanceId: "instance-1", message: "resumed" },
-        "existing-session",
-        () => "unexpected-new-session",
-      ),
-    ).toBe("existing-session");
-  });
+  it("replaces old flow messages while preserving normal chat", () => {
+    const previous: Message[] = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "GuidedFlow completed." },
+      { role: "assistant", content: "Your private Chat is ready", view: guidedView },
+      { role: "assistant", content: "Keep this reply" },
+    ];
+    const next = {
+      role: "assistant" as const,
+      content: "GuidedFlow started. Follow the steps below.",
+      view: guidedView,
+    };
 
-  it("creates a fresh conversation when an exact instance is explicitly started", () => {
-    expect(
-      conversationIdForGuidedFlowOpen(
-        { instanceId: "instance-1", message: "started" },
-        "existing-session",
-        () => "new-session",
-      ),
-    ).toBe("new-session");
+    expect(replaceGuidedFlowChatMessage(previous, next)).toEqual([
+      previous[0],
+      previous[3],
+      next,
+    ]);
   });
+});
 
-  it("creates a conversation when resuming without an active session", () => {
+describe("GuidedFlow message identity", () => {
+  it("uses the rendered view ID as the durable message ID", () => {
     expect(
-      conversationIdForGuidedFlowOpen(
-        { instanceId: "instance-1", message: "resumed" },
-        null,
-        () => "new-session",
-      ),
-    ).toBe("new-session");
+      guidedFlowMessageId({
+        role: "assistant",
+        content: "GuidedFlow started. Follow the steps below.",
+        view: { resultTarget: "guided-flow", id: "view-1" } as Message["view"],
+      }),
+    ).toBe("guided-flow:view-1");
   });
 });

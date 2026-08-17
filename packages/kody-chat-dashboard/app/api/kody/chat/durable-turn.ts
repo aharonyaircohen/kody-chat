@@ -30,11 +30,22 @@ export type DurableTurnProgress = Readonly<{
   }>;
 }>;
 
+export type ProjectAssessmentSynthesisRecovery = Readonly<{
+  kind: "project-assessment-synthesis";
+  version: 1;
+  system: string;
+  userMessage: string;
+  internalLinks: Array<{ href: string; label: string }>;
+  repository: { owner: string; repo: string };
+  createdAt: string;
+}>;
+
 export type DurableTurn = Readonly<{
   started: Promise<void>;
   recordProgress(progress: DurableTurnProgress): void;
+  saveRecovery(recovery: ProjectAssessmentSynthesisRecovery): Promise<void>;
   complete(content: string): Promise<void>;
-  fail(errorCode: string): Promise<void>;
+  fail(errorCode: string, errorDetail?: string): Promise<void>;
 }>;
 
 export type DurableTurnOptions = Readonly<{
@@ -118,6 +129,16 @@ export function startDurableTurn(
         }, 250);
       }
     },
+    async saveRecovery(recovery) {
+      await started;
+      await client.mutation(backendApi.conversationTurns.saveRecovery, {
+        tenantId: identity.tenantId,
+        conversationId: identity.conversationId,
+        turnId: identity.turnId,
+        recovery,
+        updatedAt: new Date().toISOString(),
+      });
+    },
     async complete(content) {
       try {
         await started;
@@ -133,7 +154,7 @@ export function startDurableTurn(
         if (!isConversationGoneError(error)) throw error;
       }
     },
-    async fail(errorCode) {
+    async fail(errorCode, errorDetail) {
       try {
         await started;
         await flushProgress();
@@ -142,6 +163,7 @@ export function startDurableTurn(
           conversationId: identity.conversationId,
           turnId: identity.turnId,
           errorCode,
+          ...(errorDetail ? { errorDetail } : {}),
           failedAt: new Date().toISOString(),
         });
       } catch (error) {

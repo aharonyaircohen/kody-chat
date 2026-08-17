@@ -472,6 +472,29 @@ export const updateMessage = mutation({
   },
 });
 
+export const removeMessage = mutation({
+  args: {
+    tenantId: v.string(),
+    conversationId: v.string(),
+    entryId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireConversation(ctx, args.tenantId, args.conversationId);
+    const stored = await ctx.db
+      .query("conversationEntries")
+      .withIndex("by_entry", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("conversationId", args.conversationId)
+          .eq("entryId", args.entryId),
+      )
+      .unique();
+    if (!stored) return null;
+    await ctx.db.delete(stored._id);
+    return stored._id;
+  },
+});
+
 export const updateMetadata = mutation({
   args: {
     tenantId: v.string(),

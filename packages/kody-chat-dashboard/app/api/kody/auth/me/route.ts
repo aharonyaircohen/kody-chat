@@ -10,6 +10,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserRequestAuth } from "@kody-ade/base/auth";
 import { createUserOctokit } from "../../../../../src/dashboard/lib/github-client";
+import {
+  clearOperatorSessionCookie,
+  mintOperatorSession,
+  setOperatorSessionCookie,
+} from "../../../../../src/dashboard/lib/auth/operator-session";
+
+export async function DELETE(): Promise<NextResponse> {
+  const response = NextResponse.json({ authenticated: false });
+  clearOperatorSessionCookie(response);
+  return response;
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const headerAuth = getUserRequestAuth(req);
@@ -17,7 +28,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const octokit = await createUserOctokit(headerAuth.token);
     try {
       const { data: user } = await octokit.rest.users.getAuthenticated();
-      return NextResponse.json({
+      const response = NextResponse.json({
         authenticated: true,
         user: {
           login: user.login,
@@ -25,6 +36,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           githubId: user.id,
         },
       });
+      setOperatorSessionCookie(
+        response,
+        await mintOperatorSession({
+          login: user.login,
+          githubId: user.id,
+          avatarUrl: user.avatar_url,
+        }),
+      );
+      return response;
     } catch {
       return NextResponse.json(
         { authenticated: false, error: "Invalid token" },

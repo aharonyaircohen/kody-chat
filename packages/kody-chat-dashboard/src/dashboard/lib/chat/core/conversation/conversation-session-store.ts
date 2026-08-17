@@ -52,6 +52,7 @@ export type ConversationDetail = {
     assistantEntryId?: string;
     completedAt?: string;
     errorCode?: string;
+    errorDetail?: string;
     progress?: {
       reasoning: string;
       toolCalls: Array<{
@@ -130,7 +131,8 @@ export function mapConversationDetail(detail: ConversationDetail): {
     const rawStoredContent =
       stored.entry.role === "assistant" &&
       (durableTurn?.status === "failed" || durableTurn?.status === "cancelled")
-        ? "Error: The reply could not be completed. Please retry."
+        ? durableTurn.errorDetail ||
+          "Error: The reply could not be completed. Please retry."
         : stored.entry.content;
     const parsedStoredContent =
       stored.entry.role === "assistant"
@@ -213,7 +215,8 @@ export function mapConversationDetail(detail: ConversationDetail): {
           ? turn.progress?.reasoning
             ? `<think>${turn.progress.reasoning}</think>\n\n`
             : ""
-          : "Error: The reply could not be completed. Please retry.",
+          : turn.errorDetail ||
+            "Error: The reply could not be completed. Please retry.",
       timestamp: turn.completedAt ?? turn.startedAt,
       agent: turn.agent,
       isLoading: turn.status === "running",
@@ -272,7 +275,8 @@ export function mapConversationDetail(detail: ConversationDetail): {
 
 export type MessagePersistenceChange =
   | { kind: "append"; message: ChatMessage }
-  | { kind: "update"; message: ChatMessage };
+  | { kind: "update"; message: ChatMessage }
+  | { kind: "remove"; message: ChatMessage };
 
 export function reconcileConversationMessages(
   previous: readonly ChatMessage[],
@@ -281,7 +285,15 @@ export function reconcileConversationMessages(
   const previousById = new Map(
     previous.flatMap((message) => (message.id ? [[message.id, message]] : [])),
   );
+  const nextIds = new Set(
+    next.flatMap((message) => (message.id ? [message.id] : [])),
+  );
   const changes: MessagePersistenceChange[] = [];
+  for (const message of previous) {
+    if (message.id && !nextIds.has(message.id)) {
+      changes.push({ kind: "remove", message });
+    }
+  }
   for (const message of next) {
     if (!message.id) continue;
     const stored = previousById.get(message.id);

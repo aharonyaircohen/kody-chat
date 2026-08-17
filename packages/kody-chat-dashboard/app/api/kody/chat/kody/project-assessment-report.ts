@@ -1,39 +1,15 @@
 import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 
-const REQUIRED_SECTIONS = [
-  "Executive verdict",
-  "Product readiness",
-  "Ranked risks",
-  "Maintenance capacity gap",
-  "Why Kody matters",
-  "Kody coverage and proof",
-  "Advanced continuous QA",
-  "Recommended 30-day decisions",
-  "Recommended 90-day outcomes",
-  "Technical assessment",
-  "Specialist findings and evidence",
-] as const;
-
-const EXECUTIVE_PARTS = [
-  "Current state",
-  "Main risk",
-  "Maintenance capacity",
-  "Kody's value",
-  "Next step",
-] as const;
-
-const RISK_PARTS = [
-  "Severity",
-  "Business impact",
-  "Evidence",
-  "Action",
-] as const;
+const REQUIRED_SECTION_COUNT = 11;
+const EXECUTIVE_PART_COUNT = 5;
+const RISK_PART_COUNT = 4;
 
 const RAW_TOOL_CALL_JSON =
   /(?:^|\n)\s*\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:/i;
 
 export type ProjectAssessmentValidationReason =
   | "empty_report"
+  | "missing_title"
   | "unfinished_output"
   | "tool_call_output"
   | "missing_section"
@@ -52,13 +28,32 @@ export type ProjectAssessmentValidation =
 export const INVALID_PROJECT_ASSESSMENT_MESSAGE =
   "Final report writing failed because the report was incomplete. The specialist findings were preserved and can be used for another writing attempt.";
 
-function sectionBody(text: string, section: string): string | null {
-  const escaped = section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(
-    `^##\\s+${escaped}\\s*$([\\s\\S]*?)(?=^##\\s+|$(?![\\s\\S]))`,
-    "im",
-  ).exec(text);
-  return match?.[1]?.trim() ?? null;
+const REPORT_TITLE_RE = /^#(?!#)\s+(.+?)\s*$/m;
+
+export function projectAssessmentTitle(text: string): string | null {
+  return REPORT_TITLE_RE.exec(text)?.[1]?.trim() || null;
+}
+
+export function projectAssessmentBody(text: string): string {
+  return text.replace(REPORT_TITLE_RE, "").replace(/^\s+/, "").trimEnd();
+}
+
+export function describeProjectAssessmentValidationFailure(
+  validation: Exclude<ProjectAssessmentValidation, { valid: true }>,
+): string {
+  const label = validation.reason.replaceAll("_", " ");
+  const detail = validation.detail ? ` ‘${validation.detail}’` : "";
+  return `Final report writing failed: ${label}${detail}. The same-run specialist findings were preserved for a writer-only retry.`;
+}
+
+function sectionBodies(text: string): string[] {
+  return [...text.matchAll(/^##\s+.+\s*$([\s\S]*?)(?=^##\s+|$(?![\s\S]))/gm)].map(
+    (match) => match[1]?.trim() ?? "",
+  );
+}
+
+function labeledPartCount(text: string): number {
+  return (text.match(/^\s*\*\*[^*\n]+:\*\*/gm) ?? []).length;
 }
 
 export function validateProjectAssessmentReport({
@@ -70,6 +65,9 @@ export function validateProjectAssessmentReport({
 }): ProjectAssessmentValidation {
   const report = text.trim();
   if (!report) return { valid: false, reason: "empty_report" };
+  if (!projectAssessmentTitle(report)) {
+    return { valid: false, reason: "missing_title" };
+  }
   if (finishReason && finishReason.toLowerCase() !== "stop") {
     return {
       valid: false,
@@ -80,30 +78,24 @@ export function validateProjectAssessmentReport({
   if (containsToolCallMarkup(report) || RAW_TOOL_CALL_JSON.test(report)) {
     return { valid: false, reason: "tool_call_output" };
   }
-  for (const section of REQUIRED_SECTIONS) {
-    const body = sectionBody(report, section);
-    if (body === null) {
-      return { valid: false, reason: "missing_section", detail: section };
-    }
+  const sections = sectionBodies(report);
+  if (sections.length < REQUIRED_SECTION_COUNT) {
+    return {
+      valid: false,
+      reason: "missing_section",
+      detail: `${sections.length + 1}`,
+    };
+  }
+  for (const [index, body] of sections.slice(0, REQUIRED_SECTION_COUNT).entries()) {
     if (!body) {
-      return { valid: false, reason: "empty_section", detail: section };
+      return { valid: false, reason: "empty_section", detail: `${index + 1}` };
     }
   }
-  const executive = sectionBody(report, "Executive verdict") ?? "";
-  for (const part of EXECUTIVE_PARTS) {
-    if (!executive.includes(`**${part}:**`)) {
-      return {
-        valid: false,
-        reason: "missing_executive_part",
-        detail: part,
-      };
-    }
+  if (labeledPartCount(sections[0] ?? "") < EXECUTIVE_PART_COUNT) {
+    return { valid: false, reason: "missing_executive_part" };
   }
-  const risks = sectionBody(report, "Ranked risks") ?? "";
-  for (const part of RISK_PARTS) {
-    if (!risks.includes(`**${part}:**`)) {
-      return { valid: false, reason: "missing_risk_part", detail: part };
-    }
+  if (labeledPartCount(sections[2] ?? "") < RISK_PART_COUNT) {
+    return { valid: false, reason: "missing_risk_part" };
   }
   return { valid: true };
 }

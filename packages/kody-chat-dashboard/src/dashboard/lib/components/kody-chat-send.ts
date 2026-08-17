@@ -379,6 +379,8 @@ export interface SendTextOptions {
    * what the user typed).
    */
   displayContent?: string;
+  /** Failed assessment turn whose saved specialist packet should be rewritten. */
+  retryAssessmentTurnId?: string;
 }
 
 export interface SendTextDeps {
@@ -1266,6 +1268,9 @@ async function runSendTextInner(
                   body: selectedReport.body,
                 },
               }
+            : {}),
+          ...(options.retryAssessmentTurnId
+            ? { retryAssessmentTurnId: options.retryAssessmentTurnId }
             : {}),
         },
       } satisfies KodyDirectTurnConfig;

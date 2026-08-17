@@ -157,6 +157,99 @@ describe("conversations", () => {
     });
   });
 
+  it("keeps a failed turn's private synthesis checkpoint for a writer-only retry", async () => {
+    const t = setup();
+    await t.mutation(api.conversations.create, conversation);
+    await t.mutation(api.conversationTurns.start, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment",
+      backend: "direct",
+      agent: conversation.activeAgent,
+      startedAt: NOW,
+    });
+
+    await t.mutation(api.conversationTurns.saveRecovery, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment",
+      recovery: {
+        kind: "project-assessment-synthesis",
+        version: 1,
+        system: "Write the standalone report.",
+        userMessage: "Same-run specialist packets.",
+        internalLinks: [],
+        repository: { owner: "acme", repo: "widgets" },
+        createdAt: NOW,
+      },
+      updatedAt: "2026-07-20T10:00:30.000Z",
+    });
+    await t.mutation(api.conversationTurns.fail, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment",
+      errorCode: "specialist_synthesis_failed",
+      errorDetail: "missing_section (Advanced continuous QA)",
+      failedAt: "2026-07-20T10:01:00.000Z",
+    });
+
+    const failed = await t.query(api.conversationTurns.get, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment",
+    });
+    expect(failed).toMatchObject({
+      status: "failed",
+      errorDetail: "missing_section (Advanced continuous QA)",
+      recovery: {
+        kind: "project-assessment-synthesis",
+        repository: { owner: "acme", repo: "widgets" },
+      },
+    });
+  });
+
+  it("removes the private synthesis checkpoint after a successful report", async () => {
+    const t = setup();
+    await t.mutation(api.conversations.create, conversation);
+    await t.mutation(api.conversationTurns.start, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment-success",
+      backend: "direct",
+      agent: conversation.activeAgent,
+      startedAt: NOW,
+    });
+    await t.mutation(api.conversationTurns.saveRecovery, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment-success",
+      recovery: {
+        kind: "project-assessment-synthesis",
+        version: 1,
+        system: "Write the standalone report.",
+        userMessage: "Same-run specialist packets.",
+        internalLinks: [],
+        repository: { owner: "acme", repo: "widgets" },
+        createdAt: NOW,
+      },
+      updatedAt: NOW,
+    });
+    await t.mutation(api.conversationTurns.complete, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment-success",
+      content: "Saved report.",
+      completedAt: "2026-07-20T10:01:00.000Z",
+    });
+
+    const completed = await t.query(api.conversationTurns.get, {
+      tenantId: TENANT,
+      conversationId: conversation.conversationId,
+      turnId: "turn-assessment-success",
+    });
+    expect(completed?.recovery).toBeUndefined();
+  });
+
   it("rejects completion by an agent that is no longer active", async () => {
     const t = setup();
     await t.mutation(api.conversations.create, conversation);

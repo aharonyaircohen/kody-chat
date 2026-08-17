@@ -52,9 +52,9 @@ import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overla
 import {
   requireUserAuth,
   getRequestAuth,
-  verifyActorLogin,
   type RequestAuth,
 } from "@kody-ade/base/auth";
+import { verifyOperatorActor } from "../../../../../src/dashboard/lib/auth/operator-actor";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import {
   createUserOctokit,
@@ -205,6 +205,9 @@ import {
   parseExplicitViewRequest,
 } from "./view-request";
 import { startDurableTurn, type DurableTurn } from "../durable-turn";
+import type { ProjectAssessmentSynthesisRecovery } from "../durable-turn";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { createDurableTurnProgressRecorder } from "../durable-turn-progress";
 import {
   isCompleteProjectAssessmentRequest,
@@ -220,7 +223,14 @@ import {
   PROJECT_ASSESSMENT_FLOW_ID,
 } from "../../../../../src/dashboard/lib/guided-flows/builtins";
 import { CREATE_BLUEPRINT_MODEL_GUIDE } from "../../../../../src/dashboard/lib/request-blueprints/create-blueprint";
-import { handleConfiguredPublicAgentChat } from "./public-agent-chat-runtime";
+import {
+  handleConfiguredPublicAgentChat,
+  publishProjectAssessmentReport,
+} from "./public-agent-chat-runtime";
+import {
+  PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
+  retryProjectAssessmentSynthesis,
+} from "./public-agent-delegation";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { shouldRoutePublicAgentChat } from "./public-agent-routing";
 
@@ -768,6 +778,7 @@ async function handleKodyDirectPost(
     reasoningEffort?: string;
     conversationId?: string;
     turnId?: string;
+    retryAssessmentTurnId?: string;
     conversationAgent?: { slug: string; title: string };
     machineAccess?: "none" | "local" | "brain";
   };
@@ -888,7 +899,10 @@ async function handleKodyDirectPost(
   let verifiedActorLogin: string | null = null;
   let verifiedActorGithubId: number | null = null;
   if (!clientSurface) {
-    const actorResult = await verifyActorLogin(repoScopedReq, body.actorLogin);
+    const actorResult = await verifyOperatorActor(
+      repoScopedReq,
+      body.actorLogin,
+    );
     if (actorResult instanceof NextResponse) return actorResult;
     verifiedActorLogin = actorResult.identity.login;
     verifiedActorGithubId = actorResult.identity.githubId;
@@ -1798,6 +1812,95 @@ async function handleKodyDirectPost(
       },
     };
   };
+
+  if (body.retryAssessmentTurnId) {
+    if (!durableIdentity || !repo) {
+      clearGitHubContext();
+      return NextResponse.json(
+        { error: "assessment_retry_requires_conversation" },
+        { status: 400 },
+      );
+    }
+    const backend = createBackendClient();
+    const failedTurn = await backend.query(backendApi.conversationTurns.get, {
+      tenantId: durableIdentity.tenantId,
+      conversationId: durableIdentity.conversationId,
+      turnId: body.retryAssessmentTurnId,
+    });
+    const recovery = failedTurn?.recovery as
+      ProjectAssessmentSynthesisRecovery | undefined;
+    if (
+      failedTurn?.status !== "failed" ||
+      failedTurn.errorCode !== "specialist_synthesis_failed" ||
+      recovery?.kind !== "project-assessment-synthesis" ||
+      recovery.version !== 1 ||
+      recovery.repository.owner !== repo.owner ||
+      recovery.repository.repo !== repo.repo
+    ) {
+      clearGitHubContext();
+      return NextResponse.json(
+        { error: "assessment_retry_not_available" },
+        { status: 409 },
+      );
+    }
+    const durableTurn = startRequestDurableTurn?.();
+    await durableTurn?.saveRecovery(recovery);
+    const answer = await retryProjectAssessmentSynthesis({
+      recovery,
+      model,
+      onSynthesisFailure: (error) =>
+        traceError(
+          { traceId, err: formatProviderError(error) },
+          "kody-direct: assessment writer-only retry failed",
+        ),
+    });
+    const published = await publishProjectAssessmentReport({
+      answer,
+      repository: recovery.repository,
+      publishTool: mergedTools.publish_report as
+        | {
+            execute?: (input: {
+              slug: string;
+              title: string;
+              body: string;
+            }) => Promise<unknown> | unknown;
+          }
+        | undefined,
+    });
+    const writingFailed = published.answer.startsWith(
+      PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
+    );
+    const finalAnswer =
+      !writingFailed && !published.published
+        ? "Final report writing failed: the draft was complete, but saving the report failed. The same-run specialist findings were preserved for another writer-only retry."
+        : published.answer;
+    if (writingFailed || !published.published) {
+      await durableTurn?.fail(
+        writingFailed
+          ? "specialist_synthesis_failed"
+          : "assessment_publish_failed",
+        finalAnswer,
+      );
+    } else {
+      await durableTurn?.complete(finalAnswer);
+      await backend.mutation(backendApi.conversationTurns.clearRecovery, {
+        tenantId: durableIdentity.tenantId,
+        conversationId: durableIdentity.conversationId,
+        turnId: body.retryAssessmentTurnId,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    clearGitHubContext();
+    const uiStream = createUIMessageStream({
+      execute: ({ writer }) => {
+        const id = `assessment-retry-${durableIdentity.turnId}`;
+        writer.write({ type: "text-start", id });
+        writer.write({ type: "text-delta", id, delta: finalAnswer });
+        writer.write({ type: "text-end", id });
+      },
+    });
+    return createUIMessageStreamResponse({ stream: uiStream });
+  }
 
   const assignedSubagentSlugs = delegatingAgentMember?.subagents ?? [];
   const assignedSubagentRoster = resolvedAgentRoster.filter((candidate) =>

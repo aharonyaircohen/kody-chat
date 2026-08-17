@@ -251,7 +251,14 @@ export interface ActorIdentity {
  * map can't leak credentials if dumped. Long TTL — a PAT's owner is stable.
  */
 const ACTOR_TTL_MS = 60 * 60 * 1000; // 1h
+const ACTOR_RESOLUTION_ATTEMPTS = 3;
+const ACTOR_RETRY_DELAY_MS = 150;
 const actorCache = new Map<string, { identity: ActorIdentity; at: number }>();
+
+type ActorResolution =
+  | { kind: "resolved"; identity: ActorIdentity }
+  | { kind: "invalid" }
+  | { kind: "unavailable" };
 
 /**
  * Non-crypto fingerprint (djb2) so the cache never keys on a raw token. Not
@@ -276,27 +283,56 @@ function tokenKey(token: string): string {
  * Returns null on any failure (bad token, network) — callers fall back to a
  * coarse actor rather than blocking the action being logged.
  */
+function githubErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object" || !("status" in error)) return null;
+  return typeof error.status === "number" ? error.status : null;
+}
+
+function isTemporaryGithubError(error: unknown): boolean {
+  const status = githubErrorStatus(error);
+  return status === null || status === 429 || status >= 500;
+}
+
+async function resolveActorIdentity(token: string): Promise<ActorResolution> {
+  const key = tokenKey(token);
+  const hit = actorCache.get(key);
+  if (hit && Date.now() - hit.at < ACTOR_TTL_MS) {
+    return { kind: "resolved", identity: hit.identity };
+  }
+
+  const octokit = createUserOctokit(token);
+  for (let attempt = 1; attempt <= ACTOR_RESOLUTION_ATTEMPTS; attempt += 1) {
+    try {
+      const { data } = await octokit.rest.users.getAuthenticated();
+      const identity: ActorIdentity = {
+        login: data.login,
+        githubId: data.id,
+        avatarUrl: data.avatar_url,
+      };
+      actorCache.set(key, { identity, at: Date.now() });
+      return { kind: "resolved", identity };
+    } catch (error) {
+      if (!isTemporaryGithubError(error)) {
+        logger.warn({ error }, "resolveActorFromToken: invalid GitHub token");
+        return { kind: "invalid" };
+      }
+      if (attempt === ACTOR_RESOLUTION_ATTEMPTS) {
+        logger.warn({ error }, "resolveActorFromToken: GitHub unavailable");
+        return { kind: "unavailable" };
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, ACTOR_RETRY_DELAY_MS * attempt),
+      );
+    }
+  }
+  return { kind: "unavailable" };
+}
+
 export async function resolveActorFromToken(
   token: string,
 ): Promise<ActorIdentity | null> {
-  const key = tokenKey(token);
-  const hit = actorCache.get(key);
-  if (hit && Date.now() - hit.at < ACTOR_TTL_MS) return hit.identity;
-
-  try {
-    const octokit = createUserOctokit(token);
-    const { data } = await octokit.rest.users.getAuthenticated();
-    const identity: ActorIdentity = {
-      login: data.login,
-      githubId: data.id,
-      avatarUrl: data.avatar_url,
-    };
-    actorCache.set(key, { identity, at: Date.now() });
-    return identity;
-  } catch (err) {
-    logger.warn({ err }, "resolveActorFromToken: GET /user failed");
-    return null;
-  }
+  const result = await resolveActorIdentity(token);
+  return result.kind === "resolved" ? result.identity : null;
 }
 
 // ─── Actor login verification ───────────────────────────────────────────────────
@@ -325,13 +361,23 @@ export async function verifyActorLogin(
     );
   }
 
-  const resolved = await resolveActorFromToken(headerAuth.token);
-  if (!resolved) {
+  const resolution = await resolveActorIdentity(headerAuth.token);
+  if (resolution.kind === "unavailable") {
+    return NextResponse.json(
+      {
+        error: "github_identity_unavailable",
+        message: "GitHub is temporarily unavailable. Try again shortly.",
+      },
+      { status: 503 },
+    );
+  }
+  if (resolution.kind === "invalid") {
     return NextResponse.json(
       { error: "invalid_token", message: "Unable to verify GitHub identity." },
       { status: 401 },
     );
   }
+  const resolved = resolution.identity;
 
   if (suppliedLogin && suppliedLogin !== resolved.login) {
     logger.warn(

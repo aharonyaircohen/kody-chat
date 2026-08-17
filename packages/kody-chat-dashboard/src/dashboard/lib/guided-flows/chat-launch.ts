@@ -1,13 +1,50 @@
-import type { GuidedFlowOpenRequest } from "./chat-controller";
+import type { Message } from "../components/kody-chat-types";
 
-export function conversationIdForGuidedFlowOpen(
-  request: GuidedFlowOpenRequest,
-  activeConversationId: string | null,
-  createConversation: () => string,
-): string {
-  return request.message === "started"
-    ? createConversation()
-    : (activeConversationId ?? createConversation());
+const GUIDED_FLOW_MESSAGE_CONTENT = new Set([
+  "GuidedFlow started. Follow the steps below.",
+  "GuidedFlow resumed. Continue where you stopped.",
+  "Continue with the next step below.",
+  "GuidedFlow completed.",
+  "GuidedFlow cancelled.",
+]);
+
+export function shouldAutoResumeGuidedFlows(input: {
+  hydrated: boolean;
+  activeSessionId: string | null | undefined;
+  lockedAgentSlug: string | null | undefined;
+  messageCount: number;
+  guidedFlowRequest: unknown;
+}): boolean {
+  return (
+    input.hydrated &&
+    Boolean(input.activeSessionId) &&
+    !input.lockedAgentSlug &&
+    input.messageCount === 0 &&
+    input.guidedFlowRequest == null
+  );
+}
+
+export function guidedFlowMessageId(message: Message): string | undefined {
+  return message.view ? `guided-flow:${message.view.id}` : undefined;
+}
+
+export function isGuidedFlowChatMessage(
+  message: Pick<Message, "content" | "view">,
+): boolean {
+  return (
+    message.view?.resultTarget === "guided-flow" ||
+    GUIDED_FLOW_MESSAGE_CONTENT.has(message.content)
+  );
+}
+
+export function replaceGuidedFlowChatMessage(
+  previous: readonly Message[],
+  message: Message,
+): Message[] {
+  return [
+    ...previous.filter((candidate) => !isGuidedFlowChatMessage(candidate)),
+    message,
+  ];
 }
 
 export function locationAfterGuidedFlowLaunch(

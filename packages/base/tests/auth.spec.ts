@@ -54,6 +54,66 @@ describe("user authentication", () => {
       identity: { login: "alice", githubId: 42 },
     });
   });
+
+  it("retries temporary GitHub failures before verifying the actor", async () => {
+    vi.useFakeTimers();
+    github.getAuthenticated
+      .mockRejectedValueOnce({ status: 503 })
+      .mockRejectedValueOnce({ status: 503 })
+      .mockResolvedValueOnce({
+        data: {
+          login: "alice",
+          id: 42,
+          avatar_url: "https://example.test/a.png",
+        },
+      });
+
+    try {
+      const verification = verifyActorLogin(
+        request("temporary-failure"),
+        "alice",
+      );
+      await vi.runAllTimersAsync();
+
+      await expect(verification).resolves.toMatchObject({
+        identity: { login: "alice", githubId: 42 },
+      });
+      expect(github.getAuthenticated).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports GitHub outages separately from invalid credentials", async () => {
+    vi.useFakeTimers();
+    github.getAuthenticated.mockRejectedValue({ status: 503 });
+
+    try {
+      const verification = verifyActorLogin(request("github-outage"), "alice");
+      await vi.runAllTimersAsync();
+      const response = await verification;
+
+      expect(response).toMatchObject({ status: 503 });
+      await expect((response as Response).json()).resolves.toMatchObject({
+        error: "github_identity_unavailable",
+      });
+      expect(github.getAuthenticated).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retry invalid GitHub credentials", async () => {
+    github.getAuthenticated.mockRejectedValue({ status: 401 });
+
+    const response = await verifyActorLogin(
+      request("invalid-user-token"),
+      "alice",
+    );
+
+    expect(response).toMatchObject({ status: 401 });
+    expect(github.getAuthenticated).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("repository access verification", () => {

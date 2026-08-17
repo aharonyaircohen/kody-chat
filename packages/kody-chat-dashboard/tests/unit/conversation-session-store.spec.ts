@@ -123,7 +123,20 @@ describe("conversation session store", () => {
         createdAt: "2026-07-20T10:00:00.000Z",
         updatedAt: "2026-07-20T10:03:00.000Z",
       },
-      entries: [],
+      entries: [
+        {
+          entryId: "assistant:turn-failed",
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "Provider fallback",
+            status: "committed",
+            turnId: "turn-failed",
+            createdAt: "2026-07-20T10:00:01.000Z",
+          },
+        },
+      ],
       turns: [],
       checkpoints: [],
     });
@@ -197,6 +210,19 @@ describe("conversation session store", () => {
           isLoading: false,
         }),
       }),
+    ]);
+  });
+
+  it("removes messages that the current chat no longer contains", () => {
+    const removed = {
+      id: "guided-flow-1",
+      role: "assistant" as const,
+      text: "GuidedFlow completed.",
+      timestamp: "2026-07-20T10:00:00.000Z",
+    };
+
+    expect(reconcileConversationMessages([removed], [])).toEqual([
+      { kind: "remove", message: removed },
     ]);
   });
 
@@ -460,6 +486,8 @@ describe("conversation session store", () => {
           startedAt: "2026-07-20T10:00:01.000Z",
           completedAt: "2026-07-20T10:00:05.000Z",
           errorCode: "provider_error",
+          errorDetail:
+            "Final report writing failed: unfinished output ‘length’.",
         },
       ],
       checkpoints: [],
@@ -470,7 +498,7 @@ describe("conversation session store", () => {
       expect.objectContaining({
         id: "assistant:turn-failed",
         role: "assistant",
-        text: "Error: The reply could not be completed. Please retry.",
+        text: "Final report writing failed: unfinished output ‘length’.",
         isLoading: false,
       }),
     ]);
