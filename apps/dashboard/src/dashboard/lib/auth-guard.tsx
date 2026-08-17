@@ -32,7 +32,7 @@ function KodySignIn() {
             name,
             callbackURL: "/chat",
           });
-    if (result.error) setError("Test login failed. Check the email and password.");
+    if (result.error) setError("Email login failed. Check the email and password.");
   };
 
   return (
@@ -79,9 +79,7 @@ function KodySignIn() {
                 minLength={8}
                 required
               />
-              <Button type="submit">
-                {mode === "sign-in" ? "Test login" : "Create test account"}
-              </Button>
+              <Button type="submit">Continue with email</Button>
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
               <button
                 type="button"
@@ -91,7 +89,7 @@ function KodySignIn() {
                   setError(null);
                 }}
               >
-                {mode === "sign-in" ? "Create a test account" : "Use an existing test account"}
+                {mode === "sign-in" ? "Create an account" : "Use an existing account"}
               </button>
             </form>
           ) : null}
