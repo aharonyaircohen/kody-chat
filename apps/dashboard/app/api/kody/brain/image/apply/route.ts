@@ -6,3 +6,4 @@ export * from "@kody-ade/brain/routes/image-apply";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+import "@dashboard/lib/brain/personal-services";

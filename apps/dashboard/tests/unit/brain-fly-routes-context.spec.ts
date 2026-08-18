@@ -26,7 +26,30 @@ const STATEFUL_ROUTES = [
   "app/api/kody/chat/brain-fly/route.ts",
 ];
 
+const HOSTED_BRAIN_ROUTES = [
+  "app/api/kody/brain/provision/route.ts",
+  "app/api/kody/brain/destroy/route.ts",
+  "app/api/kody/brain/resume/route.ts",
+  "app/api/kody/brain/suspend/route.ts",
+  "app/api/kody/brain/models/route.ts",
+  "app/api/kody/brain/status/route.ts",
+  "app/api/kody/brain/image/route.ts",
+  "app/api/kody/brain/image/apply/route.ts",
+  "app/api/kody/brain/login/route.ts",
+  "app/api/kody/brain/suspension/route.ts",
+  "app/api/kody/brain/stored/route.ts",
+  "app/api/kody/chat/brain-fly/route.ts",
+];
+
 describe("Personal Brain route context", () => {
+  it("registers host services inside every serverless route bundle", () => {
+    for (const routePath of HOSTED_BRAIN_ROUTES) {
+      expect(readRoute(routePath), routePath).toContain(
+        'import "@dashboard/lib/brain/personal-services";',
+      );
+    }
+  });
+
   it("does not require repository context for Brain lifecycle state", () => {
     for (const routePath of STATEFUL_ROUTES.slice(0, -1)) {
       const source = readRoute(routePath);

@@ -298,3 +298,4 @@ export async function POST(req: NextRequest) {
     clearGitHubContext();
   }
 }
+import "@dashboard/lib/brain/personal-services";
