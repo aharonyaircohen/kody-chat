@@ -399,6 +399,9 @@ describe("simple capability folders", () => {
             qaCredentials: true,
             githubTestToken: true,
             qaAccountCredentials: ["OPENROUTER_API_KEY"],
+            qaAccountModelSettings: {
+              models: [{ id: "minimax/MiniMax-M3" }],
+            },
             browserOnly: true,
           },
           input: {},

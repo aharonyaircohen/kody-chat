@@ -361,6 +361,7 @@ function parseCapabilityContract(raw: string): {
     qaCredentials?: boolean;
     githubTestToken?: boolean;
     qaAccountCredentials?: string[];
+    qaAccountModelSettings?: Record<string, unknown>;
     browserOnly?: boolean;
   };
   secrets?: string[];
@@ -412,6 +413,7 @@ function parseCapabilityContract(raw: string): {
       key !== "qaCredentials" &&
       key !== "githubTestToken" &&
       key !== "qaAccountCredentials" &&
+      key !== "qaAccountModelSettings" &&
       key !== "browserOnly",
   );
   if (unsupportedRequirements.length > 0) {
@@ -453,6 +455,14 @@ function parseCapabilityContract(raw: string): {
     );
   }
   if (
+    requirementsValue?.qaAccountModelSettings !== undefined &&
+    !asRecord(requirementsValue.qaAccountModelSettings)
+  ) {
+    throw new Error(
+      "contract.json requirements.qaAccountModelSettings must be an object",
+    );
+  }
+  if (
     requirementsValue?.browserOnly !== undefined &&
     typeof requirementsValue.browserOnly !== "boolean"
   ) {
@@ -462,6 +472,7 @@ function parseCapabilityContract(raw: string): {
     (requirementsValue?.qaCredentials === true ||
       requirementsValue?.githubTestToken === true ||
       requirementsValue?.qaAccountCredentials !== undefined ||
+      requirementsValue?.qaAccountModelSettings !== undefined ||
       requirementsValue?.browserOnly === true) &&
     requirementsValue.browser !== true
   ) {
@@ -483,6 +494,13 @@ function parseCapabilityContract(raw: string): {
               qaAccountCredentials: [
                 ...new Set(requirementsValue.qaAccountCredentials as string[]),
               ],
+            }
+          : {}),
+        ...(asRecord(requirementsValue.qaAccountModelSettings)
+          ? {
+              qaAccountModelSettings: asRecord(
+                requirementsValue.qaAccountModelSettings,
+              )!,
             }
           : {}),
         ...(requirementsValue.browserOnly === true
