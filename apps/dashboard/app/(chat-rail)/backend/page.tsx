@@ -9,9 +9,8 @@
 import { BackendManager } from "@dashboard/features/admin/components/BackendManager";
 import { buildKodyMetadata } from "../../metadata";
 
-export const dynamic = "force-static";
-export const revalidate = false;
-export const fetchCache = "force-cache";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = buildKodyMetadata({
   title: "Backend — Kody Operations Dashboard",
