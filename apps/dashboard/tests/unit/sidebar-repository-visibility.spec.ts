@@ -29,10 +29,16 @@ describe("repository navigation visibility", () => {
       "/instructions",
       "/secrets",
       "/memory",
-      "/brain",
     ]);
     expect(sections[0]?.items.every((item) => item.scope === "personal")).toBe(
       true,
+    );
+    expect(sections[0]?.items.map((item) => item.label)).toEqual(
+      expect.arrayContaining([
+        "Personal Commands",
+        "Personal Credentials",
+        "Personal Memory",
+      ]),
     );
   });
 
@@ -50,10 +56,27 @@ describe("repository navigation visibility", () => {
     expect(sections[1]?.contextLabel).toBe("Repository");
     expect(
       sections
-        .slice(1)
-        .flatMap((section) => section.items)
-        .some((item) => item.scope === "personal"),
-    ).toBe(false);
+        .find((section) => section.title === "Fly")
+        ?.items.map((item) => item.href),
+    ).toContain("/brain");
+    expect(sections[0]?.items.map((item) => item.href)).not.toContain("/brain");
+    const repositoryItems = sections
+      .slice(1)
+      .flatMap((section) => section.items);
+    expect(repositoryItems.map((item) => item.label)).toEqual(
+      expect.arrayContaining([
+        "Repository Commands",
+        "Repository Secrets",
+        "Repository Memory",
+      ]),
+    );
+    expect(
+      repositoryItems
+        .filter((item) =>
+          ["/commands", "/secrets", "/memory"].includes(item.href),
+        )
+        .every((item) => item.scope === "repository"),
+    ).toBe(true);
   });
 
   it("renders personal navigation and uses Kody sign-in state without a repository", () => {

@@ -14,9 +14,11 @@ describe("personal surface boundaries", () => {
       "src/dashboard/features/memory/components/MemoryFilesPage.tsx",
     );
 
-    expect(memory).toContain('auth ? MEMORY_SCOPE_FOLDERS : ["personal"]');
     expect(memory).toContain(
-      'subtitle={auth ? `${auth.owner}/${auth.repo}` : "Your Kody memory"}',
+      'repositoryScoped ? ["repository"] : ["personal"]',
+    );
+    expect(memory).toContain(
+      'fixedScope={repositoryScoped ? "repository" : "user"}',
     );
   });
 
@@ -25,7 +27,9 @@ describe("personal surface boundaries", () => {
       "../../packages/kody-chat-dashboard/src/dashboard/lib/components/SecretsManager.tsx",
     );
 
-    expect(secrets).toContain("{auth ? <VercelBypassCard /> : null}");
+    expect(secrets).toContain(
+      "{repositoryScoped ? <VercelBypassCard /> : null}",
+    );
   });
 
   it("owns personal conversations with the signed-in Kody user", () => {

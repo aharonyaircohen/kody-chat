@@ -1,9 +1,10 @@
-import type {
-  Memory,
-  MemoryKind,
-  MemoryRevision,
-} from "@kody-ade/memory";
-import { API_BASE, buildHeaders, handleResponse } from "./client";
+import type { Memory, MemoryKind, MemoryRevision } from "@kody-ade/memory";
+import {
+  API_BASE,
+  buildHeaders,
+  handleResponse,
+  type ApiAuthContext,
+} from "./client";
 
 export type { Memory, MemoryKind, MemoryRevision };
 
@@ -31,9 +32,13 @@ export interface UpdateMemoryInput {
 }
 
 export const memoryApi = {
-  async list(): Promise<readonly Readonly<Memory>[]> {
-    const response = await fetch(`${API_BASE}/memory`, {
-      headers: buildHeaders(),
+  async list(
+    scope?: "user" | "repository",
+    authOverride?: ApiAuthContext | null,
+  ): Promise<readonly Readonly<Memory>[]> {
+    const query = scope ? `?scope=${scope}` : "";
+    const response = await fetch(`${API_BASE}/memory${query}`, {
+      headers: buildHeaders({}, authOverride),
       cache: "no-store",
     });
     return (
@@ -41,46 +46,54 @@ export const memoryApi = {
     ).memories;
   },
 
-  async get(id: string): Promise<MemoryDetail> {
+  async get(
+    id: string,
+    authOverride?: ApiAuthContext | null,
+  ): Promise<MemoryDetail> {
     const response = await fetch(
       `${API_BASE}/memory/${encodeURIComponent(id)}`,
-      { headers: buildHeaders(), cache: "no-store" },
+      { headers: buildHeaders({}, authOverride), cache: "no-store" },
     );
     return await handleResponse<MemoryDetail>(response);
   },
 
-  async create(input: CreateMemoryInput): Promise<Readonly<Memory>> {
+  async create(
+    input: CreateMemoryInput,
+    authOverride?: ApiAuthContext | null,
+  ): Promise<Readonly<Memory>> {
     const response = await fetch(`${API_BASE}/memory`, {
       method: "POST",
-      headers: buildHeaders(),
+      headers: buildHeaders({}, authOverride),
       body: JSON.stringify(input),
     });
-    return (
-      await handleResponse<{ memory: Readonly<Memory> }>(response)
-    ).memory;
+    return (await handleResponse<{ memory: Readonly<Memory> }>(response))
+      .memory;
   },
 
   async update(
     id: string,
     input: UpdateMemoryInput,
+    authOverride?: ApiAuthContext | null,
   ): Promise<Readonly<Memory>> {
     const response = await fetch(
       `${API_BASE}/memory/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
-        headers: buildHeaders(),
+        headers: buildHeaders({}, authOverride),
         body: JSON.stringify(input),
       },
     );
-    return (
-      await handleResponse<{ memory: Readonly<Memory> }>(response)
-    ).memory;
+    return (await handleResponse<{ memory: Readonly<Memory> }>(response))
+      .memory;
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(
+    id: string,
+    authOverride?: ApiAuthContext | null,
+  ): Promise<void> {
     const response = await fetch(
       `${API_BASE}/memory/${encodeURIComponent(id)}`,
-      { method: "DELETE", headers: buildHeaders() },
+      { method: "DELETE", headers: buildHeaders({}, authOverride) },
     );
     await handleResponse<{ deleted: true }>(response);
   },

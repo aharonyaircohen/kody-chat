@@ -28,7 +28,7 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
   });
 }
 
-test("configures the built-in OpenRouter Free model for Engine runs", async ({
+test("configures the built-in OpenRouter Free model for personal Chat", async ({
   page,
 }) => {
   const pageErrors: string[] = [];
@@ -97,6 +97,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
     );
     return json(route, isCollection ? { conversations: [] } : { ok: true });
   });
+  await page.route("**/api/kody/account/credentials", (route) =>
+    json(route, { credentials: [] }),
+  );
 
   let models: unknown[] = [
     {
@@ -158,13 +161,9 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   const primaryRow = page.locator("li").filter({
     has: page.getByText("Primary", { exact: true }),
   });
-  const automaticEngineDefault = page.getByRole("checkbox", {
-    name: "Use Automatic as the Engine default",
-  });
   const automaticChatDefault = page.getByRole("checkbox", {
     name: "Use Automatic as the Chat default",
   });
-  await expect(automaticEngineDefault).toBeDisabled();
   await expect(automaticChatDefault).toBeDisabled();
   await expect(
     primaryRow.getByRole("button", { name: /Move Primary .*Automatic/ }),
@@ -176,7 +175,6 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   await primaryRow
     .getByRole("checkbox", { name: "Include Primary in Automatic" })
     .click();
-  await expect(automaticEngineDefault).toBeEnabled();
   await expect(automaticChatDefault).toBeEnabled();
   await expect(page.getByText("Uses 2 selected models in order")).toBeVisible();
 
@@ -204,26 +202,7 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
     page.getByRole("menuitem", { name: "Disable model" }),
   ).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
-  await page.getByRole("menuitem", { name: "Edit" }).click();
-  const dialog = page.getByRole("dialog", { name: "Edit model" });
-  await dialog
-    .getByText("Default for engine (Kody Live, issue + PR runs)")
-    .click();
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
-
-  await expect(openRouterRow).toContainText("Engine");
-  expect(savedBody).not.toBeNull();
-  expect(savedBody!.models).toContainEqual(
-    expect.objectContaining({
-      id: "openrouter/free",
-      provider: "openrouter",
-      modelName: "openrouter/free",
-      apiKeySecret: "OPENROUTER_API_KEY",
-      engineDefault: true,
-    }),
-  );
-
-  await automaticEngineDefault.click();
+  await page.keyboard.press("Escape");
   await automaticChatDefault.click();
   await expect(
     page.locator('[title="Used for new conversations"]'),
@@ -234,13 +213,12 @@ test("configures the built-in OpenRouter Free model for Engine runs", async ({
   };
   expect(automaticSavedBody.automatic).toEqual({
     default: true,
-    engineDefault: true,
+    engineDefault: false,
   });
   expect(
     automaticSavedBody.models.find((model) => model.id === "anthropic/primary"),
   ).toMatchObject({
     default: false,
-    engineDefault: false,
   });
   expect(
     automaticSavedBody.models.every((model) => model.engineDefault !== true),

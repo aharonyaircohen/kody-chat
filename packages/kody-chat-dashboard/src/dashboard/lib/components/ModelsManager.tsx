@@ -30,6 +30,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
@@ -340,6 +341,15 @@ export function ModelsManager() {
         <p className="text-sm text-white/55">
           Your chat models and API keys belong to your Kody account.
         </p>
+        {auth ? (
+          <p className="text-sm text-white/55">
+            Repository automation uses Engine Models configured in{" "}
+            <RepoScopedLink className="underline" href="/variables">
+              Variables
+            </RepoScopedLink>
+            .
+          </p>
+        ) : null}
 
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">

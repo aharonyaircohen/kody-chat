@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import {
@@ -21,7 +21,6 @@ import {
 } from "@dashboard/lib/api/memory";
 import {
   MEMORY_KINDS,
-  MEMORY_SCOPE_FOLDERS,
   memoryFilePath,
   memoryIdFromFilePath,
   memoryMarkdown,
@@ -60,23 +59,31 @@ export function MemoryFilesPage({
 }) {
   const { auth } = useAuth();
   const { data: kodySession } = kodyAuthClient.useSession();
+  const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const repositoryScoped = pathname.startsWith("/repo/") && Boolean(auth);
   const repositoryScope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
+  const apiAuth = repositoryScoped ? auth : null;
   const personalScope = kodySession?.user.id ?? "anonymous";
-  const activeScope = auth ? repositoryScope : `user:${personalScope}`;
+  const activeScope = repositoryScoped
+    ? repositoryScope
+    : `user:${personalScope}`;
   const visibleScopeFolders = useMemo<readonly MemoryScopeFolder[]>(
-    () => (auth ? MEMORY_SCOPE_FOLDERS : ["personal"]),
-    [auth],
+    () => (repositoryScoped ? ["repository"] : ["personal"]),
+    [repositoryScoped],
   );
-  const routeBase = auth ? `/repo/${repositoryScope}/memory` : "/memory";
+  const routeBase = repositoryScoped
+    ? `/repo/${repositoryScope}/memory`
+    : "/memory";
   const queryKey = useMemo(
     () => ["memory-files", activeScope] as const,
     [activeScope],
   );
   const memoriesQuery = useQuery({
     queryKey,
-    queryFn: memoryApi.list,
+    queryFn: () =>
+      memoryApi.list(repositoryScoped ? "repository" : "user", apiAuth),
     enabled: Boolean(kodySession?.user),
     staleTime: 30_000,
     refetchInterval: 5_000,
@@ -145,7 +152,7 @@ export function MemoryFilesPage({
       async readFile(path: string) {
         const id = memoryIdFromFilePath(path);
         if (!id) return null;
-        const detail = await memoryApi.get(id);
+        const detail = await memoryApi.get(id, apiAuth);
         if (memoryFilePath(detail.memory) !== normalizedPath(path)) return null;
         const content = memoryMarkdown(detail.memory, detail.revisions);
         return {
@@ -159,7 +166,7 @@ export function MemoryFilesPage({
         };
       },
     }),
-    [activeScope, memories, memoriesQuery.error, visibleScopeFolders],
+    [activeScope, apiAuth, memories, memoriesQuery.error, visibleScopeFolders],
   );
 
   const memoryForPath = useCallback(
@@ -180,7 +187,7 @@ export function MemoryFilesPage({
     }
     setDeleting(true);
     try {
-      await memoryApi.remove(memory.id);
+      await memoryApi.remove(memory.id, apiAuth);
       activePathRef.current = "";
       router.replace(routeBase);
       void invalidate();
@@ -285,8 +292,12 @@ export function MemoryFilesPage({
   return (
     <AuthGuard>
       <DashboardFilesPage
-        title="Memory"
-        subtitle={auth ? `${auth.owner}/${auth.repo}` : "Your Kody memory"}
+        title={repositoryScoped ? "Repository Memory" : "Personal Memory"}
+        subtitle={
+          repositoryScoped && auth
+            ? `${auth.owner}/${auth.repo}`
+            : "Your Kody memory"
+        }
         routeBase="/memory"
         initialPath={activePathRef.current}
         transport={transport}
@@ -299,7 +310,9 @@ export function MemoryFilesPage({
       <MemoryFormDialog
         open={creating}
         onOpenChange={setCreating}
-        allowRepositoryScope={Boolean(auth)}
+        allowRepositoryScope={false}
+        fixedScope={repositoryScoped ? "repository" : "user"}
+        authOverride={apiAuth}
         onSaved={(memory) => {
           setCreating(false);
           handleSavedMemory(memory);
@@ -311,6 +324,8 @@ export function MemoryFilesPage({
           if (!open) setEditing(null);
         }}
         memory={editing}
+        fixedScope={repositoryScoped ? "repository" : "user"}
+        authOverride={apiAuth}
         onSaved={(memory) => {
           setEditing(null);
           handleSavedMemory(memory);

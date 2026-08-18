@@ -10,6 +10,7 @@
 
 import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -175,12 +176,15 @@ export function SecretsManager() {
 
 function SecretsManagerInner() {
   const { auth } = useAuth();
+  const pathname = usePathname();
+  const repositoryScoped = pathname.startsWith("/repo/");
+  const scopedAuth = repositoryScoped ? auth : null;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...buildAuthHeaders(auth),
+    ...buildAuthHeaders(scopedAuth),
   };
-  const actorLogin = auth?.user.login;
-  const queryScope = secretsQueryScopeFromAuth(auth);
+  const actorLogin = scopedAuth?.user.login;
+  const queryScope = secretsQueryScopeFromAuth(scopedAuth);
   const listQueryKey = secretsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
@@ -257,10 +261,12 @@ function SecretsManagerInner() {
 
   return (
     <PageShell
-      title="Secrets"
+      title={repositoryScoped ? "Repository Secrets" : "Personal Credentials"}
       icon={KeyRound}
       iconClassName="text-amber-400"
-      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      subtitle={
+        repositoryScoped && auth ? `${auth.owner}/${auth.repo}` : undefined
+      }
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
@@ -315,8 +321,8 @@ function SecretsManagerInner() {
               <p className="text-sm text-white/70">No secrets stored yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
                 Secrets are encrypted and stored for{" "}
-                {auth ? "this repository" : "your Kody account"}. Kody reads
-                them only when a configured feature needs them.
+                {repositoryScoped ? "this repository" : "your Kody account"}.
+                Kody reads them only when a configured feature needs them.
               </p>
               <Button
                 size="sm"
@@ -486,7 +492,7 @@ function SecretsManagerInner() {
         </p>
       </div>
 
-      {auth ? <VercelBypassCard /> : null}
+      {repositoryScoped ? <VercelBypassCard /> : null}
 
       {editing && (
         <SecretEditor

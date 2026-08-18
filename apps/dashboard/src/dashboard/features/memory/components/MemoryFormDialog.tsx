@@ -27,6 +27,7 @@ import {
   type MemoryKind,
 } from "@dashboard/lib/api/memory";
 import { MEMORY_KINDS } from "../lib/memory-files";
+import type { ApiAuthContext } from "@dashboard/lib/api/client";
 
 interface MemoryFormDialogProps {
   open: boolean;
@@ -34,6 +35,8 @@ interface MemoryFormDialogProps {
   onSaved: (memory: Readonly<Memory>) => void;
   memory?: Readonly<Memory> | null;
   allowRepositoryScope?: boolean;
+  fixedScope?: "user" | "repository";
+  authOverride?: ApiAuthContext | null;
 }
 
 export function MemoryFormDialog({
@@ -42,6 +45,8 @@ export function MemoryFormDialog({
   onSaved,
   memory = null,
   allowRepositoryScope = true,
+  fixedScope,
+  authOverride,
 }: MemoryFormDialogProps) {
   const [saving, setSaving] = useState(false);
 
@@ -59,14 +64,18 @@ export function MemoryFormDialog({
     setSaving(true);
     try {
       const saved = memory
-        ? await memoryApi.update(memory.id, {
-            kind: input.kind,
-            title: input.title,
-            summary: input.summary,
-            body: input.body,
-            reason: input.reason,
-          })
-        : await memoryApi.create(input);
+        ? await memoryApi.update(
+            memory.id,
+            {
+              kind: input.kind,
+              title: input.title,
+              summary: input.summary,
+              body: input.body,
+              reason: input.reason,
+            },
+            authOverride,
+          )
+        : await memoryApi.create(input, authOverride);
       toast.success(memory ? "Memory updated" : "Memory created");
       onSaved(saved);
     } catch (error) {
@@ -89,7 +98,7 @@ export function MemoryFormDialog({
         </DialogHeader>
         <form key={memory?.currentRevisionId ?? "new"} onSubmit={submit}>
           <div className="space-y-4">
-            {!memory && allowRepositoryScope ? (
+            {!memory && allowRepositoryScope && !fixedScope ? (
               <Field label="Scope" htmlFor="memory-scope">
                 <Select name="scope" defaultValue="user">
                   <SelectTrigger id="memory-scope">
@@ -105,7 +114,7 @@ export function MemoryFormDialog({
               <Input
                 type="hidden"
                 name="scope"
-                value={memory?.scope.kind ?? "user"}
+                value={memory?.scope.kind ?? fixedScope ?? "user"}
               />
             )}
             <Field label="Kind" htmlFor="memory-kind">

@@ -600,6 +600,11 @@ function SidebarContent({
 
               return (
                 <div key={section.title} className="space-y-1">
+                  {section.contextLabel && !isCollapsed ? (
+                    <p className="px-3.5 pb-1 pt-3 text-label font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      {section.contextLabel}
+                    </p>
+                  ) : null}
                   {repositorySelector && i === repositorySelectorIndex ? (
                     <div
                       data-sidebar-repository-selector="true"
@@ -610,11 +615,6 @@ function SidebarContent({
                     >
                       {repositorySelector}
                     </div>
-                  ) : null}
-                  {section.contextLabel && !isCollapsed ? (
-                    <p className="px-3.5 pb-1 pt-3 text-label font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      {section.contextLabel}
-                    </p>
                   ) : null}
                   {section.collapsible ? (
                     isCollapsed ? (

@@ -237,19 +237,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Brain",
-    items: [
-      {
-        href: "/brain",
-        label: "Brain",
-        icon: Brain,
-        exact: true,
-        description: "Manage your personal Brain chat models.",
-        tint: "text-violet-300 bg-violet-500/10",
-      },
-    ],
-  },
-  {
     title: "Knowledge",
     items: [
       {
@@ -309,6 +296,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         exact: true,
         description: "Fly token, runners, and Brain settings.",
         tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/brain",
+        label: "Brain",
+        icon: Brain,
+        exact: true,
+        description: "Manage Brain runtime and chat models.",
+        tint: "text-violet-300 bg-violet-500/10",
       },
       {
         href: "/fly/previews",
@@ -737,7 +732,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/activity"),
-      ...settingsSection("Brain").items,
       navItemForHref("/config"),
       navItemForHref("/secrets"),
       navItemForHref("/variables"),

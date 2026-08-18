@@ -208,6 +208,10 @@ function VariablesManagerInner() {
       }
     >
       <div className="space-y-3">
+        <p className="text-sm text-white/55">
+          Repository settings shared across Engine runs. LLM_MODELS controls
+          the repository&apos;s Engine Models.
+        </p>
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading variables…

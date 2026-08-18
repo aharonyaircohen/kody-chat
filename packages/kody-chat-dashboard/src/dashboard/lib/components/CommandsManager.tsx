@@ -11,6 +11,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -169,12 +170,15 @@ export function CommandsManager() {
 
 function CommandsManagerInner() {
   const { auth } = useAuth();
+  const pathname = usePathname();
+  const repositoryScoped = pathname.startsWith("/repo/");
+  const scopedAuth = repositoryScoped ? auth : null;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...buildAuthHeaders(auth),
+    ...buildAuthHeaders(scopedAuth),
   };
-  const actorLogin = auth?.user.login;
-  const queryScope = commandsQueryScopeFromAuth(auth);
+  const actorLogin = scopedAuth?.user.login;
+  const queryScope = commandsQueryScopeFromAuth(scopedAuth);
   const listQueryKey = commandsQueryKeys.list(queryScope);
 
   const queryClient = useQueryClient();
@@ -230,10 +234,12 @@ function CommandsManagerInner() {
 
   return (
     <PageShell
-      title="Commands"
+      title={repositoryScoped ? "Repository Commands" : "Personal Commands"}
       icon={Bot}
       iconClassName="text-violet-400"
-      subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
+      subtitle={
+        repositoryScoped && auth ? `${auth.owner}/${auth.repo}` : undefined
+      }
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">

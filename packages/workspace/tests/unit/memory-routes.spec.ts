@@ -20,8 +20,8 @@ const { verifyRead, verifyWrite, store } = vi.hoisted(() => {
           scope.kind === "user" && memory.scope.kind === "user"
             ? scope.userId === memory.scope.userId
             : scope.kind === "repository" &&
-                memory.scope.kind === "repository" &&
-                scope.tenantId === memory.scope.tenantId,
+              memory.scope.kind === "repository" &&
+              scope.tenantId === memory.scope.tenantId,
         ),
       );
     },
@@ -30,10 +30,7 @@ const { verifyRead, verifyWrite, store } = vi.hoisted(() => {
     },
     async revise(memory, revision) {
       memories.set(memory.id, memory);
-      revisions.set(memory.id, [
-        ...(revisions.get(memory.id) ?? []),
-        revision,
-      ]);
+      revisions.set(memory.id, [...(revisions.get(memory.id) ?? []), revision]);
     },
     async remove(id) {
       revisions.delete(id);
@@ -82,11 +79,7 @@ const access = {
   octokit: {},
 };
 
-function request(
-  method: string,
-  url: string,
-  body?: Record<string, unknown>,
-) {
+function request(method: string, url: string, body?: Record<string, unknown>) {
   return new NextRequest(url, {
     method,
     ...(body === undefined
@@ -199,6 +192,41 @@ describe("memory routes", () => {
       request("GET", "http://localhost/api/kody/memory"),
     );
     expect((await body(listed)).memories).toHaveLength(1);
+  });
+
+  it("lists only the explicitly requested memory scope", async () => {
+    const headers = {
+      "content-type": "application/json",
+      "x-kody-token": "secret",
+      "x-kody-owner": "acme",
+      "x-kody-repo": "widgets",
+    };
+    for (const scope of ["user", "repository"] as const) {
+      await createMemory(
+        new NextRequest("http://localhost/api/kody/memory", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            scope,
+            kind: "fact",
+            title: `${scope} fact`,
+            summary: `${scope} summary`,
+            body: `${scope} body`,
+          }),
+        }),
+      );
+    }
+
+    const listed = await listMemories(
+      new NextRequest("http://localhost/api/kody/memory?scope=repository", {
+        headers,
+      }),
+    );
+    expect((await body(listed)).memories).toEqual([
+      expect.objectContaining({
+        scope: { kind: "repository", tenantId: "acme/widgets" },
+      }),
+    ]);
   });
 
   it("reads, revises, and returns revision history", async () => {

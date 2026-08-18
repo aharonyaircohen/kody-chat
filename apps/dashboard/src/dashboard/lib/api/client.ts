@@ -140,7 +140,7 @@ export function buildHeaders(
   extra: Record<string, string> = {},
   authOverride?: ApiAuthContext | null,
 ): Record<string, string> {
-  const auth = authOverride ?? getStoredAuth();
+  const auth = authOverride === undefined ? getStoredAuth() : authOverride;
   return {
     "Content-Type": "application/json",
     ...buildKodyAuthHeaders(auth),

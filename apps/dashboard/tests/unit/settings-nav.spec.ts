@@ -67,6 +67,7 @@ describe("settings navigation", () => {
   it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Fly")).toEqual([
       "/fly/config",
+      "/brain",
       "/fly/previews",
       "/fly/brain-images",
       "/fly/machines",
@@ -198,6 +199,7 @@ describe("settings navigation", () => {
     );
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Fly")).toEqual([
       "/fly/config",
+      "/brain",
       "/fly/previews",
       "/fly/brain-images",
       "/fly/machines",
@@ -208,6 +210,9 @@ describe("settings navigation", () => {
         href.startsWith("/fly/"),
       ),
     ).toBe(false);
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "System")).not.toContain(
+      "/brain",
+    );
     expect(SIDEBAR_NAV_SECTIONS.every((section) => section.collapsible)).toBe(
       true,
     );

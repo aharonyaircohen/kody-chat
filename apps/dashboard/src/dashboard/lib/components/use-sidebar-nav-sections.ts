@@ -22,7 +22,24 @@ import { PERSONAL_DASHBOARD_PATHS } from "@dashboard/lib/kody-scope";
 
 const KNOWLEDGE_SECTION_TITLE = "Knowledge";
 const DOCS_HREF = "/docs";
-const PERSONAL_CHAT_HREFS = new Set(PERSONAL_DASHBOARD_PATHS);
+// Brain remains a personal runtime internally, but is intentionally shown only
+// inside the repository Fly menu until its GitHub-backed setup is independent.
+const PERSONAL_SIDEBAR_PATHS = PERSONAL_DASHBOARD_PATHS.filter(
+  (href) => href !== "/brain",
+);
+const PERSONAL_SIDEBAR_HREFS = new Set(PERSONAL_SIDEBAR_PATHS);
+const EXPLICIT_SCOPE_LABELS: Readonly<Record<string, string>> = {
+  "/commands": "Personal Commands",
+  "/memory": "Personal Memory",
+  "/secrets": "Personal Credentials",
+};
+const REPOSITORY_SCOPE_ITEMS: Readonly<
+  Record<string, readonly { href: string; label: string }[]>
+> = {
+  Work: [{ href: "/commands", label: "Repository Commands" }],
+  Knowledge: [{ href: "/memory", label: "Repository Memory" }],
+  System: [{ href: "/secrets", label: "Repository Secrets" }],
+};
 
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
@@ -42,7 +59,7 @@ export function extendSidebarNavSections(
     personalHomeItem,
     ...sections.flatMap((section) => section.items),
   ];
-  const personalItems = PERSONAL_DASHBOARD_PATHS.map((href) =>
+  const personalItems = PERSONAL_SIDEBAR_PATHS.map((href) =>
     allItems.find((item) => item?.href === href),
   ).filter((item): item is SettingsNavItem => Boolean(item));
   const personalSection: SettingsNavSection = {
@@ -51,15 +68,29 @@ export function extendSidebarNavSections(
     icon: UserRound,
     tint: "text-fuchsia-300",
     collapsible: true,
-    items: personalItems.map((item) => ({ ...item, scope: "personal" })),
+    items: personalItems.map((item) => ({
+      ...item,
+      label: EXPLICIT_SCOPE_LABELS[item.href] ?? item.label,
+      scope: "personal",
+    })),
   };
   if (!repositoryConnected) return [personalSection];
 
   const repositorySections = sections
     .map((section) => {
       const repositoryItems = section.items.filter(
-        (item) => !PERSONAL_CHAT_HREFS.has(item.href),
+        (item) => !PERSONAL_SIDEBAR_HREFS.has(item.href),
       );
+      for (const scopedItem of REPOSITORY_SCOPE_ITEMS[section.title] ?? []) {
+        const source = allItems.find((item) => item?.href === scopedItem.href);
+        if (source) {
+          repositoryItems.push({
+            ...source,
+            label: scopedItem.label,
+            scope: "repository",
+          });
+        }
+      }
       if (
         section.title === KNOWLEDGE_SECTION_TITLE &&
         customSpaceItems.length

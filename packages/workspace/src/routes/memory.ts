@@ -11,12 +11,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
-const kindSchema = z.enum([
-  "preference",
-  "fact",
-  "decision",
-  "reference",
-]);
+const kindSchema = z.enum(["preference", "fact", "decision", "reference"]);
 const createSchema = z.object({
   scope: z.enum(["user", "repository"]),
   kind: kindSchema,
@@ -32,9 +27,16 @@ export async function GET(req: NextRequest) {
   if (context instanceof NextResponse) return context;
 
   try {
+    const requestedScope = req.nextUrl.searchParams.get("scope");
+    const scopes =
+      requestedScope === "user"
+        ? context.scopes.filter((scope) => scope.kind === "user")
+        : requestedScope === "repository"
+          ? context.scopes.filter((scope) => scope.kind === "repository")
+          : context.scopes;
     const memories = await context.application.list({
       principal: context.principal,
-      scopes: context.scopes,
+      scopes,
     });
     return NextResponse.json({ memories }, { headers: NO_STORE_HEADERS });
   } catch (error) {
@@ -62,9 +64,7 @@ export async function POST(req: NextRequest) {
       },
       evidence: [userInputEvidence()],
       reason: input.reason ?? "Created manually by the user.",
-      ...(input.expiresAt === undefined
-        ? {}
-        : { expiresAt: input.expiresAt }),
+      ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
     });
     return NextResponse.json(
       { memory },
