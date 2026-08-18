@@ -8,6 +8,15 @@ import { existsSync, readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
 describe("widgets management page", () => {
+  it("lets the owner delete the selected widget", () => {
+    const manager = readFileSync(
+      "src/dashboard/lib/components/WidgetsManager.tsx",
+      "utf8",
+    );
+    expect(manager).toContain("aria-label={`Delete ${widget.name}`}");
+    expect(manager).toContain('method: "DELETE"');
+  });
+
   it("exports the integration page, API, and navigation entry", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
       exports: Record<string, string>;

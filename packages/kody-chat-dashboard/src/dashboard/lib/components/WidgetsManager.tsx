@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Blocks, Loader2, Play, Upload } from "lucide-react";
+import { Blocks, Loader2, Play, Trash2, Upload } from "lucide-react";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
@@ -107,6 +107,23 @@ async function publishWidgetApi(
   return { name: json.name, slug: json.slug, version: json.version };
 }
 
+async function deleteWidgetApi(
+  headers: Record<string, string>,
+  slug: string,
+): Promise<void> {
+  const res = await fetch(`/api/kody/widgets/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+}
+
 export function WidgetsManager({ initialSlug }: { initialSlug?: string }) {
   return <WidgetsManagerInner initialSlug={initialSlug} />;
 }
@@ -170,6 +187,16 @@ function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
     },
     onError: (err: Error) => toast.error(err.message || "Failed to publish"),
   });
+  const remove = useMutation({
+    mutationFn: (slug: string) => deleteWidgetApi(headers, slug),
+    onSuccess: async () => {
+      setSelectedSlug(null);
+      router.replace(scopedHref("/views/widgets"));
+      await queryClient.invalidateQueries({ queryKey: widgetQueryKeys.all });
+      toast.success("Widget deleted");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete"),
+  });
 
   const uploadAction = (
     <Button
@@ -185,7 +212,15 @@ function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
   );
 
   const detail = selected ? (
-    <WidgetDetail widget={selected} />
+    <WidgetDetail
+      widget={selected}
+      deleting={remove.isPending}
+      onDelete={() => {
+        if (window.confirm(`Delete ${selected.name} and all its versions?`)) {
+          remove.mutate(selected.slug);
+        }
+      }}
+    />
   ) : (
     <EmptyState
       icon={<Blocks />}
@@ -303,7 +338,15 @@ function WidgetsManagerInner({ initialSlug }: { initialSlug?: string }) {
   );
 }
 
-function WidgetDetail({ widget }: { widget: WidgetRow }) {
+function WidgetDetail({
+  widget,
+  deleting,
+  onDelete,
+}: {
+  widget: WidgetRow;
+  deleting: boolean;
+  onDelete: () => void;
+}) {
   return (
     <div className="min-h-full">
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:px-6">
@@ -316,16 +359,32 @@ function WidgetDetail({ widget }: { widget: WidgetRow }) {
             {formatUpdatedAt(widget.updatedAt)}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          className="shrink-0 gap-1.5"
-          aria-label={`Play ${widget.name} in Chat`}
-          onClick={() => requestWidgetOpen(widget.slug)}
-        >
-          <Play className="h-4 w-4" />
-          Play in Chat
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Delete ${widget.name}`}
+            disabled={deleting}
+            onClick={onDelete}
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            aria-label={`Play ${widget.name} in Chat`}
+            onClick={() => requestWidgetOpen(widget.slug)}
+          >
+            <Play className="h-4 w-4" />
+            Play in Chat
+          </Button>
+        </div>
       </div>
 
       <div className="px-4 py-5 md:px-6">

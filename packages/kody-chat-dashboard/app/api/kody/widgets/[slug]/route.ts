@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestAuth } from "@kody-ade/base/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { getChatRequestContextProvider } from "../../chat/request-context-provider";
@@ -142,5 +142,41 @@ export async function GET(
   } catch (error) {
     console.error("[Widgets] bundle load failed", error);
     return json({ error: "widget_unavailable" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const { slug: rawSlug } = await params;
+  const slug = rawSlug?.trim() ?? "";
+  if (!WIDGET_SLUG_RE.test(slug)) {
+    return json({ error: "invalid_widget_slug" }, { status: 400 });
+  }
+
+  const hostUser = await getChatRequestContextProvider()?.resolveUser(req);
+  const auth = getRequestAuth(req);
+  if (auth) {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+  }
+  if (!hostUser && !auth) {
+    return json({ error: "not_authenticated" }, { status: 401 });
+  }
+
+  try {
+    const tenantId = auth ? tenantIdFor(auth) : `user:${hostUser!.id}`;
+    const deletedVersions = (await createBackendClient().mutation(
+      backendApi.widgets.remove,
+      { tenantId, slug },
+    )) as number;
+    if (deletedVersions === 0) {
+      return json({ error: "widget_not_found" }, { status: 404 });
+    }
+    return json({ slug, deletedVersions });
+  } catch (error) {
+    console.error("[Widgets] delete failed", error);
+    return json({ error: "widget_delete_failed" }, { status: 500 });
   }
 }

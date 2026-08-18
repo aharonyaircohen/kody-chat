@@ -17,6 +17,7 @@ const auth = vi.hoisted(() => ({
     if (!token || !owner || !repo) return null;
     return { token, owner, repo };
   }),
+  requireKodyAuth: vi.fn(async () => null),
 }));
 
 const store = vi.hoisted(() => ({
@@ -29,6 +30,7 @@ const store = vi.hoisted(() => ({
   }>,
   failQueries: false,
   queries: [] as Array<Record<string, unknown>>,
+  mutations: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
@@ -37,6 +39,7 @@ vi.mock("@kody-ade/backend/api", () => ({
     widgets: {
       latest: "widgets.latest",
       getVersion: "widgets.getVersion",
+      remove: "widgets.remove",
     },
   },
 }));
@@ -58,10 +61,20 @@ vi.mock("@kody-ade/backend/client", () => ({
         ) ?? null
       );
     },
+    mutation: async (operation: string, args: Record<string, unknown>) => {
+      if (store.failQueries) throw new Error("backend unavailable");
+      expect(operation).toBe("widgets.remove");
+      store.mutations.push({ ...args });
+      const before = store.rows.length;
+      store.rows = store.rows.filter(
+        (row) => row.tenantId !== args.tenantId || row.slug !== args.slug,
+      );
+      return before - store.rows.length;
+    },
   }),
 }));
 
-import { GET } from "../../app/api/kody/widgets/[slug]/route";
+import { DELETE, GET } from "../../app/api/kody/widgets/[slug]/route";
 
 function headerRequest(
   slug: string,
@@ -91,6 +104,7 @@ beforeEach(() => {
   store.rows = [];
   store.failQueries = false;
   store.queries = [];
+  store.mutations = [];
 });
 
 describe("GET /api/kody/widgets/[slug]", () => {
@@ -230,5 +244,49 @@ describe("GET /api/kody/widgets/[slug]", () => {
     const res = await GET(...headerRequest("quiz"));
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("widget_unavailable");
+  });
+});
+
+describe("DELETE /api/kody/widgets/[slug]", () => {
+  it("deletes every version only inside the authenticated tenant", async () => {
+    store.rows = [
+      {
+        tenantId: "acme/site",
+        slug: "quiz",
+        version: 1,
+        bundle: "v1",
+        updatedAt: "now",
+      },
+      {
+        tenantId: "acme/site",
+        slug: "quiz",
+        version: 2,
+        bundle: "v2",
+        updatedAt: "now",
+      },
+      {
+        tenantId: "other/repo",
+        slug: "quiz",
+        version: 1,
+        bundle: "other",
+        updatedAt: "now",
+      },
+    ];
+    const res = await DELETE(...headerRequest("quiz"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ slug: "quiz", deletedVersions: 2 });
+    expect(store.mutations).toEqual([{ tenantId: "acme/site", slug: "quiz" }]);
+    expect(store.rows).toHaveLength(1);
+  });
+
+  it("returns 404 when the tenant does not own the widget", async () => {
+    const res = await DELETE(...headerRequest("quiz"));
+    expect(res.status).toBe(404);
+  });
+
+  it("requires authentication", async () => {
+    const res = await DELETE(...headerRequest("quiz", {}));
+    expect(res.status).toBe(401);
+    expect(store.mutations).toHaveLength(0);
   });
 });

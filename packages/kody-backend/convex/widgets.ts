@@ -67,3 +67,18 @@ export const list = query({
     }));
   },
 });
+
+/** Delete every published version of one widget inside one tenant. */
+export const remove = mutation({
+  args: { tenantId: v.string(), slug: v.string() },
+  handler: async (ctx, { tenantId, slug }) => {
+    const rows = await ctx.db
+      .query("widgets")
+      .withIndex("by_widget", (q) =>
+        q.eq("tenantId", tenantId).eq("slug", slug),
+      )
+      .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+    return rows.length;
+  },
+});
