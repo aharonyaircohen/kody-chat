@@ -17,6 +17,7 @@ import type * as agencyValidators from "../agencyValidators.js";
 import type * as agents from "../agents.js";
 import type * as auth from "../auth.js";
 import type * as betterAuth_auth from "../betterAuth/auth.js";
+import type * as betterAuth_trustedOrigins from "../betterAuth/trustedOrigins.js";
 import type * as capabilityState from "../capabilityState.js";
 import type * as catalog from "../catalog.js";
 import type * as channelsSeen from "../channelsSeen.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   agents: typeof agents;
   auth: typeof auth;
   "betterAuth/auth": typeof betterAuth_auth;
+  "betterAuth/trustedOrigins": typeof betterAuth_trustedOrigins;
   capabilityState: typeof capabilityState;
   catalog: typeof catalog;
   channelsSeen: typeof channelsSeen;

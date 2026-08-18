@@ -4,6 +4,7 @@ import type { GenericCtx } from "@convex-dev/better-auth/utils";
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import authConfig from "../auth.config";
+import { authTrustedOrigins } from "./trustedOrigins";
 
 import { components } from "../_generated/api";
 import type { DataModel } from "../_generated/dataModel";
@@ -37,11 +38,10 @@ function socialProviders(): BetterAuthOptions["socialProviders"] {
 }
 
 export function createAuth(ctx: GenericCtx<DataModel>) {
-  const siteUrl = process.env.SITE_URL;
   return betterAuth({
     appName: "Kody",
     baseURL: process.env.CONVEX_SITE_URL,
-    trustedOrigins: siteUrl ? [siteUrl] : [],
+    trustedOrigins: authTrustedOrigins(process.env),
     secret: process.env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
     socialProviders: socialProviders(),

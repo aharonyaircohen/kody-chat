@@ -34,3 +34,35 @@ test("shows a clear error when a social provider is unavailable", async ({
     }),
   ).toBeVisible();
 });
+
+test("opens the provider URL returned by social sign-in", async ({ page }) => {
+  await page.route("**/api/auth/get-session", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+    }),
+  );
+  await page.route("**/api/auth/sign-in/social", (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({
+      provider: "google",
+      callbackURL: `${BASE_URL}/chat`,
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        url: `${BASE_URL}/auth-test-target`,
+        redirect: true,
+      }),
+    });
+  });
+  await page.route("**/auth-test-target", (route) =>
+    route.fulfill({ status: 200, body: "OAuth target" }),
+  );
+
+  await page.goto(`${BASE_URL}/memory`);
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+
+  await expect(page).toHaveURL(`${BASE_URL}/auth-test-target`);
+});

@@ -18,14 +18,23 @@ function KodySignIn() {
     setError(null);
     setPending(provider);
     try {
-      const result = await kodyAuthClient.signIn.social({
-        provider,
-        callbackURL: "/chat",
+      const response = await fetch("/api/auth/sign-in/social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          callbackURL: new URL("/chat", window.location.origin).toString(),
+        }),
       });
-      if (result.error) {
+      const result = (await response.json().catch(() => null)) as {
+        url?: unknown;
+      } | null;
+      if (!response.ok || typeof result?.url !== "string") {
         const label = provider === "github" ? "GitHub" : "Google";
         setError(`${label} sign-in is not available.`);
+        return;
       }
+      window.location.assign(result.url);
     } catch {
       const label = provider === "github" ? "GitHub" : "Google";
       setError(`${label} sign-in failed. Try again.`);
