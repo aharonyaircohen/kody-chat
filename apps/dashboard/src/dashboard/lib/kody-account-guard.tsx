@@ -14,29 +14,55 @@ function KodySignIn() {
   const [name, setName] = useState("Kody QA");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<"google" | "github" | "email" | null>(
+    null,
+  );
 
-  const signIn = (provider: "google" | "github") => {
-    void kodyAuthClient.signIn.social({ provider, callbackURL: "/chat" });
+  const signIn = async (provider: "google" | "github") => {
+    setError(null);
+    setPending(provider);
+    try {
+      const result = await kodyAuthClient.signIn.social({
+        provider,
+        callbackURL: "/chat",
+      });
+      if (result.error) {
+        const label = provider === "github" ? "GitHub" : "Google";
+        setError(`${label} sign-in is not available.`);
+      }
+    } catch {
+      const label = provider === "github" ? "GitHub" : "Google";
+      setError(`${label} sign-in failed. Try again.`);
+    } finally {
+      setPending(null);
+    }
   };
 
   const submitTestLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    const result =
-      mode === "sign-in"
-        ? await kodyAuthClient.signIn.email({
-            email,
-            password,
-            callbackURL: "/chat",
-          })
-        : await kodyAuthClient.signUp.email({
-            email,
-            password,
-            name,
-            callbackURL: "/chat",
-          });
-    if (result.error)
-      setError("Email login failed. Check the email and password.");
+    setPending("email");
+    try {
+      const result =
+        mode === "sign-in"
+          ? await kodyAuthClient.signIn.email({
+              email,
+              password,
+              callbackURL: "/chat",
+            })
+          : await kodyAuthClient.signUp.email({
+              email,
+              password,
+              name,
+              callbackURL: "/chat",
+            });
+      if (result.error)
+        setError("Email login failed. Check the email and password.");
+    } catch {
+      setError("Email login failed. Check your connection and try again.");
+    } finally {
+      setPending(null);
+    }
   };
 
   return (
@@ -48,8 +74,25 @@ function KodySignIn() {
           features.
         </p>
         <div className="mt-6 grid gap-3">
-          <Button onClick={() => signIn("google")}>Continue with Google</Button>
-          <Button variant="outline" onClick={() => signIn("github")}>
+          <Button
+            type="button"
+            disabled={pending !== null}
+            onClick={() => void signIn("google")}
+          >
+            {pending === "google" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            Continue with Google
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending !== null}
+            onClick={() => void signIn("github")}
+          >
+            {pending === "github" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
             Continue with GitHub
           </Button>
           {testAuthEnabled ? (
@@ -86,8 +129,17 @@ function KodySignIn() {
                 minLength={8}
                 required
               />
-              <Button type="submit">Continue with email</Button>
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              <Button type="submit" disabled={pending !== null}>
+                {pending === "email" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Continue with email
+              </Button>
+              {error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
