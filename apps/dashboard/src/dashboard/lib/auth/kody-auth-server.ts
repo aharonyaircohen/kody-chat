@@ -33,11 +33,19 @@ export async function getCurrentKodySessionUser(): Promise<{
     requestHeaders.get("host") ??
     "localhost";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  const response = await kodyAuthHandler.GET(
-    new Request(`${protocol}://${host}/api/auth/get-session`, {
-      headers: requestHeaders,
-    }),
-  );
+  // Convex is optional — when NEXT_PUBLIC_CONVEX_URL is unset (PW_LOCAL E2E)
+  // the Better Auth handler fetches a non-existent backend and throws.
+  // Treat unreachable auth as "no session" instead of crashing the route.
+  let response: Response;
+  try {
+    response = await kodyAuthHandler.GET(
+      new Request(`${protocol}://${host}/api/auth/get-session`, {
+        headers: requestHeaders,
+      }),
+    );
+  } catch {
+    return null;
+  }
   if (!response.ok) return null;
   const payload = (await response.json().catch(() => null)) as {
     user?: { id?: unknown; name?: unknown; email?: unknown };
