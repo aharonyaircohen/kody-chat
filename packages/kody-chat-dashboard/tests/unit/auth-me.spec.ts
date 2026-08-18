@@ -17,6 +17,7 @@ beforeEach(() => {
 
 describe("GET /api/kody/auth/me", () => {
   it("signs in from a PAT without repository headers", async () => {
+    vi.stubEnv("KODY_MASTER_KEY", "test-master-key-for-operator-session");
     github.createUserOctokit.mockReturnValue({
       rest: {
         users: {

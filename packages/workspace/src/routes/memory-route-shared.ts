@@ -1,4 +1,5 @@
 import {
+  getRequestAuth,
   verifyRepoReadAccess,
   verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
@@ -19,7 +20,8 @@ export async function requestMemoryContext(
   mode: AccessMode,
 ) {
   const hostUser = await getKodyRequestUserProvider()?.resolveUser(request);
-  if (hostUser) {
+  const repository = getRequestAuth(request);
+  if (!repository && hostUser) {
     return createMemoryRuntime({
       actor: { kind: "user", id: hostUser.id },
       tenantId: `user:${hostUser.id}`,
@@ -34,7 +36,10 @@ export async function requestMemoryContext(
 
   const tenantId = `${access.auth.owner}/${access.auth.repo}`;
   const runtime = createMemoryRuntime({
-    actor: { kind: "user", id: `github:${access.actorGithubId}` },
+    actor: {
+      kind: "user",
+      id: hostUser?.id ?? `github:${access.actorGithubId}`,
+    },
     tenantId,
   });
   return runtime;

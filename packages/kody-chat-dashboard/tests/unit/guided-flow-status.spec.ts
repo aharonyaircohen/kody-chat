@@ -33,7 +33,7 @@ describe("guided flow registry", () => {
     expect(onboarding).toMatchObject({
       id: "onboarding",
       title: "Get started with Kody",
-      version: 3,
+      version: 4,
       completionRouteId: "chat",
     });
     const initializeStep = onboarding?.steps.find(
@@ -46,14 +46,17 @@ describe("guided flow registry", () => {
         { id: "run", target: { type: "stay" } },
         {
           id: "finish",
-          target: { type: "step", stepId: "choose-chat-provider" },
+          target: { type: "step", stepId: "welcome" },
         },
       ]),
     });
-    expect(onboarding?.steps[1]?.explanation).toContain(
+    const attachRepository = onboarding?.steps.find(
+      (step) => step.id === "attach-repository",
+    );
+    expect(attachRepository?.explanation).toContain(
       "Webhooks: Read and write",
     );
-    expect(onboarding?.steps[1]?.explanation).toContain("admin:repo_hook");
+    expect(attachRepository?.explanation).toContain("admin:repo_hook");
     expect(onboarding?.steps.map((step) => step.id)).not.toContain(
       "create-github-pat",
     );

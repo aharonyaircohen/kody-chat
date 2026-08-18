@@ -1,6 +1,7 @@
 import type { Memory, MemoryRevision, MemoryStore } from "@kody-ade/memory";
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setKodyRequestUserProvider } from "@kody-ade/base/auth/request-user-provider";
 
 const { verifyRead, verifyWrite, store } = vi.hoisted(() => {
   const memories = new Map<string, Readonly<Memory>>();
@@ -47,6 +48,12 @@ const { verifyRead, verifyWrite, store } = vi.hoisted(() => {
 });
 
 vi.mock("@kody-ade/base/auth", () => ({
+  getRequestAuth: (request: NextRequest) => {
+    const token = request.headers.get("x-kody-token");
+    const owner = request.headers.get("x-kody-owner");
+    const repo = request.headers.get("x-kody-repo");
+    return token && owner && repo ? { token, owner, repo } : null;
+  },
   verifyRepoReadAccess: verifyRead,
   verifyRepoWriteAccess: verifyWrite,
 }));
@@ -98,6 +105,7 @@ async function body(response: NextResponse) {
 describe("memory routes", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    setKodyRequestUserProvider(null);
     verifyRead.mockResolvedValue(access);
     verifyWrite.mockResolvedValue(access);
     for (const memory of await store.list([
@@ -106,6 +114,66 @@ describe("memory routes", () => {
     ])) {
       await store.remove(memory.id);
     }
+  });
+
+  it("uses Kody account ownership without requiring a repository", async () => {
+    setKodyRequestUserProvider({
+      resolveUser: vi.fn().mockResolvedValue({ id: "user-1", label: "Alice" }),
+    });
+
+    const created = await createMemory(
+      request("POST", "http://localhost/api/kody/memory", {
+        scope: "user",
+        kind: "preference",
+        title: "Reply style",
+        summary: "Prefers short replies.",
+        body: "Use simple words.",
+      }),
+    );
+
+    expect(created.status).toBe(201);
+    expect(await body(created)).toMatchObject({
+      memory: { scope: { kind: "user", userId: "user-1" } },
+    });
+    expect(verifyWrite).not.toHaveBeenCalled();
+  });
+
+  it("adds verified repository memory without changing Kody account ownership", async () => {
+    setKodyRequestUserProvider({
+      resolveUser: vi.fn().mockResolvedValue({ id: "user-1", label: "Alice" }),
+    });
+    const repositoryRequest = new NextRequest(
+      "http://localhost/api/kody/memory",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-kody-token": "secret",
+          "x-kody-owner": "acme",
+          "x-kody-repo": "widgets",
+        },
+        body: JSON.stringify({
+          scope: "repository",
+          kind: "decision",
+          title: "State owner",
+          summary: "Convex owns runtime state.",
+          body: "Do not use GitHub as a runtime fallback.",
+        }),
+      },
+    );
+
+    const created = await createMemory(repositoryRequest);
+
+    expect(created.status).toBe(201);
+    const createdBody = await body(created);
+    expect(createdBody).toMatchObject({
+      memory: {
+        scope: { kind: "repository", tenantId: "acme/widgets" },
+      },
+    });
+    const revisions = await store.listRevisions(createdBody.memory.id);
+    expect(revisions[0]?.actor).toEqual({ kind: "user", id: "user-1" });
+    expect(verifyWrite).toHaveBeenCalledOnce();
   });
 
   it("creates and lists a typed user memory", async () => {

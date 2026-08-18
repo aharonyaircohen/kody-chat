@@ -24,6 +24,8 @@ describe("Kody scope", () => {
         "conversations",
         "attachments",
         "models",
+        "credentials",
+        "preferences",
         "secrets",
         "instructions",
         "commands",

@@ -111,7 +111,10 @@ test("creates, revises, reviews, and deletes typed memory", async ({
     const isCancelledMachineProbe =
       url.pathname === "/api/kody/chat/machines" &&
       request.failure()?.errorText === "net::ERR_ABORTED";
-    if (!isCancelledMachineProbe) {
+    const isCancelledRscNavigation =
+      url.searchParams.has("_rsc") &&
+      request.failure()?.errorText === "net::ERR_ABORTED";
+    if (!isCancelledMachineProbe && !isCancelledRscNavigation) {
       failures.push(`${request.method()} ${request.url()} failed`);
     }
   });

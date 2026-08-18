@@ -9,6 +9,7 @@ import {
   synthesizePublicAgentResponse,
   isCompleteProjectAssessmentAssignments,
   PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
+  retryProjectAssessmentSynthesis,
 } from "./public-agent-delegation";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import {
@@ -29,6 +30,11 @@ import {
   projectAssessmentTitle,
   validateProjectAssessmentReport,
 } from "./project-assessment-report";
+
+export {
+  PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
+  retryProjectAssessmentSynthesis,
+};
 
 interface PublicAgentTelemetry {
   traceId: string;

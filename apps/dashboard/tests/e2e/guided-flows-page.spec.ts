@@ -1,4 +1,5 @@
 import { expect, test, type Route } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -28,6 +29,7 @@ test.beforeEach(async ({ page }) => {
       user: { login: "e2e-test", avatar_url: "", githubId: 1 },
     }),
   );
+  await mockKodyAccountSession(page);
 });
 
 test("starts a GuidedFlow in Chat and keeps its conversation binding when the user asks a question", async ({
@@ -141,7 +143,7 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
   await startInChat.click();
   await expect.poll(() => startedFlowId).toBe("create-workflow");
   await expect.poll(() => boundConversationId).toBeTruthy();
-  await expect(page).toHaveURL("/repo/acme/widgets/guided-flows");
+  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/chat\/.+/);
   await expect(page.getByText("Test flow started in Chat")).toBeVisible();
 
   const input = page.locator('[aria-label="Kody chat"] textarea').first();
@@ -392,7 +394,7 @@ test("runs onboarding manually and lets the user advance after completing each p
   await expect(
     chat.getByRole("link", { name: "Create a personal access token" }),
   ).toHaveAttribute("href", "https://github.com/settings/tokens/new");
-  await expect(page).toHaveURL("/repo/acme/widgets/guided-flows");
+  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/chat\/.+/);
   await chat.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page).toHaveURL("/org/acme");
   await expect(
@@ -429,10 +431,10 @@ test("runs onboarding manually and lets the user advance after completing each p
   ).toBeVisible();
 });
 
-test("resumes an unfinished GuidedFlow once and shows the step without reloading", async ({
+test("starts or resumes an unfinished GuidedFlow in Chat", async ({
   page,
 }) => {
-  let bindAttempts = 0;
+  let startAttempts = 0;
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const request = route.request();
     const isCollection = new URL(request.url()).pathname.endsWith(
@@ -453,18 +455,13 @@ test("resumes an unfinished GuidedFlow once and shows the step without reloading
   );
   await page.route("**/api/kody/guided-flows**", (route) => {
     if (route.request().method() === "POST") {
-      bindAttempts += 1;
-      if (bindAttempts === 1) {
-        return json(route, { error: "temporarily unavailable" }, 503);
-      }
+      startAttempts += 1;
       const body = route.request().postDataJSON() as {
-        action?: string;
-        instanceId?: string;
+        flowId?: string;
         conversationId?: string;
       };
       expect(body).toMatchObject({
-        action: "bind",
-        instanceId: "unfinished-instance",
+        flowId: "addition-exercise",
       });
       expect(body.conversationId).toBeTruthy();
       return json(route, {
@@ -556,23 +553,17 @@ test("resumes an unfinished GuidedFlow once and shows the step without reloading
     waitUntil: "domcontentloaded",
   });
   const resume = page.getByRole("button", {
-    name: "Resume flow",
+    name: "Start Addition exercise in Chat",
     exact: true,
   });
   await expect(resume).toBeVisible();
-
-  await resume.click();
-  await expect(page.getByText("What is 2 + 2?", { exact: true })).toHaveCount(
-    0,
-  );
-  await expect(resume).toBeEnabled();
 
   await resume.click();
   await expect(page.getByText("What is 2 + 2?", { exact: true })).toBeVisible();
   await expect(page.getByText("What is 2 + 2?", { exact: true })).toHaveCount(
     1,
   );
-  await expect.poll(() => bindAttempts).toBe(2);
+  await expect.poll(() => startAttempts).toBe(1);
 });
 
 test("dispatches an enabled Back control through the GuidedFlow API", async ({
@@ -657,7 +648,13 @@ test("dispatches an enabled Back control through the GuidedFlow API", async ({
     }
 
     return json(route, {
-      definitions: [],
+      definitions: [
+        {
+          id: "review-release",
+          title: "Review release",
+          steps: [{ rendererSlug: "approval-card" }],
+        },
+      ],
       flows: [
         {
           instance: {
@@ -676,7 +673,9 @@ test("dispatches an enabled Back control through the GuidedFlow API", async ({
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
-  await page.getByRole("button", { name: "Resume flow", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Start Review release in Chat", exact: true })
+    .click();
   await expect(page.getByText("Confirm the release")).toBeVisible();
 
   await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -695,7 +694,7 @@ test("dispatches an enabled Back control through the GuidedFlow API", async ({
 test("lets the user choose between multiple active GuidedFlows", async ({
   page,
 }) => {
-  let boundInstanceId = "";
+  let selectedFlowId = "";
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const request = route.request();
     const isCollection = new URL(request.url()).pathname.endsWith(
@@ -717,21 +716,21 @@ test("lets the user choose between multiple active GuidedFlows", async ({
   await page.route("**/api/kody/guided-flows**", (route) => {
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as {
-        instanceId?: string;
+        flowId?: string;
       };
-      boundInstanceId = body.instanceId ?? "";
+      selectedFlowId = body.flowId ?? "";
       return json(route, {
         instance: { status: "active" },
         compatibility: { status: "compatible" },
         view: {
           action: "render_view",
           view: "renderer",
-          id: `${boundInstanceId}-view`,
+          id: `${selectedFlowId}-view`,
           rendererSlug: "selection-list",
           rendererName: "Selection list",
           resultTarget: "guided-flow",
           guidedFlow: {
-            instanceId: boundInstanceId,
+            instanceId: "exercise-instance",
             stepId: "question",
             revision: 1,
           },
@@ -741,7 +740,7 @@ test("lets the user choose between multiple active GuidedFlows", async ({
               {
                 type: "text",
                 value:
-                  boundInstanceId === "lesson-instance"
+                  selectedFlowId === "power-basics"
                     ? "Lesson question"
                     : "Exercise question",
                 variant: "title",
@@ -753,7 +752,18 @@ test("lets the user choose between multiple active GuidedFlows", async ({
       });
     }
     return json(route, {
-      definitions: [],
+      definitions: [
+        {
+          id: "power-basics",
+          title: "Power basics",
+          steps: [{ rendererSlug: "selection-list" }],
+        },
+        {
+          id: "addition-exercise",
+          title: "Addition exercise",
+          steps: [{ rendererSlug: "selection-list" }],
+        },
+      ],
       flows: [
         {
           instance: {
@@ -783,14 +793,14 @@ test("lets the user choose between multiple active GuidedFlows", async ({
     waitUntil: "domcontentloaded",
   });
   await expect(
-    page.getByRole("button", { name: "Power basics · Step 3 of 6" }),
+    page.getByRole("button", { name: "Start Power basics in Chat" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Addition exercise · Step 1 of 2" })
+    .getByRole("button", { name: "Start Addition exercise in Chat" })
     .click();
 
   await expect(page.getByText("Exercise question")).toBeVisible();
-  expect(boundInstanceId).toBe("exercise-instance");
+  expect(selectedFlowId).toBe("addition-exercise");
 });
 
 test("provides step editing controls, preview, and validation", async ({

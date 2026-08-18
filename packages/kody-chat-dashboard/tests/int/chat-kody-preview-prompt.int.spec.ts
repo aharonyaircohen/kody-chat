@@ -431,17 +431,9 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.write).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "tool-output-available",
-        output: expect.objectContaining({
-          action: RENDER_VIEW_DIRECTIVE,
-          rendererSlug: "model-output-recovery",
-          data: expect.objectContaining({
-            actions: expect.arrayContaining([
-              expect.objectContaining({ id: "retry" }),
-              expect.objectContaining({ id: "choose-model" }),
-              expect.objectContaining({ id: "cancel" }),
-            ]),
-          }),
-        }),
+        output: {
+          content: "Do you approve this plan?\n\nWould you like me to retry?",
+        },
       }),
     );
   });
@@ -904,9 +896,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.write).not.toHaveBeenCalledWith(
       expect.objectContaining({
         type: "tool-output-available",
-        output: expect.objectContaining({
-          rendererSlug: "model-output-recovery",
-        }),
+        output: expect.objectContaining({ content: expect.any(String) }),
       }),
     );
   });
@@ -952,9 +942,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(writer.write).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "tool-output-available",
-        output: expect.objectContaining({
-          rendererSlug: "model-output-recovery",
-        }),
+        output: expect.objectContaining({ content: expect.any(String) }),
       }),
     );
   });

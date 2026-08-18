@@ -3,6 +3,8 @@ export type KodyPersonalCapability =
   | "conversations"
   | "attachments"
   | "models"
+  | "credentials"
+  | "preferences"
   | "secrets"
   | "instructions"
   | "commands"
@@ -53,6 +55,8 @@ const PERSONAL_CAPABILITIES: readonly KodyPersonalCapability[] = [
   "conversations",
   "attachments",
   "models",
+  "credentials",
+  "preferences",
   "secrets",
   "instructions",
   "commands",
