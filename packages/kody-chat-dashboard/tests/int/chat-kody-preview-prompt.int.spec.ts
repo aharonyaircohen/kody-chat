@@ -49,6 +49,7 @@ vi.mock("ai", () => ({
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
+  requireUserAuth: vi.fn(async () => null),
   getRequestAuth: vi.fn(() => ({
     token: "ghp_test",
     owner: "acme",
