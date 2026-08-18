@@ -11,6 +11,16 @@ import type { DataModel } from "../_generated/dataModel";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
+export function emailPasswordOptions(
+  options: { allowSignUp?: boolean } = {},
+): NonNullable<BetterAuthOptions["emailAndPassword"]> {
+  return {
+    enabled: true,
+    disableSignUp: !options.allowSignUp,
+    requireEmailVerification: false,
+  };
+}
+
 function socialProviders(): BetterAuthOptions["socialProviders"] {
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -37,7 +47,10 @@ function socialProviders(): BetterAuthOptions["socialProviders"] {
   };
 }
 
-export function createAuth(ctx: GenericCtx<DataModel>) {
+function createAuthWithOptions(
+  ctx: GenericCtx<DataModel>,
+  options: { allowEmailSignUp?: boolean } = {},
+) {
   return betterAuth({
     appName: "Kody",
     baseURL: authSiteUrl(process.env),
@@ -45,11 +58,9 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
     secret: process.env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
     socialProviders: socialProviders(),
-    emailAndPassword: {
-      enabled: true,
-      disableSignUp: true,
-      requireEmailVerification: false,
-    },
+    emailAndPassword: emailPasswordOptions({
+      allowSignUp: options.allowEmailSignUp,
+    }),
     account: {
       accountLinking: {
         enabled: true,
@@ -62,4 +73,13 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
     },
     plugins: [convex({ authConfig })],
   });
+}
+
+export function createAuth(ctx: GenericCtx<DataModel>) {
+  return createAuthWithOptions(ctx);
+}
+
+/** Used only by the internal, CLI-invoked QA account provisioner. */
+export function createQaProvisioningAuth(ctx: GenericCtx<DataModel>) {
+  return createAuthWithOptions(ctx, { allowEmailSignUp: true });
 }

@@ -8,13 +8,15 @@ test information may come from Kody Variables. Sensitive test information may
 come from Kody Secrets, unlocked only inside the trusted runtime using
 `KODY_MASTER_KEY`. Never expose secret values in test output or reports.
 
-When QA needs repository authentication, use this convention:
+When QA needs application authentication, use this convention:
 
-- `KODY_LOGIN_REPO` — Kody Variable containing the full repository URL.
-- `KODY_LOGIN_PASS` — Kody Secret containing the QA login credential.
+- `LOGIN_USER` — Kody Variable containing the dedicated QA account email.
+- `LOGIN_PASSWORD` — Kody Secret containing its password.
 
-The engine uses these values to prepare an authenticated browser session before
-QA starts. QA receives the session, not `KODY_LOGIN_PASS` or `KODY_MASTER_KEY`.
+The engine signs in and prepares an authenticated browser session before QA
+starts. The QA agent receives the session, not `LOGIN_PASSWORD` or
+`KODY_MASTER_KEY`. If the login fails, the Quality run is blocked rather than
+testing only public pages and reporting success.
 
 Verify the real result, not only the implementation or automated checks. Report
 what was tested, what happened, useful evidence, and anything that remains
