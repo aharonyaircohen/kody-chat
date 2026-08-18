@@ -232,6 +232,34 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   const sidebar = page.locator('aside[aria-label="Primary navigation"]');
   await expect(navigation).toBeVisible();
 
+  const navigationSearch = navigation.getByRole("searchbox", {
+    name: "Search navigation",
+  });
+  const expandedRepoSwitcher = navigation.getByTitle("Switch repository");
+  const firstRepositorySection = navigation.getByRole("button", {
+    name: "Work",
+    exact: true,
+  });
+  await expect(navigationSearch).toBeVisible();
+  await expect(expandedRepoSwitcher).toBeVisible();
+  await expect(firstRepositorySection).toBeVisible();
+  expect(
+    await navigationSearch.evaluate((search, switcherTitle) => {
+      const switcher = document.querySelector(`[title="${switcherTitle}"]`);
+      const repository = [...document.querySelectorAll("button")].find(
+        (element) => element.textContent?.trim() === "Work",
+      );
+      return Boolean(
+        switcher &&
+        repository &&
+        search.compareDocumentPosition(switcher) &
+          Node.DOCUMENT_POSITION_FOLLOWING &&
+        switcher.compareDocumentPosition(repository) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }, "Switch repository"),
+  ).toBe(true);
+
   const saveFavorite = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/kody/navigation-favorites") &&

@@ -227,6 +227,9 @@ function SidebarContent({
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
+  const isCollapsed = mobile ? false : collapsed;
+  const width = isCollapsed ? "w-[72px]" : "w-[248px]";
+
   const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return baseSections;
@@ -243,6 +246,14 @@ function SidebarContent({
   const collapsedSearchItems = query.trim()
     ? filteredSections.flatMap((section) => section.items)
     : [];
+  const repositorySectionIndex = filteredSections.findIndex(
+    (section) => section.contextLabel === "Repository",
+  );
+  const repositorySelectorIndex =
+    repositorySectionIndex === -1
+      ? filteredSections.length
+      : repositorySectionIndex;
+  const repositorySelector = isCollapsed ? collapsedHeaderExtra : headerExtra;
   const firstMatch = collapsedSearchItems[0];
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -259,9 +270,6 @@ function SidebarContent({
       onNavigate?.();
     }
   };
-
-  const isCollapsed = mobile ? false : collapsed;
-  const width = isCollapsed ? "w-[72px]" : "w-[248px]";
 
   const renderLink = (
     item: NavItem,
@@ -403,27 +411,12 @@ function SidebarContent({
         )}
       </div>
 
-      {headerExtra && !isCollapsed && (
-        <div className="shrink-0 border-b border-white/[0.06] px-2.5 py-2">
-          {headerExtra}
-        </div>
-      )}
-
       {brandRowExtra && isCollapsed && (
         <div
           data-sidebar-collapsed-notifications="true"
           className="flex shrink-0 justify-center border-b border-white/[0.06] px-2.5 py-2"
         >
           {brandRowExtra}
-        </div>
-      )}
-
-      {collapsedHeaderExtra && isCollapsed && (
-        <div
-          data-sidebar-collapsed-header-extra="true"
-          className="flex shrink-0 justify-center border-b border-white/[0.06] px-2.5 py-2"
-        >
-          {collapsedHeaderExtra}
         </div>
       )}
 
@@ -607,6 +600,17 @@ function SidebarContent({
 
               return (
                 <div key={section.title} className="space-y-1">
+                  {repositorySelector && i === repositorySelectorIndex ? (
+                    <div
+                      data-sidebar-repository-selector="true"
+                      className={cn(
+                        "pb-1 pt-2",
+                        isCollapsed && "flex justify-center",
+                      )}
+                    >
+                      {repositorySelector}
+                    </div>
+                  ) : null}
                   {section.contextLabel && !isCollapsed ? (
                     <p className="px-3.5 pb-1 pt-3 text-label font-semibold uppercase tracking-wider text-muted-foreground/60">
                       {section.contextLabel}
@@ -750,6 +754,15 @@ function SidebarContent({
               );
             })
           )}
+          {repositorySelector &&
+          repositorySelectorIndex === filteredSections.length ? (
+            <div
+              data-sidebar-repository-selector="true"
+              className={cn("pb-1 pt-2", isCollapsed && "flex justify-center")}
+            >
+              {repositorySelector}
+            </div>
+          ) : null}
         </div>
       </nav>
 
