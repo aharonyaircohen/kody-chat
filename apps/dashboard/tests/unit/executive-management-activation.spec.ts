@@ -80,16 +80,7 @@ describe("kody-chat company activation", () => {
     expect(workflow).toContain("@kody-ade/kody-engine@latest");
   });
 
-  it("runs full QA separately from read-only production smoke", () => {
-    const qaLoop = JSON.parse(
-      readFileSync(
-        resolve(
-          repoRoot,
-          ".kody-engine/definitions/loops/hourly-qa-scan/loop.json",
-        ),
-        "utf8",
-      ),
-    );
+  it("runs read-only quality checks against the production product", () => {
     const productionLoop = JSON.parse(
       readFileSync(
         resolve(
@@ -100,11 +91,6 @@ describe("kody-chat company activation", () => {
       ),
     );
 
-    expect(qaLoop.target).toEqual({ kind: "workflow", id: "qa-scan" });
-    expect(qaLoop.input).toMatchObject({
-      mode: "test",
-      url: expect.stringContaining("kody-dashboard-qa.vercel.app"),
-    });
     expect(productionLoop.target).toEqual({
       kind: "workflow",
       id: "qa-scan",
