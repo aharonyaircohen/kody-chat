@@ -56,7 +56,14 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  // Convex is optional — when NEXT_PUBLIC_CONVEX_URL is unset (PW_LOCAL E2E)
+  // getKodyAuthToken() would fetch a non-existent backend and crash the layout.
+  let initialAuthToken: string | null = null;
+  try {
+    initialAuthToken = (await getKodyAuthToken()) ?? null;
+  } catch {
+    initialAuthToken = null;
+  }
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
