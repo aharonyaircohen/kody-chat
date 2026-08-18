@@ -363,24 +363,24 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Quality",
     items: [
       {
-        href: "/quality/actions",
-        label: "Actions",
-        icon: Activity,
-        description: "Manage reusable, simple user steps.",
+        href: "/quality/scenarios",
+        label: "Scenarios",
+        icon: ShieldAlert,
+        description: "Define the complete test you want to run.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/quality/journeys",
         label: "Journeys",
         icon: Route,
-        description: "Combine Actions into user goals.",
+        description: "Add user goals to a Scenario.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
-        href: "/quality/scenarios",
-        label: "Scenarios",
-        icon: ShieldAlert,
-        description: "Define meaningful variations and required proof.",
+        href: "/quality/actions",
+        label: "Actions",
+        icon: Activity,
+        description: "Add reusable steps to a Journey.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {

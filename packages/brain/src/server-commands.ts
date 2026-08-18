@@ -18,13 +18,13 @@ import {
   type ServerBrainPerfTier,
   type ProvisionServerBrainResult,
 } from "@kody-ade/fly/infrastructure/server-brain";
-import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 
 import { resolveBrainService } from "./service-resolver";
 import { clearBrainRuntimeDeployment } from "./runtime-manager";
 import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";
 import { resolveBrainTarget } from "./target";
+import type { PersonalBrainContext } from "./personal-context";
 
 export type BrainServerCommand =
   | "provision"
@@ -36,7 +36,7 @@ export type BrainServerCommand =
 
 export interface ManageBrainServerInput {
   command: BrainServerCommand;
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
   dashboardUrl?: string;
   appNameOverride?: string;
   perfTier?: ServerBrainPerfTier;
@@ -54,10 +54,10 @@ export class BrainCommandError extends Error {
   }
 }
 
-function requireFlyToken(context: ServerProviderContext): string {
+function requireFlyToken(context: PersonalBrainContext): string {
   if (!context.flyToken) {
     throw new BrainCommandError(
-      "Fly token missing - add FLY_API_TOKEN to the repo Secrets vault.",
+      "Fly token missing - add FLY_API_TOKEN to Personal Credentials.",
       400,
       "fly_token_missing",
     );
@@ -66,7 +66,7 @@ function requireFlyToken(context: ServerProviderContext): string {
 }
 
 async function resolveCurrentBrain(
-  context: ServerProviderContext,
+  context: PersonalBrainContext,
   appNameOverride?: string,
 ) {
   return resolveBrainService({
@@ -108,7 +108,9 @@ async function provisionManagedBrain(
       suspendOnIdle: input.suspendOnIdle,
       dashboardUrl: input.dashboardUrl,
       appNameOverride: target.app,
-      ...(options.replaceExistingMachine ? { replaceExistingMachine: true } : {}),
+      ...(options.replaceExistingMachine
+        ? { replaceExistingMachine: true }
+        : {}),
     });
     await writeBrainApp(context.account, context.githubToken, {
       version: 1,

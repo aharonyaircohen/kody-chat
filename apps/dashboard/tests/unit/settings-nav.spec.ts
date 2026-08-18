@@ -55,6 +55,15 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/learning")).toBeNull();
   });
 
+  it("presents Quality in the user-facing build order", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Quality")).toEqual([
+      "/quality/scenarios",
+      "/quality/journeys",
+      "/quality/actions",
+      "/quality/runs",
+    ]);
+  });
+
   it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Fly")).toEqual([
       "/fly/config",

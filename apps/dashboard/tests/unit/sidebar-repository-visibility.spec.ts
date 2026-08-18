@@ -29,6 +29,7 @@ describe("repository navigation visibility", () => {
       "/instructions",
       "/secrets",
       "/memory",
+      "/brain",
     ]);
     expect(sections[0]?.items.every((item) => item.scope === "personal")).toBe(
       true,

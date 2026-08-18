@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
+
+let signedIn = true;
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async (): Promise<Response | null> => null),
@@ -30,21 +33,29 @@ const commands = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@kody-ade/fly/infrastructure/server-context", () => context);
 vi.mock("@kody-ade/brain/server-commands", async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import("@kody-ade/brain/server-commands")
-  >();
+  const original =
+    await importOriginal<typeof import("@kody-ade/brain/server-commands")>();
   return { ...original, manageBrainServer: commands.manageBrainServer };
 });
 
 import { POST } from "../../app/api/kody/terminal/setup/route";
 
 describe("POST /api/kody/terminal/setup", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    signedIn = true;
+    setPersonalBrainServices({
+      resolveUser: async () =>
+        signedIn ? { id: "user-1", label: "Octocat" } : null,
+      getCredential: async () => null,
+      getCredentials: async () => ({ FLY_API_TOKEN: "fly-token" }),
+      loadState: async () => null,
+      saveState: async () => undefined,
+    });
+  });
 
   it("requires auth before changing a Brain runtime", async () => {
-    auth.requireKodyAuth.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }),
-    );
+    signedIn = false;
 
     const response = await POST(
       new NextRequest("https://dash.test/api/kody/terminal/setup", {
@@ -56,7 +67,7 @@ describe("POST /api/kody/terminal/setup", () => {
     expect(commands.manageBrainServer).not.toHaveBeenCalled();
   });
 
-  it("runs the explicit terminal setup command for the active repository", async () => {
+  it("runs the explicit terminal setup command for the signed-in user", async () => {
     const response = await POST(
       new NextRequest("https://dash.test/api/kody/terminal/setup", {
         method: "POST",
@@ -72,7 +83,7 @@ describe("POST /api/kody/terminal/setup", () => {
     expect(commands.manageBrainServer).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "setup-terminal",
-        context: expect.objectContaining({ owner: "acme", repo: "widgets" }),
+        context: expect.objectContaining({ userId: "user-1" }),
       }),
     );
   });

@@ -5,6 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const mocks = vi.hoisted(() => ({
   deleteImage: vi.fn(),
@@ -17,6 +18,17 @@ const mocks = vi.hoisted(() => ({
   writeImage: vi.fn(),
   writeSave: vi.fn(),
 }));
+let personalCredentials: Record<string, string> = {};
+
+function registerPersonalBrainServices() {
+  setPersonalBrainServices({
+    resolveUser: async () => ({ id: "user-1", label: "A Guy" }),
+    getCredential: async (_userId, name) => personalCredentials[name] ?? null,
+    getCredentials: async () => personalCredentials,
+    loadState: async () => null,
+    saveState: async () => undefined,
+  });
+}
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
@@ -123,6 +135,7 @@ function request(
 }
 
 function mockRepoWithoutFlyToken() {
+  personalCredentials = {};
   vi.mocked(resolveFlyContext).mockResolvedValueOnce({
     ok: true,
     context: {
@@ -143,6 +156,13 @@ function mockRepoWithoutFlyToken() {
 describe("GET /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    personalCredentials = {
+      FLY_API_TOKEN: "fly-token",
+      GITHUB_TOKEN: "gh-token",
+      GITHUB_OWNER: "A-Guy-educ",
+      GITHUB_LOGIN: "aguyaharonyair",
+    };
+    registerPersonalBrainServices();
     mocks.readSave.mockResolvedValue(null);
     mocks.readRuntimeView.mockResolvedValue({
       desiredImageRef:
@@ -166,18 +186,14 @@ describe("GET /api/kody/brain/image", () => {
     });
   });
 
-  it("does not expose Brain images when the repo has no Fly token", async () => {
+  it("still exposes saved personal Brain images without a Fly token", async () => {
     mockRepoWithoutFlyToken();
     vi.stubGlobal("fetch", vi.fn());
 
     const res = await GET(request("GET"));
 
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toMatchObject({
-      error: "fly_token_missing",
-    });
-    expect(mocks.readImage).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(mocks.readImage).toHaveBeenCalled();
   });
 
   it("includes historical Brain image tags from the GHCR package", async () => {
@@ -404,7 +420,7 @@ describe("GET /api/kody/brain/image", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.writeImage).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.objectContaining({
         forgottenImageRefs: [
@@ -414,7 +430,10 @@ describe("GET /api/kody/brain/image", () => {
       }),
     );
     expect(mocks.writeImage.mock.calls[0]?.[2]).not.toHaveProperty("imageRef");
-    expect(mocks.clearSave).toHaveBeenCalledWith("aguyaharonyair", "gh-token");
+    expect(mocks.clearSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+    );
   });
 
   it("returns and persists running save phase progress", async () => {
@@ -467,7 +486,7 @@ describe("GET /api/kody/brain/image", () => {
       lastOutput: "pushing layer",
     });
     expect(mocks.writeSave).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.objectContaining({
         phase: "pushing-image",
@@ -583,7 +602,7 @@ describe("GET /api/kody/brain/image", () => {
       lastOutput: "denied: permission denied",
     });
     expect(mocks.writeSave).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.objectContaining({
         status: "failed",
@@ -667,6 +686,13 @@ describe("GET /api/kody/brain/image", () => {
 describe("DELETE /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    personalCredentials = {
+      FLY_API_TOKEN: "fly-token",
+      GITHUB_TOKEN: "gh-token",
+      GITHUB_OWNER: "A-Guy-educ",
+      GITHUB_LOGIN: "aguyaharonyair",
+    };
+    registerPersonalBrainServices();
     mocks.readRuntimeView.mockResolvedValue({ source: "empty" });
     mocks.readImage.mockResolvedValue({
       version: 1,
@@ -716,7 +742,7 @@ describe("DELETE /api/kody/brain/image", () => {
       ),
     );
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
       error: "fly_token_missing",
     });
@@ -734,7 +760,7 @@ describe("DELETE /api/kody/brain/image", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.deleteImage).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       ["ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old"],
     );
@@ -797,6 +823,13 @@ describe("DELETE /api/kody/brain/image", () => {
 describe("POST /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    personalCredentials = {
+      FLY_API_TOKEN: "fly-token",
+      GITHUB_TOKEN: "gh-token",
+      GITHUB_OWNER: "A-Guy-educ",
+      GITHUB_LOGIN: "aguyaharonyair",
+    };
+    registerPersonalBrainServices();
     mocks.readImage.mockResolvedValue(null);
     mocks.readSave.mockResolvedValue(null);
     mocks.startJob.mockResolvedValue({
@@ -816,7 +849,7 @@ describe("POST /api/kody/brain/image", () => {
 
     const res = await POST(request());
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
       error: "fly_token_missing",
     });
@@ -837,7 +870,7 @@ describe("POST /api/kody/brain/image", () => {
     expect(command).not.toContain("stale-app");
     expect(command).not.toContain("stale-machine");
     expect(mocks.writeSave).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.objectContaining({
         status: "running",

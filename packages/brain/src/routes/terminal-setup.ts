@@ -9,10 +9,9 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { requestOrigin } from "@kody-ade/base/request-origin";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 
 import { BrainCommandError, manageBrainServer } from "../server-commands";
 
@@ -21,10 +20,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const resolved = await resolveServerProviderContext(req);
+  const resolved = await resolvePersonalBrainContext();
   if (!resolved.ok) {
     return NextResponse.json(
       { error: resolved.error },
@@ -44,8 +40,7 @@ export async function POST(req: NextRequest) {
     logger.error(
       {
         error,
-        owner: resolved.context.owner,
-        repo: resolved.context.repo,
+        userId: resolved.context.userId,
       },
       "brain terminal setup failed",
     );

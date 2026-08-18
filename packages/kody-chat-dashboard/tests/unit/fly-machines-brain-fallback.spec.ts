@@ -10,27 +10,14 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/routes/fly-machines.ts"),
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/fly/src/routes/fly-machines.ts",
+  ),
   "utf8",
 );
-const HELPER_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
-  "utf8",
-);
-
-describe("Fly machines Brain fallback", () => {
-  it("adds the resolved Brain service when the normal inventory misses it", () => {
-    expect(ROUTE_SOURCE).toContain("appendSavedBrainMachineToInventory");
-    expect(HELPER_SOURCE).toContain("resolveFlyContext(req)");
-    expect(HELPER_SOURCE).toContain("setGitHubContext(");
-    expect(HELPER_SOURCE).toContain("ctx.context.storeRepoUrl");
-    expect(HELPER_SOURCE).toContain("ctx.context.storeRef");
-    expect(HELPER_SOURCE).toContain("resolveBrainService({");
-    expect(HELPER_SOURCE).toContain(
-      'm.feature !== "brain" && m.app !== app',
-    );
-    expect(HELPER_SOURCE).toContain(
-      "inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug })",
-    );
+describe("Fly machines ownership", () => {
+  it("does not mix the personal Brain into repository inventory", () => {
+    expect(ROUTE_SOURCE).not.toContain("appendSavedBrainMachineToInventory");
   });
 });

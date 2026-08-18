@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const requireKodyAuth = vi.fn();
 const getRequestAuth = vi.fn();
@@ -83,6 +84,13 @@ function request(body: unknown): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setPersonalBrainServices({
+    resolveUser: async () => ({ id: "user-1", label: "Alice" }),
+    getCredential: async () => null,
+    getCredentials: async () => ({ FLY_API_TOKEN: "fly-token" }),
+    loadState: async () => null,
+    saveState: async () => undefined,
+  });
   requireKodyAuth.mockResolvedValue(null);
   getRequestAuth.mockReturnValue(null);
   resolveFlyContext.mockResolvedValue({ ok: true, context: ctx });

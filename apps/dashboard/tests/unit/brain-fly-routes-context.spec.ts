@@ -26,19 +26,20 @@ const STATEFUL_ROUTES = [
   "app/api/kody/chat/brain-fly/route.ts",
 ];
 
-describe("Brain Fly route GitHub context", () => {
-  it("sets and clears request GitHub context around state-backed Brain work", () => {
-    for (const routePath of STATEFUL_ROUTES) {
+describe("Personal Brain route context", () => {
+  it("does not require repository context for Brain lifecycle state", () => {
+    for (const routePath of STATEFUL_ROUTES.slice(0, -1)) {
       const source = readRoute(routePath);
-      expect(source, routePath).toContain("setGitHubContext(");
-      expect(source, routePath).toContain("clearGitHubContext()");
-      expect(source, routePath).toContain("ctx.context.storeRepoUrl");
-      expect(source, routePath).toContain("ctx.context.storeRef");
+      expect(source, routePath).toContain("resolvePersonalBrainContext");
+      expect(source, routePath).not.toContain("resolveServerProviderContext");
+      expect(source, routePath).not.toContain("setGitHubContext(");
     }
   });
 
   it("uses the resolved Brain service for every machine control route", () => {
-    const commandSource = readRoute("../../packages/brain/src/server-commands.ts");
+    const commandSource = readRoute(
+      "../../packages/brain/src/server-commands.ts",
+    );
     expect(commandSource).toContain("resolveBrainService(");
     expect(commandSource).toContain("appNameOverride: brain.app");
     for (const routePath of [

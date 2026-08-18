@@ -4,7 +4,7 @@
  * @domain brain
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
+import type { PersonalBrainContext } from "@kody-ade/brain/personal-context";
 
 const store = vi.hoisted(() => ({
   clearBrainApp: vi.fn(async () => undefined),
@@ -60,15 +60,12 @@ vi.mock("@kody-ade/base/logger", () => ({
 
 import { manageBrainServer } from "@kody-ade/brain/server-commands";
 
-const context: FlyContext = {
-  owner: "acme",
-  repo: "widgets",
+const context: PersonalBrainContext = {
+  userId: "user-1",
   account: "octocat",
   engineModel: undefined,
   engineModelConfig: undefined,
   githubToken: "gh-token",
-  octokit: {} as FlyContext["octokit"],
-  providerTokenSource: "repo-vault",
   flyToken: "fly-token",
   flyOrgSlug: "personal",
   flyDefaultRegion: "fra",

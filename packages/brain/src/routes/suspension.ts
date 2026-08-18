@@ -12,17 +12,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
-import {
-  BrainCommandError,
-  manageBrainServer,
-} from "../server-commands";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { BrainCommandError, manageBrainServer } from "../server-commands";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 
 export const runtime = "nodejs";
 
@@ -34,9 +26,6 @@ function brainSuspendOnIdleFrom(req: NextRequest): boolean | null {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
   const suspendOnIdle = brainSuspendOnIdleFrom(req);
   if (suspendOnIdle === null) {
     return NextResponse.json(
@@ -45,27 +34,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   if (!ctx.context.flyToken) {
     return NextResponse.json(
       {
-        error:
-          "Fly token missing - add FLY_API_TOKEN to the repo Secrets vault.",
+        error: "Fly token missing - add FLY_API_TOKEN to Personal Credentials.",
       },
       { status: 400 },
     );
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     const result = await manageBrainServer({
@@ -76,12 +56,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error({ err, owner: ctx.context.owner }, "brain suspension failed");
+    logger.error(
+      { err, userId: ctx.context.userId },
+      "brain suspension failed",
+    );
     if (err instanceof BrainCommandError) {
       return NextResponse.json({ error: message }, { status: err.status });
     }
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearGitHubContext();
   }
 }

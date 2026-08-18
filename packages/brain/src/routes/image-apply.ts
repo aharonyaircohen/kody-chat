@@ -9,14 +9,9 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { applyBrainImage } from "../image-apply-command";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";
@@ -29,10 +24,7 @@ interface ApplyBody {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
@@ -40,19 +32,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Brain image apply needs a Fly Machines token. Add FLY_API_TOKEN to the repo Secrets vault.",
+          "Brain image apply needs a Fly token. Add FLY_API_TOKEN to Personal Credentials.",
       },
       { status: 400 },
     );
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     const body = (await req.json().catch(() => ({}))) as ApplyBody;
@@ -84,14 +68,12 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err, owner: ctx.context.owner, repo: ctx.context.repo },
+      { err, userId: ctx.context.userId },
       "brain image apply failed",
     );
     return NextResponse.json(
       { error: "brain_image_apply_failed", message },
       { status: 502 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

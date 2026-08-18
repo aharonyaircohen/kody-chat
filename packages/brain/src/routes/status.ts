@@ -26,30 +26,25 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { readBrainOverview } from "../overview";
-import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
 
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
+  if (!ctx.context.flyToken) {
+    return NextResponse.json({
+      state: "off",
+      reason: "fly_token_missing",
+      stored: null,
+    });
+  }
 
   try {
     const overview = await readBrainOverview({
@@ -81,9 +76,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error({ err, owner: ctx.context.owner }, "brain status failed");
+    logger.error({ err, userId: ctx.context.userId }, "brain status failed");
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearGitHubContext();
   }
 }

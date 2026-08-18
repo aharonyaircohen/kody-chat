@@ -5,8 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Brain, Loader2, Pencil, Plus, Save, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "./PageShell";
-import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "../auth-context";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Checkbox } from "@kody-ade/base/ui/checkbox";
@@ -25,9 +23,8 @@ function modelId(name: string): string {
     .slice(0, 80);
 }
 
-async function fetchModels(headers: Record<string, string>) {
+async function fetchModels() {
   const response = await fetch("/api/kody/brain/models", {
-    headers,
     cache: "no-store",
   });
   const body = (await response.json().catch(() => ({}))) as {
@@ -42,13 +39,10 @@ async function fetchModels(headers: Record<string, string>) {
   return body.models ?? [];
 }
 
-async function saveModels(
-  headers: Record<string, string>,
-  models: BrainChatModel[],
-) {
+async function saveModels(models: BrainChatModel[]) {
   const response = await fetch("/api/kody/brain/models", {
     method: "PUT",
-    headers: { ...headers, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ models }),
   });
   const body = (await response.json().catch(() => ({}))) as {
@@ -62,27 +56,20 @@ async function saveModels(
 }
 
 export function BrainModelsManager() {
-  return (
-    <AuthGuard>
-      <BrainModelsManagerInner />
-    </AuthGuard>
-  );
+  return <BrainModelsManagerInner />;
 }
 
 function BrainModelsManagerInner() {
-  const { auth } = useAuth();
-  const headers = buildAuthHeaders(auth);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<BrainChatModel | null>(null);
   const [draft, setDraft] = useState({ name: "", runtime: "" });
   const modelsQuery = useQuery({
     queryKey,
-    queryFn: () => fetchModels(headers),
-    enabled: Boolean(auth),
+    queryFn: fetchModels,
   });
   const models = modelsQuery.data ?? [];
   const save = useMutation({
-    mutationFn: (next: BrainChatModel[]) => saveModels(headers, next),
+    mutationFn: saveModels,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
       setEditing(null);

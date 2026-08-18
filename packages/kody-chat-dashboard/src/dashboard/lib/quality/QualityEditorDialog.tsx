@@ -30,11 +30,11 @@ const authoringDescriptions: Record<
   string
 > = {
   actions:
-    "An Action is one simple user step. Describe its expected result, not clicks or selectors.",
+    "An Action is one reusable user step. Describe the expected result, not clicks or selectors.",
   journeys:
-    "A Journey combines simple Actions to complete one user goal. Do not repeat setup owned by another Journey.",
+    "A Journey is one user goal inside a Scenario. Add the Actions needed to complete that goal.",
   scenarios:
-    "A Scenario orders Journeys into one complete test with starting conditions and required proof.",
+    "A Scenario is the complete test you want to run. Add Journeys, starting conditions, and required proof.",
 };
 
 function defaultRecord(

@@ -15,7 +15,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import {
-  appendSavedBrainMachineToInventory,
   emptyServerProviderInventory,
   listServerProviderInventoryCached,
   refreshServerProviderInventoryCounts,
@@ -48,12 +47,7 @@ export async function GET(req: NextRequest) {
     inventoryErr = err;
   }
 
-  const addedBrain = await appendSavedBrainMachineToInventory(
-    req,
-    inventory,
-    ctx.context,
-  );
-  if (inventory.machines.length > 0 || addedBrain) {
+  if (inventory.machines.length > 0) {
     return NextResponse.json(refreshServerProviderInventoryCounts(inventory));
   }
 

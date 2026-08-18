@@ -8,7 +8,6 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { startBrainImageSave } from "../image-save-command";
 import {
   BrainImageManagementError,
@@ -16,9 +15,8 @@ import {
   pollBrainImageSave,
   readBrainImageManagement,
 } from "../image-management";
-import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
-import { resolveRequiredServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,23 +42,21 @@ function providerContextErrorBody(input: { error: string; message?: string }) {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveRequiredServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,
     });
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
+  if (!ctx.context.flyToken) {
+    return NextResponse.json(
+      {
+        error: "fly_token_missing",
+        message: "Add FLY_API_TOKEN to Personal Credentials.",
+      },
+      { status: 400 },
+    );
+  }
 
   try {
     const result = await startBrainImageSave({ context: ctx.context });
@@ -68,7 +64,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err, owner: ctx.context.owner, repo: ctx.context.repo },
+      { err, userId: ctx.context.userId },
       "brain image save start failed",
     );
     const status = errorStatus(err);
@@ -111,30 +107,17 @@ export async function POST(req: NextRequest) {
       { error: "brain_image_save_start_failed", message },
       { status },
     );
-  } finally {
-    clearGitHubContext();
   }
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveRequiredServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,
     });
   }
   const requestedJobId = req.nextUrl.searchParams.get("jobId")?.trim();
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     const result = requestedJobId
@@ -147,7 +130,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err, owner: ctx.context.owner, repo: ctx.context.repo },
+      { err, userId: ctx.context.userId },
       "brain image save status failed",
     );
     if (err instanceof BrainImageManagementError) {
@@ -178,20 +161,24 @@ export async function GET(req: NextRequest) {
       { error: "brain_image_save_status_failed", message },
       { status: 502 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveRequiredServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,
     });
+  }
+  if (!ctx.context.flyToken) {
+    return NextResponse.json(
+      {
+        error: "fly_token_missing",
+        message: "Add FLY_API_TOKEN to Personal Credentials.",
+      },
+      { status: 400 },
+    );
   }
 
   const imageRef = req.nextUrl.searchParams.get("imageRef")?.trim();
@@ -201,14 +188,6 @@ export async function DELETE(req: NextRequest) {
       { status: 400 },
     );
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     return NextResponse.json(
@@ -229,7 +208,5 @@ export async function DELETE(req: NextRequest) {
       { error: "brain_image_delete_failed", message },
       { status: 502 },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

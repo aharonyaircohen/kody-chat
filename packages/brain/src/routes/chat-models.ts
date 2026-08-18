@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth } from "@kody-ade/base/auth";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 import {
   BrainChatModelsSchema,
   normalizeBrainChatModels,
@@ -14,9 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function contextFor(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return { response: authError } as const;
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return {
       response: NextResponse.json({ error: ctx.error }, { status: ctx.status }),
@@ -28,11 +25,7 @@ async function contextFor(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const result = await contextFor(req);
   if ("response" in result) return result.response;
-  const models = await readBrainChatModels(
-    result.ctx.context.account,
-    result.ctx.context.owner,
-    result.ctx.context.repo,
-  );
+  const models = await readBrainChatModels(result.ctx.context.account);
   return NextResponse.json(
     { models },
     { headers: { "Cache-Control": "no-store" } },
@@ -52,8 +45,6 @@ export async function PUT(req: NextRequest) {
   }
   const models = await writeBrainChatModels(
     result.ctx.context.account,
-    result.ctx.context.owner,
-    result.ctx.context.repo,
     normalizeBrainChatModels(parsed.data.models),
   );
   return NextResponse.json({ ok: true, models });

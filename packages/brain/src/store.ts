@@ -2,14 +2,8 @@
  * @fileType utility
  * @domain kody
  * @pattern brain-app-file-store
- * @ai-summary Per-user record of the Brain Fly app the dashboard provisioned.
- *   One JSON document per GitHub login at
- *   `users/<login>/data/brain.json` in the tenant's Convex repository docs.
- *
- *   Uses short-lived local caching and optimistic writes. The folder
- *   shape (`users/<login>/data/…`) is intentionally a folder per user so
- *   future per-user data files (`preferences.json`, `settings.json`, …) can
- *   sit alongside `brain.json` without colliding.
+ * @ai-summary Personal Brain app, image, and image-save state. The host owns
+ *   authentication and durable account storage through PersonalBrainServices.
  *
  *   This file is the source of truth for the Runner page: it surfaces
  *   "here is the Fly app we believe you have, and the org we put it in" so
@@ -19,12 +13,7 @@
  */
 import "server-only";
 
-import { getOctokit, getOwner, getRepo } from "./github";
-import {
-  deleteBackendDoc,
-  readBackendDoc,
-  writeBackendDoc,
-} from "@kody-ade/base/backend/repo-docs";
+import { getPersonalBrainServices } from "./personal-services";
 
 /** TTL for brain app cache. Low-churn data — 5 min matches the prefs store. */
 const BRAIN_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -66,18 +55,6 @@ function setCache<T>(key: string, data: T, etag?: string): void {
 
 function cacheKey(kind: "app" | "image" | "image-save", login: string): string {
   return `brain-${kind}:${login.toLowerCase()}`;
-}
-
-function appFilePath(login: string): string {
-  return `users/${login.toLowerCase()}/data/brain.json`;
-}
-
-function imageFilePath(login: string): string {
-  return `users/${login.toLowerCase()}/data/brain-image.json`;
-}
-
-function imageSaveFilePath(login: string): string {
-  return `users/${login.toLowerCase()}/data/brain-image-save.json`;
 }
 
 /** Persisted Brain app record. Versioned for future migrations. */
@@ -288,7 +265,7 @@ function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
 }
 
 /**
- * Read the Brain app record for a user from Convex.
+ * Read the signed-in user's Brain app record.
  * Returns `null` when no record exists (user has never provisioned, or the
  * document was deleted). Backend errors are surfaced to the caller.
  */
@@ -296,112 +273,34 @@ export async function readBrainApp(
   login: string,
   _token: string,
 ): Promise<BrainAppFile | null> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = appFilePath(login);
   const key = cacheKey("app", login);
-
   const cached = getCache<BrainAppFile | null>(key);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const parsed: unknown = JSON.parse(file.content);
-      if (!isBrainAppFile(parsed)) {
-        setCache(key, null, file.etag);
-        return null;
-      }
-      setCache(key, parsed, file.etag);
-      return parsed;
-    }
-    setCache(key, null);
-    return null;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, null);
-      return null;
-    }
-    throw error;
-  }
+  if (cached) return cached.data;
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return null;
+  const value = await services.loadState(user.id, "app");
+  const record = isBrainAppFile(value) ? value : null;
+  setCache(key, record);
+  return record;
 }
 
 /**
- * Write the Brain app record to Convex using optimistic concurrency.
+ * Write the signed-in user's Brain app record.
  */
 export async function writeBrainApp(
   login: string,
   _token: string,
   file: BrainAppFile,
 ): Promise<void> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = appFilePath(login);
   const key = cacheKey("app", login);
-
   cache.delete(key);
-
-  let sha: string | undefined;
-
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    sha = current?.sha;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status !== 404) throw error;
-  }
-
-  const content = JSON.stringify(file, null, 2);
-  const message = `feat(brain): record brain app for ${login}`;
-
-  try {
-    const octokit = getOctokit();
-    await writeBackendDoc({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-      scope: "root",
-    });
-    return;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 409) {
-      try {
-        const octokit = getOctokit();
-        const current = await readBackendDoc(octokit, owner, repo, path, {
-          scope: "root",
-        });
-        await writeBackendDoc({
-          octokit,
-          owner,
-          repo,
-          path,
-          message,
-          content,
-          sha: current?.sha,
-          scope: "root",
-        });
-        return;
-      } catch {
-        // fall through to throw
-      }
-    }
-    throw error;
-  }
+  if (!isBrainAppFile(file)) throw new Error("Invalid Brain app record");
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) throw new Error("unauthorized");
+  await services.saveState(user.id, "app", file);
+  setCache(key, file);
 }
 
 /**
@@ -414,34 +313,12 @@ export async function clearBrainApp(
   login: string,
   _token: string,
 ): Promise<void> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = appFilePath(login);
   const key = cacheKey("app", login);
-
   cache.delete(key);
-
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    if (current?.sha) {
-      await deleteBackendDoc({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `feat(brain): clear brain app for ${login}`,
-        sha: current.sha,
-        scope: "root",
-      });
-    }
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 404) return;
-    throw error;
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return;
+  await services.saveState(user.id, "app", null);
 }
 
 export async function readBrainImage(
@@ -449,46 +326,20 @@ export async function readBrainImage(
   _token: string,
   options: { bypassCache?: boolean } = {},
 ): Promise<BrainImageFile | null> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageFilePath(login);
   const key = cacheKey("image", login);
-
   if (options.bypassCache) cache.delete(key);
   const cached = options.bypassCache
     ? null
     : getCache<BrainImageFile | null>(key);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const parsed: unknown = JSON.parse(file.content);
-      const normalized = normalizeBrainImageFile(parsed);
-      if (!normalized) {
-        setCache(key, null, file.etag);
-        return null;
-      }
-      setCache(key, normalized, file.etag);
-      return normalized;
-    }
-    setCache(key, null);
-    return null;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, null);
-      return null;
-    }
-    throw error;
-  }
+  if (cached) return cached.data;
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return null;
+  const normalized = normalizeBrainImageFile(
+    await services.loadState(user.id, "images"),
+  );
+  setCache(key, normalized);
+  return normalized;
 }
 
 export async function writeBrainImage(
@@ -500,65 +351,13 @@ export async function writeBrainImage(
   if (!normalizedFile) {
     throw new Error("Invalid Brain image record");
   }
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageFilePath(login);
   const key = cacheKey("image", login);
-
   cache.delete(key);
-
-  let sha: string | undefined;
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    sha = current?.sha;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status !== 404) throw error;
-  }
-
-  const content = JSON.stringify(normalizedFile, null, 2);
-  const message = `feat(brain): record brain image for ${login}`;
-
-  try {
-    const octokit = getOctokit();
-    await writeBackendDoc({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-      scope: "root",
-    });
-    return;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 409) {
-      try {
-        const octokit = getOctokit();
-        const current = await readBackendDoc(octokit, owner, repo, path, {
-          scope: "root",
-        });
-        await writeBackendDoc({
-          octokit,
-          owner,
-          repo,
-          path,
-          message,
-          content,
-          sha: current?.sha,
-          scope: "root",
-        });
-        return;
-      } catch {
-        // fall through to throw
-      }
-    }
-    throw error;
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) throw new Error("unauthorized");
+  await services.saveState(user.id, "images", normalizedFile);
+  setCache(key, normalizedFile);
 }
 
 export async function selectBrainImage(
@@ -744,76 +543,28 @@ export async function clearBrainImage(
   login: string,
   _token: string,
 ): Promise<void> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageFilePath(login);
   const key = cacheKey("image", login);
-
   cache.delete(key);
-
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    if (current?.sha) {
-      await deleteBackendDoc({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `feat(brain): clear brain image for ${login}`,
-        sha: current.sha,
-        scope: "root",
-      });
-    }
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 404) return;
-    throw error;
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return;
+  await services.saveState(user.id, "images", null);
 }
 
 export async function readBrainImageSave(
   login: string,
   _token: string,
 ): Promise<BrainImageSaveFile | null> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageSaveFilePath(login);
   const key = cacheKey("image-save", login);
-
   const cached = getCache<BrainImageSaveFile | null>(key);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const parsed: unknown = JSON.parse(file.content);
-      if (!isBrainImageSaveFile(parsed)) {
-        setCache(key, null, file.etag);
-        return null;
-      }
-      setCache(key, parsed, file.etag);
-      return parsed;
-    }
-    setCache(key, null);
-    return null;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, null);
-      return null;
-    }
-    throw error;
-  }
+  if (cached) return cached.data;
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return null;
+  const value = await services.loadState(user.id, "image-save");
+  const record = isBrainImageSaveFile(value) ? value : null;
+  setCache(key, record);
+  return record;
 }
 
 export async function writeBrainImageSave(
@@ -824,97 +575,23 @@ export async function writeBrainImageSave(
   if (!isBrainImageSaveFile(file)) {
     throw new Error("Invalid Brain image save record");
   }
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageSaveFilePath(login);
   const key = cacheKey("image-save", login);
-
   cache.delete(key);
-
-  let sha: string | undefined;
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    sha = current?.sha;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status !== 404) throw error;
-  }
-
-  const content = JSON.stringify(file, null, 2);
-  const message = `feat(brain): record brain image save job for ${login}`;
-
-  try {
-    const octokit = getOctokit();
-    await writeBackendDoc({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-      scope: "root",
-    });
-    return;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 409) {
-      try {
-        const octokit = getOctokit();
-        const current = await readBackendDoc(octokit, owner, repo, path, {
-          scope: "root",
-        });
-        await writeBackendDoc({
-          octokit,
-          owner,
-          repo,
-          path,
-          message,
-          content,
-          sha: current?.sha,
-          scope: "root",
-        });
-        return;
-      } catch {
-        // fall through to throw
-      }
-    }
-    throw error;
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) throw new Error("unauthorized");
+  await services.saveState(user.id, "image-save", file);
+  setCache(key, file);
 }
 
 export async function clearBrainImageSave(
   login: string,
   _token: string,
 ): Promise<void> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = imageSaveFilePath(login);
   const key = cacheKey("image-save", login);
-
   cache.delete(key);
-
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    if (current?.sha) {
-      await deleteBackendDoc({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `feat(brain): clear brain image save job for ${login}`,
-        sha: current.sha,
-        scope: "root",
-      });
-    }
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 404) return;
-    throw error;
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return;
+  await services.saveState(user.id, "image-save", null);
 }

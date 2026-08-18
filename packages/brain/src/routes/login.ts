@@ -12,15 +12,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { manageBrainServer } from "../server-commands";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
 import { logger } from "@kody-ade/base/logger";
 import type { ServerBrainPerfTier } from "@kody-ade/fly/infrastructure/server-brain";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";
@@ -57,10 +52,7 @@ function parseAppNameOverride(body: unknown): string | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json(
       { error: ctx.error },
@@ -71,19 +63,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Repo Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
+          "Brain on Fly needs a Fly token. Add FLY_API_TOKEN to Personal Credentials.",
       },
       { status: 400, headers: NO_STORE_HEADERS },
     );
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     const body = (await req.json().catch(() => ({}))) as unknown;
@@ -108,12 +92,10 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error({ err, owner: ctx.context.owner }, "brain login failed");
+    logger.error({ err, userId: ctx.context.userId }, "brain login failed");
     return NextResponse.json(
       { error: message },
       { status: 502, headers: NO_STORE_HEADERS },
     );
-  } finally {
-    clearGitHubContext();
   }
 }

@@ -54,27 +54,31 @@ const CONFIG = {
     singular: "Action",
     icon: Zap,
     empty: "No Actions yet",
-    hint: "Add a reusable user action to start mapping product quality.",
+    subtitle: "Reusable steps used by Journeys",
+    hint: "Add a reusable step to a Journey.",
   },
   journeys: {
     title: "Journeys",
     singular: "Journey",
     icon: Footprints,
     empty: "No Journeys yet",
-    hint: "Combine Actions into an end-to-end user goal.",
+    subtitle: "User goals made from Actions",
+    hint: "Add a user goal, then choose its Actions.",
   },
   scenarios: {
     title: "Scenarios",
     singular: "Scenario",
     icon: ShieldCheck,
     empty: "No Scenarios yet",
-    hint: "Combine Journeys into a complete test and define its proof.",
+    subtitle: "Complete tests made from Journeys",
+    hint: "Start here: define the complete test you want to run.",
   },
   runs: {
     title: "Quality Runs",
     singular: "Quality Run",
     icon: Activity,
     empty: "No Quality Runs yet",
+    subtitle: "Evidence from Scenario executions",
     hint: "Run an active Scenario to create durable quality evidence.",
   },
 } as const;
@@ -1113,7 +1117,7 @@ function QualityResourceManager({ resource }: { resource: QualityResource }) {
         title={config.title}
         icon={config.icon}
         iconClassName="text-cyan-400"
-        subtitle={`${records.length} ${records.length === 1 ? config.singular.toLowerCase() : config.title.toLowerCase()}`}
+        subtitle={`${config.subtitle} · ${records.length} ${records.length === 1 ? config.singular.toLowerCase() : config.title.toLowerCase()}`}
         search={search}
         onSearch={setSearch}
         searchPlaceholder={`Search ${resource}…`}

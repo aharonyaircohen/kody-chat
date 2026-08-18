@@ -4,7 +4,7 @@
  * @domain brain
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
+import type { PersonalBrainContext } from "@kody-ade/brain/personal-context";
 
 const store = vi.hoisted(() => ({
   clearBrainApp: vi.fn(async () => undefined),
@@ -69,18 +69,15 @@ vi.mock("@kody-ade/base/logger", () => ({
 
 import { manageBrainServer } from "@kody-ade/brain/server-commands";
 
-const context: FlyContext = {
-  owner: "acme",
-  repo: "widgets",
+const context: PersonalBrainContext = {
+  userId: "user-1",
   account: "octocat",
   engineModel: undefined,
   engineModelConfig: undefined,
   githubToken: "gh-token",
-  octokit: {} as FlyContext["octokit"],
   flyToken: "fly-token",
   flyOrgSlug: "personal",
   flyDefaultRegion: "fra",
-  providerTokenSource: "repo-vault",
   allSecrets: {},
   perfTier: undefined,
 };
@@ -150,21 +147,24 @@ describe("manageBrainServer", () => {
         replaceExistingMachine: true,
       }),
     );
-    expect(terminalBridge.ensureServerProviderTerminalBridge).toHaveBeenCalledWith({
+    expect(
+      terminalBridge.ensureServerProviderTerminalBridge,
+    ).toHaveBeenCalledWith({
       token: "fly-token",
       orgSlug: "personal",
       defaultRegion: "fra",
     });
-    expect(
-      brainFly.provisionBrain.mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      terminalBridge.ensureServerProviderTerminalBridge.mock.invocationCallOrder[0],
+    expect(brainFly.provisionBrain.mock.invocationCallOrder[0]).toBeLessThan(
+      terminalBridge.ensureServerProviderTerminalBridge.mock
+        .invocationCallOrder[0],
     );
   });
 
   it("does not couple ordinary Brain provisioning to terminal gateway setup", async () => {
     await manageBrainServer({ command: "provision", context });
 
-    expect(terminalBridge.ensureServerProviderTerminalBridge).not.toHaveBeenCalled();
+    expect(
+      terminalBridge.ensureServerProviderTerminalBridge,
+    ).not.toHaveBeenCalled();
   });
 });

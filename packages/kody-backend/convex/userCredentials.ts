@@ -12,6 +12,17 @@ export const list = query({
   },
 });
 
+/** Server-only credential payloads for trusted host adapters. */
+export const listEncrypted = query({
+  args: { userKey: v.string() },
+  handler: async (ctx, { userKey }) => {
+    return await ctx.db
+      .query("userCredentials")
+      .withIndex("by_user", (q) => q.eq("userKey", userKey))
+      .collect();
+  },
+});
+
 export const get = query({
   args: { userKey: v.string(), name: v.string() },
   handler: async (ctx, { userKey, name }) => {

@@ -8,7 +8,7 @@
  */
 import "server-only";
 
-import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import type { PersonalBrainContext } from "./personal-context";
 import {
   getTerminalBridgeExecJob,
   type TerminalBridgeExecJob,
@@ -128,19 +128,19 @@ function imageManagementResponse(
 }
 
 async function discoverImages(
-  context: ServerProviderContext,
+  context: PersonalBrainContext,
   options: { refresh?: boolean; scope?: string } = {},
 ): Promise<BrainSavedImage[]> {
   const ghcr = brainGhcrAuth({
     allSecrets: context.allSecrets,
     githubToken: context.githubToken,
-    account: context.account,
+    account: context.githubAccount ?? context.account,
   });
   return discoverBrainPackageImages(
     {
-      owner: context.owner,
-      repo: context.repo,
-      account: context.account,
+      owner: context.githubOwner ?? context.account,
+      repo: "personal-brain",
+      account: context.githubAccount ?? context.account,
       githubToken: ghcr.token,
     },
     options,
@@ -188,7 +188,7 @@ async function reconcileBrainImageSaveForManagement(input: {
 }
 
 async function findCompletedBrainImageSave(
-  context: ServerProviderContext,
+  context: PersonalBrainContext,
   save: BrainImageSaveFile,
 ): Promise<BrainSavedImage | null> {
   const images = await discoverImages(context, {
@@ -243,13 +243,13 @@ async function recordCompletedBrainImageSave(input: {
 }
 
 export async function readBrainImageManagement(input: {
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
 }) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);
   const save = await reconcileBrainImageSaveForManagement({
-    account: context.account,
+    account: context.githubAccount ?? context.account,
     githubToken: context.githubToken,
     save: await readBrainImageSave(context.account, context.githubToken),
   });
@@ -292,7 +292,7 @@ export async function readBrainImageManagement(input: {
 }
 
 export async function pollBrainImageSave(input: {
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
   jobId: string;
 }) {
   const { context, jobId } = input;
@@ -319,7 +319,7 @@ export async function pollBrainImageSave(input: {
   const completedImage = await findCompletedBrainImageSave(context, save);
   if (completedImage) {
     return recordCompletedBrainImageSave({
-      account: context.account,
+      account: context.githubAccount ?? context.account,
       githubToken: context.githubToken,
       save,
       imageRef: save.expectedImageRef,
@@ -356,8 +356,8 @@ export async function pollBrainImageSave(input: {
     defaultRegion: save.defaultRegion,
   });
   const token = mintTerminalBridgeToken({
-    owner: context.owner,
-    repo: context.repo,
+    owner: context.githubOwner ?? context.account,
+    repo: "personal-brain",
     app: save.app,
     orgSlug: operationOrgSlug,
     flyToken: operationFlyToken,
@@ -454,7 +454,7 @@ function sameBrainImageTag(a: string | null | undefined, b: string): boolean {
 }
 
 export async function deleteBrainImageRef(input: {
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
   imageRef: string;
 }) {
   const { context, imageRef } = input;
@@ -496,14 +496,14 @@ export async function deleteBrainImageRef(input: {
   const ghcr = brainGhcrAuth({
     allSecrets: context.allSecrets,
     githubToken: context.githubToken,
-    account: context.account,
+    account: context.githubAccount ?? context.account,
   });
   let deletedImageRefs: string[];
   try {
     ({ deletedImageRefs } = await deleteBrainPackageImage({
-      owner: context.owner,
-      repo: context.repo,
-      account: context.account,
+      owner: context.githubOwner ?? context.account,
+      repo: "personal-brain",
+      account: context.githubAccount ?? context.account,
       githubToken: ghcr.token,
       imageRef,
     }));

@@ -19,7 +19,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
-  Brain,
   Cpu,
   Globe,
   Info,
@@ -32,7 +31,6 @@ import {
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
-import { BrainFlyCard, type BrainFlyState } from "@dashboard/features/admin/components/BrainFlyCard";
 import { FlyActivityTab } from "@dashboard/features/previews/components/FlyActivityTab";
 import { FlyMachinesTable } from "@dashboard/features/previews/components/FlyMachinesTable";
 import { FlyPreviewsList } from "@dashboard/features/previews/components/FlyPreviewsList";
@@ -40,7 +38,11 @@ import { PreviewsCard } from "@dashboard/features/previews/components/PreviewsCa
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import { VaultLockedBanner } from "@dashboard/lib/components/VaultLockedBanner";
-import { buildAuthHeaders, useAuth, type FlyPerfTier } from "@dashboard/lib/auth-context";
+import {
+  buildAuthHeaders,
+  useAuth,
+  type FlyPerfTier,
+} from "@dashboard/lib/auth-context";
 import {
   useFlyTokenStatus,
   type FlyTokenStatus,
@@ -74,22 +76,6 @@ const SCOPE_CHIP_HINTS = {
   justYou: "Only affects this browser.",
 };
 
-const STATUS_DOT_COLORS: Record<string, string> = {
-  running: "bg-emerald-400",
-  suspended: "bg-amber-400",
-  stopped: "bg-rose-400",
-  off: "bg-white/30",
-  unknown: "bg-white/20",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  running: "Running",
-  suspended: "Sleeping",
-  stopped: "Stopped",
-  off: "Off",
-  unknown: "-",
-};
-
 export type RunnerView = "config" | "previews" | "machines" | "history";
 
 interface RunnerManagerProps {
@@ -99,7 +85,7 @@ interface RunnerManagerProps {
 const FLY_VIEW_COPY: Record<RunnerView, { title: string; subtitle: string }> = {
   config: {
     title: "Fly Config",
-    subtitle: "Fly token, runner, and Brain settings.",
+    subtitle: "Fly token and repository runner settings.",
   },
   previews: {
     title: "Fly Previews",
@@ -114,16 +100,6 @@ const FLY_VIEW_COPY: Record<RunnerView, { title: string; subtitle: string }> = {
     subtitle: "Past Fly machine activity from state snapshots.",
   },
 };
-
-function StatusDot({ state }: { state: string }) {
-  return (
-    <span
-      className={`w-1.5 h-1.5 rounded-full inline-block ${
-        STATUS_DOT_COLORS[state] ?? STATUS_DOT_COLORS.unknown
-      }`}
-    />
-  );
-}
 
 function GroupHeader({
   icon: Icon,
@@ -210,7 +186,6 @@ function RunnerConfigView({
   const [poolMinSaved, setPoolMinSaved] = useState("");
   const [poolMinSaving, setPoolMinSaving] = useState(false);
   const [flyPerf, setFlyPerf] = useState<FlyPerfTier>(FLY_PERF_DEFAULT);
-  const [brainState, setBrainState] = useState<BrainFlyState>("unknown");
 
   const loadPoolMin = useCallback(async () => {
     if (Object.keys(headers).length === 0) {
@@ -384,25 +359,6 @@ function RunnerConfigView({
                 </div>
               </CardContent>
             </Card>
-          </section>
-
-          <section className="space-y-3">
-            <GroupHeader
-              icon={Brain}
-              label="Brain"
-              hint="your personal Brain server"
-              status={
-                <span className="flex items-center gap-1.5">
-                  <StatusDot state={brainState} />
-                  {STATUS_LABELS[brainState]}
-                </span>
-              }
-            />
-            <BrainFlyCard
-              headers={headers}
-              flyTokenConfigured={flyTokenStatus.configured}
-              onStatusChange={setBrainState}
-            />
           </section>
         </>
       )}

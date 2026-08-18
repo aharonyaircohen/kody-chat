@@ -45,7 +45,6 @@ describe("repo-scoped route contract", () => {
     );
     expect(routes.repoSecrets(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/secrets");
     expect(routes.repoConfig(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/config");
-    expect(routes.repoBrain(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/brain");
   });
 
   it("leaves global routes outside the repo workspace", () => {
@@ -73,9 +72,7 @@ describe("repo-scoped route contract", () => {
     expect(repoScopedHref(repo, "/views/widgets/question-select")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/views/widgets/question-select",
     );
-    expect(repoScopedHref(repo, "/brain")).toBe(
-      "/repo/A-Guy-educ/A-Guy-Web/brain",
-    );
+    expect(repoScopedHref(repo, "/brain")).toBe("/brain");
     expect(repoScopedHref(repo, "/org")).toBe("/org");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/tasks",
@@ -136,9 +133,7 @@ describe("repo-scoped route contract", () => {
     expect(legacyRepoRedirectPath(repo, "/files/src/app.tsx")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/files/src/app.tsx",
     );
-    expect(legacyRepoRedirectPath(repo, "/brain")).toBe(
-      "/repo/A-Guy-educ/A-Guy-Web/brain",
-    );
+    expect(legacyRepoRedirectPath(repo, "/brain")).toBeNull();
     expect(legacyRepoRedirectPath(repo, "/content/entries/blog/post-1")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/content/entries/blog/post-1",
     );

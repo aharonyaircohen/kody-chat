@@ -27,6 +27,11 @@ const nextConfig = {
         destination: "/content/settings",
         permanent: false,
       },
+      {
+        source: "/repo/:owner/:repo/brain",
+        destination: "/brain",
+        permanent: false,
+      },
     ];
   },
   async rewrites() {

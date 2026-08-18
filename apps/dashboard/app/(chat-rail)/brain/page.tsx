@@ -10,4 +10,14 @@ export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-export { default } from "@kody-ade/kody-chat-dashboard/pages/brain";
+import BrainPage from "@kody-ade/kody-chat-dashboard/pages/brain";
+import { BrainFlyCard } from "@dashboard/features/admin/components/BrainFlyCard";
+
+export default function PersonalBrainPage() {
+  return (
+    <div className="space-y-6">
+      <BrainFlyCard headers={{}} />
+      <BrainPage />
+    </div>
+  );
+}

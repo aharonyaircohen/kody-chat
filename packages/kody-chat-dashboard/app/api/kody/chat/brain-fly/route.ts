@@ -25,7 +25,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import {
   BrainCommandError,
   manageBrainServer,
@@ -44,6 +43,7 @@ import {
 } from "@kody-ade/brain/brain-proxy";
 import { waitForServerBrainHealth } from "@kody-ade/fly/infrastructure/server-brain";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "@kody-ade/brain/personal-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 import {
   withPageContext,
@@ -66,10 +66,7 @@ function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
@@ -77,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Repo Brain on Fly needs a Fly Machines token - add FLY_API_TOKEN to the repo Secrets vault.",
+          "Brain on Fly needs a Fly token - add FLY_API_TOKEN to Personal Credentials.",
       },
       { status: 400 },
     );
@@ -121,13 +118,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "message required" }, { status: 400 });
   }
 
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
+  const repoContext = await resolveServerProviderContext(req);
+  if (repoContext.ok) {
+    setGitHubContext(
+      repoContext.context.owner,
+      repoContext.context.repo,
+      repoContext.context.githubToken,
+      repoContext.context.storeRepoUrl,
+      repoContext.context.storeRef,
+    );
+  }
 
   try {
     const dashboardUrl = requestOrigin(req);
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(
-        { err, owner: ctx.context.owner },
+        { err, userId: ctx.context.userId },
         "chat/brain-fly: Brain provision command failed",
       );
       if (
@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(
-        { err, owner: ctx.context.owner, url: provisioned.url },
+        { err, userId: ctx.context.userId, url: provisioned.url },
         "chat/brain-fly: brain server did not become healthy",
       );
       return NextResponse.json(
@@ -188,14 +188,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const repoScope = createRepoBrainScope({
-      owner: ctx.context.owner,
-      repo: ctx.context.repo,
-      storeRepoUrl: ctx.context.storeRepoUrl,
-      storeRef: ctx.context.storeRef,
-    });
-    const repoToken = ctx.context.githubToken;
-    const useHostWorkspace = body.workspaceMode === "host";
+    const repoScope = repoContext.ok
+      ? createRepoBrainScope({
+          owner: repoContext.context.owner,
+          repo: repoContext.context.repo,
+          storeRepoUrl: repoContext.context.storeRepoUrl,
+          storeRef: repoContext.context.storeRef,
+        })
+      : undefined;
+    const repoToken = repoContext.ok
+      ? repoContext.context.githubToken
+      : undefined;
+    const useHostWorkspace = body.workspaceMode === "host" || !repoContext.ok;
 
     // First turn only: pull the dashboard's curated Context for the chat
     // audience. Cached 60s in-process; `null` when the repo has none.
@@ -211,7 +215,7 @@ export async function POST(req: NextRequest) {
         dashboardContext = await loadContextForPrompt();
       } catch (err) {
         logger.warn(
-          { err, owner: ctx.context.owner },
+          { err, userId: ctx.context.userId },
           "chat/brain-fly: dashboard Context load failed — proceeding without it",
         );
       }
@@ -232,7 +236,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         logger.warn(
-          { err, owner: ctx.context.owner, repo: ctx.context.repo },
+          { err, userId: ctx.context.userId },
           "chat/brain-fly: repo-brain agent load failed — proceeding with default Brain identity",
         );
       }
@@ -261,7 +265,9 @@ export async function POST(req: NextRequest) {
       ...(!useHostWorkspace && body.capabilityContext
         ? { capabilityContext: body.capabilityContext }
         : {}),
-      ...(!useHostWorkspace ? { repoScope, repoToken } : {}),
+      ...(!useHostWorkspace && repoScope && repoToken
+        ? { repoScope, repoToken }
+        : {}),
       dashboardUrl,
       ...(agentIdentity ? { agentIdentity } : {}),
       voiceMode: body.voiceMode === true,

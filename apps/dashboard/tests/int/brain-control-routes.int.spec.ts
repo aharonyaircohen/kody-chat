@@ -5,6 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const brainFly = vi.hoisted(() => ({
   destroyBrain: vi.fn(async () => undefined),
@@ -85,6 +86,7 @@ import { POST as destroyPOST } from "../../app/api/kody/brain/destroy/route";
 import { POST as resumePOST } from "../../app/api/kody/brain/resume/route";
 import { POST as suspendPOST } from "../../app/api/kody/brain/suspend/route";
 import { POST as suspensionPOST } from "../../app/api/kody/brain/suspension/route";
+import { GET as statusGET } from "../../app/api/kody/brain/status/route";
 
 function req(path: string): NextRequest {
   return new NextRequest(`https://dash.test${path}`, { method: "POST" });
@@ -93,6 +95,38 @@ function req(path: string): NextRequest {
 describe("Brain control routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setPersonalBrainServices({
+      resolveUser: async () => ({ id: "user-1", label: "Octocat" }),
+      getCredential: async () => null,
+      getCredentials: async () => ({
+        FLY_API_TOKEN: "fly-token",
+        GITHUB_TOKEN: "ghp_test",
+      }),
+      loadState: async () => null,
+      saveState: async () => undefined,
+    });
+  });
+
+  it("reports a missing personal Fly credential without calling Fly", async () => {
+    setPersonalBrainServices({
+      resolveUser: async () => ({ id: "user-1", label: "Octocat" }),
+      getCredential: async () => null,
+      getCredentials: async () => ({}),
+      loadState: async () => null,
+      saveState: async () => undefined,
+    });
+
+    const res = await statusGET(
+      new NextRequest("https://dash.test/api/kody/brain/status"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      state: "off",
+      reason: "fly_token_missing",
+      stored: null,
+    });
+    expect(brainService.resolveBrainService).not.toHaveBeenCalled();
   });
 
   it("destroys the stored Brain app in the stored org", async () => {
@@ -107,7 +141,7 @@ describe("Brain control routes", () => {
       }),
     );
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
   });
@@ -141,11 +175,11 @@ describe("Brain control routes", () => {
 
     expect(res.status).toBe(200);
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
     expect(brainStore.clearBrainApp).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
   });

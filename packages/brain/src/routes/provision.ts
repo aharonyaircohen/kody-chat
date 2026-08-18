@@ -10,10 +10,8 @@
  * (or reuse) the app + machine. Returns the same shape as the chat
  * route's internal provisionServerBrain call.
  *
- * Auth: requireKodyAuth. The Fly token comes from `ctx.context.flyToken`,
- * which is resolved in `fly-context.ts` as: repo vault `FLY_API_TOKEN` →
- * env `FLY_API_TOKEN` → env `FLY_IO_TOKEN`. Single source, no
- * fallback dance, no retry loop.
+ * Auth and credentials come from the personal Brain host boundary. No
+ * repository is required.
  *
  * App name resolution (in order):
  *   1. `appName` in the request body — explicit user override from the
@@ -34,18 +32,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
-import {
-  BrainCommandError,
-  manageBrainServer,
-} from "../server-commands";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { BrainCommandError, manageBrainServer } from "../server-commands";
 import { logger } from "@kody-ade/base/logger";
 import type { ServerBrainPerfTier } from "@kody-ade/fly/infrastructure/server-brain";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";
@@ -83,10 +73,7 @@ function parseAppNameOverride(body: unknown): string | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
@@ -94,19 +81,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Repo Brain on Fly needs a Fly Machines token. Set FLY_API_TOKEN or FLY_IO_TOKEN in the server env, or add FLY_API_TOKEN to the repo Secrets vault.",
+          "Brain needs a Fly token. Add FLY_API_TOKEN to Personal Credentials.",
       },
       { status: 400 },
     );
   }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
 
   try {
     // Parse the optional explicit override from the UI.
@@ -124,7 +103,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error({ err, owner: ctx.context.owner }, "brain provision failed");
+    logger.error({ err, userId: ctx.context.userId }, "brain provision failed");
     if (
       err instanceof BrainCommandError &&
       err.code === "brain_provision_retryable"
@@ -138,7 +117,5 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearGitHubContext();
   }
 }

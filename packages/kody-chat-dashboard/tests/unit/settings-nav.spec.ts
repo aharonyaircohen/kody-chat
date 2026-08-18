@@ -81,6 +81,15 @@ describe("settings navigation", () => {
     ]);
   });
 
+  it("presents Quality in the user-facing build order", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Quality")).toEqual([
+      "/quality/scenarios",
+      "/quality/journeys",
+      "/quality/actions",
+      "/quality/runs",
+    ]);
+  });
+
   it("shows only the simple Agency surfaces in product order", () => {
     const hrefs = sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency");
     expect(hrefs).toEqual([

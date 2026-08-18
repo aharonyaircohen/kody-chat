@@ -7,7 +7,7 @@
  */
 import "server-only";
 
-import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import type { PersonalBrainContext } from "./personal-context";
 
 import {
   applyBrainImageToRuntime,
@@ -15,7 +15,7 @@ import {
 } from "./image-apply";
 
 export interface ApplyBrainImageCommandInput {
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
   dashboardUrl: string;
   imageRef?: string;
   reset?: boolean;
@@ -27,13 +27,13 @@ export async function applyBrainImage(
   const { context } = input;
   if (!context.flyToken) {
     throw new Error(
-      "Brain image apply needs a Fly Machines token. Add FLY_API_TOKEN to the repo Secrets vault.",
+      "Brain image apply needs a Fly token. Add FLY_API_TOKEN to Personal Credentials.",
     );
   }
   return applyBrainImageToRuntime({
-    owner: context.owner,
-    repo: context.repo,
-    account: context.account,
+    owner: context.githubOwner ?? context.account,
+    repo: "personal-brain",
+    account: context.githubAccount ?? context.account,
     githubToken: context.githubToken,
     allSecrets: context.allSecrets,
     flyToken: context.flyToken,

@@ -7,13 +7,14 @@
  */
 import "server-only";
 
-import {
-  startTerminalBridgeLocalExecJob,
-} from "@kody-ade/terminal/bridge-exec-client";
+import { startTerminalBridgeLocalExecJob } from "@kody-ade/terminal/bridge-exec-client";
 import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
-import { defaultServerBrainImage, waitForServerBrainHealth } from "@kody-ade/fly/infrastructure/server-brain";
-import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import {
+  defaultServerBrainImage,
+  waitForServerBrainHealth,
+} from "@kody-ade/fly/infrastructure/server-brain";
+import type { PersonalBrainContext } from "./personal-context";
 
 import {
   brainGhcrImageRef,
@@ -23,17 +24,14 @@ import {
 import { brainImageJobTimeoutMs } from "./image-timeouts";
 import { brainGhcrAuth } from "./image-runtime";
 import { resolveBrainService } from "./service-resolver";
-import {
-  writeBrainImageSave,
-  type BrainImageSaveFile,
-} from "./store";
+import { writeBrainImageSave, type BrainImageSaveFile } from "./store";
 
 const BRAIN_IMAGE_JOB_OUTPUT_BYTES = 2_000_000;
 const FLY_BRIDGE_ACCESS_DENIED_MESSAGE =
   "Fly token cannot create or access the terminal bridge app needed to save Brain image.";
 
 export interface StartBrainImageSaveInput {
-  context: ServerProviderContext;
+  context: PersonalBrainContext;
 }
 
 function flyAccessDenied(error: unknown): boolean {
@@ -79,7 +77,7 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
 
   const brain = await resolveBrainService({
     flyToken: context.flyToken,
-    account: context.account,
+    account: context.githubAccount ?? context.account,
     githubToken: context.githubToken,
     orgSlug: context.flyOrgSlug,
     defaultRegion: context.flyDefaultRegion,
@@ -88,7 +86,9 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   const machineId = brain.machineId;
   const brainFlyToken = brain.flyToken;
   if (brain.reason === "fly_access_denied") {
-    const error = new Error("Fly token cannot access this Brain app.") as Error & {
+    const error = new Error(
+      "Fly token cannot access this Brain app.",
+    ) as Error & {
       status?: number;
       code?: string;
       app?: string;
@@ -130,11 +130,11 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   const ghcr = brainGhcrAuth({
     allSecrets: context.allSecrets,
     githubToken: context.githubToken,
-    account: context.account,
+    account: context.githubAccount ?? context.account,
   });
   const token = mintTerminalBridgeToken({
-    owner: context.owner,
-    repo: context.repo,
+    owner: context.githubOwner ?? context.account,
+    repo: "personal-brain",
     app,
     orgSlug: brain.orgSlug,
     machineId,
@@ -147,8 +147,8 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   const now = new Date();
   const tag = brainImageTag(now);
   const expectedImageRef = brainGhcrImageRef({
-    owner: context.owner,
-    account: context.account,
+    owner: context.githubOwner ?? context.account,
+    account: context.githubAccount ?? context.account,
     tag,
   });
   const job = await startTerminalBridgeLocalExecJob({

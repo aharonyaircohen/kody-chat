@@ -11,7 +11,8 @@ export type KodyPersonalCapability =
   | "guided-flows"
   | "renderers"
   | "widgets"
-  | "memory";
+  | "memory"
+  | "brain";
 
 export type KodyRepositoryCapability =
   | "repository-code"
@@ -42,6 +43,7 @@ export const PERSONAL_DASHBOARD_PATHS = Object.freeze([
   "/instructions",
   "/secrets",
   "/memory",
+  "/brain",
 ]);
 
 export function isPersonalDashboardPath(pathname: string): boolean {
@@ -64,6 +66,7 @@ const PERSONAL_CAPABILITIES: readonly KodyPersonalCapability[] = [
   "renderers",
   "widgets",
   "memory",
+  "brain",
 ];
 
 const REPOSITORY_CAPABILITIES: readonly KodyRepositoryCapability[] = [

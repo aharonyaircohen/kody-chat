@@ -19,33 +19,20 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
 import { clearBrainApp, readBrainApp, type BrainAppFile } from "../store";
-import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
+import { resolvePersonalBrainContext } from "../personal-context";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
   // The storage layer reads owner/repo from the request-scoped github
   // context (`getOwner()` / `getRepo()`), not from the fly context we
   // just resolved. Set it explicitly so the read targets the right repo.
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
-
   try {
     const record = await readBrainApp(
       ctx.context.account,
@@ -55,43 +42,28 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err, owner: ctx.context.owner },
+      { err, userId: ctx.context.userId },
       "brain stored: read failed",
     );
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearGitHubContext();
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
+  const ctx = await resolvePersonalBrainContext();
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
-
   try {
     await clearBrainApp(ctx.context.account, ctx.context.githubToken);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err, owner: ctx.context.owner },
+      { err, userId: ctx.context.userId },
       "brain stored: clear failed",
     );
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearGitHubContext();
   }
 }
 

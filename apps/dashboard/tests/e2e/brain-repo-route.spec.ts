@@ -1,5 +1,5 @@
 /**
- * @fileoverview Brain models stay inside the active repository workspace.
+ * @fileoverview Brain stays personal while repository Fly tools stay scoped.
  * @testFramework playwright
  * @domain routing
  */
@@ -11,7 +11,7 @@ const BASE_URL = process.env.PW_LOCAL
   : (process.env.BASE_URL ?? "http://127.0.0.1:3333");
 const OWNER = "test-owner";
 const REPO = "test-repo";
-const BRAIN_URL = `${BASE_URL}/repo/${OWNER}/${REPO}/brain`;
+const BRAIN_URL = `${BASE_URL}/brain`;
 
 async function seedRepoAuth(page: Page): Promise<void> {
   await page.addInitScript(
@@ -64,29 +64,33 @@ async function seedRepoAuth(page: Page): Promise<void> {
   );
 }
 
-test("renders Brain at its canonical repository URL", async ({ page }) => {
+test("renders Brain at its canonical personal URL", async ({ page }) => {
   await seedRepoAuth(page);
 
   await page.goto(BRAIN_URL);
 
   await expect(page).toHaveURL(BRAIN_URL);
-  await expect(page.getByRole("heading", { name: "Brain" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Brain", exact: true }),
+  ).toBeVisible();
 });
 
-test("redirects the legacy Brain URL into the active repository", async ({
+test("redirects the old repository Brain URL to personal Brain", async ({
   page,
 }) => {
   await seedRepoAuth(page);
 
-  await page.goto(`${BASE_URL}/brain`);
+  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/brain`);
 
   await expect(page).toHaveURL(BRAIN_URL);
-  await expect(page.getByRole("heading", { name: "Brain" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Brain", exact: true }),
+  ).toBeVisible();
 });
 
 test("groups every Fly page under the Fly sidepanel menu", async ({ page }) => {
   await seedRepoAuth(page);
-  await page.goto(BRAIN_URL);
+  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/fly/machines`);
 
   const navigation = page.getByRole("complementary", {
     name: "Primary navigation",

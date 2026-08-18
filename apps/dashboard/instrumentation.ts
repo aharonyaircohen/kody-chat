@@ -12,6 +12,7 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  await import("@dashboard/lib/brain/personal-services");
   const { registerBrainHostHooks } = await import("@kody-ade/brain/register");
   registerBrainHostHooks();
 }

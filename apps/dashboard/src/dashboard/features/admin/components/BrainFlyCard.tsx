@@ -82,12 +82,8 @@ export type BrainFlyState =
   "off" | "running" | "suspended" | "stopped" | "unknown";
 
 interface BrainFlyCardProps {
-  /** Authenticated request headers (x-kody-token / -owner / -repo). */
+  /** Optional repository headers, used only for the Repo Brain chat add-on. */
   headers: Record<string, string>;
-  /** True only when FLY_API_TOKEN is configured in the repo vault. */
-  flyTokenConfigured: boolean;
-  /** Reports the current Brain lifecycle state to the parent. */
-  onStatusChange?: (state: BrainFlyState) => void;
 }
 
 interface StatusResponse {
@@ -101,7 +97,8 @@ interface StatusResponse {
     | "stored_app_not_found"
     | "app_has_no_machine"
     | "machine_lookup_failed"
-    | "fly_access_denied";
+    | "fly_access_denied"
+    | "fly_token_missing";
   error?: string;
   stored?: {
     version: 1;
@@ -172,6 +169,8 @@ function brainReasonLabel(reason: StatusResponse["reason"]): string | null {
       return "Brain machine lookup failed.";
     case "fly_access_denied":
       return "Fly token cannot access this Brain app.";
+    case "fly_token_missing":
+      return "Add FLY_API_TOKEN in Personal Credentials to use Brain.";
     case "not_provisioned":
       return null;
     default:
@@ -179,18 +178,27 @@ function brainReasonLabel(reason: StatusResponse["reason"]): string | null {
   }
 }
 
-export function BrainFlyCard({
-  headers,
-  flyTokenConfigured,
-  onStatusChange,
-}: BrainFlyCardProps) {
-  const { auth, updateIntegrations } = useAuth();
-  const brainPerf: FlyPerfTier = auth?.brainPerf ?? BRAIN_SIZE_DEFAULT;
-  const brainSuspension: BrainSuspensionMode =
+export function BrainFlyCard({ headers }: BrainFlyCardProps) {
+  const { auth } = useAuth();
+  const [brainPerf, setBrainPerf] = useState<FlyPerfTier>(
+    auth?.brainPerf ?? BRAIN_SIZE_DEFAULT,
+  );
+  const [brainSuspension, setBrainSuspension] = useState<BrainSuspensionMode>(
     auth?.brainSuspension ??
-    (auth?.brainTerminalActivityLimit === "never"
-      ? "never"
-      : BRAIN_SUSPENSION_DEFAULT);
+      (auth?.brainTerminalActivityLimit === "never"
+        ? "never"
+        : BRAIN_SUSPENSION_DEFAULT),
+  );
+  useEffect(() => {
+    const savedPerf = localStorage.getItem("kody.brain.perf");
+    if (savedPerf === "low" || savedPerf === "medium" || savedPerf === "high") {
+      setBrainPerf(savedPerf);
+    }
+    const savedSuspension = localStorage.getItem("kody.brain.suspension");
+    if (savedSuspension === "auto" || savedSuspension === "never") {
+      setBrainSuspension(savedSuspension);
+    }
+  }, []);
   const [state, setState] = useState<BrainFlyState>("unknown");
   const [app, setApp] = useState<string | null>(null);
   const [machineId, setMachineId] = useState<string | null>(null);
@@ -210,11 +218,6 @@ export function BrainFlyCard({
     | "copying-login"
   >("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Report the latest state to the parent so the section header can show
-  // a live status dot + label without scrolling into the card.
-  useEffect(() => {
-    onStatusChange?.(state);
-  }, [state, onStatusChange]);
   // Optional Fly app name override. The default slug
   // `kody-brain-<github-login>` is globally unique on Fly — if a previous
   // account held the name and never freed it, the only way forward is to
@@ -245,15 +248,6 @@ export function BrainFlyCard({
   const [chatToggleBusy, setChatToggleBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!flyTokenConfigured || Object.keys(headers).length === 0) {
-      setState("off");
-      setApp(null);
-      setMachineId(null);
-      setOrg(null);
-      setStatusReason(undefined);
-      setStored(null);
-      return;
-    }
     setLoading(true);
     try {
       const res = await fetch("/api/kody/brain/status", { headers });
@@ -273,7 +267,7 @@ export function BrainFlyCard({
     } finally {
       setLoading(false);
     }
-  }, [headers, flyTokenConfigured]);
+  }, [headers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,10 +543,9 @@ export function BrainFlyCard({
     state === "running" || state === "suspended" || state === "stopped";
 
   async function saveBrainSuspension(value: BrainSuspensionMode) {
-    updateIntegrations({
-      brainSuspension: value === BRAIN_SUSPENSION_DEFAULT ? null : value,
-    });
-    if (!flyTokenConfigured || Object.keys(headers).length === 0 || !isOn) {
+    setBrainSuspension(value);
+    localStorage.setItem("kody.brain.suspension", value);
+    if (!isOn) {
       return;
     }
     setBusy("saving-suspension");
@@ -605,6 +598,7 @@ export function BrainFlyCard({
   // return a usable machine. Keep auth failures distinct from missing apps.
   const isOrphan = state === "off" && stored !== null;
   const statusDetail = brainReasonLabel(statusReason);
+  const flyTokenMissing = statusReason === "fly_token_missing";
 
   return (
     <>
@@ -612,9 +606,9 @@ export function BrainFlyCard({
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Brain className="w-4 h-4 text-violet-400" />
-            <h2 className="text-sm font-semibold">Repo Brain on Fly</h2>
+            <h2 className="text-sm font-semibold">Personal Brain on Fly</h2>
             <SimpleTooltip
-              content="Your Fly runtime for repo-scoped Brain chats. Sleeps when idle, wakes in ~1s on the next chat - no manual wake-up needed."
+              content="Your personal Brain runtime. It sleeps when idle and wakes on the next chat."
               side="right"
             >
               <Info className="w-3.5 h-3.5 text-white/50 hover:text-white/80 cursor-help" />
@@ -662,7 +656,7 @@ export function BrainFlyCard({
               size="sm"
               variant="ghost"
               onClick={refresh}
-              disabled={loading || !flyTokenConfigured}
+              disabled={loading}
               className="ml-auto h-7 px-2 text-white/50 hover:text-white/80"
               title="Refresh status"
             >
@@ -675,80 +669,75 @@ export function BrainFlyCard({
           </div>
 
           {/* Brain size — its OWN setting, not the task-run speed. */}
-          {flyTokenConfigured && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/70">Size</span>
-                <SimpleTooltip
-                  content={`${BRAIN_SIZE_LABELS[brainPerf].hint}${isOn ? " Applies next time you turn Brain off then on." : ""}`}
-                  side="right"
-                >
-                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
-                </SimpleTooltip>
-              </div>
-              <div className="flex gap-1.5">
-                {BRAIN_SIZE_ORDER.map((tier) => {
-                  const active = brainPerf === tier;
-                  return (
-                    <Button
-                      key={tier}
-                      type="button"
-                      size="clear"
-                      variant="ghost"
-                      onClick={() =>
-                        updateIntegrations({
-                          brainPerf: tier === BRAIN_SIZE_DEFAULT ? null : tier,
-                        })
-                      }
-                      title={BRAIN_SIZE_LABELS[tier].hint}
-                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
-                        active
-                          ? "border-violet-500/50 bg-violet-500/15 hover:bg-violet-500/15 text-violet-200 hover:text-violet-200"
-                          : "border-white/10 bg-black/20 hover:bg-black/20 text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      {BRAIN_SIZE_LABELS[tier].label}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {flyTokenConfigured && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/70">Brain suspension</span>
-                <SimpleTooltip
-                  content="Whether Fly may auto-suspend the Brain machine when it is idle."
-                  side="right"
-                >
-                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
-                </SimpleTooltip>
-              </div>
-              <select
-                value={brainSuspension}
-                onChange={(event) => {
-                  const value = event.target.value as BrainSuspensionMode;
-                  void saveBrainSuspension(value);
-                }}
-                disabled={busy !== "idle"}
-                className="h-8 w-full rounded-md border border-white/10 bg-black/30 px-2 text-xs text-white/80 outline-none focus:border-violet-500/50"
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/70">Size</span>
+              <SimpleTooltip
+                content={`${BRAIN_SIZE_LABELS[brainPerf].hint}${isOn ? " Applies next time you turn Brain off then on." : ""}`}
+                side="right"
               >
-                {BRAIN_SUSPENSION_OPTIONS.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                    title={option.hint}
-                  >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+              </SimpleTooltip>
             </div>
-          )}
+            <div className="flex gap-1.5">
+              {BRAIN_SIZE_ORDER.map((tier) => {
+                const active = brainPerf === tier;
+                return (
+                  <Button
+                    key={tier}
+                    type="button"
+                    size="clear"
+                    variant="ghost"
+                    onClick={() => {
+                      setBrainPerf(tier);
+                      localStorage.setItem("kody.brain.perf", tier);
+                    }}
+                    title={BRAIN_SIZE_LABELS[tier].hint}
+                    className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
+                      active
+                        ? "border-violet-500/50 bg-violet-500/15 hover:bg-violet-500/15 text-violet-200 hover:text-violet-200"
+                        : "border-white/10 bg-black/20 hover:bg-black/20 text-white/60 hover:text-white/80"
+                    }`}
+                  >
+                    {BRAIN_SIZE_LABELS[tier].label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
 
-          {flyTokenConfigured && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/70">Brain suspension</span>
+              <SimpleTooltip
+                content="Whether Fly may auto-suspend the Brain machine when it is idle."
+                side="right"
+              >
+                <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+              </SimpleTooltip>
+            </div>
+            <select
+              value={brainSuspension}
+              onChange={(event) => {
+                const value = event.target.value as BrainSuspensionMode;
+                void saveBrainSuspension(value);
+              }}
+              disabled={busy !== "idle" || flyTokenMissing}
+              className="h-8 w-full rounded-md border border-white/10 bg-black/30 px-2 text-xs text-white/80 outline-none focus:border-violet-500/50"
+            >
+              {BRAIN_SUSPENSION_OPTIONS.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                  title={option.hint}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {Object.keys(headers).length > 0 && (
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <Checkbox
                 checked={chatEnabled}
@@ -767,7 +756,7 @@ export function BrainFlyCard({
               </span>
             </label>
           )}
-          {flyTokenConfigured && !isOn && (
+          {!isOn && (
             <div className="space-y-1">
               <label
                 htmlFor="brain-app-name"
@@ -788,7 +777,7 @@ export function BrainFlyCard({
                 type="text"
                 value={customAppName}
                 onChange={(e) => setCustomAppName(e.target.value)}
-                placeholder={`kody-brain-${auth?.user.login ?? "<login>"}`}
+                placeholder={`kody-brain-${auth?.user.login ?? "your-account"}`}
                 spellCheck={false}
                 autoComplete="off"
                 className="w-full rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-xs font-mono text-white/85 placeholder:text-white/30 focus:border-violet-500/50 focus:outline-none"
@@ -839,7 +828,7 @@ export function BrainFlyCard({
                   variant="ghost"
                   className="h-7 px-2 shrink-0 text-white/60 hover:text-white"
                   onClick={copyExternalLogin}
-                  disabled={busy !== "idle" || !flyTokenConfigured}
+                  disabled={busy !== "idle"}
                 >
                   {busy === "copying-login" ? (
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -855,7 +844,7 @@ export function BrainFlyCard({
             <div className="rounded-md border border-amber-500/40 bg-amber-500/15 p-2.5 text-[12px] text-amber-50 space-y-2">
               {statusReason === "fly_access_denied" ? (
                 <div>
-                  Fly token cannot access the stored Brain app{" "}
+                  Your personal Fly token cannot access the stored Brain app{" "}
                   <span className="font-mono">{stored?.appName}</span>. Update
                   the repo Fly token or use a token that can access that app.
                 </div>
@@ -870,7 +859,7 @@ export function BrainFlyCard({
                 size="sm"
                 variant="ghost"
                 onClick={clearStoredRecord}
-                disabled={busy !== "idle" || !flyTokenConfigured}
+                disabled={busy !== "idle"}
                 className="text-amber-50 hover:text-white h-7 px-2"
               >
                 {busy === "clearing-record" ? "Clearing…" : "Forget this Brain"}
@@ -885,7 +874,7 @@ export function BrainFlyCard({
                     size="sm"
                     variant="ghost"
                     onClick={suspend}
-                    disabled={busy !== "idle" || !flyTokenConfigured}
+                    disabled={busy !== "idle" || flyTokenMissing}
                     className="text-amber-300 hover:text-amber-200"
                     title="Pause the machine now (auto-resumes on next chat)"
                   >
@@ -898,7 +887,7 @@ export function BrainFlyCard({
                     size="sm"
                     variant="ghost"
                     onClick={resume}
-                    disabled={busy !== "idle" || !flyTokenConfigured}
+                    disabled={busy !== "idle" || flyTokenMissing}
                     className="text-emerald-300 hover:text-emerald-200"
                     title="Wake the machine without sending a chat"
                   >
@@ -910,7 +899,7 @@ export function BrainFlyCard({
                   size="sm"
                   variant="ghost"
                   onClick={() => setConfirmOpen(true)}
-                  disabled={busy !== "idle" || !flyTokenConfigured}
+                  disabled={busy !== "idle" || flyTokenMissing}
                   className="text-rose-300 hover:text-rose-200 ml-auto"
                 >
                   <Power className="w-3 h-3 mr-1" />
@@ -921,7 +910,7 @@ export function BrainFlyCard({
               <Button
                 size="sm"
                 onClick={turnOn}
-                disabled={busy !== "idle" || !flyTokenConfigured}
+                disabled={busy !== "idle" || flyTokenMissing}
               >
                 {busy === "provisioning" ? (
                   <Loader2 className="w-3 h-3 mr-1 animate-spin" />

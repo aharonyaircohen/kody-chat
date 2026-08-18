@@ -9,12 +9,8 @@
  */
 import "server-only";
 
-import { getOctokit, getOwner, getRepo } from "./github";
-import {
-  readBackendDoc,
-  writeBackendDoc,
-} from "@kody-ade/base/backend/repo-docs";
 import { isValidBrainImageRef } from "./store";
+import { getPersonalBrainServices } from "./personal-services";
 
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -25,10 +21,6 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
-
-function runtimeFilePath(login: string): string {
-  return `users/${login.toLowerCase()}/data/brain-runtime.json`;
-}
 
 function cacheKey(login: string): string {
   return `brain-runtime:${login.toLowerCase()}`;
@@ -156,37 +148,17 @@ export async function readBrainRuntimeState(
   login: string,
   _token: string,
 ): Promise<BrainRuntimeStateFile | null> {
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = runtimeFilePath(login);
   const key = cacheKey(login);
   const cached = getCache(key);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (!file) {
-      setCache(key, null);
-      return null;
-    }
-    const parsed = normalizeRuntimeState(JSON.parse(file.content));
-    setCache(key, parsed, file.etag);
-    return parsed;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, null);
-      return null;
-    }
-    throw error;
-  }
+  if (cached) return cached.data;
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) return null;
+  const parsed = normalizeRuntimeState(
+    await services.loadState(user.id, "runtime"),
+  );
+  setCache(key, parsed);
+  return parsed;
 }
 
 export async function writeBrainRuntimeState(
@@ -198,52 +170,11 @@ export async function writeBrainRuntimeState(
   if (!normalized) {
     throw new Error("Invalid Brain runtime state");
   }
-  const owner = getOwner();
-  const repo = getRepo();
-  const path = runtimeFilePath(login);
   const key = cacheKey(login);
   cache.delete(key);
-
-  let sha: string | undefined;
-  try {
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    sha = current?.sha;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status !== 404) throw error;
-  }
-
-  const message = `feat(brain): record brain runtime for ${login}`;
-  const content = JSON.stringify(normalized, null, 2);
-  try {
-    const octokit = getOctokit();
-    await writeBackendDoc({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-      scope: "root",
-    });
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status !== 409) throw error;
-    const octokit = getOctokit();
-    const current = await readBackendDoc(octokit, owner, repo, path, {
-      scope: "root",
-    });
-    await writeBackendDoc({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha: current?.sha,
-      scope: "root",
-    });
-  }
+  const services = getPersonalBrainServices();
+  const user = await services.resolveUser();
+  if (!user) throw new Error("unauthorized");
+  await services.saveState(user.id, "runtime", normalized);
+  setCache(key, normalized);
 }
