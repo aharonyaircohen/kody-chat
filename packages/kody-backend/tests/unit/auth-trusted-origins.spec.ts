@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { authTrustedOrigins } from "../../convex/betterAuth/trustedOrigins";
+import {
+  authSiteUrl,
+  authTrustedOrigins,
+} from "../../convex/betterAuth/trustedOrigins";
 
 describe("authTrustedOrigins", () => {
   it("accepts the primary site and additional dashboard aliases", () => {
@@ -15,5 +18,16 @@ describe("authTrustedOrigins", () => {
       "https://dashboard-alias.example.com",
       "https://preview.example.com",
     ]);
+  });
+});
+
+describe("authSiteUrl", () => {
+  it("uses the dashboard URL for proxied Next.js auth callbacks", () => {
+    expect(
+      authSiteUrl({
+        SITE_URL: " https://dashboard.example.com ",
+        CONVEX_SITE_URL: "https://backend.convex.site",
+      }),
+    ).toBe("https://dashboard.example.com");
   });
 });

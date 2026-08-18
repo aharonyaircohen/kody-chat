@@ -4,3 +4,7 @@ export function authTrustedOrigins(environment: NodeJS.ProcessEnv): string[] {
     .map((value) => value.trim())
     .filter(Boolean);
 }
+
+export function authSiteUrl(environment: NodeJS.ProcessEnv): string | undefined {
+  return environment.SITE_URL?.trim() || undefined;
+}
