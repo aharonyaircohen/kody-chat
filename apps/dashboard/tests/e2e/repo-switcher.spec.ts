@@ -51,6 +51,27 @@ async function seedAuth(page: Page): Promise<void> {
   }, repos);
 }
 
+async function seedSingleRepoAuth(page: Page): Promise<void> {
+  await page.goto(`${BASE_URL}/`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.evaluate((entry) => {
+    localStorage.setItem(
+      "kody_auth",
+      JSON.stringify({
+        ...entry,
+        user: {
+          login: "repo-switch-test",
+          avatar_url: "https://github.com/github-mark.png",
+          id: 1,
+        },
+        loggedInAt: Date.now(),
+        repos: [entry],
+        currentRepoIndex: 0,
+      }),
+    );
+  }, repos[0]!);
+}
+
 test("header repo dropdown switches to another attached repo", async ({
   page,
 }) => {
@@ -85,4 +106,38 @@ test("header repo dropdown switches to another attached repo", async ({
     .toEqual({ owner: "OrgTwo", repo: "RepoTwo", currentRepoIndex: 1 });
   await expect(page).toHaveURL(/\/repo\/OrgTwo\/RepoTwo\/tasks$/);
   await expect(page.getByRole("button", { name: "RepoTwo" })).toBeVisible();
+});
+
+test("sidebar separates personal and repository navigation", async ({
+  page,
+}) => {
+  await seedAuth(page);
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+
+  await expect(page.getByText("Account", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Personal" })).toBeVisible();
+  await expect(page.getByText("Repository", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Personal" }).click();
+  await expect(page.getByRole("link", { name: "Chat" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Memory" })).toBeVisible();
+});
+
+test("removing the final repository keeps the account and opens personal chat", async ({
+  page,
+}) => {
+  await seedSingleRepoAuth(page);
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+
+  await page
+    .getByRole("button", { name: /Switch repository: RepoOne|RepoOne/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Remove OrgOne/RepoOne" }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("kody_auth")))
+    .toBeNull();
+  await expect(page.getByText("Your private Chat")).toBeVisible();
 });

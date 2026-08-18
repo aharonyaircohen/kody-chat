@@ -7,9 +7,9 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features")).map(
-  (f) => join("src/dashboard/features", f, "components"),
-);
+const FEATURE_ROOTS = readdirSync(
+  join(process.cwd(), "src/dashboard/features"),
+).map((f) => join("src/dashboard/features", f, "components"));
 const componentDir = (file: string) => {
   for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
     if (existsSync(join(process.cwd(), dir, file))) return dir;
@@ -59,10 +59,14 @@ describe("repository removal surfaces", () => {
     expect(removeButtonClass).not.toContain(
       "opacity-0 group-hover:opacity-100",
     );
+    expect(REPO_SWITCHER).not.toContain("disabled={entry.isLogin}");
+    expect(REPO_SWITCHER).not.toContain("Login repo can't be removed");
   });
 
   it("reuses the repository switcher for mobile repository removal", () => {
-    expect(MOBILE_MENU).toContain('import { RepoSwitcher } from "./RepoSwitcher"');
+    expect(MOBILE_MENU).toContain(
+      'import { RepoSwitcher } from "./RepoSwitcher"',
+    );
     expect(MOBILE_MENU).toContain(
       'headerExtra = <RepoSwitcher variant="rail" />',
     );
@@ -72,7 +76,8 @@ describe("repository removal surfaces", () => {
 
   it("exposes repository removal on the org page attached repository rows", () => {
     expect(ORG_MANAGER).toMatch(/setConfirmRemove\(\{ index, entry: repo \}\)/);
-    expect(ORG_MANAGER).toMatch(/Login repo can't be removed/);
+    expect(ORG_MANAGER).not.toMatch(/Login repo can't be removed/);
+    expect(ORG_MANAGER).not.toContain("index < 0 || repo.isLogin");
     expect(ORG_MANAGER).toMatch(/removeRepo\(confirmRemove\.index\)/);
   });
 });

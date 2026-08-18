@@ -607,6 +607,11 @@ function SidebarContent({
 
               return (
                 <div key={section.title} className="space-y-1">
+                  {section.contextLabel && !isCollapsed ? (
+                    <p className="px-3.5 pb-1 pt-3 text-label font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      {section.contextLabel}
+                    </p>
+                  ) : null}
                   {section.collapsible ? (
                     isCollapsed ? (
                       <DropdownMenu>
@@ -761,7 +766,7 @@ function SidebarContent({
                   ? `${account.label}${connectedRepo ? ` · ${connectedRepo}` : ""}`
                   : githubUser
                     ? `@${githubUser.login}${connectedRepo ? ` · ${connectedRepo}` : ""}`
-                  : (connectedRepo ?? "Connected")
+                    : (connectedRepo ?? "Connected")
               }
               side="right"
             >
@@ -779,9 +784,14 @@ function SidebarContent({
               >
                 {account || githubUser ? (
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarImage src={account?.imageUrl ?? githubUser?.avatar_url} alt={account?.label ?? githubUser?.login} />
+                    <AvatarImage
+                      src={account?.imageUrl ?? githubUser?.avatar_url}
+                      alt={account?.label ?? githubUser?.login}
+                    />
                     <AvatarFallback>
-                      {(account?.label ?? githubUser?.login ?? "K")[0]?.toUpperCase()}
+                      {(account?.label ??
+                        githubUser?.login ??
+                        "K")[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
@@ -789,7 +799,8 @@ function SidebarContent({
                 )}
                 {!isCollapsed && (
                   <span className="truncate flex-1 text-left">
-                    {account?.label ?? (githubUser ? `@${githubUser.login}` : "Connected")}
+                    {account?.label ??
+                      (githubUser ? `@${githubUser.login}` : "Connected")}
                   </span>
                 )}
               </button>

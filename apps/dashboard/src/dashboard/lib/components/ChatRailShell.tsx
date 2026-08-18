@@ -41,7 +41,6 @@ import {
 import { WIDGET_OPEN_EVENT } from "@kody-ade/kody-chat-dashboard/widgets/chat-launch";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
-import { DASHBOARD_NAV_ITEM, HOME_NAV_ITEM } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -577,7 +576,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   // Chat is app-level, so the shell remains available before repository
   // setup. Repository credentials enrich Chat with repository-backed tools;
   // they do not own its visibility or its bootstrap GuidedFlows.
-  const showRail = hydrated && !loading && !publicRoute;
+  const showRail =
+    hydrated && !loading && !publicRoute && Boolean(kodySession?.user);
 
   if (!showRail) {
     return (
@@ -619,17 +619,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     !repoRouteBlocksPage &&
     (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
-  const bootstrapWelcome = !kodySession?.user ? (
-    <div className="space-y-2">
-      <p className="font-medium text-foreground">Welcome to Kody</p>
-      <p className="mx-auto max-w-sm text-sm">
-        Sign in to start your private Chat.
-      </p>
-      <Button size="sm" onClick={() => router.push("/")}>
-        Sign in to Kody
-      </Button>
-    </div>
-  ) : !repositoryActive ? (
+  const bootstrapWelcome = !repositoryActive ? (
     <div className="space-y-2">
       <p className="font-medium text-foreground">Your private Chat</p>
       <p className="mx-auto max-w-sm text-sm">
@@ -667,9 +657,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
         }
         onGuidedFlowRequestHandled={guidedFlowChat.acknowledge}
         context={repositoryActive ? scope : null}
-        actorLogin={
-          repositoryActive ? githubUser?.login : kodySession?.user.id
-        }
+        actorLogin={repositoryActive ? githubUser?.login : kodySession?.user.id}
         emptyStateWelcome={bootstrapWelcome}
         openingActions={repositoryActive ? openingActions : undefined}
         onOpeningAction={handleOpeningAction}
@@ -706,7 +694,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
               <ChatShell
                 title="Kody"
                 sections={navSections}
-                pinnedItem={hasRepository ? DASHBOARD_NAV_ITEM : HOME_NAV_ITEM}
+                pinnedItem={null}
                 sidebarBrandExtra={<SidebarNotifications />}
                 sidebarAccount={
                   kodySession?.user

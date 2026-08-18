@@ -65,7 +65,7 @@ export interface KodyRepoEntry {
   token: string;
   /** Unix-ms when this repo was added. */
   addedAt: number;
-  /** True for the original login repo (cannot be removed without logout). */
+  /** Legacy marker for the repository first used during GitHub setup. */
   isLogin: boolean;
   /** GitHub identity verified from this repository's token. */
   user?: KodyUser;
@@ -146,7 +146,7 @@ export interface AuthContextValue {
   ) => void;
   /** Replace one repository's verified browser-owned PAT and identity. */
   replaceRepoToken: (index: number, token: string, user: KodyUser) => boolean;
-  /** Remove a repo by index. Removing the current repo falls back to index 0. Removing the only repo logs out. */
+  /** Remove a repo by index. Removing the final repo leaves the account signed in. */
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
   setCurrentRepo: (
@@ -180,6 +180,32 @@ const AuthContext = createContext<AuthContextValue>({
   setCurrentRepo: () => {},
   updateIntegrations: () => {},
 });
+
+export function repositoryAuthAfterRemoval(
+  auth: KodyAuth,
+  index: number,
+): KodyAuth | null {
+  if (index < 0 || index >= auth.repos.length) return auth;
+  const repos = auth.repos.filter((_, repoIndex) => repoIndex !== index);
+  if (repos.length === 0) return null;
+  const currentRepoIndex =
+    index === auth.currentRepoIndex
+      ? 0
+      : index < auth.currentRepoIndex
+        ? auth.currentRepoIndex - 1
+        : auth.currentRepoIndex;
+  const current = repos[currentRepoIndex]!;
+  return {
+    ...auth,
+    repos,
+    currentRepoIndex,
+    repoUrl: current.repoUrl,
+    owner: current.owner,
+    repo: current.repo,
+    token: current.token,
+    user: current.user ?? auth.user,
+  };
+}
 
 /**
  * Migrate legacy single-repo auth (no `repos[]`) into the multi-repo shape.
@@ -609,55 +635,22 @@ export function AuthProvider({
     (index: number) => {
       setStoredAuth((prev) => {
         if (!prev) return prev;
-        if (index < 0 || index >= prev.repos.length) return prev;
-
-        const removing = prev.repos[index];
-        if (removing.isLogin) {
-          // Removing the login repo == logout.
+        const next = repositoryAuthAfterRemoval(prev, index);
+        if (next === prev) return prev;
+        if (!next) {
           if (persistence === "account") {
             void clearAccountRepositoryAuth();
           }
           localStorage.removeItem("kody_auth");
           clearClientBrandRepoCookie();
-          window.location.href = "/";
+          window.location.assign("/chat");
           return null;
         }
-
-        const nextRepos = prev.repos.filter((_, i) => i !== index);
-        if (nextRepos.length === 0) {
-          // Shouldn't happen (login is non-removable), but bail to logout.
-          if (persistence === "account") {
-            void clearAccountRepositoryAuth();
-          }
-          localStorage.removeItem("kody_auth");
-          clearClientBrandRepoCookie();
-          window.location.href = "/";
-          return null;
-        }
-
-        // Recompute current index. If we removed the current one, fall back to 0.
-        let nextIdx = prev.currentRepoIndex;
-        if (index === prev.currentRepoIndex) {
-          nextIdx = 0;
-        } else if (index < prev.currentRepoIndex) {
-          nextIdx = prev.currentRepoIndex - 1;
-        }
-        const cur = nextRepos[nextIdx];
-        const next: KodyAuth = {
-          ...prev,
-          repos: nextRepos,
-          currentRepoIndex: nextIdx,
-          repoUrl: cur.repoUrl,
-          owner: cur.owner,
-          repo: cur.repo,
-          token: cur.token,
-          user: cur.user ?? prev.user,
-        };
         persistAuth(next);
         // Removing the active repo: its URL is now dead — do a full-page
         // navigation to the fallback repo's home (also clears caches).
         if (index === prev.currentRepoIndex) {
-          window.location.assign(repoBasePath(cur));
+          window.location.assign(repoBasePath(next));
         }
         return next;
       });

@@ -23,7 +23,11 @@ import { PageShell } from "@dashboard/lib/components/PageShell";
 import { RepoManager } from "@dashboard/lib/components/RepoManager";
 import { useChatScope } from "@dashboard/lib/components/ChatRailShell";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { buildAuthHeaders, useAuth, type KodyRepoEntry } from "@dashboard/lib/auth-context";
+import {
+  buildAuthHeaders,
+  useAuth,
+  type KodyRepoEntry,
+} from "@dashboard/lib/auth-context";
 
 interface OrgRepository {
   name: string;
@@ -435,12 +439,8 @@ export function OrgManager({ org }: { org: string }) {
                             onClick={() =>
                               setConfirmRemove({ index, entry: repo })
                             }
-                            disabled={index < 0 || repo.isLogin}
-                            title={
-                              repo.isLogin
-                                ? "Login repo can't be removed — use Sign out instead"
-                                : `Remove ${repo.owner}/${repo.repo}`
-                            }
+                            disabled={index < 0}
+                            title={`Remove ${repo.owner}/${repo.repo}`}
                             className="gap-2 text-red-300 hover:text-red-200"
                           >
                             <Trash2 className="h-4 w-4" />

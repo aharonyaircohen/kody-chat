@@ -173,6 +173,8 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
 ] as const;
 
 export interface SettingsNavSection {
+  /** Optional ownership divider rendered before this section. */
+  contextLabel?: "Account" | "Repository";
   /** Section heading shown above its items. */
   title: string;
   items: readonly SettingsNavItem[];

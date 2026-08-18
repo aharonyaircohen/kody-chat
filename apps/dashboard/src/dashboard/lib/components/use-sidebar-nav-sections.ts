@@ -9,8 +9,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { FileText } from "lucide-react";
+import { FileText, UserRound } from "lucide-react";
 import {
+  HOME_NAV_ITEM,
   SIDEBAR_NAV_SECTIONS,
   type SettingsNavItem,
   type SettingsNavSection,
@@ -26,39 +27,67 @@ const PERSONAL_CHAT_HREFS = new Set(PERSONAL_DASHBOARD_PATHS);
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
   repositoryConnected?: boolean;
+  personalHomeItem: SettingsNavItem;
 }
 
 export function extendSidebarNavSections(
   sections: readonly SettingsNavSection[],
-  { customSpaceItems, repositoryConnected = true }: SidebarNavExtensions,
+  {
+    customSpaceItems,
+    repositoryConnected = true,
+    personalHomeItem,
+  }: SidebarNavExtensions,
 ): readonly SettingsNavSection[] {
-  if (!repositoryConnected) {
-    return [
-      {
-        title: "Customize",
-        items: sections.flatMap((section) =>
-          section.items.filter((item) => PERSONAL_CHAT_HREFS.has(item.href)),
-        ),
-      },
-    ];
-  }
-  return sections.map((section) => {
-    if (section.title === KNOWLEDGE_SECTION_TITLE && customSpaceItems.length) {
-      const docsIndex = section.items.findIndex(
-        (item) => item.href === DOCS_HREF,
+  const allItems = [
+    personalHomeItem,
+    ...sections.flatMap((section) => section.items),
+  ];
+  const personalItems = PERSONAL_DASHBOARD_PATHS.map((href) =>
+    allItems.find((item) => item.href === href),
+  ).filter((item): item is SettingsNavItem => Boolean(item));
+  const personalSection: SettingsNavSection = {
+    contextLabel: "Account",
+    title: "Personal",
+    icon: UserRound,
+    tint: "text-fuchsia-300",
+    collapsible: true,
+    items: personalItems.map((item) => ({ ...item, scope: "personal" })),
+  };
+  if (!repositoryConnected) return [personalSection];
+
+  const repositorySections = sections
+    .map((section) => {
+      const repositoryItems = section.items.filter(
+        (item) => !PERSONAL_CHAT_HREFS.has(item.href),
       );
-      const insertAt = docsIndex === -1 ? section.items.length : docsIndex + 1;
-      return {
-        ...section,
-        items: [
-          ...section.items.slice(0, insertAt),
-          ...customSpaceItems,
-          ...section.items.slice(insertAt),
-        ],
-      };
-    }
-    return section;
-  });
+      if (
+        section.title === KNOWLEDGE_SECTION_TITLE &&
+        customSpaceItems.length
+      ) {
+        const docsIndex = repositoryItems.findIndex(
+          (item) => item.href === DOCS_HREF,
+        );
+        const insertAt =
+          docsIndex === -1 ? repositoryItems.length : docsIndex + 1;
+        return {
+          ...section,
+          items: [
+            ...repositoryItems.slice(0, insertAt),
+            ...customSpaceItems,
+            ...repositoryItems.slice(insertAt),
+          ],
+        };
+      }
+      return { ...section, items: repositoryItems };
+    })
+    .filter((section) => section.items.length > 0);
+  if (repositorySections[0]) {
+    repositorySections[0] = {
+      ...repositorySections[0],
+      contextLabel: "Repository",
+    };
+  }
+  return [personalSection, ...repositorySections];
 }
 
 export function useSidebarNavSections(): readonly SettingsNavSection[] {
@@ -77,17 +106,10 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
         description: `Markdown files from /${space.rootPath}.`,
         tint: "text-amber-300 bg-amber-500/10",
       }));
-    const scopedSections = SIDEBAR_NAV_SECTIONS.map((section) => ({
-      ...section,
-      items: section.items.map((item) =>
-        PERSONAL_CHAT_HREFS.has(item.href)
-          ? { ...item, scope: "personal" as const }
-          : item,
-      ),
-    }));
-    return extendSidebarNavSections(scopedSections, {
+    return extendSidebarNavSections(SIDEBAR_NAV_SECTIONS, {
       customSpaceItems,
       repositoryConnected: Boolean(auth?.owner && auth.repo),
+      personalHomeItem: HOME_NAV_ITEM,
     });
   }, [auth?.owner, auth?.repo, fileSpacesQuery.data]);
 }
