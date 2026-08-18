@@ -54,14 +54,14 @@ describe("sidebar navigation extensions", () => {
     });
 
     expect(result.flatMap((section) => section.items.map((entry) => entry.href))).toEqual([
-      "/memory",
       "/models",
       "/commands",
-      "/instructions",
-      "/secrets",
+      "/guided-flows",
       "/views/renderers",
       "/views/widgets",
-      "/guided-flows",
+      "/instructions",
+      "/secrets",
+      "/memory",
     ]);
   });
 

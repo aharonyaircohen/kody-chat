@@ -27,7 +27,7 @@ const PERSONAL_CHAT_HREFS = new Set(PERSONAL_DASHBOARD_PATHS);
 export interface SidebarNavExtensions {
   customSpaceItems: readonly SettingsNavItem[];
   repositoryConnected?: boolean;
-  personalHomeItem: SettingsNavItem;
+  personalHomeItem?: SettingsNavItem;
 }
 
 export function extendSidebarNavSections(
@@ -43,7 +43,7 @@ export function extendSidebarNavSections(
     ...sections.flatMap((section) => section.items),
   ];
   const personalItems = PERSONAL_DASHBOARD_PATHS.map((href) =>
-    allItems.find((item) => item.href === href),
+    allItems.find((item) => item?.href === href),
   ).filter((item): item is SettingsNavItem => Boolean(item));
   const personalSection: SettingsNavSection = {
     contextLabel: "Account",

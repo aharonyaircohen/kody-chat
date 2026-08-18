@@ -50,7 +50,6 @@ const ROUTES = [
   "/snippets",
   "/learning",
   "/backend",
-  "/setup",
   "/agents",
   "/variables",
   "/vibe",

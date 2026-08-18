@@ -174,4 +174,3 @@ Agents may use configuration, Capability, CMS, Store, notification, variable, an
 - `apps/dashboard/src/dashboard/features/admin/components/OrgManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/StoreCatalogManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/VariablesManager.tsx`
-- `apps/dashboard/src/dashboard/features/admin/components/SetupManager.tsx`
