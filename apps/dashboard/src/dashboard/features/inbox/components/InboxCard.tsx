@@ -413,7 +413,7 @@ export function InboxCard({
               </RepoScopedLink>
             </Button>
           )}
-          {!isRequest ? (
+          {!isRequest && rec ? (
             <RepoScopedLink
               href={repoHref(`/${rec.taskNumber}`)}
               title="Open this task in the dashboard"
