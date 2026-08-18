@@ -48,6 +48,7 @@ interface FeedEntry {
   ctoAgent?: string;
   ctoCapability?: string;
   ctoRepo?: string;
+  pipelineApproval?: InboxEntry["pipelineApproval"];
   category?: InboxEntry["category"];
 }
 
@@ -109,9 +110,7 @@ async function runOnce(opts: {
     ...(f.ctoAgent ? { ctoAgent: f.ctoAgent } : {}),
     ...(f.ctoCapability ? { ctoCapability: f.ctoCapability } : {}),
     ...(f.ctoRepo ? { ctoRepo: f.ctoRepo } : {}),
-    ...(f.pipelineApproval
-      ? { pipelineApproval: f.pipelineApproval }
-      : {}),
+    ...(f.pipelineApproval ? { pipelineApproval: f.pipelineApproval } : {}),
     ...(f.category ? { category: f.category } : {}),
   }));
 
