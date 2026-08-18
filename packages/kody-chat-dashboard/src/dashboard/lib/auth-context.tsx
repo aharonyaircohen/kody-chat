@@ -350,9 +350,74 @@ export async function refreshRepoIdentity(
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Detect if running on server (localStorage unavailable) vs client
+  const isBrowser = typeof window !== "undefined";
+
   const [storedAuth, setStoredAuth] = useState<KodyAuth | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+
+  // Initialize auth state. On server, provide a minimal valid state to
+  // prevent fetch failures during prerendering. On client, load from
+  // localStorage as normal.
+  useEffect(() => {
+    if (!isBrowser) {
+      // Server-side: set minimal auth state to prevent fetch failures
+      // during build/prerender. This allows the component tree to render
+      // without authentication headers causing errors.
+      setStoredAuth({
+        repoUrl: "",
+        owner: "",
+        repo: "",
+        token: "",
+        user: { login: "", avatar_url: "", id: 0 }, // Required field, even if empty
+        loggedInAt: Date.now(),
+        repos: [],
+        currentRepoIndex: -1,
+        brain: undefined,
+        vercelBypassSecret: undefined,
+        flyPerf: undefined,
+        brainPerf: undefined,
+        brainSuspension: undefined,
+        brainTerminalActivityLimit: undefined,
+        storeRepoUrl: undefined,
+        storeRef: undefined,
+      });
+      setLoading(false);
+      return;
+    }
+    // Client-side: load from localStorage as before
+    async function loadAuth() {
+      try {
+        const stored = localStorage.getItem("kody_auth");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const migrated = migrateAuth(parsed);
+          if (migrated) {
+            const refreshed = await refreshRepoIdentity(
+              migrated,
+              window.location.pathname,
+            );
+            if (cancelled) return;
+            setStoredAuth(refreshed);
+            persist(refreshed);
+          } else {
+            localStorage.removeItem("kody_auth");
+          }
+        }
+      } catch {
+        // Corrupted localStorage — clear it
+        localStorage.removeItem("kody_auth");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    let cancelled = false;
+    void loadAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBrowser]);
 
   // The URL is the source of truth for the active repo: derive the flat
   // fields + currentRepoIndex from the pathname every render. The stored
