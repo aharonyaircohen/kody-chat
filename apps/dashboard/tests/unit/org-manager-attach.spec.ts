@@ -44,7 +44,7 @@ describe("OrgManager attach repository", () => {
   });
 
   it("guards auth-context against malformed repo entries", () => {
-    expect(AUTH_CONTEXT_SOURCE).toMatch(/Skipping malformed repository entry/);
-    expect(AUTH_CONTEXT_SOURCE).toMatch(/entry\.owner\?\.trim\(\) \?\? ""/);
+    expect(AUTH_CONTEXT_SOURCE).toMatch(/entry\.owner\.trim\(\)/);
+    expect(AUTH_CONTEXT_SOURCE).toMatch(/!owner \|\| !repo \|\| !token \|\| !user/);
   });
 });
