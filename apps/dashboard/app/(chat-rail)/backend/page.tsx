@@ -7,6 +7,7 @@
  *   PageWithChat shell so the assistant is always available.
  */
 import { BackendManager } from "@dashboard/features/admin/components/BackendManager";
+import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,5 @@ export const metadata = buildKodyMetadata({
   path: "/backend",
 });
 
-export default function BackendPage() {
-  return <BackendManager />;
+export default function BackendPage() { return <AuthGuard><BackendManager /></AuthGuard>;
 }
