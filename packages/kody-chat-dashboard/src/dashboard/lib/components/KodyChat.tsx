@@ -1564,8 +1564,8 @@ export function KodyChat({
     if (list.length === 0) return;
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-    const conversationId =
-      sessionHook.activeSession?.id ?? createSelectedChatSession();
+    const conversationId = sessionHook.activeSession?.id;
+    if (!conversationId) createSelectedChatSession();
     const newAttachments: Attachment[] = [];
 
     for (const file of list) {
