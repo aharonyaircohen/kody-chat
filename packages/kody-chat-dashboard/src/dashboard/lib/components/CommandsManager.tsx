@@ -2,11 +2,9 @@
  * @fileType component
  * @domain commands
  * @pattern commands-manager
- * @ai-summary CRUD UI for repo-local slash commands plus activated Store
- * commands. Repo commands live at `commands/<slug>.md` in the backend; Store commands
- * are enabled by `company.activeCommands`; Dashboard built-ins are fallback
- * only. Editing a shared command writes a same-slug repo copy so repo wins by
- * slug — UI just says "Edit", fork happens silently.
+ * @ai-summary CRUD UI for account and repository slash commands. Personal
+ * commands belong to the Kody account. Repository commands live at
+ * `commands/<slug>.md` and may include Store or dashboard fallback commands.
  */
 "use client";
 
@@ -294,9 +292,18 @@ function CommandsManagerInner() {
               <p className="text-sm text-white/70">No commands yet.</p>
               <p className="text-xs text-white/40 max-w-md mx-auto">
                 Commands appear as <code className="text-white/55">/slash</code>{" "}
-                entries in chat. Stored at{" "}
-                <code className="text-white/55">commands/&lt;slug&gt;.md</code>{" "}
-                in the backend so they&apos;re git-tracked and team-shareable.
+                entries in chat.{" "}
+                {repositoryScoped ? (
+                  <>
+                    They are stored at{" "}
+                    <code className="text-white/55">
+                      commands/&lt;slug&gt;.md
+                    </code>{" "}
+                    for this repository.
+                  </>
+                ) : (
+                  "They are saved to your Kody account."
+                )}
               </p>
             </CardContent>
           </Card>
@@ -393,18 +400,20 @@ function CommandsManagerInner() {
           ))}
         </ul>
 
-        <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
-          <FileText className="w-3 h-3" />
-          Built-ins ship with the dashboard. Editing one saves a same-slug copy
-          to {auth ? "this repository" : "your Kody account"}, which then takes
-          over the slot.
-        </p>
+        {repositoryScoped && (
+          <p className="text-[11px] text-white/30 pt-4 flex items-center gap-1.5">
+            <FileText className="w-3 h-3" />
+            Built-ins ship with the dashboard. Editing one saves a same-slug
+            repository copy, which then takes over the slot.
+          </p>
+        )}
       </div>
 
       {editing && (
         <CommandEditor
           initial={editing.command}
           isNew={editing.isNew}
+          repositoryScoped={repositoryScoped}
           existingSlugs={new Set(commands.map((p) => p.slug))}
           saving={save.isPending}
           onClose={() => setEditing(null)}
@@ -420,8 +429,8 @@ function CommandsManagerInner() {
         title={`${deleting?.source === "store" ? "Remove" : "Delete"} /${deleting?.slug}?`}
         description={
           deleting?.source === "store"
-            ? `The Store command will be removed from ${auth ? "this repository's" : "your account's"} active commands. The Store asset is not deleted.`
-            : `The command will be removed from ${auth ? "this repository" : "your Kody account"}. If a Store or fallback command exists with the same slug, it can take over again.`
+            ? `The Store command will be removed from ${repositoryScoped ? "this repository's" : "your account's"} active commands. The Store asset is not deleted.`
+            : `The command will be removed from ${repositoryScoped ? "this repository" : "your Kody account"}. If a Store or fallback command exists with the same slug, it can take over again.`
         }
         confirmLabel={
           remove.isPending
@@ -445,6 +454,7 @@ function CommandsManagerInner() {
 interface CommandEditorProps {
   initial: CommandRow | null;
   isNew: boolean;
+  repositoryScoped: boolean;
   saving: boolean;
   existingSlugs: Set<string>;
   onClose: () => void;
@@ -454,6 +464,7 @@ interface CommandEditorProps {
 function CommandEditor({
   initial,
   isNew,
+  repositoryScoped,
   saving,
   existingSlugs,
   onClose,
@@ -498,7 +509,7 @@ function CommandEditor({
           <DialogDescription>
             {isBuiltinEdit
               ? "Saving stores your version at commands/<slug>.md in the backend, which takes over from the shared default."
-              : "Stored at commands/<slug>.md in the backend. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
+              : `${repositoryScoped ? "Stored for this repository." : "Saved to your Kody account."} Use $ARGUMENTS for the full input, $0/$1/… for positional tokens.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">

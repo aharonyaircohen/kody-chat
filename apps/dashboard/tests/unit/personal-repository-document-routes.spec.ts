@@ -68,6 +68,20 @@ function request(path: string, method = "GET", body?: unknown) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("personal and repository document routes", () => {
+  it("keeps repository fallback commands out of personal commands", async () => {
+    mocks.listPersonalCommands.mockResolvedValueOnce([
+      { slug: "my-command", source: "personal" },
+    ]);
+
+    const response = await getCommands(
+      new NextRequest("https://dash.test/api/kody/commands"),
+    );
+
+    expect(await response.json()).toEqual({
+      commands: [{ slug: "my-command", source: "personal" }],
+    });
+  });
+
   it("keeps repository command reads and writes repository-owned", async () => {
     const getResponse = await getCommands(request("/api/kody/commands"));
     await postCommand(

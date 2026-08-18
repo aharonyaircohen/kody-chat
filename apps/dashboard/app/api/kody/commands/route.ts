@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { BUILTIN_COMMANDS, isValidSlug } from "@kody-ade/workspace/commands";
+import { isValidSlug } from "@kody-ade/workspace/commands";
 import { getRequestAuth } from "@kody-ade/base/auth";
 import {
   GET as getRepositoryCommands,
@@ -28,20 +28,9 @@ export async function GET(req: NextRequest) {
   if (resolved instanceof NextResponse) return resolved;
   if (getRequestAuth(req)) return getRepositoryCommands(req);
   const personal = await listPersonalCommands(resolved.personalTenantId);
-  const personalSlugs = new Set(personal.map((command) => command.slug));
-  const builtins = BUILTIN_COMMANDS.filter(
-    (command) => !personalSlugs.has(command.slug),
-  ).map((command) => ({
-    ...command,
-    argumentHint: command.argumentHint ?? "",
-    source: "builtin" as const,
-    sha: "",
-    updatedAt: "",
-    htmlUrl: "",
-  }));
   return NextResponse.json(
     {
-      commands: [...personal, ...builtins].sort((a, b) =>
+      commands: personal.sort((a, b) =>
         a.slug.localeCompare(b.slug),
       ),
     },

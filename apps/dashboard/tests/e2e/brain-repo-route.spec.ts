@@ -142,6 +142,43 @@ test("keeps personal and repository tools as explicit destinations", async ({
   }
 });
 
+test("keeps repository fallback commands out of Personal Commands", async ({
+  page,
+}) => {
+  await seedRepoAuth(page);
+  await page.route("**/api/kody/commands", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        commands: [
+          {
+            slug: "personal-check",
+            description: "Personal command",
+            argumentHint: "",
+            body: "Run personal check",
+            source: "personal",
+            sha: "",
+            updatedAt: "",
+            htmlUrl: "",
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto(`${BASE_URL}/commands`);
+
+  await expect(
+    page.getByRole("heading", { name: "Personal Commands" }),
+  ).toBeVisible();
+  await expect(page.getByText("/personal-check", { exact: true })).toBeVisible();
+  await expect(page.getByText("/init", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText(/Built-ins ship with the dashboard/),
+  ).toHaveCount(0);
+});
+
 test("shows Brain with the repository Fly tools", async ({ page }) => {
   await seedRepoAuth(page);
   await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/fly/machines`);
