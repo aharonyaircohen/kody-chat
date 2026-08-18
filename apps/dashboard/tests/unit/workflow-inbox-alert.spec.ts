@@ -12,7 +12,10 @@ vi.mock("@dashboard/lib/inbox/feed-server", () => ({
   appendInboxFeed: h.appendInboxFeed,
 }));
 
-import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/workflow-inbox-alert";
+import {
+  deliverPipelineApprovalRequest,
+  deliverWorkflowInboxAlert,
+} from "@dashboard/features/workflows/server/workflow-inbox-alert";
 
 describe("deliverWorkflowInboxAlert", () => {
   beforeEach(() => {
@@ -27,7 +30,8 @@ describe("deliverWorkflowInboxAlert", () => {
       repo: "shop",
       workflowId: "review-fix",
       runId: "run-7",
-      summary: "UI Review could not log in because the credentials were rejected.",
+      summary:
+        "UI Review could not log in because the credentials were rejected.",
       url: "https://dashboard.example/repo/acme/shop/workflows/review-fix",
       octokit: {} as never,
     });
@@ -39,7 +43,8 @@ describe("deliverWorkflowInboxAlert", () => {
         source: "kody",
         threadType: "Workflow",
         title: "Review Fix needs attention",
-        snippet: "UI Review could not log in because the credentials were rejected.",
+        snippet:
+          "UI Review could not log in because the credentials were rejected.",
       }),
       expect.objectContaining({
         id: "kody-workflow:bob:review-fix:run-7",
@@ -62,5 +67,30 @@ describe("deliverWorkflowInboxAlert", () => {
     });
 
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
+  });
+
+  it("creates a generic Pipeline approval request without requiring an issue", async () => {
+    await deliverPipelineApprovalRequest({
+      owner: "acme",
+      repo: "shop",
+      pipelineId: "release-check",
+      runId: "run-8",
+      summary: "Review before continuing.",
+      url: "https://dashboard.example/repo/acme/shop/pipelines/release-check",
+      octokit: {} as never,
+    });
+
+    expect(h.appendInboxFeed).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "kody-pipeline-approval:alice:release-check:run-8",
+        source: "request",
+        threadType: "Pipeline",
+        pipelineApproval: {
+          pipelineId: "release-check",
+          runId: "run-8",
+        },
+      }),
+      expect.any(Object),
+    ]);
   });
 });

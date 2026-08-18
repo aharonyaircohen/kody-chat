@@ -92,7 +92,14 @@ export function useDeletePipelineDefinition() {
 
 export type PipelineRun = {
   runId: string;
-  status: "queued" | "running" | "done" | "failed" | "blocked" | "cancelled";
+  status:
+    | "queued"
+    | "running"
+    | "waiting-approval"
+    | "done"
+    | "failed"
+    | "blocked"
+    | "cancelled";
   currentStepIndex: number;
   steps: Array<{
     id: string;

@@ -366,4 +366,243 @@ describe("pipeline runs", () => {
     });
     expect(run?.status).toBe("blocked");
   });
+
+  it("stops cleanly when a decision step returns stop", async () => {
+    const t = setup();
+    await t.mutation(api.pipelineRuns.reserve, {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      runId: "qa-stop",
+      steps: [
+        {
+          id: "issues",
+          workflowId: "qa-issue-sync",
+          decisionFact: "deliveryDecision",
+          status: "pending",
+        },
+        { id: "fix", workflowId: "qa-fix", status: "pending" },
+      ],
+      now: NOW,
+    });
+    await t.mutation(api.pipelineRuns.markDispatched, {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      runId: "qa-stop",
+      stepIndex: 0,
+      workflowRunId: "qa-sync-stop",
+      now: NOW,
+    });
+
+    await expect(
+      t.mutation(api.pipelineRuns.advance, {
+        tenantId: TENANT,
+        workflowRunId: "qa-sync-stop",
+        status: "success",
+        output: { deliveryDecision: "stop" },
+        now: NOW,
+      }),
+    ).resolves.toEqual({ kind: "done" });
+    const run = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      runId: "qa-stop",
+    });
+    expect(run?.status).toBe("done");
+    expect(run?.steps[1]?.status).toBe("cancelled");
+  });
+
+  it("waits for approval and resumes or rejects exactly once", async () => {
+    const t = setup();
+    const reserve = async (runId: string, workflowRunId: string) => {
+      await t.mutation(api.pipelineRuns.reserve, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId,
+        steps: [
+          {
+            id: "issues",
+            workflowId: "qa-issue-sync",
+            decisionFact: "deliveryDecision",
+            status: "pending",
+          },
+          { id: "fix", workflowId: "qa-fix", status: "pending" },
+        ],
+        now: NOW,
+      });
+      await t.mutation(api.pipelineRuns.markDispatched, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId,
+        stepIndex: 0,
+        workflowRunId,
+        now: NOW,
+      });
+      await t.mutation(api.pipelineRuns.advance, {
+        tenantId: TENANT,
+        workflowRunId,
+        status: "success",
+        output: { deliveryDecision: "approval", issue: 42 },
+        now: NOW,
+      });
+    };
+
+    await reserve("qa-approve", "qa-sync-approve");
+    await expect(
+      t.mutation(api.pipelineRuns.decide, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: "qa-approve",
+        decision: "approve",
+        decidedBy: "alice",
+        now: NOW,
+      }),
+    ).resolves.toMatchObject({ kind: "next", stepIndex: 1 });
+    await expect(
+      t.mutation(api.pipelineRuns.decide, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: "qa-approve",
+        decision: "approve",
+        decidedBy: "alice",
+        now: NOW,
+      }),
+    ).resolves.toBeNull();
+
+    await reserve("qa-reject", "qa-sync-reject");
+    await expect(
+      t.mutation(api.pipelineRuns.decide, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: "qa-reject",
+        decision: "reject",
+        decidedBy: "alice",
+        now: NOW,
+      }),
+    ).resolves.toEqual({ kind: "rejected", next: null });
+    const rejected = await t.query(api.pipelineRuns.get, {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      runId: "qa-reject",
+    });
+    expect(rejected?.status).toBe("cancelled");
+    expect(rejected?.steps[1]?.status).toBe("cancelled");
+  });
+
+  it("keeps the concurrency key while approval is waiting", async () => {
+    const t = setup();
+    const common = {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      concurrencyKey: "production",
+      steps: [
+        {
+          id: "issues",
+          workflowId: "qa-issue-sync",
+          decisionFact: "deliveryDecision",
+          status: "pending" as const,
+        },
+        { id: "fix", workflowId: "qa-fix", status: "pending" as const },
+      ],
+      now: NOW,
+    };
+    await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "qa-active",
+    });
+    await t.mutation(api.pipelineRuns.markDispatched, {
+      tenantId: TENANT,
+      pipelineId: "qa-maintenance",
+      runId: "qa-active",
+      stepIndex: 0,
+      workflowRunId: "qa-sync-active",
+      now: NOW,
+    });
+    await t.mutation(api.pipelineRuns.advance, {
+      tenantId: TENANT,
+      workflowRunId: "qa-sync-active",
+      status: "success",
+      output: { deliveryDecision: "approval", issue: 42 },
+      now: NOW,
+    });
+
+    const next = await t.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "qa-newest",
+    });
+
+    expect(next.claimed).toBe(false);
+    expect(next.queued).toBe(true);
+  });
+
+  it("starts the newest waiting run after stop or rejection", async () => {
+    const t = setup();
+    const steps = [
+      {
+        id: "issues",
+        workflowId: "qa-issue-sync",
+        decisionFact: "deliveryDecision",
+        status: "pending" as const,
+      },
+      { id: "fix", workflowId: "qa-fix", status: "pending" as const },
+    ];
+    const reservePair = async (suffix: string) => {
+      await t.mutation(api.pipelineRuns.reserve, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: `active-${suffix}`,
+        concurrencyKey: suffix,
+        steps,
+        now: NOW,
+      });
+      await t.mutation(api.pipelineRuns.markDispatched, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: `active-${suffix}`,
+        stepIndex: 0,
+        workflowRunId: `sync-${suffix}`,
+        now: NOW,
+      });
+      await t.mutation(api.pipelineRuns.reserve, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: `waiting-${suffix}`,
+        concurrencyKey: suffix,
+        steps,
+        now: NOW,
+      });
+    };
+
+    await reservePair("stop");
+    await expect(
+      t.mutation(api.pipelineRuns.advance, {
+        tenantId: TENANT,
+        workflowRunId: "sync-stop",
+        status: "success",
+        output: { deliveryDecision: "stop" },
+        now: NOW,
+      }),
+    ).resolves.toMatchObject({ kind: "start", runId: "waiting-stop" });
+
+    await reservePair("reject");
+    await t.mutation(api.pipelineRuns.advance, {
+      tenantId: TENANT,
+      workflowRunId: "sync-reject",
+      status: "success",
+      output: { deliveryDecision: "approval", issue: 42 },
+      now: NOW,
+    });
+    await expect(
+      t.mutation(api.pipelineRuns.decide, {
+        tenantId: TENANT,
+        pipelineId: "qa-maintenance",
+        runId: "active-reject",
+        decision: "reject",
+        decidedBy: "alice",
+        now: NOW,
+      }),
+    ).resolves.toMatchObject({
+      kind: "rejected",
+      next: { kind: "start", runId: "waiting-reject" },
+    });
+  });
 });

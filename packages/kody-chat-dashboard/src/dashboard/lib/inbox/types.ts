@@ -96,6 +96,12 @@ export interface InboxEntry {
    * falls back to the agentIdentity slug).
    */
   ctoCapability?: string;
+  /** A Pipeline run paused after a decision step and awaiting this user. */
+  pipelineApproval?: {
+    pipelineId: string;
+    runId: string;
+    issue?: number;
+  };
   /**
    * Server-classified notification category (`chat-response`, `task-assigned`,
    * …), carried through from the feed. Lets the inbox row offer "Mute this

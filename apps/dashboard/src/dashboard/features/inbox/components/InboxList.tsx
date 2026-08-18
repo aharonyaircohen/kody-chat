@@ -31,9 +31,15 @@ import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { OperatorsWarningBanner } from "@dashboard/features/admin/components/OperatorsWarningBanner";
-import { InboxThreadDialog, resolvableThread } from "@dashboard/features/inbox/components/InboxThreadDialog";
+import {
+  InboxThreadDialog,
+  resolvableThread,
+} from "@dashboard/features/inbox/components/InboxThreadDialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { DecisionButtons, InboxCard } from "@dashboard/features/inbox/components/InboxCard";
+import {
+  DecisionButtons,
+  InboxCard,
+} from "@dashboard/features/inbox/components/InboxCard";
 import { kodyApi } from "@dashboard/lib/api";
 import {
   SOURCE_CHIP,
@@ -168,7 +174,6 @@ function FilterChip({
   );
 }
 
-
 export function InboxList() {
   const { auth } = useAuth();
   const scopedHref = (href: string) =>
@@ -218,6 +223,30 @@ export function InboxList() {
             ? "Rejected"
             : "Dismissed",
       );
+    } catch (err) {
+      toast.error("Decision failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setDeciding(false);
+    }
+  };
+  const decidePipeline = async (entry: InboxEntry, decision: CtoVerdict) => {
+    const approval = entry.pipelineApproval;
+    if (!approval || decision === "dismiss") return;
+    setDeciding(true);
+    try {
+      const status = await kodyApi.company.decidePipeline({
+        pipelineId: approval.pipelineId,
+        runId: approval.runId,
+        decision,
+      });
+      toast.success(
+        status === "approved"
+          ? "Approved — Pipeline resumed"
+          : "Rejected — Pipeline stopped",
+      );
+      await remove(entry.id);
     } catch (err) {
       toast.error("Decision failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -303,7 +332,6 @@ export function InboxList() {
       ),
     [read, trimmedQuery, sourceFilter, typeFilter, ctoOnly],
   );
-
 
   // Build the chip options from what's actually in the inbox so we never show
   // a filter that would match nothing. Derived from the unfiltered union so
@@ -594,10 +622,14 @@ export function InboxList() {
         repoHref={scopedHref}
         readSection={false}
         onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
+        onDecidePipeline={(entry, decision) =>
+          void decidePipeline(entry, decision)
+        }
         deciding={deciding}
         trustStreakFor={(capability) =>
           trust.capabilities[capability]?.consecutiveApprovals ?? null
-        }      />
+        }
+      />
 
       {filteredRead.length > 0 && (
         <div className="mt-6">
@@ -615,11 +647,17 @@ export function InboxList() {
             verdictFor={verdictFor}
             repoHref={scopedHref}
             readSection
-            onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
+            onDecideRequest={(rec, decision) =>
+              void decideRequest(rec, decision)
+            }
+            onDecidePipeline={(entry, decision) =>
+              void decidePipeline(entry, decision)
+            }
             deciding={deciding}
             trustStreakFor={(capability) =>
               trust.capabilities[capability]?.consecutiveApprovals ?? null
-            }          />
+            }
+          />
         </div>
       )}
 
@@ -638,20 +676,30 @@ export function InboxList() {
         footer={(() => {
           if (!activeEntry) return undefined;
           const rec = detectCtoRecommendation(activeEntry);
-          if (!rec) return undefined;
+          if (!rec && !activeEntry.pipelineApproval) return undefined;
           return (
             <CtoDialogActions
-              action={rec.action}
-              verdict={verdictFor(
-                rec.capability,
-                rec.taskNumber,
-                rec.action,
-                activeEntry.sentAt,
-              )}
+              action={rec?.action ?? "continue pipeline"}
+              label={activeEntry.pipelineApproval ? "Kody" : "CTO"}
+              allowDismiss={!activeEntry.pipelineApproval}
+              verdict={
+                rec
+                  ? verdictFor(
+                      rec.capability,
+                      rec.taskNumber,
+                      rec.action,
+                      activeEntry.sentAt,
+                    )
+                  : null
+              }
               {...(activeEntry.source === "request"
                 ? {
                     onDecide: (decision: CtoVerdict) =>
-                      void decideRequest(rec, decision),
+                      activeEntry.pipelineApproval
+                        ? void decidePipeline(activeEntry, decision)
+                        : rec
+                          ? void decideRequest(rec, decision)
+                          : undefined,
                     deciding,
                   }
                 : {})}
@@ -686,27 +734,35 @@ function CtoDialogActions({
   verdict,
   onDecide,
   deciding,
+  allowDismiss = true,
+  label = "CTO",
 }: {
   action: string;
   verdict: CtoVerdict | null;
   /** Present only for directly-decidable entries (capability requests). */
   onDecide?: (decision: CtoVerdict) => void;
   deciding?: boolean;
+  allowDismiss?: boolean;
+  label?: string;
 }) {
   if (onDecide && !verdict) {
     return (
       <>
         <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
-          CTO · {action}
+          {label} · {action}
         </span>
-        <DecisionButtons deciding={!!deciding} onDecide={onDecide} />
+        <DecisionButtons
+          deciding={!!deciding}
+          onDecide={onDecide}
+          allowDismiss={allowDismiss}
+        />
       </>
     );
   }
   return (
     <>
       <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
-        CTO · {action === "other" ? "review" : action}
+        {label} · {action === "other" ? "review" : action}
       </span>
       {verdict ? (
         <span
@@ -765,6 +821,7 @@ interface SectionProps {
     rec: NonNullable<ReturnType<typeof detectCtoRecommendation>>,
     decision: CtoVerdict,
   ) => void;
+  onDecidePipeline: (entry: InboxEntry, decision: CtoVerdict) => void;
   deciding: boolean;
   /** Clean-approval streak for a capability, or null when unknown. */
   trustStreakFor: (capability: string) => number | null;
@@ -785,6 +842,7 @@ function Section({
   repoHref,
   readSection,
   onDecideRequest,
+  onDecidePipeline,
   deciding,
   trustStreakFor,
 }: SectionProps) {
@@ -823,7 +881,12 @@ function Section({
                 {group.entries.map((e) => {
                   const rec = detectCtoRecommendation(e);
                   const verdict = rec
-                    ? verdictFor(rec.capability, rec.taskNumber, rec.action, e.sentAt)
+                    ? verdictFor(
+                        rec.capability,
+                        rec.taskNumber,
+                        rec.action,
+                        e.sentAt,
+                      )
                     : null;
                   return (
                     <InboxCard
@@ -841,7 +904,11 @@ function Section({
                       onToggleRead={() => onToggleRead(e.id)}
                       onDelete={() => onDelete(e.id)}
                       onDecide={(decision) =>
-                        rec ? onDecideRequest(rec, decision) : undefined
+                        e.pipelineApproval
+                          ? onDecidePipeline(e, decision)
+                          : rec
+                            ? onDecideRequest(rec, decision)
+                            : undefined
                       }
                       onCopyLink={copyLinkFor(e)}
                       isMuted={isMuted}

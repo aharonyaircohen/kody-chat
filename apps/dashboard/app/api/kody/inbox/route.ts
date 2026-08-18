@@ -36,6 +36,13 @@ const entrySchema = z.object({
   ctoCommand: z.string().max(300).optional(),
   ctoAgent: z.string().max(40).optional(),
   ctoCapability: z.string().max(40).optional(),
+  pipelineApproval: z
+    .object({
+      pipelineId: z.string().min(1).max(80),
+      runId: z.string().min(1).max(128),
+      issue: z.number().int().positive().optional(),
+    })
+    .optional(),
   ctoRepo: z
     .string()
     .regex(/^[^/\s]+\/[^/\s]+$/)

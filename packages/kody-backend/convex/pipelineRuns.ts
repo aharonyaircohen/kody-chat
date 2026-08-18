@@ -93,7 +93,7 @@ export const reserve = serviceMutation({
       .unique();
     if (existing) return { claimed: false, run: existing };
     if (args.concurrencyKey) {
-      const active = await ctx.db
+      const running = await ctx.db
         .query("pipelineRuns")
         .withIndex("by_concurrency", (q) =>
           q
@@ -103,10 +103,22 @@ export const reserve = serviceMutation({
             .eq("status", "running"),
         )
         .first();
+      const waitingApproval = await ctx.db
+        .query("pipelineRuns")
+        .withIndex("by_concurrency", (q) =>
+          q
+            .eq("tenantId", args.tenantId)
+            .eq("pipelineId", args.pipelineId)
+            .eq("concurrencyKey", args.concurrencyKey)
+            .eq("status", "waiting-approval"),
+        )
+        .first();
+      const active = running ?? waitingApproval;
       if (active) {
         const activeAt = Date.parse(active.updatedAt);
         const nowAt = Date.parse(args.now);
         const expired =
+          active.status === "running" &&
           Number.isFinite(activeAt) &&
           Number.isFinite(nowAt) &&
           nowAt - activeAt >= PIPELINE_CONCURRENCY_LEASE_MS;
@@ -314,6 +326,73 @@ export const advance = serviceMutation({
     const nextIndex = run.currentStepIndex + 1;
     const next = steps[nextIndex];
     const facts = { ...(run.facts ?? run.input ?? {}), ...args.output };
+    const decision = current.decisionFact
+      ? args.output[current.decisionFact]
+      : "continue";
+    if (
+      current.decisionFact &&
+      decision !== "continue" &&
+      decision !== "stop" &&
+      decision !== "approval"
+    ) {
+      await ctx.db.patch(run._id, {
+        status: "failed",
+        steps,
+        facts,
+        activeWorkflowRunId: undefined,
+        error: `Workflow ${current.workflowId} returned an invalid Pipeline decision.`,
+        updatedAt: args.now,
+      });
+      return (
+        (await promoteQueuedRun(ctx, run, args.now)) ?? {
+          kind: "failed" as const,
+        }
+      );
+    }
+    if (decision === "stop") {
+      for (let index = nextIndex; index < steps.length; index += 1) {
+        steps[index] = { ...steps[index]!, status: "cancelled" };
+      }
+      await ctx.db.patch(run._id, {
+        status: "done",
+        steps,
+        facts,
+        activeWorkflowRunId: undefined,
+        updatedAt: args.now,
+      });
+      return (
+        (await promoteQueuedRun(ctx, run, args.now)) ?? {
+          kind: "done" as const,
+        }
+      );
+    }
+    if (decision === "approval") {
+      if (!next) {
+        await ctx.db.patch(run._id, {
+          status: "done",
+          steps,
+          facts,
+          activeWorkflowRunId: undefined,
+          updatedAt: args.now,
+        });
+        return { kind: "done" as const };
+      }
+      await ctx.db.patch(run._id, {
+        status: "waiting-approval",
+        steps,
+        facts,
+        activeWorkflowRunId: undefined,
+        updatedAt: args.now,
+      });
+      return {
+        kind: "approval" as const,
+        pipelineId: run.pipelineId,
+        runId: run.runId,
+        stepIndex: nextIndex,
+        step: next,
+        facts,
+      };
+    }
     if (!next) {
       await ctx.db.patch(run._id, {
         status: "done",
@@ -345,6 +424,61 @@ export const advance = serviceMutation({
       // Temporary compatibility for a Dashboard deployed before this backend.
       input: facts,
       previousOutput: args.output,
+    };
+  },
+});
+
+export const decide = serviceMutation({
+  args: {
+    tenantId: v.string(),
+    pipelineId: v.string(),
+    runId: v.string(),
+    decision: v.union(v.literal("approve"), v.literal("reject")),
+    decidedBy: v.string(),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const run = await ctx.db
+      .query("pipelineRuns")
+      .withIndex("by_run", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("pipelineId", args.pipelineId)
+          .eq("runId", args.runId),
+      )
+      .unique();
+    if (!run || run.status !== "waiting-approval") return null;
+    const nextIndex = run.currentStepIndex + 1;
+    const steps = [...run.steps];
+    if (args.decision === "reject") {
+      for (let index = nextIndex; index < steps.length; index += 1) {
+        steps[index] = { ...steps[index]!, status: "cancelled" };
+      }
+      await ctx.db.patch(run._id, {
+        status: "cancelled",
+        steps,
+        error: `Pipeline delivery rejected by ${args.decidedBy}.`,
+        updatedAt: args.now,
+      });
+      return {
+        kind: "rejected" as const,
+        next: await promoteQueuedRun(ctx, run, args.now),
+      };
+    }
+    const next = steps[nextIndex];
+    if (!next) return null;
+    await ctx.db.patch(run._id, {
+      status: "running",
+      currentStepIndex: nextIndex,
+      updatedAt: args.now,
+    });
+    return {
+      kind: "next" as const,
+      pipelineId: run.pipelineId,
+      runId: run.runId,
+      stepIndex: nextIndex,
+      step: next,
+      facts: run.facts ?? run.input ?? {},
     };
   },
 });

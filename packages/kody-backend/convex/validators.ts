@@ -50,6 +50,7 @@ export const pipelineStepValidator = v.object({
   id: v.string(),
   workflow: v.string(),
   inputMap: v.optional(v.record(v.string(), v.string())),
+  decisionFact: v.optional(v.string()),
 });
 
 export const pipelineDefinitionValidator = v.object({
@@ -67,6 +68,7 @@ export const pipelineRunStatusValidator = v.union(
   v.literal("done"),
   v.literal("failed"),
   v.literal("blocked"),
+  v.literal("waiting-approval"),
   v.literal("cancelled"),
 );
 
@@ -83,6 +85,7 @@ export const pipelineRunStepValidator = v.object({
   id: v.string(),
   workflowId: v.string(),
   inputMap: v.optional(v.record(v.string(), v.string())),
+  decisionFact: v.optional(v.string()),
   status: pipelineRunStepStatusValidator,
   workflowRunId: v.optional(v.string()),
   startedAt: v.optional(v.string()),

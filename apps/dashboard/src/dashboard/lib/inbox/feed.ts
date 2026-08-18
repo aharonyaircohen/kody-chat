@@ -77,6 +77,12 @@ export interface InboxFeedEntry {
   ctoCapability?: string;
   /** `owner/repo` where Approve acts when not the connected repo (e.g. backend PR). */
   ctoRepo?: string;
+  /** Mid-Pipeline approval request handled directly by the Dashboard. */
+  pipelineApproval?: {
+    pipelineId: string;
+    runId: string;
+    issue?: number;
+  };
   /**
    * Server-classified notification category for this entry (`chat-response`,
    * `task-assigned`, …), computed from the source event at write time. Drives

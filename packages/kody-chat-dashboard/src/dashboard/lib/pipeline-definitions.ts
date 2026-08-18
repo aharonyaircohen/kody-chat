@@ -17,6 +17,7 @@ const ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 export const pipelineStepDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(80),
   workflow: z.string().trim().min(1).max(80),
+  decisionFact: z.string().trim().min(1).max(80).optional(),
 });
 
 export type PipelineStepDefinition = z.infer<
@@ -79,7 +80,9 @@ export function normalizePipelineDefinition(
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
   if (!name) return null;
 
-  const parsedSteps = z.array(pipelineStepDefinitionSchema).safeParse(raw.steps);
+  const parsedSteps = z
+    .array(pipelineStepDefinitionSchema)
+    .safeParse(raw.steps);
   if (!parsedSteps.success || parsedSteps.data.length === 0) return null;
   const createdAt =
     typeof raw.createdAt === "string" && raw.createdAt.trim()
@@ -117,6 +120,7 @@ export function buildPipelineDefinition(
     steps: input.steps.map((step) => ({
       id: step.id.trim(),
       workflow: step.workflow.trim(),
+      ...(step.decisionFact ? { decisionFact: step.decisionFact.trim() } : {}),
     })),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,

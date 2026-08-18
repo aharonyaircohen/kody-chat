@@ -48,6 +48,7 @@
       "prepare-strategy-application",
       "apply-strategy",
       "qa-engineer",
+      "qa-issue-sync",
       "verify-strategy-application"
     ],
     "activeWorkflows": [
@@ -58,11 +59,14 @@
       "review-fix",
       "quality-run",
       "apply-strategy",
-      "qa-scan"
+      "qa-scan",
+      "qa-issue-sync",
+      "qa-fix"
     ],
     "activePipelines": [
       "review-and-merge",
-      "ci-repair"
+      "ci-repair",
+      "qa-maintenance"
     ]
   },
   "access": {

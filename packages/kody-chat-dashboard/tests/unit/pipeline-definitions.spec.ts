@@ -51,4 +51,25 @@ describe("Pipeline definitions", () => {
 
     expect(pipeline.steps).toEqual([{ id: "merge", workflow: "merge" }]);
   });
+
+  it("keeps an explicit decision fact on a Pipeline step", () => {
+    const pipeline = buildPipelineDefinition({
+      name: "QA maintenance",
+      steps: [
+        {
+          id: "issues",
+          workflow: "qa-issue-sync",
+          decisionFact: "deliveryDecision",
+        },
+        { id: "fix", workflow: "qa-fix" },
+      ],
+    });
+
+    expect(pipeline.steps[0]).toEqual({
+      id: "issues",
+      workflow: "qa-issue-sync",
+      decisionFact: "deliveryDecision",
+    });
+    expect(validatePipelineDefinition(pipeline)).toEqual([]);
+  });
 });

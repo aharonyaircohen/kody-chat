@@ -16,6 +16,7 @@ import {
 import { createCompanyWorkflowLoader } from "@dashboard/features/workflows/server/company-workflow-loader";
 import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
 import { startWorkflow } from "@dashboard/features/workflows/server/start-workflow";
+import { deliverPipelineApprovalRequest } from "@dashboard/features/workflows/server/workflow-inbox-alert";
 
 function childRunId(pipelineRunId: string, stepId: string): string {
   const digest = createHash("sha256")
@@ -66,6 +67,7 @@ export async function startPipelineExecution(input: {
       steps: input.pipeline.steps.map((step) => ({
         id: step.id,
         workflowId: step.workflow,
+        ...(step.decisionFact ? { decisionFact: step.decisionFact } : {}),
         status: "pending" as const,
       })),
       now: acceptedAt,
@@ -260,6 +262,38 @@ export async function advancePipelineForWorkflowCompletion(input: {
     now: new Date().toISOString(),
   });
   if (!next) return false;
+  if (
+    typeof next === "object" &&
+    next !== null &&
+    (next as { kind?: unknown }).kind === "approval"
+  ) {
+    const approval = next as {
+      pipelineId: string;
+      runId: string;
+      facts: Record<string, unknown>;
+    };
+    const issue =
+      typeof approval.facts.issue === "number" &&
+      Number.isInteger(approval.facts.issue) &&
+      approval.facts.issue > 0
+        ? approval.facts.issue
+        : undefined;
+    await deliverPipelineApprovalRequest({
+      owner: input.owner,
+      repo: input.repo,
+      pipelineId: approval.pipelineId,
+      runId: approval.runId,
+      ...(issue ? { issue } : {}),
+      summary: issue
+        ? `Kody recommends continuing Pipeline ${approval.pipelineId} for issue #${issue}.`
+        : `Kody recommends continuing Pipeline ${approval.pipelineId}.`,
+      url: issue
+        ? `https://github.com/${input.owner}/${input.repo}/issues/${issue}`
+        : `https://github.com/${input.owner}/${input.repo}`,
+      octokit: input.octokit,
+    });
+    return true;
+  }
   if (isPipelineContinuation(next)) {
     await dispatchPipelineContinuation({
       octokit: input.octokit,
@@ -269,4 +303,45 @@ export async function advancePipelineForWorkflowCompletion(input: {
     });
   }
   return true;
+}
+
+export async function decidePipelineExecution(input: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  pipelineId: string;
+  runId: string;
+  decision: "approve" | "reject";
+  decidedBy: string;
+}): Promise<{ kind: "approved" | "rejected" | "unavailable" }> {
+  const next = await createBackendClient().mutation(api.pipelineRuns.decide, {
+    tenantId: `${input.owner}/${input.repo}`,
+    pipelineId: input.pipelineId,
+    runId: input.runId,
+    decision: input.decision,
+    decidedBy: input.decidedBy,
+    now: new Date().toISOString(),
+  });
+  if (!next) return { kind: "unavailable" };
+  if (next.kind === "rejected") {
+    if (isPipelineContinuation(next.next)) {
+      await dispatchPipelineContinuation({
+        octokit: input.octokit,
+        owner: input.owner,
+        repo: input.repo,
+        next: next.next,
+      });
+    }
+    return { kind: "rejected" };
+  }
+  if (isPipelineContinuation(next)) {
+    await dispatchPipelineContinuation({
+      octokit: input.octokit,
+      owner: input.owner,
+      repo: input.repo,
+      next,
+    });
+    return { kind: "approved" };
+  }
+  return { kind: "unavailable" };
 }

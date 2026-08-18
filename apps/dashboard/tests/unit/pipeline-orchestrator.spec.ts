@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   mutation: vi.fn(),
   loadWorkflow: vi.fn(),
   startWorkflow: vi.fn(),
+  deliverApproval: vi.fn(),
 }));
 
 vi.mock("@kody-ade/backend/client", () => ({
@@ -27,9 +28,13 @@ vi.mock("@dashboard/lib/workflow-definitions", () => ({
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn() },
 }));
+vi.mock("@dashboard/features/workflows/server/workflow-inbox-alert", () => ({
+  deliverPipelineApprovalRequest: h.deliverApproval,
+}));
 
 import {
   advancePipelineForWorkflowCompletion,
+  decidePipelineExecution,
   startPipelineExecution,
 } from "../../src/dashboard/features/pipelines/server/pipeline-orchestrator";
 
@@ -91,6 +96,38 @@ describe("Pipeline waiting runs", () => {
     );
   });
 
+  it("sends a Pipeline approval request without dispatching the next Workflow", async () => {
+    h.mutation.mockResolvedValueOnce({
+      kind: "approval",
+      pipelineId: "qa-maintenance",
+      runId: "qa-run",
+      stepIndex: 2,
+      step: { id: "fix", workflowId: "qa-fix", status: "pending" },
+      facts: { issue: 42 },
+    });
+    h.deliverApproval.mockResolvedValueOnce(1);
+
+    await expect(
+      advancePipelineForWorkflowCompletion({
+        octokit: {} as never,
+        owner: "acme",
+        repo: "shop",
+        workflowRunId: "qa-sync",
+        status: "success",
+        output: { deliveryDecision: "approval", issue: 42 },
+      }),
+    ).resolves.toBe(true);
+
+    expect(h.startWorkflow).not.toHaveBeenCalled();
+    expect(h.deliverApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipelineId: "qa-maintenance",
+        runId: "qa-run",
+        issue: 42,
+      }),
+    );
+  });
+
   it("dispatches the waiting Pipeline when the active dispatch fails", async () => {
     h.mutation
       .mockResolvedValueOnce({
@@ -142,6 +179,39 @@ describe("Pipeline waiting runs", () => {
       expect.objectContaining({
         workflowId: "ci-repair",
         input: { branch: "main", ciRunId: 2 },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it("resumes the next Workflow after Pipeline approval", async () => {
+    h.mutation
+      .mockResolvedValueOnce({
+        kind: "next",
+        pipelineId: "qa-maintenance",
+        runId: "qa-run",
+        stepIndex: 2,
+        step: { id: "fix", workflowId: "qa-fix", status: "pending" },
+        facts: { issue: 42 },
+      })
+      .mockResolvedValueOnce(true);
+
+    await expect(
+      decidePipelineExecution({
+        octokit: {} as never,
+        owner: "acme",
+        repo: "shop",
+        pipelineId: "qa-maintenance",
+        runId: "qa-run",
+        decision: "approve",
+        decidedBy: "alice",
+      }),
+    ).resolves.toEqual({ kind: "approved" });
+
+    expect(h.startWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "qa-fix",
+        input: { issue: 42 },
       }),
       expect.any(Object),
     );

@@ -9,6 +9,25 @@ import type {
 } from "../company/types";
 
 export const companyApi = {
+  decidePipeline: async (input: {
+    pipelineId: string;
+    runId: string;
+    decision: "approve" | "reject";
+  }): Promise<"approved" | "rejected"> => {
+    const res = await fetch(
+      `${API_BASE}/company/pipelines/${encodeURIComponent(input.pipelineId)}/runs/${encodeURIComponent(input.runId)}/decision`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({ decision: input.decision }),
+      },
+    );
+    const data = await handleResponse<{
+      ok: true;
+      status: "approved" | "rejected";
+    }>(res);
+    return data.status;
+  },
   /** Export the connected repo's agent/capabilities/prompts/instructions bundle. */
   export: async (): Promise<CompanyBundle> => {
     const res = await fetch(`${API_BASE}/company`, {

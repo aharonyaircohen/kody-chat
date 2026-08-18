@@ -15,6 +15,17 @@ interface WorkflowInboxAlert {
   octokit: Octokit;
 }
 
+interface PipelineApprovalRequest {
+  owner: string;
+  repo: string;
+  pipelineId: string;
+  runId: string;
+  issue?: number;
+  summary: string;
+  url: string;
+  octokit: Octokit;
+}
+
 function workflowLabel(workflowId: string): string {
   return workflowId
     .split("-")
@@ -26,11 +37,7 @@ function workflowLabel(workflowId: string): string {
 export async function deliverWorkflowInboxAlert(
   input: WorkflowInboxAlert,
 ): Promise<number> {
-  const operators = await readOperators(
-    input.octokit,
-    input.owner,
-    input.repo,
-  );
+  const operators = await readOperators(input.octokit, input.owner, input.repo);
   if (operators.length === 0) return 0;
 
   const repoFullName = `${input.owner}/${input.repo}`;
@@ -52,4 +59,39 @@ export async function deliverWorkflowInboxAlert(
   });
 
   return appendInboxFeed(entries);
+}
+
+export async function deliverPipelineApprovalRequest(
+  input: PipelineApprovalRequest,
+): Promise<number> {
+  const operators = await readOperators(input.octokit, input.owner, input.repo);
+  if (operators.length === 0) return 0;
+  const repoFullName = `${input.owner}/${input.repo}`;
+  const sentAt = new Date().toISOString();
+  return appendInboxFeed(
+    operators.map((operator) => ({
+      id: `kody-pipeline-approval:${operator.toLowerCase()}:${input.pipelineId}:${input.runId}`,
+      login: operator.toLowerCase(),
+      source: "request" as const,
+      repoFullName,
+      threadType: input.issue ? "Issue" : "Pipeline",
+      title: `${workflowLabel(input.pipelineId)} needs approval`,
+      snippet: input.summary.slice(0, 400),
+      author: "Kody",
+      url: input.url,
+      sentAt,
+      pipelineApproval: {
+        pipelineId: input.pipelineId,
+        runId: input.runId,
+        ...(input.issue ? { issue: input.issue } : {}),
+      },
+      ...(input.issue
+        ? {
+            ctoAction: "request",
+            ctoAgent: "qa",
+            ctoCapability: input.pipelineId,
+          }
+        : {}),
+    })),
+  );
 }

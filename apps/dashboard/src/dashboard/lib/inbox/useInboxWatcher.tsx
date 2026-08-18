@@ -109,6 +109,9 @@ async function runOnce(opts: {
     ...(f.ctoAgent ? { ctoAgent: f.ctoAgent } : {}),
     ...(f.ctoCapability ? { ctoCapability: f.ctoCapability } : {}),
     ...(f.ctoRepo ? { ctoRepo: f.ctoRepo } : {}),
+    ...(f.pipelineApproval
+      ? { pipelineApproval: f.pipelineApproval }
+      : {}),
     ...(f.category ? { category: f.category } : {}),
   }));
 

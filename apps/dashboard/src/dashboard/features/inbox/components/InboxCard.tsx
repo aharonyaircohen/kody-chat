@@ -83,9 +83,11 @@ export interface InboxCardProps {
 export function DecisionButtons({
   deciding,
   onDecide,
+  allowDismiss = true,
 }: {
   deciding: boolean;
   onDecide: (decision: CtoVerdict) => void;
+  allowDismiss?: boolean;
 }) {
   return (
     <>
@@ -112,17 +114,19 @@ export function DecisionButtons({
         <X className="w-4 h-4" />
         Reject
       </Button>
-      <Button
-        type="button"
-        variant="link"
-        size="clear"
-        disabled={deciding}
-        onClick={() => onDecide("dismiss")}
-        className="text-xs font-normal text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
-        title="Skip without affecting trust"
-      >
-        Dismiss
-      </Button>
+      {allowDismiss ? (
+        <Button
+          type="button"
+          variant="link"
+          size="clear"
+          disabled={deciding}
+          onClick={() => onDecide("dismiss")}
+          className="text-xs font-normal text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
+          title="Skip without affecting trust"
+        >
+          Dismiss
+        </Button>
+      ) : null}
     </>
   );
 }
@@ -177,7 +181,8 @@ export function InboxCard({
 }: InboxCardProps) {
   const unread = entry.readAt === null;
   const isRequest = entry.source === "request";
-  const pending = isRequest && !!rec && verdict === null;
+  const pending =
+    isRequest && (!!rec || !!entry.pipelineApproval) && verdict === null;
   const [copied, setCopied] = useState(false);
   const category = inboxCategory(entry);
   const muted = category ? isMuted(category) : false;
@@ -269,6 +274,12 @@ export function InboxCard({
               {consequenceLine(rec)}
             </p>
           ) : null}
+          {!rec && entry.pipelineApproval ? (
+            <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-amber-200">
+              <MessageSquareText className="w-4 h-4 shrink-0" />
+              Approving continues {entry.pipelineApproval.pipelineId}.
+            </p>
+          ) : null}
 
           <div className="mt-1 flex items-center gap-1.5 text-[11px] text-white/45 min-w-0">
             <span className="text-white/60 shrink-0">{author}</span>
@@ -278,7 +289,11 @@ export function InboxCard({
             </span>
             <span className="shrink-0">
               {TYPE_SINGULAR[entry.threadType] ?? entry.threadType}
-              {rec ? ` #${rec.taskNumber}` : inlineThreadNumber ? ` #${inlineThreadNumber}` : ""}
+              {rec
+                ? ` #${rec.taskNumber}`
+                : inlineThreadNumber
+                  ? ` #${inlineThreadNumber}`
+                  : ""}
             </span>
             {rec && isRequest ? (
               <>
@@ -375,12 +390,16 @@ export function InboxCard({
         </div>
       </div>
 
-      {rec ? (
+      {rec || entry.pipelineApproval ? (
         <div className="mt-3 ml-5 flex items-center gap-2 flex-wrap">
           {verdict ? (
             <VerdictBadge verdict={verdict} />
           ) : isRequest ? (
-            <DecisionButtons deciding={deciding} onDecide={onDecide} />
+            <DecisionButtons
+              deciding={deciding}
+              onDecide={onDecide}
+              allowDismiss={!entry.pipelineApproval}
+            />
           ) : (
             <Button
               asChild
