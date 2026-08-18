@@ -696,10 +696,10 @@ async function handleKodyDirectPost(
   // today's 401 via requireKodyAuth, unchanged.
   const surfaceScope = resolveSurfaceScope(req.headers);
   const hostUser =
-    surfaceScope.kind === "none"
+    surfaceScope.kind !== "client"
       ? ((await getChatRequestContextProvider()?.resolveUser(req)) ?? null)
       : null;
-  if (surfaceScope.kind === "none" && !hostUser) {
+  if (surfaceScope.kind !== "client" && !hostUser) {
     const authError = await requireUserAuth(req);
     if (authError) return authError;
   }
@@ -906,7 +906,13 @@ async function handleKodyDirectPost(
   let verifiedUserId: string | null = hostUser?.id ?? null;
   const repo = getRequestAuth(repoScopedReq);
   if (!clientSurface) {
-    if (repo || !hostUser) {
+    if (repo) {
+      const actorResult = await verifyOperatorActor(repoScopedReq);
+      if (actorResult instanceof NextResponse) return actorResult;
+      verifiedActorLogin = actorResult.identity.login;
+      verifiedActorGithubId = actorResult.identity.githubId;
+      verifiedUserId ??= `github:${actorResult.identity.githubId}`;
+    } else if (!hostUser) {
       const actorResult = await verifyOperatorActor(
         repoScopedReq,
         body.actorLogin,

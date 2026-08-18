@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  repositoryAuthAfterAdd,
   repositoryAuthAfterRemoval,
   type KodyAuth,
 } from "../../src/dashboard/lib/auth-context";
@@ -43,5 +44,29 @@ describe("repositoryAuthAfterRemoval", () => {
   it("ignores an invalid repository index", () => {
     const auth = authWithRepos(1);
     expect(repositoryAuthAfterRemoval(auth, 4)).toBe(auth);
+  });
+});
+
+describe("repositoryAuthAfterAdd", () => {
+  const user = { login: "octo", avatar_url: "", id: 1 };
+  const entry = {
+    repoUrl: "https://github.com/acme/new-repo",
+    owner: "acme",
+    repo: "new-repo",
+    token: "new-token",
+  };
+
+  it("creates durable repository auth for the first repository", () => {
+    expect(repositoryAuthAfterAdd(null, entry, user, 42)).toEqual({
+      ...entry,
+      user,
+      loggedInAt: 42,
+      repos: [{ ...entry, user, addedAt: 42, isLogin: true }],
+      currentRepoIndex: 0,
+    });
+  });
+
+  it("rejects an unverified repository instead of persisting partial state", () => {
+    expect(repositoryAuthAfterAdd(null, entry, undefined, 42)).toBeNull();
   });
 });

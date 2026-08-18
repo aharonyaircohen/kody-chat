@@ -71,6 +71,11 @@ export interface KodyRepoEntry {
   user?: KodyUser;
 }
 
+export type RepositoryAddInput = Omit<
+  KodyRepoEntry,
+  "addedAt" | "isLogin" | "user"
+>;
+
 export interface KodyAuth {
   // ─── Flat fields — always reflect the *current* repo (backward compat) ─
   repoUrl: string;
@@ -141,9 +146,9 @@ export interface AuthContextValue {
    * Does not switch to the new repo unless it's the bootstrap one.
    */
   addRepo: (
-    entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
+    entry: RepositoryAddInput,
     user?: KodyAuth["user"],
-  ) => void;
+  ) => Promise<boolean>;
   /** Replace one repository's verified browser-owned PAT and identity. */
   replaceRepoToken: (index: number, token: string, user: KodyUser) => boolean;
   /** Remove a repo by index. Removing the final repo leaves the account signed in. */
@@ -174,7 +179,7 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   logout: () => {},
   signIn: () => {},
-  addRepo: () => {},
+  addRepo: async () => false,
   replaceRepoToken: () => false,
   removeRepo: () => {},
   setCurrentRepo: () => {},
@@ -205,6 +210,58 @@ export function repositoryAuthAfterRemoval(
     token: current.token,
     user: current.user ?? auth.user,
   };
+}
+
+export function repositoryAuthAfterAdd(
+  auth: KodyAuth | null,
+  entry: RepositoryAddInput,
+  user: KodyUser | undefined,
+  addedAt = Date.now(),
+): KodyAuth | null {
+  const owner = entry.owner.trim();
+  const repo = entry.repo.trim();
+  const token = entry.token.trim();
+  if (!owner || !repo || !token || !user) return null;
+
+  const nextEntry: KodyRepoEntry = {
+    ...entry,
+    repoUrl: entry.repoUrl || `https://github.com/${owner}/${repo}`,
+    owner,
+    repo,
+    token,
+    user,
+    addedAt,
+    isLogin: !auth || auth.repos.length === 0,
+  };
+
+  if (!auth || auth.repos.length === 0) {
+    return {
+      ...auth,
+      repoUrl: nextEntry.repoUrl,
+      owner,
+      repo,
+      token,
+      user,
+      loggedInAt: auth?.loggedInAt ?? addedAt,
+      repos: [nextEntry],
+      currentRepoIndex: 0,
+    };
+  }
+
+  const existingIndex = auth.repos.findIndex(
+    (candidate) =>
+      candidate.owner.toLowerCase() === owner.toLowerCase() &&
+      candidate.repo.toLowerCase() === repo.toLowerCase(),
+  );
+  const repos =
+    existingIndex >= 0
+      ? auth.repos.map((candidate, index) =>
+          index === existingIndex
+            ? { ...candidate, ...nextEntry, isLogin: candidate.isLogin }
+            : candidate,
+        )
+      : [...auth.repos, nextEntry];
+  return { ...auth, repos };
 }
 
 /**
@@ -535,100 +592,19 @@ export function AuthProvider({
   );
 
   const addRepo = useCallback(
-    (
-      entry: Omit<KodyRepoEntry, "addedAt" | "isLogin" | "user">,
-      user?: KodyAuth["user"],
-    ) => {
-      const owner = entry.owner?.trim() ?? "";
-      const repo = entry.repo?.trim() ?? "";
-      const token = entry.token?.trim() ?? "";
-      const nextEntry: Omit<KodyRepoEntry, "addedAt" | "isLogin"> = {
-        ...entry,
-        repoUrl:
-          entry.repoUrl ||
-          (owner && repo ? `https://github.com/${owner}/${repo}` : ""),
-        owner,
-        repo,
-        token,
-      };
-      if (!nextEntry.owner || !nextEntry.repo || !nextEntry.token) {
-        console.warn("Skipping malformed repository entry", {
-          owner: nextEntry.owner,
-          repo: nextEntry.repo,
-          hasToken: Boolean(nextEntry.token),
-        });
-        return;
+    async (entry: RepositoryAddInput, user?: KodyAuth["user"]) => {
+      const next = repositoryAuthAfterAdd(auth, entry, user);
+      if (!next) return false;
+
+      if (persistence === "account") {
+        const saved = await saveAccountRepositoryAuth(next);
+        if (!saved) return false;
       }
-      if (!user) {
-        console.warn("Skipping repository without verified GitHub identity");
-        return;
-      }
-      setStoredAuth((prev) => {
-        // Bootstrap: empty store, this is the first repo. Requires user info.
-        if (!prev) {
-          const now = Date.now();
-          const loginEntry: KodyRepoEntry = {
-            ...nextEntry,
-            addedAt: now,
-            isLogin: true,
-            user,
-          };
-          const next: KodyAuth = {
-            repoUrl: loginEntry.repoUrl,
-            owner: loginEntry.owner,
-            repo: loginEntry.repo,
-            token: loginEntry.token,
-            user,
-            loggedInAt: now,
-            repos: [loginEntry],
-            currentRepoIndex: 0,
-          };
-          persistAuth(next);
-          return next;
-        }
-        const ownerLc = nextEntry.owner.toLowerCase();
-        const repoLc = nextEntry.repo.toLowerCase();
-        // Dedupe: if the same owner/repo already exists, replace its token instead.
-        const existingIdx = prev.repos.findIndex(
-          (r) =>
-            r.owner?.toLowerCase() === ownerLc &&
-            r.repo?.toLowerCase() === repoLc,
-        );
-        let nextRepos: KodyRepoEntry[];
-        if (existingIdx >= 0) {
-          nextRepos = prev.repos.map((r, i) =>
-            i === existingIdx
-              ? {
-                  ...r,
-                  token: nextEntry.token,
-                  repoUrl: nextEntry.repoUrl,
-                  user,
-                }
-              : r,
-          );
-        } else {
-          nextRepos = [
-            ...prev.repos,
-            { ...nextEntry, user, addedAt: Date.now(), isLogin: false },
-          ];
-        }
-        const firstRepo = prev.repos.length === 0 ? nextRepos[0] : null;
-        const next: KodyAuth = firstRepo
-          ? {
-              ...prev,
-              repos: nextRepos,
-              currentRepoIndex: 0,
-              repoUrl: firstRepo.repoUrl,
-              owner: firstRepo.owner,
-              repo: firstRepo.repo,
-              token: firstRepo.token,
-            }
-          : { ...prev, repos: nextRepos };
-        persistAuth(next);
-        return next;
-      });
+      persistBrowser(next);
+      setStoredAuth(next);
+      return true;
     },
-    [persistAuth],
+    [auth, persistence],
   );
 
   const removeRepo = useCallback(

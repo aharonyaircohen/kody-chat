@@ -209,7 +209,7 @@ export function OrgManager({ org }: { org: string }) {
         toast.error("GitHub response did not include repository owner/name.");
         return;
       }
-      addRepo(
+      const saved = await addRepo(
         {
           repoUrl: data.repository.htmlUrl,
           owner,
@@ -218,6 +218,10 @@ export function OrgManager({ org }: { org: string }) {
         },
         data.user,
       );
+      if (!saved) {
+        toast.error("Repository was validated but could not be saved.");
+        return;
+      }
       toast.success(`Attached ${data.repository.fullName}`);
     } catch (err) {
       toast.error(`Network error: ${String(err)}`);
@@ -251,7 +255,7 @@ export function OrgManager({ org }: { org: string }) {
         setCreateError(data.message || data.error || `Failed (${res.status})`);
         return;
       }
-      addRepo(
+      const saved = await addRepo(
         {
           repoUrl: data.repository.htmlUrl,
           owner: data.repository.owner,
@@ -260,6 +264,10 @@ export function OrgManager({ org }: { org: string }) {
         },
         data.user,
       );
+      if (!saved) {
+        setCreateError("Repository was created but could not be attached.");
+        return;
+      }
       setNewRepoName("");
       setNewRepoDescription("");
       setNewRepoPrivate(true);

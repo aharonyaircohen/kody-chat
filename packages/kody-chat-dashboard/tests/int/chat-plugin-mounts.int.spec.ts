@@ -25,6 +25,12 @@ import { z } from "zod";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../src/dashboard/lib/view-renderers/builtin";
 import type { ViewRendererDefinition } from "../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
+const verifyActorLoginMock = vi.hoisted(() =>
+  vi.fn(async (_req: unknown, _suppliedLogin?: string) => ({
+    identity: { login: "plugin-tester", avatar_url: "", githubId: 1 },
+  })),
+);
+
 vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@kody-ade/base/engine/config")>();
@@ -68,9 +74,7 @@ vi.mock("@kody-ade/base/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@kody-ade/base/auth")>();
   return {
     ...actual,
-    verifyActorLogin: vi.fn(async () => ({
-      identity: { login: "plugin-tester", avatar_url: "", githubId: 1 },
-    })),
+    verifyActorLogin: verifyActorLoginMock,
   };
 });
 
@@ -689,6 +693,32 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(tools).not.toHaveProperty("github_get_file");
     expect(tools).not.toHaveProperty("list_workflows");
     expect(tools).not.toHaveProperty("list_todos");
+  });
+
+  it("keeps Kody account identity when repository access is also present", async () => {
+    setChatRequestContextProvider({
+      resolveUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
+    });
+    const actorChecksBefore = verifyActorLoginMock.mock.calls.length;
+    const request = new NextRequest("https://dash.test/api/kody/chat/kody", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-kody-token": "ghp_test",
+        "x-kody-owner": "owner",
+        "x-kody-repo": "repo",
+      },
+      body: JSON.stringify({
+        actorLogin: "different-github-login",
+        messages: [{ role: "user", content: "Hello" }],
+      }),
+    });
+
+    const response = await kodyChatPOST(request);
+
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(verifyActorLoginMock).toHaveBeenCalledTimes(actorChecksBefore + 1);
+    expect(verifyActorLoginMock.mock.calls.at(-1)?.[1]).toBeUndefined();
   });
 
   it("fixture plugin tool is exposed additively and zod-validated with the request server context", async () => {

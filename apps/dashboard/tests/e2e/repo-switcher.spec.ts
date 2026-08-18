@@ -5,6 +5,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 
@@ -27,55 +28,84 @@ const repos = [
   },
 ];
 
-async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate((entries) => {
-    localStorage.setItem(
-      "kody_auth",
-      JSON.stringify({
-        repoUrl: entries[0]!.repoUrl,
-        owner: entries[0]!.owner,
-        repo: entries[0]!.repo,
-        token: entries[0]!.token,
-        user: {
-          login: "repo-switch-test",
-          avatar_url: "https://github.com/github-mark.png",
-          id: 1,
-        },
-        loggedInAt: Date.now(),
-        repos: entries,
-        currentRepoIndex: 0,
-      }),
-    );
-  }, repos);
+const user = {
+  login: "repo-switch-test",
+  avatar_url: "https://github.com/github-mark.png",
+  id: 1,
+};
+
+function authFor(entries: typeof repos) {
+  const current = entries[0];
+  if (!current) return null;
+  return {
+    ...current,
+    user,
+    loggedInAt: 1,
+    repos: entries.map((entry) => ({ ...entry, user })),
+    currentRepoIndex: 0,
+  };
 }
 
-async function seedSingleRepoAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate((entry) => {
-    localStorage.setItem(
-      "kody_auth",
-      JSON.stringify({
-        ...entry,
-        user: {
-          login: "repo-switch-test",
-          avatar_url: "https://github.com/github-mark.png",
-          id: 1,
+async function mockAccountRepositories(
+  page: Page,
+  initialAuth: ReturnType<typeof authFor>,
+  options: { rejectSaves?: boolean } = {},
+) {
+  await mockDashboardShellRequests(page);
+  await page.unroute("**/api/kody/account/repositories");
+  let storedAuth: unknown = initialAuth;
+  await page.route("**/api/kody/account/repositories", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ auth: storedAuth }),
+      });
+    }
+    if (method === "DELETE") {
+      storedAuth = null;
+      return route.fulfill({ status: 200, body: "{}" });
+    }
+    if (options.rejectSaves) {
+      return route.fulfill({ status: 500, body: '{"error":"save failed"}' });
+    }
+    storedAuth = (route.request().postDataJSON() as { auth?: unknown }).auth;
+    return route.fulfill({ status: 200, body: '{"ok":true}' });
+  });
+}
+
+async function mockRepositoryValidation(page: Page) {
+  await page.route("**/api/kody/repos/add", async (route) => {
+    const body = route.request().postDataJSON() as {
+      owner: string;
+      repo: string;
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        owner: body.owner,
+        repo: body.repo,
+        repository: {
+          fullName: `${body.owner}/${body.repo}`,
+          private: false,
+          defaultBranch: "main",
+          htmlUrl: `https://github.com/${body.owner}/${body.repo}`,
         },
-        loggedInAt: Date.now(),
-        repos: [entry],
-        currentRepoIndex: 0,
+        user,
+        webhook: { ok: true, created: false },
+        backgroundAccess: { ok: true, source: "encrypted-pat" },
       }),
-    );
-  }, repos[0]!);
+    });
+  });
 }
 
 test("header repo dropdown switches to another attached repo", async ({
   page,
 }) => {
-  await seedAuth(page);
+  await mockAccountRepositories(page, authFor(repos));
   await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
   await page.waitForLoadState("domcontentloaded");
 
@@ -111,21 +141,23 @@ test("header repo dropdown switches to another attached repo", async ({
 test("sidebar separates personal and repository navigation", async ({
   page,
 }) => {
-  await seedAuth(page);
+  await mockAccountRepositories(page, authFor(repos));
   await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
 
   await expect(page.getByText("Account", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Personal" })).toBeVisible();
   await expect(page.getByText("Repository", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Personal" }).click();
-  await expect(page.getByRole("link", { name: "Chat" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Chat", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Memory" })).toBeVisible();
 });
 
 test("removing the final repository keeps the account and opens personal chat", async ({
   page,
 }) => {
-  await seedSingleRepoAuth(page);
+  await mockAccountRepositories(page, authFor([repos[0]!]));
   await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
 
   await page
@@ -140,4 +172,99 @@ test("removing the final repository keeps the account and opens personal chat", 
     .poll(() => page.evaluate(() => localStorage.getItem("kody_auth")))
     .toBeNull();
   await expect(page.getByText("Your private Chat")).toBeVisible();
+});
+
+test("removing one repository keeps the user's other repository", async ({
+  page,
+}) => {
+  await mockAccountRepositories(page, authFor(repos));
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+
+  await page.getByRole("button", { name: "RepoOne" }).click();
+  await page.getByRole("button", { name: "Remove OrgOne/RepoOne" }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/repo\/OrgTwo\/RepoTwo$/);
+  await expect(
+    page.getByRole("button", { name: "RepoTwo", exact: true }),
+  ).toBeVisible();
+});
+
+test("signed-in user without repositories can use personal chat and connect one", async ({
+  page,
+}) => {
+  await mockAccountRepositories(page, null);
+  await page.goto(`${BASE_URL}/chat`);
+
+  await expect(page.getByText("Your private Chat")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+  await page.getByRole("button", { name: "Kody Operations" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Repository", exact: true }),
+  ).toBeVisible();
+});
+
+test("keeps the connect form open when account persistence fails", async ({
+  page,
+}) => {
+  await mockAccountRepositories(page, null, { rejectSaves: true });
+  await mockRepositoryValidation(page);
+  await page.goto(`${BASE_URL}/chat`);
+  await page.getByRole("button", { name: "Kody Operations" }).click();
+  await page
+    .getByRole("textbox", { name: "Repository", exact: true })
+    .fill("acme/unsaved-repo");
+  await page.getByLabel("Personal access token").fill("ghp_test_token");
+  await page.getByRole("button", { name: "Connect repository" }).click();
+
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(
+    page.getByText(
+      "Repository was validated but could not be saved. Try again.",
+    ),
+  ).toBeVisible();
+});
+
+test("waits for account persistence before leaving the connect form", async ({
+  page,
+}) => {
+  await mockDashboardShellRequests(page);
+  await page.unroute("**/api/kody/account/repositories");
+  let storedAuth: unknown = null;
+  let saveCompletedAt = 0;
+
+  await page.route("**/api/kody/account/repositories", async (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ auth: storedAuth }),
+      });
+    }
+    const body = route.request().postDataJSON() as { auth?: unknown };
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    storedAuth = body.auth ?? null;
+    saveCompletedAt = Date.now();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+  await mockRepositoryValidation(page);
+
+  await page.goto(`${BASE_URL}/chat`);
+  await page.getByRole("button", { name: "Kody Operations" }).click();
+  await page
+    .getByRole("textbox", { name: "Repository", exact: true })
+    .fill("acme/connected-repo");
+  await page.getByLabel("Personal access token").fill("ghp_test_token");
+  await page.getByRole("button", { name: "Connect repository" }).click();
+
+  await expect(page).toHaveURL(`${BASE_URL}/`);
+  expect(saveCompletedAt).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "connected-repo" }).click();
+  await expect(
+    page.getByRole("button", { name: "connected-repo", exact: true }),
+  ).toBeVisible();
 });

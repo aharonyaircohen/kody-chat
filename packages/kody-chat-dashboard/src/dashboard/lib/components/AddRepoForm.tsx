@@ -137,7 +137,7 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
         return;
       }
 
-      addRepo(
+      const saved = await addRepo(
         {
           repoUrl: data.repository.htmlUrl,
           owner: data.repository.fullName.split("/")[0],
@@ -146,6 +146,10 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
         },
         data.user,
       );
+      if (!saved) {
+        setError("Repository was validated but could not be saved. Try again.");
+        return;
+      }
 
       setRepoInput("");
       setToken("");
