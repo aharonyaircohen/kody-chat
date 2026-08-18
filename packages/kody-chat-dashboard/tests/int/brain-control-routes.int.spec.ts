@@ -5,6 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const brainFly = vi.hoisted(() => ({
   destroyBrain: vi.fn(async () => undefined),
@@ -93,6 +94,16 @@ function req(path: string): NextRequest {
 describe("Brain control routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setPersonalBrainServices({
+      resolveUser: async () => ({ id: "user-1", label: "Octocat" }),
+      getCredential: async () => null,
+      getCredentials: async () => ({
+        FLY_API_TOKEN: "fly-token",
+        GITHUB_TOKEN: "ghp_test",
+      }),
+      loadState: async () => null,
+      saveState: async () => undefined,
+    });
   });
 
   it("destroys the stored Brain app in the stored org", async () => {
@@ -107,7 +118,7 @@ describe("Brain control routes", () => {
       }),
     );
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
   });
@@ -141,11 +152,11 @@ describe("Brain control routes", () => {
 
     expect(res.status).toBe(200);
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
     expect(brainStore.clearBrainApp).toHaveBeenCalledWith(
-      "octocat",
+      "user-c6c289e49e9c05b2",
       "ghp_test",
     );
   });
