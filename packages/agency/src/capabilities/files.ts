@@ -360,6 +360,7 @@ function parseCapabilityContract(raw: string): {
     browser?: boolean;
     qaCredentials?: boolean;
     githubTestToken?: boolean;
+    qaAccountCredentials?: string[];
     browserOnly?: boolean;
   };
   secrets?: string[];
@@ -410,6 +411,7 @@ function parseCapabilityContract(raw: string): {
       key !== "browser" &&
       key !== "qaCredentials" &&
       key !== "githubTestToken" &&
+      key !== "qaAccountCredentials" &&
       key !== "browserOnly",
   );
   if (unsupportedRequirements.length > 0) {
@@ -438,6 +440,19 @@ function parseCapabilityContract(raw: string): {
     );
   }
   if (
+    requirementsValue?.qaAccountCredentials !== undefined &&
+    (!Array.isArray(requirementsValue.qaAccountCredentials) ||
+      requirementsValue.qaAccountCredentials.length === 0 ||
+      !requirementsValue.qaAccountCredentials.every(
+        (name) =>
+          typeof name === "string" && /^[A-Z][A-Z0-9_]{0,127}$/.test(name),
+      ))
+  ) {
+    throw new Error(
+      "contract.json requirements.qaAccountCredentials must contain valid credential names",
+    );
+  }
+  if (
     requirementsValue?.browserOnly !== undefined &&
     typeof requirementsValue.browserOnly !== "boolean"
   ) {
@@ -446,6 +461,7 @@ function parseCapabilityContract(raw: string): {
   if (
     (requirementsValue?.qaCredentials === true ||
       requirementsValue?.githubTestToken === true ||
+      requirementsValue?.qaAccountCredentials !== undefined ||
       requirementsValue?.browserOnly === true) &&
     requirementsValue.browser !== true
   ) {
@@ -461,6 +477,13 @@ function parseCapabilityContract(raw: string): {
           : {}),
         ...(requirementsValue.githubTestToken === true
           ? { githubTestToken: true }
+          : {}),
+        ...(Array.isArray(requirementsValue.qaAccountCredentials)
+          ? {
+              qaAccountCredentials: [
+                ...new Set(requirementsValue.qaAccountCredentials as string[]),
+              ],
+            }
           : {}),
         ...(requirementsValue.browserOnly === true
           ? { browserOnly: true }

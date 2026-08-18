@@ -398,6 +398,7 @@ describe("simple capability folders", () => {
             browser: true,
             qaCredentials: true,
             githubTestToken: true,
+            qaAccountCredentials: ["OPENROUTER_API_KEY"],
             browserOnly: true,
           },
           input: {},
