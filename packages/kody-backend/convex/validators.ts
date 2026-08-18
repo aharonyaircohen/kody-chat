@@ -273,6 +273,13 @@ export const inboxEntryValidator = v.object({
   ctoCommand: v.optional(v.string()),
   ctoAgent: v.optional(v.string()),
   ctoCapability: v.optional(v.string()),
+  pipelineApproval: v.optional(
+    v.object({
+      pipelineId: v.string(),
+      runId: v.string(),
+      issue: v.optional(v.number()),
+    }),
+  ),
   ctoRepo: v.optional(v.string()),
   category: v.optional(v.string()),
 });

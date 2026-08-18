@@ -39,6 +39,35 @@ describe("inbox", () => {
 })
 
 describe("inbox schema enforcement", () => {
+  it("persists a pipeline approval request", async () => {
+    const t = setup()
+    await t.mutation(api.inbox.upsert, {
+      tenantId: TENANT,
+      login: "octocat",
+      entryId: "approval",
+      entry: validInboxEntry({
+        id: "approval",
+        source: "request",
+        pipelineApproval: {
+          pipelineId: "qa-maintenance",
+          runId: "run-qa-approval",
+          issue: 57,
+        },
+      }),
+      sentAt: NOW,
+    })
+
+    const inbox = await t.query(api.inbox.list, {
+      tenantId: TENANT,
+      login: "octocat",
+    })
+    expect(inbox[0].entry.pipelineApproval).toEqual({
+      pipelineId: "qa-maintenance",
+      runId: "run-qa-approval",
+      issue: 57,
+    })
+  })
+
   it("rejects an entry with an unknown source", async () => {
     const t = setup()
     await expect(
