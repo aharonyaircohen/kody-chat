@@ -87,7 +87,7 @@ describe("File Manager dependency boundary", () => {
     expect(transport).toContain("dataVersion?: string | number");
     expect(tree).toContain("transport?.dataVersion ?? 0");
     expect(page).toContain("activeTransport?.dataVersion");
-    expect(memory).toContain("cacheKey: `memory:${repositoryScope}`");
+    expect(memory).toContain("cacheKey: `memory:${activeScope}`");
     expect(memory).toContain("dataVersion: latestUpdate(memories)");
   });
 });

@@ -51,6 +51,7 @@ describe("kody-chat company activation", () => {
       "prepare-strategy-application",
       "apply-strategy",
       "qa-engineer",
+      "verify-strategy-application",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",

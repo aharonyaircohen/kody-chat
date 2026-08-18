@@ -17,9 +17,11 @@ describe("workspace command ownership", () => {
   it("starts the real Dashboard from the root dev command", () => {
     const rootPackage = readPackage("package.json");
 
-    expect(rootPackage.scripts?.dev).toBe("pnpm --filter kody-dashboard dev");
+    expect(rootPackage.scripts?.dev).toBe(
+      "pnpm --parallel --filter @kody-ade/backend --filter kody-dashboard dev",
+    );
     expect(rootPackage.scripts?.["dev:dashboard"]).toBe(
-      "pnpm --filter kody-dashboard dev",
+      "pnpm --parallel --filter @kody-ade/backend --filter kody-dashboard dev",
     );
   });
 

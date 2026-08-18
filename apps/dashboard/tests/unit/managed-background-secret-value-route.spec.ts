@@ -21,6 +21,9 @@ vi.mock("@kody-ade/base/vault/crypto", () => ({
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn() },
 }));
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
+}));
 
 import { GET } from "../../app/api/kody/secrets/[name]/value/route";
 

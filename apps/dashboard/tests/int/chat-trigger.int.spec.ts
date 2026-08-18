@@ -29,6 +29,10 @@ import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "test-user" })),
+}));
+
 const convex = vi.hoisted(() => ({
   mutation: vi.fn(),
   query: vi.fn(),
@@ -135,7 +139,7 @@ describe("POST /api/kody/chat/trigger", () => {
           expect(payload.inputs.sessionId).toBe("sess-42");
           expect(payload.inputs.message).toBe("hello");
           expect(payload.inputs.dashboardUrl).toMatch(
-            /^https:\/\/dash\.test\/\?conversationTenantId=user%3A42&token=[a-f0-9]+$/,
+            /^https:\/\/dash\.test\/\?conversationTenantId=user%3Auser-1&token=[a-f0-9]+$/,
           );
           return true;
         },

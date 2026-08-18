@@ -23,6 +23,10 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "plugin-tester" })),
+}));
+
 vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@kody-ade/base/engine/config")>();

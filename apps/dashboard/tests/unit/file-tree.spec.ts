@@ -204,7 +204,7 @@ describe("applyTreeOverlay", () => {
 
 describe("path helpers", () => {
   it("uses a clear navigation label for repository and scoped trees", () => {
-    expect(fileTreeHeaderLabel("")).toBe("Repository");
+    expect(fileTreeHeaderLabel("")).toBe("Workspace");
     expect(fileTreeHeaderLabel("docs")).toBe("Documents");
     expect(fileTreeHeaderLabel("src/components")).toBe("components");
   });

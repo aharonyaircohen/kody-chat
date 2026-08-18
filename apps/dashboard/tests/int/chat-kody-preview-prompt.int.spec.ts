@@ -260,7 +260,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
               required?: string[];
               properties?: {
                 elements?: {
-                  additionalProperties?: {
+                  items?: {
                     properties?: { type?: { enum?: string[] } };
                   };
                 };
@@ -279,7 +279,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     ]);
     expect(
       showView?.inputSchema?.jsonSchema?.properties?.elements
-        ?.additionalProperties?.properties?.type?.enum,
+        ?.items?.properties?.type?.enum,
     ).toEqual(expect.arrayContaining(["ApprovalCard", "Stack", "Button"]));
     expect(showView?.execute).toBeTypeOf("function");
 

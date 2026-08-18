@@ -58,12 +58,12 @@ describe("chat view catalog", () => {
     const schema = buildShowViewInputJsonSchema(catalog) as {
       properties: {
         elements: {
-          additionalProperties: { properties: { type: { enum: string[] } } };
+          items: { properties: { type: { enum: string[] } } };
         };
       };
     };
     const names =
-      schema.properties.elements.additionalProperties.properties.type.enum;
+      schema.properties.elements.items.properties.type.enum;
     expect(names).toContain("ApprovalCard");
     expect(names).toContain("Stack");
     expect(names).toContain("Button");
@@ -148,12 +148,13 @@ describe("validateChatViewSpec", () => {
     }
   });
 
-  it("rejects a missing root element", () => {
+  it("recovers a single valid element when the supplied root is wrong", () => {
     const result = validateChatViewSpec(catalog, {
       root: "nope",
       elements: { a: { type: "Stack", props: {} } },
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.spec.root).toBe("a");
   });
 
   it("coerces stringified props and numeric-keyed children (regression: MiniMax malformed elements)", () => {
