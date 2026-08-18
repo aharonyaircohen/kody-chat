@@ -20,6 +20,8 @@ import {
 } from "@dashboard/providers/Theme/shared";
 import "@dashboard/globals.css";
 
+import { getKodyAuthToken } from "../../../lib/utils/auth";
+
 const assistant = Assistant({
   subsets: ["latin", "hebrew"],
   weight: ["300", "400", "500", "600", "700", "800"],
