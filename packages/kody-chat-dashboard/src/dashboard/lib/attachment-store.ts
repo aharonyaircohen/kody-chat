@@ -1,4 +1,3 @@
-import { getStoredAuth } from "./integration-api";
 import { authHeaders } from "./kody-chat-live-session";
 
 export interface AttachmentRef {
@@ -40,11 +39,7 @@ async function upload(
   conversationId: string,
   record: AttachmentRecord,
 ): Promise<AttachmentRef> {
-  const actorLogin = getStoredAuth()?.userLogin;
-  if (!actorLogin)
-    throw new Error("Attachment upload requires a signed-in user");
   const form = new FormData();
-  form.set("actorLogin", actorLogin);
   form.set(
     "file",
     new File([record.blob], record.name, { type: record.mimeType }),
@@ -125,10 +120,9 @@ export async function getAttachmentDataUrl(id: string): Promise<string | null> {
 export async function deleteAttachment(id: string): Promise<void> {
   if (pending.delete(id)) return;
   const stored = decodeStoredId(id);
-  const actorLogin = getStoredAuth()?.userLogin;
-  if (!stored || !actorLogin) return;
+  if (!stored) return;
   const response = await fetch(
-    `/api/kody/chat/conversations/${encodeURIComponent(stored.conversationId)}/attachments/${encodeURIComponent(stored.attachmentId)}?actorLogin=${encodeURIComponent(actorLogin)}`,
+    `/api/kody/chat/conversations/${encodeURIComponent(stored.conversationId)}/attachments/${encodeURIComponent(stored.attachmentId)}`,
     { method: "DELETE", headers: authHeaders() },
   );
   if (!response.ok) {

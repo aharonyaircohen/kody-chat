@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../../packages/kody-chat-dashboard/src/dashboard/lib/integration-api", () => ({
-  getStoredAuth: () => ({ userLogin: "alice" }),
-}));
 vi.mock(
   "../../../../packages/kody-chat-dashboard/src/dashboard/lib/kody-chat-live-session",
   () => ({
@@ -62,6 +59,8 @@ describe("attachment store", () => {
       "/api/kody/chat/conversations/conversation-1/attachments",
       expect.objectContaining({ method: "POST", body: expect.any(FormData) }),
     );
+    const form = fetcher.mock.calls[0]?.[1]?.body as FormData;
+    expect(form.has("actorLogin")).toBe(false);
     expect(await getAttachment(pending.id)).toBeNull();
   });
 
@@ -81,7 +80,7 @@ describe("attachment store", () => {
 
     expect(await record?.blob.text()).toBe("hello");
     expect(fetcher).toHaveBeenLastCalledWith(
-      "/api/kody/chat/conversations/conversation-1/attachments/att-1?actorLogin=alice",
+      "/api/kody/chat/conversations/conversation-1/attachments/att-1",
       expect.objectContaining({ method: "DELETE" }),
     );
   });
