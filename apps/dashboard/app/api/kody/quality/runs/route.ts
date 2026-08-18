@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
 const inputSchema = z.object({
   scenarioSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
   retryOfRunId: z.string().max(128).optional(),
+  model: z.string().trim().min(1).max(200).optional(),
 });
 
 type QualityMap = {
@@ -351,6 +352,7 @@ export async function POST(req: NextRequest) {
           dashboardUrl: req.nextUrl.origin,
           storeRepoUrl: auth.storeRepoUrl,
           storeRef: auth.storeRef,
+          model: parsed.data.model,
         }),
       },
     );

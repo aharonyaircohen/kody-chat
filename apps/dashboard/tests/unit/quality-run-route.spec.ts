@@ -103,11 +103,12 @@ import { GET, POST } from "../../app/api/kody/quality/runs/route";
 function request(
   scenarioSlug = "reply-persists",
   origin = "http://127.0.0.1:3333",
+  model?: string,
 ) {
   return new NextRequest(`${origin}/api/kody/quality/runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scenarioSlug }),
+    body: JSON.stringify({ scenarioSlug, ...(model ? { model } : {}) }),
   });
 }
 
@@ -180,7 +181,9 @@ describe("POST /api/kody/quality/runs", () => {
   });
 
   it("dispatches the saved Quality models for agent-driven execution", async () => {
-    const response = await POST(request());
+    const response = await POST(
+      request("reply-persists", "http://127.0.0.1:3333", "minimax/MiniMax-M3"),
+    );
     const body = await response.json();
 
     expect(response.status).toBe(202);
@@ -258,6 +261,7 @@ describe("POST /api/kody/quality/runs", () => {
         dashboardUrl: "http://localhost:3333",
         storeRepoUrl: "https://github.com/acme/company-store",
         storeRef: "stable",
+        model: "minimax/MiniMax-M3",
       }),
     );
     expect(h.mutation).toHaveBeenCalledWith(

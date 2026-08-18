@@ -37,6 +37,7 @@ interface GitHubActionsEngineGatewayOptions {
   dashboardUrl?: string;
   storeRepoUrl?: string;
   storeRef?: string;
+  model?: string;
   now?: () => Date;
 }
 
@@ -92,6 +93,7 @@ export function createGitHubActionsEngineGateway({
   dashboardUrl,
   storeRepoUrl,
   storeRef,
+  model,
   now = () => new Date(),
 }: GitHubActionsEngineGatewayOptions) {
   return async function dispatch(
@@ -106,6 +108,7 @@ export function createGitHubActionsEngineGateway({
         ref,
         requestId: request.requestId,
         executionRequest: request,
+        model,
         dashboardUrl,
         storeRepoUrl: githubRepositorySlug(storeRepoUrl),
         storeRef,
