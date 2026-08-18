@@ -7,12 +7,8 @@ import { Input } from "@kody-ade/base/ui/input";
 import { kodyAuthClient } from "./auth/kody-auth-client";
 
 function KodySignIn() {
-  const testAuthEnabled =
-    process.env.NEXT_PUBLIC_KODY_TEST_AUTH_ENABLED === "true";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("Kody QA");
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<"google" | "github" | "email" | null>(
     null,
@@ -43,19 +39,11 @@ function KodySignIn() {
     setError(null);
     setPending("email");
     try {
-      const result =
-        mode === "sign-in"
-          ? await kodyAuthClient.signIn.email({
-              email,
-              password,
-              callbackURL: "/chat",
-            })
-          : await kodyAuthClient.signUp.email({
-              email,
-              password,
-              name,
-              callbackURL: "/chat",
-            });
+      const result = await kodyAuthClient.signIn.email({
+        email,
+        password,
+        callbackURL: "/chat",
+      });
       if (result.error)
         setError("Email login failed. Check the email and password.");
     } catch {
@@ -95,21 +83,10 @@ function KodySignIn() {
             ) : null}
             Continue with GitHub
           </Button>
-          {testAuthEnabled ? (
-            <form
-              className="mt-3 grid gap-3 border-t pt-4"
-              onSubmit={submitTestLogin}
-            >
-              {mode === "sign-up" ? (
-                <Input
-                  aria-label="Name"
-                  className="rounded-md border bg-background px-3 py-2 text-sm"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Name"
-                  required
-                />
-              ) : null}
+          <form
+            className="mt-3 grid gap-3 border-t pt-4"
+            onSubmit={submitTestLogin}
+          >
               <Input
                 aria-label="Email"
                 className="rounded-md border bg-background px-3 py-2 text-sm"
@@ -133,31 +110,14 @@ function KodySignIn() {
                 {pending === "email" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                Continue with email
+                Sign in
               </Button>
               {error ? (
                 <p role="alert" className="text-sm text-destructive">
                   {error}
                 </p>
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground underline"
-                onClick={() => {
-                  setMode((current) =>
-                    current === "sign-in" ? "sign-up" : "sign-in",
-                  );
-                  setError(null);
-                }}
-              >
-                {mode === "sign-in"
-                  ? "Create an account"
-                  : "Use an existing account"}
-              </Button>
-            </form>
-          ) : null}
+          </form>
         </div>
       </section>
     </main>

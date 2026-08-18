@@ -36,14 +36,6 @@ function socialProviders(): BetterAuthOptions["socialProviders"] {
   };
 }
 
-function testAuthOptions(): BetterAuthOptions["emailAndPassword"] {
-  if (process.env.KODY_TEST_AUTH_ENABLED !== "true") return undefined;
-  return {
-    enabled: true,
-    requireEmailVerification: false,
-  };
-}
-
 export function createAuth(ctx: GenericCtx<DataModel>) {
   const siteUrl = process.env.SITE_URL;
   return betterAuth({
@@ -53,7 +45,11 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
     secret: process.env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
     socialProviders: socialProviders(),
-    emailAndPassword: testAuthOptions(),
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      requireEmailVerification: false,
+    },
     account: {
       accountLinking: {
         enabled: true,
