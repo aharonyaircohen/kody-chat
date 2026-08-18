@@ -56,7 +56,11 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  // Skip the token fetch when Convex isn't configured — the network call would
+  // crash the render in environments without a reachable Convex backend.
+  const initialAuthToken = process.env.NEXT_PUBLIC_CONVEX_URL
+    ? await getKodyAuthToken()
+    : null;
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
