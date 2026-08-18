@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   AutomaticModelSchema,
   ChatModelsSchema,
@@ -14,8 +14,12 @@ import {
 } from "@dashboard/lib/backend/convex-backend";
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 
-const USER_HEADER = "x-kody-authenticated-user";
 const MODELS_NAMESPACE = "chat-models";
+
+async function authenticatedUserId(): Promise<string | null> {
+  const actor = await requireKodyUser();
+  return actor instanceof NextResponse ? null : actor.id;
+}
 
 setChatRequestContextProvider({
   async resolveUser() {
@@ -25,21 +29,9 @@ setChatRequestContextProvider({
   },
 });
 
-export function withPersonalChatUser(
-  request: NextRequest,
-  userId: string | null,
-): NextRequest {
-  const headers = new Headers(request.headers);
-  headers.delete(USER_HEADER);
-  if (userId) {
-    headers.set(USER_HEADER, userId);
-  }
-  return new NextRequest(request, { headers });
-}
-
 setChatModelSettingsProvider({
-  async load(request) {
-    const userKey = request.headers.get(USER_HEADER)?.trim();
+  async load() {
+    const userKey = await authenticatedUserId();
     if (!userKey) return null;
     const stored = await getConvexClient().query(backendApi.userPreferences.get, {
       namespace: MODELS_NAMESPACE,
@@ -58,8 +50,8 @@ setChatModelSettingsProvider({
     };
   },
 
-  async getCredential(request, name) {
-    const userKey = request.headers.get(USER_HEADER)?.trim();
+  async getCredential(_request, name) {
+    const userKey = await authenticatedUserId();
     if (!userKey) return null;
     const stored = await getConvexClient().query(backendApi.userCredentials.get, {
       userKey,

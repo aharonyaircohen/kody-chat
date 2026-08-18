@@ -16,7 +16,8 @@ describe("dashboard Kody chat route boundary", () => {
     );
     expect(source).toContain("export async function POST");
     expect(source).toContain("requireKodyUser");
-    expect(source).toContain("withPersonalChatUser");
+    expect(source).toContain("return packagePost(request)");
+    expect(source).not.toContain("new NextRequest");
     expect(source.split("\n").length).toBeLessThan(30);
   });
 });
