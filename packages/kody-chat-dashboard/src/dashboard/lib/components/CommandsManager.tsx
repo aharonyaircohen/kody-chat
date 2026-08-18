@@ -46,7 +46,7 @@ interface CommandRow {
   description: string;
   argumentHint: string;
   body: string;
-  source: "repo" | "store" | "builtin";
+  source: "personal" | "repo" | "store" | "builtin";
   sha: string;
   updatedAt: string;
   htmlUrl: string;
@@ -340,9 +340,9 @@ function CommandsManagerInner() {
                           store
                         </span>
                       )}
-                      {p.source === "repo" && (
+                      {(p.source === "personal" || p.source === "repo") && (
                         <span className="text-[10px] uppercase tracking-wide bg-emerald-500/15 text-emerald-300/90 px-1.5 py-0.5 rounded">
-                          {auth ? "repo" : "personal"}
+                          {p.source}
                         </span>
                       )}
                     </div>
@@ -367,7 +367,9 @@ function CommandsManagerInner() {
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
                     </Button>
-                    {(p.source === "repo" || p.source === "store") && (
+                    {(p.source === "personal" ||
+                      p.source === "repo" ||
+                      p.source === "store") && (
                       <Button
                         size="sm"
                         variant="ghost"

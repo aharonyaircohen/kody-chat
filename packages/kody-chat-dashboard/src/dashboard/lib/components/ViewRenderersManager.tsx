@@ -78,7 +78,7 @@ interface RendererRow {
   defaults?: Record<string, unknown>;
   type: "layout";
   ui: unknown;
-  source: "repo" | "builtin";
+  source: "personal" | "repo" | "builtin";
   htmlUrl: string;
   definition: string;
 }
@@ -787,7 +787,8 @@ function RendererPreviewDetail({
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
-          {!isNew && selected?.source === "repo" ? (
+          {!isNew &&
+          (selected?.source === "repo" || selected?.source === "personal") ? (
             <Button
               type="button"
               variant="ghost"

@@ -7,7 +7,7 @@ export type PersonalCommand = Readonly<{
   description: string;
   argumentHint: string;
   body: string;
-  source: "repo";
+  source: "personal";
   sha: "";
   updatedAt: string;
   htmlUrl: "";
@@ -28,7 +28,7 @@ export async function listPersonalCommands(tenantId: string) {
     description: row.doc.description ?? "",
     argumentHint: row.doc.argumentHint ?? "",
     body: row.doc.body,
-    source: "repo",
+    source: "personal",
     sha: "",
     updatedAt: row.updatedAt,
     htmlUrl: "",
@@ -46,7 +46,7 @@ export async function readPersonalCommand(tenantId: string, slug: string) {
     description: row.doc.description ?? "",
     argumentHint: row.doc.argumentHint ?? "",
     body: row.doc.body,
-    source: "repo" as const,
+    source: "personal" as const,
     sha: "" as const,
     updatedAt: row.updatedAt,
     htmlUrl: "" as const,
@@ -68,7 +68,7 @@ export async function savePersonalCommand(
     },
     updatedAt,
   });
-  return { ...command, source: "repo" as const, sha: "" as const, updatedAt, htmlUrl: "" as const };
+  return { ...command, source: "personal" as const, sha: "" as const, updatedAt, htmlUrl: "" as const };
 }
 
 export async function removePersonalCommand(tenantId: string, slug: string) {

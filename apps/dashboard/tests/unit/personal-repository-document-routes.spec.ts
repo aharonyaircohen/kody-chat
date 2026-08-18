@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   repoInstructionsPut: vi.fn(async () => Response.json({ ok: true })),
   repoInstructionsDelete: vi.fn(async () => Response.json({ ok: true })),
   listPersonalCommands: vi.fn<
-    () => Promise<Array<{ slug: string; source: "repo" }>>
+    () => Promise<Array<{ slug: string; source: "personal" }>>
   >(async () => []),
   readPersonalInstructions: vi.fn(async () => null),
 }));

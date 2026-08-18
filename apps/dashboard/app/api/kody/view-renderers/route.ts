@@ -15,10 +15,12 @@ import {
   listViewRendererDefinitionsForTenant,
   parseViewRendererDefinition,
   readViewRendererDefinitionForTenant,
-  serializeViewRendererDefinition,
   writeViewRendererDefinitionForTenant,
-  type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
+import {
+  toViewRendererRow,
+  viewRendererSourceForScope,
+} from "@dashboard/lib/view-renderers/renderer-row";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,27 +32,6 @@ const saveSchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-function toRow(
-  definition: ViewRendererDefinition,
-  htmlUrl = "",
-  source: "repo" | "builtin" = "repo",
-) {
-  return {
-    slug: definition.slug,
-    name: definition.name,
-    description: definition.description ?? "",
-    purpose: definition.purpose,
-    rule: definition.rule ?? "",
-    data: definition.data ?? {},
-    defaults: definition.defaults ?? {},
-    type: definition.type,
-    ui: definition.ui,
-    source,
-    htmlUrl,
-    definition: serializeViewRendererDefinition(definition),
-  };
-}
-
 export async function GET(req: NextRequest) {
   const resolved = await resolveKodyRequestScope(req);
   if (resolved instanceof NextResponse) return resolved;
@@ -60,7 +41,15 @@ export async function GET(req: NextRequest) {
       resolved.tenantId,
     );
     const rows = files
-      .map((file) => toRow(file.definition, file.htmlUrl, file.source))
+      .map((file) =>
+        toViewRendererRow(file.definition, {
+          htmlUrl: file.htmlUrl,
+          source: viewRendererSourceForScope(
+            Boolean(resolved.repository),
+            file.source,
+          ),
+        }),
+      )
       .sort((a, b) => a.slug.localeCompare(b.slug));
     return NextResponse.json(
       { renderers: rows },
@@ -116,7 +105,13 @@ export async function POST(req: NextRequest) {
       detail: `created view renderer ${definition.slug}`,
     });
     return NextResponse.json({
-      renderer: toRow(written.definition, written.htmlUrl),
+      renderer: toViewRendererRow(written.definition, {
+        htmlUrl: written.htmlUrl,
+        source: viewRendererSourceForScope(
+          Boolean(resolved.repository),
+          written.source,
+        ),
+      }),
     });
   } catch (error) {
     console.error("[ViewRenderers] Error creating renderer:", error);

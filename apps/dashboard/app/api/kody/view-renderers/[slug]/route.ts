@@ -14,36 +14,17 @@ import {
   isValidViewRendererSlug,
   parseViewRendererDefinition,
   readViewRendererDefinitionForTenant,
-  serializeViewRendererDefinition,
   writeViewRendererDefinitionForTenant,
-  type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
+import {
+  toViewRendererRow,
+  viewRendererSourceForScope,
+} from "@dashboard/lib/view-renderers/renderer-row";
 
 const saveSchema = z.object({
   definition: z.string().min(2).max(20_000),
   actorLogin: z.string().optional(),
 });
-
-function toRow(
-  definition: ViewRendererDefinition,
-  htmlUrl = "",
-  source: "repo" | "builtin" = "repo",
-) {
-  return {
-    slug: definition.slug,
-    name: definition.name,
-    description: definition.description ?? "",
-    purpose: definition.purpose,
-    rule: definition.rule ?? "",
-    data: definition.data ?? {},
-    defaults: definition.defaults ?? {},
-    type: definition.type,
-    ui: definition.ui,
-    source,
-    htmlUrl,
-    definition: serializeViewRendererDefinition(definition),
-  };
-}
 
 export async function GET(
   req: NextRequest,
@@ -63,7 +44,13 @@ export async function GET(
     });
     if (existing) {
       return NextResponse.json({
-        renderer: toRow(existing.definition, existing.htmlUrl, existing.source),
+        renderer: toViewRendererRow(existing.definition, {
+          htmlUrl: existing.htmlUrl,
+          source: viewRendererSourceForScope(
+            Boolean(resolved.repository),
+            existing.source,
+          ),
+        }),
       });
     }
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -121,7 +108,13 @@ export async function PATCH(
       detail: `edited view renderer ${slug}`,
     });
     return NextResponse.json({
-      renderer: toRow(written.definition, written.htmlUrl),
+      renderer: toViewRendererRow(written.definition, {
+        htmlUrl: written.htmlUrl,
+        source: viewRendererSourceForScope(
+          Boolean(resolved.repository),
+          written.source,
+        ),
+      }),
     });
   } catch (error) {
     console.error("[ViewRenderers] Error updating renderer:", error);
