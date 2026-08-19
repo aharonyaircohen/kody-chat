@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
-import { getInstallationToken } from "@kody-ade/base/auth/app-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,8 @@ const REPOSITORY = /^([^/\s]+)\/([^/\s]+)$/;
 
 function validServiceKey(req: NextRequest): boolean {
   const expected = process.env.KODY_LOOP_WAKE_API_KEY?.trim() ?? "";
-  const supplied = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const supplied =
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   if (!expected || !supplied) return false;
   const expectedHash = createHash("sha256").update(expected).digest();
   const suppliedHash = createHash("sha256").update(supplied).digest();
@@ -29,7 +30,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const repoMatch = typeof body.repo === "string" ? REPOSITORY.exec(body.repo) : null;
+  const repoMatch =
+    typeof body.repo === "string" ? REPOSITORY.exec(body.repo) : null;
   const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
   const runRequest = body.runRequest as Record<string, unknown> | undefined;
   const target = runRequest?.target as Record<string, unknown> | undefined;
@@ -45,17 +47,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid loop wake" }, { status: 400 });
   }
 
-  const githubToken = await getInstallationToken(repoMatch[1], repoMatch[2]);
-  if (!githubToken) {
+  const backgroundToken = await resolveBackgroundToken(
+    repoMatch[1],
+    repoMatch[2],
+  );
+  if (!backgroundToken) {
     return NextResponse.json(
-      { error: "GitHub App is not installed for this repository" },
+      { error: "Repository access is not configured" },
       { status: 503 },
     );
   }
 
   const runnerRequest = new NextRequest(req.url, {
     headers: {
-      "x-kody-token": githubToken,
+      "x-kody-token": backgroundToken.token,
       "x-kody-owner": repoMatch[1],
       "x-kody-repo": repoMatch[2],
     },
@@ -66,7 +71,10 @@ export async function POST(req: NextRequest) {
     dashboardUrl: req.nextUrl.origin,
   });
   if (!result.ok) {
-    return NextResponse.json({ error: "Runner start failed" }, { status: result.status });
+    return NextResponse.json(
+      { error: "Runner start failed" },
+      { status: result.status },
+    );
   }
   return NextResponse.json(
     { ok: true, runner: result.runner, machineId: result.machineId },

@@ -2,40 +2,50 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runScheduledKodyOnRunner = vi.fn();
-const getInstallationToken = vi.fn();
+const resolveBackgroundToken = vi.fn();
 
 vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
   runScheduledKodyOnRunner: (...args: unknown[]) =>
     runScheduledKodyOnRunner(...args),
 }));
 
-vi.mock("@kody-ade/base/auth/app-token", () => ({
-  getInstallationToken: (...args: unknown[]) => getInstallationToken(...args),
+vi.mock("@kody-ade/base/auth/background-token", () => ({
+  resolveBackgroundToken: (...args: unknown[]) =>
+    resolveBackgroundToken(...args),
 }));
 
 import { POST } from "../../app/api/kody/loop-wakes/dispatch/route";
 
-function request(token = "wake-secret", body: unknown = {
-  jobId: "wake-1",
-  repo: "acme/widgets",
-  runRequest: {
-    requestId: "wake-1",
-    target: { type: "workflow", id: "scheduled-fanout" },
-    intent: "tick",
-    source: "schedule",
+function request(
+  token = "wake-secret",
+  body: unknown = {
+    jobId: "wake-1",
+    repo: "acme/widgets",
+    runRequest: {
+      requestId: "wake-1",
+      target: { type: "workflow", id: "scheduled-fanout" },
+      intent: "tick",
+      source: "schedule",
+    },
   },
-}) {
-  return new NextRequest("https://dashboard.test/api/kody/loop-wakes/dispatch", {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
+) {
+  return new NextRequest(
+    "https://dashboard.test/api/kody/loop-wakes/dispatch",
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 describe("POST /api/kody/loop-wakes/dispatch", () => {
   beforeEach(() => {
     vi.stubEnv("KODY_LOOP_WAKE_API_KEY", "wake-secret");
-    getInstallationToken.mockResolvedValue("github-token");
+    resolveBackgroundToken.mockResolvedValue({
+      token: "github-token",
+      source: "app",
+    });
     runScheduledKodyOnRunner.mockResolvedValue({
       ok: true,
       runner: "fly",
@@ -68,7 +78,7 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
     expect(runnerRequest.headers.get("x-kody-token")).toBe("github-token");
     expect(runnerRequest.headers.get("x-kody-owner")).toBe("acme");
     expect(runnerRequest.headers.get("x-kody-repo")).toBe("widgets");
-    expect(getInstallationToken).toHaveBeenCalledWith("acme", "widgets");
+    expect(resolveBackgroundToken).toHaveBeenCalledWith("acme", "widgets");
     expect(options).toEqual({
       taskId: "wake-1",
       dashboardUrl: "https://dashboard.test",
@@ -82,22 +92,24 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
   });
 
   it("rejects any request other than scheduled fan-out", async () => {
-    const response = await POST(request("wake-secret", {
-      jobId: "wake-1",
-      repo: "acme/widgets",
-      runRequest: {
-        requestId: "wake-1",
-        target: { type: "workflow", id: "dangerous" },
-        intent: "tick",
-        source: "schedule",
-      },
-    }));
+    const response = await POST(
+      request("wake-secret", {
+        jobId: "wake-1",
+        repo: "acme/widgets",
+        runRequest: {
+          requestId: "wake-1",
+          target: { type: "workflow", id: "dangerous" },
+          intent: "tick",
+          source: "schedule",
+        },
+      }),
+    );
     expect(response.status).toBe(400);
     expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
   });
 
-  it("does not start when the GitHub App is not installed", async () => {
-    getInstallationToken.mockResolvedValueOnce(null);
+  it("does not start when repository access is unavailable", async () => {
+    resolveBackgroundToken.mockResolvedValueOnce(null);
     const response = await POST(request());
     expect(response.status).toBe(503);
     expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
