@@ -18,6 +18,7 @@ export interface TickFile {
   subagents?: string[];
   /** Plain-language guidance used only to decide when to delegate here. */
   whenToUse?: string;
+  primaryIntent?: string;
   /** Immutable default assignments supplied by product configuration. */
   lockedSubagents?: string[];
 }
@@ -32,6 +33,7 @@ export interface TickWriteOptions {
   capabilities?: string[];
   subagents?: string[];
   whenToUse?: string;
+  primaryIntent?: string;
 }
 
 function deriveTitle(body: string, slug: string): string {

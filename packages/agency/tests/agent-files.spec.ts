@@ -50,6 +50,7 @@ vi.mock("@kody-ade/backend/client", () => ({
 import {
   listResolvedAgentFiles,
   listStoreAgentFiles,
+  readAgentFileForTenant,
 } from "../src/agent-files";
 
 describe("Store agent repository activation", () => {
@@ -116,5 +117,25 @@ describe("Store agent repository activation", () => {
 
     expect(agents.find(({ slug }) => slug === "kody")?.source).toBe("builtin");
     expect(store.listSlugs).not.toHaveBeenCalled();
+  });
+
+  it("reads a request-scoped Agent from the explicit repository tenant", async () => {
+    store.query.mockResolvedValue({
+      slug: "test-live-agent",
+      bundle: {
+        schemaVersion: 1,
+        files: { "agent.md": "# Test Live Agent\n\nKeep working.\n" },
+      },
+      updatedAt: "2026-08-19T00:00:00.000Z",
+    });
+
+    await expect(
+      readAgentFileForTenant("test-live-agent", "selected/repository"),
+    ).resolves.toMatchObject({ slug: "test-live-agent" });
+    expect(store.query).toHaveBeenCalledWith("definitions:getCurrent", {
+      tenantId: "selected/repository",
+      kind: "agent",
+      slug: "test-live-agent",
+    });
   });
 });

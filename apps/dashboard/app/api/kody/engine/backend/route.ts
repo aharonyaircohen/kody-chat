@@ -33,6 +33,10 @@ const operations = {
     kind: "query",
     fn: backendApi.agencyRequestLoops.list,
   },
+  "loopWakes.replaceRegistrations": {
+    kind: "mutation",
+    fn: backendApi.loopWakes.replaceRegistrations,
+  },
   "agencyModel.reserveDispatch": {
     kind: "mutation",
     fn: backendApi.agencyModel.reserveDispatch,

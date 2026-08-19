@@ -10,6 +10,7 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
+import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
 
 function isLegacyEventTrigger(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -61,6 +62,11 @@ export async function PATCH(
       );
     }
     const updatedAt = "";
+    await syncLoopWakeRegistration({
+      owner: resolved.owner,
+      repo: resolved.repo,
+      loop,
+    });
     await saveRepositoryLoop(
       octokit,
       resolved.owner,
@@ -102,5 +108,10 @@ export async function DELETE(
     id,
     `chore(kody): remove loop ${id}`,
   );
+  await syncLoopWakeRegistration({
+    owner: resolved.owner,
+    repo: resolved.repo,
+    loopId: id,
+  });
   return NextResponse.json({ success: true });
 }

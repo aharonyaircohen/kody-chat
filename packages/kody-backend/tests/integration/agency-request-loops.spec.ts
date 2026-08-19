@@ -83,10 +83,26 @@ describe("agency request runtime Loops", () => {
         enabled: true,
       },
     ]);
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("loopWakeTargets")
+          .withIndex("by_tenant", (q) => q.eq("tenantId", TENANT))
+          .unique(),
+      ),
+    ).resolves.toMatchObject({ registrationCount: 1 });
   });
 
   it("removes the Loop by completing the Todo", async () => {
     const t = setup();
+    await t.mutation(api.repoDocs.save, {
+      tenantId: TENANT,
+      kind: "todo:build-healthy-ci",
+      doc: todo("monitoring", [
+        { kind: "loop", id: "agency-request-build-healthy-ci" },
+      ]),
+      updatedAt: "2026-08-13T23:59:00.000Z",
+    });
     await t.mutation(api.repoDocs.save, {
       tenantId: TENANT,
       kind: "todo:build-healthy-ci",
@@ -97,6 +113,14 @@ describe("agency request runtime Loops", () => {
     await expect(
       t.query(api.agencyRequestLoops.list, { tenantId: TENANT }),
     ).resolves.toEqual([]);
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("loopWakeTargets")
+          .withIndex("by_tenant", (q) => q.eq("tenantId", TENANT))
+          .unique(),
+      ),
+    ).resolves.toBeNull();
   });
 
   it("does not start another attempt while the current Workflow is running", async () => {

@@ -1,5 +1,5 @@
 export type ReferenceKind =
-  "todo" | "loop" | "workflow" | "capability" | "agent";
+  "todo" | "loop" | "workflow" | "capability" | "pipeline" | "agent";
 
 export interface DefinitionRef {
   kind: ReferenceKind;
@@ -11,6 +11,16 @@ export interface AgentDefinition {
   name: string;
   instructions: string;
   permissions: string[];
+}
+
+export interface AgentState {
+  version: 1;
+  agent: string;
+  revision: number;
+  cursor: string;
+  summary: string;
+  data: Readonly<Record<string, unknown>>;
+  updatedAt: string;
 }
 
 export interface WorkflowStep {
@@ -122,7 +132,9 @@ export type Trigger =
 export interface LoopDefinition {
   id: string;
   trigger: Trigger;
-  target: DefinitionRef & { kind: "workflow" | "capability" };
+  target: DefinitionRef & {
+    kind: "workflow" | "capability" | "pipeline" | "agent";
+  };
   input: Readonly<Record<string, unknown>>;
   enabled: boolean;
 }
@@ -227,6 +239,34 @@ export function createAgentDefinition(value: unknown): AgentDefinition {
     name: text(input.name, "Agent name"),
     instructions: text(input.instructions, "Agent instructions"),
     permissions: strings(input.permissions, "Agent permissions"),
+  });
+}
+
+export function createAgentState(value: unknown): AgentState {
+  const input = record(value, "AgentState");
+  exact(
+    input,
+    ["version", "agent", "revision", "cursor", "summary", "data", "updatedAt"],
+    "AgentState",
+  );
+  if (input.version !== 1) throw new Error("AgentState version must be 1");
+  if (!Number.isInteger(input.revision) || Number(input.revision) < 0) {
+    throw new Error("AgentState revision must be a non-negative integer");
+  }
+  if (typeof input.cursor !== "string") {
+    throw new Error("AgentState cursor must be a string");
+  }
+  if (typeof input.summary !== "string") {
+    throw new Error("AgentState summary must be a string");
+  }
+  return Object.freeze({
+    version: 1,
+    agent: identifier(input.agent, "AgentState agent"),
+    revision: Number(input.revision),
+    cursor: input.cursor,
+    summary: input.summary,
+    data: jsonObject(input.data, "AgentState data"),
+    updatedAt: timestamp(input.updatedAt, "AgentState updatedAt"),
   });
 }
 
@@ -581,7 +621,7 @@ export function createLoopDefinition(value: unknown): LoopDefinition {
     trigger: trigger(input.trigger),
     target: reference(
       input.target,
-      ["workflow", "capability"],
+      ["workflow", "capability", "pipeline", "agent"],
       "Loop target",
     ) as LoopDefinition["target"],
     input: jsonObject(input.input, "Loop input"),

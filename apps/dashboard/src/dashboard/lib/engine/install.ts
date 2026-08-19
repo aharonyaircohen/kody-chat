@@ -53,6 +53,7 @@ export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 export const WORKFLOW_TEMPLATE_SOURCE =
   "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
 export const WORKFLOW_PATH = KODY_ENGINE_WORKFLOW_PATH;
+const WORKFLOW_TEMPLATE_TIMEOUT_MS = 5_000;
 
 export interface InstallEngineInput {
   octokit: Octokit;
@@ -103,6 +104,7 @@ async function loadWorkflowTemplate(): Promise<{
 }> {
   const response = await fetch(WORKFLOW_TEMPLATE_SOURCE, {
     cache: "no-store",
+    signal: AbortSignal.timeout(WORKFLOW_TEMPLATE_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(
@@ -239,9 +241,22 @@ export async function installEngine(
   const { octokit, owner, repo, token, hookUrl, force } = input;
 
   try {
-    const { content: template, source: templateSource } =
-      await loadWorkflowTemplate();
     const existing = await readExisting(octokit, owner, repo);
+    let template: string;
+    let templateSource: string;
+    try {
+      const remote = await loadWorkflowTemplate();
+      template = remote.content;
+      templateSource = remote.source;
+    } catch (err) {
+      if (!existing) throw err;
+      template = existing.content;
+      templateSource = `repository:${WORKFLOW_PATH}`;
+      logger.warn(
+        { err, owner, repo },
+        "installEngine: remote workflow template unavailable; using existing repository workflow",
+      );
+    }
 
     let workflowAction: WorkflowAction = "unchanged";
     let workflowCommitSha: string | null = null;

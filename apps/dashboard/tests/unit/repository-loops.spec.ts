@@ -16,7 +16,7 @@ const loop = {
   enabled: true,
 };
 
-function file(value = loop, sha = "file-sha") {
+function file(value: unknown = loop, sha = "file-sha") {
   return {
     data: {
       type: "file",
@@ -60,6 +60,32 @@ describe("repository loops", () => {
     await expect(
       readRepositoryLoop(octokit, "o", "r", "missing"),
     ).resolves.toBeNull();
+  });
+
+  it("reads the previous Live Agent target as the current capability target", async () => {
+    const octokit = {
+      repos: {
+        getContent: vi.fn().mockResolvedValue(
+          file({
+            id: "live-agent-operations-agent",
+            trigger: { type: "schedule", every: "1h" },
+            target: { kind: "agent", id: "operations-agent" },
+            input: { intent: "healthy-operations" },
+            enabled: true,
+          }),
+        ),
+      },
+    } as never;
+
+    await expect(
+      readRepositoryLoop(octokit, "o", "r", "live-agent-operations-agent"),
+    ).resolves.toEqual({
+      id: "live-agent-operations-agent",
+      trigger: { type: "schedule", every: "1h" },
+      target: { kind: "capability", id: "live-agent" },
+      input: { agent: "operations-agent", intent: "healthy-operations" },
+      enabled: true,
+    });
   });
 
   it("writes a Loop to the repository definition path", async () => {

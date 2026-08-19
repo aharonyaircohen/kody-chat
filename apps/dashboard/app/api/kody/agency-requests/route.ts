@@ -19,6 +19,7 @@ import {
   setGitHubContext,
 } from "@kody-ade/workspace/github";
 import { readStoreStrategy } from "@dashboard/lib/store-strategies";
+import { saveBlueprintInstallation } from "@dashboard/lib/blueprint-installations";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -186,6 +187,25 @@ export async function POST(req: NextRequest) {
       },
       resolveBlueprint: (id) => readStoreStrategy(octokit, id),
     });
+    if (parsed.data.blueprintId) {
+      const blueprint = await readStoreStrategy(
+        octokit,
+        parsed.data.blueprintId,
+      );
+      if (blueprint) {
+        await saveBlueprintInstallation({
+          owner: auth.owner,
+          repo: auth.repo,
+          blueprintId: blueprint.blueprint.id,
+          blueprintVersion: blueprint.blueprint.version,
+          status: "installing",
+          requestId:
+            parsed.data.source.kind === "store-blueprint"
+              ? parsed.data.source.requestId
+              : parsed.data.source.effectId,
+        });
+      }
+    }
     return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
     console.error("[Agency requests] submit failed", error);

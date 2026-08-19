@@ -64,6 +64,7 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
+import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -584,7 +585,10 @@ async function activate(
       repositoryWriteMode,
     );
     const existing = await readRepositoryLoop(octokit, owner, repo, slug);
-    if (existing) return targetResult;
+    if (existing) {
+      await syncLoopWakeRegistration({ owner, repo, loop: existing });
+      return targetResult;
+    }
     if (repositoryWriteMode === "defer") {
       const file = prepareRepositoryLoopFile(storeLoop.loop);
       return combineActivationResults([
@@ -601,6 +605,7 @@ async function activate(
         },
       ]);
     }
+    await syncLoopWakeRegistration({ owner, repo, loop: storeLoop.loop });
     await saveRepositoryLoop(
       octokit,
       owner,
@@ -776,6 +781,7 @@ async function deactivate(
       slug,
       `chore(kody): remove store loop ${slug}`,
     );
+    await syncLoopWakeRegistration({ owner, repo, loopId: slug });
     return { removed: true, status: "removed" as const };
   }
   const field = fieldByKind[kind];

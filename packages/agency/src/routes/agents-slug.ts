@@ -77,6 +77,12 @@ const updateAgentSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   whenToUse: z.string().trim().max(500).optional(),
+  primaryIntent: z
+    .union([
+      z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
+      z.literal(""),
+    ])
+    .optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
     .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
@@ -117,8 +123,15 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, whenToUse, capabilities, subagents, actorLogin } =
-      updateAgentSchema.parse(payload);
+    const {
+      title,
+      body,
+      whenToUse,
+      primaryIntent,
+      capabilities,
+      subagents,
+      actorLogin,
+    } = updateAgentSchema.parse(payload);
 
     if (existing.source === "builtin") {
       const changesIdentity =
@@ -126,7 +139,11 @@ export async function PATCH(
         body !== undefined ||
         whenToUse !== undefined ||
         capabilities !== undefined;
-      if (slug !== "kody" || changesIdentity || subagents === undefined) {
+      if (
+        changesIdentity ||
+        (subagents === undefined && primaryIntent === undefined) ||
+        (slug !== "kody" && subagents !== undefined)
+      ) {
         return NextResponse.json(
           {
             error: "builtin_agent_locked",
@@ -171,6 +188,10 @@ export async function PATCH(
 
     const nextWhenToUse =
       whenToUse === undefined ? existing.whenToUse : whenToUse;
+    const nextPrimaryIntent =
+      primaryIntent === undefined
+        ? existing.primaryIntent
+        : primaryIntent || undefined;
     if (
       whenToUse !== undefined &&
       !nextWhenToUse?.trim() &&
@@ -189,11 +210,11 @@ export async function PATCH(
     if (actorResult instanceof NextResponse) return actorResult;
 
     let agentMember;
-    if (existing.source === "builtin" && slug === "kody") {
+    if (existing.source === "builtin") {
       const additionalSubagents = effectiveSubagents.filter(
         (assignedSlug) => !lockedSubagents.includes(assignedSlug),
       );
-      if (additionalSubagents.length === 0) {
+      if (additionalSubagents.length === 0 && !nextPrimaryIntent) {
         await deleteAgentFile(slug);
       } else {
         await writeAgentFile({
@@ -203,9 +224,15 @@ export async function PATCH(
           sha: "",
           capabilities: existing.capabilities,
           subagents: additionalSubagents,
+          ...(nextPrimaryIntent ? { primaryIntent: nextPrimaryIntent } : {}),
         });
       }
-      agentMember = { ...existing, subagents: effectiveSubagents };
+      agentMember = {
+        ...existing,
+        subagents: effectiveSubagents,
+        ...(nextPrimaryIntent ? { primaryIntent: nextPrimaryIntent } : {}),
+      };
+      if (!nextPrimaryIntent) delete agentMember.primaryIntent;
     } else {
       agentMember = await writeAgentFile({
         slug,
@@ -215,6 +242,7 @@ export async function PATCH(
         capabilities: capabilities ?? existing.capabilities,
         subagents: assignedSubagents,
         ...(nextWhenToUse ? { whenToUse: nextWhenToUse } : {}),
+        ...(nextPrimaryIntent ? { primaryIntent: nextPrimaryIntent } : {}),
       });
     }
     if (!headerAuth) {

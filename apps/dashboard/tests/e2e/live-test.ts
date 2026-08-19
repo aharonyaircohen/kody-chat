@@ -15,6 +15,8 @@ const SECRET_ENVIRONMENT_NAMES = [
   "GH_TOKEN",
   "FLY_API_TOKEN",
   "BRAIN_CHAT_API_KEY",
+  "E2E_QA_EMAIL",
+  "E2E_QA_PASSWORD",
 ];
 
 function configuredSecrets(): string[] {
@@ -33,7 +35,11 @@ function monitorPage(page: Page, diagnostics: string[]) {
   page.on("pageerror", (error) => record(`[pageerror] ${error.message}`));
   page.on("console", (message) => {
     if (message.type() === "error") {
-      if (/^Failed to load resource: the server responded with a status of \d+/.test(message.text())) {
+      if (
+        /^Failed to load resource: the server responded with a status of \d+/.test(
+          message.text(),
+        )
+      ) {
         return;
       }
       record(`[console:error] ${message.text()}`);

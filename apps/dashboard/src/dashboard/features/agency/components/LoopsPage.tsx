@@ -487,7 +487,7 @@ function LoopForm({
   const [condition, setCondition] = useState(
     loop?.trigger.type === "condition" ? loop.trigger.expression : "",
   );
-  const [targetKind, setTargetKind] = useState<"workflow" | "capability">(
+  const [targetKind, setTargetKind] = useState<Loop["target"]["kind"]>(
     loop?.target.kind ?? "workflow",
   );
   const [targetId, setTargetId] = useState<string | null>(
@@ -707,7 +707,7 @@ function LoopForm({
         <Select
           value={targetKind}
           onValueChange={(value) => {
-            setTargetKind(value as "workflow" | "capability");
+            setTargetKind(value as Loop["target"]["kind"]);
             setTargetId(null);
           }}
         >

@@ -62,6 +62,8 @@ export interface TickFrontmatter {
   subagents?: string[];
   /** Plain-language guidance for selecting this Agent as a specialist. */
   whenToUse?: string;
+  /** Primary Intent relation for a user-selected live Agent. */
+  primaryIntent?: string;
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -195,6 +197,11 @@ function parseFlatYaml(text: string): TickFrontmatter {
       if (list.length > 0) out.subagents = list;
     } else if (key === "whenToUse" && value.length > 0) {
       out.whenToUse = value;
+    } else if (
+      key === "primaryIntent" &&
+      /^[a-z0-9][a-z0-9_-]*$/.test(value)
+    ) {
+      out.primaryIntent = value;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -220,6 +227,9 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
     lines.push(
       `whenToUse: ${frontmatter.whenToUse.trim().replace(/\s+/g, " ")}`,
     );
+  }
+  if (frontmatter.primaryIntent) {
+    lines.push(`primaryIntent: ${frontmatter.primaryIntent}`);
   }
   return lines;
 }

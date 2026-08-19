@@ -49,6 +49,7 @@ import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { useGuidedFlowChat } from "@kody-ade/kody-chat-dashboard/guided-flows/chat-controller";
 import { CREATE_BLUEPRINT_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/builtins";
+import { applyStoreBlueprint } from "@dashboard/lib/store-blueprint-application";
 
 export type CatalogKind =
   | "all"
@@ -273,8 +274,7 @@ const KIND_COLORS: Record<
     tabIdle:
       "border-border bg-background/60 text-muted-foreground hover:text-fuchsia-700 dark:hover:text-fuchsia-100",
     icon: "text-fuchsia-600 dark:text-fuchsia-300",
-    iconHover:
-      "group-hover:text-fuchsia-600 dark:group-hover:text-fuchsia-300",
+    iconHover: "group-hover:text-fuchsia-600 dark:group-hover:text-fuchsia-300",
     borderHover: "hover:border-fuchsia-500/30",
     tint: "bg-fuchsia-500/10",
     text: "text-fuchsia-700 dark:text-fuchsia-100",
@@ -446,67 +446,6 @@ async function mutateStoreSolution(
   }
 }
 
-async function ensureEngineInstalled(
-  headers: Record<string, string>,
-): Promise<void> {
-  const res = await fetch("/api/kody/engine/install", {
-    method: "POST",
-    headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify({}),
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-}
-
-async function applyStoreBlueprint(
-  headers: Record<string, string>,
-  item: StoreCatalogItem,
-): Promise<{ todoSlug: string }> {
-  await ensureEngineInstalled(headers);
-  const requestId = crypto.randomUUID();
-  const requestResponse = await fetch("/api/kody/agency-requests", {
-    method: "POST",
-    headers: { "content-type": "application/json", ...headers },
-    body: JSON.stringify({
-      blueprintId: item.slug,
-      source: {
-        kind: "store-blueprint",
-        blueprintId: item.slug,
-        requestId,
-      },
-      answers: {},
-    }),
-  });
-  const request = (await requestResponse.json().catch(() => ({}))) as {
-    todoSlug?: string;
-    error?: string;
-    message?: string;
-  };
-  if (!requestResponse.ok || !request.todoSlug) {
-    throw new Error(
-      request.message || request.error || `HTTP ${requestResponse.status}`,
-    );
-  }
-
-  const runResponse = await fetch(
-    `/api/kody/agency-requests/${encodeURIComponent(request.todoSlug)}/run`,
-    { method: "POST", headers },
-  );
-  const run = (await runResponse.json().catch(() => ({}))) as {
-    error?: string;
-    message?: string;
-  };
-  if (!runResponse.ok) {
-    throw new Error(run.message || run.error || `HTTP ${runResponse.status}`);
-  }
-  return { todoSlug: request.todoSlug };
-}
-
 async function addCatalogStoreReference(
   headers: Record<string, string>,
   item: StoreCatalogItem,
@@ -652,8 +591,7 @@ export function StoreCatalogManager({
   );
   const selected = useMemo(
     () =>
-      items.find((item) => storeCatalogItemKey(item) === selectedKey) ??
-      null,
+      items.find((item) => storeCatalogItemKey(item) === selectedKey) ?? null,
     [items, selectedKey],
   );
   const selectedSolution = useMemo(
@@ -778,12 +716,13 @@ export function StoreCatalogManager({
     },
   });
   const blueprintMutation = useMutation({
-    mutationFn: (item: StoreCatalogItem) =>
-      applyStoreBlueprint(headers, item),
+    mutationFn: (item: StoreCatalogItem) => applyStoreBlueprint(headers, item),
     onSuccess: ({ todoSlug }) => {
       if (!auth) return;
       toast.success("Blueprint started — Kody is monitoring it");
-      router.push(repoScopedHref(auth, `/todos/${encodeURIComponent(todoSlug)}`));
+      router.push(
+        repoScopedHref(auth, `/todos/${encodeURIComponent(todoSlug)}`),
+      );
     },
     onError: (error: Error) => {
       toast.error("Couldn't start this Blueprint", {
@@ -1066,8 +1005,7 @@ export function StoreCatalogManager({
                 (installMutation.isPending || uninstallMutation.isPending)) ||
               (blueprintMutation.variables
                 ? storeCatalogItemKey(blueprintMutation.variables) ===
-                    storeCatalogItemKey(selected) &&
-                  blueprintMutation.isPending
+                    storeCatalogItemKey(selected) && blueprintMutation.isPending
                 : false)
             }
           />
@@ -1580,9 +1518,9 @@ function CatalogDetail({
                 : "Installing..."
             : item.kind === "blueprint"
               ? "Apply Blueprint"
-            : installed
-              ? "Uninstall"
-              : "Install"}
+              : installed
+                ? "Uninstall"
+                : "Install"}
         </Button>
       </div>
     </DialogContent>

@@ -250,6 +250,8 @@ export async function POST(request: Request) {
     });
     await completeAgencyRequestsForWorkflow({
       octokit,
+      owner,
+      repo,
       workflowId,
       runId,
       ...(parsed.data.loopId ? { loopId: parsed.data.loopId } : {}),

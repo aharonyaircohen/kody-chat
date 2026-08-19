@@ -99,6 +99,7 @@ const createAgentSchema = z.object({
   title: z.string().min(1),
   body: z.string().default(""),
   whenToUse: z.string().trim().max(500).optional(),
+  primaryIntent: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
     .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       whenToUse,
+      primaryIntent,
       capabilities,
       subagents,
       actorLogin,
@@ -201,6 +203,7 @@ export async function POST(req: NextRequest) {
       title,
       body,
       ...(whenToUse ? { whenToUse } : {}),
+      ...(primaryIntent ? { primaryIntent } : {}),
       ...(capabilities ? { capabilities } : {}),
       ...(assignedSubagents.length > 0 ? { subagents: assignedSubagents } : {}),
     });

@@ -80,6 +80,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "create_or_update_workflow",
     "remove_workflow",
     "run_workflow",
+    "get_blueprint_status",
     // ── Agent admin (actor-gated) ──────────────────────────────────────────
     "list_agents",
     "read_agent",

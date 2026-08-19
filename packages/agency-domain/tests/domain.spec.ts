@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAgentState,
   createAgencyRequestState,
   createLoopDefinition,
   createRun,
@@ -213,6 +214,48 @@ describe("simple AI Agency domain", () => {
         health: "healthy",
       }),
     ).toThrow(/health/);
+  });
+
+  it.each(["workflow", "capability", "pipeline", "agent"] as const)(
+    "allows a Loop to target a %s",
+    (kind) => {
+      expect(
+        createLoopDefinition({
+          id: `scheduled-${kind}`,
+          trigger: { type: "schedule", every: "1h" },
+          target: { kind, id: `${kind}-one` },
+          input: {},
+          enabled: true,
+        }).target,
+      ).toEqual({ kind, id: `${kind}-one` });
+    },
+  );
+
+  it("models AgentState as Agent-owned continuation only", () => {
+    expect(
+      createAgentState({
+        version: 1,
+        agent: "operations-agent",
+        revision: 3,
+        cursor: "run-42",
+        summary: "Waiting for the deployment result.",
+        data: { deploymentId: "dep-1" },
+        updatedAt: "2026-08-19T00:00:00.000Z",
+      }),
+    ).toMatchObject({ agent: "operations-agent", revision: 3 });
+
+    expect(() =>
+      createAgentState({
+        version: 1,
+        agent: "operations-agent",
+        revision: 0,
+        cursor: "",
+        summary: "",
+        data: {},
+        updatedAt: "2026-08-19T00:00:00.000Z",
+        schedule: "1h",
+      }),
+    ).toThrow(/schedule/);
   });
 
   it("records the Agent used by a Run and has no Implementation reference", () => {

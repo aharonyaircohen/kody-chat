@@ -98,6 +98,7 @@ import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
+import { createBlueprintTools } from "../tools/blueprint-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
 import { assessPreparedAgencyRequest } from "@kody-ade/agency/agency-request-manager";
@@ -1045,18 +1046,19 @@ async function handleKodyDirectPost(
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (verifiedUserId && !clientSurface) {
     const personalTenantId = `user:${verifiedUserId}`;
-    if (!repo) try {
-      memoryContext = await loadRelevantMemoryForPrompt(
-        {
-          actor: { kind: "user", id: verifiedUserId },
-          tenantId: personalTenantId,
-          includeRepositoryScope: false,
-        },
-        latestUserText ?? "",
-      );
-    } catch (err) {
-      traceWarn({ traceId, err }, "personal memory unavailable");
-    }
+    if (!repo)
+      try {
+        memoryContext = await loadRelevantMemoryForPrompt(
+          {
+            actor: { kind: "user", id: verifiedUserId },
+            tenantId: personalTenantId,
+            includeRepositoryScope: false,
+          },
+          latestUserText ?? "",
+        );
+      } catch (err) {
+        traceWarn({ traceId, err }, "personal memory unavailable");
+      }
     try {
       const row = (await createBackendClient().query(backendApi.repoDocs.get, {
         tenantId: personalTenantId,
@@ -1067,7 +1069,8 @@ async function handleKodyDirectPost(
       traceWarn({ traceId, err }, "personal instructions unavailable");
     }
     try {
-      const rendererContext = await loadViewRendererContextForTenant(personalTenantId);
+      const rendererContext =
+        await loadViewRendererContextForTenant(personalTenantId);
       viewRendererRules = rendererContext.rules;
       viewRendererDefinitions = rendererContext.definitions;
     } catch (err) {
@@ -1121,14 +1124,17 @@ async function handleKodyDirectPost(
     }
     try {
       const repositoryInstructions = await loadInstructionsForPrompt();
-      userInstructions = [
-        userInstructions ? `## Personal instructions\n${userInstructions}` : null,
-        repositoryInstructions
-          ? `## Repository instructions\n${repositoryInstructions}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join("\n\n") || null;
+      userInstructions =
+        [
+          userInstructions
+            ? `## Personal instructions\n${userInstructions}`
+            : null,
+          repositoryInstructions
+            ? `## Repository instructions\n${repositoryInstructions}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n") || null;
     } catch (err) {
       // Instructions are best-effort; never block the chat. Log and continue.
       traceWarn(
@@ -1177,7 +1183,10 @@ async function handleKodyDirectPost(
         repo: repo.repo,
       });
       const mergedDefinitions = new Map(
-        viewRendererDefinitions.map((definition) => [definition.slug, definition]),
+        viewRendererDefinitions.map((definition) => [
+          definition.slug,
+          definition,
+        ]),
       );
       for (const definition of viewRendererContext.definitions) {
         mergedDefinitions.set(definition.slug, definition);
@@ -1587,6 +1596,9 @@ async function handleKodyDirectPost(
         removeWorkflow: (workflowId) => agencyApi.removeWorkflow(workflowId),
         runWorkflow: (command) => workflowApi.run(command),
       }),
+      ...createBlueprintTools({
+        getBlueprintStatus: () => agencyApi.getBlueprintStatus(),
+      }),
       ...createAgencyLifecycleTools({
         owner: repo.owner,
         repo: repo.repo,
@@ -1703,7 +1715,9 @@ async function handleKodyDirectPost(
           ...(typeof body.conversationId === "string"
             ? { conversationId: body.conversationId }
             : {}),
-          ...(typeof body.turnId === "string" ? { messageId: body.turnId } : {}),
+          ...(typeof body.turnId === "string"
+            ? { messageId: body.turnId }
+            : {}),
         })
       : {}),
     ...(verifiedUserId && !clientSurface
@@ -1711,7 +1725,8 @@ async function handleKodyDirectPost(
           tenantId: repo
             ? `${repo.owner}/${repo.repo}`
             : `user:${verifiedUserId}`,
-          actorId: repo && verifiedActorLogin ? verifiedActorLogin : verifiedUserId,
+          actorId:
+            repo && verifiedActorLogin ? verifiedActorLogin : verifiedUserId,
           ...(typeof body.conversationId === "string" &&
           body.conversationId.trim()
             ? { conversationId: body.conversationId.trim() }

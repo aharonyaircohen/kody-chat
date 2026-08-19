@@ -128,6 +128,7 @@ export function createAgencyApiClient({
       }),
 
     listCapabilities: () => send("/api/kody/capabilities", "GET"),
+    getBlueprintStatus: () => send("/api/kody/blueprints/status", "GET"),
     readCapability: (slug: string) =>
       send(itemPath("/api/kody/capabilities", slug), "GET"),
     createCapability: (input: CapabilityWriteInput) =>

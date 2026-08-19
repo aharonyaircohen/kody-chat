@@ -159,6 +159,45 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("installEngine", () => {
+  it("uses the existing workflow when the remote template is unavailable", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("template host offline"));
+    const octokit = createMockOctokit();
+    octokit.rest.repos.getContent.mockImplementation(
+      async ({ path }: { path: string }) => {
+        if (path === ".github/workflows/kody.yml") {
+          return {
+            data: {
+              content: Buffer.from(KODY_WORKFLOW, "utf-8").toString("base64"),
+              sha: "workflow-sha",
+            },
+          };
+        }
+        throw Object.assign(new Error("Not Found"), { status: 404 });
+      },
+    );
+
+    const result = await installEngine({
+      octokit,
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "http://localhost:3333/api/webhooks/github",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.workflow).toMatchObject({
+      action: "unchanged",
+      templateSource: "repository:.github/workflows/kody.yml",
+    });
+    expect(
+      octokit.rest.repos.createOrUpdateFileContents.mock.calls.some(
+        ([input]: [{ path: string }]) =>
+          input.path === ".github/workflows/kody.yml",
+      ),
+    ).toBe(false);
+  });
+
   it("reports a skipped local webhook without failing the engine install", async () => {
     webhooks.ensureWebhook.mockResolvedValueOnce({
       ok: false,
@@ -295,6 +334,7 @@ describe("installEngine", () => {
       );
       expect(fetch).toHaveBeenCalledWith(WORKFLOW_TEMPLATE_SOURCE, {
         cache: "no-store",
+        signal: expect.any(AbortSignal),
       });
     });
 

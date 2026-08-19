@@ -568,6 +568,37 @@ export default defineSchema({
     .index("by_tenant_key", ["tenantId", "idempotencyKey"])
     .index("by_policy_status", ["tenantId", "policyHash", "status"]),
 
+  loopWakeRegistrations: defineTable({
+    tenantId: v.string(),
+    loopId: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_loop", ["tenantId", "loopId"])
+    .index("by_tenant", ["tenantId"]),
+
+  loopWakeTargets: defineTable({
+    tenantId: v.string(),
+    registrationCount: v.number(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId"]),
+
+  loopWakeReceipts: defineTable({
+    wakeId: v.string(),
+    tenantId: v.string(),
+    slot: v.string(),
+    status: v.union(
+      v.literal("reserved"),
+      v.literal("shadow"),
+      v.literal("dispatched"),
+      v.literal("failed"),
+    ),
+    detail: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_wake", ["tenantId", "wakeId"])
+    .index("by_tenant", ["tenantId", "createdAt"]),
+
   agencyApprovals: defineTable({
     tenantId: v.string(),
     approvalId: v.string(),
@@ -773,6 +804,21 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "kind", "recordId"]),
 
+  blueprintInstallations: defineTable({
+    tenantId: v.string(),
+    blueprintId: v.string(),
+    blueprintVersion: v.string(),
+    status: v.union(
+      v.literal("installing"),
+      v.literal("active"),
+      v.literal("blocked"),
+    ),
+    requestId: v.string(),
+    maintainerId: v.optional(v.string()),
+    evidence: v.array(v.string()),
+    updatedAt: v.string(),
+  }).index("by_blueprint", ["tenantId", "blueprintId"]),
+
   taskState: defineTable({
     tenantId: v.string(),
     taskKey: v.string(), // "2", "issues/2", "prs/3"
@@ -787,6 +833,13 @@ export default defineSchema({
     state: v.any(),
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "slug"]),
+
+  agentStates: defineTable({
+    tenantId: v.string(),
+    agent: v.string(),
+    state: v.any(),
+    updatedAt: v.string(),
+  }).index("by_agent", ["tenantId", "agent"]),
 
   // Daily append-only streams (activity/<date>.jsonl, events/log/<date>.jsonl).
   dailyLogs: defineTable({

@@ -35,6 +35,32 @@ function decode(content: string | null): string {
   );
 }
 
+function normalizeStoredLoop(value: unknown): LoopDefinition {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const legacy = value as {
+      target?: { kind?: unknown; id?: unknown };
+      input?: unknown;
+    };
+    if (
+      legacy.target?.kind === "agent" &&
+      typeof legacy.target.id === "string" &&
+      legacy.input &&
+      typeof legacy.input === "object" &&
+      !Array.isArray(legacy.input)
+    ) {
+      return createLoopDefinition({
+        ...value,
+        target: { kind: "capability", id: "live-agent" },
+        input: {
+          ...(legacy.input as Record<string, unknown>),
+          agent: legacy.target.id,
+        },
+      });
+    }
+  }
+  return createLoopDefinition(value);
+}
+
 export async function readRepositoryLoop(
   octokit: Octokit,
   owner: string,
@@ -45,7 +71,7 @@ export async function readRepositoryLoop(
   const file = await readGitHubFileForWrite(octokit, owner, repo, loopPath(id));
   if (!file?.contentBase64) return null;
   try {
-    const loop = createLoopDefinition(JSON.parse(decode(file.contentBase64)));
+    const loop = normalizeStoredLoop(JSON.parse(decode(file.contentBase64)));
     return loop.id === id ? loop : null;
   } catch {
     return null;

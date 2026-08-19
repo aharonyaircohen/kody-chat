@@ -73,6 +73,20 @@ describe("public Agent routing", () => {
     ).toBe(false);
   });
 
+  it("keeps Blueprint installation questions with parent Kody", async () => {
+    const generate = vi.fn();
+    await expect(
+      routePublicAgentTask({
+        userText:
+          "Is any Blueprint installed in this repository, and what is maintaining it?",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("keeps durable automation ownership requests with Kody intake", async () => {
     expect(
       isAgencyRequestIntakeRequest(

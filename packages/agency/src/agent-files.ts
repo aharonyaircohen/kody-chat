@@ -76,6 +76,9 @@ function agentFileFromDefinition(definition: AgentDefinition): TickFile {
       : {}),
     ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
     ...(frontmatter.whenToUse ? { whenToUse: frontmatter.whenToUse } : {}),
+    ...(frontmatter.primaryIntent
+      ? { primaryIntent: frontmatter.primaryIntent }
+      : {}),
   };
 }
 
@@ -93,11 +96,18 @@ export async function listAgentFiles(): Promise<AgentFile[]> {
 }
 
 export async function readAgentFile(slug: string): Promise<AgentFile | null> {
+  return readAgentFileForTenant(slug, tenantId());
+}
+
+export async function readAgentFileForTenant(
+  slug: string,
+  explicitTenantId: string,
+): Promise<AgentFile | null> {
   if (!isValidSlug(slug)) return null;
   const definition = (await createBackendClient().query(
     backendApi.definitions.getCurrent,
     {
-      tenantId: tenantId(),
+      tenantId: explicitTenantId,
       kind: "agent",
       slug,
     },
@@ -130,6 +140,7 @@ function buildRawMarkdown(opts: AgentWriteOptions): string {
       ...(opts.capabilities ? { capabilities: opts.capabilities } : {}),
       ...(opts.subagents ? { subagents: opts.subagents } : {}),
       ...(opts.whenToUse ? { whenToUse: opts.whenToUse } : {}),
+      ...(opts.primaryIntent ? { primaryIntent: opts.primaryIntent } : {}),
     },
     titled,
   );
@@ -137,6 +148,13 @@ function buildRawMarkdown(opts: AgentWriteOptions): string {
 
 export async function writeAgentFile(
   opts: AgentWriteOptions,
+): Promise<AgentFile> {
+  return writeAgentFileForTenant(opts, tenantId());
+}
+
+export async function writeAgentFileForTenant(
+  opts: AgentWriteOptions,
+  explicitTenantId: string,
 ): Promise<AgentFile> {
   if (!isValidSlug(opts.slug)) {
     throw new Error(`Invalid agent slug "${opts.slug}"`);
@@ -148,7 +166,7 @@ export async function writeAgentFile(
   };
   const createdAt = new Date().toISOString();
   await createBackendClient().mutation(backendApi.definitions.publish, {
-    tenantId: tenantId(),
+    tenantId: explicitTenantId,
     kind: "agent",
     slug: opts.slug,
     version: definitionVersion(bundle),
@@ -219,7 +237,19 @@ export async function readResolvedAgentFile(
   slug: string,
   octokitOverride?: Octokit,
 ): Promise<AgentFile | null> {
-  const local = await readAgentFile(slug);
+  return readResolvedAgentFileForTenant(
+    slug,
+    tenantId(),
+    octokitOverride,
+  );
+}
+
+export async function readResolvedAgentFileForTenant(
+  slug: string,
+  explicitTenantId: string,
+  octokitOverride?: Octokit,
+): Promise<AgentFile | null> {
+  const local = await readAgentFileForTenant(slug, explicitTenantId);
   const builtin = readBuiltinAgentFile(slug);
   if (builtin) {
     return mergeBuiltinAgent(builtin, local?.source === "store" ? null : local);
@@ -286,9 +316,16 @@ function mergeBuiltinAgent(
           ...(localAssignment?.subagents ?? []),
         ]),
       ],
+      ...(localAssignment?.primaryIntent
+        ? { primaryIntent: localAssignment.primaryIntent }
+        : {}),
     };
   }
-  if (builtin.slug !== "kody") return builtin;
+  if (builtin.slug !== "kody") {
+    return localAssignment?.primaryIntent
+      ? { ...builtin, primaryIntent: localAssignment.primaryIntent }
+      : builtin;
+  }
   const lockedSubagents = builtin.lockedSubagents ?? builtin.subagents ?? [];
   const additionalSubagents = (localAssignment?.subagents ?? []).filter(
     (slug) => !lockedSubagents.includes(slug),
@@ -297,6 +334,9 @@ function mergeBuiltinAgent(
     ...builtin,
     lockedSubagents: [...lockedSubagents],
     subagents: [...new Set([...lockedSubagents, ...additionalSubagents])],
+    ...(localAssignment?.primaryIntent
+      ? { primaryIntent: localAssignment.primaryIntent }
+      : {}),
   };
 }
 
@@ -365,5 +405,8 @@ export async function readStoreAgentFile(
       : {}),
     ...(frontmatter.subagents ? { subagents: frontmatter.subagents } : {}),
     ...(frontmatter.whenToUse ? { whenToUse: frontmatter.whenToUse } : {}),
+    ...(frontmatter.primaryIntent
+      ? { primaryIntent: frontmatter.primaryIntent }
+      : {}),
   };
 }

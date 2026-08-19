@@ -5,33 +5,46 @@
  * @ai-summary Agent Control — list, view, create, edit, and delete agent.
  *   An agent is a pure reusable identity file at `agents/<slug>.md`
  *   in the backend: a markdown body describing the agent's
- *   intent, allowed commands, and restrictions. Agents have no schedule, no
- *   state, and no run/tick — they're agent identities referenced by other flows.
+ *   intent, allowed commands, and restrictions. User-selected Agents can be
+ *   made live through a primary Intent, dedicated AgentState, and an Agent Loop.
  *   The chat rail reuses the existing capability scope kind (an agent is
  *   structurally identical to a capability).
  */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Calendar,
   ExternalLink,
   FileText,
   Pencil,
+  Pause,
+  Play,
   Plus,
   RefreshCw,
   Send,
   Sparkles,
   Target,
   Trash2,
+  RotateCcw,
+  Square,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
 import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
-import { kodyApi } from "@dashboard/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@kody-ade/base/ui/select";
+import { buildHeaders, handleResponse, kodyApi } from "@dashboard/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -299,6 +312,7 @@ export function AgentsControlInner({
                           <span className="font-medium text-sm truncate flex-1">
                             {member.title}
                           </span>
+                          <AgentLiveLabel member={member} />
                           {member.source === "store" ? (
                             <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                               Store
@@ -568,6 +582,7 @@ function StaffDetail({
               </p>
             </div>
           ) : null}
+          <LiveAgentPanel member={member} />
           {member.subagents?.length ? (
             <div className="space-y-2">
               <h2 className="text-sm font-medium">Subagents</h2>
@@ -624,6 +639,284 @@ function StaffDetail({
         </div>
       ) : null}
     </article>
+  );
+}
+
+interface LiveAgentStatus {
+  agent: string;
+  live: boolean;
+  paused: boolean;
+  intent: string | null;
+  schedule: string | null;
+  loopId: string;
+  state: {
+    revision: number;
+    cursor: string;
+    summary: string;
+    updatedAt: string;
+  } | null;
+  consistency: "ready" | "inactive" | "missing-state" | "missing-intent";
+}
+
+const LIVE_SCHEDULES = [
+  ["15m", "Every 15 minutes"],
+  ["30m", "Every 30 minutes"],
+  ["1h", "Every hour"],
+  ["2h", "Every 2 hours"],
+  ["6h", "Every 6 hours"],
+  ["12h", "Every 12 hours"],
+  ["1d", "Every day"],
+  ["3d", "Every 3 days"],
+  ["7d", "Every week"],
+] as const;
+
+async function fetchLiveAgentStatus(agent: string): Promise<LiveAgentStatus> {
+  return (
+    await handleResponse<{ status: LiveAgentStatus }>(
+      await fetch(`/api/kody/agents/${encodeURIComponent(agent)}/live`, {
+        headers: buildHeaders(),
+        cache: "no-store",
+      }),
+    )
+  ).status;
+}
+
+function useLiveAgentStatus(agent: string) {
+  return useQuery({
+    queryKey: ["live-agent", agent],
+    queryFn: () => fetchLiveAgentStatus(agent),
+  });
+}
+
+function AgentLiveLabel({ member }: { member: Agent }) {
+  const status = useLiveAgentStatus(member.slug);
+  if (!status.data?.live) return null;
+  return (
+    <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+      {status.data.paused ? "Paused" : "Live"}
+    </span>
+  );
+}
+
+function LiveAgentPanel({ member }: { member: Agent }) {
+  const queryClient = useQueryClient();
+  const [configuring, setConfiguring] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [intent, setIntent] = useState(member.primaryIntent ?? "");
+  const [schedule, setSchedule] = useState("1h");
+  const statusKey = ["live-agent", member.slug] as const;
+  const status = useLiveAgentStatus(member.slug);
+  const intents = useQuery({
+    queryKey: ["agent-live-intents"],
+    queryFn: async () =>
+      (
+        await handleResponse<{
+          entries: Array<{ slug: string; body: string }>;
+        }>(
+          await fetch("/api/kody/intents", {
+            headers: buildHeaders(),
+            cache: "no-store",
+          }),
+        )
+      ).entries,
+  });
+  const operation = useMutation({
+    mutationFn: async (
+      action:
+        | { action: "activate"; intent: string; every: string }
+        | { action: "run" | "pause" | "resume" | "reset" | "stop" },
+    ) =>
+      handleResponse(
+        await fetch(
+          `/api/kody/agents/${encodeURIComponent(member.slug)}/live`,
+          {
+            method: action.action === "stop" ? "DELETE" : "POST",
+            headers: buildHeaders(),
+            ...(action.action === "stop"
+              ? {}
+              : { body: JSON.stringify(action) }),
+          },
+        ),
+      ),
+    onSuccess: (_result, action) => {
+      void queryClient.invalidateQueries({ queryKey: statusKey });
+      void queryClient.invalidateQueries({ queryKey: ["agents"] });
+      setConfiguring(false);
+      setStopping(false);
+      toast.success(
+        action.action === "activate"
+          ? "Agent is live"
+          : action.action === "stop"
+            ? "Agent stopped"
+            : `Live Agent ${action.action} completed`,
+      );
+    },
+    onError: (error: Error) =>
+      toast.error("Live Agent operation failed", {
+        description: error.message,
+      }),
+  });
+
+  if (status.isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">Loading live status…</p>
+    );
+  }
+  if (status.error) {
+    return <p className="text-sm text-red-400">Could not load live status.</p>;
+  }
+  const current = status.data;
+  if (!current?.live && current?.consistency === "inactive") {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+        <div>
+          <h2 className="text-sm font-medium">Not live</h2>
+          <p className="text-xs text-muted-foreground">Runs only when called</p>
+        </div>
+        <Button
+          size="icon"
+          onClick={() => setConfiguring(true)}
+          aria-label="Start live Agent"
+          title="Start live Agent"
+        >
+          <Play className="h-4 w-4" />
+        </Button>
+        <Dialog open={configuring} onOpenChange={setConfiguring}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Make {member.title} live</DialogTitle>
+              <DialogDescription>
+                Choose what this Agent continuously pursues and how often it
+                wakes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Primary Intent</Label>
+                <Select value={intent} onValueChange={setIntent}>
+                  <SelectTrigger aria-label="Primary Intent">
+                    <SelectValue placeholder="Select Intent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(intents.data ?? []).map((entry) => (
+                      <SelectItem key={entry.slug} value={entry.slug}>
+                        {entry.slug}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Schedule</Label>
+                <Select value={schedule} onValueChange={setSchedule}>
+                  <SelectTrigger aria-label="Schedule">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LIVE_SCHEDULES.map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="ghost" onClick={() => setConfiguring(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={!intent || operation.isPending}
+                onClick={() =>
+                  operation.mutate({
+                    action: "activate",
+                    intent,
+                    every: schedule,
+                  })
+                }
+              >
+                {operation.isPending ? "Starting…" : "Make live"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium">
+            {current?.paused ? "Paused" : "Live"}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {current?.intent ?? "Missing Intent"} ·{" "}
+            {current?.schedule ?? "No schedule"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() =>
+              operation.mutate({ action: current?.paused ? "resume" : "pause" })
+            }
+            disabled={operation.isPending}
+            aria-label={
+              current?.paused ? "Resume live Agent" : "Pause live Agent"
+            }
+            title={current?.paused ? "Resume live Agent" : "Pause live Agent"}
+          >
+            {current?.paused ? (
+              <Play className="h-4 w-4" />
+            ) : (
+              <Pause className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => operation.mutate({ action: "reset" })}
+            disabled={operation.isPending}
+            aria-label="Reset Agent state"
+            title="Reset Agent state"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="text-red-400"
+            onClick={() => setStopping(true)}
+            disabled={operation.isPending}
+            aria-label="Stop live Agent"
+            title="Stop live Agent"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {current?.state?.summary || "No activity yet"}
+      </p>
+      {current?.consistency !== "ready" ? (
+        <p className="text-sm text-amber-300">
+          Live configuration needs repair: {current?.consistency}.
+        </p>
+      ) : null}
+      <ConfirmDialog
+        open={stopping}
+        title="Stop this live Agent?"
+        description="The Agent and its resources stay available. Its Loop and continuation state will be removed."
+        variant="destructive"
+        confirmLabel="Stop being live"
+        onConfirm={() => operation.mutate({ action: "stop" })}
+        onClose={() => setStopping(false)}
+      />
+    </div>
   );
 }
 

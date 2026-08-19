@@ -145,6 +145,25 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_tenant_key",
   },
   {
+    table: "loopWakeRegistrations",
+    naturalKey: ["loopId"],
+    upsertIndex: "by_loop",
+    transient: true,
+  },
+  {
+    table: "loopWakeTargets",
+    naturalKey: [],
+    upsertIndex: "by_tenant",
+    transient: true,
+    tenantSingleton: true,
+  },
+  {
+    table: "loopWakeReceipts",
+    naturalKey: ["wakeId"],
+    upsertIndex: "by_wake",
+    transient: true,
+  },
+  {
     table: "agencyApprovals",
     naturalKey: ["approvalId"],
     upsertIndex: "by_approval_id",
@@ -225,11 +244,17 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_tenant",
   },
   {
+    table: "blueprintInstallations",
+    naturalKey: ["blueprintId"],
+    upsertIndex: "by_blueprint",
+  },
+  {
     table: "taskState",
     naturalKey: ["taskKey", "kind"],
     upsertIndex: "by_task",
   },
   { table: "capabilityState", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  { table: "agentStates", naturalKey: ["agent"], upsertIndex: "by_agent" },
   {
     table: "dailyLogs",
     naturalKey: ["stream", "date", "seq"],

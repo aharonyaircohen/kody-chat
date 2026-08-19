@@ -21,6 +21,7 @@ import {
   invalidateGuidancePromptCache,
   listGuidanceFiles,
   loadGuidanceForPrompt,
+  readGuidanceFileForTenant,
   writeGuidanceFile,
 } from "../../src/guidance/files";
 
@@ -109,6 +110,22 @@ describe("agent guidance store", () => {
     await expect(listGuidanceFiles("intent")).resolves.toMatchObject([
       { slug: "agency", body: "Keep releases safe.", agent: ["*"] },
     ]);
+  });
+
+  it("reads guidance from the explicit repository tenant", async () => {
+    convex.query.mockResolvedValue({
+      kind: "intent:agency",
+      doc: { body: "---\nagent: [*]\n---\n\nOperate continuously." },
+      updatedAt: "t",
+    });
+
+    await expect(
+      readGuidanceFileForTenant("intent", "agency", "selected/repository"),
+    ).resolves.toMatchObject({ slug: "agency" });
+    expect(convex.query.mock.calls[0]![1]).toMatchObject({
+      tenantId: "selected/repository",
+      kind: "intent:agency",
+    });
   });
 
   it("lists and deletes policy entries without touching other guidance", async () => {

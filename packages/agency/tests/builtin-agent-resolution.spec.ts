@@ -22,7 +22,11 @@ describe("built-in Agent resolution", () => {
   it("keeps built-in definitions immutable and merges configured additions", () => {
     const result = mergeResolvedAgentFiles({
       local: [
-        { ...agent("kody", "local"), subagents: ["custom-specialist"] },
+        {
+          ...agent("kody", "local"),
+          subagents: ["custom-specialist"],
+          primaryIntent: "operate-agency",
+        },
         {
           ...agent("agency-specialist", "local"),
           capabilities: ["agency-management"],
@@ -40,6 +44,7 @@ describe("built-in Agent resolution", () => {
       ...kody!.lockedSubagents!,
       "custom-specialist",
     ]);
+    expect(kody?.primaryIntent).toBe("operate-agency");
     const agency = result.find(({ slug }) => slug === "agency-specialist");
     expect(agency?.source).toBe("builtin");
     expect(agency?.capabilities).toEqual([

@@ -10,9 +10,12 @@ import {
   agencyRequestReportSlug,
   buildAgencyRequestCompletionReport,
 } from "./agency-request-report";
+import { saveBlueprintInstallation } from "@dashboard/lib/blueprint-installations";
 
 interface CompletionInput {
   octokit: Parameters<typeof writeTodoFile>[0]["octokit"];
+  owner: string;
+  repo: string;
   workflowId: string;
   runId: string;
   loopId?: string;
@@ -130,6 +133,33 @@ export async function completeAgencyRequestsForWorkflow(
         agencyRequest: savedState,
         sha: todo.sha,
       });
+      const blueprint = savedState.related.find(
+        (ref) => ref.kind === "strategy",
+      );
+      const version = savedState.execution?.input.blueprintVersion;
+      if (blueprint && typeof version === "string") {
+        const maintainer = savedState.execution?.activations?.find(
+          (activation) =>
+            activation.kind === "loop" || activation.kind === "solution",
+        );
+        await saveBlueprintInstallation({
+          owner: input.owner,
+          repo: input.repo,
+          blueprintId: blueprint.id,
+          blueprintVersion: version,
+          status: done
+            ? "active"
+            : input.status === "blocked"
+              ? "blocked"
+              : "installing",
+          requestId:
+            savedState.source.kind === "store-blueprint"
+              ? savedState.source.requestId
+              : "agency-request",
+          ...(maintainer ? { maintainerId: maintainer.id } : {}),
+          evidence: savedState.evidence,
+        });
+      }
     },
   });
 }

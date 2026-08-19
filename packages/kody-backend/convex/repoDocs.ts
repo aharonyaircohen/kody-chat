@@ -1,5 +1,43 @@
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import { v } from "convex/values";
+import { createAgencyRequestState } from "@kody-ade/agency-domain";
+import { syncLoopRegistration } from "./loopWakes";
+
+const TODO_PREFIX = "todo:";
+
+async function syncAgencyRequestLoop(
+  ctx: Parameters<typeof syncLoopRegistration>[0],
+  tenantId: string,
+  kind: string,
+  doc: unknown,
+  updatedAt: string,
+) {
+  if (!kind.startsWith(TODO_PREFIX)) return;
+  const loopId = `agency-request-${kind.slice(TODO_PREFIX.length)}`;
+  let enabled = false;
+  if (doc && typeof doc === "object" && !Array.isArray(doc)) {
+    const agencyRequest = (doc as Record<string, unknown>).agencyRequest;
+    if (agencyRequest) {
+      try {
+        const request = createAgencyRequestState(agencyRequest);
+        enabled =
+          request.execution !== undefined &&
+          ["running", "monitoring", "blocked"].includes(request.phase) &&
+          request.related.some(
+            (ref) => ref.kind === "loop" && ref.id === loopId,
+          );
+      } catch {
+        enabled = false;
+      }
+    }
+  }
+  await syncLoopRegistration(ctx, {
+    tenantId,
+    loopId,
+    enabled,
+    updatedAt,
+  });
+}
 
 // Singleton per-tenant documents keyed by `kind`: dashboard config, system
 // prompt, instructions, context docs.
@@ -54,6 +92,13 @@ export const save = mutation({
         doc: args.doc,
         updatedAt: args.updatedAt,
       });
+      await syncAgencyRequestLoop(
+        ctx,
+        args.tenantId,
+        args.kind,
+        args.doc,
+        args.updatedAt,
+      );
       return existing._id;
     }
     if (
@@ -63,7 +108,15 @@ export const save = mutation({
       throw new Error("Repository document changed since it was read");
     }
     const { expectedUpdatedAt: _expectedUpdatedAt, ...document } = args;
-    return await ctx.db.insert("repoDocs", document);
+    const id = await ctx.db.insert("repoDocs", document);
+    await syncAgencyRequestLoop(
+      ctx,
+      args.tenantId,
+      args.kind,
+      args.doc,
+      args.updatedAt,
+    );
+    return id;
   },
 });
 
@@ -75,6 +128,14 @@ export const remove = mutation({
       .withIndex("by_kind", (q) => q.eq("tenantId", tenantId).eq("kind", kind))
       .unique();
     if (existing) await ctx.db.delete(existing._id);
+    if (kind.startsWith(TODO_PREFIX)) {
+      await syncLoopRegistration(ctx, {
+        tenantId,
+        loopId: `agency-request-${kind.slice(TODO_PREFIX.length)}`,
+        enabled: false,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   },
 });
 

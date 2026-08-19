@@ -22,6 +22,12 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     title: "creates, persists, and deletes real agent constraints and policies",
   },
   {
+    id: "live-agent-real-cycle",
+    file: "tests/e2e/live-agent-real.e2e.spec.ts",
+    title:
+      "makes a real Agent live, executes one cycle, and shows its persisted activity",
+  },
+  {
     id: "direct-kody-chat",
     file: "tests/e2e/direct-chat-real.e2e.spec.ts",
     title:

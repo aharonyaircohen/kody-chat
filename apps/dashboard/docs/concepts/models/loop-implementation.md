@@ -15,9 +15,10 @@ The Dashboard can list, create, update, and delete the simple Loop definition.
 
 ## Engine
 
-The generated GitHub Actions workflow wakes the Engine scheduler every 15
-minutes. The scheduler combines repository Loop definitions with temporary
-Loops derived from active Agency-request Todos in Convex.
+Convex checks for due Engine work every 5 minutes through the authenticated
+runner pool. The scheduler combines repository Loop definitions with temporary
+Loops derived from active Agency-request Todos in Convex. GitHub Actions keeps
+manual `workflow_dispatch`, but no longer owns the recurring clock.
 
 - manual and schedule dispatch work;
 - idempotency, capacity, leases, and Run recording prevent duplicate work;

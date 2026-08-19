@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   listTodoFiles: vi.fn(),
   writeTodoFile: vi.fn(),
   writeReportRun: vi.fn(),
+  saveBlueprintInstallation: vi.fn(),
 }));
 
 vi.mock("@kody-ade/workspace/todos/files", () => ({
@@ -13,6 +14,10 @@ vi.mock("@kody-ade/workspace/todos/files", () => ({
 
 vi.mock("@dashboard/lib/reports-files", () => ({
   writeReportRun: h.writeReportRun,
+}));
+
+vi.mock("@dashboard/lib/blueprint-installations", () => ({
+  saveBlueprintInstallation: h.saveBlueprintInstallation,
 }));
 
 import { completeAgencyRequestsForWorkflow } from "@dashboard/features/agency/server/agency-request-completion";
@@ -92,6 +97,8 @@ describe("Agency request completion", () => {
   it("publishes one completion report and links it from the completed Todo", async () => {
     const result = await completeAgencyRequestsForWorkflow({
       octokit: { rest: {} } as never,
+      owner: "acme",
+      repo: "widgets",
       workflowId: "apply-strategy",
       runId: "run-123",
       status: "success",

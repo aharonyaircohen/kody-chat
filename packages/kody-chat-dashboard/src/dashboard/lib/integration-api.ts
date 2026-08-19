@@ -1117,6 +1117,7 @@ export interface Agent {
   title: string;
   body: string;
   whenToUse?: string;
+  primaryIntent?: string;
   capabilities?: string[];
   subagents?: string[];
   lockedSubagents?: string[];
@@ -1153,6 +1154,7 @@ export const staffApi = {
     title: string;
     body: string;
     whenToUse?: string;
+    primaryIntent?: string;
     capabilities?: string[];
     subagents?: string[];
     actorLogin?: string;
@@ -1172,6 +1174,7 @@ export const staffApi = {
       title?: string;
       body?: string;
       whenToUse?: string;
+      primaryIntent?: string;
       capabilities?: string[];
       subagents?: string[];
       actorLogin?: string;

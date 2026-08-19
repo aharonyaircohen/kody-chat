@@ -103,9 +103,17 @@ describe("joinFrontmatter", () => {
       disabled: true,
       subagents: ["agency-specialist", "repo-scout"],
       whenToUse: "Use for release coordination and weekly reporting.",
+      primaryIntent: "keep-releases-healthy",
     };
     const { frontmatter } = splitFrontmatter(joinFrontmatter(fm, "the body"));
     expect(frontmatter).toEqual(fm);
+  });
+
+  it("parses one primary Intent relation", () => {
+    expect(
+      splitFrontmatter("---\nprimaryIntent: keep-releases-healthy\n---\nbody")
+        .frontmatter.primaryIntent,
+    ).toBe("keep-releases-healthy");
   });
 
   it("parses public subagent assignments as agent slugs", () => {

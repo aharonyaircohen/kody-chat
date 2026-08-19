@@ -113,15 +113,27 @@ export async function readGuidanceFile(
   guidanceKind: GuidanceKind,
   slug: string,
 ): Promise<GuidanceFile | null> {
+  return readGuidanceFileForTenant(
+    guidanceKind,
+    slug,
+    tenantIdFor(getOwner(), getRepo()),
+  );
+}
+
+export async function readGuidanceFileForTenant(
+  guidanceKind: GuidanceKind,
+  slug: string,
+  explicitTenantId: string,
+): Promise<GuidanceFile | null> {
   if (!isValidGuidanceSlug(slug)) return null;
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
-    tenantId: tenantIdFor(getOwner(), getRepo()),
+    tenantId: explicitTenantId,
     kind: `${prefix(guidanceKind)}${slug}`,
   })) as GuidanceRecord | null;
   if (record) return recordToFile(guidanceKind, record);
   if (guidanceKind !== "intent" || slug !== "agency") return null;
   const legacy = (await getConvexClient().query(backendApi.repoDocs.get, {
-    tenantId: tenantIdFor(getOwner(), getRepo()),
+    tenantId: explicitTenantId,
     kind: LEGACY_INTENT_KIND,
   })) as GuidanceRecord | null;
   return legacy ? legacyIntentFile(legacy) : null;

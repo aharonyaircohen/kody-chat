@@ -29,6 +29,8 @@ function validEnvironment(): Record<string, string> {
     RUN_REAL_E2E: "1",
     E2E_GITHUB_TOKEN: SECRET,
     E2E_GITHUB_REPO: "https://github.com/example/kody-e2e-tester",
+    E2E_QA_EMAIL: "qa@example.test",
+    E2E_QA_PASSWORD: SECRET,
     CONVEX_URL: "https://example.convex.cloud",
     KODY_SERVICE_KEY: SECRET,
     KODY_MASTER_KEY: SECRET,
@@ -339,6 +341,7 @@ describe("live UI gate manifest", () => {
       "tests/e2e/memory-llm-real.e2e.spec.ts",
       "tests/e2e/file-manager-real.e2e.spec.ts",
       "tests/e2e/agent-guidance-real.e2e.spec.ts",
+      "tests/e2e/live-agent-real.e2e.spec.ts",
       "tests/e2e/direct-chat-real.e2e.spec.ts",
       "tests/e2e/chat-real-system.spec.ts",
       "tests/e2e/ci-repair-chat-real.e2e.spec.ts",
@@ -348,10 +351,10 @@ describe("live UI gate manifest", () => {
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(23);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(23);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(24);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(24);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      23,
+      24,
     );
   });
 

@@ -35,6 +35,23 @@ They require a `serviceKey` arg matching the deployment's
 npx convex env set KODY_SERVICE_KEY "$(openssl rand -hex 32)"   # per deployment (add --prod for prod)
 ```
 
+## Loop wake scheduling
+
+Convex owns the recurring 5-minute wake check for Kody Loops. Individual Loop
+schedules still decide whether work is due. New deployments run in shadow mode
+until explicitly enabled:
+
+```bash
+npx convex env set KODY_LOOP_WAKE_MODE shadow
+npx convex env set KODY_LOOP_POOL_URL https://<pool-host>
+npx convex env set KODY_LOOP_POOL_API_KEY <derived-pool-key>
+```
+
+Set `KODY_LOOP_WAKE_MODE` to `dispatch` only after shadow receipts match the
+current Engine ticks. Store only the purpose-derived pool key in Convex; never
+store `KODY_MASTER_KEY` there. GitHub `workflow_dispatch` remains the manual
+recovery path.
+
 Server callers never pass the key by hand — `withEscapedKeys`
 (`src/client.ts`) injects it from `process.env.KODY_SERVICE_KEY`, so the
 same value must be set wherever a server client runs (this package's

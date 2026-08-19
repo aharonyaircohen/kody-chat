@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Bot,
+  Cpu,
   ArrowDown,
   ArrowUp,
   ChevronDown,
@@ -96,12 +97,53 @@ async function fetchModels(
   };
 }
 
+async function fetchEngineModels(
+  headers: Record<string, string>,
+): Promise<{ models: ChatModel[]; automatic: AutomaticModel }> {
+  const res = await fetch("/api/kody/engine-models", {
+    headers,
+    cache: "no-store",
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    models?: ChatModel[];
+    automatic?: AutomaticModel;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return {
+    models: json.models ?? [],
+    automatic: json.automatic ?? { default: false, engineDefault: false },
+  };
+}
+
 async function saveModels(
   headers: Record<string, string>,
   models: ChatModel[],
   automatic: AutomaticModel,
 ): Promise<void> {
   const res = await fetch("/api/kody/models", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ models, automatic }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+}
+
+async function saveEngineModels(
+  headers: Record<string, string>,
+  models: ChatModel[],
+  automatic: AutomaticModel,
+): Promise<void> {
+  const res = await fetch("/api/kody/engine-models", {
     method: "PUT",
     headers,
     body: JSON.stringify({ models, automatic }),
@@ -178,7 +220,7 @@ function deriveId(m: ChatModel): string {
 
 export function ModelsManager() {
   const { auth } = useAuth();
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", ...buildAuthHeaders(auth) };
   const listQueryKey = modelsQueryKeys.list();
 
   const queryClient = useQueryClient();
@@ -190,16 +232,31 @@ export function ModelsManager() {
     queryFn: () => fetchModels(headers),
     staleTime: 30_000,
   });
+  const { data: engineData } = useQuery({
+      queryKey: ["kody-engine-models", auth?.owner ?? null, auth?.repo ?? null],
+      queryFn: () => fetchEngineModels(headers),
+      enabled: !!auth,
+      staleTime: 30_000,
+    });
   const { data: credentials = [] } = useQuery({
     queryKey: ["kody-user-credentials"],
     queryFn: fetchCredentials,
     staleTime: 30_000,
   });
-  const models = composeChatModelCatalog<ChatModel>(
+  const engineById = new Map(
+    (engineData?.models ?? []).map((model) => [model.id, model]),
+  );
+  const models: ChatModel[] = composeChatModelCatalog<ChatModel>(
     data?.models ?? [],
     KODY_BUILT_IN_CHAT_MODELS,
-  );
-  const automatic = data?.automatic ?? { default: false, engineDefault: false };
+  ).map((model) => ({
+    ...model,
+    engineDefault: engineById.get(model.id)?.engineDefault === true,
+  }));
+  const automatic = {
+    ...(data?.automatic ?? { default: false, engineDefault: false }),
+    engineDefault: engineData?.automatic?.engineDefault === true,
+  };
   const selectedAutomaticModels = models.filter(
     (model) => model.automatic === true,
   );
@@ -214,10 +271,28 @@ export function ModelsManager() {
     }: {
       list: ChatModel[];
       automatic: AutomaticModel;
-    }) => saveModels(headers, list, nextAutomatic),
+    }) => {
+      const engineList = list.map((model) => {
+        const existing = engineById.get(model.id);
+        return {
+          ...model,
+          default: existing?.default === true,
+          engineDefault: model.engineDefault === true,
+        };
+      });
+      const engineAutomatic = {
+        ...(engineData?.automatic ?? { default: false, engineDefault: false }),
+        engineDefault: nextAutomatic.engineDefault === true,
+      };
+      return Promise.all([
+        saveModels(headers, list, { ...nextAutomatic, engineDefault: false }),
+        saveEngineModels(headers, engineList, engineAutomatic),
+      ]).then(() => undefined);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["kody-engine-models"] });
     },
     onError: (err: Error) =>
       toast.error(err.message || "Failed to save models"),
@@ -243,10 +318,15 @@ export function ModelsManager() {
         i === savedIdx ? m : { ...m, default: false },
       );
     }
+    if (next.engineDefault) {
+      list = list.map((m, i) =>
+        i === savedIdx ? m : { ...m, engineDefault: false },
+      );
+    }
     const nextAutomatic = {
       ...automatic,
       ...(next.default ? { default: false } : {}),
-      engineDefault: false,
+      ...(next.engineDefault ? { engineDefault: false } : {}),
     };
     if (credentialValue) {
       await saveCredential(next.apiKeySecret, credentialValue);
@@ -310,6 +390,16 @@ export function ModelsManager() {
     save.mutate({
       list,
       automatic: { ...automatic, default: checked },
+    });
+  };
+
+  const setAutomaticEngineDefault = (checked: boolean) => {
+    const list = checked
+      ? models.map((model) => ({ ...model, engineDefault: false }))
+      : models;
+    save.mutate({
+      list,
+      automatic: { ...automatic, engineDefault: checked },
     });
   };
 
@@ -394,6 +484,11 @@ export function ModelsManager() {
                       <Star className="h-3 w-3" /> Chat
                     </span>
                   )}
+                  {automatic.engineDefault && (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
+                      <Cpu className="w-3 h-3" /> Engine
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-white/45 mt-0.5">
                   {automaticModels.length >= 2
@@ -412,6 +507,17 @@ export function ModelsManager() {
                     aria-label="Use Automatic as the Chat default"
                   />
                   Chat default
+                </label>
+                <label className="flex items-center gap-2 text-xs text-white/70">
+                  <Checkbox
+                    checked={automatic.engineDefault === true}
+                    disabled={automaticModels.length < 2}
+                    onCheckedChange={(checked) =>
+                      setAutomaticEngineDefault(checked === true)
+                    }
+                    aria-label="Use Automatic as the Engine default"
+                  />
+                  Engine default
                 </label>
               </div>
             </CardContent>
@@ -450,6 +556,15 @@ export function ModelsManager() {
                           >
                             <Star className="w-3 h-3" />
                             Chat
+                          </span>
+                        )}
+                        {m.engineDefault && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300"
+                            title="The model the engine runs (Kody Live, issue + PR runs)"
+                          >
+                            <Cpu className="w-3 h-3" />
+                            Engine
                           </span>
                         )}
                       </div>
@@ -824,6 +939,17 @@ function ModelEditor({
             />
             <Star className="w-3.5 h-3.5 text-white/40" />
             Default for chat (used for new conversations)
+          </label>
+
+          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+            <Checkbox
+              checked={draft.engineDefault === true}
+              onCheckedChange={(checked) =>
+                setDraft((cur) => ({ ...cur, engineDefault: checked === true }))
+              }
+            />
+            <Cpu className="w-3.5 h-3.5 text-white/40" />
+            Default for engine (Kody Live, issue + PR runs)
           </label>
 
           <button

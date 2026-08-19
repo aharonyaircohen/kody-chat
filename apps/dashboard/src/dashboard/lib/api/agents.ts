@@ -9,6 +9,8 @@ export interface Agent {
   body: string;
   /** Plain-language guidance for selecting this Agent as a specialist. */
   whenToUse?: string;
+  /** The single Intent this Agent pursues when configured as live. */
+  primaryIntent?: string;
   /** Capability slugs attached to this agent (loaded into its chat). */
   capabilities?: string[];
   /** Public Agents this Agent may delegate work to. */
@@ -48,6 +50,7 @@ export const staffApi = {
     title: string;
     body: string;
     whenToUse?: string;
+    primaryIntent?: string;
     capabilities?: string[];
     subagents?: string[];
     actorLogin?: string;
@@ -67,6 +70,7 @@ export const staffApi = {
       title?: string;
       body?: string;
       whenToUse?: string;
+      primaryIntent?: string;
       capabilities?: string[];
       subagents?: string[];
       actorLogin?: string;

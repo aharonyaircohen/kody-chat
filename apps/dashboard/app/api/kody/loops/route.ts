@@ -11,6 +11,7 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
+import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
 
 const trigger = z.discriminatedUnion("type", [
   z.object({ type: z.literal("manual") }),
@@ -35,7 +36,7 @@ const payload = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,127}$/),
   trigger,
   target: z.object({
-    kind: z.enum(["workflow", "capability"]),
+    kind: z.enum(["workflow", "capability", "pipeline", "agent"]),
     id: z.string().regex(/^[a-z][a-z0-9-]{0,127}$/),
   }),
   input: z.record(z.string(), z.unknown()).default({}),
@@ -105,6 +106,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "loop_exists" }, { status: 409 });
     }
     const updatedAt = "";
+    await syncLoopWakeRegistration({
+      owner: auth.owner,
+      repo: auth.repo,
+      loop,
+    });
     await saveRepositoryLoop(
       octokit,
       auth.owner,

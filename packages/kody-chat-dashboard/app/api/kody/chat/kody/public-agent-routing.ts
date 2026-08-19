@@ -232,6 +232,15 @@ function routeExplicitWorkflowExecution(
     : null;
 }
 
+function isBlueprintStatusRequest(userText: string): boolean {
+  return (
+    /\bblueprints?\b/i.test(userText) &&
+    /\b(?:installed|install|applied|active|status|maintain(?:ing)?|responsible|own(?:ing)?)\b/i.test(
+      userText,
+    )
+  );
+}
+
 function routeTodoRequest(
   userText: string,
   assignedAgents: readonly PublicDelegationAgent[],
@@ -443,6 +452,7 @@ export async function routePublicAgentTask({
     assignedAgents,
   );
   if (workflowExecution) return workflowExecution;
+  if (isBlueprintStatusRequest(userText)) return { mode: "self" };
   if (
     isParentOwnedArchitectureAdvice(userText) ||
     isParentOwnedArchitectureExplanation(userText)

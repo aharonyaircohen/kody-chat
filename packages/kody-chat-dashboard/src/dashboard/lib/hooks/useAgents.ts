@@ -92,6 +92,7 @@ export function useCreateAgent(actorLogin?: string) {
       title: string;
       body: string;
       whenToUse?: string;
+      primaryIntent?: string;
       capabilities?: string[];
       subagents?: string[];
     }
@@ -125,6 +126,7 @@ export function useUpdateAgent(slug: string, actorLogin?: string) {
       title?: string;
       body?: string;
       whenToUse?: string;
+      primaryIntent?: string;
       capabilities?: string[];
       subagents?: string[];
     }

@@ -95,6 +95,7 @@
         "list_workflows",
         "read_workflow",
         "run_workflow",
+        "get_blueprint_status",
         "list_agency_runs",
         "read_agency_run",
         "create_feature",
