@@ -139,6 +139,95 @@ export interface LoopDefinition {
   enabled: boolean;
 }
 
+export function nextLoopRunAt(
+  schedule: Extract<Trigger, { type: "schedule" }>,
+  after: Date,
+): string {
+  const match = /^(\d+)([mhd])$/.exec(schedule.every);
+  if (!match || Number(match[1]) < 1) {
+    throw new Error("Loop schedule cadence is invalid");
+  }
+  const amount = Number(match[1]);
+  const unit = match[2];
+  if (!schedule.at) {
+    const intervalMs =
+      amount * (unit === "m" ? 60_000 : unit === "h" ? 3_600_000 : 86_400_000);
+    return new Date(
+      (Math.floor(after.getTime() / intervalMs) + 1) * intervalMs,
+    ).toISOString();
+  }
+  if (
+    schedule.every !== "1d" ||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.at.time)
+  ) {
+    throw new Error("Preferred time requires a daily schedule and HH:MM time");
+  }
+  const local = zonedParts(after, schedule.at.timezone);
+  const [hour, minute] = schedule.at.time.split(":").map(Number);
+  const currentMinute = local.hour * 60 + local.minute;
+  const targetMinute = hour * 60 + minute;
+  const localDate = new Date(
+    Date.UTC(
+      local.year,
+      local.month - 1,
+      local.day + (currentMinute >= targetMinute ? 1 : 0),
+    ),
+  );
+  return zonedLocalToUtc(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth() + 1,
+    localDate.getUTCDate(),
+    hour,
+    minute,
+    schedule.at.timezone,
+  ).toISOString();
+}
+
+function zonedParts(date: Date, timezone: string) {
+  const values = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(values.find((value) => value.type === type)?.value);
+  return {
+    year: part("year"),
+    month: part("month"),
+    day: part("day"),
+    hour: part("hour"),
+    minute: part("minute"),
+  };
+}
+
+function zonedLocalToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timezone: string,
+): Date {
+  const desired = Date.UTC(year, month - 1, day, hour, minute);
+  let candidate = desired;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const rendered = zonedParts(new Date(candidate), timezone);
+    const renderedAsUtc = Date.UTC(
+      rendered.year,
+      rendered.month - 1,
+      rendered.day,
+      rendered.hour,
+      rendered.minute,
+    );
+    candidate += desired - renderedAsUtc;
+  }
+  return new Date(candidate);
+}
+
 export interface Run {
   id: string;
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -475,7 +564,12 @@ export function createAgencyRequestState(value: unknown): AgencyRequestState {
             effectId: text(source.effectId, "Agency request source effectId"),
             ...(source.flowId === undefined
               ? {}
-              : { flowId: identifier(source.flowId, "Agency request source flowId") }),
+              : {
+                  flowId: identifier(
+                    source.flowId,
+                    "Agency request source flowId",
+                  ),
+                }),
           }
         : {
             kind: "store-blueprint" as const,

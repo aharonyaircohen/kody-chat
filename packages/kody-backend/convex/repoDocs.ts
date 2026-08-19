@@ -35,6 +35,7 @@ async function syncAgencyRequestLoop(
     tenantId,
     loopId,
     enabled,
+    ...(enabled ? { trigger: { type: "schedule" as const, every: "15m" } } : {}),
     updatedAt,
   });
 }

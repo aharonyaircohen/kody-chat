@@ -6,7 +6,7 @@ const crons = cronJobs();
 
 crons.interval(
   "wake scheduled Kody Loops",
-  { minutes: 5 },
+  { minutes: 1 },
   internal.loopWakes.dispatchDue,
 );
 

@@ -46,6 +46,7 @@ import {
 import { useCapabilities } from "@dashboard/lib/hooks/useCapabilities";
 import { useWorkflowDefinitions } from "@dashboard/lib/hooks/useWorkflowDefinitions";
 import { selectionPath } from "@dashboard/lib/selection-routing";
+import { LIVE_SCHEDULE_OPTIONS } from "@dashboard/lib/schedule-options";
 
 type LoopTrigger =
   | { type: "manual" }
@@ -443,14 +444,6 @@ function Detail({
   );
 }
 
-const SCHEDULE_OPTIONS = [
-  { value: "15m", label: "Every 15 minutes" },
-  { value: "1h", label: "Every hour" },
-  { value: "1d", label: "Every day" },
-  { value: "7d", label: "Every week" },
-  { value: "30d", label: "Every month" },
-] as const;
-
 function browserTimeZone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -538,9 +531,9 @@ function LoopForm({
   }, [loop, workflows.data]);
   const scheduleOptions = useMemo(
     () =>
-      SCHEDULE_OPTIONS.some((option) => option.value === every)
-        ? [...SCHEDULE_OPTIONS]
-        : [{ value: every, label: every }, ...SCHEDULE_OPTIONS],
+      LIVE_SCHEDULE_OPTIONS.some((option) => option.value === every)
+        ? [...LIVE_SCHEDULE_OPTIONS]
+        : [{ value: every, label: every }, ...LIVE_SCHEDULE_OPTIONS],
     [every],
   );
   const save = useMutation({

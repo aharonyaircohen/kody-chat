@@ -25,6 +25,7 @@ describe("Loop wake registration", () => {
       tenantId: "acme/widgets",
       loopId: "ci-health",
       enabled: true,
+      trigger: { type: "schedule", every: "15m" },
       updatedAt: expect.any(String),
     });
   });

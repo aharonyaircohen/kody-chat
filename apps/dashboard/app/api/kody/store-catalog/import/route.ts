@@ -605,7 +605,6 @@ async function activate(
         },
       ]);
     }
-    await syncLoopWakeRegistration({ owner, repo, loop: storeLoop.loop });
     await saveRepositoryLoop(
       octokit,
       owner,
@@ -613,6 +612,7 @@ async function activate(
       storeLoop.loop,
       `chore(kody): add store loop ${slug}`,
     );
+    await syncLoopWakeRegistration({ owner, repo, loop: storeLoop.loop });
     return combineActivationResults([targetResult], true);
   }
   const dependencyResults: ActivateResult[] = [];

@@ -86,11 +86,11 @@ describe("agency request runtime Loops", () => {
     await expect(
       t.run(async (ctx) =>
         ctx.db
-          .query("loopWakeTargets")
+          .query("loopWakeRegistrations")
           .withIndex("by_tenant", (q) => q.eq("tenantId", TENANT))
-          .unique(),
+          .collect(),
       ),
-    ).resolves.toMatchObject({ registrationCount: 1 });
+    ).resolves.toHaveLength(1);
   });
 
   it("removes the Loop by completing the Todo", async () => {
@@ -116,11 +116,11 @@ describe("agency request runtime Loops", () => {
     await expect(
       t.run(async (ctx) =>
         ctx.db
-          .query("loopWakeTargets")
+          .query("loopWakeRegistrations")
           .withIndex("by_tenant", (q) => q.eq("tenantId", TENANT))
-          .unique(),
+          .collect(),
       ),
-    ).resolves.toBeNull();
+    ).resolves.toEqual([]);
   });
 
   it("does not start another attempt while the current Workflow is running", async () => {

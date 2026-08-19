@@ -18,12 +18,13 @@ import {
 import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/server/github-actions-engine-gateway";
 import { startLoop } from "@dashboard/features/workflows/server/start-loop";
 import { authorizeLoopExecution } from "@dashboard/features/workflows/server/workflow-execution-authorization";
+import { LIVE_SCHEDULE_VALUES } from "@dashboard/lib/schedule-options";
 
 const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const activateSchema = z.object({
   action: z.literal("activate"),
   intent: slugSchema,
-  every: z.enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d"]),
+  every: z.enum(LIVE_SCHEDULE_VALUES),
 });
 const actionSchema = z.discriminatedUnion("action", [
   activateSchema,

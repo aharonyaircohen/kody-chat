@@ -571,33 +571,38 @@ export default defineSchema({
   loopWakeRegistrations: defineTable({
     tenantId: v.string(),
     loopId: v.string(),
+    trigger: v.optional(v.any()),
+    nextDueAt: v.optional(v.string()),
     updatedAt: v.string(),
   })
     .index("by_loop", ["tenantId", "loopId"])
-    .index("by_tenant", ["tenantId"]),
-
-  loopWakeTargets: defineTable({
-    tenantId: v.string(),
-    registrationCount: v.number(),
-    updatedAt: v.string(),
-  }).index("by_tenant", ["tenantId"]),
+    .index("by_tenant", ["tenantId"])
+    .index("by_next_due", ["nextDueAt"]),
 
   loopWakeReceipts: defineTable({
     wakeId: v.string(),
     tenantId: v.string(),
     slot: v.string(),
+    loopId: v.optional(v.string()),
+    scheduledFor: v.optional(v.string()),
+    attempt: v.optional(v.number()),
     status: v.union(
       v.literal("reserved"),
+      v.literal("accepted"),
+      v.literal("running"),
+      v.literal("succeeded"),
       v.literal("shadow"),
       v.literal("dispatched"),
       v.literal("failed"),
+      v.literal("timed_out"),
     ),
     detail: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
   })
     .index("by_wake", ["tenantId", "wakeId"])
-    .index("by_tenant", ["tenantId", "createdAt"]),
+    .index("by_tenant", ["tenantId", "createdAt"])
+    .index("by_status", ["status", "updatedAt"]),
 
   agencyApprovals: defineTable({
     tenantId: v.string(),

@@ -35,14 +35,18 @@ export async function POST(req: NextRequest) {
   const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
   const runRequest = body.runRequest as Record<string, unknown> | undefined;
   const target = runRequest?.target as Record<string, unknown> | undefined;
+  const runInput = runRequest?.input as Record<string, unknown> | undefined;
   if (
     !repoMatch ||
     !jobId ||
     runRequest?.requestId !== jobId ||
-    target?.type !== "workflow" ||
-    target.id !== "scheduled-fanout" ||
+    target?.type !== "loop" ||
+    typeof target.id !== "string" ||
+    !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(target.id) ||
     runRequest?.intent !== "tick" ||
-    runRequest.source !== "schedule"
+    runRequest.source !== "schedule" ||
+    typeof runInput?.scheduledFor !== "string" ||
+    Number.isNaN(Date.parse(runInput.scheduledFor))
   ) {
     return NextResponse.json({ error: "Invalid loop wake" }, { status: 400 });
   }
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
       repo: repoMatch[2],
       workflow_id: "kody.yml",
       ref,
-      inputs: { runRequest: JSON.stringify(runRequest) },
+      inputs: { requestId: jobId, runRequest: JSON.stringify(runRequest) },
     });
   } catch {
     return NextResponse.json(

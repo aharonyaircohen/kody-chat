@@ -3,6 +3,8 @@ const REPOSITORY = /^[^/\s]+\/[^/\s]+$/;
 export interface LoopWakeTarget {
   tenantId: string;
   wakeId: string;
+  loopId: string;
+  scheduledFor: string;
 }
 
 export interface LoopWakeRequest {
@@ -10,15 +12,14 @@ export interface LoopWakeRequest {
   repo: string;
   runRequest: {
     requestId: string;
-    target: { type: "workflow"; id: "scheduled-fanout" };
+    target: { type: "loop"; id: string };
     intent: "tick";
     source: "schedule";
+    input: { scheduledFor: string };
   };
 }
 
-export function buildLoopWakeRequest(
-  target: LoopWakeTarget,
-): LoopWakeRequest {
+export function buildLoopWakeRequest(target: LoopWakeTarget): LoopWakeRequest {
   if (!REPOSITORY.test(target.tenantId)) {
     throw new Error("Loop wake tenant must be owner/repository");
   }
@@ -28,9 +29,10 @@ export function buildLoopWakeRequest(
     repo: target.tenantId,
     runRequest: {
       requestId: target.wakeId,
-      target: { type: "workflow", id: "scheduled-fanout" },
+      target: { type: "loop", id: target.loopId },
       intent: "tick",
       source: "schedule",
+      input: { scheduledFor: target.scheduledFor },
     },
   };
 }

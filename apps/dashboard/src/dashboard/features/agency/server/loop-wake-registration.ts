@@ -10,8 +10,7 @@ type SyncInput = {
   owner: string;
   repo: string;
 } & (
-  | { loop: LoopDefinition; loopId?: never }
-  | { loop?: never; loopId: string }
+  { loop: LoopDefinition; loopId?: never } | { loop?: never; loopId: string }
 );
 
 export async function syncLoopWakeRegistration(
@@ -25,6 +24,20 @@ export async function syncLoopWakeRegistration(
     tenantId: `${input.owner}/${input.repo}`,
     loopId,
     enabled,
+    ...(enabled && input.loop?.trigger.type === "schedule"
+      ? { trigger: input.loop.trigger }
+      : {}),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function replaceLoopWakeRegistrations(
+  input: { owner: string; repo: string; loops: readonly LoopDefinition[] },
+  client: MutationClient = createBackendClient(),
+): Promise<void> {
+  await client.mutation(backendApi.loopWakes.replaceRegistrations, {
+    tenantId: `${input.owner}/${input.repo}`,
+    loops: input.loops,
     updatedAt: new Date().toISOString(),
   });
 }

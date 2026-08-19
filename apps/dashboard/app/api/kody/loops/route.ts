@@ -11,7 +11,32 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
-import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
+import {
+  replaceLoopWakeRegistrations,
+  syncLoopWakeRegistration,
+} from "@dashboard/features/agency/server/loop-wake-registration";
+import {
+  readCompanyStoreWorkflowDefinitionFile,
+  readWorkflowDefinitionFile,
+} from "@dashboard/lib/workflow-definition-files";
+import { validateWorkflowInput } from "@dashboard/lib/workflow-definitions";
+
+async function validateLoopInput(
+  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
+  owner: string,
+  repo: string,
+  loop: ReturnType<typeof createLoopDefinition>,
+) {
+  if (loop.target.kind !== "workflow") return;
+  const target =
+    (await readWorkflowDefinitionFile(loop.target.id, owner, repo)) ??
+    (await readCompanyStoreWorkflowDefinitionFile(loop.target.id, octokit));
+  if (!target)
+    throw new Error(`Loop target workflow "${loop.target.id}" was not found`);
+  const issues = validateWorkflowInput(loop.input, target.workflow.inputSchema);
+  if (issues.length > 0)
+    throw new Error(issues.map((issue) => issue.message).join("; "));
+}
 
 const trigger = z.discriminatedUnion("type", [
   z.object({ type: z.literal("manual") }),
@@ -67,9 +92,17 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-  const loops = (await listRepositoryLoops(octokit, auth.owner, auth.repo)).map(
-    (loop) => ({ ...loop, updatedAt: "" }),
+  const repositoryLoops = await listRepositoryLoops(
+    octokit,
+    auth.owner,
+    auth.repo,
   );
+  await replaceLoopWakeRegistrations({
+    owner: auth.owner,
+    repo: auth.repo,
+    loops: repositoryLoops,
+  });
+  const loops = repositoryLoops.map((loop) => ({ ...loop, updatedAt: "" }));
   return NextResponse.json({ loops });
 }
 
@@ -86,6 +119,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const loop = createLoopDefinition(payload.parse(await req.json()));
+    await validateLoopInput(octokit, auth.owner, auth.repo, loop);
     if (isLegacyEventTrigger(loop.trigger)) {
       return NextResponse.json(
         {
@@ -106,11 +140,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "loop_exists" }, { status: 409 });
     }
     const updatedAt = "";
-    await syncLoopWakeRegistration({
-      owner: auth.owner,
-      repo: auth.repo,
-      loop,
-    });
     await saveRepositoryLoop(
       octokit,
       auth.owner,
@@ -118,6 +147,11 @@ export async function POST(req: NextRequest) {
       loop,
       `chore(kody): add loop ${loop.id}`,
     );
+    await syncLoopWakeRegistration({
+      owner: auth.owner,
+      repo: auth.repo,
+      loop,
+    });
     return NextResponse.json({ loop: { ...loop, updatedAt } });
   } catch (error) {
     return NextResponse.json(

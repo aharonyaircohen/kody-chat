@@ -61,11 +61,6 @@ export function createLiveAgentDependencies(input: {
     readLoop: (id) =>
       readRepositoryLoop(input.octokit, input.owner, input.repo, id),
     saveLoop: async (loop) => {
-      await syncLoopWakeRegistration({
-        owner: input.owner,
-        repo: input.repo,
-        loop,
-      });
       await saveRepositoryLoop(
         input.octokit,
         input.owner,
@@ -73,6 +68,7 @@ export function createLiveAgentDependencies(input: {
         loop,
         `chore(kody): configure ${loop.id}`,
       );
+      await syncLoopWakeRegistration({ owner: input.owner, repo: input.repo, loop });
     },
     deleteLoop: async (id) => {
       await deleteRepositoryLoop(

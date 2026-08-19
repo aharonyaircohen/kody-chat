@@ -3,6 +3,7 @@ import {
   createAgentState,
   createAgencyRequestState,
   createLoopDefinition,
+  nextLoopRunAt,
   createRun,
   createTodo,
   createWorkflowDefinition,
@@ -230,6 +231,28 @@ describe("simple AI Agency domain", () => {
       ).toEqual({ kind, id: `${kind}-one` });
     },
   );
+
+  it("calculates the next interval boundary for a scheduled Loop", () => {
+    expect(
+      nextLoopRunAt(
+        { type: "schedule", every: "15m" },
+        new Date("2026-08-19T12:07:00.000Z"),
+      ),
+    ).toBe("2026-08-19T12:15:00.000Z");
+  });
+
+  it("calculates the next preferred local time for a daily Loop", () => {
+    expect(
+      nextLoopRunAt(
+        {
+          type: "schedule",
+          every: "1d",
+          at: { time: "09:30", timezone: "Asia/Jerusalem" },
+        },
+        new Date("2026-08-19T07:00:00.000Z"),
+      ),
+    ).toBe("2026-08-20T06:30:00.000Z");
+  });
 
   it("models AgentState as Agent-owned continuation only", () => {
     expect(

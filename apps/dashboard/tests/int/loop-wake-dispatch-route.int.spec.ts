@@ -30,9 +30,10 @@ function request(
     repo: "acme/widgets",
     runRequest: {
       requestId: "wake-1",
-      target: { type: "workflow", id: "scheduled-fanout" },
+      target: { type: "loop", id: "daily-check" },
       intent: "tick",
       source: "schedule",
+      input: { scheduledFor: "2026-08-19T12:00:00.000Z" },
     },
   },
 ) {
@@ -83,11 +84,13 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
       workflow_id: "kody.yml",
       ref: "trunk",
       inputs: {
+        requestId: "wake-1",
         runRequest: JSON.stringify({
           requestId: "wake-1",
-          target: { type: "workflow", id: "scheduled-fanout" },
+          target: { type: "loop", id: "daily-check" },
           intent: "tick",
           source: "schedule",
+          input: { scheduledFor: "2026-08-19T12:00:00.000Z" },
         }),
       },
     });

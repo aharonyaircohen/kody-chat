@@ -11,6 +11,11 @@ import {
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
 import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
+import {
+  readCompanyStoreWorkflowDefinitionFile,
+  readWorkflowDefinitionFile,
+} from "@dashboard/lib/workflow-definition-files";
+import { validateWorkflowInput } from "@dashboard/lib/workflow-definitions";
 
 function isLegacyEventTrigger(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -42,6 +47,25 @@ export async function PATCH(
     }
     const body = await req.json();
     const loop = createLoopDefinition({ ...body, id });
+    if (loop.target.kind === "workflow") {
+      const target =
+        (await readWorkflowDefinitionFile(
+          loop.target.id,
+          resolved.owner,
+          resolved.repo,
+        )) ??
+        (await readCompanyStoreWorkflowDefinitionFile(loop.target.id, octokit));
+      if (!target)
+        throw new Error(
+          `Loop target workflow "${loop.target.id}" was not found`,
+        );
+      const issues = validateWorkflowInput(
+        loop.input,
+        target.workflow.inputSchema,
+      );
+      if (issues.length > 0)
+        throw new Error(issues.map((issue) => issue.message).join("; "));
+    }
     const existing = await readRepositoryLoop(
       octokit,
       resolved.owner,
@@ -62,11 +86,6 @@ export async function PATCH(
       );
     }
     const updatedAt = "";
-    await syncLoopWakeRegistration({
-      owner: resolved.owner,
-      repo: resolved.repo,
-      loop,
-    });
     await saveRepositoryLoop(
       octokit,
       resolved.owner,
@@ -74,6 +93,11 @@ export async function PATCH(
       loop,
       `chore(kody): update loop ${id}`,
     );
+    await syncLoopWakeRegistration({
+      owner: resolved.owner,
+      repo: resolved.repo,
+      loop,
+    });
     return NextResponse.json({ loop: { ...loop, updatedAt } });
   } catch (error) {
     return NextResponse.json(

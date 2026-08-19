@@ -10,6 +10,8 @@ describe("Loop wake Dashboard dispatch", () => {
     const job = buildLoopWakeRequest({
       tenantId: "acme/widgets",
       wakeId: "wake-1",
+      loopId: "daily-check",
+      scheduledFor: "2026-08-19T12:00:00.000Z",
     });
 
     expect(job).toEqual({
@@ -17,9 +19,10 @@ describe("Loop wake Dashboard dispatch", () => {
       repo: "acme/widgets",
       runRequest: {
         requestId: "wake-1",
-        target: { type: "workflow", id: "scheduled-fanout" },
+        target: { type: "loop", id: "daily-check" },
         intent: "tick",
         source: "schedule",
+        input: { scheduledFor: "2026-08-19T12:00:00.000Z" },
       },
     });
     expect(JSON.stringify(job)).not.toMatch(/token|secret|key/i);
@@ -35,7 +38,7 @@ describe("Loop wake Dashboard dispatch", () => {
 
     await expect(
       dispatchLoopWakeToDashboard(
-        { tenantId: "acme/widgets", wakeId: "wake-1" },
+        { tenantId: "acme/widgets", wakeId: "wake-1", loopId: "daily-check", scheduledFor: "2026-08-19T12:00:00.000Z" },
         {
           dashboardUrl: "https://dashboard.example.test/",
           wakeApiKey: "derived-key",
@@ -58,7 +61,7 @@ describe("Loop wake Dashboard dispatch", () => {
   it("rejects an insecure remote pool URL", async () => {
     await expect(
       dispatchLoopWakeToDashboard(
-        { tenantId: "acme/widgets", wakeId: "wake-1" },
+        { tenantId: "acme/widgets", wakeId: "wake-1", loopId: "daily-check", scheduledFor: "2026-08-19T12:00:00.000Z" },
         {
           dashboardUrl: "http://dashboard.example.test",
           wakeApiKey: "derived-key",

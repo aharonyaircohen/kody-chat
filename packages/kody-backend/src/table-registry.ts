@@ -151,13 +151,6 @@ export const TABLES: readonly TableDef[] = [
     transient: true,
   },
   {
-    table: "loopWakeTargets",
-    naturalKey: [],
-    upsertIndex: "by_tenant",
-    transient: true,
-    tenantSingleton: true,
-  },
-  {
     table: "loopWakeReceipts",
     naturalKey: ["wakeId"],
     upsertIndex: "by_wake",

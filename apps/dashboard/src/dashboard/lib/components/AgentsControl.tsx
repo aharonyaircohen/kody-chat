@@ -68,6 +68,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { Agent } from "../api";
 import { agentUiPermissions } from "../agent-ui-policy";
 import { KODY_CHAT_AGENT } from "@kody-ade/workspace/context/frontmatter";
+import { LIVE_SCHEDULE_OPTIONS } from "@dashboard/lib/schedule-options";
 import { AGENT_TEMPLATE } from "../agent-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
@@ -658,18 +659,6 @@ interface LiveAgentStatus {
   consistency: "ready" | "inactive" | "missing-state" | "missing-intent";
 }
 
-const LIVE_SCHEDULES = [
-  ["15m", "Every 15 minutes"],
-  ["30m", "Every 30 minutes"],
-  ["1h", "Every hour"],
-  ["2h", "Every 2 hours"],
-  ["6h", "Every 6 hours"],
-  ["12h", "Every 12 hours"],
-  ["1d", "Every day"],
-  ["3d", "Every 3 days"],
-  ["7d", "Every week"],
-] as const;
-
 async function fetchLiveAgentStatus(agent: string): Promise<LiveAgentStatus> {
   return (
     await handleResponse<{ status: LiveAgentStatus }>(
@@ -813,9 +802,9 @@ function LiveAgentPanel({ member }: { member: Agent }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {LIVE_SCHEDULES.map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
+                    {LIVE_SCHEDULE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

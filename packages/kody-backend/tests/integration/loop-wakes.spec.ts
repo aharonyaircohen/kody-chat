@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { api, internal } from "../../convex/_generated/api";
 import { setupWithoutKey, TEST_SERVICE_KEY } from "./helpers";
 
-const NOW = "2026-08-19T12:00:00.000Z";
+const NOW = "2026-08-19T11:59:00.000Z";
 const SLOT = "2026-08-19T12:00:00.000Z";
 
 async function sync(
@@ -13,12 +13,43 @@ async function sync(
   return t.mutation(api.loopWakes.syncRegistration, {
     serviceKey: TEST_SERVICE_KEY,
     updatedAt: NOW,
+    trigger: { type: "schedule", every: "15m" },
     ...input,
   });
 }
 
 describe("Convex-owned Loop wakes", () => {
-  it("claims one repository wake per time slot even when it has several Loops", async () => {
+  it("drains more repositories than one batch without starvation", async () => {
+    const t = setupWithoutKey();
+    for (let index = 0; index < 60; index += 1) {
+      await sync(t, {
+        tenantId: `acme/repo-${index}`,
+        loopId: "daily-check",
+        enabled: true,
+      });
+    }
+
+    const first = await t.mutation(internal.loopWakes.claimDue, {
+      now: SLOT,
+      limit: 25,
+    });
+    const second = await t.mutation(internal.loopWakes.claimDue, {
+      now: SLOT,
+      limit: 25,
+    });
+    const third = await t.mutation(internal.loopWakes.claimDue, {
+      now: SLOT,
+      limit: 25,
+    });
+
+    expect(
+      new Set([...first, ...second, ...third].map((claim) => claim.tenantId))
+        .size,
+    ).toBe(60);
+    expect([first.length, second.length, third.length]).toEqual([25, 25, 10]);
+  });
+
+  it("claims each due Loop separately", async () => {
     const t = setupWithoutKey();
     await sync(t, {
       tenantId: "acme/widgets",
@@ -33,21 +64,27 @@ describe("Convex-owned Loop wakes", () => {
 
     await expect(
       t.mutation(internal.loopWakes.claimDue, {
-        slot: SLOT,
-        now: NOW,
+        now: SLOT,
         limit: 25,
       }),
     ).resolves.toEqual([
       {
         tenantId: "acme/widgets",
-        wakeId: `loop-wake:acme/widgets:${SLOT}`,
+        loopId: "ci-health",
+        scheduledFor: SLOT,
+        wakeId: `loop-wake:acme/widgets:ci-health:${SLOT}`,
+      },
+      {
+        tenantId: "acme/widgets",
+        loopId: "docs-health",
+        scheduledFor: SLOT,
+        wakeId: `loop-wake:acme/widgets:docs-health:${SLOT}`,
       },
     ]);
 
     await expect(
       t.mutation(internal.loopWakes.claimDue, {
-        slot: SLOT,
-        now: NOW,
+        now: SLOT,
         limit: 25,
       }),
     ).resolves.toEqual([]);
@@ -68,8 +105,7 @@ describe("Convex-owned Loop wakes", () => {
 
     await expect(
       t.mutation(internal.loopWakes.claimDue, {
-        slot: SLOT,
-        now: NOW,
+        now: SLOT,
         limit: 25,
       }),
     ).resolves.toEqual([]);
@@ -83,15 +119,14 @@ describe("Convex-owned Loop wakes", () => {
       enabled: true,
     });
     const [claim] = await t.mutation(internal.loopWakes.claimDue, {
-      slot: SLOT,
-      now: NOW,
+      now: SLOT,
       limit: 25,
     });
 
     await t.mutation(internal.loopWakes.finishWake, {
       tenantId: claim!.tenantId,
       wakeId: claim!.wakeId,
-      status: "dispatched",
+      status: "accepted",
       detail: "runner accepted",
       now: "2026-08-19T12:00:01.000Z",
     });
@@ -106,7 +141,7 @@ describe("Convex-owned Loop wakes", () => {
     );
     expect(receipt).toMatchObject({
       tenantId: "acme/widgets",
-      status: "dispatched",
+      status: "accepted",
       detail: "runner accepted",
     });
     expect(JSON.stringify(receipt)).not.toContain("secret");
@@ -120,8 +155,7 @@ describe("Convex-owned Loop wakes", () => {
       enabled: true,
     });
     const [claim] = await t.mutation(internal.loopWakes.claimDue, {
-      slot: SLOT,
-      now: NOW,
+      now: SLOT,
       limit: 25,
     });
     await t.mutation(internal.loopWakes.finishWake, {
@@ -134,7 +168,6 @@ describe("Convex-owned Loop wakes", () => {
 
     await expect(
       t.mutation(internal.loopWakes.claimDue, {
-        slot: "2026-08-19T12:15:00.000Z",
         now: "2026-08-19T12:15:00.000Z",
         limit: 25,
       }),
@@ -149,8 +182,7 @@ describe("Convex-owned Loop wakes", () => {
       enabled: true,
     });
     const [claim] = await t.mutation(internal.loopWakes.claimDue, {
-      slot: SLOT,
-      now: NOW,
+      now: SLOT,
       limit: 25,
     });
     await t.mutation(internal.loopWakes.finishWake, {
@@ -163,11 +195,62 @@ describe("Convex-owned Loop wakes", () => {
 
     await expect(
       t.mutation(internal.loopWakes.claimDue, {
-        slot: SLOT,
         now: "2026-08-19T12:05:00.000Z",
         limit: 25,
       }),
     ).resolves.toEqual([claim]);
+  });
+
+  it("stops after three failed attempts without blocking another failed Loop", async () => {
+    const t = setupWithoutKey();
+    await sync(t, {
+      tenantId: "acme/widgets",
+      loopId: "broken",
+      enabled: true,
+    });
+    await sync(t, {
+      tenantId: "acme/widgets",
+      loopId: "recoverable",
+      enabled: true,
+    });
+    const claims = await t.mutation(internal.loopWakes.claimDue, {
+      now: SLOT,
+      limit: 25,
+    });
+    for (const claim of claims) {
+      await t.mutation(internal.loopWakes.finishWake, {
+        tenantId: claim.tenantId,
+        wakeId: claim.wakeId,
+        status: "failed",
+        detail: "failed",
+        now: "2026-08-19T12:00:01.000Z",
+      });
+    }
+    await t.run(async (ctx) => {
+      const broken = await ctx.db
+        .query("loopWakeReceipts")
+        .withIndex("by_wake", (q) =>
+          q.eq("tenantId", "acme/widgets").eq("wakeId", claims[0]!.wakeId),
+        )
+        .unique();
+      await ctx.db.patch(broken!._id, { attempt: 3 });
+    });
+
+    const retries = await t.mutation(internal.loopWakes.claimDue, {
+      now: "2026-08-19T12:05:00.000Z",
+      limit: 1,
+    });
+
+    expect(retries).toEqual([claims[1]]);
+    const terminal = await t.run(async (ctx) =>
+      ctx.db
+        .query("loopWakeReceipts")
+        .withIndex("by_wake", (q) =>
+          q.eq("tenantId", "acme/widgets").eq("wakeId", claims[0]!.wakeId),
+        )
+        .unique(),
+    );
+    expect(terminal?.status).toBe("timed_out");
   });
 
   it("replaces registrations from an Engine shadow tick", async () => {
@@ -181,7 +264,23 @@ describe("Convex-owned Loop wakes", () => {
     await t.mutation(api.loopWakes.replaceRegistrations, {
       serviceKey: TEST_SERVICE_KEY,
       tenantId: "acme/widgets",
-      loopIds: ["ci-health", "docs-health", "ci-health"],
+      loops: [
+        {
+          id: "ci-health",
+          enabled: true,
+          trigger: { type: "schedule", every: "15m" },
+        },
+        {
+          id: "docs-health",
+          enabled: true,
+          trigger: { type: "schedule", every: "1h" },
+        },
+        {
+          id: "ci-health",
+          enabled: true,
+          trigger: { type: "schedule", every: "15m" },
+        },
+      ],
       updatedAt: NOW,
     });
 
