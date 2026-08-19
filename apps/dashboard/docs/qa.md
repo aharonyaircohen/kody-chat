@@ -18,6 +18,11 @@ starts. The QA agent receives the session, not `LOGIN_PASSWORD` or
 `KODY_MASTER_KEY`. If the login fails, the Quality run is blocked rather than
 testing only public pages and reporting success.
 
+QA password provisioning must finish through Convex's service-key-protected
+`/internal/qa/reset-password` endpoint. This creates the password hash in the
+same HTTP runtime that verifies deployed logins; the plaintext password remains
+in Kody Secrets and is never returned by the endpoint.
+
 Verify the real result, not only the implementation or automated checks. Report
 what was tested, what happened, useful evidence, and anything that remains
 uncertain or blocked.

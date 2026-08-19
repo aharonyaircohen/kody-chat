@@ -1,6 +1,23 @@
 import { internalAction } from "./_generated/server";
 import { createQaProvisioningAuth } from "./betterAuth/auth";
 
+export async function resetQaPassword(
+  authContext: {
+    internalAdapter: {
+      findUserByEmail(email: string): Promise<{ user?: { id: string } } | null>;
+      updatePassword(userId: string, hash: string): Promise<unknown>;
+    };
+    password: { hash(password: string): Promise<string> };
+  },
+  email: string,
+  password: string,
+) {
+  const found = await authContext.internalAdapter.findUserByEmail(email);
+  if (!found?.user) throw new Error("QA user does not exist");
+  const hash = await authContext.password.hash(password);
+  await authContext.internalAdapter.updatePassword(found.user.id, hash);
+}
+
 /**
  * Create the dedicated QA user without opening public registration.
  * Credentials are read from temporary Convex environment values so they are
