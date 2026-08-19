@@ -72,14 +72,14 @@ describe("resolveDefaultAgentEntry", () => {
     expect(entry?.key).toBe("kody:claude-sonnet");
   });
 
-  it("uses Brain when configured and no Kody model exists", () => {
+  it("falls through to Live when Brain is configured but no Brain model is selected", () => {
     const agentList = list({ brain: true });
     const entry = resolveDefaultAgentEntry({
       chatModels: [],
       brainConfigured: true,
       agentList,
     });
-    expect(entry?.key).toBe("brain");
+    expect(entry?.key).toBe("kody-live");
   });
 
   it("falls through to Live when nothing else is configured", () => {

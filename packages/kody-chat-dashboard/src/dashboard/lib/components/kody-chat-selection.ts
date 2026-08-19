@@ -39,7 +39,7 @@ import type { UseConversationSessionsResult } from "../chat/core/conversation/us
  * Resolution order:
  *   1. A Kody model with `default: true` on the Models page.
  *   2. First configured Kody model.
- *   3. Brain if configured.
+ *   3. Brain with a selected model if configured.
  *   4. First available Live entry.
  *
  * Renderers are part of the in-process Kody chat protocol. If a repo has
@@ -67,11 +67,16 @@ export function resolveDefaultAgentEntry(options: {
       (entry) => entry.agentId === "brain" || entry.agentId === "brain-fly",
     )
   ) {
-    return (
-      agentList.find(
-        (entry) => entry.agentId === "brain" || entry.agentId === "brain-fly",
-      ) ?? null
+    // Only pick a Brain entry that has a model selected — the bare
+    // "brain" / "brain-fly" row is a setup affordance, not a usable
+    // default. When only that affordance is visible, fall through to
+    // Live so we never default to a backend with no model picked.
+    const brainWithModel = agentList.find(
+      (entry) =>
+        (entry.agentId === "brain" || entry.agentId === "brain-fly") &&
+        entry.modelId !== null,
     );
+    if (brainWithModel) return brainWithModel;
   }
   return (
     agentList.find(
