@@ -37,4 +37,8 @@ describe("root dashboard layout (e2e gate regression)", () => {
       /import\s+\{[^}]*\bgetKodyAuthToken\b[^}]*\}\s+from/,
     );
   });
+
+  it("does not pass initialAuthToken into KodyProviders", () => {
+    expect(LAYOUT_SOURCE).not.toMatch(/<KodyProviders\s+initialAuthToken=/);
+  });
 });
