@@ -27,7 +27,7 @@ describe("Loop wake Dashboard dispatch", () => {
 
   it("uses authenticated HTTPS and returns only a safe result", async () => {
     const fetcher = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true, machineId: "machine-1" }), {
+      new Response(JSON.stringify({ ok: true, runner: "github-actions" }), {
         status: 202,
         headers: { "content-type": "application/json" },
       }),
@@ -42,7 +42,7 @@ describe("Loop wake Dashboard dispatch", () => {
           fetcher,
         },
       ),
-    ).resolves.toEqual({ ok: true, detail: "runner accepted" });
+    ).resolves.toEqual({ ok: true, detail: "workflow accepted" });
 
     expect(fetcher).toHaveBeenCalledWith(
       "https://dashboard.example.test/api/kody/loop-wakes/dispatch",

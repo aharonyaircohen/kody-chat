@@ -64,12 +64,13 @@ export async function dispatchLoopWakeToDashboard(
   );
   if (response.ok) {
     const body = (await response.json().catch(() => null)) as {
-      machineId?: unknown;
+      ok?: unknown;
+      runner?: unknown;
     } | null;
-    if (typeof body?.machineId === "string" && body.machineId.trim()) {
-      return { ok: true, detail: "runner accepted" };
+    if (body?.ok === true && body.runner === "github-actions") {
+      return { ok: true, detail: "workflow accepted" };
     }
-    return { ok: false, detail: "Dashboard returned no runner" };
+    return { ok: false, detail: "Dashboard did not accept the workflow" };
   }
   return {
     ok: false,
