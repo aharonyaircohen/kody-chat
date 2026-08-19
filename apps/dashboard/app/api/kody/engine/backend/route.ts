@@ -37,6 +37,10 @@ const operations = {
     kind: "mutation",
     fn: backendApi.loopWakes.replaceRegistrations,
   },
+  "loopWakes.markExecution": {
+    kind: "mutation",
+    fn: backendApi.loopWakes.markExecution,
+  },
   "agencyModel.reserveDispatch": {
     kind: "mutation",
     fn: backendApi.agencyModel.reserveDispatch,

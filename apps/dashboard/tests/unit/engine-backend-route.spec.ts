@@ -129,6 +129,32 @@ describe("POST /api/kody/engine/backend", () => {
     });
   });
 
+  it("allows the Engine to report a scheduled Loop lifecycle", async () => {
+    backend.mutation.mockResolvedValue(undefined);
+    const response = await POST(
+      request({
+        kind: "mutation",
+        operation: "loopWakes.markExecution",
+        args: {
+          tenantId: "attacker/repo",
+          wakeId: "loop-wake-registration-1",
+          status: "running",
+          detail: "Engine started Loop",
+          updatedAt: "2026-08-19T14:53:20.000Z",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      wakeId: "loop-wake-registration-1",
+      status: "running",
+      detail: "Engine started Loop",
+      updatedAt: "2026-08-19T14:53:20.000Z",
+    });
+  });
+
   it("does not expose the removed Agency Definition operation", async () => {
     const response = await POST(
       request({
