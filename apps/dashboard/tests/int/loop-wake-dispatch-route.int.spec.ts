@@ -1,12 +1,19 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const runScheduledKodyOnRunner = vi.fn();
 const resolveBackgroundToken = vi.fn();
+const getRepo = vi.fn();
+const createWorkflowDispatch = vi.fn();
 
-vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
-  runScheduledKodyOnRunner: (...args: unknown[]) =>
-    runScheduledKodyOnRunner(...args),
+vi.mock("@octokit/rest", () => ({
+  Octokit: vi.fn(function MockOctokit() {
+    return {
+      rest: {
+        repos: { get: getRepo },
+        actions: { createWorkflowDispatch },
+      },
+    };
+  }),
 }));
 
 vi.mock("@kody-ade/base/auth/background-token", () => ({
@@ -46,12 +53,8 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
       token: "github-token",
       source: "app",
     });
-    runScheduledKodyOnRunner.mockResolvedValue({
-      ok: true,
-      runner: "fly",
-      machineId: "machine-1",
-      ref: "main",
-    });
+    getRepo.mockResolvedValue({ data: { default_branch: "trunk" } });
+    createWorkflowDispatch.mockResolvedValue({ status: 204 });
   });
 
   afterEach(() => {
@@ -62,31 +65,30 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
   it("rejects a wrong service key", async () => {
     const response = await POST(request("wrong"));
     expect(response.status).toBe(401);
-    expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
+    expect(createWorkflowDispatch).not.toHaveBeenCalled();
   });
 
-  it("starts the canonical scheduled fan-out on a fresh runner", async () => {
+  it("dispatches the canonical scheduled fan-out through GitHub Actions", async () => {
     const response = await POST(request());
     expect(response.status).toBe(202);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      runner: "fly",
-      machineId: "machine-1",
+      runner: "github-actions",
     });
 
-    const [runnerRequest, options] = runScheduledKodyOnRunner.mock.calls[0];
-    expect(runnerRequest.headers.get("x-kody-token")).toBe("github-token");
-    expect(runnerRequest.headers.get("x-kody-owner")).toBe("acme");
-    expect(runnerRequest.headers.get("x-kody-repo")).toBe("widgets");
     expect(resolveBackgroundToken).toHaveBeenCalledWith("acme", "widgets");
-    expect(options).toEqual({
-      taskId: "wake-1",
-      dashboardUrl: "https://dashboard.test",
-      runRequest: {
-        requestId: "wake-1",
-        target: { type: "workflow", id: "scheduled-fanout" },
-        intent: "tick",
-        source: "schedule",
+    expect(createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "widgets",
+      workflow_id: "kody.yml",
+      ref: "trunk",
+      inputs: {
+        runRequest: JSON.stringify({
+          requestId: "wake-1",
+          target: { type: "workflow", id: "scheduled-fanout" },
+          intent: "tick",
+          source: "schedule",
+        }),
       },
     });
   });
@@ -105,13 +107,22 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
       }),
     );
     expect(response.status).toBe(400);
-    expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
+    expect(createWorkflowDispatch).not.toHaveBeenCalled();
   });
 
   it("does not start when repository access is unavailable", async () => {
     resolveBackgroundToken.mockResolvedValueOnce(null);
     const response = await POST(request());
     expect(response.status).toBe(503);
-    expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
+    expect(createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("reports a GitHub dispatch failure without leaking details", async () => {
+    createWorkflowDispatch.mockRejectedValueOnce(new Error("secret detail"));
+    const response = await POST(request());
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "GitHub workflow dispatch failed",
+    });
   });
 });

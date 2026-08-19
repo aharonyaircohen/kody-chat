@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { Octokit } from "@octokit/rest";
 
-import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 
 export const runtime = "nodejs";
@@ -58,26 +58,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const runnerRequest = new NextRequest(req.url, {
-    headers: {
-      "x-kody-token": backgroundToken.token,
-      "x-kody-owner": repoMatch[1],
-      "x-kody-repo": repoMatch[2],
-    },
-  });
-  const result = await runScheduledKodyOnRunner(runnerRequest, {
-    taskId: jobId,
-    runRequest: runRequest as never,
-    dashboardUrl: req.nextUrl.origin,
-  });
-  if (!result.ok) {
+  try {
+    const octokit = new Octokit({ auth: backgroundToken.token });
+    const repo = await octokit.rest.repos.get({
+      owner: repoMatch[1],
+      repo: repoMatch[2],
+    });
+    const ref = repo.data.default_branch;
+    if (!ref) throw new Error("Repository has no default branch");
+    await octokit.rest.actions.createWorkflowDispatch({
+      owner: repoMatch[1],
+      repo: repoMatch[2],
+      workflow_id: "kody.yml",
+      ref,
+      inputs: { runRequest: JSON.stringify(runRequest) },
+    });
+  } catch {
     return NextResponse.json(
-      { error: "Runner start failed" },
-      { status: result.status },
+      { error: "GitHub workflow dispatch failed" },
+      { status: 502 },
     );
   }
   return NextResponse.json(
-    { ok: true, runner: result.runner, machineId: result.machineId },
+    { ok: true, runner: "github-actions" },
     { status: 202 },
   );
 }
