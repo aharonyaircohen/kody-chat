@@ -50,6 +50,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Synchronous on purpose: an async layout that fetches server-side (e.g.
+// `getKodyAuthToken` from `@convex-dev/better-auth/nextjs`) blocks Next.js
+// prerendering of every page wrapped by this layout, including ones that
+// are themselves `force-dynamic`, and fails the production build with a
+// `TypeError: fetch failed` when the upstream endpoint is unreachable
+// (CI, offline, or pre-deploy). All auth/identity work happens in
+// client-mounted providers (`KodyProviders` → `ConvexClientProvider` +
+// `AuthProvider`); this layout only owns static chrome.
 export default function KodyLayout({
   children,
 }: {
