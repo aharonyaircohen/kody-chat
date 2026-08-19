@@ -195,7 +195,7 @@ export const claimDue = internalMutation({
         continue;
       }
       const scheduledFor = registration.nextDueAt;
-      const wakeId = `loop-wake:${registration.tenantId}:${registration.loopId}:${scheduledFor}`;
+      const wakeId = `loop-wake-${registration._id}-${Date.parse(scheduledFor)}`;
       const existing = await ctx.db
         .query("loopWakeReceipts")
         .withIndex("by_wake", (q) =>

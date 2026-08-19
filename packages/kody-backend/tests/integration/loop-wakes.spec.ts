@@ -72,13 +72,13 @@ describe("Convex-owned Loop wakes", () => {
         tenantId: "acme/widgets",
         loopId: "ci-health",
         scheduledFor: SLOT,
-        wakeId: `loop-wake:acme/widgets:ci-health:${SLOT}`,
+        wakeId: expect.stringMatching(/^loop-wake-[a-zA-Z0-9]+-\d+$/),
       },
       {
         tenantId: "acme/widgets",
         loopId: "docs-health",
         scheduledFor: SLOT,
-        wakeId: `loop-wake:acme/widgets:docs-health:${SLOT}`,
+        wakeId: expect.stringMatching(/^loop-wake-[a-zA-Z0-9]+-\d+$/),
       },
     ]);
 
