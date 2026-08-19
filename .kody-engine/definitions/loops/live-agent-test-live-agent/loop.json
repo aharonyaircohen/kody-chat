@@ -5,10 +5,11 @@
     "every": "1h"
   },
   "target": {
-    "kind": "agent",
-    "id": "test-live-agent"
+    "kind": "capability",
+    "id": "live-agent"
   },
   "input": {
+    "agent": "test-live-agent",
     "intent": "agency"
   },
   "enabled": true
