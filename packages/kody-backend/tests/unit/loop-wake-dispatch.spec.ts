@@ -28,7 +28,7 @@ describe("Loop wake Dashboard dispatch", () => {
   it("uses authenticated HTTPS and returns only a safe result", async () => {
     const fetcher = vi.fn(async () =>
       new Response(JSON.stringify({ ok: true, machineId: "machine-1" }), {
-        status: 200,
+        status: 202,
         headers: { "content-type": "application/json" },
       }),
     );

@@ -62,7 +62,7 @@ export async function dispatchLoopWakeToDashboard(
       signal: AbortSignal.timeout(20_000),
     },
   );
-  if (response.status === 200) {
+  if (response.ok) {
     const body = (await response.json().catch(() => null)) as {
       machineId?: unknown;
     } | null;
