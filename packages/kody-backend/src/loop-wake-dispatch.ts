@@ -59,7 +59,7 @@ export async function dispatchLoopWakeToDashboard(
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(buildLoopWakeRequest(target)),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(60_000),
     },
   );
   if (response.ok) {

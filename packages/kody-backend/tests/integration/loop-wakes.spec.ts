@@ -141,6 +141,35 @@ describe("Convex-owned Loop wakes", () => {
     ).resolves.toHaveLength(1);
   });
 
+  it("retries a failed wake in the same slot", async () => {
+    const t = setupWithoutKey();
+    await sync(t, {
+      tenantId: "acme/widgets",
+      loopId: "ci-health",
+      enabled: true,
+    });
+    const [claim] = await t.mutation(internal.loopWakes.claimDue, {
+      slot: SLOT,
+      now: NOW,
+      limit: 25,
+    });
+    await t.mutation(internal.loopWakes.finishWake, {
+      tenantId: claim!.tenantId,
+      wakeId: claim!.wakeId,
+      status: "failed",
+      detail: "runner timed out",
+      now: "2026-08-19T12:00:01.000Z",
+    });
+
+    await expect(
+      t.mutation(internal.loopWakes.claimDue, {
+        slot: SLOT,
+        now: "2026-08-19T12:05:00.000Z",
+        limit: 25,
+      }),
+    ).resolves.toEqual([claim]);
+  });
+
   it("replaces registrations from an Engine shadow tick", async () => {
     const t = setupWithoutKey();
     await sync(t, {

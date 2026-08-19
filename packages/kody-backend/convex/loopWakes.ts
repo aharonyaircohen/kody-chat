@@ -147,7 +147,17 @@ export const claimDue = internalMutation({
           q.eq("tenantId", target.tenantId).eq("wakeId", wakeId),
         )
         .unique();
-      if (existing) continue;
+      if (existing) {
+        if (existing.status === "failed") {
+          await ctx.db.patch(existing._id, {
+            status: "reserved",
+            detail: undefined,
+            updatedAt: args.now,
+          });
+          claims.push({ tenantId: target.tenantId, wakeId });
+        }
+        continue;
+      }
       await ctx.db.insert("loopWakeReceipts", {
         wakeId,
         tenantId: target.tenantId,
