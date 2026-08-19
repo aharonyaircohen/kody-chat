@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
+import { getInstallationToken } from "@kody-ade/base/auth/app-token";
 
 export const runtime = "nodejs";
 
@@ -19,11 +20,6 @@ function validServiceKey(req: NextRequest): boolean {
 export async function POST(req: NextRequest) {
   if (!validServiceKey(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const botToken = process.env.KODY_BOT_TOKEN?.trim();
-  if (!botToken) {
-    return NextResponse.json({ error: "Runner is not configured" }, { status: 503 });
   }
 
   let body: Record<string, unknown>;
@@ -49,9 +45,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid loop wake" }, { status: 400 });
   }
 
+  const githubToken = await getInstallationToken(repoMatch[1], repoMatch[2]);
+  if (!githubToken) {
+    return NextResponse.json(
+      { error: "GitHub App is not installed for this repository" },
+      { status: 503 },
+    );
+  }
+
   const runnerRequest = new NextRequest(req.url, {
     headers: {
-      "x-kody-token": botToken,
+      "x-kody-token": githubToken,
       "x-kody-owner": repoMatch[1],
       "x-kody-repo": repoMatch[2],
     },

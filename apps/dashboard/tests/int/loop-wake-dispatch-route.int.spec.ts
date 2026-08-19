@@ -2,10 +2,15 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runScheduledKodyOnRunner = vi.fn();
+const getInstallationToken = vi.fn();
 
 vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
   runScheduledKodyOnRunner: (...args: unknown[]) =>
     runScheduledKodyOnRunner(...args),
+}));
+
+vi.mock("@kody-ade/base/auth/app-token", () => ({
+  getInstallationToken: (...args: unknown[]) => getInstallationToken(...args),
 }));
 
 import { POST } from "../../app/api/kody/loop-wakes/dispatch/route";
@@ -30,7 +35,7 @@ function request(token = "wake-secret", body: unknown = {
 describe("POST /api/kody/loop-wakes/dispatch", () => {
   beforeEach(() => {
     vi.stubEnv("KODY_LOOP_WAKE_API_KEY", "wake-secret");
-    vi.stubEnv("KODY_BOT_TOKEN", "github-token");
+    getInstallationToken.mockResolvedValue("github-token");
     runScheduledKodyOnRunner.mockResolvedValue({
       ok: true,
       runner: "fly",
@@ -63,6 +68,7 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
     expect(runnerRequest.headers.get("x-kody-token")).toBe("github-token");
     expect(runnerRequest.headers.get("x-kody-owner")).toBe("acme");
     expect(runnerRequest.headers.get("x-kody-repo")).toBe("widgets");
+    expect(getInstallationToken).toHaveBeenCalledWith("acme", "widgets");
     expect(options).toEqual({
       taskId: "wake-1",
       dashboardUrl: "https://dashboard.test",
@@ -87,6 +93,13 @@ describe("POST /api/kody/loop-wakes/dispatch", () => {
       },
     }));
     expect(response.status).toBe(400);
+    expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
+  });
+
+  it("does not start when the GitHub App is not installed", async () => {
+    getInstallationToken.mockResolvedValueOnce(null);
+    const response = await POST(request());
+    expect(response.status).toBe(503);
     expect(runScheduledKodyOnRunner).not.toHaveBeenCalled();
   });
 });
