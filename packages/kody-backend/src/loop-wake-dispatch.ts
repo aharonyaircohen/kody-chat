@@ -5,7 +5,7 @@ export interface LoopWakeTarget {
   wakeId: string;
 }
 
-export interface LoopWakePoolJob {
+export interface LoopWakeRequest {
   jobId: string;
   repo: string;
   runRequest: {
@@ -16,9 +16,9 @@ export interface LoopWakePoolJob {
   };
 }
 
-export function buildLoopWakePoolJob(
+export function buildLoopWakeRequest(
   target: LoopWakeTarget,
-): LoopWakePoolJob {
+): LoopWakeRequest {
   if (!REPOSITORY.test(target.tenantId)) {
     throw new Error("Loop wake tenant must be owner/repository");
   }
@@ -35,30 +35,30 @@ export function buildLoopWakePoolJob(
   };
 }
 
-export async function dispatchLoopWakeToPool(
+export async function dispatchLoopWakeToDashboard(
   target: LoopWakeTarget,
   options: {
-    poolUrl: string;
-    poolApiKey: string;
+    dashboardUrl: string;
+    wakeApiKey: string;
     fetcher?: typeof fetch;
   },
 ): Promise<{ ok: boolean; detail: string }> {
-  const url = new URL(options.poolUrl);
+  const url = new URL(options.dashboardUrl);
   if (url.protocol !== "https:") {
-    throw new Error("Loop wake pool URL must use HTTPS");
+    throw new Error("Loop wake Dashboard URL must use HTTPS");
   }
-  const apiKey = options.poolApiKey.trim();
-  if (!apiKey) throw new Error("Loop wake pool API key is required");
+  const apiKey = options.wakeApiKey.trim();
+  if (!apiKey) throw new Error("Loop wake API key is required");
   const fetcher = options.fetcher ?? fetch;
   const response = await fetcher(
-    `${url.toString().replace(/\/+$/, "")}/pool/claim`,
+    `${url.toString().replace(/\/+$/, "")}/api/kody/loop-wakes/dispatch`,
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(buildLoopWakePoolJob(target)),
+      body: JSON.stringify(buildLoopWakeRequest(target)),
       signal: AbortSignal.timeout(20_000),
     },
   );
@@ -69,7 +69,10 @@ export async function dispatchLoopWakeToPool(
     if (typeof body?.machineId === "string" && body.machineId.trim()) {
       return { ok: true, detail: "runner accepted" };
     }
-    return { ok: false, detail: "pool returned no runner" };
+    return { ok: false, detail: "Dashboard returned no runner" };
   }
-  return { ok: false, detail: `pool rejected wake (HTTP ${response.status})` };
+  return {
+    ok: false,
+    detail: `Dashboard rejected wake (HTTP ${response.status})`,
+  };
 }

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { dispatchLoopWakeToPool } from "../src/loop-wake-dispatch";
+import { dispatchLoopWakeToDashboard } from "../src/loop-wake-dispatch";
 import { internal } from "./_generated/api";
 import {
   internalAction,
@@ -225,17 +225,17 @@ export const dispatchDue = internalAction({
       return { mode, claimed: claims.length, dispatched: 0 };
     }
 
-    const poolUrl = process.env.KODY_LOOP_POOL_URL?.trim();
-    const poolApiKey = process.env.KODY_LOOP_POOL_API_KEY?.trim();
-    if (!poolUrl || !poolApiKey) {
-      throw new Error("Loop wake pool configuration is missing");
+    const dashboardUrl = process.env.KODY_LOOP_DASHBOARD_URL?.trim();
+    const wakeApiKey = process.env.KODY_LOOP_WAKE_API_KEY?.trim();
+    if (!dashboardUrl || !wakeApiKey) {
+      throw new Error("Loop wake Dashboard configuration is missing");
     }
     const outcomes = await Promise.all(
       claims.map(async (claim) => {
         try {
-          const outcome = await dispatchLoopWakeToPool(claim, {
-            poolUrl,
-            poolApiKey,
+          const outcome = await dispatchLoopWakeToDashboard(claim, {
+            dashboardUrl,
+            wakeApiKey,
           });
           await ctx.runMutation(internal.loopWakes.finishWake, {
             wakeId: claim.wakeId,
@@ -250,7 +250,7 @@ export const dispatchDue = internalAction({
             wakeId: claim.wakeId,
             tenantId: claim.tenantId,
             status: "failed",
-            detail: "pool dispatch failed",
+            detail: "Dashboard dispatch failed",
             now: new Date().toISOString(),
           });
           return false;

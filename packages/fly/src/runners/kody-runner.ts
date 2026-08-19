@@ -2,9 +2,10 @@ import type { NextRequest } from "next/server";
 
 import { logger } from "@kody-ade/base/logger";
 import {
-  claimOrRunServer,
   resolveServerContext,
 } from "./server-run";
+import { spawnRunner } from "../plugin/runners/fly";
+import type { FlyContext } from "../plugin/runners/context";
 import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 
 interface RepoMetadataOctokit {
@@ -35,7 +36,8 @@ export async function runScheduledKodyOnRunner(
   req: NextRequest,
   opts: {
     taskId: string;
-  runRequest: EngineExecutionRequest;
+    runRequest: EngineExecutionRequest;
+    dashboardUrl?: string;
   },
 ): Promise<ScheduledKodyRunResult> {
   const ctxResult = await resolveServerContext(req);
@@ -47,8 +49,9 @@ export async function runScheduledKodyOnRunner(
     };
   }
 
-  const { owner, repo } = ctxResult.context;
-  const octokit = ctxResult.context.octokit as RepoMetadataOctokit;
+  const context = ctxResult.context as FlyContext;
+  const { owner, repo } = context;
+  const octokit = context.octokit as RepoMetadataOctokit;
   let ref = "main";
   try {
     const repoMeta = await octokit.rest.repos.get({ owner, repo });
@@ -61,12 +64,17 @@ export async function runScheduledKodyOnRunner(
   }
 
   try {
-    const run = await claimOrRunServer(ctxResult.context, {
-      taskId: opts.taskId,
+    const run = await spawnRunner({
+      repo: `${owner}/${repo}`,
+      githubToken: context.githubToken,
       runRequest: opts.runRequest,
+      dashboardUrl: opts.dashboardUrl,
       ref,
+      allSecrets: context.allSecrets,
+      flyToken: context.flyToken,
+      perfTier: context.perfTier,
     });
-    return { ok: true, runner: run.runner, machineId: run.machineId, ref };
+    return { ok: true, runner: "fly", machineId: run.machineId, ref };
   } catch (err) {
     return {
       ok: false,

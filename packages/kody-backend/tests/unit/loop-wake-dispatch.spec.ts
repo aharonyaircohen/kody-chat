@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  buildLoopWakePoolJob,
-  dispatchLoopWakeToPool,
+  buildLoopWakeRequest,
+  dispatchLoopWakeToDashboard,
 } from "../../src/loop-wake-dispatch";
 
-describe("Loop wake pool dispatch", () => {
+describe("Loop wake Dashboard dispatch", () => {
   it("builds the canonical scheduled fan-out request without credentials", () => {
-    const job = buildLoopWakePoolJob({
+    const job = buildLoopWakeRequest({
       tenantId: "acme/widgets",
       wakeId: "wake-1",
     });
@@ -34,18 +34,18 @@ describe("Loop wake pool dispatch", () => {
     );
 
     await expect(
-      dispatchLoopWakeToPool(
+      dispatchLoopWakeToDashboard(
         { tenantId: "acme/widgets", wakeId: "wake-1" },
         {
-          poolUrl: "https://pool.example.test/",
-          poolApiKey: "derived-key",
+          dashboardUrl: "https://dashboard.example.test/",
+          wakeApiKey: "derived-key",
           fetcher,
         },
       ),
     ).resolves.toEqual({ ok: true, detail: "runner accepted" });
 
     expect(fetcher).toHaveBeenCalledWith(
-      "https://pool.example.test/pool/claim",
+      "https://dashboard.example.test/api/kody/loop-wakes/dispatch",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -57,11 +57,11 @@ describe("Loop wake pool dispatch", () => {
 
   it("rejects an insecure remote pool URL", async () => {
     await expect(
-      dispatchLoopWakeToPool(
+      dispatchLoopWakeToDashboard(
         { tenantId: "acme/widgets", wakeId: "wake-1" },
         {
-          poolUrl: "http://pool.example.test",
-          poolApiKey: "derived-key",
+          dashboardUrl: "http://dashboard.example.test",
+          wakeApiKey: "derived-key",
           fetcher: vi.fn(),
         },
       ),

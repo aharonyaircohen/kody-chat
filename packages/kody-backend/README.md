@@ -43,8 +43,8 @@ until explicitly enabled:
 
 ```bash
 npx convex env set KODY_LOOP_WAKE_MODE shadow
-npx convex env set KODY_LOOP_POOL_URL https://<pool-host>
-npx convex env set KODY_LOOP_POOL_API_KEY <derived-pool-key>
+npx convex env set KODY_LOOP_DASHBOARD_URL https://<dashboard-host>
+npx convex env set KODY_LOOP_WAKE_API_KEY <dedicated-wake-key>
 ```
 
 Set `KODY_LOOP_WAKE_MODE` to `dispatch` only after shadow receipts match the
