@@ -13,22 +13,38 @@ type SyncInput = {
   { loop: LoopDefinition; loopId?: never } | { loop?: never; loopId: string }
 );
 
+export function buildLoopWakeRegistrationArgs(
+  input: SyncInput & { updatedAt: string },
+): Record<string, unknown> {
+  const loopId = input.loop?.id ?? input.loopId;
+  if (input.loop?.enabled === true && input.loop.trigger.type === "schedule") {
+    return {
+      tenantId: `${input.owner}/${input.repo}`,
+      loopId,
+      enabled: true,
+      trigger: input.loop.trigger,
+      updatedAt: input.updatedAt,
+    };
+  }
+  return {
+    tenantId: `${input.owner}/${input.repo}`,
+    loopId,
+    enabled: false,
+    updatedAt: input.updatedAt,
+  };
+}
+
 export async function syncLoopWakeRegistration(
   input: SyncInput,
   client: MutationClient = createBackendClient(),
 ): Promise<void> {
-  const loopId = input.loop?.id ?? input.loopId;
-  const enabled =
-    input.loop?.enabled === true && input.loop.trigger.type === "schedule";
-  await client.mutation(backendApi.loopWakes.syncRegistration, {
-    tenantId: `${input.owner}/${input.repo}`,
-    loopId,
-    enabled,
-    ...(enabled && input.loop?.trigger.type === "schedule"
-      ? { trigger: input.loop.trigger }
-      : {}),
-    updatedAt: new Date().toISOString(),
-  });
+  await client.mutation(
+    backendApi.loopWakes.syncRegistration,
+    buildLoopWakeRegistrationArgs({
+      ...input,
+      updatedAt: new Date().toISOString(),
+    }),
+  );
 }
 
 export async function replaceLoopWakeRegistrations(

@@ -1,8 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
+import {
+  buildLoopWakeRegistrationArgs,
+  syncLoopWakeRegistration,
+} from "@dashboard/features/agency/server/loop-wake-registration";
 
 describe("Loop wake registration", () => {
+  it("always carries the schedule when enabling a registration", () => {
+    const trigger = Object.freeze({
+      type: "schedule" as const,
+      every: "1d",
+    });
+
+    expect(
+      buildLoopWakeRegistrationArgs({
+        owner: "acme",
+        repo: "widgets",
+        loop: {
+          id: "daily-health",
+          trigger,
+          target: { kind: "workflow", id: "qa-scan" },
+          input: {},
+          enabled: true,
+        },
+        updatedAt: "2026-08-20T07:00:00.000Z",
+      }),
+    ).toEqual({
+      tenantId: "acme/widgets",
+      loopId: "daily-health",
+      enabled: true,
+      trigger,
+      updatedAt: "2026-08-20T07:00:00.000Z",
+    });
+  });
+
   it("registers only enabled scheduled Loops", async () => {
     const mutation = vi.fn(async () => ({ registered: true, count: 1 }));
 
