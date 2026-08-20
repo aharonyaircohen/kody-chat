@@ -41,6 +41,7 @@ import {
   SHOW_VIEW_TOOL,
   finalAnswerEndsWithFollowUpQuestion,
   finalAnswerRequestsInteraction,
+  normalizeExactOutputContent,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
@@ -56,6 +57,8 @@ interface UiToolsCtx {
   requireFollowUpQuestion?: boolean;
   /** Caller-owned exact view data for deterministic product flows. */
   forcedViewInput?: unknown;
+  /** Original user text used to enforce exact-output boundaries. */
+  userText?: string;
 }
 
 function hasInteractiveControl(node: RenderedViewUiNode): boolean {
@@ -265,13 +268,18 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
             "The final user-visible answer. Write it as a short executive summary for a product manager: 3-6 plain sentences leading with the outcome, at most one small list. NEVER include raw JSON, schemas, code, id dumps, or step-by-step work here unless the user explicitly asked to see them — say where the data lives instead. Long content the user did not ask for is a failure.",
           ),
       }),
-      execute: async ({ content }) =>
-        finalAnswerRequestsInteraction(content)
+      execute: async ({ content }) => {
+        const normalizedContent = normalizeExactOutputContent(
+          content,
+          ctx.userText,
+        );
+        return finalAnswerRequestsInteraction(normalizedContent)
           ? { error: FINAL_ANSWER_INTERACTION_ERROR }
           : ctx.requireFollowUpQuestion !== false &&
-              !finalAnswerEndsWithFollowUpQuestion(content)
+              !finalAnswerEndsWithFollowUpQuestion(normalizedContent)
             ? { error: FINAL_ANSWER_FOLLOW_UP_ERROR }
-            : { content },
+            : { content: normalizedContent };
+      },
     }),
     switch_agent: switchAgentTool,
     dashboard_navigate: dashboardNavigateTool,

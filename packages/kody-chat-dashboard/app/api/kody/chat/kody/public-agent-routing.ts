@@ -101,16 +101,23 @@ export function shouldRoutePublicAgentChat(input: {
   clientSurface: boolean;
   assignedSubagentCount: number;
 }): boolean {
+  const userText = input.userText ?? "";
   const explicitViewRequest = parseExplicitViewRequest(input.userText);
   const referenceRequest =
     /^\s*(?:please\s+)?(?:provide|give|find|get|open|share|send|show)\b[^?\n]{0,120}\b(?:link|url|path|route|page)\b/i.test(
       input.userText ?? "",
     );
+  const noActionPlainReply =
+    /\b(?:take\s+no\s+action|no\s+action|do\s+not\s+(?:create|change|run|use|execute)|plain[- ]text|reply\s+only)\b/i.test(
+      userText,
+    );
   return (
     !input.clientSurface &&
     input.assignedSubagentCount > 0 &&
     !explicitViewRequest &&
-    !referenceRequest
+    !referenceRequest &&
+    !isClearlyConversationalTurn(userText) &&
+    !noActionPlainReply
   );
 }
 

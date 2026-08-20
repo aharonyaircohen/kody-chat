@@ -29,6 +29,31 @@ export interface FinalAnswerOutput {
   content: string;
 }
 
+const EXACT_REPLY_ONLY_RE = /\breply\s+(?:with\s+)?only\s*:\s*(.+)$/i;
+
+/** Enforce the user's exact-output boundary at the output-tool owner. */
+export function normalizeExactOutputContent(
+  content: string,
+  userText?: string,
+): string {
+  const text = content.trim();
+  const request = userText?.trim() ?? "";
+  if (!request || !/\b(?:reply|respond|output)\b/i.test(request)) return text;
+
+  const literal = request.match(EXACT_REPLY_ONLY_RE)?.[1]?.trim();
+  if (literal) return literal.replace(/[.!?,;:]+$/u, "").trim();
+
+  if (/\bno\s+punctuation\b/i.test(request)) {
+    const lastLine = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .at(-1);
+    return (lastLine ?? text).replace(/[.!?,;:]+$/u, "").trim();
+  }
+  return text;
+}
+
 export interface ToolErrorOutput {
   error: string;
 }

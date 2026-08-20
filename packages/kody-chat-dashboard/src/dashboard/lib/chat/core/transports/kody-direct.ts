@@ -200,6 +200,7 @@ export async function sendKodyDirectTurn(
   // contract, including mocked and older-server responses.
   let exclusiveToolOutput = false;
   let hasVisibleTextOutput = false;
+  let committedFinalAnswer = false;
   // A healthy AI SDK UI stream always ends with a `finish` chunk followed
   // by the `[DONE]` sentinel. An EOF without either means the connection
   // dropped mid-turn (network blip, proxy kill, laptop sleep) — the server
@@ -302,7 +303,8 @@ export async function sendKodyDirectTurn(
     } else if (
       chunk.type === "text-delta" &&
       typeof chunk.delta === "string" &&
-      !exclusiveToolOutput
+      !exclusiveToolOutput &&
+      !committedFinalAnswer
     ) {
       hasVisibleTextOutput = true;
       ctx.emit({ type: "token", text: chunk.delta });
@@ -311,7 +313,8 @@ export async function sendKodyDirectTurn(
       typeof chunk.delta === "string" &&
       // Exclusive output means every model attempt is private until an
       // output tool commits the one user-visible result.
-      !exclusiveToolOutput
+      !exclusiveToolOutput &&
+      !committedFinalAnswer
     ) {
       ctx.emit({ type: "reasoning", text: chunk.delta });
     } else if (chunk.type === "error" && typeof chunk.errorText === "string") {
@@ -406,6 +409,7 @@ export async function sendKodyDirectTurn(
       if (name === FINAL_ANSWER_TOOL) {
         // The final answer supersedes whatever streamed before it.
         if (isFinalAnswerOutput(chunk.output)) {
+          committedFinalAnswer = true;
           hasVisibleTextOutput = true;
           ctx.emit({ type: "text-replace", text: chunk.output.content });
         }

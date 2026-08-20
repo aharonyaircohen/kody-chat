@@ -7,6 +7,7 @@ import { shouldRetryToollessTurn } from "../../../src/dashboard/lib/chat-output-
 import {
   CONVERSATION_ONLY_MEMORY_INSTRUCTION,
   hasExplicitMemoryCommand,
+  hasActiveConversationOnlyMemoryScope,
   isConversationOnlyMemoryRequest,
 } from "../../../src/dashboard/lib/memory-command-intent";
 
@@ -91,6 +92,22 @@ describe("conversation-only memory routing", () => {
     expect(CONVERSATION_ONLY_MEMORY_INSTRUCTION).toContain(
       "Do not call, require, or mention durable memory tools",
     );
+  });
+
+  it("carries conversation-only scope into later turns", () => {
+    expect(
+      hasActiveConversationOnlyMemoryScope([
+        { role: "user", content: "Remember LIVE-9142 for this conversation." },
+        { role: "assistant", content: "remembered" },
+        { role: "user", content: "Reply with the marker only." },
+      ]),
+    ).toBe(true);
+    expect(
+      hasActiveConversationOnlyMemoryScope([
+        { role: "user", content: "Remember LIVE-9142 for this conversation." },
+        { role: "user", content: "Remember my office is in Tel Aviv." },
+      ]),
+    ).toBe(false);
   });
 });
 

@@ -149,8 +149,8 @@ import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import {
   CONVERSATION_ONLY_MEMORY_INSTRUCTION,
+  hasActiveConversationOnlyMemoryScope,
   hasExplicitMemoryCommand,
-  isConversationOnlyMemoryRequest,
 } from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
@@ -857,8 +857,12 @@ async function handleKodyDirectPost(
     : trimToRecent(allMessages);
   const latestUserText = getLatestUserText(messages);
   const explicitMemoryCommand = hasExplicitMemoryCommand(latestUserText);
-  const conversationOnlyMemoryRequest =
-    isConversationOnlyMemoryRequest(latestUserText);
+  const conversationOnlyMemoryRequest = hasActiveConversationOnlyMemoryScope(
+    messages.map((message) => ({
+      role: message.role,
+      content: typeof message.content === "string" ? message.content : "",
+    })),
+  );
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
   const agencyAssessmentTodoSlug = getAgencyRequestAssessmentTodoSlug(
     latestUserText ?? "",
@@ -1420,6 +1424,7 @@ async function handleKodyDirectPost(
   let uiToolSet = createUiTools({
     requireInteractiveAction,
     requireFollowUpQuestion,
+    userText: latestUserText ?? undefined,
   });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
@@ -1433,6 +1438,7 @@ async function handleKodyDirectPost(
       viewRendererDefinitions,
       requireInteractiveAction,
       requireFollowUpQuestion,
+      userText: latestUserText ?? undefined,
     });
     const workflowApi = createWorkflowApiClient({
       request: repoScopedReq,

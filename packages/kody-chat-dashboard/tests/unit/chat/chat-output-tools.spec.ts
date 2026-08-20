@@ -6,6 +6,7 @@ import {
   getToolErrorMessage,
   getViewRecoveryContent,
   getToollessRecoveryContent,
+  normalizeExactOutputContent,
   isToolErrorOutput,
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
@@ -110,5 +111,17 @@ describe("chat output tools", () => {
     expect(
       shouldRequireFollowUpQuestion("Explain the Chat architecture."),
     ).toBe(true);
+  });
+
+  it("keeps exact output to the requested token", () => {
+    expect(
+      normalizeExactOutputContent(
+        "details.\n\nLet me save it.\n\nLIVE-9142",
+        "Reply with the marker only. No punctuation or other words.",
+      ),
+    ).toBe("LIVE-9142");
+    expect(
+      normalizeExactOutputContent("remembered.", "Reply only: remembered."),
+    ).toBe("remembered");
   });
 });

@@ -16,6 +16,27 @@ export function isConversationOnlyMemoryRequest(
   return Boolean(text && CONVERSATION_ONLY_SCOPE.test(text));
 }
 
+export interface ConversationMessageForMemoryScope {
+  role: string;
+  content: string;
+}
+
+/** Keep conversation-only context active until a later durable write is explicit. */
+export function hasActiveConversationOnlyMemoryScope(
+  messages: readonly ConversationMessageForMemoryScope[],
+): boolean {
+  let active = false;
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    if (isConversationOnlyMemoryRequest(message.content)) {
+      active = true;
+    } else if (active && hasExplicitMemoryCommand(message.content)) {
+      active = false;
+    }
+  }
+  return active;
+}
+
 export function hasExplicitMemoryCommand(text: string | null): boolean {
   if (!text) return false;
   if (isConversationOnlyMemoryRequest(text)) return false;

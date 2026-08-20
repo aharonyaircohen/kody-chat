@@ -297,6 +297,14 @@ describe("public Agent routing", () => {
         assignedSubagentCount: 2,
       }),
     ).toBe(false);
+    expect(
+      shouldRoutePublicAgentChat({
+        userText:
+          "In one short plain-text reply, state the selected repository. Do not create anything or take any action.",
+        clientSurface: false,
+        assignedSubagentCount: 2,
+      }),
+    ).toBe(false);
   });
 
   it("builds routing guidance entirely from assigned Agent definitions", () => {

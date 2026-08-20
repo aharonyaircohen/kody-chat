@@ -122,6 +122,19 @@ describe("ui tools", () => {
     ).resolves.toEqual({ content: "ORBIT-7392" });
   });
 
+  it("normalizes exact output at the final-answer owner", async () => {
+    const tools = createUiTools({
+      requireFollowUpQuestion: false,
+      userText: "Reply only: remembered.",
+    }) as Record<string, unknown>;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      execute: (value: { content: string }) => Promise<Record<string, unknown>>;
+    };
+    await expect(finalAnswer.execute({ content: "remembered." })).resolves.toEqual({
+      content: "remembered",
+    });
+  });
+
   it("navigates only to known dashboard routes", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const dashboardNavigate = tools.dashboard_navigate as {

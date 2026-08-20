@@ -541,6 +541,40 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("ignores visible text that arrives after final_answer commits", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "data-chat-output-contract",
+            data: { mode: "exclusive-tool" },
+          }),
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "final-committed",
+            toolName: "final_answer",
+            input: { content: "LIVE-9142" },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "final-committed",
+            output: { content: "LIVE-9142" },
+          }),
+          chunk({ type: "text-delta", delta: "Open todo: internal" }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "text-replace", text: "LIVE-9142" },
+      { type: "done" },
+    ]);
+  });
+
   it("marks a renderer after committed text as an appended message part", async () => {
     const renderedView = {
       action: "render_view",
