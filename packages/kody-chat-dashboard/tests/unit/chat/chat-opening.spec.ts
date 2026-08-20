@@ -40,4 +40,16 @@ describe("repository chat opening", () => {
       setupAction,
     ]);
   });
+
+  it("builds a useful personal-chat opening without repository actions", () => {
+    const view = buildRepositoryChatOpeningView("personal-conversation", [], {
+      scope: "personal",
+    });
+
+    expect(view.data).toMatchObject({
+      title: "Your private Chat",
+      step: "Chat is ready. Ask Kody anything, or attach a repository when you need repository tools.",
+      actions: [],
+    });
+  });
 });

@@ -138,4 +138,14 @@ describe("model operation failure notice", () => {
       "model overloaded",
     );
   });
+
+  it("explains OpenRouter account provider policy failures", () => {
+    expect(
+      normalizeModelOperationFailure(
+        "[trace fc6219ce] Failed after 2 attempts with non-retryable error: 'No allowed providers are available for the selected model. Providers serving openrouter/free: nvidia, liquid, but your account's allowed-providers setting permits only: xai, openai.'",
+      ),
+    ).toBe(
+      "OpenRouter blocked this free model because your account only allows selected providers. Update the allowed providers in OpenRouter Privacy settings, then try again. https://openrouter.ai/settings/privacy (trace fc6219ce)",
+    );
+  });
 });

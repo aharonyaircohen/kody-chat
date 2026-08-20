@@ -1,4 +1,5 @@
 import { expect, test, type Route } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -76,6 +77,7 @@ function providerChoiceView(stepId: string, revision: number) {
 }
 
 test("branches from the provider step to xKiro setup", async ({ page }) => {
+  let submittedSteps = 0;
   await page.addInitScript(
     (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
     auth,
@@ -86,6 +88,7 @@ test("branches from the provider step to xKiro setup", async ({ page }) => {
       user: { login: "e2e-test", avatar_url: "", githubId: 1 },
     }),
   );
+  await mockKodyAccountSession(page);
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const isCollection = new URL(route.request().url()).pathname.endsWith(
       "/conversations",
@@ -131,6 +134,56 @@ test("branches from the provider step to xKiro setup", async ({ page }) => {
         201,
       );
     }
+    submittedSteps += 1;
+    if (submittedSteps === 1) {
+      expect(body.stepId).toBe("choose-chat-provider");
+      return json(route, {
+        instance: { status: "active" },
+        compatibility: { status: "compatible" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "verify-xkiro-2",
+          rendererSlug: "guided-flow-command",
+          rendererName: "Guided Flow command",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "provider-branch-instance",
+            stepId: "verify-xkiro",
+            revision: 2,
+          },
+          data: {
+            title: "Verify xKiro Chat",
+            command: "/check-chat xkiro/deepseek/deepseek-v4-flash",
+            status: "ready",
+            actions: [
+              {
+                id: "run",
+                label: "Run command",
+                response: "run",
+                variant: "primary",
+              },
+            ],
+          },
+          ui: {
+            type: "stack",
+            children: [
+              { type: "text", value: "Verify xKiro Chat", variant: "title" },
+              {
+                type: "button",
+                label: "Run command",
+                action: {
+                  id: "run",
+                  label: "Run command",
+                  response: "run",
+                  variant: "primary",
+                },
+              },
+            ],
+          },
+        },
+      });
+    }
     expect(body.stepId).toBe("choose-chat-provider");
     return json(route, {
       instance: { status: "active" },
@@ -142,6 +195,16 @@ test("branches from the provider step to xKiro setup", async ({ page }) => {
           children: [
             { type: "text", value: "Activate xKiro Free", variant: "title" },
             { type: "text", value: "XKIRO_API_KEY", variant: "body" },
+            {
+              type: "button",
+              label: "Continue",
+              action: {
+                id: "next",
+                label: "Continue",
+                response: "next",
+                variant: "primary",
+              },
+            },
           ],
         },
       },
@@ -173,7 +236,8 @@ test("branches from the provider step to xKiro setup", async ({ page }) => {
     chat.getByRole("button", { name: "Skip for now", exact: true }),
   ).toBeVisible();
   await chat.getByRole("button", { name: "Set up xKiro", exact: true }).click();
-  await expect(page).toHaveURL("/repo/acme/widgets/secrets");
-  await expect(page.getByText("Activate xKiro Free", { exact: true })).toBeVisible();
-  await expect(page.getByText("XKIRO_API_KEY", { exact: true })).toBeVisible();
+  await expect(page.getByText("Verify xKiro Chat", { exact: true })).toBeVisible();
+  await expect(
+    chat.getByRole("button", { name: "Run command", exact: true }),
+  ).toBeVisible();
 });

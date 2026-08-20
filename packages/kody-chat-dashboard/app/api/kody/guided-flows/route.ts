@@ -39,7 +39,6 @@ import { guidedFlowStepResult } from "@kody-ade/kody-chat-dashboard/guided-flows
 import { ONBOARDING_FLOW_ID } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
 import {
   availableGuidedFlowDefinitions,
-  availableUserGuidedFlowDefinitions,
   loadGuidedFlowRenderers,
   loadStoredGuidedFlowDefinitions,
 } from "./catalog";
@@ -333,20 +332,8 @@ export async function GET(req: NextRequest) {
       tenantId,
     );
     if (url.searchParams.get("view") === "templates") {
-      const definitions =
-        scope.kind === "user"
-          ? [
-              ...customDefinitions,
-              ...availableUserGuidedFlowDefinitions().filter(
-                (definition) =>
-                  !customDefinitions.some(
-                    (custom) => custom.id === definition.id,
-                  ),
-              ),
-            ]
-          : availableGuidedFlowDefinitions(customDefinitions);
       return json({
-        definitions,
+        definitions: availableGuidedFlowDefinitions(customDefinitions),
       });
     }
     if (instanceId) {
@@ -426,10 +413,7 @@ export async function GET(req: NextRequest) {
     });
     return json({
       flows,
-      definitions:
-        scope.kind === "user"
-          ? availableUserGuidedFlowDefinitions()
-          : availableGuidedFlowDefinitions(customDefinitions),
+      definitions: availableGuidedFlowDefinitions(customDefinitions),
     });
   } catch (error) {
     console.error("[GuidedFlows] list failed", error);

@@ -188,7 +188,7 @@ export const ONBOARDING_FLOW_V2: GuidedFlowDefinition = {
   ],
 };
 
-export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+export const ONBOARDING_FLOW_V4: GuidedFlowDefinition = {
   id: ONBOARDING_FLOW_ID,
   version: 4,
   title: "Get started with Kody",
@@ -309,4 +309,65 @@ export const ONBOARDING_FLOW: GuidedFlowDefinition = {
     },
     ONBOARDING_FLOW_V2.steps[0]!,
   ],
+};
+
+const verifyProviderStep = (
+  id: string,
+  title: string,
+  command: string,
+): GuidedFlowDefinition["steps"][number] => ({
+  id,
+  type: "command",
+  title,
+  explanation:
+    "Run one small readiness check. Kody will verify that this model can produce the tool responses required by Chat and Guided Flows. No repository action will run.",
+  command,
+  actions: [
+    { id: "run", target: { type: "stay" } },
+    { id: "continue", target: { type: "step", stepId: "welcome" } },
+  ],
+});
+
+export const ONBOARDING_FLOW: GuidedFlowDefinition = {
+  ...ONBOARDING_FLOW_V4,
+  version: 5,
+  steps: ONBOARDING_FLOW_V4.steps.flatMap((step) => {
+    if (step.id === "add-openrouter-key") {
+      return [
+        {
+          ...step,
+          actions: [
+            {
+              id: "next",
+              target: { type: "step" as const, stepId: "verify-openrouter" },
+            },
+          ],
+        },
+        verifyProviderStep(
+          "verify-openrouter",
+          "Verify OpenRouter Chat",
+          "/check-chat openrouter/free",
+        ),
+      ];
+    }
+    if (step.id === "add-xkiro-key") {
+      return [
+        {
+          ...step,
+          actions: [
+            {
+              id: "next",
+              target: { type: "step" as const, stepId: "verify-xkiro" },
+            },
+          ],
+        },
+        verifyProviderStep(
+          "verify-xkiro",
+          "Verify xKiro Chat",
+          "/check-chat xkiro/deepseek/deepseek-v4-flash",
+        ),
+      ];
+    }
+    return [step];
+  }),
 };

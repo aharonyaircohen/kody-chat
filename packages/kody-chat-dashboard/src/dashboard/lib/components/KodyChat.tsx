@@ -350,11 +350,7 @@ export function KodyChat({
     void openGuidedFlow(guidedFlowRequest.request).finally(() => {
       onGuidedFlowRequestHandled?.(guidedFlowRequest.id);
     });
-  }, [
-    guidedFlowRequest,
-    onGuidedFlowRequestHandled,
-    openGuidedFlow,
-  ]);
+  }, [guidedFlowRequest, onGuidedFlowRequestHandled, openGuidedFlow]);
 
   useEffect(() => {
     if (
@@ -1264,12 +1260,10 @@ export function KodyChat({
     !resumedGuidedFlowMessageIsPersisted
       ? resumedGuidedFlowMessage.message
       : null;
-  const repositoryOpeningMessage: Message | null =
+  const chatOpeningMessage: Message | null =
     sessionHook.hydrated &&
     messages.length === 0 &&
     !lockedAgentSlug &&
-    auth?.owner &&
-    auth?.repo &&
     (!activeChatSessionId ||
       openingStatusCheckedSessionId === activeChatSessionId)
       ? {
@@ -1279,11 +1273,13 @@ export function KodyChat({
           view: buildRepositoryChatOpeningView(
             activeChatSessionId ?? "new-conversation",
             openingActions,
+            {
+              scope: auth?.owner && auth.repo ? "repository" : "personal",
+            },
           ),
         }
       : null;
-  const openingMessage =
-    resumedGuidedFlowDisplayMessage ?? repositoryOpeningMessage;
+  const openingMessage = resumedGuidedFlowDisplayMessage ?? chatOpeningMessage;
   const displayMessages = openingMessage
     ? [...messages, openingMessage]
     : messages;

@@ -257,6 +257,7 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 
 import { GET, POST } from "../../app/api/kody/guided-flows/route";
+import { listGuidedFlowDefinitions } from "../../src/dashboard/lib/guided-flows/registry";
 
 function request(
   body?: unknown,
@@ -521,7 +522,7 @@ describe("GuidedFlow route", () => {
     });
   });
 
-  it("lists only user-level GuidedFlows before a repository is attached", async () => {
+  it("lists all built-in GuidedFlows before a repository is attached", async () => {
     auth.getRequestAuth.mockReturnValue(null);
 
     const started = await POST(
@@ -536,9 +537,12 @@ describe("GuidedFlow route", () => {
     expect(listed.status).toBe(200);
     const body = await listed.json();
     expect(body.flows).toHaveLength(1);
-    expect(
-      body.definitions.map((definition: { id: string }) => definition.id),
-    ).toEqual(["onboarding"]);
+    expect(body.definitions.map((definition: { id: string }) => definition.id))
+      .toEqual(
+        expect.arrayContaining(
+          listGuidedFlowDefinitions().map((definition) => definition.id),
+        ),
+      );
   });
 
   it("binds an existing instance without changing its progress", async () => {

@@ -10,7 +10,12 @@ import {
   PROJECT_ASSESSMENT_REQUEST_BLUEPRINT,
   PROJECT_ASSESSMENT_REQUEST_BLUEPRINT_V1,
 } from "./project-assessment";
-import { ONBOARDING_FLOW, ONBOARDING_FLOW_V1, ONBOARDING_FLOW_V2 } from "./onboarding";
+import {
+  ONBOARDING_FLOW,
+  ONBOARDING_FLOW_V1,
+  ONBOARDING_FLOW_V2,
+  ONBOARDING_FLOW_V4,
+} from "./onboarding";
 import { NEW_AGENCY_REQUEST_BLUEPRINT } from "./new-agency-request";
 import { CREATE_BLUEPRINT_REQUEST_BLUEPRINT } from "../../request-blueprints/create-blueprint";
 
@@ -34,6 +39,7 @@ export const BUILTIN_GUIDED_FLOW_DEFINITIONS: readonly GuidedFlowDefinition[] =
   [
     ONBOARDING_FLOW_V1,
     ONBOARDING_FLOW_V2,
+    ONBOARDING_FLOW_V4,
     ONBOARDING_FLOW,
     INITIALIZE_KODY_ENGINE_FLOW,
     SETUP_UI_LOGIN_FLOW,

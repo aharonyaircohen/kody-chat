@@ -17,19 +17,26 @@ export const PROJECT_ASSESSMENT_OPENING_ACTION: RenderedViewAction = {
 export function buildRepositoryChatOpeningView(
   conversationId: string,
   additionalActions: readonly RenderedViewAction[] = [],
+  options: { scope?: "repository" | "personal" } = {},
 ): RenderedViewDirective {
   const renderer = getBuiltinViewRendererDefinition("guided-flow-status");
   if (!renderer) throw new Error("Chat opening status renderer not found");
+
+  const repository = options.scope !== "personal";
 
   return buildRenderedViewDirective({
     id: `chat-opening-${conversationId}`,
     definition: renderer,
     data: {
-      greeting: "Hi! I can help you with:",
-      title: "Start with this repository.",
-      step: "Ask about the code, plan work, or run a deep health check.",
+      greeting: repository ? "Hi! I can help you with:" : "Hi! I’m Kody.",
+      title: repository ? "Start with this repository." : "Your private Chat",
+      step: repository
+        ? "Ask about the code, plan work, or run a deep health check."
+        : "Chat is ready. Ask Kody anything, or attach a repository when you need repository tools.",
       instanceId: conversationId,
-      actions: [PROJECT_ASSESSMENT_OPENING_ACTION, ...additionalActions],
+      actions: repository
+        ? [PROJECT_ASSESSMENT_OPENING_ACTION, ...additionalActions]
+        : [...additionalActions],
     },
   });
 }

@@ -11,14 +11,28 @@ const auth = vi.hoisted(() => ({
   })),
 }));
 const install = vi.hoisted(() => ({ installEngine: vi.fn() }));
+const chat = vi.hoisted(() => ({
+  resolveChatModel: vi.fn(),
+  generateText: vi.fn(),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: vi.fn(() => ({ mocked: true })),
 }));
 vi.mock("@dashboard/lib/engine/install", () => install);
+vi.mock("@dashboard/lib/auth/kody-user", () => ({
+  requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
+}));
 vi.mock("@kody-ade/base/auth/oauth-url", () => ({
   getPublicBaseUrl: vi.fn(() => "https://dashboard.test"),
+}));
+vi.mock("../../../app/api/kody/chat/resolve-model", () => ({
+  resolveChatModel: chat.resolveChatModel,
+}));
+vi.mock("ai", () => ({
+  generateText: chat.generateText,
+  tool: (definition: unknown) => definition,
 }));
 
 import { POST } from "../../../app/api/kody/chat/operations/route";
@@ -37,6 +51,14 @@ describe("Chat operations route", () => {
     install.installEngine.mockResolvedValue({
       ok: true,
       summary: "Kody Engine is ready.",
+    });
+    chat.resolveChatModel.mockResolvedValue({
+      model: { modelId: "openrouter/free" },
+      resolvedModel: { id: "openrouter/free", label: "OpenRouter Free" },
+      apiKey: "secret",
+    });
+    chat.generateText.mockResolvedValue({
+      toolCalls: [{ toolName: "kody_readiness_check", input: { ready: true } }],
     });
   });
 
@@ -106,5 +128,43 @@ describe("Chat operations route", () => {
       error: "invalid_command_arguments",
     });
     expect(install.installEngine).not.toHaveBeenCalled();
+  });
+
+  it("verifies the exact chat model with a required tool call", async () => {
+    const response = await POST(request("/check-chat openrouter/free"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      handled: true,
+      result: { status: "completed", summary: "OpenRouter Free is ready." },
+    });
+    expect(chat.resolveChatModel).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      "openrouter/free",
+    );
+    expect(chat.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolChoice: "auto",
+      }),
+    );
+  });
+
+  it("keeps onboarding blocked when the provider cannot route tool calls", async () => {
+    chat.generateText.mockRejectedValueOnce(
+      Object.assign(new Error("Provider returned error"), {
+        responseBody:
+          "No allowed providers are available for the selected model, but your account's allowed-providers setting permits only: openai.",
+      }),
+    );
+
+    const response = await POST(request("/check-chat openrouter/free"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      handled: true,
+      result: {
+        status: "needs_attention",
+        summary: expect.stringContaining("OpenRouter Privacy settings"),
+      },
+    });
   });
 });

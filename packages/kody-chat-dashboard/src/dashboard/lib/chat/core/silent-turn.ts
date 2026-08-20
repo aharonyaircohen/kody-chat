@@ -11,6 +11,9 @@ export const TRANSIENT_ASSISTANT_NOTICE =
 export const MODEL_OPERATION_FAILURE_NOTICE =
   "This model could not complete the requested operation with the available tools. Choose another model and try again.";
 
+export const OPENROUTER_PROVIDER_POLICY_NOTICE =
+  "OpenRouter blocked this free model because your account only allows selected providers. Update the allowed providers in OpenRouter Privacy settings, then try again. https://openrouter.ai/settings/privacy";
+
 const TOOL_PROTOCOL_FAILURE_PATTERNS = [
   /(?:(?:does not|doesn't) support|unsupported).{0,40}(?:tools?|functions?)/i,
   /no endpoints? found that support.{0,20}(?:tools?|functions?)/i,
@@ -22,6 +25,18 @@ const TRACE_PREFIX = /^\[trace ([^\]]+)]\s*/i;
 const TRACE_SUFFIX = /\(trace ([^)]+)\)\s*$/i;
 
 export function normalizeModelOperationFailure(message: string): string {
+  const isOpenRouterProviderPolicyFailure =
+    /no allowed providers are available for the selected model/i.test(
+      message,
+    ) && /allowed-providers?\s+setting/i.test(message);
+  if (isOpenRouterProviderPolicyFailure) {
+    const traceId =
+      TRACE_PREFIX.exec(message)?.[1] ?? TRACE_SUFFIX.exec(message)?.[1];
+    return traceId
+      ? `${OPENROUTER_PROVIDER_POLICY_NOTICE} (trace ${traceId})`
+      : OPENROUTER_PROVIDER_POLICY_NOTICE;
+  }
+
   const isToolProtocolFailure = TOOL_PROTOCOL_FAILURE_PATTERNS.some((pattern) =>
     pattern.test(message),
   );
