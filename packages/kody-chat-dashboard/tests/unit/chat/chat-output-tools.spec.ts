@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
+  shouldRequireFollowUpQuestion,
   getToolErrorMessage,
   getViewRecoveryContent,
   getToollessRecoveryContent,
@@ -92,5 +93,22 @@ describe("chat output tools", () => {
         allowPreRenderTools: true,
       }),
     ).toEqual([SHOW_VIEW_TOOL, "list_reports"]);
+  });
+
+  it.each([
+    "Reply with the marker only. No punctuation or other words.",
+    "Reply only: remembered.",
+    "Return exactly ORBIT-7392 and nothing else.",
+  ])(
+    "does not require a follow-up for exact-output requests: %s",
+    (userText) => {
+      expect(shouldRequireFollowUpQuestion(userText)).toBe(false);
+    },
+  );
+
+  it("keeps the follow-up contract for normal prose requests", () => {
+    expect(
+      shouldRequireFollowUpQuestion("Explain the Chat architecture."),
+    ).toBe(true);
   });
 });

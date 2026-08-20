@@ -248,6 +248,14 @@ function stripDuplicatedReasoningPrefix(
   if (duplicateLength === null) {
     return { text: answer, stripped: false };
   }
+  const reasoningEnd = trimmedReasoning.at(-1) ?? "";
+  const answerRemainderStart = rest[duplicateLength] ?? "";
+  if (
+    /[\p{L}\p{N}_]/u.test(reasoningEnd) &&
+    /[\p{L}\p{N}_]/u.test(answerRemainderStart)
+  ) {
+    return { text: answer, stripped: false };
+  }
 
   return {
     text: rest.slice(duplicateLength).trim(),

@@ -252,6 +252,21 @@ describe("view renderer chat intent", () => {
     }
   });
 
+  it.each([
+    "We are testing Chat only. Do not create or prepare an Issue, change files, run workflows, or use machine access. In one short plain-text reply, state the selected repository and suggest one small Chat feature worth planning later. Take no action.",
+    "Reply with the marker only. No punctuation or other words.",
+  ])(
+    "keeps explicit plain-text replies out of renderer routing: %s",
+    (userText) => {
+      expect(
+        shouldRequireViewOutputForTurn({
+          userText,
+          definitions: BUILTIN_VIEW_RENDERER_DEFINITIONS,
+        }),
+      ).toBe(false);
+    },
+  );
+
   it("does not force an interactive renderer for report read and publish operations", () => {
     expect(
       shouldRequireViewOutputForTurn({

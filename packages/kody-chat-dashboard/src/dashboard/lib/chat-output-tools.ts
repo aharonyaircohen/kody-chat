@@ -20,7 +20,9 @@ export function getToollessRecoveryContent(visibleAnswer: string): string {
 
 export function getViewRecoveryContent(visibleAnswer: string): string {
   const answer = visibleAnswer.trim();
-  return answer ? `${answer}\n\nWould you like me to retry?` : VIEW_RECOVERY_CONTENT;
+  return answer
+    ? `${answer}\n\nWould you like me to retry?`
+    : VIEW_RECOVERY_CONTENT;
 }
 
 export interface FinalAnswerOutput {
@@ -38,6 +40,18 @@ export const FINAL_ANSWER_FOLLOW_UP_ERROR =
 
 export function finalAnswerEndsWithFollowUpQuestion(content: string): boolean {
   return /\?\s*$/.test(content.trim());
+}
+
+/** Exact-output instructions own the response shape and must not be decorated. */
+export function shouldRequireFollowUpQuestion(
+  userText: string | null | undefined,
+): boolean {
+  const text = userText?.trim() ?? "";
+  return !(
+    /\breply\b[^.!?\n]{0,120}\bonly\b/i.test(text) ||
+    /\b(?:return|respond|output)\s+exactly\b/i.test(text) ||
+    /\bnothing else\b/i.test(text)
+  );
 }
 
 /** A final answer cannot be final when it still asks the user to act. */

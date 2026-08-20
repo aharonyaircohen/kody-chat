@@ -52,6 +52,8 @@ interface UiToolsCtx {
   viewRendererDefinitions?: ViewRendererDefinition[];
   /** Decision turns must render at least one control the user can operate. */
   requireInteractiveAction?: boolean;
+  /** Exact-output turns must not receive an added follow-up question. */
+  requireFollowUpQuestion?: boolean;
   /** Caller-owned exact view data for deterministic product flows. */
   forcedViewInput?: unknown;
 }
@@ -250,7 +252,9 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Commit user-visible plain text. Use it alone when no chat UI renderer is needed. " +
         "When a short explanation should appear before a renderer, call final_answer and show_view together in the same response; the text appears first and the view follows. " +
         "Use this for ordinary answers, summaries, and status updates. " +
-        "Every prose answer must end with one short, relevant follow-up question. " +
+        (ctx.requireFollowUpQuestion === false
+          ? "Follow the user's exact output shape; do not add a follow-up question. "
+          : "Every prose answer must end with one short, relevant follow-up question. ") +
         "Do not use this for questions that ask the user to choose, approve, confirm, continue, cancel, or pick an action; use show_view instead.",
       inputSchema: z.object({
         content: z
@@ -264,7 +268,8 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
       execute: async ({ content }) =>
         finalAnswerRequestsInteraction(content)
           ? { error: FINAL_ANSWER_INTERACTION_ERROR }
-          : !finalAnswerEndsWithFollowUpQuestion(content)
+          : ctx.requireFollowUpQuestion !== false &&
+              !finalAnswerEndsWithFollowUpQuestion(content)
             ? { error: FINAL_ANSWER_FOLLOW_UP_ERROR }
             : { content },
     }),

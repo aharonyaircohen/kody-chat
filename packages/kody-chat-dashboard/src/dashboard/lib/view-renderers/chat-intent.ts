@@ -122,6 +122,26 @@ function isNonInteractiveOperation(text: string): boolean {
   );
 }
 
+function requestsInteractiveResponse(text: string): boolean {
+  return (
+    /\b(?:ask|aske|allow|let)\s+(?:me|the\s+user|user)\b/i.test(text) ||
+    /\b(?:choose|select|approve|confirm|fill\s+(?:in|out)|enter)\b/i.test(
+      text,
+    ) ||
+    /^\s*(?:(?:can|could|would)\s+(?:you|u)\s+|please\s+)?(?:create|prepare|add)\b/i.test(
+      text,
+    )
+  );
+}
+
+function requestsPlainTextOnly(text: string): boolean {
+  return (
+    /\bplain[- ]text\b/i.test(text) ||
+    /\breply\b[^.!?\n]{0,120}\bonly\b/i.test(text) ||
+    /\b(?:take|perform) no action\b/i.test(text)
+  );
+}
+
 /** Data-shaped requests should render; narrative reasoning should stay text. */
 export function shouldRequireStructuredViewForTurn(
   userText: string | null | undefined,
@@ -156,6 +176,8 @@ export function shouldRequireViewOutputForTurn({
   if (isDirectAgentAsk(text)) return false;
   if (isInformationalRequest(text)) return false;
   if (isNonInteractiveOperation(text)) return false;
+  if (requestsPlainTextOnly(text)) return false;
+  if (!requestsInteractiveResponse(text)) return false;
   const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(

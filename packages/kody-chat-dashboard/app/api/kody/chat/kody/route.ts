@@ -142,12 +142,16 @@ import {
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
   shouldRetryToollessTurn,
+  shouldRequireFollowUpQuestion,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
-import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
-import { hasExplicitMemoryCommand } from "../../../../../src/dashboard/lib/memory-command-intent";
+import {
+  CONVERSATION_ONLY_MEMORY_INSTRUCTION,
+  hasExplicitMemoryCommand,
+  isConversationOnlyMemoryRequest,
+} from "../../../../../src/dashboard/lib/memory-command-intent";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
 import { buildViewComponentRules } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
@@ -853,6 +857,8 @@ async function handleKodyDirectPost(
     : trimToRecent(allMessages);
   const latestUserText = getLatestUserText(messages);
   const explicitMemoryCommand = hasExplicitMemoryCommand(latestUserText);
+  const conversationOnlyMemoryRequest =
+    isConversationOnlyMemoryRequest(latestUserText);
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
   const agencyAssessmentTodoSlug = getAgencyRequestAssessmentTodoSlug(
     latestUserText ?? "",
@@ -935,6 +941,9 @@ async function handleKodyDirectPost(
     ? messages
     : inlineImagePartsForTextModel(messages);
   const turnSystemInstructions: string[] = [];
+  if (conversationOnlyMemoryRequest) {
+    turnSystemInstructions.push(CONVERSATION_ONLY_MEMORY_INSTRUCTION);
+  }
   if (agencyAssessmentHandoffRequested) {
     turnSystemInstructions.push(
       "This is the Agency Request Manager's assessment handoff. Kody owns this lifecycle step. Read the Todo, verify feasibility and the Workflow input schema with tools, then save the concrete plan, exact execution.workflowId, validated execution.input, and waiting-approval phase. If execution.activations installs that Workflow, its absence from list_workflows is expected: call read_workflow with the exact execution.workflowId because it can read Store candidates before activation, and do not mark the request blocked merely because it is not active yet. Preserve a saved Strategy Blueprint Workflow and activation path. For default-branch CI requests, use kody_get_default_branch_ci as the authoritative CI target; never select a repair target from the raw Actions list because Kody orchestration runs are not repository CI. The server presents the approval action after the save. Do not call show_view and do not delegate ownership of this step.",
@@ -1046,7 +1055,7 @@ async function handleKodyDirectPost(
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (verifiedUserId && !clientSurface) {
     const personalTenantId = `user:${verifiedUserId}`;
-    if (!repo)
+    if (!repo && !conversationOnlyMemoryRequest) {
       try {
         memoryContext = await loadRelevantMemoryForPrompt(
           {
@@ -1059,6 +1068,7 @@ async function handleKodyDirectPost(
       } catch (err) {
         traceWarn({ traceId, err }, "personal memory unavailable");
       }
+    }
     try {
       const row = (await createBackendClient().query(backendApi.repoDocs.get, {
         tenantId: personalTenantId,
@@ -1106,21 +1116,23 @@ async function handleKodyDirectPost(
       repo.storeRepoUrl,
       repo.storeRef,
     );
-    try {
-      const repositoryMemory = await loadRelevantMemoryForPrompt(
-        {
-          actor: { kind: "user", id: verifiedUserId! },
-          tenantId: `${repo.owner}/${repo.repo}`,
-        },
-        latestUserText ?? "",
-      );
-      memoryContext = repositoryMemory;
-    } catch (err) {
-      // Memory is best-effort; never block the chat. Log and continue.
-      traceWarn(
-        { traceId, err: err instanceof Error ? err.message : String(err) },
-        "kody-direct: memory index load failed (continuing without it)",
-      );
+    if (!conversationOnlyMemoryRequest) {
+      try {
+        const repositoryMemory = await loadRelevantMemoryForPrompt(
+          {
+            actor: { kind: "user", id: verifiedUserId! },
+            tenantId: `${repo.owner}/${repo.repo}`,
+          },
+          latestUserText ?? "",
+        );
+        memoryContext = repositoryMemory;
+      } catch (err) {
+        // Memory is best-effort; never block the chat. Log and continue.
+        traceWarn(
+          { traceId, err: err instanceof Error ? err.message : String(err) },
+          "kody-direct: memory index load failed (continuing without it)",
+        );
+      }
     }
     try {
       const repositoryInstructions = await loadInstructionsForPrompt();
@@ -1404,8 +1416,10 @@ async function handleKodyDirectPost(
     !explicitViewRequest && shouldRequireStructuredViewForTurn(latestUserText);
   const requireViewOutputForTurn =
     requireInteractiveAction || requireStructuredView;
+  const requireFollowUpQuestion = shouldRequireFollowUpQuestion(latestUserText);
   let uiToolSet = createUiTools({
     requireInteractiveAction,
+    requireFollowUpQuestion,
   });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
@@ -1418,6 +1432,7 @@ async function handleKodyDirectPost(
     uiToolSet = createUiTools({
       viewRendererDefinitions,
       requireInteractiveAction,
+      requireFollowUpQuestion,
     });
     const workflowApi = createWorkflowApiClient({
       request: repoScopedReq,
@@ -1560,15 +1575,19 @@ async function handleKodyDirectPost(
         repo: repo.repo,
         createAgent: (input) => agencyApi.createAgent(input),
       }),
-      ...createMemoryTools({
-        actorId: verifiedUserId!,
-        owner: repo.owner,
-        repo: repo.repo,
-        ...(typeof body.conversationId === "string"
-          ? { conversationId: body.conversationId }
-          : {}),
-        ...(typeof body.turnId === "string" ? { messageId: body.turnId } : {}),
-      }),
+      ...(!conversationOnlyMemoryRequest
+        ? createMemoryTools({
+            actorId: verifiedUserId!,
+            owner: repo.owner,
+            repo: repo.repo,
+            ...(typeof body.conversationId === "string"
+              ? { conversationId: body.conversationId }
+              : {}),
+            ...(typeof body.turnId === "string"
+              ? { messageId: body.turnId }
+              : {}),
+          })
+        : {}),
       ...createReleaseTools({
         octokit,
         owner: repo.owner,
@@ -1707,7 +1726,10 @@ async function handleKodyDirectPost(
           localEnabled: localMachineAccessEnabled,
         })
       : {}),
-    ...(!repo && !clientSurface && verifiedUserId
+    ...(!repo &&
+    !clientSurface &&
+    verifiedUserId &&
+    !conversationOnlyMemoryRequest
       ? createMemoryTools({
           actorId: verifiedUserId,
           tenantId: `user:${verifiedUserId}`,

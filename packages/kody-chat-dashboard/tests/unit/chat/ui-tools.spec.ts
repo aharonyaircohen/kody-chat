@@ -108,6 +108,20 @@ describe("ui tools", () => {
     });
   });
 
+  it("accepts exact output without adding a follow-up question", async () => {
+    const tools = createUiTools({ requireFollowUpQuestion: false }) as Record<
+      string,
+      unknown
+    >;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      execute: (value: { content: string }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      finalAnswer.execute({ content: "ORBIT-7392" }),
+    ).resolves.toEqual({ content: "ORBIT-7392" });
+  });
+
   it("navigates only to known dashboard routes", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const dashboardNavigate = tools.dashboard_navigate as {

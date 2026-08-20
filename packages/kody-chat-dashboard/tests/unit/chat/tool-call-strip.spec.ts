@@ -202,6 +202,15 @@ describe("parseAssistantContent", () => {
     expect(parsed.answer).toBe("The stream duplicated the thinking.");
   });
 
+  it("does not strip reasoning text that is only a prefix of the final word", () => {
+    const parsed = parseAssistantContent(
+      "<think>remember</think>\n\nremembered",
+    );
+
+    expect(parsed.reasoning).toBe("remember");
+    expect(parsed.answer).toBe("remembered");
+  });
+
   it("removes an untagged reasoning preamble before a final answer", () => {
     const { answer } = parseAssistantContent(
       "Analysis: The user asked for verification. I should answer from the code.\n\nFinal answer: It is verified.",

@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_SKILL_MEMORY } from "../../../src/dashboard/lib/chat-defaults/defaults/skills-mem";
 import { shouldRetryToollessTurn } from "../../../src/dashboard/lib/chat-output-tools";
-import { hasExplicitMemoryCommand } from "../../../src/dashboard/lib/memory-command-intent";
+import {
+  CONVERSATION_ONLY_MEMORY_INSTRUCTION,
+  hasExplicitMemoryCommand,
+  isConversationOnlyMemoryRequest,
+} from "../../../src/dashboard/lib/memory-command-intent";
 
 describe("explicit memory ownership", () => {
   it("keeps the memory tool as the only chat write owner", () => {
@@ -56,8 +60,37 @@ describe("explicit memory command routing", () => {
     "Do you remember where my office is?",
     "The save button is missing.",
     "Explain how memory storage works.",
+    "Remember the marker ORBIT-7392 for this conversation.",
+    "Please remember this only in the current chat.",
   ])("does not route a normal memory discussion as a write: %s", (message) => {
     expect(hasExplicitMemoryCommand(message)).toBe(false);
+  });
+});
+
+describe("conversation-only memory routing", () => {
+  it.each([
+    "Remember the marker ORBIT-7392 for this conversation.",
+    "What marker did I give you? Reply NONE if no marker was given in this conversation.",
+  ])("keeps durable memory outside a conversation-only turn: %s", (message) => {
+    expect(isConversationOnlyMemoryRequest(message)).toBe(true);
+  });
+
+  it("keeps durable memory available for an ordinary recall request", () => {
+    expect(
+      isConversationOnlyMemoryRequest("What do you remember about me?"),
+    ).toBe(false);
+  });
+
+  it("tells the model to use transcript context without durable memory", () => {
+    expect(CONVERSATION_ONLY_MEMORY_INSTRUCTION).toContain(
+      "current conversation transcript",
+    );
+    expect(CONVERSATION_ONLY_MEMORY_INSTRUCTION).toContain(
+      "Conversation-only context is automatic",
+    );
+    expect(CONVERSATION_ONLY_MEMORY_INSTRUCTION).toContain(
+      "Do not call, require, or mention durable memory tools",
+    );
   });
 });
 
