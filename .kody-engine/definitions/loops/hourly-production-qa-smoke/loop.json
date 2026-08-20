@@ -2,7 +2,7 @@
   "id": "hourly-production-qa-smoke",
   "trigger": {
     "type": "schedule",
-    "every": "1h"
+    "every": "1d"
   },
   "target": {
     "kind": "workflow",
