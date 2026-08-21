@@ -26,6 +26,7 @@ interface Ctx {
   octokit: Octokit;
   owner: string;
   repo: string;
+  wait?: (milliseconds: number) => Promise<void>;
 }
 
 const MAX_BODY_CHARS = 8_000;
@@ -36,6 +37,11 @@ const MAX_COMMENTS = 20;
 // but full multi-file patches blow up context fast. Clip aggressively.
 const MAX_PATCH_CHARS_PER_FILE = 4_000;
 const MAX_PATCH_CHARS_TOTAL = 30_000;
+const CODE_SEARCH_RETRY_DELAY_MS = 250;
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function clip(s: string | null | undefined, n: number): string {
   if (!s) return "";
@@ -46,6 +52,7 @@ function clip(s: string | null | undefined, n: number): string {
 
 export function createGitHubTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
+  const waitForRetry = ctx.wait ?? wait;
 
   return {
     github_get_issue: tool({
@@ -403,11 +410,26 @@ export function createGitHubTools(ctx: Ctx) {
           // snippet) and `matches[].indices` (offsets within fragment). We
           // convert offsets to a 1-based line number relative to the fragment
           // so the model can cite locations without re-reading the file.
-          const res = await octokit.rest.search.code({
-            q: scopedQuery,
-            per_page: 20,
-            mediaType: { format: "text-match" },
-          });
+          const request = () =>
+            octokit.rest.search.code({
+              q: scopedQuery,
+              per_page: 20,
+              mediaType: { format: "text-match" },
+            });
+          let res = await request();
+          if (res.data.incomplete_results) {
+            await waitForRetry(CODE_SEARCH_RETRY_DELAY_MS);
+            res = await request();
+          }
+          if (res.data.incomplete_results) {
+            return {
+              error: "code_search_unavailable",
+              status: 424,
+              message:
+                `GitHub code search is not ready for ${owner}/${repo}. ` +
+                "Repository search results are incomplete; try again after GitHub finishes indexing the repository.",
+            };
+          }
           type TextMatch = {
             fragment?: string;
             matches?: Array<{ indices?: [number, number] }>;
