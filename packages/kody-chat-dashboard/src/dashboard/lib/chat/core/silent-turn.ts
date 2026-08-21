@@ -11,6 +11,9 @@ export const TRANSIENT_ASSISTANT_NOTICE =
 export const MODEL_OPERATION_FAILURE_NOTICE =
   "This model could not complete the requested operation with the available tools. Choose another model and try again.";
 
+export const MODEL_CONFIGURATION_NOTICE =
+  "This chat model is not configured. Add its API key under Settings → Secrets, or choose another model.";
+
 export const OPENROUTER_PROVIDER_POLICY_NOTICE =
   "OpenRouter blocked this free model because your account only allows selected providers. Update the allowed providers in OpenRouter Privacy settings, then try again. https://openrouter.ai/settings/privacy";
 
@@ -25,6 +28,14 @@ const TRACE_PREFIX = /^\[trace ([^\]]+)]\s*/i;
 const TRACE_SUFFIX = /\(trace ([^)]+)\)\s*$/i;
 
 export function normalizeModelOperationFailure(message: string): string {
+  if (/model_api_key_missing/i.test(message)) {
+    const traceId =
+      TRACE_PREFIX.exec(message)?.[1] ?? TRACE_SUFFIX.exec(message)?.[1];
+    return traceId
+      ? `${MODEL_CONFIGURATION_NOTICE} (trace ${traceId})`
+      : MODEL_CONFIGURATION_NOTICE;
+  }
+
   const isOpenRouterProviderPolicyFailure =
     /no allowed providers are available for the selected model/i.test(
       message,

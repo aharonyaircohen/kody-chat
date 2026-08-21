@@ -17,6 +17,10 @@ const COMPOSER_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/surface/Composer.tsx"),
   "utf8",
 );
+const KODY_CHAT_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
+  "utf8",
+);
 describe("chat conversation actions", () => {
   it("uses one setup menu while keeping every selection concept separate", () => {
     expect(SETUP_SOURCE).toContain('ariaLabel="Agency agent"');
@@ -79,6 +83,11 @@ describe("chat conversation actions", () => {
     );
 
     expect(conversationActions).toContain('aria-label="New conversation"');
+    expect(KODY_CHAT_SOURCE).toContain(
+      "hideNewConversation={showSessionSidebar}",
+    );
+    expect(SOURCE).toContain("!props.hideNewConversation");
+    expect(conversationActions).not.toContain("disabled={props.activeLoading}");
     expect(conversationActions).toContain('aria-label="Toggle conversations"');
     expect(conversationActions).toContain(
       "disabled={!props.sessionSidebarReady}",

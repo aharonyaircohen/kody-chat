@@ -232,6 +232,7 @@ export function KodyDashboard({
 
   // md breakpoint = 768px — below this is "mobile"
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const { auth: storedAuth } = useAuth();
 
   // Get days from filter
   const filter = DATE_FILTERS.find((f) => f.value === dateFilter);
@@ -280,7 +281,9 @@ export function KodyDashboard({
     dataUpdatedAt,
   } = useKodyTasksPage({
     days,
-    includeDetails: true,
+    // Board cards only need the task summary; TaskDetail fetches the full
+    // record on selection. Avoid N+1 detail work blocking the whole board.
+    includeDetails: false,
     viewMode: apiViewMode,
     page: isPagedTaskView ? currentTaskPage : undefined,
     perPage: isPagedTaskView ? TASK_PAGE_SIZE : undefined,
@@ -290,6 +293,7 @@ export function KodyDashboard({
     q: debouncedSearch,
     sort: sortField,
     dir: sortDirection,
+    authReady: !!storedAuth,
     // Pause list polling while a task is open OR a full-screen modal is up
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
@@ -427,7 +431,6 @@ export function KodyDashboard({
   // normally but swap the task pane for `<RepoManager />` so the user
   // can connect their first repository without losing the app shell
   // (chat rail, headers, banners all remain visible).
-  const { auth: storedAuth } = useAuth();
   const noAuth = !storedAuth;
   const pushKodyPath = useCallback(
     (href: string) => {

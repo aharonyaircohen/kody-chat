@@ -88,6 +88,8 @@ interface ComposerProps {
   richComposerEnabled: boolean;
   placeholder: string;
   composerDisabled: boolean;
+  /** Structural readiness gate for the primary action; live start/stop/cancel remains available while input is locked. */
+  composerActionDisabled?: boolean;
   /** Host input-change handler (slash trigger + autosize live there). */
   onInputChange: (
     next: string,
@@ -179,6 +181,7 @@ export function Composer({
   richComposerEnabled,
   placeholder,
   composerDisabled,
+  composerActionDisabled = composerDisabled,
   onInputChange,
   onKeyDown,
   onPaste,
@@ -576,7 +579,7 @@ export function Composer({
                       : "Send message";
               const disabled =
                 Boolean(terminalSendDisabled) ||
-                composerDisabled ||
+                composerActionDisabled ||
                 (!isInFlight &&
                   composerAction === "send" &&
                   !hasComposerContent);

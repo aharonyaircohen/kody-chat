@@ -14,7 +14,12 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { setGitHubContext, clearGitHubContext } from "../github";
-import { createTodoSlug, listTodoFiles, writeTodoFile } from "../todos/files";
+import {
+  createTodoSlug,
+  isValidTodoSlug,
+  listTodoFiles,
+  writeTodoFile,
+} from "../todos/files";
 import { agencyRequestStateSchema } from "../todos/agency-request-schema";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +39,7 @@ const todoItemSchema = z.object({
 });
 
 const createTodoListSchema = z.object({
+  slug: z.string().min(1).max(64).optional(),
   title: z.string().trim().min(1).max(160),
   description: z.string().max(20_000).default(""),
   items: z.array(todoItemSchema).max(200).default([]),
@@ -117,8 +123,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { title, description, items, agencyRequest, actorLogin } =
-      createTodoListSchema.parse(payload);
+    const {
+      slug: requestedSlug,
+      title,
+      description,
+      items,
+      agencyRequest,
+      actorLogin,
+    } = createTodoListSchema.parse(payload);
+
+    if (requestedSlug && !isValidTodoSlug(requestedSlug)) {
+      return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
+    }
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -135,7 +151,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const slug = await createTodoSlug(title);
+    const slug = requestedSlug ?? (await createTodoSlug(title));
     const todo = await writeTodoFile({
       octokit: userOctokit,
       slug,

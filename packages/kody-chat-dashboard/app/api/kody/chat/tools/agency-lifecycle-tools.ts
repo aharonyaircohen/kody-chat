@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { readableResourceResult } from "./readable-resource-result";
 
 const agencyIdSchema = z
   .string()
@@ -62,18 +63,6 @@ interface Ctx {
   readRun(runId: string, githubRunId?: string): Promise<unknown>;
 }
 
-function missingEntryIsReadable(result: unknown): unknown {
-  if (
-    result &&
-    typeof result === "object" &&
-    "status" in result &&
-    result.status === 404
-  ) {
-    return { found: false };
-  }
-  return result;
-}
-
 export function createAgencyLifecycleTools(ctx: Ctx) {
   const repoRef = `${ctx.owner}/${ctx.repo}`;
   return {
@@ -86,7 +75,7 @@ export function createAgencyLifecycleTools(ctx: Ctx) {
       description: `Read one Loop from ${repoRef}.`,
       inputSchema: z.object({ loopId: agencyIdSchema }),
       execute: async ({ loopId }) =>
-        missingEntryIsReadable(await ctx.readLoop(loopId)),
+        readableResourceResult(await ctx.readLoop(loopId)),
     }),
     create_or_update_loop: tool({
       description: `Create or update one manual or scheduled Loop in ${repoRef} through the same Dashboard API used by the Loops page.`,
@@ -113,7 +102,7 @@ export function createAgencyLifecycleTools(ctx: Ctx) {
       description: `Read one Agency intent entry from ${repoRef}.`,
       inputSchema: z.object({ slug: guidanceSlugSchema }),
       execute: async ({ slug }) =>
-        missingEntryIsReadable(await ctx.readIntent(slug)),
+        readableResourceResult(await ctx.readIntent(slug)),
     }),
     create_or_update_intent: tool({
       description: `Create or update one Agency intent entry in ${repoRef} through the same Dashboard API used by the Agency page.`,
@@ -128,7 +117,9 @@ export function createAgencyLifecycleTools(ctx: Ctx) {
 
     list_agency_runs: tool({
       description: `List immutable Workflow and Loop run history for ${repoRef}.`,
-      inputSchema: z.object({ limit: z.number().int().min(1).max(100).default(50) }),
+      inputSchema: z.object({
+        limit: z.number().int().min(1).max(100).default(50),
+      }),
       execute: async ({ limit }) => ctx.listRuns(limit),
     }),
     read_agency_run: tool({

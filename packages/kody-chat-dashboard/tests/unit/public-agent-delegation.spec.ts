@@ -66,6 +66,9 @@ it("requires delegated prose to end with a relevant follow-up question", () => {
   expect(input.system).toContain(
     "Every prose final reply must end with one short, relevant follow-up question",
   );
+  expect(input.system).toContain(
+    "Never claim data is in a card, table, or view unless rendered-view evidence is present",
+  );
   expect(input.system).toContain("Do not add or change a renderer");
 });
 
@@ -305,6 +308,39 @@ describe("public Agent delegation", () => {
             content: expect.stringContaining("Repository draft."),
           }),
         ],
+      }),
+    );
+  });
+
+  it("uses the complete grounded specialist answer when synthesis hits its output limit", async () => {
+    const groundedAnswer =
+      "I can map the repository, read files, inspect pull requests, and explain verified findings.";
+    const onSynthesisFailure = vi.fn();
+
+    await expect(
+      synthesizePublicAgentResponse({
+        userText: "What can you do for this repository?",
+        assignments: [{ agent: "repo-scout", task: "Map the repository." }],
+        assignedAgents: roster,
+        results: [
+          {
+            status: "completed",
+            agent: "repo-scout",
+            result: groundedAnswer,
+            evidence: 'github_get_file: {"path":"README.md"}',
+          },
+        ],
+        model: {} as never,
+        generate: vi.fn(async () => ({
+          text: "I can map the repository, read files, inspect [",
+          finishReason: "length",
+        })) as never,
+        onSynthesisFailure,
+      }),
+    ).resolves.toBe(groundedAnswer);
+    expect(onSynthesisFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("output limit"),
       }),
     );
   });
@@ -1414,6 +1450,9 @@ describe("public Agent delegation", () => {
     expect(system).not.toContain("memoryContext");
     expect(system).toContain("safe for Kody to show directly");
     expect(system).toContain("Do not mention internal tool names");
+    expect(system).toContain(
+      "When rendering a list view, section counts must match the visible items; omit a count when uncertain.",
+    );
   });
 
   it("passes the original form submission unchanged beside every focused task", async () => {

@@ -5,6 +5,7 @@ import {
   preferredHydratedSessionId,
   preserveActiveSessionId,
   shouldLoadHydratedSessionDetail,
+  shouldShowConversationSession,
 } from "../../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions";
 
 function session(id: string, updatedAt: string): SessionMeta {
@@ -71,5 +72,17 @@ describe("conversation hydration", () => {
     expect(preferredHydratedSessionId(loaded, "linked")).toBe("linked");
     expect(preferredHydratedSessionId(loaded, "missing")).toBe("latest");
     expect(preferredHydratedSessionId([], "missing")).toBe("");
+  });
+
+  it("hides empty non-active drafts from the conversation picker", () => {
+    expect(
+      shouldShowConversationSession({ id: "empty", messageCount: 0 }, "active"),
+    ).toBe(false);
+    expect(
+      shouldShowConversationSession({ id: "active", messageCount: 0 }, "active"),
+    ).toBe(true);
+    expect(
+      shouldShowConversationSession({ id: "used", messageCount: 2 }, "active"),
+    ).toBe(true);
   });
 });

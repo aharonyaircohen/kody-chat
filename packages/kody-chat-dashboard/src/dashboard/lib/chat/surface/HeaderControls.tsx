@@ -57,6 +57,7 @@ interface HeaderControlsProps {
   onSelectMachine: (machineAccess: MachineAccess) => void;
   remoteStatus?: { configured: boolean; online: boolean } | null;
   onNewConversation: () => void;
+  hideNewConversation?: boolean;
   activeLoading: boolean;
   showSessionSidebar: boolean;
   sessionSidebarReady: boolean;
@@ -136,11 +137,12 @@ export function HeaderControls(props: HeaderControlsProps) {
 
   const conversationActions = (
     <div className="ml-auto flex shrink-0 items-center gap-1">
-      {!props.lockedAgentId && !props.hideAgentPicker ? (
+      {!props.lockedAgentId &&
+      !props.hideAgentPicker &&
+      !props.hideNewConversation ? (
         <button
           type="button"
           onClick={props.onNewConversation}
-          disabled={props.activeLoading}
           className={`${quietIconButtonClassName} disabled:cursor-not-allowed disabled:opacity-50`}
           title="Start a new conversation"
           aria-label="New conversation"

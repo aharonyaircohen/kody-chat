@@ -11,6 +11,7 @@ import {
   getAgencyRequestAssessmentTodoSlug,
   isCompleteProjectAssessmentRequest,
   isClearlyConversationalTurn,
+  isParentOwnedAgentManagementRequest,
   parsePublicAgentRouteDecision,
   routePublicAgentTask,
   shouldRoutePublicAgentChat,
@@ -107,6 +108,26 @@ describe("public Agent routing", () => {
       routePublicAgentTask({
         userText:
           "Build an automation for releases and take responsibility for monitoring it.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps Agent management requests with Kody instead of a specialist", async () => {
+    expect(
+      isParentOwnedAgentManagementRequest(
+        "Create a new Agent for local workflow checks.",
+      ),
+    ).toBe(true);
+
+    const generate = vi.fn();
+    await expect(
+      routePublicAgentTask({
+        userText:
+          "Create a new Agent for local workflow checks and return its slug.",
         assignedAgents,
         model: {} as never,
         generate: generate as never,
@@ -301,6 +322,22 @@ describe("public Agent routing", () => {
       shouldRoutePublicAgentChat({
         userText:
           "In one short plain-text reply, state the selected repository. Do not create anything or take any action.",
+        clientSurface: false,
+        assignedSubagentCount: 2,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRoutePublicAgentChat({
+        userText:
+          "Explain what a repository is in two short sentences. Do not ask a follow-up question.",
+        clientSurface: false,
+        assignedSubagentCount: 2,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRoutePublicAgentChat({
+        userText:
+          "Where is the repository settings page? Do not navigate there; just tell me the path.",
         clientSurface: false,
         assignedSubagentCount: 2,
       }),

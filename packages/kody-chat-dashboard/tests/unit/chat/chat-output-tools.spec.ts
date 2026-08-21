@@ -113,6 +113,15 @@ describe("chat output tools", () => {
     ).toBe(true);
   });
 
+  it.each([
+    "What is a repository? Answer in one plain sentence.",
+    "Explain the repository in two short sentences. Do not ask a follow-up question.",
+    "Give exactly three bullet points about this repository and nothing else.",
+    "Where is the repository settings page? Just tell me the path.",
+  ])("does not add a follow-up to bounded output requests: %s", (userText) => {
+    expect(shouldRequireFollowUpQuestion(userText)).toBe(false);
+  });
+
   it("keeps exact output to the requested token", () => {
     expect(
       normalizeExactOutputContent(

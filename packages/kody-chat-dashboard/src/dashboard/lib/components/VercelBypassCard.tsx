@@ -24,10 +24,13 @@ export function VercelBypassCard() {
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
-    setVercelSecret(auth?.vercelBypassSecret ?? "");
+    // Keep the saved credential out of the DOM. Entering a replacement is
+    // write-only; the existing value is never hydrated into the password
+    // field where browser tooling or extensions could read it.
+    setVercelSecret("");
   }, [auth?.vercelBypassSecret]);
 
-  const hasChanges = vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
+  const hasChanges = vercelSecret.trim().length > 0;
 
   function save() {
     const secret = vercelSecret.trim();
@@ -63,6 +66,11 @@ export function VercelBypassCard() {
             <Label htmlFor="vercel-secret" className="text-xs text-white/70">
               Secret
             </Label>
+            {auth?.vercelBypassSecret && (
+              <p className="text-[11px] text-emerald-300/80">
+                A bypass secret is saved. Enter a new value to replace it.
+              </p>
+            )}
             <Input
               id="vercel-secret"
               type="password"

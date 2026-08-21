@@ -542,7 +542,7 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
     expect(CRITICAL_REMINDERS_MD).toContain(
-      "Every prose final reply ends with one short, relevant follow-up question",
+      "End prose with a question when the user leaves the conversation open",
     );
     expect(CRITICAL_REMINDERS_MD).toContain(
       "Do not add a question, control, or prose solely to satisfy this rule when `show_view` owns the reply",

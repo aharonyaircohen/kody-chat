@@ -107,6 +107,17 @@ export function shouldRoutePublicAgentChat(input: {
     /^\s*(?:please\s+)?(?:provide|give|find|get|open|share|send|show)\b[^?\n]{0,120}\b(?:link|url|path|route|page)\b/i.test(
       input.userText ?? "",
     );
+  const referenceQuestion =
+    /^\s*(?:where\s+is|which\s+is|what(?:'s|\s+is)\s+the)\b[^?\n]{0,120}\b(?:settings?|page|path|route|link|url)\b/i.test(
+      userText,
+    );
+  const boundedPlainReply =
+    /\b(?:one|two|three|four|five|exactly|only|nothing else|no follow[- ]?up|do not ask)\b/i.test(
+      userText,
+    ) &&
+    /\b(?:answer|reply|return|explain|describe|give|name|tell)\b/i.test(
+      userText,
+    );
   const noActionPlainReply =
     /\b(?:take\s+no\s+action|no\s+action|do\s+not\s+(?:create|change|run|use|execute)|plain[- ]text|reply\s+only)\b/i.test(
       userText,
@@ -116,8 +127,10 @@ export function shouldRoutePublicAgentChat(input: {
     input.assignedSubagentCount > 0 &&
     !explicitViewRequest &&
     !referenceRequest &&
+    !referenceQuestion &&
     !isClearlyConversationalTurn(userText) &&
-    !noActionPlainReply
+    !noActionPlainReply &&
+    !boundedPlainReply
   );
 }
 
@@ -213,6 +226,17 @@ export function isParentOwnedArchitectureExplanation(
     /^\s*(?:how does|explain|describe|what is)\b/i.test(text) &&
     /\b(?:kody chat|chat system|chat architecture)\b/i.test(text) &&
     /\b(?:project|repository|repo)\b/i.test(text)
+  );
+}
+
+/** Agent lifecycle changes need the parent chat's full Agent tool set. */
+export function isParentOwnedAgentManagementRequest(userText: string): boolean {
+  const text = userText.trim();
+  return (
+    /\b(?:agent|agents|agent identity|subagent|subagents)\b/i.test(text) &&
+    /\b(?:create|add|update|edit|delete|remove|list|show|read|dispatch|ask|assign)\b/i.test(
+      text,
+    )
   );
 }
 
@@ -450,6 +474,9 @@ export async function routePublicAgentTask({
     return { mode: "self" };
   }
   if (isAgencyRequestAssessmentHandoff(userText)) {
+    return { mode: "self" };
+  }
+  if (isParentOwnedAgentManagementRequest(userText)) {
     return { mode: "self" };
   }
   const todoRequest = routeTodoRequest(userText, assignedAgents);

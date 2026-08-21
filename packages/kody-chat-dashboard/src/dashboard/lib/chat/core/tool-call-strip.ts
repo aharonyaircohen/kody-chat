@@ -142,6 +142,23 @@ function stripSelfClosingToolTags(text: string): string {
   });
 }
 
+const BARE_TOOL_NAME_LINE_RE = new RegExp(
+  `(^|\\n)\\s*(?:${[...KNOWN_TOOL_NAMES]
+    .sort((left, right) => right.length - left.length)
+    .map((name) => name.replace(/[.*+?^${}()|[\\]\\]/g, "\\\\$&"))
+    .join("|")})\\s*[.:]?\\s*(?=\\n|$)`,
+  "g",
+);
+
+/** Some providers emit a tool name as a plain line before the real answer. */
+function stripBareToolNameLines(text: string): string {
+  return text
+    .replace(BARE_TOOL_NAME_LINE_RE, "$1")
+    // A provider can leave the call terminator behind after the tool name.
+    // A punctuation-only line is transport noise, never useful answer prose.
+    .replace(/(^|\n)\s*["'`“”‘’]*[.:]["'`“”‘’]*\s*(?=\n|$)/g, "$1");
+}
+
 /**
  * If the text ends with a `<` followed by an unfinished tag whose name
  * is or could grow into a known tool name, drop the partial. This keeps
@@ -418,7 +435,7 @@ export function parseAssistantContent(raw: string): {
   // provider envelope must not trigger the fabricated-action warning.
   const strippedToolMarkup = containsToolCallMarkup(reasoning, answer);
   const { text, leaked } = stripLeakedReasoning(
-    stripToolCallMarkup(unwrappedAnswer.text),
+    stripBareToolNameLines(stripToolCallMarkup(unwrappedAnswer.text)),
     sanitizedReasoning,
   );
   const combinedReasoning = leaked

@@ -163,6 +163,7 @@ import {
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
+import { createToolExecutionCoordinator } from "./tool-execution-order";
 import { createInstructionsTools } from "../tools/instructions-tools";
 import { createPersonalChatTools } from "../tools/personal-tools";
 import { createVariableTools } from "../tools/variables-tools";
@@ -1922,15 +1923,20 @@ async function handleKodyDirectPost(
       allowlistedTools[name] = mergedTools[name];
     }
   }
+  const wrappedToolMarker = Symbol("kody-tool-execution-wrapped");
+  const toolExecutionCoordinator = createToolExecutionCoordinator();
   const wrapToolExecution = (name: string, candidate: unknown): unknown => {
     if (!candidate || typeof candidate !== "object") return candidate;
     const executable = candidate as {
       execute?: (input: unknown) => Promise<unknown>;
+      [wrappedToolMarker]?: boolean;
     };
     if (!executable.execute) return candidate;
-    const execute = executable.execute;
+    if (executable[wrappedToolMarker]) return candidate;
+    const execute = toolExecutionCoordinator.wrap(name, executable.execute);
     return {
       ...executable,
+      [wrappedToolMarker]: true,
       execute: async (input: unknown) => {
         try {
           return await execute(input);

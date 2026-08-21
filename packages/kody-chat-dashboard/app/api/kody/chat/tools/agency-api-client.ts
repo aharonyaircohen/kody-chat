@@ -47,6 +47,9 @@ async function apiResult(response: Response): Promise<JsonObject> {
     ...(response.status < 500 && typeof payload.message === "string"
       ? { message: payload.message }
       : {}),
+    ...(response.status < 500 && Array.isArray(payload.issues)
+      ? { issues: payload.issues }
+      : {}),
     status: response.status,
   };
 }
@@ -268,7 +271,7 @@ export function createAgencyApiClient({
       const existing = await client.readTodo(input.slug);
       const state = await exists(existing);
       if (typeof state === "object") return state;
-      if (!state) return client.createTodo(without(input, "slug"));
+      if (!state) return client.createTodo(input);
 
       const now = new Date().toISOString();
       const existingTodo =

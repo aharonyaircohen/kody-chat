@@ -40,6 +40,15 @@ describe("capability chat tools", () => {
     expect(ctx.readCapability).toHaveBeenCalledWith("greet");
   });
 
+  it("reports a missing capability as readable state", async () => {
+    ctx.readCapability.mockResolvedValue({ error: "not_found", status: 404 });
+    const tools = createCapabilityTools(ctx as never);
+
+    await expect(
+      tools.read_capability.execute!({ slug: "missing" }, {} as never),
+    ).resolves.toEqual({ found: false });
+  });
+
   it("saves the whole capability through the Dashboard API", async () => {
     const tools = createCapabilityTools(ctx as never);
     await tools.create_or_update_capability.execute!(

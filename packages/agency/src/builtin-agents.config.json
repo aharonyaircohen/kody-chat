@@ -131,6 +131,8 @@
         "list_intents",
         "read_intent",
         "create_or_update_intent",
+        "list_agency_runs",
+        "read_agency_run",
         "list_todo_lists",
         "read_todo_list",
         "create_or_update_todo_list"

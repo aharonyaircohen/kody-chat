@@ -89,6 +89,8 @@ export interface UseKodyTasksOptions {
    * - false: Disable auto-refresh
    */
   refetchInterval?: "auto" | "idle" | "board" | "active" | false;
+  /** Auth context readiness when credentials are owned outside browser storage. */
+  authReady?: boolean;
 }
 
 /**
@@ -176,6 +178,7 @@ export function useKodyTasksPage(options: UseKodyTasksOptions = {}) {
     sort,
     dir,
     refetchInterval = "auto",
+    authReady,
   } = options;
   const filters = { status, label, priority, q, sort, dir };
 
@@ -202,7 +205,7 @@ export function useKodyTasksPage(options: UseKodyTasksOptions = {}) {
         sort,
         dir,
       }),
-    enabled: enabled && !!getStoredAuth(),
+    enabled: enabled && (authReady ?? !!getStoredAuth()),
     refetchInterval: (query): number | false => {
       if (refetchInterval === false) return false;
       if (query.state.error instanceof SessionExpiredError) return false;

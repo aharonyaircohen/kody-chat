@@ -161,6 +161,14 @@ export function preferredHydratedSessionId(
   return loaded[0]?.id ?? "";
 }
 
+/** Keep the active draft visible without filling the picker with empty drafts. */
+export function shouldShowConversationSession(
+  session: Pick<SessionMeta, "id" | "messageCount">,
+  activeSessionId: string,
+): boolean {
+  return session.id === activeSessionId || session.messageCount > 0;
+}
+
 export function useConversationSessions(
   scope: ChatSessionScope = "global",
   requestHeaders?: Record<string, string>,
@@ -314,13 +322,17 @@ export function useConversationSessions(
 
   const orderedSessions = useMemo(
     () =>
-      [...sessions].sort((left, right) => {
-        if (Boolean(left.pinned) !== Boolean(right.pinned)) {
-          return left.pinned ? -1 : 1;
-        }
-        return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-      }),
-    [sessions],
+      sessions
+        .filter((session) =>
+          shouldShowConversationSession(session, activeSessionId),
+        )
+        .sort((left, right) => {
+          if (Boolean(left.pinned) !== Boolean(right.pinned)) {
+            return left.pinned ? -1 : 1;
+          }
+          return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+        }),
+    [activeSessionId, sessions],
   );
   const activeSession =
     sessions.find((session) => session.id === activeSessionId) ?? null;

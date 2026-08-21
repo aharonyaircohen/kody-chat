@@ -193,6 +193,45 @@ describe("Agency API client", () => {
     });
   });
 
+  it("preserves safe workflow validation issues for Kody to repair", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invalid_workflow",
+          message: "Workflow is not safe to save.",
+          issues: [
+            {
+              code: "unknown_capability",
+              path: "steps[0].capability",
+              message: "Capability qa-scan is not available in this agency.",
+            },
+          ],
+        }),
+        { status: 400 },
+      ),
+    );
+    const client = createAgencyApiClient({ request, fetchImpl });
+
+    await expect(
+      client.createWorkflow({
+        id: "local-workflow",
+        name: "Local Workflow",
+        capabilities: ["qa-scan"],
+      }),
+    ).resolves.toEqual({
+      error: "invalid_workflow",
+      message: "Workflow is not safe to save.",
+      issues: [
+        {
+          code: "unknown_capability",
+          path: "steps[0].capability",
+          message: "Capability qa-scan is not available in this agency.",
+        },
+      ],
+      status: 400,
+    });
+  });
+
   it("chooses the Dashboard create or update route from current persisted state", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -275,6 +314,29 @@ describe("Agency API client", () => {
       title: "New item",
       completed: false,
       completedAt: null,
+    });
+  });
+
+  it("keeps an explicit todo slug when creating a missing list", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "not_found" }), { status: 404 }),
+      )
+      .mockResolvedValueOnce(ok({ todo: { slug: "exact-todo-slug" } }));
+    const client = createAgencyApiClient({ request, fetchImpl });
+
+    await client.saveTodo({
+      slug: "exact-todo-slug",
+      title: "Friendly title",
+      items: [],
+    });
+
+    expect(
+      JSON.parse(fetchImpl.mock.calls[1]![1]!.body as string),
+    ).toMatchObject({
+      slug: "exact-todo-slug",
+      title: "Friendly title",
     });
   });
 });

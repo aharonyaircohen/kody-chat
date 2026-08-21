@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { readableResourceResult } from "./readable-resource-result";
 
 interface Ctx {
   octokit: Octokit;
@@ -54,7 +55,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
-        return ctx.readCapability(slug);
+        return readableResourceResult(await ctx.readCapability(slug));
       },
     }),
 
@@ -66,9 +67,7 @@ export function createCapabilityTools(ctx: Ctx) {
         contract: z
           .object({
             execution: z.enum(["agent", "script"]).default("agent"),
-            secrets: z
-              .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
-              .optional(),
+            secrets: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/)).optional(),
             timeoutMs: z.number().int().min(1_000).max(21_600_000).optional(),
             input: z.record(z.string(), z.unknown()),
             output: z.record(z.string(), z.unknown()),

@@ -61,6 +61,9 @@ describe("ui tools", () => {
     expect(String(showView.description)).toContain(
       "Use this purpose when Kody presents a decision.",
     );
+    expect(String(showView.description)).toContain(
+      "Section counts must match the number of visible items; omit a count when it is uncertain.",
+    );
   });
 
   it("exposes a generic final output tool", () => {
@@ -130,7 +133,9 @@ describe("ui tools", () => {
     const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
       execute: (value: { content: string }) => Promise<Record<string, unknown>>;
     };
-    await expect(finalAnswer.execute({ content: "remembered." })).resolves.toEqual({
+    await expect(
+      finalAnswer.execute({ content: "remembered." }),
+    ).resolves.toEqual({
       content: "remembered",
     });
   });

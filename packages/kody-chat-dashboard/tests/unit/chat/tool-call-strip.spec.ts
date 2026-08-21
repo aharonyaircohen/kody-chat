@@ -128,6 +128,13 @@ describe("stripToolCallMarkup", () => {
 
     expect(out).toBe("Searching now.");
   });
+
+  it("removes a bare provider tool-name line before the answer", () => {
+    const parsed = parseAssistantContent(
+      "list_dashboard_features.\n.\n\".\"\nThe settings page is /config.",
+    );
+    expect(parsed.answer).toBe("The settings page is /config.");
+  });
 });
 
 describe("parseAssistantContent", () => {

@@ -14,4 +14,10 @@ describe("composer primary action", () => {
     expect(SOURCE).toContain('aria-label={title}');
     expect(SOURCE).not.toContain("<span>{label}</span>");
   });
+
+  it("keeps Kody Live start/stop available while input is locked", () => {
+    expect(SOURCE).toContain("composerActionDisabled = composerDisabled");
+    expect(SOURCE).toContain("Boolean(terminalSendDisabled) ||");
+    expect(SOURCE).toContain("composerActionDisabled ||");
+  });
 });

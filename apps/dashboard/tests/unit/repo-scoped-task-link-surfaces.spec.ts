@@ -43,6 +43,11 @@ describe("repo-scoped task link surfaces", () => {
     }
   });
 
+  it("keeps Activity back navigation inside the active repository", () => {
+    const source = componentSource("ActivityPage.tsx");
+    expect(source).toContain('backHref={auth ? repoScopedHref(auth, "/") : "/"}');
+  });
+
   it("opens TaskList issue and PR links on GitHub, not dashboard routes", () => {
     const source = componentSource("TaskList.tsx");
     expect(source).toContain("getGitHubIssueUrl(task.issueNumber)");

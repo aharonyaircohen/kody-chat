@@ -75,7 +75,15 @@ export function shouldRequireFollowUpQuestion(
   return !(
     /\breply\b[^.!?\n]{0,120}\bonly\b/i.test(text) ||
     /\b(?:return|respond|output)\s+exactly\b/i.test(text) ||
-    /\bnothing else\b/i.test(text)
+    /\bnothing else\b/i.test(text) ||
+    /\b(?:one|two|three|four|five)\s+(?:short\s+)?(?:plain(?:[- ]text)?\s+)?(?:sentence|sentences|word|words|bullet\s+points?)\b/i.test(
+      text,
+    ) ||
+    /\b(?:no|without|do not|don't)\s+(?:a\s+)?follow[- ]?up\s+question\b/i.test(
+      text,
+    ) ||
+    /\bplain[- ]text\s+only\b/i.test(text) ||
+    /\b(?:just|only)\s+tell\s+me\b/i.test(text)
   );
 }
 

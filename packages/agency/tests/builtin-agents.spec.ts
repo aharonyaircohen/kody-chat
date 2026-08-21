@@ -158,6 +158,8 @@ describe("built-in Kody specialists", () => {
         "list_loops",
         "list_intents",
         "list_todo_lists",
+        "list_agency_runs",
+        "read_agency_run",
       ]),
     );
   });

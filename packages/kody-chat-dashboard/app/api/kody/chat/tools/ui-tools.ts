@@ -291,6 +291,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Use this whenever the reply asks the user to choose, approve, confirm, continue, cancel, or pick an action — and when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
         "Compose the spec only from the components listed below. " +
         "Put only data that belongs to the current interaction into the view; do not copy preview, page, repo, task, memory, or research context into it. " +
+        "Section counts must match the number of visible items; omit a count when it is uncertain. " +
         "This tool only shows UI; it does not execute the selected action. " +
         "If the call returns an error, fix the spec it describes and call again.\n\n" +
         buildShowViewGuidance(catalog),

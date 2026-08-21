@@ -1,15 +1,34 @@
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
+import { createUserOctokit } from "@kody-ade/base/github/core";
+import { listVariables, readVariables } from "@kody-ade/base/variables/store";
+import { readVault } from "@kody-ade/base/vault/store";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
-const QA_EMAIL = process.env.E2E_QA_EMAIL ?? "";
-const QA_PASSWORD = process.env.E2E_QA_PASSWORD ?? "";
-
 function parseRepo(value: string) {
   const path = value.includes("://") ? new URL(value).pathname : value;
   const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
   return { owner, repo: repo.replace(/\.git$/i, "") };
+}
+
+async function loadLoginCredentials(
+  owner: string,
+  repo: string,
+  token: string,
+) {
+  const [variables, vault] = await Promise.all([
+    readVariables(owner, repo, { force: true }),
+    readVault(createUserOctokit(token), owner, repo, { force: true }),
+  ]);
+  const loginUser = listVariables(variables.doc).find(
+    (variable) => variable.name === "LOGIN_USER",
+  )?.value;
+  const loginPassword = vault.doc.secrets.LOGIN_PASSWORD?.value;
+  if (!loginUser) throw new Error("LOGIN_USER is missing from Kody Variables");
+  if (!loginPassword)
+    throw new Error("LOGIN_PASSWORD is missing from Kody Secrets");
+  return { loginUser, loginPassword };
 }
 
 test("makes a real Agent live, executes one cycle, and shows its persisted activity", async ({
@@ -17,50 +36,52 @@ test("makes a real Agent live, executes one cycle, and shows its persisted activ
 }) => {
   test.setTimeout(8 * 60_000);
   test.skip(
-    !BASE_URL || !TEST_TOKEN || !TEST_REPO || !QA_EMAIL || !QA_PASSWORD,
-    "Requires live repository and Kody account credentials",
+    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
+    "Requires a live repository",
   );
 
   const { owner, repo } = parseRepo(TEST_REPO);
   const slug = `live-e2e-${Date.now()}`;
   const intentSlug = `live-intent-${Date.now()}`;
   const title = `Live E2E ${Date.now()}`;
-  const headers = {
+  const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-kody-token": TEST_TOKEN,
     "x-kody-owner": owner,
     "x-kody-repo": repo,
   };
   const user = await resolveLiveGitHubUser(page, BASE_URL, headers);
+  headers["x-kody-user-login"] = user.login;
+  const { loginUser, loginPassword } = await loadLoginCredentials(
+    owner,
+    repo,
+    TEST_TOKEN,
+  );
 
-  await page.context().addInitScript(
-    ({ auth }) => {
-      localStorage.clear();
-      localStorage.setItem("kody_auth", JSON.stringify(auth));
-    },
-    {
-      auth: {
+  const repositoryAuth = {
+    repoUrl: TEST_REPO,
+    owner,
+    repo,
+    token: TEST_TOKEN,
+    user,
+    loggedInAt: Date.now(),
+    repos: [
+      {
         repoUrl: TEST_REPO,
         owner,
         repo,
         token: TEST_TOKEN,
         user,
-        loggedInAt: Date.now(),
-        repos: [
-          {
-            repoUrl: TEST_REPO,
-            owner,
-            repo,
-            token: TEST_TOKEN,
-            user,
-            addedAt: Date.now(),
-            isLogin: true,
-          },
-        ],
-        currentRepoIndex: 0,
+        addedAt: Date.now(),
+        isLogin: true,
       },
-    },
-  );
+    ],
+    currentRepoIndex: 0,
+  };
+  await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
+  await page.evaluate((auth) => {
+    localStorage.setItem("kody_auth", JSON.stringify(auth));
+  }, repositoryAuth);
 
   const liveUrl = `${BASE_URL}/api/kody/agents/${slug}/live`;
   let created = false;
@@ -99,15 +120,41 @@ test("makes a real Agent live, executes one cycle, and shows its persisted activ
     if (
       await page.getByRole("heading", { name: "Sign in to Kody" }).isVisible()
     ) {
-      await page.getByLabel("Email").fill(QA_EMAIL);
-      await page.getByLabel("Password").fill(QA_PASSWORD);
+      await page.getByLabel("Email").fill(loginUser);
+      await page.getByLabel("Password").fill(loginPassword);
+      const signInResponse = page.waitForResponse((response) =>
+        response.url().includes("/api/auth/sign-in/email"),
+      );
       await page.getByRole("button", { name: "Sign in" }).click();
-      await expect(
-        page.getByRole("heading", { name: "Sign in to Kody" }),
-      ).toBeHidden();
+      expect((await signInResponse).status(), "Kody email sign-in failed").toBe(
+        200,
+      );
+      await page.waitForURL(`${BASE_URL}/chat`);
+      await expect
+        .poll(async () => {
+          const session = await page.request.get(
+            `${BASE_URL}/api/auth/get-session`,
+          );
+          if (!session.ok()) return false;
+          const body = (await session.json()) as { user?: { id?: string } };
+          return Boolean(body.user?.id);
+        })
+        .toBe(true);
       await page.goto(`${BASE_URL}/repo/${owner}/${repo}/agents/${slug}`, {
         waitUntil: "domcontentloaded",
       });
+      await expect
+        .poll(() =>
+          page.evaluate(async () => {
+            const response = await fetch("/api/auth/get-session");
+            if (!response.ok) return false;
+            const body = (await response.json()) as {
+              user?: { id?: string };
+            };
+            return Boolean(body.user?.id);
+          }),
+        )
+        .toBe(true);
     }
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Not live" })).toBeVisible();

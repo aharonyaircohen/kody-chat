@@ -35,6 +35,13 @@ export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
   return false;
 }
 
+/** Read-only renderer inputs are display fields, not form controls. */
+export function isReadOnlyViewInput(
+  node: Extract<RenderedViewUiNode, { type: "input" }>,
+): boolean {
+  return node.readOnly !== false;
+}
+
 export function validateGuidedFlowInput(
   ui: RenderedViewUiNode,
   inputValues: Record<string, string>,
@@ -283,6 +290,21 @@ export function RenderedViewCard({
       const value = node.name
         ? (inputValues[node.name] ?? node.value)
         : node.value;
+      const readOnly = isReadOnlyViewInput(node);
+      if (readOnly) {
+        return (
+          <div key={key} className="block space-y-1.5">
+            {node.label ? (
+              <span className="text-xs font-medium text-muted-foreground">
+                {node.label}
+              </span>
+            ) : null}
+            <p className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm text-foreground">
+              {value}
+            </p>
+          </div>
+        );
+      }
       const onChange = (
         event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
       ) => {
@@ -302,7 +324,7 @@ export function RenderedViewCard({
           {node.inputType === "textarea" ? (
             <textarea
               value={value}
-              readOnly={node.readOnly ?? true}
+              readOnly={false}
               rows={4}
               onChange={onChange}
               className="min-h-24 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -310,7 +332,7 @@ export function RenderedViewCard({
           ) : (
             <input
               value={value}
-              readOnly={node.readOnly ?? true}
+              readOnly={false}
               type={node.inputType ?? "text"}
               onChange={onChange}
               className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"

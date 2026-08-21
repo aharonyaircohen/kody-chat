@@ -139,6 +139,12 @@ describe("model operation failure notice", () => {
     );
   });
 
+  it("turns a missing model key into an actionable setup message", () => {
+    expect(normalizeModelOperationFailure("Error: model_api_key_missing")).toBe(
+      "This chat model is not configured. Add its API key under Settings → Secrets, or choose another model.",
+    );
+  });
+
   it("explains OpenRouter account provider policy failures", () => {
     expect(
       normalizeModelOperationFailure(

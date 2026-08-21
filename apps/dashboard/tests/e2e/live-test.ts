@@ -15,8 +15,6 @@ const SECRET_ENVIRONMENT_NAMES = [
   "GH_TOKEN",
   "FLY_API_TOKEN",
   "BRAIN_CHAT_API_KEY",
-  "E2E_QA_EMAIL",
-  "E2E_QA_PASSWORD",
 ];
 
 function configuredSecrets(): string[] {

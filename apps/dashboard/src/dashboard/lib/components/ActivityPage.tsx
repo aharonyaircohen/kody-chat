@@ -1098,6 +1098,7 @@ export function ActivityPage() {
       icon={ActivityIcon}
       iconClassName="text-sky-300"
       subtitle={auth ? `${auth.owner}/${auth.repo} · engine runs` : undefined}
+      backHref={auth ? repoScopedHref(auth, "/") : "/"}
       actions={
         <Button
           variant="ghost"

@@ -2337,6 +2337,8 @@ export function KodyChat({
     (!selectionReady ||
       agencyAgentSwitching ||
       (isKodyLive && interactiveState !== "ready"));
+  const composerActionDisabled =
+    chatMode === "ai" && (!selectionReady || agencyAgentSwitching);
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"
@@ -2483,9 +2485,14 @@ export function KodyChat({
           onSelectMachine={selectMachineAccess}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
+            // A slow turn must not trap the user in the current conversation.
+            // Stop the old stream before switching so its updates stay scoped
+            // to the old session and the new composer is immediately usable.
+            if (activeLoading) handleStop();
             setActiveWidgetConversationId(createDefaultChatSession());
             setToolCalls([]);
           }}
+          hideNewConversation={showSessionSidebar}
           activeLoading={activeLoading}
           showSessionSidebar={showSessionSidebar}
           sessionSidebarReady={sessionSidebarReady}
@@ -2575,6 +2582,7 @@ export function KodyChat({
           richComposerEnabled={richComposerEnabled}
           placeholder={placeholder}
           composerDisabled={composerDisabled}
+          composerActionDisabled={composerActionDisabled}
           onInputChange={handleComposerInputChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}

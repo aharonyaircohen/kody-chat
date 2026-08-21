@@ -29,8 +29,6 @@ function validEnvironment(): Record<string, string> {
     RUN_REAL_E2E: "1",
     E2E_GITHUB_TOKEN: SECRET,
     E2E_GITHUB_REPO: "https://github.com/example/kody-e2e-tester",
-    E2E_QA_EMAIL: "qa@example.test",
-    E2E_QA_PASSWORD: SECRET,
     CONVEX_URL: "https://example.convex.cloud",
     KODY_SERVICE_KEY: SECRET,
     KODY_MASTER_KEY: SECRET,
