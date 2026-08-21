@@ -41,4 +41,11 @@ describe("root dashboard layout (e2e gate regression)", () => {
   it("does not pass initialAuthToken into KodyProviders", () => {
     expect(LAYOUT_SOURCE).not.toMatch(/<KodyProviders\s+initialAuthToken=/);
   });
+
+  it("does not leave any top-level await in the layout body", () => {
+    // The original regression was an `await getKodyAuthToken()` inside the
+    // KodyLayout body. Guard against any future top-level await — the layout
+    // must stay fully synchronous for prerendering to work.
+    expect(LAYOUT_SOURCE).not.toMatch(/\bawait\s+/);
+  });
 });
