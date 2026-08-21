@@ -48,7 +48,10 @@ import {
 import { PageShell } from "../components/PageShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MarkdownEditor } from "../components/MarkdownEditor";
-import { useGuidedFlowChat } from "../guided-flows/chat-controller";
+import {
+  useGuidedFlowChat,
+  type GuidedFlowSourceScope,
+} from "../guided-flows/chat-controller";
 import { WidgetStepFields } from "../guided-flows/WidgetStepFields";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
@@ -879,6 +882,9 @@ function GuidedFlowsManager() {
   const [definitions, setDefinitions] = useState<FlowDefinition[]>(
     BUILTIN_START_OPTIONS,
   );
+  const [sourceScope, setSourceScope] = useState<GuidedFlowSourceScope>({
+    kind: "user",
+  });
   const [editor, setEditor] = useState<{
     mode: "create" | "edit" | "view";
     definition?: FlowDefinition;
@@ -902,6 +908,11 @@ function GuidedFlowsManager() {
         throw new Error(payload.error ?? "Unable to load Guided Flows");
       }
       setDefinitions(payload.definitions ?? BUILTIN_START_OPTIONS);
+      setSourceScope(
+        auth
+          ? { kind: "repository", owner: auth.owner, repo: auth.repo }
+          : { kind: "user" },
+      );
     } catch (cause) {
       setError(
         cause instanceof DOMException && cause.name === "TimeoutError"
@@ -1043,7 +1054,9 @@ function GuidedFlowsManager() {
                       <Button
                         size="sm"
                         aria-label={`Start ${option.title} in Chat`}
-                        onClick={() => startFlowInChat(option.id)}
+                        onClick={() =>
+                          startFlowInChat(option.id, undefined, sourceScope)
+                        }
                       >
                         <Play className="mr-1.5 h-4 w-4" />
                         Start in Chat

@@ -18,6 +18,15 @@ export type GuidedFlowOpenRequest =
       readonly flowId: string;
       readonly instanceKey?: string;
       readonly message: "started";
+      readonly sourceScope?: GuidedFlowSourceScope;
+    };
+
+export type GuidedFlowSourceScope =
+  | { readonly kind: "user" }
+  | {
+      readonly kind: "repository";
+      readonly owner: string;
+      readonly repo: string;
     };
 
 export interface GuidedFlowChatState {
@@ -71,14 +80,33 @@ export function isGuidedFlowOpenRequest(
     typeof request.instanceId === "string" &&
     (request.message === "started" || request.message === "resumed");
   const isStartRequest =
-    typeof request.flowId === "string" && request.message === "started";
+    typeof request.flowId === "string" &&
+    request.message === "started" &&
+    (request.sourceScope === undefined ||
+      (typeof request.sourceScope === "object" &&
+        request.sourceScope !== null &&
+        ((request.sourceScope as Record<string, unknown>).kind === "user" ||
+          ((request.sourceScope as Record<string, unknown>).kind ===
+            "repository" &&
+            typeof (request.sourceScope as Record<string, unknown>).owner ===
+              "string" &&
+            typeof (request.sourceScope as Record<string, unknown>).repo ===
+              "string"))));
   return isInstanceRequest || isStartRequest;
 }
 
 export interface GuidedFlowChatController {
   readonly pending: GuidedFlowChatState["pending"];
-  readonly startFlow: (flowId: string, instanceKey?: string) => void;
-  readonly startFlowInChat: (flowId: string, instanceKey?: string) => void;
+  readonly startFlow: (
+    flowId: string,
+    instanceKey?: string,
+    sourceScope?: GuidedFlowSourceScope,
+  ) => void;
+  readonly startFlowInChat: (
+    flowId: string,
+    instanceKey?: string,
+    sourceScope?: GuidedFlowSourceScope,
+  ) => void;
   readonly resumeFlow: (instanceId: string) => void;
   readonly acknowledge: (requestId: string) => void;
 }
@@ -111,20 +139,30 @@ export function GuidedFlowChatProvider({
     [],
   );
   const startFlow = useCallback(
-    (flowId: string, instanceKey?: string) =>
+    (
+      flowId: string,
+      instanceKey?: string,
+      sourceScope?: GuidedFlowSourceScope,
+    ) =>
       request({
         flowId,
         ...(instanceKey ? { instanceKey } : {}),
+        ...(sourceScope ? { sourceScope } : {}),
         message: "started",
       }),
     [request],
   );
   const startFlowInChat = useCallback(
-    (flowId: string, instanceKey?: string) =>
+    (
+      flowId: string,
+      instanceKey?: string,
+      sourceScope?: GuidedFlowSourceScope,
+    ) =>
       request(
         {
           flowId,
           ...(instanceKey ? { instanceKey } : {}),
+          ...(sourceScope ? { sourceScope } : {}),
           message: "started",
         },
         "chat",

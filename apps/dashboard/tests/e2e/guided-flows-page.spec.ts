@@ -38,6 +38,8 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
   let startedFlowId: string | null = null;
   let boundConversationId: string | null = null;
   let chatConversationId: string | null = null;
+  let startOwnerHeader: string | null = null;
+  let startRepoHeader: string | null = null;
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const request = route.request();
     const isCollection = new URL(request.url()).pathname.endsWith(
@@ -78,6 +80,8 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
       };
       startedFlowId = body.flowId ?? null;
       boundConversationId = body.conversationId ?? null;
+      startOwnerHeader = route.request().headers()["x-kody-owner"] ?? null;
+      startRepoHeader = route.request().headers()["x-kody-repo"] ?? null;
       return json(route, {
         instance: { status: "active" },
         flow: {
@@ -116,8 +120,9 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
     return json(route, {
       definitions: [
         {
-          id: "create-workflow",
-          title: "Create a workflow",
+          id: "custom-personal-flow",
+          title: "Custom personal flow",
+          source: "custom",
           steps: [{ rendererSlug: "guided-form" }],
         },
       ],
@@ -130,18 +135,20 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
     page.getByRole("heading", { name: "Guided Flows" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Create a workflow", { exact: true }),
+    page.getByText("Custom personal flow", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("In progress", { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "History", exact: true }),
   ).toHaveCount(0);
   const startInChat = page.getByRole("button", {
-    name: "Start Create a workflow in Chat",
+    name: "Start Custom personal flow in Chat",
   });
   await expect(startInChat).toBeVisible();
   await startInChat.click();
-  await expect.poll(() => startedFlowId).toBe("create-workflow");
+  await expect.poll(() => startedFlowId).toBe("custom-personal-flow");
+  await expect.poll(() => startOwnerHeader).toBeNull();
+  await expect.poll(() => startRepoHeader).toBeNull();
   await expect.poll(() => boundConversationId).toBeTruthy();
   await expect(page).toHaveURL(/\/repo\/acme\/widgets\/chat\/.+/);
   await expect(page.getByText("Test flow started in Chat")).toBeVisible();

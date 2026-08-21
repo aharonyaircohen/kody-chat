@@ -16,6 +16,33 @@ describe("GuidedFlow open requests", () => {
     ).toBe(true);
   });
 
+  it("accepts the definition source scope used to start the flow", () => {
+    expect(
+      isGuidedFlowOpenRequest({
+        flowId: "lesson",
+        message: "started",
+        sourceScope: { kind: "user" },
+      }),
+    ).toBe(true);
+    expect(
+      isGuidedFlowOpenRequest({
+        flowId: "lesson",
+        message: "started",
+        sourceScope: { kind: "repository", owner: "acme", repo: "widgets" },
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a malformed definition source scope", () => {
+    expect(
+      isGuidedFlowOpenRequest({
+        flowId: "lesson",
+        message: "started",
+        sourceScope: { kind: "repository", owner: "acme" },
+      }),
+    ).toBe(false);
+  });
+
   it("accepts an exact instance resume request", () => {
     expect(
       isGuidedFlowOpenRequest({

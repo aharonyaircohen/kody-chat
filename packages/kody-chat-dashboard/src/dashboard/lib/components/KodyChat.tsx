@@ -257,6 +257,17 @@ export function KodyChat({
       if (guidedFlowOpenInFlightRef.current.has(requestKey)) return false;
       guidedFlowOpenInFlightRef.current.add(requestKey);
       try {
+        const requestAuthHeaders = authHeaders();
+        if ("flowId" in request && request.sourceScope?.kind === "user") {
+          delete requestAuthHeaders["x-kody-owner"];
+          delete requestAuthHeaders["x-kody-repo"];
+        } else if (
+          "flowId" in request &&
+          request.sourceScope?.kind === "repository"
+        ) {
+          requestAuthHeaders["x-kody-owner"] = request.sourceScope.owner;
+          requestAuthHeaders["x-kody-repo"] = request.sourceScope.repo;
+        }
         const conversationId =
           activeGuidedFlowSessionIdRef.current ??
           createGuidedFlowSessionRef.current();
@@ -267,7 +278,7 @@ export function KodyChat({
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  ...authHeaders(),
+                  ...requestAuthHeaders,
                 },
                 body: JSON.stringify({
                   action: "start",
@@ -282,7 +293,7 @@ export function KodyChat({
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  ...authHeaders(),
+                  ...requestAuthHeaders,
                 },
                 body: JSON.stringify({
                   action: "bind",
