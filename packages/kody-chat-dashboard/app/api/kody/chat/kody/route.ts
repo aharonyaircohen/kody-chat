@@ -2799,6 +2799,7 @@ This turn includes an image from the user. For questions about what is visible i
         // are merged into the same UI stream before giving up.
         try {
           let attempt = result;
+          let attemptMessages = modelMessages;
           let malformedToolRetryDeadline: number | null = null;
           for (
             let retryCount = 0;
@@ -2946,7 +2947,14 @@ This turn includes an image from the user. For questions about what is visible i
               },
               "kody-direct: turn ended without a required output tool (retrying)",
             );
-            attempt = runModelTurn(modelMessages, [
+            const completedAttemptMessages = (await attempt.response)?.messages;
+            if (completedAttemptMessages?.length) {
+              attemptMessages = trimToRecent([
+                ...attemptMessages,
+                ...completedAttemptMessages,
+              ]);
+            }
+            attempt = runModelTurn(attemptMessages, [
               wroteTextualToolCall
                 ? "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute. Re-issue the operation exactly once as a REAL API tool call. Do not claim any result from the plain-text invocation."
                 : requireViewOutput

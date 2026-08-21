@@ -799,6 +799,110 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
   });
 
+  it("carries successful tool results into a silent-turn retry", async () => {
+    const completedToolMessages = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "read-package",
+            toolName: "github_get_file",
+            input: { path: "package.json" },
+          },
+          {
+            type: "tool-call",
+            toolCallId: "read-issue",
+            toolName: "github_get_issue",
+            input: { issueNumber: 119 },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "read-package",
+            toolName: "github_get_file",
+            output: { type: "json", value: { name: "kody-monorepo" } },
+          },
+          {
+            type: "tool-result",
+            toolCallId: "read-issue",
+            toolName: "github_get_issue",
+            output: {
+              type: "json",
+              value: { title: "Repository file question" },
+            },
+          },
+        ],
+      },
+    ];
+    const firstResult = {
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        {
+          toolResults: [
+            { toolName: "github_get_file", output: { name: "kody-monorepo" } },
+            {
+              toolName: "github_get_issue",
+              output: { title: "Repository file question" },
+            },
+          ],
+          text: "<think>I have the answer but did not call final_answer</think>",
+        },
+      ]),
+      response: Promise.resolve({ messages: completedToolMessages }),
+    };
+    const retryResult = {
+      toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
+      steps: Promise.resolve([
+        {
+          toolResults: [
+            {
+              toolName: "final_answer",
+              output: { content: "package=kody-monorepo | issue=Repository file question" },
+            },
+          ],
+          text: "",
+        },
+      ]),
+      response: Promise.resolve({ messages: [] }),
+    };
+    streamTextMock
+      .mockReturnValueOnce(firstResult)
+      .mockReturnValueOnce(retryResult);
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content:
+              "Read package.json and issue #119, then give one combined answer.",
+          },
+        ],
+      }),
+    );
+
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    await stream.execute({ writer: { write: vi.fn(), merge: vi.fn() } });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(2);
+    expect(streamTextMock.mock.calls[1]?.[0]?.messages).toEqual(
+      expect.arrayContaining(completedToolMessages),
+    );
+  });
+
   it("does not retry when the turn produced a rendered view", async () => {
     const viewResult = {
       toUIMessageStream: vi.fn(() => ({})),
