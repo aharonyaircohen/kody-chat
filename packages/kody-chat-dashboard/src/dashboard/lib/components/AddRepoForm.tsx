@@ -112,7 +112,7 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
       );
       return;
     }
-    const trimmedToken = (auth?.token ?? token).trim();
+    const trimmedToken = token.trim() || auth?.token?.trim() || "";
     if (!trimmedToken) {
       setError("Personal access token is required");
       return;
@@ -194,38 +194,39 @@ export function AddRepoForm({ isBootstrap, onAdded }: AddRepoFormProps) {
         />
       </div>
 
-      {!auth ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="token" className="flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5" />
-            Personal access token
-          </Label>
-          <Input
-            id="token"
-            type="password"
-            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
-            <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
-            <code className="bg-muted px-1 rounded">admin:repo_hook</code>{" "}
-            scopes.{" "}
-            <a
-              href={TOKEN_DOC_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              Generate one here
-            </a>
-            . Kody uses its GitHub App when installed; otherwise it stores an
-            encrypted copy for background automation.
-          </p>
-        </div>
-      ) : null}
+      <div className="space-y-1.5">
+        <Label htmlFor="token" className="flex items-center gap-1.5">
+          <Lock className="w-3.5 h-3.5" />
+          Personal access token{auth ? " (optional)" : ""}
+        </Label>
+        <Input
+          id="token"
+          type="password"
+          autoComplete="new-password"
+          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          required={!auth}
+        />
+        <p className="text-xs text-muted-foreground">
+          {auth
+            ? "Leave blank to use the current repository token, or enter another token for a different account or organization."
+            : "Enter a token for the repository you want to connect."}{" "}
+          Needs <code className="bg-muted px-1 rounded">repo</code>,{" "}
+          <code className="bg-muted px-1 rounded">workflow</code>, and{" "}
+          <code className="bg-muted px-1 rounded">admin:repo_hook</code> scopes.{" "}
+          <a
+            href={TOKEN_DOC_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground"
+          >
+            Generate one here
+          </a>
+          . Kody uses its GitHub App when installed; otherwise it stores an
+          encrypted copy for background automation.
+        </p>
+      </div>
 
       {error && (
         <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
