@@ -75,12 +75,17 @@ async function mockAccountRepositories(
   });
 }
 
-async function mockRepositoryValidation(page: Page) {
+async function mockRepositoryValidation(
+  page: Page,
+  onRequest?: (body: { owner: string; repo: string; token: string }) => void,
+) {
   await page.route("**/api/kody/repos/add", async (route) => {
     const body = route.request().postDataJSON() as {
       owner: string;
       repo: string;
+      token: string;
     };
+    onRequest?.(body);
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -201,6 +206,54 @@ test("signed-in user without repositories can use personal chat and connect one"
   await page.getByRole("button", { name: "Kody Operations" }).click();
   await expect(
     page.getByRole("textbox", { name: "Repository", exact: true }),
+  ).toBeVisible();
+});
+
+test("signed-in user can override the stored PAT when adding a repository", async ({
+  page,
+}) => {
+  await mockAccountRepositories(page, authFor([repos[0]!]));
+  let submittedToken: string | null = null;
+  await mockRepositoryValidation(page, (body) => {
+    submittedToken = body.token;
+  });
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+
+  await page.getByRole("button", { name: "RepoOne" }).click();
+  await page
+    .getByRole("button", { name: "Add repository", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Repository", exact: true })
+    .fill("AnotherOrg/AnotherRepo");
+  await page
+    .getByLabel("Personal access token (optional)")
+    .fill("ghp_override_token");
+  await page
+    .getByRole("button", { name: "Add repository", exact: true })
+    .click();
+
+  await expect.poll(() => submittedToken).toBe("ghp_override_token");
+});
+
+test("mobile add repository form shows the optional PAT override", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockAccountRepositories(page, authFor([repos[0]!]));
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await page
+    .getByRole("button", { name: /Switch repository: RepoOne|RepoOne/ })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Add repository", exact: true })
+    .click();
+
+  await expect(
+    page.getByLabel("Personal access token (optional)"),
   ).toBeVisible();
 });
 
