@@ -55,6 +55,14 @@ export function formatPermanentToolFailure(
   return lines.join("\n");
 }
 
+export function isRecoverableRepositoryReadFailure(
+  failure: PermanentToolFailure,
+): boolean {
+  return /code_search_unavailable|GitHub code search is not ready|capabilities[_ ]api[_ ]unavailable|list_capabilities[^\n]*(?:unavailable|failed)/i.test(
+    `${failure.toolName}\n${failure.error}\n${failure.message ?? ""}`,
+  );
+}
+
 function formatIssue(value: unknown): string {
   if (typeof value === "string") return value.trim();
   const issue = asRecord(value);

@@ -1392,6 +1392,104 @@ describe("public Agent delegation", () => {
     );
   });
 
+  it("retries a specialist that stops on unavailable repository search", async () => {
+    const response = (text: string, output?: unknown) => ({
+      fullStream: (async function* () {})(),
+      text: Promise.resolve(text),
+      reasoningText: Promise.resolve(""),
+      steps: Promise.resolve(
+        output === undefined
+          ? []
+          : [{ toolResults: [{ toolName: "github_search_code", output }] }],
+      ),
+    });
+    const stream = vi
+      .fn()
+      .mockReturnValueOnce(
+        response(
+          "I couldn't complete github_search_code. Error: GitHub code search is not ready.",
+          { error: "code_search_unavailable", status: 424 },
+        ),
+      )
+      .mockReturnValueOnce(
+        response("Verified workflow fields: name, capabilities, steps, agent.", {
+          fields: ["name", "capabilities", "steps", "agent"],
+        }),
+      );
+
+    await expect(
+      runIsolatedPublicAgentTaskWithRetry({
+        agent: roster[1]!,
+        task: "Find the workflow definition fields",
+        system: "Repository Specialist isolated system prompt",
+        model: {} as never,
+        tools: { github_search_code: {} as never, github_list_tree: {} as never },
+        requireToolEvidence: true,
+        sessionId: "search-fallback-session",
+        stream: stream as never,
+      }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      result: "Verified workflow fields: name, capabilities, steps, agent.",
+    });
+    expect(stream).toHaveBeenCalledTimes(2);
+    expect(stream.mock.calls[1]![0].messages[0].content).toContain(
+      "using the repository tree and direct file reads",
+    );
+    expect(stream.mock.calls[1]![0].messages[0].content).toContain(
+      ".kody-engine/definitions/capabilities",
+    );
+    expect(stream.mock.calls[1]![0].messages[0].content).toContain(
+      "Report only facts directly observed in those files",
+    );
+  });
+
+  it("retries when the capability-list API is unavailable", async () => {
+    const response = (text: string, output?: unknown) => ({
+      fullStream: (async function* () {})(),
+      text: Promise.resolve(text),
+      reasoningText: Promise.resolve(""),
+      steps: Promise.resolve(
+        output === undefined
+          ? []
+          : [{ toolResults: [{ toolName: "list_capabilities", output }] }],
+      ),
+    });
+    const stream = vi
+      .fn()
+      .mockReturnValueOnce(
+        response(
+          "I couldn't complete list_capabilities. Error: Kody capabilities API unavailable.",
+          { error: "capabilities_api_unavailable" },
+        ),
+      )
+      .mockReturnValueOnce(
+        response("Verified capability slug: repo-source-health", {
+          slug: "repo-source-health",
+        }),
+      );
+
+    await expect(
+      runIsolatedPublicAgentTaskWithRetry({
+        agent: roster[1]!,
+        task: "Find executable capability slugs",
+        system: "Repository Specialist isolated system prompt",
+        model: {} as never,
+        tools: { list_capabilities: {} as never, github_list_tree: {} as never },
+        requireToolEvidence: true,
+        sessionId: "capability-fallback-session",
+        stream: stream as never,
+      }),
+    ).resolves.toMatchObject({
+      status: "completed",
+      result: "Verified capability slug: repo-source-health",
+    });
+    expect(stream).toHaveBeenCalledTimes(2);
+    expect(stream.mock.calls[1]![0].messages[0].content).toContain(
+      ".kody-engine/definitions/capabilities",
+    );
+  });
+
   it("does not expose a textual tool call after real specialist evidence", async () => {
     await expect(
       runIsolatedPublicAgentTask({
@@ -1452,6 +1550,9 @@ describe("public Agent delegation", () => {
     expect(system).toContain("Do not mention internal tool names");
     expect(system).toContain(
       "When rendering a list view, section counts must match the visible items; omit a count when uncertain.",
+    );
+    expect(system).toContain(
+      "If repository search returns code_search_unavailable or incomplete results, continue with the repository tree and direct file reads.",
     );
   });
 

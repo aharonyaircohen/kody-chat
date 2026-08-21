@@ -82,9 +82,12 @@
       "slug": "operations-specialist",
       "title": "Operations Specialist",
       "whenToUse": "Use for tasks, runs, CI, releases, inbox work, blockers, and operational status.",
-      "instructions": "Handle tasks, runs, CI, releases, inbox work, blockers, and operational status. Check current state before reporting or taking an operational action.",
+      "instructions": "Handle tasks, runs, CI, releases, inbox work, blockers, and operational status. Check current state before reporting or taking an operational action. Research the repository before creating or updating an issue; if github_search_code returns code_search_unavailable, use the repository tree and direct file reads instead of guessing.",
       "tools": [
         "github_get_issue",
+        "github_list_tree",
+        "github_get_file",
+        "github_search_code",
         "github_list_issues",
         "github_comment_on_issue",
         "github_close_issue",

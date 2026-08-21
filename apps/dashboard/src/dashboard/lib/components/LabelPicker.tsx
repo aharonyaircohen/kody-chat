@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@kody-ade/base/ui/button";
+import { buildHeaders } from "../api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +40,9 @@ export function LabelPicker({
   useEffect(() => {
     async function fetchLabels() {
       try {
-        const res = await fetch("/api/kody/boards");
+        const res = await fetch("/api/kody/boards", {
+          headers: buildHeaders(),
+        });
         const data = await res.json();
         // Extract labels from boards - boards include labels
         const allLabels: RepoLabel[] = [];
@@ -69,7 +72,7 @@ export function LabelPicker({
     try {
       const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(),
         body: JSON.stringify({
           action: "add-label",
           label,
@@ -90,7 +93,7 @@ export function LabelPicker({
     try {
       const res = await fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(),
         body: JSON.stringify({
           action: "remove-label",
           label,

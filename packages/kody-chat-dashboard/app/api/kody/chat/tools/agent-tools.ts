@@ -124,7 +124,7 @@ export function createAgentTools(ctx: Ctx) {
         "BEFORE CALLING: gather title, purpose, and (optionally) allowed " +
         "commands and restrictions. Ask the user clarifying questions in small " +
         "batches until the agentIdentity is well-specified — never invent behavior. " +
-        "Show the proposed markdown body for approval before calling.\n\n" +
+        "Call when the proposed markdown body is ready; the tool shows approval and executes only after the click.\n\n" +
         "Returns the new agent's slug, title, and Kody URL on success.",
       inputSchema: createKodyAgentInputSchema,
       execute: async (input) => {

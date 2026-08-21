@@ -8,6 +8,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { kodyApi } from "../api";
+import { useAuth } from "../auth-context";
 
 export const healthQueryKeys = {
   report: ["health", "report"] as const,
@@ -16,9 +17,11 @@ export const healthQueryKeys = {
 const POLL_MS = 30_000;
 
 export function useHealth() {
+  const { auth } = useAuth();
   return useQuery({
     queryKey: healthQueryKeys.report,
     queryFn: () => kodyApi.activity.health(),
+    enabled: !!auth,
     refetchInterval: POLL_MS,
     refetchOnWindowFocus: true,
     staleTime: POLL_MS,

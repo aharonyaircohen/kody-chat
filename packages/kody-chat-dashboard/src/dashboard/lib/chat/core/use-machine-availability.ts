@@ -9,6 +9,10 @@ export function useLocalMachineAvailability(
   const headersKey = JSON.stringify(requestHeaders);
 
   useEffect(() => {
+    if (!requestHeaders["x-kody-token"]) {
+      setAvailable(false);
+      return;
+    }
     const controller = new AbortController();
     void fetch("/api/kody/chat/machines", {
       cache: "no-store",

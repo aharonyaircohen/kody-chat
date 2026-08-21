@@ -36,6 +36,7 @@ import {
 } from "@kody-ade/base/ui/select";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { buildHeaders, handleResponse } from "@dashboard/lib/api";
+import { useAuth } from "@dashboard/lib/auth-context";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
@@ -76,6 +77,7 @@ export function LoopsPage({
   selectedId?: string | null;
   basePath?: string;
 }) {
+  const { auth } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -93,6 +95,7 @@ export function LoopsPage({
           }),
         )
       ).loops,
+    enabled: !!auth,
   });
   const remove = useMutation({
     mutationFn: async (id: string) =>

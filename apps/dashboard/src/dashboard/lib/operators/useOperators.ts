@@ -53,6 +53,7 @@ export function useOperators(): UseOperators {
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
+    if (!auth) return;
     setLoading(true);
     setError(null);
     try {
@@ -62,7 +63,7 @@ export function useOperators(): UseOperators {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auth]);
 
   useEffect(() => {
     void reload();

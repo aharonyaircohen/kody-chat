@@ -733,6 +733,7 @@ export function buildPublicAgentChildSystem({
     "Return a complete, concise, factual result that is safe for Kody to show directly if presentation rewriting is unavailable. Do not address the end user, claim to be Kody, expose routing mechanics, ask for delegation approval, or add unsupported details.",
     "Do not mention internal tool names, function names, routing, delegation, source packets, or private implementation mechanics unless the focused task explicitly asks for implementation details.",
     "When rendering a list view, section counts must match the visible items; omit a count when uncertain.",
+    "If repository search returns code_search_unavailable or incomplete results, continue with the repository tree and direct file reads.",
     "Do not use tools merely to verify facts already defined below and do not complain about unavailable tools. Preserve every explicit model, definition, warning, and relationship relevant to the task. Before returning, check that your result does not contradict or omit them.",
     repository
       ? `Repository scope: ${repository.owner}/${repository.repo}.`
@@ -1022,6 +1023,16 @@ export async function runIsolatedPublicAgentTaskWithRetry(
       sessionId: firstResult.sessionId,
     });
   }
+  if (containsUnavailableRepositorySearch(firstResult)) {
+    return runIsolatedPublicAgentTask({
+      ...options,
+      task: [
+        options.task,
+        "A repository search or capability-list API was unavailable. Continue the research using the repository tree and direct file reads, including .kody-engine/definitions/capabilities when capability slugs are needed. Report only facts directly observed in those files; do not infer fields from tool schemas, sampled files, or conventions, and do not return the API error as the answer.",
+      ].join("\n\n"),
+      sessionId: firstResult.sessionId,
+    });
+  }
   if (
     firstResult.status === "completed" ||
     firstResult.failure.code !== "empty_result" ||
@@ -1036,4 +1047,20 @@ export async function runIsolatedPublicAgentTaskWithRetry(
     ...options,
     sessionId: firstResult.sessionId,
   });
+}
+
+function containsUnavailableRepositorySearch(
+  result: PublicAgentTaskResult,
+): boolean {
+  const text = [
+    result.status === "completed" ? result.result : undefined,
+    result.evidence,
+    result.reasoning,
+    result.status === "failed" ? result.failure.detail : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+  return /code_search_unavailable|GitHub code search is not ready|capabilities[_ ]api[_ ]unavailable|list_capabilities[^\n]*(?:unavailable|failed)/i.test(
+    text,
+  );
 }

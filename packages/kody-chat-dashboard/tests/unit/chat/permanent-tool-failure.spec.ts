@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   findPermanentToolFailure,
   formatPermanentToolFailure,
+  isRecoverableRepositoryReadFailure,
 } from "../../../src/dashboard/lib/chat/core/permanent-tool-failure";
 
 describe("permanent tool failure policy", () => {
@@ -50,5 +51,25 @@ describe("permanent tool failure policy", () => {
         { toolResults: [{ toolName: "run_workflow", output: { error: "approval_required", status: 409 } }] },
       ]),
     ).toBeNull();
+  });
+
+  it("marks unavailable repository reads for bounded fallback", () => {
+    expect(
+      isRecoverableRepositoryReadFailure({
+        toolName: "list_capabilities",
+        error: "capabilities_api_unavailable",
+        status: 424,
+        message: "Kody capabilities API unavailable.",
+        issues: [],
+      }),
+    ).toBe(true);
+    expect(
+      isRecoverableRepositoryReadFailure({
+        toolName: "run_workflow",
+        error: "invalid_workflow",
+        status: 409,
+        issues: [],
+      }),
+    ).toBe(false);
   });
 });

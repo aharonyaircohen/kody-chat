@@ -33,6 +33,7 @@ export function useEngineConfig(): UseEngineConfig {
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
+    if (!auth) return;
     setLoading(true);
     setError(null);
     try {
@@ -42,7 +43,7 @@ export function useEngineConfig(): UseEngineConfig {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auth]);
 
   useEffect(() => {
     void reload();

@@ -44,7 +44,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@kody-ade/base/ui/select";
-import { buildHeaders, handleResponse, kodyApi } from "@dashboard/lib/api";
+import {
+  buildHeaders,
+  getStoredAuth,
+  handleResponse,
+  kodyApi,
+} from "@dashboard/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +58,7 @@ import {
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
 import { AuthGuard } from "../auth-guard";
+import { useAuth } from "../auth-context";
 import { selectionPath } from "../selection-routing";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { cn } from "../utils";
@@ -1012,12 +1018,14 @@ function CapabilitiesChecklist({
   selected: string[];
   onToggle: (slug: string, on: boolean) => void;
 }) {
+  const { auth } = useAuth();
   const [options, setOptions] = useState<{ slug: string; describe?: string }[]>(
     [],
   );
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!auth || !getStoredAuth()) return;
     let active = true;
     kodyApi.capabilities
       .list()
@@ -1030,7 +1038,7 @@ function CapabilitiesChecklist({
     return () => {
       active = false;
     };
-  }, []);
+  }, [auth]);
 
   return (
     <div className="space-y-1.5">

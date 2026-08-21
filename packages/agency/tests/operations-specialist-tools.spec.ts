@@ -20,7 +20,12 @@ describe("Operations Specialist workflow tools", () => {
         "list_workflows",
         "read_workflow",
         "run_workflow",
+        "github_list_tree",
+        "github_get_file",
+        "github_search_code",
       ]),
     );
+    expect(capability?.instructions).toMatch(/research.*before.*creating/i);
+    expect(capability?.instructions).toMatch(/code_search_unavailable/i);
   });
 });

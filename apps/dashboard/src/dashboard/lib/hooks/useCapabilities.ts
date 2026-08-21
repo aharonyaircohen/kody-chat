@@ -39,7 +39,8 @@ export const capabilityQueryKeys = {
 
 function useCapabilityQueryScope() {
   const { auth } = useAuth();
-  const currentAuth = auth ?? getStoredAuth();
+  const storedAuth = getStoredAuth();
+  const currentAuth = auth && storedAuth ? storedAuth : null;
   return {
     currentAuth,
     scope: capabilityQueryScopeFromAuth(currentAuth),

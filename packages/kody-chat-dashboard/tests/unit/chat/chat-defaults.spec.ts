@@ -392,6 +392,29 @@ describe("chat-defaults bundle", () => {
     expect(DEFAULT_IDENTITY_MD).toContain("not GitHub issues");
   });
 
+  it("keeps workflow capabilities separate from chat tools", () => {
+    const createWorkflow = DEFAULT_SKILLS["create-workflow"]?.body ?? "";
+    expect(createWorkflow).toContain("executable capability slugs");
+    expect(createWorkflow).toContain("are not workflow steps");
+    expect(createWorkflow).toContain("never claim the Workflow was saved");
+  });
+
+  it("keeps workflow proposals grounded when repository search is unavailable", () => {
+    const identity = DEFAULT_IDENTITY_MD;
+    const createWorkflow = DEFAULT_SKILLS["create-workflow"]?.body ?? "";
+
+    expect(identity).toContain(
+      "If `github_search_code` returns `code_search_unavailable`",
+    );
+    expect(identity).toContain("github_list_tree");
+    expect(identity).toContain("github_get_file");
+    expect(createWorkflow).toContain("read an existing workflow definition");
+    expect(createWorkflow).toContain("only fields observed in that definition");
+    expect(createWorkflow).toContain("never invent workflow fields");
+    expect(identity).toContain("verify every capability slug");
+    expect(createWorkflow).toContain("never infer slugs");
+  });
+
   it("capability's tool names match the chat registry naming (no camelCase drift)", () => {
     // Guard against future renames that don't update the bundle — known
     // drift: `remoteImplementation` vs registry's `remote_implementation`, old capability/implementation names

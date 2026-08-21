@@ -9,6 +9,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { kodyApi } from "../api";
+import { useAuth } from "../auth-context";
 
 export const activityLogQueryKeys = {
   log: ["activity", "log"] as const,
@@ -17,11 +18,13 @@ export const activityLogQueryKeys = {
 const POLL_MS = 30_000;
 
 export function useActivityLog(enabled: boolean) {
+  const { auth } = useAuth();
+  const canLoad = enabled && !!auth;
   return useQuery({
     queryKey: activityLogQueryKeys.log,
     queryFn: () => kodyApi.activity.log(),
-    enabled,
-    refetchInterval: enabled ? POLL_MS : false,
+    enabled: canLoad,
+    refetchInterval: canLoad ? POLL_MS : false,
     refetchOnWindowFocus: true,
     staleTime: POLL_MS,
   });

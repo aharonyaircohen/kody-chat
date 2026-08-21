@@ -8,6 +8,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { kodyApi } from "../api";
+import { useAuth } from "../auth-context";
 
 export const activityQueryKeys = {
   snapshot: ["activity", "snapshot"] as const,
@@ -16,9 +17,11 @@ export const activityQueryKeys = {
 const POLL_MS = 30_000;
 
 export function useActivity() {
+  const { auth } = useAuth();
   return useQuery({
     queryKey: activityQueryKeys.snapshot,
     queryFn: () => kodyApi.activity.get(),
+    enabled: !!auth,
     refetchInterval: POLL_MS,
     refetchOnWindowFocus: true,
     staleTime: POLL_MS,

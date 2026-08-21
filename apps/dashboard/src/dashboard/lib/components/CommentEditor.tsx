@@ -12,6 +12,7 @@ import Image from "next/image";
 import { Button } from "@kody-ade/base/ui/button";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
+import { buildHeaders } from "../api";
 import { usePostComment } from "../hooks";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
@@ -72,7 +73,7 @@ export function CommentEditor({
 
   // Fetch collaborators for @mentions
   useEffect(() => {
-    fetch("/api/kody/collaborators")
+    fetch("/api/kody/collaborators", { headers: buildHeaders() })
       .then((res) => res.json())
       .then((data) => setMentions(data.collaborators || []))
       .catch(console.error);

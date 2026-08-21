@@ -122,6 +122,12 @@ import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
+import {
+  createApprovedToolActionResponse,
+  readToolActionApproval,
+  runApprovedToolAction,
+  stageToolsForApproval,
+} from "../tools/tool-action-approval";
 import { createGuidedFlowTools } from "../tools/guided-flow-tools";
 import { ConvexGuidedFlowReader } from "../../guided-flows/reader";
 import { buildGuidedFlowTurnContext } from "../guided-flow-context";
@@ -178,6 +184,7 @@ import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-
 import {
   findPermanentToolFailure,
   formatPermanentToolFailure,
+  isRecoverableRepositoryReadFailure,
 } from "../../../../../src/dashboard/lib/chat/core/permanent-tool-failure";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import {
@@ -1923,6 +1930,32 @@ async function handleKodyDirectPost(
       allowlistedTools[name] = mergedTools[name];
     }
   }
+  if (repo && !clientSurface && verifiedActorGithubId !== null) {
+    const approvalContext = {
+      owner: repo.owner,
+      repo: repo.repo,
+      actorId: String(verifiedActorGithubId),
+    };
+    const approvedAction = readToolActionApproval(latestUserText, {
+      secret: repo.token,
+      context: approvalContext,
+    });
+    if (approvedAction) {
+      try {
+        const result = await runApprovedToolAction(approvedAction, mergedTools);
+        return createApprovedToolActionResponse(result);
+      } finally {
+        clearGitHubContext();
+      }
+    }
+    Object.assign(
+      allowlistedTools,
+      stageToolsForApproval(allowlistedTools, {
+        secret: repo.token,
+        context: approvalContext,
+      }),
+    );
+  }
   const wrappedToolMarker = Symbol("kody-tool-execution-wrapped");
   const toolExecutionCoordinator = createToolExecutionCoordinator();
   const wrapToolExecution = (name: string, candidate: unknown): unknown => {
@@ -2809,6 +2842,22 @@ This turn includes an image from the user. For questions about what is visible i
             const steps = await attempt.steps;
             const permanentFailure = findPermanentToolFailure(steps);
             if (permanentFailure) {
+              if (
+                isRecoverableRepositoryReadFailure(permanentFailure) &&
+                retryCount < MAX_SILENT_TURN_RETRIES
+              ) {
+                const completedAttemptMessages = (await attempt.response)?.messages;
+                if (completedAttemptMessages?.length) {
+                  attemptMessages = trimToRecent([
+                    ...attemptMessages,
+                    ...completedAttemptMessages,
+                  ]);
+                }
+                attempt = runModelTurn(attemptMessages, [
+                  "A repository search or capability-list API was unavailable. Continue using the repository tree and direct file reads, including .kody-engine/definitions/capabilities when capability slugs are needed. Report only facts directly observed in those files; do not return the API error as the answer.",
+                ]);
+                continue;
+              }
               const content = formatPermanentToolFailure(permanentFailure);
               const toolCallId = `permanent-tool-failure-${traceId}`;
               writer.write({

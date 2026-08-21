@@ -447,6 +447,7 @@ export function KodyDashboard({
   const { data: collaborators = [] } = useQuery({
     queryKey: ["kody-collaborators"],
     queryFn: () => kodyApi.collaborators.list(),
+    enabled: !!storedAuth,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 

@@ -21,6 +21,7 @@ import type { TasksResponse } from "@kody-ade/base/types";
 import type { ViewMode } from "../components/FilterBar";
 import { POLLING_INTERVALS } from "@kody-ade/base/constants";
 import { matchWorkflowRunsForTask } from "../workflow-matching";
+import { useAuth } from "../auth-context";
 
 export type TasksApiViewMode = ViewMode | "all" | "intake";
 
@@ -234,9 +235,11 @@ export function useKodyTasksPage(options: UseKodyTasksOptions = {}) {
 // ============ useKodyBoards ============
 
 export function useKodyBoards() {
+  const { auth } = useAuth();
   return useQuery({
     queryKey: queryKeys.boards,
     queryFn: () => kodyApi.boards.list(),
+    enabled: !!auth,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -244,9 +247,11 @@ export function useKodyBoards() {
 // ============ useCollaborators ============
 
 export function useCollaborators() {
+  const { auth } = useAuth();
   return useQuery({
     queryKey: queryKeys.collaborators,
     queryFn: () => kodyApi.collaborators.list(),
+    enabled: !!auth,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

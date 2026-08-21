@@ -278,6 +278,29 @@ describe("ui tools", () => {
     });
   });
 
+  it("rejects an unbound approval card for a repository mutation", async () => {
+    const tools = createUiTools({
+      userText: "Prepare that exact chore task now.",
+    }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
+    };
+
+    await expect(
+      showView.execute({
+        root: "card",
+        elements: {
+          card: {
+            type: "ApprovalCard",
+            props: { title: "Create the chore?", body: "Ready to create." },
+          },
+        },
+      }),
+    ).resolves.toEqual({
+      error: expect.stringContaining("matching action tool"),
+    });
+  });
+
   it("uses caller-owned guaranteed view data when the model omits it", async () => {
     const forcedViewInput = {
       root: "form",

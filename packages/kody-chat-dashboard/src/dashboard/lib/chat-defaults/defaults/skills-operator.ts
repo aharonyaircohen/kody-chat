@@ -14,7 +14,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 
 1. Research first (3–5 tool calls). Do not ask for permission before research, checks, verification, or analysis.
 2. Ask at most one blocking gap-closing question only after research, and only if the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for everything else.
-3. Show title + body once for approval, then call the matching tool:
+3. Once the title + body are ready, call the matching tool. The tool shows approval and runs the exact saved action only after the click:
    - bug → \`report_bug\` · new capability → \`create_feature\` · improvement → \`create_enhancement\` · restructure → \`create_refactor\` · docs → \`create_documentation\` · deps/config → \`create_chore\`.
 4. \`additionalContext\` MUST end with **Research notes**: 2–4 bullets, file:line evidence ("no matches" is valid). Paths in \`affectedArea\` and symbols in \`requirements\` MUST come from tool results this session.`,
 };
@@ -32,13 +32,13 @@ Do not put an Agent identity, model, Workflow, schedule, lifecycle, runtime prof
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
   slug: "create-agent",
   title: "create-agent",
-  body: `Backend agent \`agents/<slug>.md\` — a pure reusable identity record (intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody capability. Show body, then call \`create_kody_agent\`.`,
+  body: `Backend agent \`agents/<slug>.md\` — a pure reusable identity record (intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody capability. Once the body is ready, call \`create_kody_agent\`; the tool owns approval and runs the exact saved action only after the click.`,
 };
 
 export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
   slug: "create-workflow",
   title: "create-workflow",
-  body: `A Workflow is one validated ordered run of existing Capabilities. Research the request and current Capabilities first, show the proposed graph and handoffs, then call \`create_or_update_workflow\` only after the user approves. The tool uses the same validated Dashboard API as the visual editor. Never call it on the first turn.`,
+  body: `A Workflow is one validated ordered run of existing Capabilities. Research the request and current Capabilities first, read an existing workflow definition (or the authoritative workflow schema) before drafting, and use only fields observed in that definition — never invent workflow fields. Verify every proposed capability slug with \`list_capabilities\` or a direct capability definition read; never infer slugs from names or tool descriptions. Once the proposed graph and handoffs are ready, call \`create_or_update_workflow\`; the tool owns approval and runs the exact saved action only after the click. Workflow steps must use executable capability slugs returned by \`list_capabilities\`; Chat tools such as \`list_workflows\`, \`read_workflow\`, \`run_workflow\`, \`list_agents\`, and \`read_report\` are not workflow steps. The tool uses the same validated Dashboard API as the visual editor. If it returns an error, status, or validation issues, report that the save failed and explain the returned issue; never claim the Workflow was saved. Never call it on the first turn.`,
 };
 
 export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {
