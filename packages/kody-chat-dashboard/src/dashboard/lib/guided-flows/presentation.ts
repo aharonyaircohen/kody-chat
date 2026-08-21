@@ -12,6 +12,7 @@ import {
 import { presentGuidedFlowControls } from "./controls";
 import { buildGuidedFlowCommandView } from "./command-presentation";
 import { guidedFlowRendererData } from "./render-data";
+import { resolveCmsItemsSource } from "./cms-items";
 
 export function buildGuidedFlowView(
   definition: GuidedFlowDefinition,
@@ -49,6 +50,9 @@ export function buildGuidedFlowView(
 
   return {
     ...view,
+    ...(step.itemsSource
+      ? { dataSource: resolveCmsItemsSource(step.itemsSource, instance.data) }
+      : {}),
     resultTarget: "guided-flow",
     ui:
       controls.length > 0

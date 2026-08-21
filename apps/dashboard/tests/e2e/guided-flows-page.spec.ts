@@ -167,6 +167,174 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
   await expect.poll(() => chatConversationId).toBe(boundConversationId);
 });
 
+test("loads Guided Flow choices from the repository CMS", async ({ page }) => {
+  let selectedCourseId: unknown = null;
+  let cmsOwnerHeader: string | undefined;
+  let cmsRepoHeader: string | undefined;
+  let chapterFilters: string | null = null;
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const isCollection = new URL(route.request().url()).pathname.endsWith(
+      "/conversations",
+    );
+    return json(
+      route,
+      route.request().method() === "GET" && isCollection
+        ? { conversations: [] }
+        : { ok: true },
+      route.request().method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/cms/courses**", (route) => {
+    cmsOwnerHeader = route.request().headers()["x-kody-owner"];
+    cmsRepoHeader = route.request().headers()["x-kody-repo"];
+    return json(route, {
+      docs: [
+        { id: "course-1", title: "Algebra" },
+        { id: "course-2", title: "Geometry" },
+      ],
+      total: 2,
+      limit: 100,
+      offset: 0,
+    });
+  });
+  await page.route("**/api/kody/cms/chapters**", (route) => {
+    chapterFilters = new URL(route.request().url()).searchParams.get("filters");
+    return json(route, {
+      docs: [{ id: "chapter-1", title: "Linear equations" }],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    });
+  });
+  await page.route("**/api/kody/guided-flows**", (route) => {
+    if (route.request().method() === "GET") {
+      return json(route, {
+        definitions: [
+          {
+            id: "cms-selection",
+            title: "CMS selection",
+            source: "custom",
+            steps: [{ rendererSlug: "selection-list" }],
+          },
+        ],
+      });
+    }
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      result?: { courseId?: unknown };
+    };
+    if (body.action === "submit") {
+      selectedCourseId = body.result?.courseId ?? null;
+      return json(route, {
+        instance: { status: "active" },
+        flow: {
+          id: "cms-selection",
+          title: "CMS selection",
+          stepIndex: 1,
+          stepCount: 2,
+        },
+        compatibility: { status: "compatible" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "cms-chapter-view",
+          rendererSlug: "selection-list",
+          rendererName: "Selection list",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "cms-selection-instance",
+            stepId: "step-2",
+            revision: 1,
+          },
+          dataSource: {
+            type: "cms",
+            collection: "chapters",
+            labelField: "title",
+            valueField: "id",
+            resultField: "chapterId",
+            filter: { field: "course", value: "course-1" },
+          },
+          ui: {
+            type: "stack",
+            children: [
+              { type: "text", value: "Choose a chapter", variant: "title" },
+              { type: "list", children: [] },
+            ],
+          },
+          data: { title: "Choose a chapter", items: [] },
+        },
+      });
+    }
+    return json(
+      route,
+      {
+        instance: { status: "active" },
+        flow: {
+          id: "cms-selection",
+          title: "CMS selection",
+          stepIndex: 0,
+          stepCount: 1,
+        },
+        compatibility: { status: "compatible" },
+        view: {
+          action: "render_view",
+          view: "renderer",
+          id: "cms-selection-view",
+          rendererSlug: "selection-list",
+          rendererName: "Selection list",
+          resultTarget: "guided-flow",
+          guidedFlow: {
+            instanceId: "cms-selection-instance",
+            stepId: "step-1",
+            revision: 0,
+          },
+          dataSource: {
+            type: "cms",
+            collection: "courses",
+            labelField: "title",
+            valueField: "id",
+            resultField: "courseId",
+          },
+          ui: {
+            type: "stack",
+            children: [
+              { type: "text", value: "Choose a course", variant: "title" },
+              { type: "list", children: [] },
+            ],
+          },
+          data: { title: "Choose a course", items: [] },
+        },
+      },
+      201,
+    );
+  });
+
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("button", { name: "Start CMS selection in Chat" })
+    .click();
+
+  await expect(page.getByRole("button", { name: "Algebra" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Geometry" })).toBeVisible();
+  expect(cmsOwnerHeader).toBe("acme");
+  expect(cmsRepoHeader).toBe("widgets");
+  await page.getByRole("button", { name: "Algebra" }).click();
+  await expect.poll(() => selectedCourseId).toBe("course-1");
+  await expect(
+    page.getByRole("button", { name: "Linear equations" }),
+  ).toBeVisible();
+  expect(chapterFilters).toBe(
+    JSON.stringify({ course: { equals: "course-1" } }),
+  );
+});
+
 test("runs onboarding manually and lets the user advance after completing each page", async ({
   page,
 }, testInfo) => {
@@ -816,6 +984,14 @@ test("provides step editing controls, preview, and validation", async ({
   await page.route("**/api/kody/guided-flows**", (route) =>
     json(route, { definitions: [] }),
   );
+  await page.route("**/api/kody/cms/courses**", (route) =>
+    json(route, {
+      docs: [{ id: "course-1", title: "Algebra" }],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    }),
+  );
   await page.goto("/repo/acme/widgets/guided-flows", {
     waitUntil: "domcontentloaded",
   });
@@ -874,6 +1050,14 @@ test("provides step editing controls, preview, and validation", async ({
   ).toBeVisible();
   await expect(
     page.getByLabel("Preview step 1").getByRole("button", { name: "Course 2" }),
+  ).toBeVisible();
+  await page.getByLabel("Step 1 choices source").selectOption("cms");
+  await page.getByLabel("Step 1 collection").fill("courses");
+  await page.getByLabel("Step 1 label field").fill("title");
+  await page.getByLabel("Step 1 value field").fill("id");
+  await page.getByLabel("Step 1 save selection as").fill("courseId");
+  await expect(
+    page.getByLabel("Preview step 1").getByRole("button", { name: "Algebra" }),
   ).toBeVisible();
   await page.getByLabel("Step 1 type", { exact: true }).selectOption("command");
   await expect(page.getByLabel("Step 1 command", { exact: true })).toHaveValue(

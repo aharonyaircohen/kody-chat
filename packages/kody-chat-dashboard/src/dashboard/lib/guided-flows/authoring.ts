@@ -25,12 +25,27 @@ const guidedFlowDraftStepBaseSchema = {
   routeParameters: routeParametersSchema,
 };
 
+export const guidedFlowCmsItemsSourceSchema = z.object({
+  type: z.literal("cms"),
+  collection: z.string().trim().min(1).max(80),
+  labelField: z.string().trim().min(1).max(80),
+  valueField: z.string().trim().min(1).max(80),
+  resultField: z.string().trim().min(1).max(80),
+  filter: z
+    .object({
+      field: z.string().trim().min(1).max(80),
+      fromResultField: z.string().trim().min(1).max(80),
+    })
+    .optional(),
+});
+
 export const guidedFlowDraftViewStepSchema = z.object({
   ...guidedFlowDraftStepBaseSchema,
   type: z.literal("view").optional(),
   rendererSlug: z.string().trim().min(1).max(80),
   rendererVersion: z.number().int().positive().optional(),
   rendererData: z.record(z.string(), z.unknown()).optional(),
+  itemsSource: guidedFlowCmsItemsSourceSchema.optional(),
   /** Raw editor input compiled into rendererData; never stored at runtime. */
   rendererDataJson: z.string().max(100_000).optional(),
   /** Widget/result signal that advances this authored view step. */
@@ -575,6 +590,7 @@ export function buildGuidedFlowDefinition(
       ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
       ...(routeParameters ? { routeParameters } : {}),
       rendererSlug: step.rendererSlug,
+      ...(step.itemsSource ? { itemsSource: step.itemsSource } : {}),
       ...(step.rendererVersion
         ? { rendererVersion: step.rendererVersion }
         : {}),

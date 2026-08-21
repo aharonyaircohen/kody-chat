@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import type { GuidedFlowDefinition } from "./controller";
 import { migrateLegacyGuidedFlowDefinition } from "./authoring";
+import { guidedFlowCmsItemsSourceSchema } from "./authoring";
 import {
   GUIDED_FLOW_CONTROL_IDS,
   hasUniqueGuidedFlowControls,
@@ -74,6 +75,7 @@ const storedGuidedFlowStepSchema = z.union([
     rendererSlug: z.string().trim().min(1).max(80),
     rendererVersion: z.number().int().positive().optional(),
     rendererData: z.record(z.string(), z.unknown()).optional(),
+    itemsSource: guidedFlowCmsItemsSourceSchema.optional(),
     allowedActions: z.array(z.string().trim().min(1).max(80)).optional(),
   }),
 ]);

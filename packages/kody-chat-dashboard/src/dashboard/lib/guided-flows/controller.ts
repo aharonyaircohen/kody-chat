@@ -1,6 +1,7 @@
 import type {
   GuidedFlowActionDefinition,
   GuidedFlowCommandStepDefinition,
+  GuidedFlowCmsItemsSource,
   GuidedFlowDefinition,
   GuidedFlowInstance,
   GuidedFlowNestedStepDefinition,

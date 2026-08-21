@@ -13,6 +13,18 @@ export interface GuidedFlowActionDefinition {
   readonly target: GuidedFlowActionTarget;
 }
 
+export interface GuidedFlowCmsItemsSource {
+  readonly type: "cms";
+  readonly collection: string;
+  readonly labelField: string;
+  readonly valueField: string;
+  readonly resultField: string;
+  readonly filter?: {
+    readonly field: string;
+    readonly fromResultField: string;
+  };
+}
+
 export interface GuidedFlowStepBase {
   readonly id: string;
   readonly title: string;
@@ -29,6 +41,7 @@ export interface GuidedFlowViewStepDefinition extends GuidedFlowStepBase {
   /** Exact renderer contract version. Legacy built-ins may omit this. */
   readonly rendererVersion?: number;
   readonly rendererData?: Readonly<Record<string, unknown>>;
+  readonly itemsSource?: GuidedFlowCmsItemsSource;
 }
 
 export interface GuidedFlowNestedStepDefinition extends GuidedFlowStepBase {

@@ -26,6 +26,49 @@ import {
   VIEW_RENDERER_TEXT_CLASS,
   VIEW_RENDERER_TITLE_CLASS,
 } from "../../view-renderers/typography";
+import { authHeaders } from "../../kody-chat-live-session";
+import { cmsSelectionItems } from "../../guided-flows/cms-items";
+import { createWidgetCmsClient } from "./widget-host";
+
+export function replaceFirstRenderedViewList(
+  node: RenderedViewUiNode,
+  actions: readonly RenderedViewAction[],
+): RenderedViewUiNode {
+  return replaceFirstRenderedViewListNode(node, actions).node;
+}
+
+function replaceFirstRenderedViewListNode(
+  node: RenderedViewUiNode,
+  actions: readonly RenderedViewAction[],
+): { node: RenderedViewUiNode; replaced: boolean } {
+  if (node.type === "list") {
+    return {
+      node: {
+        ...node,
+        children: actions.map((action) => ({
+          type: "button" as const,
+          label: action.label,
+          action,
+        })),
+      },
+      replaced: true,
+    };
+  }
+  if (node.type !== "stack" && node.type !== "row") {
+    return { node, replaced: false };
+  }
+  let replaced = false;
+  const children = node.children.map((child) => {
+    if (replaced) return child;
+    const next = replaceFirstRenderedViewListNode(child, actions);
+    replaced = next.replaced;
+    return next.node;
+  });
+  return {
+    node: replaced ? { ...node, children } : node,
+    replaced,
+  };
+}
 
 export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
   if (node.type === "checkbox") return true;
@@ -116,6 +159,10 @@ export function RenderedViewCard({
   onWidgetEvent?: (event: WidgetHostEvent) => void;
 }) {
   const ui = getRenderedViewUi(view);
+  const [cmsActions, setCmsActions] = useState<RenderedViewAction[] | null>(
+    view.dataSource ? null : [],
+  );
+  const [cmsError, setCmsError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
@@ -124,6 +171,52 @@ export function RenderedViewCard({
   useEffect(() => {
     trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
   }, [view.rendererSlug]);
+  useEffect(() => {
+    const source = view.dataSource;
+    if (!source) {
+      setCmsActions([]);
+      setCmsError(null);
+      return;
+    }
+    if (source.unavailable === "missing_filter_value") {
+      setCmsActions([]);
+      setCmsError("Choose the parent item first.");
+      return;
+    }
+    let cancelled = false;
+    setCmsActions(null);
+    setCmsError(null);
+    createWidgetCmsClient(authHeaders())
+      .list(source.collection, {
+        ...(source.filter
+          ? {
+              filters: {
+                [source.filter.field]: { equals: source.filter.value },
+              },
+            }
+          : {}),
+        sort: [{ field: source.labelField, direction: "asc" }],
+        limit: 100,
+      })
+      .then((result) => {
+        if (cancelled) return;
+        const actions = cmsSelectionItems(source, result.docs);
+        setCmsActions(actions);
+        if (actions.length === 0) setCmsError("No choices available.");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCmsActions([]);
+          setCmsError("Unable to load choices. Try again.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view.dataSource]);
+  const renderedUi = view.dataSource
+    ? replaceFirstRenderedViewList(ui, cmsActions ?? [])
+    : ui;
   const trackAction = (action: RenderedViewAction) => {
     trackSystemEvent("ui.action.clicked", {
       viewId: view.rendererSlug,
@@ -142,14 +235,14 @@ export function RenderedViewCard({
   };
   const submitForm = (label: string) => {
     if (view.resultTarget === "guided-flow") {
-      const error = validateGuidedFlowInput(ui, inputValues);
+      const error = validateGuidedFlowInput(renderedUi, inputValues);
       if (error) {
         setValidationError(error);
         return;
       }
     }
     setValidationError(null);
-    const response = buildSubmitResponse(ui, formValues, label);
+    const response = buildSubmitResponse(renderedUi, formValues, label);
     trackSystemEvent("ui.form.submitted", {
       viewId: view.rendererSlug,
       fields: Object.keys(formValues),
@@ -415,7 +508,15 @@ export function RenderedViewCard({
           {validationError}
         </div>
       ) : null}
-      {renderNode(ui, "root")}
+      {cmsActions === null ? (
+        <p className="text-muted-foreground">Loading choices…</p>
+      ) : null}
+      {cmsError ? (
+        <div role="alert" className="text-destructive">
+          {cmsError}
+        </div>
+      ) : null}
+      {renderNode(renderedUi, "root")}
     </div>
   );
 }

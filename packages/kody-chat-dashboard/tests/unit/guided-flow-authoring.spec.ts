@@ -297,6 +297,55 @@ describe("guided flow authoring", () => {
     });
   });
 
+  it("preserves a generic CMS source for a selection step", () => {
+    const definition = buildGuidedFlowDefinition({
+      title: "Choose course and chapter",
+      steps: [
+        {
+          title: "Choose a course",
+          explanation: "Choose the course for this lesson.",
+          rendererSlug: "selection-list",
+          itemsSource: {
+            type: "cms",
+            collection: "courses",
+            labelField: "name",
+            valueField: "id",
+            resultField: "courseId",
+          },
+        },
+        {
+          title: "Choose a chapter",
+          explanation: "Choose a chapter from the selected course.",
+          rendererSlug: "selection-list",
+          itemsSource: {
+            type: "cms",
+            collection: "chapters",
+            labelField: "name",
+            valueField: "id",
+            resultField: "chapterId",
+            filter: { field: "course", fromResultField: "courseId" },
+          },
+        },
+      ],
+    });
+
+    expect(viewStep(definition, 0).itemsSource).toEqual({
+      type: "cms",
+      collection: "courses",
+      labelField: "name",
+      valueField: "id",
+      resultField: "courseId",
+    });
+    expect(viewStep(definition, 1).itemsSource).toEqual({
+      type: "cms",
+      collection: "chapters",
+      labelField: "name",
+      valueField: "id",
+      resultField: "chapterId",
+      filter: { field: "course", fromResultField: "courseId" },
+    });
+  });
+
   it("compiles widget authoring fields into the existing view-step model", () => {
     const definition = buildGuidedFlowDefinition({
       title: "Answer a question",

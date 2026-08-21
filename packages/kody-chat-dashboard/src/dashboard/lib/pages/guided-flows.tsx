@@ -52,6 +52,7 @@ import {
   useGuidedFlowChat,
   type GuidedFlowSourceScope,
 } from "../guided-flows/chat-controller";
+import { resolveCmsItemsSource } from "../guided-flows/cms-items";
 import { WidgetStepFields } from "../guided-flows/WidgetStepFields";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
@@ -194,6 +195,7 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
               routeId: step.routeId,
               routeParameters: step.routeParameters,
               rendererVersion: step.rendererVersion,
+              itemsSource: step.itemsSource,
               ...(listAuthoringRendererSlugs().includes(step.rendererSlug)
                 ? { rendererData: step.rendererData }
                 : {
@@ -256,11 +258,14 @@ function previewForDraft(
         getBuiltinViewRendererDefinition(step.rendererSlug))
       : null;
     if (!renderer) return null;
-    return buildRenderedViewDirective({
+    const view = buildRenderedViewDirective({
       id: `guided-flow-preview-${selectedStepIndex}`,
       definition: renderer,
       data: step.rendererData ?? {},
     });
+    return step.itemsSource
+      ? { ...view, dataSource: resolveCmsItemsSource(step.itemsSource, {}) }
+      : view;
   } catch {
     return null;
   }
@@ -775,6 +780,148 @@ function FlowBuilder({
                             ))}
                           </select>
                         )}
+                        {step.type !== "flow" &&
+                        step.type !== "command" &&
+                        step.rendererSlug === "selection-list" ? (
+                          <div className="mt-3 space-y-3 rounded-lg border border-white/10 bg-black/15 p-3">
+                            <label className="block text-sm text-white/70">
+                              Choices source
+                              <select
+                                aria-label={`Step ${index + 1} choices source`}
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                                value={step.itemsSource ? "cms" : "generated"}
+                                disabled={readOnly}
+                                onChange={(event) =>
+                                  updateStep(index, (current) =>
+                                    current.type === "flow" ||
+                                    current.type === "command"
+                                      ? current
+                                      : {
+                                          ...current,
+                                          itemsSource:
+                                            event.target.value === "cms"
+                                              ? {
+                                                  type: "cms",
+                                                  collection: "",
+                                                  labelField: "title",
+                                                  valueField: "id",
+                                                  resultField: "selectedId",
+                                                }
+                                              : undefined,
+                                        },
+                                  )
+                                }
+                              >
+                                <option value="generated">Generated choices</option>
+                                <option value="cms">CMS collection</option>
+                              </select>
+                            </label>
+                            {step.itemsSource ? (
+                              <>
+                                {[
+                                  ["collection", "Collection"],
+                                  ["labelField", "Label field"],
+                                  ["valueField", "Value field"],
+                                  ["resultField", "Save selection as"],
+                                ].map(([field, label]) => (
+                                  <label
+                                    key={field}
+                                    className="block text-sm text-white/70"
+                                  >
+                                    {label}
+                                    <input
+                                      aria-label={`Step ${index + 1} ${label.toLowerCase()}`}
+                                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                      value={step.itemsSource?.[field as keyof typeof step.itemsSource] as string}
+                                      disabled={readOnly}
+                                      onChange={(event) =>
+                                        updateStep(index, (current) =>
+                                          current.type === "flow" ||
+                                          current.type === "command" ||
+                                          !current.itemsSource
+                                            ? current
+                                            : {
+                                                ...current,
+                                                itemsSource: {
+                                                  ...current.itemsSource,
+                                                  [field]: event.target.value,
+                                                },
+                                              },
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                ))}
+                                <label className="block text-sm text-white/70">
+                                  Filter field (optional)
+                                  <input
+                                    aria-label={`Step ${index + 1} filter field`}
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                    value={step.itemsSource.filter?.field ?? ""}
+                                    disabled={readOnly}
+                                    onChange={(event) =>
+                                      updateStep(index, (current) =>
+                                        current.type === "flow" ||
+                                        current.type === "command" ||
+                                        !current.itemsSource
+                                          ? current
+                                          : {
+                                              ...current,
+                                              itemsSource: {
+                                                ...current.itemsSource,
+                                                filter: event.target.value
+                                                  ? {
+                                                      field: event.target.value,
+                                                      fromResultField:
+                                                        current.itemsSource
+                                                          .filter
+                                                          ?.fromResultField ??
+                                                        "",
+                                                    }
+                                                  : undefined,
+                                              },
+                                            },
+                                      )
+                                    }
+                                  />
+                                </label>
+                                {step.itemsSource.filter ? (
+                                  <label className="block text-sm text-white/70">
+                                    Filter from saved selection
+                                    <input
+                                      aria-label={`Step ${index + 1} filter source`}
+                                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                      value={
+                                        step.itemsSource.filter.fromResultField
+                                      }
+                                      disabled={readOnly}
+                                      onChange={(event) =>
+                                        updateStep(index, (current) =>
+                                          current.type === "flow" ||
+                                          current.type === "command" ||
+                                          !current.itemsSource?.filter
+                                            ? current
+                                            : {
+                                                ...current,
+                                                itemsSource: {
+                                                  ...current.itemsSource,
+                                                  filter: {
+                                                    ...current.itemsSource
+                                                      .filter,
+                                                    fromResultField:
+                                                      event.target.value,
+                                                  },
+                                                },
+                                              },
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {rendererCatalogError && !readOnly ? (
                           <p className="mt-2 text-sm text-amber-200">
                             Widgets could not be loaded: {rendererCatalogError}

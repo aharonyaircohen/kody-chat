@@ -185,12 +185,26 @@ export interface RenderedViewDirective {
   };
   ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
+  dataSource?: RenderedViewCmsItemsSource;
   /** Durable completion state for an interactive view instance. */
   result?: {
     actionId: string;
     data?: Record<string, unknown>;
     completedAt: string;
   };
+}
+
+export interface RenderedViewCmsItemsSource {
+  readonly type: "cms";
+  readonly collection: string;
+  readonly labelField: string;
+  readonly valueField: string;
+  readonly resultField: string;
+  readonly filter?: {
+    readonly field: string;
+    readonly value: string | number | boolean;
+  };
+  readonly unavailable?: "missing_filter_value";
 }
 
 export type ChatViewDirective = RenderedViewDirective;
@@ -352,6 +366,9 @@ export function isRenderedViewDirective(
       return false;
     }
   }
+  if (v.dataSource !== undefined && !isRenderedViewCmsItemsSource(v.dataSource)) {
+    return false;
+  }
   if (v.result !== undefined) {
     const result = v.result;
     if (
@@ -372,6 +389,37 @@ export function isRenderedViewDirective(
   }
   return Object.values(v.data as Record<string, unknown>).every(
     isRenderedViewDataValue,
+  );
+}
+
+function isRenderedViewCmsItemsSource(
+  value: unknown,
+): value is RenderedViewCmsItemsSource {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const source = value as Record<string, unknown>;
+  if (
+    source.type !== "cms" ||
+    typeof source.collection !== "string" ||
+    typeof source.labelField !== "string" ||
+    typeof source.valueField !== "string" ||
+    typeof source.resultField !== "string"
+  ) {
+    return false;
+  }
+  if (
+    source.unavailable !== undefined &&
+    source.unavailable !== "missing_filter_value"
+  ) {
+    return false;
+  }
+  if (source.filter === undefined) return true;
+  if (!source.filter || typeof source.filter !== "object") return false;
+  const filter = source.filter as Record<string, unknown>;
+  return (
+    typeof filter.field === "string" &&
+    (typeof filter.value === "string" ||
+      typeof filter.value === "number" ||
+      typeof filter.value === "boolean")
   );
 }
 
