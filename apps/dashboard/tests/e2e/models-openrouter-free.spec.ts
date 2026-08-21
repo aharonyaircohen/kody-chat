@@ -98,8 +98,27 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
     return json(route, isCollection ? { conversations: [] } : { ok: true });
   });
   await page.route("**/api/kody/account/credentials", (route) =>
-    json(route, { credentials: [] }),
+    json(route, {
+      credentials: [
+        { name: "ANTHROPIC_API_KEY", updatedAt: "2026-08-21T00:00:00Z" },
+      ],
+    }),
   );
+  const serviceActions: Array<{ modelId: string; action: string }> = [];
+  let serviceStatus = "stopped";
+  await page.route("**/api/kody/model-services", async (route) => {
+    const request = route.request().postDataJSON() as {
+      modelId: string;
+      action: string;
+    };
+    if (request.action === "status") {
+      await json(route, { ok: true, status: serviceStatus });
+      return;
+    }
+    serviceActions.push(request);
+    serviceStatus = request.action === "start" ? "ready" : "stopped";
+    await json(route, { ok: true });
+  });
 
   let models: unknown[] = [
     {
@@ -124,7 +143,9 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
   } | null = null;
   await page.route("**/api/kody/engine-models", async (route) => {
     if (route.request().method() === "PUT") {
-      engineSavedBody = route.request().postDataJSON() as typeof engineSavedBody;
+      engineSavedBody = route
+        .request()
+        .postDataJSON() as typeof engineSavedBody;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -228,6 +249,67 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
   ).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
   await page.keyboard.press("Escape");
+
+  await primaryRow
+    .getByRole("button", { name: "More actions for Primary" })
+    .click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  const modelDialog = page.getByRole("dialog", { name: "Edit model" });
+  await modelDialog.getByRole("button", { name: "Advanced" }).click();
+  await modelDialog
+    .getByText("Machine", { exact: true })
+    .locator("..")
+    .locator("select")
+    .selectOption("local");
+  await modelDialog
+    .getByText("Start command", { exact: true })
+    .locator("..")
+    .getByRole("textbox")
+    .fill("llama-server --port 8080");
+  await modelDialog
+    .getByText("Stop command", { exact: true })
+    .locator("..")
+    .getByRole("textbox")
+    .fill("pkill -INT -f llama-server");
+  await modelDialog.getByRole("button", { name: "Save" }).click();
+  await expect(modelDialog).toBeHidden();
+  await expect(primaryRow.getByLabel("Service status: stopped")).toBeVisible();
+  expect(
+    (
+      savedBody as unknown as { models: Array<Record<string, unknown>> }
+    ).models.find((model) => model.id === "anthropic/primary"),
+  ).toMatchObject({
+    service: {
+      machine: "local",
+      startCommand: "llama-server --port 8080",
+      stopCommand: "pkill -INT -f llama-server",
+    },
+  });
+  await primaryRow
+    .getByRole("button", { name: "More actions for Primary" })
+    .click();
+  await page.getByRole("menuitem", { name: "Start service" }).click();
+  await expect(primaryRow.getByLabel("Service status: ready")).toBeVisible();
+  await expect
+    .poll(() => serviceActions)
+    .toEqual([{ modelId: "anthropic/primary", action: "start" }]);
+  await primaryRow
+    .getByRole("button", { name: "More actions for Primary" })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: "Start service" }),
+  ).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Stop service" }).click();
+  await expect(
+    page.getByText("Service stopped", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() => serviceActions)
+    .toEqual([
+      { modelId: "anthropic/primary", action: "start" },
+      { modelId: "anthropic/primary", action: "stop" },
+    ]);
+
   await automaticChatDefault.click();
   await automaticEngineDefault.click();
   await expect(

@@ -186,6 +186,14 @@ const ChatModelConfigSchema = z.object({
    * output instead of guessing from a provider or model name.
    */
   toolChoice: ChatToolChoiceCapabilitiesSchema.optional(),
+  /** Optional lifecycle commands for a model server on an existing Kody machine. */
+  service: z
+    .object({
+      machine: z.enum(["local", "brain"]),
+      startCommand: z.string().trim().min(1).max(20_000),
+      stopCommand: z.string().trim().min(1).max(20_000),
+    })
+    .optional(),
   /**
    * Optional override of the auto-detected thinking config. Most users
    * never set this — the chat route's `defaultReasoningForModel`

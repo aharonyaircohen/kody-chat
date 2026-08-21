@@ -26,4 +26,26 @@ describe("ModelsManager model editor dialog", () => {
     );
     expect(editorDialog).not.toContain('className="max-w-md"');
   });
+
+  it("keeps model service management in one optional section", () => {
+    expect(SOURCE).toContain("Service");
+    expect(SOURCE).toContain("Start command");
+    expect(SOURCE).toContain("Stop command");
+    expect(SOURCE).toContain('<option value="local">Local</option>');
+    expect(SOURCE).toContain('<option value="brain">Brain</option>');
+    expect(SOURCE).toContain("Start service");
+    expect(SOURCE).toContain("Stop service");
+    expect(SOURCE).toContain("Service status:");
+    expect(SOURCE).toContain('action: "status"');
+    expect(SOURCE).toContain('m.service?.machine === "local"');
+    expect(SOURCE).toContain("Checking service…");
+    expect(SOURCE).not.toContain("Local Mac");
+  });
+
+  it("keeps personal model edits and local services usable without repository auth", () => {
+    expect(SOURCE).toContain("if (auth) {");
+    expect(SOURCE).toContain('fetch("/api/kody/model-services"');
+    expect(SOURCE).toContain('(m.service.machine === "brain" && !auth)');
+    expect(SOURCE).not.toContain("disabled={serviceBusy !== null || !auth}");
+  });
 });

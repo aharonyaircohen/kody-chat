@@ -37,6 +37,11 @@ const MODEL = {
   apiKeySecret: "MINIMAX_API_KEY",
   enabled: true,
   default: true,
+  service: {
+    machine: "local",
+    startCommand: "llama-server --port 8080",
+    stopCommand: "pkill -INT -f llama-server",
+  },
 };
 
 beforeEach(() => {

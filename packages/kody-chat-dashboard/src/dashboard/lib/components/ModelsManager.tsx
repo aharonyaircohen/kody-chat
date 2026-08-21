@@ -25,10 +25,12 @@ import {
   MoreHorizontal,
   Pencil,
   Power,
+  Play,
   Plus,
   Save,
   Star,
   Trash2,
+  Square,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { RepoScopedLink } from "./RepoScopedLink";
@@ -66,6 +68,11 @@ import {
   KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
 } from "../chat/model-catalog";
+import { TerminalSessionInputSchema } from "@kody-ade/terminal/terminal-session-model";
+import {
+  TerminalSessionClient,
+  type TerminalClientSocket,
+} from "../chat/plugins/terminal/terminal-session-client";
 
 export const modelsQueryKeys = {
   all: ["kody-chat-models"] as const,
@@ -160,7 +167,9 @@ async function saveEngineModels(
 type CredentialMetadata = { name: string; updatedAt: string };
 
 async function fetchCredentials(): Promise<CredentialMetadata[]> {
-  const res = await fetch("/api/kody/account/credentials", { cache: "no-store" });
+  const res = await fetch("/api/kody/account/credentials", {
+    cache: "no-store",
+  });
   const json = (await res.json().catch(() => ({}))) as {
     credentials?: CredentialMetadata[];
     error?: string;
@@ -218,9 +227,164 @@ function deriveId(m: ChatModel): string {
   return `${m.provider}/${m.modelName.trim()}`;
 }
 
+function serviceSessionId(modelId: string): string {
+  let hash = 2166136261;
+  for (const char of modelId) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `model-service-${(hash >>> 0).toString(36)}`;
+}
+
+async function executeLocalServiceCommand(
+  model: ChatModel,
+  action: "start" | "stop",
+): Promise<void> {
+  const response = await fetch("/api/kody/model-services", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelId: model.id, action }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+  };
+  if (!response.ok) {
+    throw new Error(
+      body.message ??
+        body.error ??
+        `Service command failed (${response.status})`,
+    );
+  }
+}
+
+type ModelServiceStatus = "ready" | "loading" | "stopped" | "unknown";
+
+async function fetchLocalServiceStatus(
+  modelId: string,
+): Promise<ModelServiceStatus> {
+  const response = await fetch("/api/kody/model-services", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelId, action: "status" }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    status?: ModelServiceStatus;
+  };
+  return response.ok && body.status ? body.status : "unknown";
+}
+
+async function waitForLocalServiceStatus(
+  modelId: string,
+  expected: "ready" | "stopped",
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await fetchLocalServiceStatus(modelId)) === expected) return;
+    await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+  }
+  throw new Error(
+    expected === "ready"
+      ? "The service command ran, but the model is still loading"
+      : "The service did not stop",
+  );
+}
+
+async function executeBrainServiceCommand(
+  headers: Record<string, string>,
+  model: ChatModel,
+  action: "start" | "stop",
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      client.disconnect();
+      if (error) reject(error);
+      else resolve();
+    };
+    const timeout = window.setTimeout(
+      () => finish(new Error("Brain terminal did not become ready")),
+      30_000,
+    );
+    const client = new TerminalSessionClient({
+      chatSessionId: serviceSessionId(model.id),
+      transport: { type: "brain" },
+      activityLimit: null,
+      getSize: () => ({ cols: 120, rows: 36 }),
+      requestSession: async (body) => {
+        const response = await fetch("/api/kody/terminal/session", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        const value = (await response.json().catch(() => ({}))) as {
+          webSocketUrl?: string;
+          session?: unknown;
+          message?: string;
+          error?: string;
+        };
+        if (!response.ok || !value.webSocketUrl || !value.session) {
+          throw new Error(
+            value.message ?? value.error ?? `HTTP ${response.status}`,
+          );
+        }
+        return {
+          webSocketUrl: value.webSocketUrl,
+          session: TerminalSessionInputSchema.parse(value.session),
+        };
+      },
+      createSocket: (url) =>
+        new WebSocket(url) as unknown as TerminalClientSocket,
+      onState: (state) => {
+        if (state.connection === "error") {
+          finish(new Error(state.error ?? "Brain terminal failed"));
+          return;
+        }
+        if (state.connection !== "connected") return;
+        if (action === "stop") client.sendInput("stop-interrupt", "\u0003");
+        window.setTimeout(
+          () => {
+            const command =
+              action === "start"
+                ? model.service!.startCommand
+                : model.service!.stopCommand;
+            if (!client.sendInput(`${action}-${Date.now()}`, `${command}\r`)) {
+              finish(new Error("Brain terminal rejected the command"));
+              return;
+            }
+            window.setTimeout(() => finish(), 300);
+          },
+          action === "stop" ? 250 : 0,
+        );
+      },
+    });
+    void client.connect();
+  });
+}
+
+async function executeServiceCommand(
+  headers: Record<string, string>,
+  model: ChatModel,
+  action: "start" | "stop",
+): Promise<void> {
+  if (!model.service) throw new Error("This model has no service configured");
+  if (model.service.machine === "local") {
+    await executeLocalServiceCommand(model, action);
+  } else {
+    await executeBrainServiceCommand(headers, model, action);
+  }
+}
+
 export function ModelsManager() {
   const { auth } = useAuth();
-  const headers = { "Content-Type": "application/json", ...buildAuthHeaders(auth) };
+  const headers = {
+    "Content-Type": "application/json",
+    ...buildAuthHeaders(auth),
+  };
   const listQueryKey = modelsQueryKeys.list();
 
   const queryClient = useQueryClient();
@@ -233,11 +397,11 @@ export function ModelsManager() {
     staleTime: 30_000,
   });
   const { data: engineData } = useQuery({
-      queryKey: ["kody-engine-models", auth?.owner ?? null, auth?.repo ?? null],
-      queryFn: () => fetchEngineModels(headers),
-      enabled: !!auth,
-      staleTime: 30_000,
-    });
+    queryKey: ["kody-engine-models", auth?.owner ?? null, auth?.repo ?? null],
+    queryFn: () => fetchEngineModels(headers),
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
   const { data: credentials = [] } = useQuery({
     queryKey: ["kody-user-credentials"],
     queryFn: fetchCredentials,
@@ -284,10 +448,13 @@ export function ModelsManager() {
         ...(engineData?.automatic ?? { default: false, engineDefault: false }),
         engineDefault: nextAutomatic.engineDefault === true,
       };
-      return Promise.all([
+      const requests: Promise<void>[] = [
         saveModels(headers, list, { ...nextAutomatic, engineDefault: false }),
-        saveEngineModels(headers, engineList, engineAutomatic),
-      ]).then(() => undefined);
+      ];
+      if (auth) {
+        requests.push(saveEngineModels(headers, engineList, engineAutomatic));
+      }
+      return Promise.all(requests).then(() => undefined);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all });
@@ -302,6 +469,57 @@ export function ModelsManager() {
     { mode: "create" } | { mode: "edit"; idx: number } | null
   >(null);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [serviceBusy, setServiceBusy] = useState<string | null>(null);
+  const localServiceModels = models.filter(
+    (model) => model.service?.machine === "local",
+  );
+  const { data: serviceStatuses = {} } = useQuery<
+    Record<string, ModelServiceStatus>
+  >({
+    queryKey: [
+      "model-service-statuses",
+      ...localServiceModels.map((m) => m.id),
+    ],
+    queryFn: async () =>
+      Object.fromEntries(
+        await Promise.all(
+          localServiceModels.map(async (model) => [
+            model.id,
+            await fetchLocalServiceStatus(model.id),
+          ]),
+        ),
+      ),
+    enabled: localServiceModels.length > 0,
+    refetchInterval: 3_000,
+  });
+
+  const runServiceAction = async (
+    model: ChatModel,
+    action: "start" | "stop",
+  ) => {
+    const busyKey = `${model.id}:${action}`;
+    setServiceBusy(busyKey);
+    try {
+      await executeServiceCommand(headers, model, action);
+      if (model.service?.machine === "local") {
+        await waitForLocalServiceStatus(
+          model.id,
+          action === "start" ? "ready" : "stopped",
+          action === "start" ? 120_000 : 15_000,
+        );
+        await queryClient.invalidateQueries({
+          queryKey: ["model-service-statuses"],
+        });
+      }
+      toast.success(`Service ${action === "start" ? "started" : "stopped"}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Service command failed",
+      );
+    } finally {
+      setServiceBusy(null);
+    }
+  };
 
   const upsert = async (next: ChatModel, credentialValue?: string) => {
     let list = [...models];
@@ -330,7 +548,9 @@ export function ModelsManager() {
     };
     if (credentialValue) {
       await saveCredential(next.apiKeySecret, credentialValue);
-      await queryClient.invalidateQueries({ queryKey: ["kody-user-credentials"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["kody-user-credentials"],
+      });
     }
     await save.mutateAsync({ list, automatic: nextAutomatic });
     toast.success("Model saved");
@@ -549,6 +769,28 @@ export function ModelsManager() {
                             Disabled
                           </span>
                         )}
+                        {m.service?.machine === "local" && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                              serviceStatuses[m.id] === "ready"
+                                ? "bg-emerald-500/15 text-emerald-300"
+                                : serviceStatuses[m.id] === "loading"
+                                  ? "bg-amber-500/15 text-amber-300"
+                                  : serviceStatuses[m.id] === "stopped"
+                                    ? "bg-rose-500/15 text-rose-300"
+                                    : "bg-white/[0.06] text-white/50"
+                            }`}
+                            aria-label={`Service status: ${serviceStatuses[m.id] ?? "unknown"}`}
+                          >
+                            {serviceStatuses[m.id] === "ready"
+                              ? "Ready"
+                              : serviceStatuses[m.id] === "loading"
+                                ? "Loading"
+                                : serviceStatuses[m.id] === "stopped"
+                                  ? "Stopped"
+                                  : "Checking"}
+                          </span>
+                        )}
                         {m.default && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300"
@@ -623,6 +865,81 @@ export function ModelsManager() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36">
+                        {m.service?.machine === "local" && (
+                          <>
+                            <DropdownMenuItem
+                              disabled={
+                                serviceBusy !== null ||
+                                !serviceStatuses[m.id] ||
+                                serviceStatuses[m.id] === "unknown"
+                              }
+                              onClick={() =>
+                                void runServiceAction(
+                                  m,
+                                  serviceStatuses[m.id] === "ready" ||
+                                    serviceStatuses[m.id] === "loading"
+                                    ? "stop"
+                                    : "start",
+                                )
+                              }
+                            >
+                              {serviceBusy?.startsWith(`${m.id}:`) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : serviceStatuses[m.id] === "ready" ||
+                                serviceStatuses[m.id] === "loading" ? (
+                                <Square className="h-3.5 w-3.5" />
+                              ) : (
+                                <Play className="h-3.5 w-3.5" />
+                              )}
+                              {serviceBusy === `${m.id}:start`
+                                ? "Starting…"
+                                : serviceBusy === `${m.id}:stop`
+                                  ? "Stopping…"
+                                  : serviceStatuses[m.id] === "ready" ||
+                                      serviceStatuses[m.id] === "loading"
+                                    ? "Stop service"
+                                    : serviceStatuses[m.id] === "stopped"
+                                      ? "Start service"
+                                      : "Checking service…"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        {m.service?.machine === "brain" && (
+                          <>
+                            <DropdownMenuItem
+                              disabled={
+                                serviceBusy !== null ||
+                                (m.service.machine === "brain" && !auth)
+                              }
+                              onClick={() => void runServiceAction(m, "start")}
+                            >
+                              {serviceBusy === `${m.id}:start` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Play className="h-3.5 w-3.5" />
+                              )}
+                              {serviceBusy === `${m.id}:start`
+                                ? "Starting…"
+                                : "Start service"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={
+                                serviceBusy !== null ||
+                                (m.service.machine === "brain" && !auth)
+                              }
+                              onClick={() => void runServiceAction(m, "stop")}
+                            >
+                              {serviceBusy === `${m.id}:stop` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Square className="h-3.5 w-3.5" />
+                              )}
+                              Stop service
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
                         <DropdownMenuItem onClick={() => toggleEnabled(idx)}>
                           <Power className="h-3.5 w-3.5" />
                           {m.enabled === false
@@ -672,7 +989,10 @@ export function ModelsManager() {
           onImportCredential={
             auth
               ? async (name) => {
-                  await importRepositoryCredential(name, buildAuthHeaders(auth));
+                  await importRepositoryCredential(
+                    name,
+                    buildAuthHeaders(auth),
+                  );
                   await queryClient.invalidateQueries({
                     queryKey: ["kody-user-credentials"],
                   });
@@ -784,6 +1104,10 @@ function ModelEditor({
       credentialConfigured || credentialValue.trim()
         ? null
         : "Enter an API key",
+    serviceStart:
+      draft.service && !draft.service.startCommand.trim() ? "Required" : null,
+    serviceStop:
+      draft.service && !draft.service.stopCommand.trim() ? "Required" : null,
   };
   const canSave =
     !saving &&
@@ -793,7 +1117,9 @@ function ModelEditor({
     !errors.baseURL &&
     !errors.adapterBaseURL &&
     !errors.id &&
-    !errors.credential;
+    !errors.credential &&
+    !errors.serviceStart &&
+    !errors.serviceStop;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -951,6 +1277,99 @@ function ModelEditor({
             <Cpu className="w-3.5 h-3.5 text-white/40" />
             Default for engine (Kody Live, issue + PR runs)
           </label>
+
+          <section
+            className="space-y-3 border-t border-white/[0.06] pt-3"
+            aria-labelledby="model-service-heading"
+          >
+            <div>
+              <h3
+                id="model-service-heading"
+                className="text-sm font-medium text-white/85"
+              >
+                Service
+              </h3>
+              <p className="mt-0.5 text-[11px] text-white/45">
+                Optional commands for managing this model server.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">Machine</Label>
+              <select
+                value={draft.service?.machine ?? "none"}
+                onChange={(event) => {
+                  const machine = event.target.value;
+                  setDraft((current) => {
+                    if (machine === "none") {
+                      const { service: _, ...rest } = current;
+                      return rest as ChatModel;
+                    }
+                    return {
+                      ...current,
+                      service: {
+                        machine: machine as "local" | "brain",
+                        startCommand: current.service?.startCommand ?? "",
+                        stopCommand: current.service?.stopCommand ?? "",
+                      },
+                    };
+                  });
+                }}
+                className="h-9 w-full rounded-md border border-white/[0.08] bg-background px-2 text-sm"
+              >
+                <option value="none">None</option>
+                <option value="local">Local</option>
+                <option value="brain">Brain</option>
+              </select>
+            </div>
+            {draft.service && (
+              <>
+                <div>
+                  <Label className="text-xs">Start command</Label>
+                  <Input
+                    value={draft.service.startCommand}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        service: {
+                          ...current.service!,
+                          startCommand: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder="llama-server --port 8080"
+                    className="font-mono text-xs"
+                  />
+                  {errors.serviceStart && (
+                    <p className="mt-1 text-[11px] text-rose-300">
+                      {errors.serviceStart}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs">Stop command</Label>
+                  <Input
+                    value={draft.service.stopCommand}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        service: {
+                          ...current.service!,
+                          stopCommand: event.target.value,
+                        },
+                      }))
+                    }
+                    placeholder="pkill -INT -f llama-server"
+                    className="font-mono text-xs"
+                  />
+                  {errors.serviceStop && (
+                    <p className="mt-1 text-[11px] text-rose-300">
+                      {errors.serviceStop}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
 
           <button
             type="button"

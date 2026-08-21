@@ -105,6 +105,26 @@ describe("chat model adapters", () => {
     });
   });
 
+  it("preserves a model service bound to an existing machine selection", () => {
+    expect(
+      ChatModelSchema.parse({
+        ...baseModel,
+        protocol: "openai",
+        service: {
+          machine: "local",
+          startCommand: "llama-server --port 8080",
+          stopCommand: "pkill -INT -f llama-server",
+        },
+      }),
+    ).toMatchObject({
+      service: {
+        machine: "local",
+        startCommand: "llama-server --port 8080",
+        stopCommand: "pkill -INT -f llama-server",
+      },
+    });
+  });
+
   it("uses the native Google adapter for new Google models", () => {
     expect(PROVIDER_PRESETS.google.adapter).toBe("google");
     expect(
