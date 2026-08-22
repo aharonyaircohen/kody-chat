@@ -168,43 +168,6 @@ export async function saveEngineModels(
   }
 }
 
-type CredentialMetadata = { name: string; updatedAt: string };
-
-async function fetchCredentials(): Promise<CredentialMetadata[]> {
-  const res = await fetch("/api/kody/account/credentials", {
-    cache: "no-store",
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    credentials?: CredentialMetadata[];
-    error?: string;
-  };
-  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-  return json.credentials ?? [];
-}
-
-async function saveCredential(name: string, value: string): Promise<void> {
-  const res = await fetch("/api/kody/account/credentials", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, value }),
-  });
-  const json = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-}
-
-async function importRepositoryCredential(
-  name: string,
-  headers: Record<string, string>,
-): Promise<void> {
-  const res = await fetch("/api/kody/account/credentials/import", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ name }),
-  });
-  const json = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-}
-
 function blankModel(): ChatModel {
   const p = PROVIDER_PRESETS.anthropic;
   return {
@@ -406,11 +369,6 @@ export function ModelsManager() {
     enabled: !!auth,
     staleTime: 30_000,
   });
-  const { data: credentials = [] } = useQuery({
-    queryKey: ["kody-user-credentials"],
-    queryFn: fetchCredentials,
-    staleTime: 30_000,
-  });
   const engineById = new Map(
     (engineData?.models ?? []).map((model) => [model.id, model]),
   );
@@ -525,7 +483,7 @@ export function ModelsManager() {
     }
   };
 
-  const upsert = async (next: ChatModel, credentialValue?: string) => {
+  const upsert = async (next: ChatModel) => {
     let list = [...models];
     if (editing?.mode === "edit") {
       list[editing.idx] = next;
@@ -550,12 +508,6 @@ export function ModelsManager() {
       ...(next.default ? { default: false } : {}),
       ...(next.engineDefault ? { engineDefault: false } : {}),
     };
-    if (credentialValue) {
-      await saveCredential(next.apiKeySecret, credentialValue);
-      await queryClient.invalidateQueries({
-        queryKey: ["kody-user-credentials"],
-      });
-    }
     await save.mutateAsync({ list, automatic: nextAutomatic });
     toast.success("Model saved");
     setEditing(null);
@@ -653,7 +605,8 @@ export function ModelsManager() {
     >
       <div className="space-y-3">
         <p className="text-sm text-white/55">
-          Your chat models and API keys belong to your Kody account.
+          Your chat models belong to your Kody account. API keys stay in
+          repository Secrets.
         </p>
         {auth ? (
           <p className="text-sm text-white/55">
@@ -987,23 +940,6 @@ export function ModelsManager() {
           existing={models}
           editingIdx={editing.mode === "edit" ? editing.idx : null}
           saving={save.isPending}
-          configuredCredentialNames={credentials.map(
-            (credential) => credential.name,
-          )}
-          onImportCredential={
-            auth
-              ? async (name) => {
-                  await importRepositoryCredential(
-                    name,
-                    buildAuthHeaders(auth),
-                  );
-                  await queryClient.invalidateQueries({
-                    queryKey: ["kody-user-credentials"],
-                  });
-                  toast.success("API key copied to your Kody account");
-                }
-              : undefined
-          }
           onClose={() => setEditing(null)}
           onSave={upsert}
         />
@@ -1012,7 +948,7 @@ export function ModelsManager() {
       <ConfirmDialog
         open={deleting !== null}
         title="Delete this model?"
-        description="The model is removed from your account. Its saved API key is kept in case another model uses it."
+        description="The model is removed from your account. Its repository secret is not changed."
         confirmLabel={save.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -1029,10 +965,8 @@ interface ModelEditorProps {
   existing: ChatModel[];
   editingIdx: number | null;
   saving: boolean;
-  configuredCredentialNames: string[];
-  onImportCredential?: (name: string) => Promise<void>;
   onClose: () => void;
-  onSave: (m: ChatModel, credentialValue?: string) => Promise<void>;
+  onSave: (m: ChatModel) => Promise<void>;
 }
 
 function ModelEditor({
@@ -1040,24 +974,13 @@ function ModelEditor({
   existing,
   editingIdx,
   saving,
-  configuredCredentialNames,
-  onImportCredential,
   onClose,
   onSave,
 }: ModelEditorProps) {
   const [draft, setDraft] = useState<ChatModel>(initial);
-  const [credentialValue, setCredentialValue] = useState("");
-  const [importedCredentialName, setImportedCredentialName] = useState<
-    string | null
-  >(null);
-  const [importingCredential, setImportingCredential] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(
     initial.provider === "custom",
   );
-  const credentialConfigured =
-    configuredCredentialNames.includes(draft.apiKeySecret) ||
-    importedCredentialName === draft.apiKeySecret;
-
   // When the user picks a different preset, refresh the auto-managed
   // fields. The user's modelName + label survive — only adapter/protocol,
   // endpoints, and key hint update.
@@ -1104,10 +1027,6 @@ function ModelEditor({
         ? "Required for OpenAI-compatible chat"
         : null,
     id: idClash ? "Another model already uses this id" : null,
-    credential:
-      credentialConfigured || credentialValue.trim()
-        ? null
-        : "Enter an API key",
     serviceStart:
       draft.service && !draft.service.startCommand.trim() ? "Required" : null,
     serviceStop:
@@ -1121,7 +1040,6 @@ function ModelEditor({
     !errors.baseURL &&
     !errors.adapterBaseURL &&
     !errors.id &&
-    !errors.credential &&
     !errors.serviceStart &&
     !errors.serviceStop;
 
@@ -1131,7 +1049,7 @@ function ModelEditor({
       ...draft,
       id: derivedId,
     };
-    onSave(finalModel, credentialValue.trim() || undefined);
+    onSave(finalModel);
   };
 
   return (
@@ -1146,8 +1064,8 @@ function ModelEditor({
             {editingIdx !== null ? "Edit model" : "Add model"}
           </DialogTitle>
           <DialogDescription>
-            Pick a provider and fill in the model + key. Defaults cover the
-            common cases — open Advanced to override URL or protocol.
+            Pick a provider, model, and repository secret name. Open Advanced
+            only to override the URL or protocol.
           </DialogDescription>
         </DialogHeader>
 
@@ -1212,51 +1130,35 @@ function ModelEditor({
           </div>
 
           <div>
-            <Label className="text-sm">API key</Label>
+            <Label htmlFor="model-api-key-name" className="text-sm">
+              API key name
+            </Label>
             <Input
-              type="password"
-              value={credentialValue}
-              onChange={(ev) => setCredentialValue(ev.target.value)}
-              placeholder={
-                credentialConfigured
-                  ? "Leave blank to keep the saved key"
-                  : "Paste your provider API key"
+              id="model-api-key-name"
+              value={draft.apiKeySecret}
+              onChange={(ev) =>
+                setDraft((cur) => ({
+                  ...cur,
+                  apiKeySecret: ev.target.value.toUpperCase(),
+                }))
               }
-              autoComplete="off"
+              placeholder="ANTHROPIC_API_KEY"
               className="font-mono text-xs"
             />
-            {errors.credential && (
-              <p className="text-[11px] text-rose-300 mt-1">
-                {errors.credential}
-              </p>
-            )}
-            {!credentialConfigured && onImportCredential && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                disabled={importingCredential || Boolean(errors.apiKeySecret)}
-                onClick={async () => {
-                  setImportingCredential(true);
-                  try {
-                    await onImportCredential(draft.apiKeySecret);
-                    setImportedCredentialName(draft.apiKeySecret);
-                  } catch (error) {
-                    toast.error(
-                      error instanceof Error
-                        ? error.message
-                        : "Could not import the repository key",
-                    );
-                  } finally {
-                    setImportingCredential(false);
-                  }
-                }}
+            <p className="text-sm text-white/45 mt-1">
+              Store its value in{" "}
+              <RepoScopedLink
+                href="/secrets"
+                className="text-white/60 hover:text-white/80 underline"
               >
-                {importingCredential
-                  ? "Copying…"
-                  : "Copy existing repository key"}
-              </Button>
+                Secrets
+              </RepoScopedLink>
+              .
+            </p>
+            {errors.apiKeySecret && (
+              <p className="text-[11px] text-rose-300 mt-1">
+                {errors.apiKeySecret}
+              </p>
             )}
           </div>
 
@@ -1390,25 +1292,6 @@ function ModelEditor({
 
           {advancedOpen && (
             <div className="space-y-3 pt-1 border-t border-white/[0.06]">
-              <div>
-                <Label className="text-xs">Credential name</Label>
-                <Input
-                  value={draft.apiKeySecret}
-                  onChange={(ev) =>
-                    setDraft((cur) => ({
-                      ...cur,
-                      apiKeySecret: ev.target.value.toUpperCase(),
-                    }))
-                  }
-                  placeholder="ANTHROPIC_API_KEY"
-                  className="font-mono text-xs"
-                />
-                {errors.apiKeySecret && (
-                  <p className="text-[11px] text-rose-300 mt-1">
-                    {errors.apiKeySecret}
-                  </p>
-                )}
-              </div>
               <div>
                 <Label className="text-xs">Chat adapter</Label>
                 <select

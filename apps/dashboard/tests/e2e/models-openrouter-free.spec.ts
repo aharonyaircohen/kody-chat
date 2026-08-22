@@ -197,6 +197,19 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
   await machineResponse;
   await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/models$/);
 
+  await page.getByRole("button", { name: "New model" }).click();
+  const createModelDialog = page.getByRole("dialog", { name: "Add model" });
+  await expect(
+    createModelDialog.getByRole("textbox", { name: "API key name" }),
+  ).toBeVisible();
+  await expect(createModelDialog.locator('input[type="password"]')).toHaveCount(
+    0,
+  );
+  await expect(
+    createModelDialog.getByRole("link", { name: "Secrets" }),
+  ).toHaveAttribute("href", "/repo/test-owner/test-repo/secrets");
+  await createModelDialog.getByRole("button", { name: "Cancel" }).click();
+
   const openRouterRow = page.locator("li").filter({
     has: page.getByText("OpenRouter Free", { exact: true }),
   });
@@ -367,6 +380,8 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
     })
     .check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText(engineSyncWarning, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(engineSyncWarning, { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Edit model" })).toBeVisible();
 });
