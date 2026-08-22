@@ -20,6 +20,10 @@ export interface GuidedFlowStepBase {
   readonly authoringGoal?: string;
   readonly routeId?: string;
   readonly routeParameters?: Readonly<Record<string, string>>;
+  readonly filePicker?: {
+    readonly resultField: string;
+    readonly extensions?: readonly string[];
+  };
   readonly actions: readonly GuidedFlowActionDefinition[];
 }
 

@@ -83,6 +83,46 @@ describe("GuidedFlow presenter navigation", () => {
     });
   });
 
+  it("does not offer Continue when a command needs attention", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "initialize-warning",
+      version: 1,
+      title: "Initialize",
+      steps: [
+        {
+          id: "run-init",
+          type: "command",
+          title: "Initialize Kody",
+          explanation: "Resolve every required setup result.",
+          command: "/init",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "continue", target: { type: "complete" } },
+          ],
+        },
+      ],
+    };
+    const warning = advanceGuidedFlow(
+      definition,
+      createGuidedFlowInstance(definition, "instance-warning"),
+      {
+        actionId: "run",
+        result: {
+          status: "needs_attention",
+          summary: "Webhook FAILED — Not Found (HTTP 404).",
+        },
+      },
+    );
+
+    expect(presentGuidedFlow(definition, warning).view).toMatchObject({
+      data: {
+        status: "needs_attention",
+        summary: "Webhook FAILED — Not Found (HTTP 404).",
+        actions: [{ id: "run", label: "Run again" }],
+      },
+    });
+  });
+
   it("navigates to the page owned by the active step", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
     const atConfigure = advanceGuidedFlow(DEFINITION, started, {
@@ -96,6 +136,24 @@ describe("GuidedFlow presenter navigation", () => {
       label: "Secrets",
       reason: "Open Configure",
     });
+  });
+
+  it("opens Files in picker mode only when the step requests a file", () => {
+    const definition: GuidedFlowDefinition = {
+      ...DEFINITION,
+      steps: [
+        {
+          ...DEFINITION.steps[0],
+          routeId: "files",
+          filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
+        },
+      ],
+    };
+    const started = createGuidedFlowInstance(definition, "instance-1");
+
+    expect(presentGuidedFlow(definition, started).navigation?.href).toBe(
+      "/files?guidedFlowPicker=1&instanceId=instance-1&stepId=welcome&revision=0&resultField=pdfPath&extensions=.pdf",
+    );
   });
 
   it("fills a dynamic page from the step's typed parameters", () => {
