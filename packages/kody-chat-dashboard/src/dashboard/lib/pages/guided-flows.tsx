@@ -23,6 +23,7 @@ import {
   validateGuidedFlowDraft,
   type GuidedFlowDraft,
   type GuidedFlowDraftStep,
+  type GuidedFlowDraftViewStep,
 } from "../guided-flows/authoring";
 import { listGuidedFlowDefinitions } from "../guided-flows/registry";
 import {
@@ -155,6 +156,47 @@ function newDraftStep(): GuidedFlowDraftStep {
     title: "New step",
     explanation: "Explain what the user should do next.",
     rendererSlug: "guided-form",
+  };
+}
+
+function guidedFormPrimaryField(step: GuidedFlowDraftViewStep): {
+  name: string;
+  label: string;
+  value: string;
+  inputType?: string;
+} {
+  const fields = Array.isArray(step.rendererData?.fields)
+    ? step.rendererData.fields
+    : [];
+  const first = fields[0];
+  if (first && typeof first === "object" && !Array.isArray(first)) {
+    const field = first as Record<string, unknown>;
+    return {
+      name: typeof field.name === "string" ? field.name : "response",
+      label: typeof field.label === "string" ? field.label : "Your response",
+      value: typeof field.value === "string" ? field.value : "",
+      ...(typeof field.inputType === "string"
+        ? { inputType: field.inputType }
+        : {}),
+    };
+  }
+  return { name: "response", label: "Your response", value: "" };
+}
+
+function withGuidedFormPrimaryField(
+  step: GuidedFlowDraftViewStep,
+  patch: Readonly<{ name?: string; label?: string }>,
+): GuidedFlowDraftViewStep {
+  const fields = Array.isArray(step.rendererData?.fields)
+    ? step.rendererData.fields
+    : [];
+  const primary = guidedFormPrimaryField(step);
+  return {
+    ...step,
+    rendererData: {
+      ...(step.rendererData ?? {}),
+      fields: [{ ...primary, ...patch }, ...fields.slice(1)],
+    },
   };
 }
 
@@ -788,6 +830,51 @@ function FlowBuilder({
                             ))}
                           </select>
                         )}
+                        {step.type !== "flow" &&
+                        step.type !== "command" &&
+                        step.rendererSlug === "guided-form" &&
+                        !step.filePicker ? (
+                          <div className="mt-3 grid gap-3 rounded-lg border border-white/10 bg-black/15 p-3 sm:grid-cols-2">
+                            <label className="block text-sm text-white/70">
+                              Save response as
+                              <input
+                                aria-label={`Step ${index + 1} save response as`}
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                value={guidedFormPrimaryField(step).name}
+                                disabled={readOnly}
+                                onChange={(event) =>
+                                  updateStep(index, (current) =>
+                                    current.type === "flow" ||
+                                    current.type === "command"
+                                      ? current
+                                      : withGuidedFormPrimaryField(current, {
+                                          name: event.target.value,
+                                        }),
+                                  )
+                                }
+                              />
+                            </label>
+                            <label className="block text-sm text-white/70">
+                              Field label
+                              <input
+                                aria-label={`Step ${index + 1} field label`}
+                                className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                                value={guidedFormPrimaryField(step).label}
+                                disabled={readOnly}
+                                onChange={(event) =>
+                                  updateStep(index, (current) =>
+                                    current.type === "flow" ||
+                                    current.type === "command"
+                                      ? current
+                                      : withGuidedFormPrimaryField(current, {
+                                          label: event.target.value,
+                                        }),
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                        ) : null}
                         {step.type !== "flow" &&
                         step.type !== "command" &&
                         step.rendererSlug === "selection-list" ? (
