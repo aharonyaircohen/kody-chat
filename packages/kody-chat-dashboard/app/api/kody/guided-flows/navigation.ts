@@ -1,5 +1,6 @@
 import type {
   GuidedFlowDefinition,
+  GuidedFlowInstance,
   GuidedFlowStepDefinition,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import type { DashboardNavigateDirective } from "../../../../src/dashboard/lib/chat-ui-actions";
@@ -53,6 +54,7 @@ export function navigationForCompletion(
 
 export function navigationForStep(
   step: GuidedFlowStepDefinition,
+  instance: GuidedFlowInstance,
 ): DashboardNavigateDirective | undefined {
   if (!step.routeId) return undefined;
   const resolved = resolveDashboardNavigationTarget({
@@ -61,5 +63,21 @@ export function navigationForStep(
     reason: `Open ${step.title}`,
   });
   if ("error" in resolved) throw new Error(resolved.error);
-  return { action: "dashboard_navigate", ...resolved };
+  const directive: DashboardNavigateDirective = {
+    action: "dashboard_navigate",
+    ...resolved,
+  };
+  if (step.filePicker) {
+    const params = new URLSearchParams();
+    params.set("guidedFlowPicker", "1");
+    params.set("instanceId", instance.instanceId);
+    params.set("stepId", step.id);
+    params.set("revision", String(instance.revision));
+    params.set("resultField", step.filePicker.resultField);
+    if (step.filePicker.extensions) {
+      params.set("extensions", step.filePicker.extensions.join(","));
+    }
+    directive.href = `${directive.href}?${params.toString()}`;
+  }
+  return directive;
 }
