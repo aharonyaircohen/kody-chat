@@ -141,6 +141,7 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
     models?: Array<Record<string, unknown>>;
     automatic?: { default?: boolean; engineDefault?: boolean };
   } | null = null;
+  let engineSyncWarning: string | undefined;
   await page.route("**/api/kody/engine-models", async (route) => {
     if (route.request().method() === "PUT") {
       engineSavedBody = route
@@ -149,7 +150,11 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, ...engineSavedBody }),
+        body: JSON.stringify({
+          ok: true,
+          ...engineSavedBody,
+          ...(engineSyncWarning ? { engineSyncWarning } : {}),
+        }),
       });
       return;
     }
@@ -350,4 +355,18 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
         !failure.includes("/api/kody/chat/machines net::ERR_ABORTED"),
     ),
   ).toEqual([]);
+
+  engineSyncWarning = "Engine config could not be updated";
+  await primaryRow
+    .getByRole("button", { name: "More actions for Primary" })
+    .click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await page
+    .getByRole("checkbox", {
+      name: "Default for engine (Kody Live, issue + PR runs)",
+    })
+    .check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(engineSyncWarning, { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Edit model" })).toBeVisible();
 });

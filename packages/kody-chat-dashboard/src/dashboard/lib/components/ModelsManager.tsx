@@ -145,7 +145,7 @@ async function saveModels(
   }
 }
 
-async function saveEngineModels(
+export async function saveEngineModels(
   headers: Record<string, string>,
   models: ChatModel[],
   automatic: AutomaticModel,
@@ -158,9 +158,13 @@ async function saveEngineModels(
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
     message?: string;
+    engineSyncWarning?: string;
   };
   if (!res.ok) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  if (json.engineSyncWarning) {
+    throw new Error(json.engineSyncWarning);
   }
 }
 
