@@ -85,4 +85,40 @@ describe("Guided Flow command execution", () => {
       summary: "Webhook FAILED — Not Found (HTTP 404).",
     });
   });
+
+  it("forwards Guided Flow data for workflow commands", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        handled: true,
+        command: "/run-workflow",
+        result: { status: "completed", summary: "Workflow accepted" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeGuidedFlowCommand(
+      request(),
+      "/run-workflow extract-pdf-exercises",
+      "mutation-2",
+      {
+        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+        previousResult: { approvalChallenge: "challenge" },
+        actionId: "approve",
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("https://dashboard.test/api/kody/chat/operations"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          input: "/run-workflow extract-pdf-exercises",
+          context: {
+            flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+            previousResult: { approvalChallenge: "challenge" },
+            actionId: "approve",
+          },
+        }),
+      }),
+    );
+  });
 });

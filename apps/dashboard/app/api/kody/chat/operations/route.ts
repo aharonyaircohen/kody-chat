@@ -23,6 +23,13 @@ export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
   input: z.string().trim().min(1).max(200),
+  context: z
+    .object({
+      flowData: z.record(z.string(), z.unknown()).optional(),
+      previousResult: z.record(z.string(), z.unknown()).optional(),
+      actionId: z.string().trim().max(64).optional(),
+    })
+    .optional(),
 });
 
 class ChatOperationError extends Error {
@@ -40,7 +47,8 @@ const ONBOARDING_CHAT_MODELS = new Set<string>([
 ]);
 
 function providerErrorText(error: unknown, depth = 0): string {
-  if (depth > 2 || !error || typeof error !== "object") return String(error ?? "");
+  if (depth > 2 || !error || typeof error !== "object")
+    return String(error ?? "");
   const candidate = error as {
     message?: unknown;
     responseBody?: unknown;
@@ -60,13 +68,140 @@ function providerErrorText(error: unknown, depth = 0): string {
 function chatReadinessFailure(modelLabel: string, error: unknown) {
   const message = providerErrorText(error);
   const providerPolicyFailure =
-    /no allowed providers are available for the selected model/i.test(message) &&
-    /allowed-providers?\s+setting/i.test(message);
+    /no allowed providers are available for the selected model/i.test(
+      message,
+    ) && /allowed-providers?\s+setting/i.test(message);
   return {
     status: "needs_attention" as const,
     summary: providerPolicyFailure
       ? `${modelLabel} cannot currently route Kody tool requests. Allow compatible providers in OpenRouter Privacy settings, then run this check again.`
       : `${modelLabel} is not ready for Kody tools. Check the API key and provider settings, then run this check again.`,
+  };
+}
+
+const WORKFLOW_ID_RE = /^[a-z0-9][a-z0-9-]{0,127}$/i;
+
+function forwardedJsonHeaders(req: NextRequest): Headers {
+  const headers = new Headers(req.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  headers.delete("transfer-encoding");
+  return headers;
+}
+
+function workflowInputFromFlowData(
+  flowData: Readonly<Record<string, unknown>> | undefined,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(flowData ?? {}).filter(
+      ([key]) => key !== "stepResults" && key !== "actionId",
+    ),
+  );
+}
+
+async function workflowRequest(
+  req: NextRequest,
+  workflowId: string,
+  body: Record<string, unknown>,
+): Promise<{ response: Response; payload: Record<string, unknown> }> {
+  const response = await fetch(
+    new URL(
+      `/api/kody/company/workflows/${encodeURIComponent(workflowId)}/run`,
+      req.url,
+    ),
+    {
+      method: "POST",
+      headers: forwardedJsonHeaders(req),
+      body: JSON.stringify(body),
+    },
+  );
+  return {
+    response,
+    payload: (await response.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >,
+  };
+}
+
+async function runWorkflowFromGuidedFlow(
+  req: NextRequest,
+  workflowId: string,
+  context: z.infer<typeof requestSchema>["context"],
+) {
+  if (!WORKFLOW_ID_RE.test(workflowId)) {
+    throw new ChatOperationError("invalid_workflow_id", 400);
+  }
+  if (!getRequestAuth(req)) {
+    throw new ChatOperationError("missing_auth", 401);
+  }
+
+  const input = workflowInputFromFlowData(context?.flowData);
+  let runBody: Record<string, unknown> = { input };
+  if (context?.actionId === "approve") {
+    const approvalChallenge = context.previousResult?.approvalChallenge;
+    if (typeof approvalChallenge !== "string" || !approvalChallenge) {
+      throw new ChatOperationError("workflow_approval_missing", 409);
+    }
+    const approvalResponse = await fetch(
+      new URL(
+        `/api/kody/company/workflows/${encodeURIComponent(workflowId)}/approve`,
+        req.url,
+      ),
+      {
+        method: "POST",
+        headers: forwardedJsonHeaders(req),
+        body: JSON.stringify({ approvalToken: approvalChallenge, input }),
+      },
+    );
+    const approvalPayload = (await approvalResponse
+      .json()
+      .catch(() => ({}))) as Record<string, unknown>;
+    if (
+      !approvalResponse.ok ||
+      typeof approvalPayload.approvalId !== "string"
+    ) {
+      throw new ChatOperationError(
+        typeof approvalPayload.error === "string"
+          ? approvalPayload.error
+          : "workflow_approval_failed",
+        approvalResponse.status >= 400 && approvalResponse.status < 500
+          ? approvalResponse.status
+          : 502,
+      );
+    }
+    runBody = { input, approvalId: approvalPayload.approvalId };
+  }
+
+  const { response, payload } = await workflowRequest(req, workflowId, runBody);
+  if (
+    response.status === 409 &&
+    payload.error === "approval_required" &&
+    typeof payload.approvalToken === "string"
+  ) {
+    return {
+      status: "needs_attention" as const,
+      summary: "The workflow is ready. Approve it to start generating drafts.",
+      approvalChallenge: payload.approvalToken,
+      ...(typeof payload.approvalExpiresAt === "string"
+        ? { approvalExpiresAt: payload.approvalExpiresAt }
+        : {}),
+    };
+  }
+  if (!response.ok) {
+    throw new ChatOperationError(
+      typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.error === "string"
+          ? payload.error
+          : "workflow_run_failed",
+      response.status >= 400 && response.status < 500 ? response.status : 502,
+    );
+  }
+  return {
+    status: "completed" as const,
+    summary: "The workflow was accepted and is generating exercise drafts.",
+    ...(typeof payload.runId === "string" ? { runId: payload.runId } : {}),
   };
 }
 
@@ -85,7 +220,9 @@ async function checkChatReadiness(req: NextRequest, modelId: string) {
     };
     return chatReadinessFailure(
       modelId,
-      typeof payload.message === "string" ? payload.message : "model unavailable",
+      typeof payload.message === "string"
+        ? payload.message
+        : "model unavailable",
     );
   }
   try {
@@ -96,7 +233,8 @@ async function checkChatReadiness(req: NextRequest, modelId: string) {
       prompt: "Verify tool-response support.",
       tools: {
         kody_readiness_check: tool({
-          description: "Confirm that the model can produce a Kody tool response.",
+          description:
+            "Confirm that the model can produce a Kody tool response.",
           inputSchema: z.object({ ready: z.literal(true) }),
         }),
       },
@@ -170,6 +308,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           workflow: result.workflow,
           nextSteps: result.nextSteps,
         };
+      },
+    },
+    {
+      command: "/run-workflow",
+      execute: async (args) => {
+        if (args.length !== 1) {
+          throw new ChatOperationError("invalid_command_arguments", 400);
+        }
+        return runWorkflowFromGuidedFlow(req, args[0]!, parsed.data.context);
       },
     },
     {

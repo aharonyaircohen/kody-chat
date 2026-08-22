@@ -42,11 +42,14 @@ vi.mock("ai", () => ({
 
 import { POST } from "../../../app/api/kody/chat/operations/route";
 
-function request(input: string): NextRequest {
+function request(
+  input: string,
+  context?: Record<string, unknown>,
+): NextRequest {
   return new NextRequest("https://dashboard.test/api/kody/chat/operations", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ input }),
+    body: JSON.stringify({ input, ...(context ? { context } : {}) }),
   });
 }
 
@@ -163,6 +166,87 @@ describe("Chat operations route", () => {
     expect(chat.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         toolChoice: "auto",
+      }),
+    );
+  });
+
+  it("runs a workflow with the values collected by a Guided Flow", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ ok: true, runId: "run-123" }, { status: 202 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      request("/run-workflow extract-pdf-exercises", {
+        flowData: {
+          courseId: "course-1",
+          lessonName: "Algebra",
+          pdfPath: "lesson.pdf",
+          stepResults: { ignored: true },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      handled: true,
+      command: "/run-workflow",
+      result: {
+        status: "completed",
+        runId: "run-123",
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        "https://dashboard.test/api/kody/company/workflows/extract-pdf-exercises/run",
+      ),
+      expect.objectContaining({
+        body: JSON.stringify({
+          input: {
+            courseId: "course-1",
+            lessonName: "Algebra",
+            pdfPath: "lesson.pdf",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("approves and starts a workflow from its Guided Flow challenge", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ approvalId: "approval-1" }, { status: 201 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ ok: true, runId: "run-456" }, { status: 202 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(
+      request("/run-workflow extract-pdf-exercises", {
+        actionId: "approve",
+        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+        previousResult: { approvalChallenge: "signed-challenge" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      handled: true,
+      result: { status: "completed", runId: "run-456" },
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toEqual(
+      new URL(
+        "https://dashboard.test/api/kody/company/workflows/extract-pdf-exercises/approve",
+      ),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          input: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+          approvalId: "approval-1",
+        }),
       }),
     );
   });

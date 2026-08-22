@@ -18,6 +18,10 @@ import {
 import { getOctokit, getOwner, getRepo } from "@kody-ade/base/github/core";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
+import {
+  definitionVersion,
+  type DefinitionBundle,
+} from "@kody-ade/backend/definition-bundle";
 
 const INSTRUCTIONS_FILE = "instructions.md";
 const CONTRACT_FILE = "contract.json";
@@ -59,13 +63,15 @@ export interface WriteCapabilityFolderFilesOptions {
   isUpdate?: boolean;
 }
 
-interface StoredCapability {
-  files: Record<string, string>;
-}
-
 interface RepoDoc {
   kind: string;
   doc: unknown;
+  updatedAt: string;
+}
+
+interface CapabilityDefinition {
+  slug: string;
+  bundle: DefinitionBundle;
   updatedAt: string;
 }
 
@@ -148,11 +154,29 @@ function summary(detail: CapabilityDetail): CapabilitySummary {
 }
 
 export async function listLocalCapabilityFiles(): Promise<CapabilitySummary[]> {
-  const rows = (await createBackendClient().query(api.repoDocs.listByPrefix, {
-    tenantId: tenantId(),
-    prefix: KIND_PREFIX,
-  })) as RepoDoc[];
-  return rows
+  const backend = createBackendClient();
+  const [definitions, legacyRows] = await Promise.all([
+    backend.query(api.definitions.listCurrent, {
+      tenantId: tenantId(),
+      kind: "capability",
+    }) as Promise<CapabilityDefinition[]>,
+    backend.query(api.repoDocs.listByPrefix, {
+      tenantId: tenantId(),
+      prefix: KIND_PREFIX,
+    }) as Promise<RepoDoc[]>,
+  ]);
+  const definitionRows = definitions.map((definition) => ({
+    kind: `${KIND_PREFIX}${definition.slug}`,
+    doc: { files: definition.bundle.files },
+    updatedAt: definition.updatedAt,
+  }));
+  const definitionSlugs = new Set(definitions.map(({ slug }) => slug));
+  return [
+    ...definitionRows,
+    ...legacyRows.filter(
+      (row) => !definitionSlugs.has(row.kind.slice(KIND_PREFIX.length)),
+    ),
+  ]
     .flatMap((row) => {
       const slug = row.kind.slice(KIND_PREFIX.length);
       const files = parseStoredFiles(row.doc);
@@ -217,10 +241,22 @@ export async function readCapabilityFile(
   _octokit?: Octokit,
 ): Promise<CapabilityDetail | null> {
   if (!isValidSlug(slug)) return null;
-  const row = (await createBackendClient().query(api.repoDocs.get, {
+  const backend = createBackendClient();
+  const definition = (await backend.query(api.definitions.getCurrent, {
     tenantId: tenantId(),
-    kind: `${KIND_PREFIX}${slug}`,
-  })) as RepoDoc | null;
+    kind: "capability",
+    slug,
+  })) as CapabilityDefinition | null;
+  const row = definition
+    ? {
+        kind: `${KIND_PREFIX}${slug}`,
+        doc: { files: definition.bundle.files },
+        updatedAt: definition.updatedAt,
+      }
+    : ((await backend.query(api.repoDocs.get, {
+        tenantId: tenantId(),
+        kind: `${KIND_PREFIX}${slug}`,
+      })) as RepoDoc | null);
   const files = row ? parseStoredFiles(row.doc) : null;
   return files
     ? detailFromFiles(slug, files, {
@@ -393,10 +429,7 @@ function parseCapabilityContract(raw: string): {
   ) {
     throw new Error('contract.json deliveryPolicy must be "checkpoint"');
   }
-  if (
-    value.deliveryPolicy === "checkpoint" &&
-    value.execution !== "agent"
-  ) {
+  if (value.deliveryPolicy === "checkpoint" && value.execution !== "agent") {
     throw new Error(
       'contract.json deliveryPolicy is supported only when execution is "agent"',
     );
@@ -409,6 +442,7 @@ function parseCapabilityContract(raw: string): {
   const requirementKeys = Object.keys(requirementsValue ?? {});
   const unsupportedRequirements = requirementKeys.filter(
     (key) =>
+      key !== "cms" &&
       key !== "browser" &&
       key !== "qaCredentials" &&
       key !== "githubTestToken" &&
@@ -420,6 +454,12 @@ function parseCapabilityContract(raw: string): {
     throw new Error(
       `contract.json requirements contains unsupported fields: ${unsupportedRequirements.join(", ")}`,
     );
+  }
+  if (
+    requirementsValue?.cms !== undefined &&
+    typeof requirementsValue.cms !== "boolean"
+  ) {
+    throw new Error("contract.json requirements.cms must be boolean");
   }
   if (
     requirementsValue?.browser !== undefined &&
@@ -482,6 +522,7 @@ function parseCapabilityContract(raw: string): {
   }
   const requirements = requirementsValue
     ? {
+        ...(requirementsValue.cms === true ? { cms: true } : {}),
         ...(requirementsValue.browser === true ? { browser: true } : {}),
         ...(requirementsValue.qaCredentials === true
           ? { qaCredentials: true }
@@ -660,9 +701,7 @@ function parseDeliveryPathAllowlist(raw: unknown): string[] | undefined {
     );
   }
   if (!raw.every((value) => typeof value === "string")) {
-    throw new Error(
-      "contract.json deliveryPathAllowlist must contain paths",
-    );
+    throw new Error("contract.json deliveryPathAllowlist must contain paths");
   }
   const paths = [...new Set(raw as string[])];
   for (const value of paths) {
@@ -700,12 +739,25 @@ export async function writeCapabilityFolderFiles(
   }
   assertSimpleCapabilityFolder(options.files);
   const now = new Date().toISOString();
-  const doc: StoredCapability = { files: { ...options.files } };
-  await createBackendClient().mutation(api.repoDocs.save, {
+  const bundle: DefinitionBundle = {
+    schemaVersion: 1,
+    files: { ...options.files },
+  };
+  const backend = createBackendClient();
+  await backend.mutation(api.definitions.publish, {
+    tenantId: tenantId(),
+    kind: "capability",
+    slug: options.slug,
+    version: definitionVersion(bundle),
+    bundle,
+    source: "local",
+    createdAt: now,
+  });
+  // Remove the pre-definition storage row after a successful publish. Reads
+  // still support it so existing capabilities migrate on their next save.
+  await backend.mutation(api.repoDocs.remove, {
     tenantId: tenantId(),
     kind: `${KIND_PREFIX}${options.slug}`,
-    doc,
-    updatedAt: now,
   });
 }
 
@@ -713,7 +765,13 @@ export async function deleteCapabilityFile(slug: string): Promise<void> {
   if (!isValidSlug(slug)) {
     throw new Error(`Invalid capability slug: "${slug}".`);
   }
-  await createBackendClient().mutation(api.repoDocs.remove, {
+  const backend = createBackendClient();
+  await backend.mutation(api.definitions.retire, {
+    tenantId: tenantId(),
+    kind: "capability",
+    slug,
+  });
+  await backend.mutation(api.repoDocs.remove, {
     tenantId: tenantId(),
     kind: `${KIND_PREFIX}${slug}`,
   });

@@ -6,6 +6,7 @@ import {
   advanceGuidedFlow,
   createGuidedFlowInstance,
   type GuidedFlowDefinition,
+  type GuidedFlowViewStepDefinition,
 } from "../../src/dashboard/lib/guided-flows/controller";
 import { getGuidedFlowDefinition } from "../../src/dashboard/lib/guided-flows/registry";
 
@@ -144,6 +145,48 @@ describe("GuidedFlow presenter navigation", () => {
     });
   });
 
+  it("offers approval when a workflow command returns an approval challenge", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "workflow-approval",
+      version: 1,
+      title: "Run workflow",
+      steps: [
+        {
+          id: "run-workflow",
+          type: "command",
+          title: "Generate drafts",
+          explanation: "Approve the workflow to generate drafts.",
+          command: "/run-workflow extract-pdf-exercises",
+          actions: [
+            { id: "run", target: { type: "stay" } },
+            { id: "continue", target: { type: "complete" } },
+          ],
+        },
+      ],
+    };
+    const warning = advanceGuidedFlow(
+      definition,
+      createGuidedFlowInstance(definition, "instance-approval"),
+      {
+        actionId: "run",
+        result: {
+          status: "needs_attention",
+          summary: "The workflow is ready.",
+          approvalChallenge: "challenge",
+        },
+      },
+    );
+
+    expect(presentGuidedFlow(definition, warning).view).toMatchObject({
+      data: {
+        actions: [
+          { id: "approve", label: "Approve and run" },
+          { id: "run", label: "Run again" },
+        ],
+      },
+    });
+  });
+
   it("navigates to the page owned by the active step", () => {
     const started = createGuidedFlowInstance(DEFINITION, "instance-1");
     const atConfigure = advanceGuidedFlow(DEFINITION, started, {
@@ -164,7 +207,7 @@ describe("GuidedFlow presenter navigation", () => {
       ...DEFINITION,
       steps: [
         {
-          ...DEFINITION.steps[0],
+          ...(DEFINITION.steps[0] as GuidedFlowViewStepDefinition),
           routeId: "files",
           filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
         },

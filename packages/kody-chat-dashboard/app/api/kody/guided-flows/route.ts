@@ -234,17 +234,17 @@ async function userScopeForInstance(
 ): Promise<GuidedFlowRequestScope | null> {
   const scope = await userScope(req);
   if (scope instanceof NextResponse) return null;
-  let instanceRow = (await getConvexClient().query(
-    backendApi.guidedFlows.get,
-    {
-      tenantId: scope.tenantId,
-      actorId: scope.actorId,
-      instanceId,
-    },
-  )) as GuidedFlowRow | null;
+  let instanceRow = (await getConvexClient().query(backendApi.guidedFlows.get, {
+    tenantId: scope.tenantId,
+    actorId: scope.actorId,
+    instanceId,
+  })) as GuidedFlowRow | null;
   if (!instanceRow && getUserRequestAuth(req)) {
     const legacy = await legacyUserScope(req);
-    if (!(legacy instanceof NextResponse) && legacy.tenantId !== scope.tenantId) {
+    if (
+      !(legacy instanceof NextResponse) &&
+      legacy.tenantId !== scope.tenantId
+    ) {
       instanceRow = (await getConvexClient().query(backendApi.guidedFlows.get, {
         tenantId: legacy.tenantId,
         actorId: legacy.actorId,
@@ -622,11 +622,23 @@ export async function POST(req: NextRequest) {
     if (parsed.data.action === "submit") {
       const activeStep = getGuidedFlowStep(definition, current);
       if (isCommandGuidedFlowStep(activeStep)) {
-        if (parsed.data.actionId === "run") {
+        if (
+          parsed.data.actionId === "run" ||
+          parsed.data.actionId === "approve"
+        ) {
           submittedResult = await executeGuidedFlowCommand(
             req,
             activeStep.command,
             parsed.data.mutationId,
+            {
+              flowData: current.data,
+              previousResult: guidedFlowStepResult(
+                definition,
+                current,
+                activeStep.id,
+              ),
+              actionId: parsed.data.actionId,
+            },
           );
         } else if (parsed.data.actionId === "continue") {
           if (
@@ -638,6 +650,12 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    const runtimeActionId =
+      parsed.data.action === "submit" &&
+      isCommandGuidedFlowStep(getGuidedFlowStep(definition, current)) &&
+      parsed.data.actionId === "approve"
+        ? "run"
+        : parsed.data.actionId;
     let runtime;
     if (parsed.data.action === "control") {
       if (!parsed.data.controlId) {
@@ -657,7 +675,7 @@ export async function POST(req: NextRequest) {
         definition,
         instance: current,
         action: parsed.data.action,
-        actionId: parsed.data.actionId,
+        actionId: runtimeActionId,
         result: submittedResult,
         resolveDefinition: (flowId, flowVersion) =>
           guidedFlowDefinitionForReference(

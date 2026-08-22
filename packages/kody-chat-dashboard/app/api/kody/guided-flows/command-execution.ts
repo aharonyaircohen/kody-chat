@@ -10,16 +10,26 @@ export class GuidedFlowCommandError extends Error {
   }
 }
 
+export interface GuidedFlowCommandContext {
+  readonly flowData?: Readonly<Record<string, unknown>>;
+  readonly previousResult?: Readonly<Record<string, unknown>>;
+  readonly actionId?: string;
+}
+
 export async function executeGuidedFlowCommand(
   req: NextRequest,
   command: string,
   mutationId: string,
+  context?: GuidedFlowCommandContext,
 ): Promise<Readonly<Record<string, unknown>>> {
   const headers = guidedFlowInternalJsonHeaders(req, mutationId);
   const response = await fetch(new URL("/api/kody/chat/operations", req.url), {
     method: "POST",
     headers,
-    body: JSON.stringify({ input: command }),
+    body: JSON.stringify({
+      input: command,
+      ...(context ? { context } : {}),
+    }),
   });
   const payload = (await response.json().catch(() => ({}))) as Record<
     string,
@@ -47,5 +57,12 @@ export async function executeGuidedFlowCommand(
       typeof result.summary === "string"
         ? result.summary
         : "Command completed.",
+    ...(typeof result.approvalChallenge === "string"
+      ? { approvalChallenge: result.approvalChallenge }
+      : {}),
+    ...(typeof result.approvalExpiresAt === "string"
+      ? { approvalExpiresAt: result.approvalExpiresAt }
+      : {}),
+    ...(typeof result.runId === "string" ? { runId: result.runId } : {}),
   };
 }

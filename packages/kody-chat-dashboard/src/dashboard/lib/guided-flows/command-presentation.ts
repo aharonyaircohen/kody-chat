@@ -18,6 +18,8 @@ export function buildGuidedFlowCommandView(
   const result = guidedFlowStepResult(definition, instance, step.id);
   const completed = result?.status === "completed";
   const needsAttention = result?.status === "needs_attention";
+  const hasApprovalChallenge =
+    needsAttention && typeof result?.approvalChallenge === "string";
   const view = buildRenderedViewDirective({
     id: `guided-flow-${instance.instanceId}-${instance.revision}`,
     definition: renderer,
@@ -53,11 +55,23 @@ export function buildGuidedFlowCommandView(
           ]
         : needsAttention
           ? [
+              ...(hasApprovalChallenge
+                ? [
+                    {
+                      id: "approve",
+                      label: "Approve and run",
+                      response: "approve",
+                      variant: "primary" as const,
+                    },
+                  ]
+                : []),
               {
                 id: "run",
                 label: "Run again",
                 response: "run",
-                variant: "primary",
+                variant: hasApprovalChallenge
+                  ? ("secondary" as const)
+                  : ("primary" as const),
               },
             ]
           : [
