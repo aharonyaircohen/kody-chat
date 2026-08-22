@@ -379,3 +379,29 @@ For every finding, append a dated entry with:
 - Product run: PR #16 merged as
   `57b955a3ee644463121d590e5db4247359d83d11`; lifecycle run `32589952311`
   closed issue #15 and finalized both issue and PR as `kody:done`.
+
+## 2026-08-22 — Continue ignored later activity in an existing course
+
+- Prompt: continue auditing the safe single-learner journey while the
+  learner-owned message migration remains approval-gated.
+- Actual: the dashboard chose Continue from `Progress.updatedAt`, but
+  `sendTurn` did not update an existing unfinished progress row. After activity
+  in A, then B, then A again, Continue could remain on B.
+- Expected: every successful chat turn refreshes the current learner's course
+  activity; rejected turns do not change it.
+- Classification: surfaced TDR activity-tracking defect plus Kody proof-quality
+  mistakes; no generic Engine defect was found.
+- Decision: automatic clean correction. It reuses the existing progress
+  timestamp and transaction with no schema, UI, or ownership change.
+- Change: Kody updates an existing unfinished `Progress.updatedAt` after a
+  successful turn. The operator replaced duplicated fixtures, corrected a
+  rejection test that inspected the wrong course, and fixed the browser proof
+  to wait for the persisted tutor response rather than an optimistic learner
+  bubble.
+- Proof: local typecheck, lint, and 73 unit/integration tests passed. The first
+  browser run exposed the optimistic-response race; the corrected suite passed
+  all 11 Playwright journeys. PR CI and latest post-merge `main` CI run
+  `32590821527` passed verification and all 11 journeys.
+- Product run: PR #18 merged as
+  `dba5af52491c372126a6ae6edf4f37833c42f633`; lifecycle run `32590820105`
+  closed issue #17 and finalized both issue and PR as `kody:done`.
