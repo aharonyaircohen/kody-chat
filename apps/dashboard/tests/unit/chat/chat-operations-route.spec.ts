@@ -226,8 +226,20 @@ describe("Chat operations route", () => {
     const response = await POST(
       request("/run-workflow extract-pdf-exercises", {
         actionId: "approve",
-        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
-        previousResult: { approvalChallenge: "signed-challenge" },
+        flowData: {
+          lessonName: "Algebra",
+          pdfPath: "lesson.pdf",
+          status: "needs_attention",
+          summary: "Approve this workflow.",
+          approvalChallenge: "signed-challenge",
+        },
+        previousResult: {
+          approvalChallenge: "signed-challenge",
+          workflowInput: {
+            lessonName: "Algebra",
+            pdfPath: "lesson.pdf",
+          },
+        },
       }),
     );
 
@@ -241,6 +253,14 @@ describe("Chat operations route", () => {
         "https://dashboard.test/api/kody/company/workflows/extract-pdf-exercises/approve",
       ),
     );
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          approvalToken: "signed-challenge",
+          input: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+        }),
+      }),
+    );
     expect(fetchMock.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
         body: JSON.stringify({
@@ -249,6 +269,35 @@ describe("Chat operations route", () => {
         }),
       }),
     );
+  });
+
+  it("keeps the original workflow input with its approval challenge", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: "approval_required",
+            approvalToken: "signed-challenge",
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const response = await POST(
+      request("/run-workflow extract-pdf-exercises", {
+        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+      }),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        status: "needs_attention",
+        approvalChallenge: "signed-challenge",
+        workflowInput: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+      },
+    });
   });
 
   it("keeps onboarding blocked when the provider cannot route tool calls", async () => {

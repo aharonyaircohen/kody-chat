@@ -99,6 +99,17 @@ function workflowInputFromFlowData(
   );
 }
 
+function workflowInputForApproval(
+  previousResult: Readonly<Record<string, unknown>> | undefined,
+): Record<string, unknown> | null {
+  const workflowInput = previousResult?.workflowInput;
+  return workflowInput &&
+    typeof workflowInput === "object" &&
+    !Array.isArray(workflowInput)
+    ? (workflowInput as Record<string, unknown>)
+    : null;
+}
+
 async function workflowRequest(
   req: NextRequest,
   workflowId: string,
@@ -136,7 +147,11 @@ async function runWorkflowFromGuidedFlow(
     throw new ChatOperationError("missing_auth", 401);
   }
 
-  const input = workflowInputFromFlowData(context?.flowData);
+  const input =
+    context?.actionId === "approve"
+      ? (workflowInputForApproval(context.previousResult) ??
+        workflowInputFromFlowData(context.flowData))
+      : workflowInputFromFlowData(context?.flowData);
   let runBody: Record<string, unknown> = { input };
   if (context?.actionId === "approve") {
     const approvalChallenge = context.previousResult?.approvalChallenge;
@@ -183,6 +198,7 @@ async function runWorkflowFromGuidedFlow(
       status: "needs_attention" as const,
       summary: "The workflow is ready. Approve it to start generating drafts.",
       approvalChallenge: payload.approvalToken,
+      workflowInput: input,
       ...(typeof payload.approvalExpiresAt === "string"
         ? { approvalExpiresAt: payload.approvalExpiresAt }
         : {}),
