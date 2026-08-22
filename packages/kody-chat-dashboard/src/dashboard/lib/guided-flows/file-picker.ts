@@ -4,6 +4,7 @@ export interface GuidedFlowFilePickerContext {
   readonly revision: number;
   readonly resultField: string;
   readonly extensions?: readonly string[];
+  readonly returnHref?: string;
 }
 
 export interface GuidedFlowFileSelection extends GuidedFlowFilePickerContext {
@@ -13,6 +14,25 @@ export interface GuidedFlowFileSelection extends GuidedFlowFilePickerContext {
 
 const PICKER_PARAM = "guidedFlowPicker";
 const STORAGE_PREFIX = "kody:guided-flow:file-picker:";
+
+function safeReturnHref(value: string | null | undefined): string | undefined {
+  const href = value?.trim();
+  return href && href.startsWith("/") && !href.startsWith("//")
+    ? href
+    : undefined;
+}
+
+export function addGuidedFlowFilePickerReturnHref(
+  href: string,
+  returnHref: string,
+): string {
+  const safeHref = safeReturnHref(returnHref);
+  if (!safeHref) return href;
+  const url = new URL(href, "https://kody.local");
+  if (url.searchParams.get(PICKER_PARAM) !== "1") return href;
+  url.searchParams.set("returnHref", safeHref);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 function normalizedExtensions(extensions?: readonly string[]): string[] {
   return (extensions ?? [])
@@ -37,6 +57,9 @@ export function buildGuidedFlowFilePickerHref(
   if (extensions.length > 0) {
     url.searchParams.set("extensions", extensions.join(","));
   }
+  if (picker.returnHref) {
+    url.searchParams.set("returnHref", picker.returnHref);
+  }
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -60,12 +83,14 @@ export function parseGuidedFlowFilePicker(
   const extensions = normalizedExtensions(
     searchParams.get("extensions")?.split(","),
   );
+  const returnHref = safeReturnHref(searchParams.get("returnHref"));
   return {
     instanceId,
     stepId,
     revision,
     resultField,
     ...(extensions.length > 0 ? { extensions } : {}),
+    ...(returnHref ? { returnHref } : {}),
   };
 }
 

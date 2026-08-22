@@ -88,7 +88,11 @@ export function DashboardFilesPage({
                     context.selectedPath.split("/").pop() ??
                     context.selectedPath,
                 });
-                window.history.back();
+                if (filePicker.returnHref) {
+                  window.location.assign(filePicker.returnHref);
+                } else {
+                  window.history.back();
+                }
               }}
             >
               Use this file

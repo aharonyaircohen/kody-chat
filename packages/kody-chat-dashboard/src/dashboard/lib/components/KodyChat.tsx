@@ -109,6 +109,7 @@ import {
 } from "../guided-flows/chat-launch";
 import { readGuidedFlowOpenPayload } from "../guided-flows/open-response";
 import { guidedFlowChangeForViewAction } from "../guided-flows/chat-action";
+import { addGuidedFlowFilePickerReturnHref } from "../guided-flows/file-picker";
 import { PROJECT_ASSESSMENT_FLOW_ID } from "../guided-flows/builtins";
 import {
   buildWidgetPreviewView,
@@ -793,7 +794,11 @@ export function KodyChat({
   );
   const runDashboardNavigateFromDirective = useCallback(
     (directive: DashboardNavigateDirective) => {
-      const href = auth ? repoScopedHref(auth, directive.href) : directive.href;
+      const targetHref = addGuidedFlowFilePickerReturnHref(
+        directive.href,
+        `${window.location.pathname}${window.location.search}${window.location.hash}`,
+      );
+      const href = auth ? repoScopedHref(auth, targetHref) : targetHref;
       router.push(href);
       toast.success(`Opened ${directive.label}`);
     },
