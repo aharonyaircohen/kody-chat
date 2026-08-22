@@ -47,6 +47,8 @@ import {
 } from "@kody-ade/base/engine/config";
 import { KODY_OPENROUTER_FREE_CHAT_MODEL } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import { KODY_ENGINE_WORKFLOW_PATH } from "./paths";
+import { readVault } from "@kody-ade/base/vault/store";
+import { upsertSecret } from "@kody-ade/base/vault/mutations";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
@@ -66,6 +68,8 @@ export interface InstallEngineInput {
    * Default false — when the file is current, no commit happens.
    */
   force?: boolean;
+  resolvePersonalSecret?: (name: string) => Promise<string | null>;
+  personalModels?: ChatModel[];
 }
 
 export type WorkflowAction = "created" | "updated" | "unchanged";
@@ -88,6 +92,7 @@ export interface InstallEngineResult {
   runtimeSecrets: {
     source: "kody-vault";
     authentication: "github-oidc";
+    provisioned: string[];
   };
   nextSteps: string[];
   summary: string;
@@ -238,7 +243,16 @@ async function readAutomaticModel(
 export async function installEngine(
   input: InstallEngineInput,
 ): Promise<InstallEngineResult | InstallEngineFailure> {
-  const { octokit, owner, repo, token, hookUrl, force } = input;
+  const {
+    octokit,
+    owner,
+    repo,
+    token,
+    hookUrl,
+    force,
+    resolvePersonalSecret,
+    personalModels = [],
+  } = input;
 
   try {
     const existing = await readExisting(octokit, owner, repo);
@@ -294,7 +308,9 @@ export async function installEngine(
     // the engine actually reads), preserving any hand-authored config. Always
     // writes a baseline (github + agent when available) even when no model is
     // configured yet, so the file exists for the engine to extend.
-    const models = await readChatModels(octokit, owner, repo);
+    const repositoryModels = await readChatModels(octokit, owner, repo);
+    const models =
+      repositoryModels.length > 0 ? repositoryModels : personalModels;
     const automatic = await readAutomaticModel(owner, repo);
     const engineModel = pickEngineDefaultModel(models);
     const { config: existingConfig } = await getEngineConfig(
@@ -314,6 +330,31 @@ export async function installEngine(
             : engineModelSpec(KODY_OPENROUTER_FREE_CHAT_MODEL),
       automaticModels: engineAutomaticModelConfigs(models),
     });
+
+    const requiredModelSecrets = [
+      ...(engineModel?.apiKeySecret ? [engineModel.apiKeySecret] : []),
+      ...models
+        .filter((model) => automatic.engineDefault && model.automatic === true)
+        .map((model) => model.apiKeySecret),
+    ].filter((name, index, names) => name && names.indexOf(name) === index);
+    const provisionedRuntimeSecrets: string[] = [];
+    if (resolvePersonalSecret && requiredModelSecrets.length > 0) {
+      const { doc } = await readVault(octokit, owner, repo, { force: true });
+      for (const name of requiredModelSecrets) {
+        if (doc.secrets[name]?.value) continue;
+        const value = await resolvePersonalSecret(name);
+        if (!value) continue;
+        await upsertSecret({
+          octokit,
+          owner,
+          repo,
+          name,
+          value,
+          actorLogin: "kody-init",
+        });
+        provisionedRuntimeSecrets.push(name);
+      }
+    }
 
     const kodyTokenResult = await setRepoActionsSecret(
       octokit,
@@ -421,6 +462,7 @@ export async function installEngine(
       runtimeSecrets: {
         source: "kody-vault",
         authentication: "github-oidc",
+        provisioned: provisionedRuntimeSecrets,
       },
       nextSteps,
       summary,

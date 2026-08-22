@@ -239,6 +239,16 @@ Dashboard verifies that identity, decrypts the matching repository vault on
 the server, and returns only the requested secret. `KODY_MASTER_KEY` never
 leaves Dashboard.
 
+**Which credentials power Chat and Engine?**
+
+Chat resolves a credential from the active repository first, then from the
+signed-in user's Personal Credentials. GitHub Engine runs use only the
+repository vault because a workflow has repository identity, not a Kody user
+session. During `/init`, Kody copies any missing credential required by the
+selected Engine model from the signed-in user's Personal Credentials into the
+repository vault. An existing Repository Secret always wins and is never
+overwritten by this provisioning step.
+
 **Can I see the values after I save them?**
 
 No. The `/secrets` page shows names and last-modified timestamps

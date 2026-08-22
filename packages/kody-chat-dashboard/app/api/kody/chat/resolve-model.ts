@@ -42,7 +42,26 @@ import {
   observeLanguageModelCalls,
   type ModelCallEvent,
 } from "@kody-ade/kody-chat-dashboard/core/model-call-observer";
-import { getChatModelSettingsProvider } from "./model-settings-provider";
+import {
+  getChatModelSettingsProvider,
+  type ChatModelSettingsProvider,
+} from "./model-settings-provider";
+
+async function resolveModelCredential(
+  req: NextRequest,
+  name: string,
+  personalProvider: ChatModelSettingsProvider | null,
+): Promise<string | null> {
+  if (getRequestAuth(req)) {
+    const repositoryValue = await getSecret(name, { req, vaultOnly: true });
+    if (repositoryValue) return repositoryValue;
+  }
+  const personalValue = personalProvider
+    ? await personalProvider.getCredential(req, name)
+    : null;
+  if (personalValue) return personalValue;
+  return getSecret(name, { req });
+}
 
 export type ResolvedChatModel = {
   model: LanguageModel;
@@ -236,9 +255,11 @@ export async function resolveChatModel(
       const resolved = options.preferVision
         ? pickVisionModel(candidate, availableModels)
         : candidate;
-      const apiKey = requestSettingsProvider
-        ? await requestSettingsProvider.getCredential(req, resolved.apiKeySecret)
-        : await getSecret(resolved.apiKeySecret, { req });
+      const apiKey = await resolveModelCredential(
+        req,
+        resolved.apiKeySecret,
+        requestSettingsProvider,
+      );
       if (!apiKey) {
         return {
           error: NextResponse.json(
@@ -326,9 +347,11 @@ export async function resolveChatModel(
     ? pickVisionModel(selectedModel, availableModels)
     : selectedModel;
 
-  const apiKey = requestSettingsProvider
-    ? await requestSettingsProvider.getCredential(req, resolvedModel.apiKeySecret)
-    : await getSecret(resolvedModel.apiKeySecret, { req });
+  const apiKey = await resolveModelCredential(
+    req,
+    resolvedModel.apiKeySecret,
+    requestSettingsProvider,
+  );
   if (!apiKey) {
     return {
       error: NextResponse.json(

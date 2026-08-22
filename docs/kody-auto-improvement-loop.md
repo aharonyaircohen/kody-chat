@@ -57,3 +57,23 @@ For every finding, append a dated entry with:
   checks have not run.
 - Product run: the incorrect flow was cancelled and the TDR issue execution was
   started separately; final product verification remains pending.
+
+## 2026-08-22 — Personal model credential unavailable to Engine
+
+- Prompt: use MiniMax-M3 with High effort to build TDR after the credential was
+  already stored under Personal Credentials.
+- Actual: Chat could use the personal credential, but the issue-triggered Engine
+  read only the TDR repository vault and failed authentication.
+- Expected: Chat should prefer a repository credential and fall back to the
+  signed-in user's personal credential. Engine should remain repository-only;
+  `/init` should provision its selected personal model credential into that
+  repository without overwriting an existing Repository Secret.
+- Classification: Dashboard/Engine onboarding boundary and documentation gap.
+- Decision: approved security-boundary change. Personal credentials are never
+  exposed directly to an issue-triggered workflow.
+- Change: shared Chat resolution, `/init` credential provisioning, both Secrets
+  page explanations, and the vault documentation now describe one consistent
+  precedence model.
+- Proof: focused Chat and Engine regressions pass; Dashboard typecheck passes;
+  both explanations are visible on the mounted local Personal Credentials and
+  Repository Secrets pages. Deployment and real Engine rerun remain pending.

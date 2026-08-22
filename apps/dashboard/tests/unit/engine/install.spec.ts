@@ -16,6 +16,7 @@ const convex = vi.hoisted(() => ({
 }));
 const vault = vi.hoisted(() => ({
   read: vi.fn(),
+  upsert: vi.fn(),
 }));
 const webhooks = vi.hoisted(() => ({
   ensureWebhook: vi.fn(),
@@ -29,6 +30,9 @@ vi.mock("convex/browser", () => ({
 }));
 vi.mock("@kody-ade/base/vault/store", () => ({
   readVault: vault.read,
+}));
+vi.mock("@kody-ade/base/vault/mutations", () => ({
+  upsertSecret: vault.upsert,
 }));
 vi.mock("@dashboard/lib/webhooks/register", () => webhooks);
 
@@ -79,6 +83,7 @@ beforeEach(() => {
     doc: { version: 1, secrets: {} },
     sha: null,
   });
+  vault.upsert.mockResolvedValue({ secrets: [] });
   webhooks.ensureWebhook.mockResolvedValue({
     ok: true,
     created: false,
@@ -159,6 +164,85 @@ function captureFileWrites(octokit: ReturnType<typeof createMockOctokit>) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("installEngine", () => {
+  it("provisions a missing Engine model credential from Personal Credentials", async () => {
+    mockVariables([
+      {
+        id: "minimax/MiniMax-M3",
+        label: "MiniMax",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+    const resolvePersonalSecret = vi.fn(async () => "personal-key");
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      resolvePersonalSecret,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(vault.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "example",
+        repo: "my-repo",
+        name: "MINIMAX_API_KEY",
+        value: "personal-key",
+      }),
+    );
+    expect(result.runtimeSecrets.provisioned).toEqual(["MINIMAX_API_KEY"]);
+  });
+
+  it("does not overwrite an existing Repository Secret during init", async () => {
+    mockVariables([
+      {
+        id: "minimax/MiniMax-M3",
+        label: "MiniMax",
+        provider: "minimax",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+    vault.read.mockResolvedValue({
+      doc: {
+        version: 1,
+        secrets: {
+          MINIMAX_API_KEY: {
+            value: "repository-key",
+            updatedAt: "2026-08-22T00:00:00.000Z",
+          },
+        },
+      },
+      sha: null,
+    });
+    const resolvePersonalSecret = vi.fn(async () => "personal-key");
+
+    const result = await installEngine({
+      octokit: createMockOctokit(),
+      owner: "example",
+      repo: "my-repo",
+      token: "ghp_mocktoken",
+      hookUrl: "https://dashboard.example.com/api/webhooks/github",
+      resolvePersonalSecret,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(resolvePersonalSecret).not.toHaveBeenCalled();
+    expect(vault.upsert).not.toHaveBeenCalled();
+  });
   it("uses the existing workflow when the remote template is unavailable", async () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("template host offline"));
     const octokit = createMockOctokit();

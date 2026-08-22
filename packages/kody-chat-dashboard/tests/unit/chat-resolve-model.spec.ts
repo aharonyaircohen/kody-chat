@@ -112,6 +112,40 @@ describe("resolveChatModel", () => {
     );
   });
 
+  it("prefers a repository model credential over the personal credential", async () => {
+    vi.mocked(getSecret).mockImplementation(async (_name, options) =>
+      options.vaultOnly ? "repository-provider-key" : "environment-key",
+    );
+    const personalCredential = vi.fn(async () => "personal-provider-key");
+    setChatModelSettingsProvider({
+      load: vi.fn(async () => ({
+        models: [
+          {
+            id: "minimax/MiniMax-M3",
+            label: "Personal MiniMax",
+            provider: "minimax" as const,
+            protocol: "openai" as const,
+            baseURL: "https://api.minimax.io/v1",
+            modelName: "MiniMax-M3",
+            apiKeySecret: "MINIMAX_API_KEY",
+            enabled: true,
+            default: true,
+          },
+        ],
+        automatic: { default: false, engineDefault: false },
+      })),
+      getCredential: personalCredential,
+    });
+
+    const result = await resolveChatModel(request());
+
+    expect("error" in result).toBe(false);
+    expect(personalCredential).not.toHaveBeenCalled();
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "repository-provider-key" }),
+    );
+  });
+
   it("uses the embedded OpenRouter model when LLM_MODELS is empty", async () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",
@@ -135,6 +169,7 @@ describe("resolveChatModel", () => {
     });
     expect(getSecret).toHaveBeenCalledWith("OPENROUTER_API_KEY", {
       req: expect.any(NextRequest),
+      vaultOnly: true,
     });
     expect(createOpenAICompatible).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -375,6 +410,7 @@ describe("resolveChatModel", () => {
     });
     expect(getSecret).toHaveBeenCalledWith("MINIMAX_M3_API_KEY", {
       req: expect.any(NextRequest),
+      vaultOnly: true,
     });
   });
 

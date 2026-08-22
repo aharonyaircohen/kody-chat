@@ -21,6 +21,40 @@ async function authenticatedUserId(): Promise<string | null> {
   return actor instanceof NextResponse ? null : actor.id;
 }
 
+export async function readPersonalCredential(
+  name: string,
+): Promise<string | null> {
+  const userKey = await authenticatedUserId();
+  if (!userKey) return null;
+  const stored = await getConvexClient().query(backendApi.userCredentials.get, {
+    userKey,
+    name,
+  });
+  return stored?.encryptedValue ? decrypt(stored.encryptedValue) : null;
+}
+
+export async function readPersonalModelSettings(): Promise<{
+  models: ReturnType<typeof ChatModelsSchema.parse>;
+  automatic: ReturnType<typeof AutomaticModelSchema.parse>;
+} | null> {
+  const userKey = await authenticatedUserId();
+  if (!userKey) return null;
+  const stored = await getConvexClient().query(backendApi.userPreferences.get, {
+    namespace: MODELS_NAMESPACE,
+    userKey,
+  });
+  const data = stored?.data as
+    { models?: unknown; automatic?: unknown } | undefined;
+  const models = ChatModelsSchema.safeParse(data?.models);
+  const automatic = AutomaticModelSchema.safeParse(data?.automatic);
+  return {
+    models: models.success ? models.data : [],
+    automatic: automatic.success
+      ? { ...automatic.data, engineDefault: false }
+      : AutomaticModelSchema.parse({}),
+  };
+}
+
 setChatRequestContextProvider({
   async resolveUser() {
     const actor = await requireKodyUser();
@@ -31,33 +65,10 @@ setChatRequestContextProvider({
 
 setChatModelSettingsProvider({
   async load() {
-    const userKey = await authenticatedUserId();
-    if (!userKey) return null;
-    const stored = await getConvexClient().query(backendApi.userPreferences.get, {
-      namespace: MODELS_NAMESPACE,
-      userKey,
-    });
-    const data = stored?.data as
-      | { models?: unknown; automatic?: unknown }
-      | undefined;
-    const models = ChatModelsSchema.safeParse(data?.models);
-    const automatic = AutomaticModelSchema.safeParse(data?.automatic);
-    return {
-      models: models.success ? models.data : [],
-      automatic: automatic.success
-        ? { ...automatic.data, engineDefault: false }
-        : AutomaticModelSchema.parse({}),
-    };
+    return readPersonalModelSettings();
   },
 
   async getCredential(_request, name) {
-    const userKey = await authenticatedUserId();
-    if (!userKey) return null;
-    const stored = await getConvexClient().query(backendApi.userCredentials.get, {
-      userKey,
-      name,
-    });
-    if (stored?.encryptedValue) return decrypt(stored.encryptedValue);
-    return process.env[name] ?? null;
+    return (await readPersonalCredential(name)) ?? process.env[name] ?? null;
   },
 });

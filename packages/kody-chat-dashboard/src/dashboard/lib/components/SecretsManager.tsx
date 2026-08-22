@@ -287,6 +287,13 @@ function SecretsManagerInner() {
       }
     >
       <div className="space-y-3">
+        <Card className="border-white/[0.08] bg-white/[0.02]">
+          <CardContent className="p-4 text-sm text-white/60">
+            {repositoryScoped
+              ? "Repository Secrets are used first by Chat and are the credentials available directly to GitHub Engine runs. During /init, Kody copies a missing model credential from your Personal Credentials into this repository."
+              : "Personal Credentials work in Chat across repositories. During /init, Kody securely copies the selected model credential into that repository so GitHub Engine runs can use it without access to your personal vault."}
+          </CardContent>
+        </Card>
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading secrets…

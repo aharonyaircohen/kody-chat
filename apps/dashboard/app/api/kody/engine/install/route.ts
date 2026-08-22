@@ -20,6 +20,10 @@ import { getRequestAuth } from "@kody-ade/base/auth";
 import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { installEngine } from "@dashboard/lib/engine/install";
+import {
+  readPersonalCredential,
+  readPersonalModelSettings,
+} from "@dashboard/lib/chat/personal-model-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +51,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const octokit = createUserOctokit(auth.token);
+  const personalSettings = await readPersonalModelSettings();
   const result = await installEngine({
     octokit,
     owner: auth.owner,
@@ -54,6 +59,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     token: auth.token,
     hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
     force: body.force === true,
+    resolvePersonalSecret: readPersonalCredential,
+    personalModels: personalSettings?.models ?? [],
   });
 
   if (!result.ok) {
