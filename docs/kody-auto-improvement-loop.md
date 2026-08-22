@@ -405,3 +405,29 @@ For every finding, append a dated entry with:
 - Product run: PR #18 merged as
   `dba5af52491c372126a6ae6edf4f37833c42f633`; lifecycle run `32590820105`
   closed issue #17 and finalized both issue and PR as `kody:done`.
+
+## 2026-08-22 — Cumulative proof became stale and overstated behavior
+
+- Prompt: keep improving documentation while auditing the safe current product
+  boundary.
+- Actual: the proof index still called merged issues #9 and #11 “this PR,”
+  omitted issues #15 and #17, and README contained duplicate journey numbering.
+  Kody's first correction then invented re-seeding behavior, the wrong `409`
+  response meaning, and inaccurate regression counts.
+- Expected: cumulative proof names real merged PRs, cites existing CI runs, and
+  describes only behavior and tests confirmed by source and run evidence.
+- Classification: TDR documentation gap plus Kody proof-accuracy mistake; no
+  generic Engine defect was found.
+- Decision: automatic documentation correction. It changes no runtime,
+  architecture, storage, permissions, or product meaning.
+- Change: README numbering is sequential; the proof index names PRs #10, #12,
+  #16, and #18; concise sections for completed-transcript stability and A → B →
+  A activity cite their real post-merge runs. The operator removed invented
+  behavior and corrected API and test descriptions.
+- Proof: only `README.md` and `docs/proof.md` changed. Local typecheck, lint, and
+  73 tests passed; PR CI and latest post-merge `main` CI run `32591265688`
+  passed verification and all 11 Playwright journeys. No mounted or deployed UI
+  check was needed because runtime behavior did not change.
+- Product run: PR #20 merged as
+  `058be8bab76b66d97ef5d986d0a794e6a4d81d1f`; lifecycle run `32591264544`
+  closed issue #19 and finalized both issue and PR as `kody:done`.
