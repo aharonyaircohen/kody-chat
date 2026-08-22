@@ -60,4 +60,13 @@ describe("root dashboard layout (e2e gate regression)", () => {
     const body = bodyMatch ? bodyMatch[1] : "";
     expect(body).not.toMatch(/\bfetch\s*\(/);
   });
+
+  it("does not import next/headers in the root layout", () => {
+    // The same prerender crash class as `getKodyAuthToken` — anything that
+    // forces the layout to depend on a request-time resource blocks the
+    // build when the upstream endpoint is unreachable. Block the import
+    // outright so a future "just read the auth cookie" refactor can't
+    // silently re-couple identity into the root layout.
+    expect(LAYOUT_SOURCE).not.toMatch(/from\s+["']next\/headers["']/);
+  });
 });
