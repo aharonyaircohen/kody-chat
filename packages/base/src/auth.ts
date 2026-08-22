@@ -178,6 +178,21 @@ const WRITE_REPOSITORY_PERMISSIONS = new Set([
   "admin",
 ]);
 
+function repositoryPermission(permissions: {
+  admin?: boolean;
+  maintain?: boolean;
+  push?: boolean;
+  triage?: boolean;
+  pull?: boolean;
+} | null | undefined): string {
+  if (permissions?.admin) return "admin";
+  if (permissions?.maintain) return "maintain";
+  if (permissions?.push) return "push";
+  if (permissions?.triage) return "triage";
+  if (permissions?.pull) return "pull";
+  return "none";
+}
+
 type GithubVerificationStage = "identity" | "permission";
 
 function repositoryGithubErrorStatus(error: unknown): number | null {
@@ -263,20 +278,19 @@ async function verifyRepoAccess(
   }
 
   try {
-    const { data: access } =
-      await octokit.rest.repos.getCollaboratorPermissionLevel({
-        owner: auth.owner,
-        repo: auth.repo,
-        username: actor.login,
-      });
-    if (!allowedPermissions.has(access.permission)) {
+    const { data: repository } = await octokit.rest.repos.get({
+      owner: auth.owner,
+      repo: auth.repo,
+    });
+    const permission = repositoryPermission(repository.permissions);
+    if (!allowedPermissions.has(permission)) {
       return NextResponse.json({ error: deniedError }, { status: 403 });
     }
     return {
       auth,
       actorLogin: actor.login,
       actorGithubId: actor.id,
-      permission: access.permission,
+      permission,
       octokit,
     };
   } catch (error) {

@@ -3,16 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const github = vi.hoisted(() => ({
   getAuthenticated: vi.fn(),
-  getCollaboratorPermissionLevel: vi.fn(),
+  getRepository: vi.fn(),
 }));
 
 vi.mock("../src/github/core", () => ({
   createUserOctokit: () => ({
     rest: {
       users: { getAuthenticated: github.getAuthenticated },
-      repos: {
-        getCollaboratorPermissionLevel: github.getCollaboratorPermissionLevel,
-      },
+      repos: { get: github.getRepository },
     },
   }),
 }));
@@ -39,6 +37,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   github.getAuthenticated.mockResolvedValue({
     data: { login: "alice", id: 42, avatar_url: "https://example.test/a.png" },
+  });
+  github.getRepository.mockResolvedValue({
+    data: { permissions: { admin: false, push: true, pull: true } },
   });
 });
 
@@ -118,8 +119,8 @@ describe("user authentication", () => {
 
 describe("repository access verification", () => {
   it("accepts read collaborators but does not grant them write access", async () => {
-    github.getCollaboratorPermissionLevel.mockResolvedValue({
-      data: { permission: "pull" },
+    github.getRepository.mockResolvedValue({
+      data: { permissions: { admin: false, push: false, pull: true } },
     });
 
     await expect(verifyRepoReadAccess(request())).resolves.toMatchObject({
@@ -131,8 +132,8 @@ describe("repository access verification", () => {
   });
 
   it("accepts GitHub push permission as write access", async () => {
-    github.getCollaboratorPermissionLevel.mockResolvedValue({
-      data: { permission: "push" },
+    github.getRepository.mockResolvedValue({
+      data: { permissions: { admin: false, push: true, pull: true } },
     });
 
     await expect(verifyRepoWriteAccess(request())).resolves.toMatchObject({
@@ -154,7 +155,7 @@ describe("repository access verification", () => {
   });
 
   it("reports repository permission lookup failures separately", async () => {
-    github.getCollaboratorPermissionLevel.mockRejectedValue({ status: 404 });
+    github.getRepository.mockRejectedValue({ status: 404 });
 
     const response = await verifyRepoWriteAccess(request());
 
@@ -165,7 +166,7 @@ describe("repository access verification", () => {
   });
 
   it("preserves GitHub permission denials without leaking details", async () => {
-    github.getCollaboratorPermissionLevel.mockRejectedValue({ status: 403 });
+    github.getRepository.mockRejectedValue({ status: 403 });
 
     const response = await verifyRepoWriteAccess(request());
 
