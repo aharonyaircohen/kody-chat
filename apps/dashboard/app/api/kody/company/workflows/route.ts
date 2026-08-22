@@ -35,7 +35,8 @@ import {
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
-import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+import { unresolvedWorkflowCapabilityIssues } from "@dashboard/lib/capabilities/resolve-workflow";
+import { ENGINE_BUILT_IN_CAPABILITIES } from "@dashboard/lib/store-solutions";
 import { workflowAutomationEligibility } from "@dashboard/features/workflows/server/workflow-execution-authorization";
 import { effectiveActiveWorkflowIds } from "@dashboard/features/workflows/built-in-workflows";
 
@@ -217,17 +218,19 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const [localCapabilities, { config }] = await Promise.all([
-      listLocalCapabilityFiles(),
-      getEngineConfig(octokit, headerAuth.owner, headerAuth.repo),
-    ]);
-    const knownCapabilities = new Set([
-      ...localCapabilities.map((capability) => capability.slug),
-      ...activeCapabilitySlugs(config),
-    ]);
-    const validationIssues = validateWorkflowDefinition(workflow, {
-      knownCapabilities,
-    });
+    const { config } = await getEngineConfig(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    const validationIssues = [
+      ...validateWorkflowDefinition(workflow),
+      ...(await unresolvedWorkflowCapabilityIssues(workflow, {
+        octokit,
+        activeStoreSlugs: new Set(activeCapabilitySlugs(config)),
+        builtInSlugs: ENGINE_BUILT_IN_CAPABILITIES,
+      })),
+    ];
     if (validationIssues.length > 0) {
       return NextResponse.json(
         {

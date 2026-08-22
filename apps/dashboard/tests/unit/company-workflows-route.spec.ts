@@ -39,6 +39,13 @@ describe("Workflow API boundary", () => {
     expect(detailSource).not.toContain("workflowInputMappingSchema");
   });
 
+  it("resolves every referenced capability before saving", () => {
+    expect(listSource).toContain("unresolvedWorkflowCapabilityIssues");
+    expect(detailSource).toContain("unresolvedWorkflowCapabilityIssues");
+    expect(listSource).toContain("activeStoreSlugs");
+    expect(detailSource).toContain("activeStoreSlugs");
+  });
+
   it("persists the Workflow input schema in the backend definition", () => {
     expect(backendValidatorSource).toContain(
       "inputSchema: v.optional(v.any())",

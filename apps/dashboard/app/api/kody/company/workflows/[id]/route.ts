@@ -38,7 +38,8 @@ import {
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
-import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+import { unresolvedWorkflowCapabilityIssues } from "@dashboard/lib/capabilities/resolve-workflow";
+import { ENGINE_BUILT_IN_CAPABILITIES } from "@dashboard/lib/store-solutions";
 import {
   effectiveActiveWorkflowIds,
   isBuiltInWorkflow,
@@ -252,20 +253,19 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const [{ activeCapabilities }, localCapabilities] = await Promise.all([
-      activeStoreReferenceSets(
-        context.octokit,
-        context.headerAuth.owner,
-        context.headerAuth.repo,
-      ),
-      listLocalCapabilityFiles(),
-    ]);
-    const validationIssues = validateWorkflowDefinition(workflow, {
-      knownCapabilities: new Set([
-        ...activeCapabilities,
-        ...localCapabilities.map((capability) => capability.slug),
-      ]),
-    });
+    const { activeCapabilities } = await activeStoreReferenceSets(
+      context.octokit,
+      context.headerAuth.owner,
+      context.headerAuth.repo,
+    );
+    const validationIssues = [
+      ...validateWorkflowDefinition(workflow),
+      ...(await unresolvedWorkflowCapabilityIssues(workflow, {
+        octokit: context.octokit,
+        activeStoreSlugs: activeCapabilities,
+        builtInSlugs: ENGINE_BUILT_IN_CAPABILITIES,
+      })),
+    ];
     if (validationIssues.length > 0) {
       return NextResponse.json(
         {
