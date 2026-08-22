@@ -27,6 +27,8 @@ import {
   type WorkflowGraph,
 } from "@dashboard/lib/workflow-graph";
 import { WorkflowGraphCanvas } from "@dashboard/features/workflows/components/WorkflowGraphCanvas";
+import { capabilitiesApi } from "@dashboard/lib/api/capabilities";
+import { wireSingleCapabilityInputs } from "@dashboard/lib/workflow-capability-inputs";
 
 interface WorkflowEditorDialogProps {
   open: boolean;
@@ -88,12 +90,32 @@ export function WorkflowEditorDialog({
     if (capabilitySteps.length === 0)
       nextErrors.push("Add at least one workflow step.");
     nextErrors.push(...validateWorkflowGraph(graph));
-    const definition = graphWorkflowDefinition(
+    let definition = graphWorkflowDefinition(
       nextName,
       graph.nodes,
       graph.edges,
       graph.startAt,
     );
+    if (initial?.workflow.inputSchema) {
+      definition = {
+        ...definition,
+        inputSchema: initial.workflow.inputSchema,
+      };
+    }
+    if ((definition.steps ?? []).length === 1 && !definition.inputSchema) {
+      try {
+        const capability = await capabilitiesApi.get(
+          definition.steps![0]!.capability,
+        );
+        definition = wireSingleCapabilityInputs(
+          definition,
+          capability.contract,
+        );
+      } catch {
+        setErrors(["Kody could not read the capability inputs. Try again."]);
+        return;
+      }
+    }
     nextErrors.push(
       ...validateWorkflowDefinition(definition).map((issue) => issue.message),
     );
@@ -106,6 +128,7 @@ export function WorkflowEditorDialog({
       name: nextName,
       agent,
       capabilities: definition.capabilities,
+      inputSchema: definition.inputSchema,
       startAt: definition.startAt,
       steps: definition.steps,
       runWithoutApproval: initial?.workflow.runWithoutApproval,
