@@ -264,3 +264,33 @@ For every finding, append a dated entry with:
   `kody:reviewing` to `kody:done`. Issue #9 was then dispatched to repair the
   next surfaced learner blocker: an incorrect chat answer permanently poisons
   transcript replay and prevents a later correct retry from advancing.
+
+## 2026-08-22 — Incorrect answers permanently blocked lesson progress
+
+- Prompt: make an incorrect learner answer recoverable without introducing an
+  LLM, grading system, hints subsystem, or lesson-page redesign.
+- Actual: transcript replay stopped at the first unmatched learner turn. Since
+  that persisted turn was always encountered first, later correct retries
+  could never advance. Kody's first repair also exposed internal author text
+  such as “Learner indicates they are ready” and silently skipped every kind
+  of transcript mismatch.
+- Expected: preserve the wrong answer, provide learner-facing retry guidance,
+  allow a later correct answer to advance after refresh, and continue failing
+  safely on unrelated tutor/order corruption.
+- Classification: surfaced TDR product defect plus operator quality correction;
+  no generic Engine defect was found.
+- Decision: automatic clean correction. The existing deterministic script and
+  persisted transcript remain the owners; no new system or schema was needed.
+- Change: replay now skips only wrong learner turns and the exact retry feedback
+  generated for their current step. Script prompts are explicitly learner-facing
+  course content, while expected keywords remain internal. Arbitrary tutor
+  mismatches retain the safe divergence response.
+- Proof: local typecheck, lint, and 58 unit/integration tests passed, including
+  wrong → retry → advance, persisted refresh recovery, and corrupted tutor
+  history. All seven Playwright journeys passed. In the mounted app, the wrong
+  answer `watermelon` remained visible, a natural retry prompt appeared, and
+  `next` advanced after a hard refresh. PR #10 and post-merge `main` CI were
+  green; PR #10 merged as `51505a218585acdf7901ee53a43f3c085250227c`.
+- Product run: merge lifecycle run `32587746011` automatically finalized issue
+  #9 and PR #10 as `kody:done`; post-merge CI run `32587748410` passed both
+  verification and all seven browser journeys.
