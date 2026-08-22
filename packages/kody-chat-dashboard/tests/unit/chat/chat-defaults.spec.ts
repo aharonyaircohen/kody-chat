@@ -394,6 +394,15 @@ describe("chat-defaults bundle", () => {
 
   it("keeps workflow capabilities separate from chat tools", () => {
     const createWorkflow = DEFAULT_SKILLS["create-workflow"]?.body ?? "";
+    expect(createWorkflow).toContain(
+      "only when the user explicitly asks to create or change a Kody automation Workflow",
+    );
+    expect(createWorkflow).toContain(
+      "build, scaffold, implement, or change software",
+    );
+    expect(createWorkflow).toContain(
+      "do not start the create-workflow GuidedFlow",
+    );
     expect(createWorkflow).toContain("executable capability slugs");
     expect(createWorkflow).toContain("are not workflow steps");
     expect(createWorkflow).toContain("never claim the Workflow was saved");
