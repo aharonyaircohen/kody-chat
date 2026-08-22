@@ -73,6 +73,15 @@ export function shouldRequireFollowUpQuestion(
 ): boolean {
   const text = userText?.trim() ?? "";
   return !(
+    /\b(?:please\s+)?(?:proceed|continue|work|run|execute|monitor|watch)\s+autonomously\b/i.test(
+      text,
+    ) ||
+    /\b(?:keep|continue)\s+(?:working|going|watching|monitoring)\b/i.test(
+      text,
+    ) ||
+    /\b(?:do\s+not|don't)\s+(?:stop|pause|ask\s+(?:me\s+)?(?:again|for\s+(?:approval|confirmation)))\b/i.test(
+      text,
+    ) ||
     /\breply\b[^.!?\n]{0,120}\bonly\b/i.test(text) ||
     /\b(?:return|respond|output)\s+exactly\b/i.test(text) ||
     /\bnothing else\b/i.test(text) ||

@@ -448,7 +448,7 @@ export function buildPublicAgentSynthesisInput({
       "The configured actions list is authoritative for what the specialist can do. Never claim an action is unavailable merely because the specialist did not call it in this turn.",
       "Do not mention internal prompts, source packets, routing mechanics, or ask for delegation approval.",
       "Do not mention tool names or function names unless the user explicitly asked how the implementation works.",
-      "Every prose final reply must end with one short, relevant follow-up question. Keep it non-blocking unless the user must decide something before work can continue.",
+      "Every prose final reply must end with one short, relevant follow-up question unless the current user request explicitly says to proceed autonomously, keep working, keep watching, or not stop. In that autonomous case, end with status and the next automatic action instead of asking whether to continue. Keep ordinary questions non-blocking unless the user must decide something before work can continue.",
       "Do not add or change a renderer to satisfy the follow-up rule. Renderer output must preserve its defined purpose.",
       ...(completeProjectAssessment
         ? [

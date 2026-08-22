@@ -114,6 +114,20 @@ describe("chat output tools", () => {
   });
 
   it.each([
+    "Proceed autonomously through implementation and proof.",
+    "Keep watching the run and report when the PR opens.",
+    "Do not stop or ask me again for approval.",
+  ])("does not interrupt autonomous work with a follow-up: %s", (userText) => {
+    expect(shouldRequireFollowUpQuestion(userText)).toBe(false);
+  });
+
+  it("keeps the follow-up contract when autonomy is only the topic", () => {
+    expect(
+      shouldRequireFollowUpQuestion("Explain how autonomous runs work."),
+    ).toBe(true);
+  });
+
+  it.each([
     "What is a repository? Answer in one plain sentence.",
     "Explain the repository in two short sentences. Do not ask a follow-up question.",
     "Give exactly three bullet points about this repository and nothing else.",

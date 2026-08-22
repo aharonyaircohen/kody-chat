@@ -128,3 +128,23 @@ For every finding, append a dated entry with:
   passed; the production-built local canonical URL returned 200; deployment
   `dpl_4HfjspeBVrhLUfcDr4hTyZsRAaCG` is Ready; and the exact production TDR
   task URL visibly renders issue #1 instead of the error page.
+
+## 2026-08-22 — Autonomous run ended with a redundant permission question
+
+- Prompt: proceed autonomously through implementation and proof.
+- Actual: Kody created and dispatched the correct TDR task, then ended by
+  asking whether it should keep watching the already-active run.
+- Expected: an explicit autonomous instruction is the permission to continue;
+  Kody should report the current status and next automatic action without
+  creating another user round trip.
+- Classification: shared Chat output-policy defect.
+- Decision: automatic generic fix. This only removes a contradictory question
+  when the current user message explicitly requests autonomous continuation;
+  ordinary conversations retain their follow-up question.
+- Change: the shared output contract and both parent-agent prompt paths now
+  recognize explicit autonomous, keep-working, keep-watching, and do-not-stop
+  instructions. Regression coverage distinguishes an autonomous command from
+  a question merely about autonomous behavior.
+- Proof: the focused shared Chat output-policy suite passes all 21 tests.
+- Product run: TDR issue #3 remains active while this fix is verified through
+  the remaining repository and browser gates.
