@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { presentGuidedFlow } from "../../app/api/kody/guided-flows/presenter";
+import { promoteGuidedFlowExplanationToMarkdown } from "../../src/dashboard/lib/guided-flows/presentation";
 import {
   advanceGuidedFlow,
   createGuidedFlowInstance,
@@ -36,6 +37,26 @@ const DEFINITION: GuidedFlowDefinition = {
 };
 
 describe("GuidedFlow presenter navigation", () => {
+  it("renders Guide instructions as Markdown even when a renderer uses text", () => {
+    expect(
+      promoteGuidedFlowExplanationToMarkdown(
+        {
+          type: "stack",
+          children: [
+            { type: "text", variant: "title", value: "Select course" },
+            { type: "text", value: "**Choose a course**" },
+          ],
+        },
+        "**Choose a course**",
+      ),
+    ).toEqual({
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "Select course" },
+        { type: "markdown", value: "**Choose a course**" },
+      ],
+    });
+  });
   it("presents command execution before manual continuation", () => {
     const definition: GuidedFlowDefinition = {
       id: "initialize",

@@ -1,4 +1,7 @@
-import type { RenderedViewDirective } from "../chat-ui-actions";
+import type {
+  RenderedViewDirective,
+  RenderedViewUiNode,
+} from "../chat-ui-actions";
 import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
 import type { ViewRendererDefinition } from "../view-renderers/definition";
 import { buildRenderedViewDirective } from "../view-renderers/template";
@@ -13,6 +16,28 @@ import { presentGuidedFlowControls } from "./controls";
 import { buildGuidedFlowCommandView } from "./command-presentation";
 import { guidedFlowRendererData } from "./render-data";
 import { resolveCmsItemsSource } from "./cms-items";
+
+export function promoteGuidedFlowExplanationToMarkdown(
+  node: RenderedViewUiNode,
+  explanation: string,
+): RenderedViewUiNode {
+  if (
+    node.type === "text" &&
+    node.variant !== "title" &&
+    node.value === explanation
+  ) {
+    return { type: "markdown", value: node.value };
+  }
+  if (node.type !== "stack" && node.type !== "row" && node.type !== "list") {
+    return node;
+  }
+  return {
+    ...node,
+    children: node.children.map((child) =>
+      promoteGuidedFlowExplanationToMarkdown(child, explanation),
+    ),
+  };
+}
 
 export function buildGuidedFlowView(
   definition: GuidedFlowDefinition,
@@ -47,6 +72,10 @@ export function buildGuidedFlowView(
     data: guidedFlowRendererData(step),
   });
   const controls = presentGuidedFlowControls({ definition, instance });
+  const guidedUi = promoteGuidedFlowExplanationToMarkdown(
+    view.ui,
+    step.explanation,
+  );
 
   return {
     ...view,
@@ -59,14 +88,14 @@ export function buildGuidedFlowView(
         ? {
             type: "stack",
             children: [
-              view.ui,
+              guidedUi,
               {
                 type: "row",
                 children: controls,
               },
             ],
           }
-        : view.ui,
+        : guidedUi,
     guidedFlow: {
       instanceId: instance.instanceId,
       stepId: step.id,
