@@ -14,6 +14,7 @@ export interface GuidedFlowFileSelection extends GuidedFlowFilePickerContext {
 
 const PICKER_PARAM = "guidedFlowPicker";
 const STORAGE_PREFIX = "kody:guided-flow:file-picker:";
+export const GUIDED_FLOW_FILE_SELECTED_EVENT = "kody:guided-flow:file-selected";
 
 function safeReturnHref(value: string | null | undefined): string | undefined {
   const href = value?.trim();

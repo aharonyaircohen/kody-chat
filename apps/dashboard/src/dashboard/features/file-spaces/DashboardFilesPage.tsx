@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { Octokit } from "@octokit/rest";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   FilesPage,
@@ -16,6 +16,7 @@ import { Button } from "@kody-ade/base/ui/button";
 import {
   buildGuidedFlowFilePickerHref,
   fileMatchesPicker,
+  GUIDED_FLOW_FILE_SELECTED_EVENT,
   parseGuidedFlowFilePicker,
   storeGuidedFlowFileSelection,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/file-picker";
@@ -39,6 +40,7 @@ export function DashboardFilesPage({
   ...props
 }: DashboardFilesPageProps) {
   const { auth } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const filePicker = useMemo(
     () => parseGuidedFlowFilePicker(searchParams),
@@ -81,15 +83,21 @@ export function DashboardFilesPage({
               }
               onClick={() => {
                 if (!context.selectedPath) return;
-                storeGuidedFlowFileSelection(window.sessionStorage, {
+                const selection = {
                   ...filePicker,
                   filePath: context.selectedPath,
                   fileName:
                     context.selectedPath.split("/").pop() ??
                     context.selectedPath,
-                });
+                };
+                storeGuidedFlowFileSelection(window.sessionStorage, selection);
+                window.dispatchEvent(
+                  new CustomEvent(GUIDED_FLOW_FILE_SELECTED_EVENT, {
+                    detail: selection,
+                  }),
+                );
                 if (filePicker.returnHref) {
-                  window.location.assign(filePicker.returnHref);
+                  router.push(filePicker.returnHref);
                 } else {
                   window.history.back();
                 }

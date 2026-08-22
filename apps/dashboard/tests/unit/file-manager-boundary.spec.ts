@@ -65,7 +65,8 @@ describe("File Manager dependency boundary", () => {
     expect(host).toContain("createGitHubFilesTransport");
     expect(host).toContain("parseGuidedFlowFilePicker");
     expect(host).toContain("Use this file");
-    expect(host).toContain("window.location.assign(filePicker.returnHref)");
+    expect(host).toContain("router.push(filePicker.returnHref)");
+    expect(host).toContain("GUIDED_FLOW_FILE_SELECTED_EVENT");
   });
 
   it("separates workspace identity from data refreshes", () => {

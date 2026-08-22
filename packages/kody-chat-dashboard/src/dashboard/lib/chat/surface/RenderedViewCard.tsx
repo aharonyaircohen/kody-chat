@@ -29,7 +29,11 @@ import {
 import { authHeaders } from "../../kody-chat-live-session";
 import { cmsSelectionItems } from "../../guided-flows/cms-items";
 import { createWidgetCmsClient } from "./widget-host";
-import { consumeGuidedFlowFileSelection } from "../../guided-flows/file-picker";
+import {
+  consumeGuidedFlowFileSelection,
+  GUIDED_FLOW_FILE_SELECTED_EVENT,
+  type GuidedFlowFileSelection,
+} from "../../guided-flows/file-picker";
 
 export function replaceFirstRenderedViewList(
   node: RenderedViewUiNode,
@@ -171,16 +175,42 @@ export function RenderedViewCard({
   const [validationError, setValidationError] = useState<string | null>(null);
   useEffect(() => {
     if (!view.guidedFlow || !view.filePicker) return;
-    const selection = consumeGuidedFlowFileSelection(window.sessionStorage, {
+    const picker = {
       ...view.guidedFlow,
       ...view.filePicker,
-    });
-    if (!selection) return;
-    setInputValues((current) => ({
-      ...current,
-      [selection.resultField]: selection.filePath,
-      [`${selection.resultField}Name`]: selection.fileName,
-    }));
+    };
+    const applySelection = (selection: GuidedFlowFileSelection | null) => {
+      if (
+        !selection ||
+        selection.instanceId !== picker.instanceId ||
+        selection.stepId !== picker.stepId ||
+        selection.revision !== picker.revision ||
+        selection.resultField !== picker.resultField
+      ) {
+        return;
+      }
+      setInputValues((current) => ({
+        ...current,
+        [selection.resultField]: selection.filePath,
+        [`${selection.resultField}Name`]: selection.fileName,
+      }));
+    };
+    applySelection(
+      consumeGuidedFlowFileSelection(window.sessionStorage, picker),
+    );
+    const onFileSelected = (event: Event) => {
+      applySelection(
+        event instanceof CustomEvent
+          ? (event.detail as GuidedFlowFileSelection)
+          : null,
+      );
+    };
+    window.addEventListener(GUIDED_FLOW_FILE_SELECTED_EVENT, onFileSelected);
+    return () =>
+      window.removeEventListener(
+        GUIDED_FLOW_FILE_SELECTED_EVENT,
+        onFileSelected,
+      );
   }, [view.filePicker, view.guidedFlow]);
   useEffect(() => {
     trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
