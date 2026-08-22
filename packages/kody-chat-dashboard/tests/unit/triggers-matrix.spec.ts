@@ -174,7 +174,7 @@ const EVENTS: Array<{ name: string; payload: Record<string, unknown> }> = [
     payload: {
       namespace: "progress",
       namespaceVersion: 1,
-      keys: ["lesson"],
+      keys: ["record"],
       source: "client",
     },
   },

@@ -42,11 +42,9 @@ describe("GuidedFlow chat launch location", () => {
     expect(
       locationAfterGuidedFlowLaunch(
         "/repo/acme/widgets/chat",
-        "?guidedFlow=lesson&instanceKey=student-1",
+        "?guidedFlow=record&instanceKey=student-1",
       ),
-    ).toBe(
-      "/repo/acme/widgets/chat?guidedFlow=lesson&instanceKey=student-1",
-    );
+    ).toBe("/repo/acme/widgets/chat?guidedFlow=record&instanceKey=student-1");
   });
 
   it("consumes an exact instance launch without removing unrelated params", () => {
@@ -79,9 +77,9 @@ describe("GuidedFlow chat messages", () => {
         content: "GuidedFlow completed.",
       }),
     ).toBe(true);
-    expect(
-      isGuidedFlowChatMessage({ content: "Step", view: guidedView }),
-    ).toBe(true);
+    expect(isGuidedFlowChatMessage({ content: "Step", view: guidedView })).toBe(
+      true,
+    );
     expect(isGuidedFlowChatMessage({ content: "Normal assistant reply" })).toBe(
       false,
     );
@@ -91,7 +89,11 @@ describe("GuidedFlow chat messages", () => {
     const previous: Message[] = [
       { role: "user", content: "hello" },
       { role: "assistant", content: "GuidedFlow completed." },
-      { role: "assistant", content: "Your private Chat is ready", view: guidedView },
+      {
+        role: "assistant",
+        content: "Your private Chat is ready",
+        view: guidedView,
+      },
       { role: "assistant", content: "Keep this reply" },
     ];
     const next = {

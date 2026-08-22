@@ -54,7 +54,7 @@ describe("buildWidgetPreviewView", () => {
     expect(isWidgetPreviewView(preview)).toBe(true);
     expect(
       isWidgetPreviewView(
-        preview ? { ...preview, rendererSlug: "lesson-question" } : null,
+        preview ? { ...preview, rendererSlug: "record-question" } : null,
       ),
     ).toBe(false);
     expect(isWidgetPreviewView(null)).toBe(false);

@@ -98,10 +98,10 @@ describe("Guided Flow command execution", () => {
 
     await executeGuidedFlowCommand(
       request(),
-      "/run-workflow extract-pdf-exercises",
+      "/run-workflow custom-workflow",
       "mutation-2",
       {
-        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+        flowData: { resourceId: "resource-1", assetPath: "input.bin" },
         previousResult: { approvalChallenge: "challenge" },
         actionId: "approve",
       },
@@ -111,9 +111,9 @@ describe("Guided Flow command execution", () => {
       new URL("https://dashboard.test/api/kody/chat/operations"),
       expect.objectContaining({
         body: JSON.stringify({
-          input: "/run-workflow extract-pdf-exercises",
+          input: "/run-workflow custom-workflow",
           context: {
-            flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+            flowData: { resourceId: "resource-1", assetPath: "input.bin" },
             previousResult: { approvalChallenge: "challenge" },
             actionId: "approve",
           },

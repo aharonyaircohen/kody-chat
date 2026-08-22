@@ -5,10 +5,7 @@ import {
   getCmsFieldValidationIssue,
   isBlankCmsValue,
 } from "@kody-ade/cms/validation";
-import type {
-  CmsCollectionConfig,
-  CmsFieldConfig,
-} from "@kody-ade/cms/types";
+import type { CmsCollectionConfig, CmsFieldConfig } from "@kody-ade/cms/types";
 
 describe("CMS field validation", () => {
   it("treats optional blank values as valid and required blank values as invalid", () => {
@@ -134,14 +131,14 @@ describe("CMS field validation", () => {
 
 function testCollection(): CmsCollectionConfig {
   return {
-    name: "lessons",
-    label: "Lessons",
+    name: "records",
+    label: "Records",
     adapter: "github",
     titleField: "title",
     searchFields: ["title"],
     writePolicy: "enabled",
     permissions: {},
-    source: { path: "content/lessons", idField: "id", extension: "json" },
+    source: { path: "content/records", idField: "id", extension: "json" },
     operations: {
       list: true,
       get: true,

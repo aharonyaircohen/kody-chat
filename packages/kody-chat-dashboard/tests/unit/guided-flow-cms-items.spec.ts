@@ -7,21 +7,21 @@ import {
 describe("Guided Flow CMS selection items", () => {
   const source = {
     type: "cms" as const,
-    collection: "chapters",
+    collection: "children",
     labelField: "name",
     valueField: "id",
-    resultField: "chapterId",
-    filter: { field: "course", fromResultField: "courseId" },
+    resultField: "childId",
+    filter: { field: "parent", fromResultField: "parentId" },
   };
 
   it("resolves a dependent filter from an earlier step result", () => {
-    expect(resolveCmsItemsSource(source, { courseId: "course-1" })).toEqual({
+    expect(resolveCmsItemsSource(source, { parentId: "parent-1" })).toEqual({
       type: "cms",
-      collection: "chapters",
+      collection: "children",
       labelField: "name",
       valueField: "id",
-      resultField: "chapterId",
-      filter: { field: "course", value: "course-1" },
+      resultField: "childId",
+      filter: { field: "parent", value: "parent-1" },
     });
   });
 
@@ -36,29 +36,29 @@ describe("Guided Flow CMS selection items", () => {
       cmsSelectionItems(
         {
           type: "cms",
-          collection: "courses",
+          collection: "records",
           labelField: "name",
           valueField: "id",
-          resultField: "courseId",
+          resultField: "recordId",
         },
         [
-          { id: "course-1", name: "Algebra" },
-          { id: "course-2", name: "Geometry" },
+          { id: "record-1", name: "Example item" },
+          { id: "record-2", name: "Second item" },
           { id: "invalid" },
         ],
       ),
     ).toEqual([
       {
         id: "continue",
-        label: "Algebra",
-        response: "Algebra",
-        result: { courseId: "course-1", courseIdLabel: "Algebra" },
+        label: "Example item",
+        response: "Example item",
+        result: { recordId: "record-1", recordIdLabel: "Example item" },
       },
       {
         id: "continue",
-        label: "Geometry",
-        response: "Geometry",
-        result: { courseId: "course-2", courseIdLabel: "Geometry" },
+        label: "Second item",
+        response: "Second item",
+        result: { recordId: "record-2", recordIdLabel: "Second item" },
       },
     ]);
   });

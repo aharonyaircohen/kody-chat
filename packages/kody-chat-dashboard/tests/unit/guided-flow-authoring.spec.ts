@@ -112,12 +112,12 @@ describe("guided flow authoring", () => {
 
   it("generates visible choices for a selection goal", () => {
     expect(
-      deriveGuidedFlowRendererData("selection-list", "Select course"),
+      deriveGuidedFlowRendererData("selection-list", "Select parent"),
     ).toMatchObject({
       items: [
-        { id: "option-1", label: "Course 1" },
-        { id: "option-2", label: "Course 2" },
-        { id: "option-3", label: "Course 3" },
+        { id: "option-1", label: "Parent 1" },
+        { id: "option-2", label: "Parent 2" },
+        { id: "option-3", label: "Parent 3" },
       ],
     });
   });
@@ -299,31 +299,31 @@ describe("guided flow authoring", () => {
 
   it("preserves a generic CMS source for a selection step", () => {
     const definition = buildGuidedFlowDefinition({
-      title: "Choose course and chapter",
+      title: "Choose parent and child records",
       steps: [
         {
-          title: "Choose a course",
-          explanation: "Choose the course for this lesson.",
+          title: "Choose a parent record",
+          explanation: "Choose the parent record.",
           rendererSlug: "selection-list",
           itemsSource: {
             type: "cms",
-            collection: "courses",
+            collection: "parents",
             labelField: "name",
             valueField: "id",
-            resultField: "courseId",
+            resultField: "parentId",
           },
         },
         {
-          title: "Choose a chapter",
-          explanation: "Choose a chapter from the selected course.",
+          title: "Choose a child record",
+          explanation: "Choose a child record from the selected parent.",
           rendererSlug: "selection-list",
           itemsSource: {
             type: "cms",
-            collection: "chapters",
+            collection: "children",
             labelField: "name",
             valueField: "id",
-            resultField: "chapterId",
-            filter: { field: "course", fromResultField: "courseId" },
+            resultField: "childId",
+            filter: { field: "parent", fromResultField: "parentId" },
           },
         },
       ],
@@ -331,18 +331,18 @@ describe("guided flow authoring", () => {
 
     expect(viewStep(definition, 0).itemsSource).toEqual({
       type: "cms",
-      collection: "courses",
+      collection: "parents",
       labelField: "name",
       valueField: "id",
-      resultField: "courseId",
+      resultField: "parentId",
     });
     expect(viewStep(definition, 1).itemsSource).toEqual({
       type: "cms",
-      collection: "chapters",
+      collection: "children",
       labelField: "name",
       valueField: "id",
-      resultField: "chapterId",
-      filter: { field: "course", fromResultField: "courseId" },
+      resultField: "childId",
+      filter: { field: "parent", fromResultField: "parentId" },
     });
   });
 
@@ -356,7 +356,7 @@ describe("guided flow authoring", () => {
           rendererSlug: "question-select",
           rendererVersion: 3,
           rendererDataJson: JSON.stringify({
-            question: { exerciseId: "exercise-1", questionId: "question-2" },
+            question: { taskId: "task-1", questionId: "question-2" },
           }),
           completionActionId: "correct",
         },
@@ -370,7 +370,7 @@ describe("guided flow authoring", () => {
       rendererSlug: "question-select",
       rendererVersion: 3,
       rendererData: {
-        question: { exerciseId: "exercise-1", questionId: "question-2" },
+        question: { taskId: "task-1", questionId: "question-2" },
       },
       actions: [{ id: "correct", target: { type: "complete" } }],
     });

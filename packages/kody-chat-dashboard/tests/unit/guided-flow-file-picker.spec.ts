@@ -14,13 +14,13 @@ describe("Guided Flow file picker contract", () => {
     instanceId: "instance-1",
     stepId: "step-4",
     revision: 3,
-    resultField: "pdfPath",
-    extensions: [".pdf"],
+    resultField: "selectedFile",
+    extensions: [".txt"],
   };
 
   it("adds picker state without changing the file route", () => {
     expect(buildGuidedFlowFilePickerHref("/files", picker)).toBe(
-      "/files?guidedFlowPicker=1&instanceId=instance-1&stepId=step-4&revision=3&resultField=pdfPath&extensions=.pdf",
+      "/files?guidedFlowPicker=1&instanceId=instance-1&stepId=step-4&revision=3&resultField=selectedFile&extensions=.txt",
     );
   });
 
@@ -68,8 +68,8 @@ describe("Guided Flow file picker contract", () => {
   });
 
   it("accepts only configured file extensions", () => {
-    expect(fileMatchesPicker("lessons/algebra.pdf", picker)).toBe(true);
-    expect(fileMatchesPicker("lessons/algebra.txt", picker)).toBe(false);
+    expect(fileMatchesPicker("documents/example.txt", picker)).toBe(true);
+    expect(fileMatchesPicker("documents/example.bin", picker)).toBe(false);
   });
 
   it("returns one matching selection to the Guide", () => {
@@ -81,8 +81,8 @@ describe("Guided Flow file picker contract", () => {
     };
     const selection = {
       ...picker,
-      filePath: "lessons/algebra.pdf",
-      fileName: "algebra.pdf",
+      filePath: "documents/example.txt",
+      fileName: "example.txt",
     };
     storeGuidedFlowFileSelection(storage, selection);
 

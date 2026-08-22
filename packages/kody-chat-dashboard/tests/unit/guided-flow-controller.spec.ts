@@ -124,9 +124,9 @@ describe("guided flow controller", () => {
 
   it("completes on an allowed action that has no continuing transition", () => {
     const definition: GuidedFlowDefinition = {
-      id: "branching-exercise",
+      id: "branching-task",
       version: 1,
-      title: "Branching exercise",
+      title: "Branching task",
       steps: [
         {
           id: "question",
@@ -353,25 +353,25 @@ describe("guided flow controller", () => {
 
   it("completes a parent whose nested step has no next transition", () => {
     const parent: GuidedFlowDefinition = {
-      id: "lesson",
+      id: "record",
       version: 1,
-      title: "Lesson",
+      title: "Record",
       steps: [
         {
-          id: "exercise",
+          id: "task",
           type: "flow",
-          title: "Exercise",
-          explanation: "Complete the exercise.",
-          flowId: "exercise",
+          title: "Task",
+          explanation: "Complete the task.",
+          flowId: "task",
           flowVersion: 1,
           actions: [{ id: "complete", target: { type: "complete" } }],
         },
       ],
     };
     const child: GuidedFlowDefinition = {
-      id: "exercise",
+      id: "task",
       version: 1,
-      title: "Exercise",
+      title: "Task",
       steps: [
         {
           id: "question",
@@ -393,7 +393,7 @@ describe("guided flow controller", () => {
     });
 
     expect(resumeParentGuidedFlow(parent, completedChild)).toMatchObject({
-      flowId: "lesson",
+      flowId: "record",
       status: "completed",
       stack: [],
     });

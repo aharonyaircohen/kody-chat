@@ -9,7 +9,7 @@ describe("GuidedFlow open response", () => {
 
     expect(
       readGuidedFlowOpenPayload({
-        flow: { id: "lesson", title: "Lesson", stepIndex: 11, stepCount: 20 },
+        flow: { id: "record", title: "Record", stepIndex: 11, stepCount: 20 },
         view,
         compatibility,
       }),

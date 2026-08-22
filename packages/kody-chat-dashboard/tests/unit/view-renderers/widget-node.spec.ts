@@ -16,15 +16,15 @@ import { isRenderedViewDirective } from "../../../src/dashboard/lib/chat-ui-acti
 
 function definitionJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
-    slug: "lesson-widget",
-    name: "Lesson widget",
+    slug: "record-widget",
+    name: "Record widget",
     type: "layout",
-    data: { lesson: { type: "value" } },
+    data: { record: { type: "value" } },
     ui: {
       type: "stack",
       children: [
-        { type: "text", value: "Lesson", variant: "title" },
-        { type: "widget", widget: "quiz", data: "$lesson" },
+        { type: "text", value: "Record", variant: "title" },
+        { type: "widget", widget: "quiz", data: "$record" },
       ],
     },
     ...overrides,
@@ -38,7 +38,7 @@ describe("widget renderer-definition node", () => {
       type: "stack",
       children: [
         { type: "text" },
-        { type: "widget", widget: "quiz", data: "$lesson" },
+        { type: "widget", widget: "quiz", data: "$record" },
       ],
     });
   });
@@ -58,10 +58,10 @@ describe("widget renderer-definition node", () => {
       parseViewRendererDefinition(
         definitionJson({
           data: {},
-          ui: { type: "widget", widget: "quiz", data: "$lesson" },
+          ui: { type: "widget", widget: "quiz", data: "$record" },
         }),
       ),
-    ).toThrow(/data key "lesson" is not declared/);
+    ).toThrow(/data key "record" is not declared/);
   });
 
   it("allows inline (non-string) widget data without declared keys", () => {
@@ -88,10 +88,10 @@ describe("widget template resolution", () => {
   }
 
   it("resolves a $ref data binding to the caller's value", () => {
-    const { ui } = resolve({ lesson: "verbs-101" });
+    const { ui } = resolve({ record: "verbs-101" });
     expect(ui).toMatchObject({
       children: [
-        { type: "text", value: "Lesson" },
+        { type: "text", value: "Record" },
         { type: "widget", widget: "quiz", data: "verbs-101" },
       ],
     });
@@ -130,8 +130,8 @@ describe("rendered-view directive with a widget node", () => {
       action: "render_view",
       view: "renderer",
       id: "view-1",
-      rendererSlug: "lesson-widget",
-      rendererName: "Lesson widget",
+      rendererSlug: "record-widget",
+      rendererName: "Record widget",
       resultTarget: "chat",
       ui,
       data: {},

@@ -23,34 +23,34 @@ describe("RenderedViewCard dynamic selection", () => {
         {
           type: "stack",
           children: [
-            { type: "text", value: "Choose a course" },
+            { type: "text", value: "Choose an item" },
             { type: "list", children: [] },
           ],
         },
         [
           {
             id: "continue",
-            label: "Algebra",
-            response: "Algebra",
-            result: { courseId: "course-1" },
+            label: "Example item",
+            response: "Example item",
+            result: { recordId: "record-1" },
           },
         ],
       ),
     ).toEqual({
       type: "stack",
       children: [
-        { type: "text", value: "Choose a course" },
+        { type: "text", value: "Choose an item" },
         {
           type: "list",
           children: [
             {
               type: "button",
-              label: "Algebra",
+              label: "Example item",
               action: {
                 id: "continue",
-                label: "Algebra",
-                response: "Algebra",
-                result: { courseId: "course-1" },
+                label: "Example item",
+                response: "Example item",
+                result: { recordId: "record-1" },
               },
             },
           ],

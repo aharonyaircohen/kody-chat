@@ -17,9 +17,9 @@ import type {
 
 function definition(controls?: readonly ["back"]): GuidedFlowDefinition {
   return {
-    id: "lesson",
+    id: "record",
     version: 1,
-    title: "Lesson",
+    title: "Record",
     ...(controls ? { controls } : {}),
     steps: [
       {

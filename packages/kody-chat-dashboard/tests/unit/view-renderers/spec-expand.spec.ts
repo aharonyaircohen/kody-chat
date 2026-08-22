@@ -71,7 +71,7 @@ describe("expandChatViewSpec", () => {
         elements: {
           a: {
             type: "ApprovalCard",
-            props: { title: "Create the lesson?" },
+            props: { title: "Create the record?" },
           },
         },
       }),
@@ -79,7 +79,7 @@ describe("expandChatViewSpec", () => {
     expect(ui).toMatchObject({
       type: "stack",
       children: [
-        { type: "text", value: "Create the lesson?", variant: "title" },
+        { type: "text", value: "Create the record?", variant: "title" },
         { type: "markdown", value: "" },
         {
           type: "row",

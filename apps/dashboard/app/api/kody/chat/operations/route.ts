@@ -216,7 +216,7 @@ async function runWorkflowFromGuidedFlow(
   }
   return {
     status: "completed" as const,
-    summary: "The workflow was accepted and is generating exercise drafts.",
+    summary: "The workflow was accepted and is running.",
     ...(typeof payload.runId === "string" ? { runId: payload.runId } : {}),
   };
 }

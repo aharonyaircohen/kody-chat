@@ -44,17 +44,17 @@ describe("GuidedFlow presenter navigation", () => {
         {
           type: "stack",
           children: [
-            { type: "text", variant: "title", value: "Select course" },
-            { type: "text", value: "**Choose a course**" },
+            { type: "text", variant: "title", value: "Select parent" },
+            { type: "text", value: "**Choose a parent**" },
           ],
         },
-        "**Choose a course**",
+        "**Choose a parent**",
       ),
     ).toEqual({
       type: "stack",
       children: [
-        { type: "text", variant: "title", value: "Select course" },
-        { type: "markdown", value: "**Choose a course**" },
+        { type: "text", variant: "title", value: "Select parent" },
+        { type: "markdown", value: "**Choose a parent**" },
       ],
     });
   });
@@ -154,9 +154,9 @@ describe("GuidedFlow presenter navigation", () => {
         {
           id: "run-workflow",
           type: "command",
-          title: "Generate drafts",
-          explanation: "Approve the workflow to generate drafts.",
-          command: "/run-workflow extract-pdf-exercises",
+          title: "Run operation",
+          explanation: "Approve the workflow to run the operation.",
+          command: "/run-workflow custom-workflow",
           actions: [
             { id: "run", target: { type: "stay" } },
             { id: "continue", target: { type: "complete" } },
@@ -209,14 +209,14 @@ describe("GuidedFlow presenter navigation", () => {
         {
           ...(DEFINITION.steps[0] as GuidedFlowViewStepDefinition),
           routeId: "files",
-          filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
+          filePicker: { resultField: "selectedFile", extensions: [".txt"] },
         },
       ],
     };
     const started = createGuidedFlowInstance(definition, "instance-1");
 
     expect(presentGuidedFlow(definition, started).navigation?.href).toBe(
-      "/files?guidedFlowPicker=1&instanceId=instance-1&stepId=welcome&revision=0&resultField=pdfPath&extensions=.pdf",
+      "/files?guidedFlowPicker=1&instanceId=instance-1&stepId=welcome&revision=0&resultField=selectedFile&extensions=.txt",
     );
   });
 

@@ -34,18 +34,18 @@ beforeEach(() => {
 describe("position tools", () => {
   it("get_position returns 0 when nothing is saved", async () => {
     const out = (await createPositionTools(ctx).get_position.execute!(
-      { key: "lesson:fractions" },
+      { key: "record:sample" },
       {} as never,
     )) as { key: string; position: number };
-    expect(out).toEqual({ key: "lesson:fractions", position: 0 });
+    expect(out).toEqual({ key: "record:sample", position: 0 });
   });
 
   it("get_position reads the saved value for the namespaced key", async () => {
     h.getUserState.mockResolvedValue({
-      data: { "position:lesson:fractions": 3 },
+      data: { "position:record:sample": 3 },
     });
     const out = (await createPositionTools(ctx).get_position.execute!(
-      { key: "lesson:fractions" },
+      { key: "record:sample" },
       {} as never,
     )) as { position: number };
     expect(out.position).toBe(3);
@@ -53,14 +53,14 @@ describe("position tools", () => {
 
   it("set_position writes the value into progress, namespaced", async () => {
     const out = (await createPositionTools(ctx).set_position.execute!(
-      { key: "lesson:fractions", position: 2 },
+      { key: "record:sample", position: 2 },
       {} as never,
     )) as { saved: boolean };
     expect(out.saved).toBe(true);
     expect(h.setUserState).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "operator:teacher" }),
       "progress",
-      { "position:lesson:fractions": 2 },
+      { "position:record:sample": 2 },
       { source: "system" },
     );
   });

@@ -103,9 +103,9 @@ vi.mock("@kody-ade/backend/client", () => ({
 import { createGuidedFlowTools } from "../../app/api/kody/chat/tools/guided-flow-tools";
 
 const CUSTOM_DEFINITION = {
-  id: "custom-lesson",
+  id: "custom-record",
   version: 1,
-  title: "Custom lesson",
+  title: "Custom record",
   steps: [
     {
       id: "step-1",
@@ -172,7 +172,7 @@ describe("guided_flow_start chat tool", () => {
       tenantId: "acme/widgets",
       actorId: "alice",
       instanceId: "instance-1",
-      flowId: "custom-lesson",
+      flowId: "custom-record",
       flowVersion: 1,
       currentStepId: "step-1",
       status: "active",
@@ -235,13 +235,13 @@ describe("guided_flow_start chat tool", () => {
       conversationId: "conversation-1",
     });
     const result = (await tools.guided_flow_start.execute!(
-      { flowId: "custom-lesson" },
+      { flowId: "custom-record" },
       {} as never,
     )) as { guidedFlow?: { stepId: string }; error?: string };
     expect(result.error).toBeUndefined();
     expect(result.guidedFlow?.stepId).toBe("step-1");
     expect(backend.rows).toHaveLength(1);
-    expect(backend.rows[0]).toMatchObject({ flowId: "custom-lesson" });
+    expect(backend.rows[0]).toMatchObject({ flowId: "custom-record" });
     expect(backend.bindings[0]).toMatchObject({
       conversationId: "conversation-1",
       instanceId: backend.rows[0]?.instanceId,
@@ -283,7 +283,7 @@ describe("guided_flow_start chat tool", () => {
         tenantId: "acme/widgets",
         actorId: "alice",
         instanceId: "instance-1",
-        flowId: "custom-lesson",
+        flowId: "custom-record",
         flowVersion: 1,
         currentStepId: "step-1",
         status: "active",
@@ -308,7 +308,7 @@ describe("guided_flow_start chat tool", () => {
         actorId: "alice",
         instanceId: "instance-1",
         revision: 2,
-        flowId: "custom-lesson",
+        flowId: "custom-record",
         flowVersion: 1,
         stepId: "step-1",
         actionId: "opt-2",
@@ -344,7 +344,7 @@ describe("guided_flow_start chat tool", () => {
       {} as never,
     );
     expect(outline).toMatchObject({
-      definitions: [expect.objectContaining({ id: "custom-lesson" })],
+      definitions: [expect.objectContaining({ id: "custom-record" })],
       modelGuides: [],
     });
 
@@ -436,10 +436,10 @@ describe("guided_flow_start chat tool", () => {
       actorId: "alice",
     });
     const archived = (await tools.guided_flow_start.execute!(
-      { flowId: "custom-lesson" },
+      { flowId: "custom-record" },
       {} as never,
     )) as { error?: string };
-    expect(archived.error).toContain("custom-lesson");
+    expect(archived.error).toContain("custom-record");
 
     const unknown = (await tools.guided_flow_start.execute!(
       { flowId: "does-not-exist" },

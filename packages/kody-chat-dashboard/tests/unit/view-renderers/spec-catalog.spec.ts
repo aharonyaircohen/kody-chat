@@ -23,7 +23,7 @@ const validComposedSpec = {
     card: { type: "Stack", props: {}, children: ["title", "buttons"] },
     title: {
       type: "Text",
-      props: { value: "Publish the lesson?", variant: "title" },
+      props: { value: "Publish the record?", variant: "title" },
     },
     buttons: { type: "Row", props: {}, children: ["ok", "no"] },
     ok: {
@@ -88,7 +88,7 @@ describe("validateChatViewSpec", () => {
         a: {
           type: "ApprovalCard",
           props: {
-            title: "Create the lesson?",
+            title: "Create the record?",
             actions: [
               { label: "Approve", response: "approve", variant: "primary" },
               { label: "Cancel" },

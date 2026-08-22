@@ -9,7 +9,7 @@ describe("GuidedFlow open requests", () => {
   it("accepts a definition start request", () => {
     expect(
       isGuidedFlowOpenRequest({
-        flowId: "lesson",
+        flowId: "record",
         instanceKey: "student-1",
         message: "started",
       }),
@@ -19,14 +19,14 @@ describe("GuidedFlow open requests", () => {
   it("accepts the definition source scope used to start the flow", () => {
     expect(
       isGuidedFlowOpenRequest({
-        flowId: "lesson",
+        flowId: "record",
         message: "started",
         sourceScope: { kind: "user" },
       }),
     ).toBe(true);
     expect(
       isGuidedFlowOpenRequest({
-        flowId: "lesson",
+        flowId: "record",
         message: "started",
         sourceScope: { kind: "repository", owner: "acme", repo: "widgets" },
       }),
@@ -36,7 +36,7 @@ describe("GuidedFlow open requests", () => {
   it("rejects a malformed definition source scope", () => {
     expect(
       isGuidedFlowOpenRequest({
-        flowId: "lesson",
+        flowId: "record",
         message: "started",
         sourceScope: { kind: "repository", owner: "acme" },
       }),

@@ -88,8 +88,8 @@ describe("createWidgetCmsClient", () => {
       });
     });
 
-    const result = await client.list("lesson questions", {
-      filters: { lessonId: { equals: "addition" } },
+    const result = await client.list("record questions", {
+      filters: { recordId: { equals: "example" } },
       search: { query: "two", fields: ["prompt"] },
       sort: [{ field: "order", direction: "asc" }],
       limit: 10,
@@ -100,9 +100,9 @@ describe("createWidgetCmsClient", () => {
     expect(result.docs).toEqual([{ _id: "question-1", prompt: "2 + 2?" }]);
     expect(calls).toHaveLength(1);
     const request = new URL(calls[0]!.input, "https://dashboard.test");
-    expect(request.pathname).toBe("/api/kody/cms/lesson%20questions");
+    expect(request.pathname).toBe("/api/kody/cms/record%20questions");
     expect(request.searchParams.get("filters")).toBe(
-      JSON.stringify({ lessonId: { equals: "addition" } }),
+      JSON.stringify({ recordId: { equals: "example" } }),
     );
     expect(request.searchParams.get("q")).toBe("two");
     expect(request.searchParams.get("searchFields")).toBe("prompt");

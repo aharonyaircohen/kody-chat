@@ -68,7 +68,7 @@ describe("CMS config contract", () => {
         sha: "config-sha",
         content: JSON.stringify({
           version: 1,
-          collections: ["collections/lessons.json"],
+          collections: ["collections/records.json"],
         }),
       })
       .mockResolvedValueOnce(null);
@@ -78,7 +78,7 @@ describe("CMS config contract", () => {
     ).rejects.toMatchObject({
       name: "CmsConfigError",
       code: "cms_config_error",
-      message: "missing state file: cms/collections/lessons.json",
+      message: "missing state file: cms/collections/records.json",
     });
   });
 
@@ -90,8 +90,8 @@ describe("CMS config contract", () => {
         version: 1,
         defaultAdapter: "memory",
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "title", type: "text" }],
           },
         },
@@ -175,68 +175,68 @@ describe("CMS config contract", () => {
         },
       },
       collections: {
-        lessons: {
-          name: "lessons",
-          label: "Lessons",
-          source: { collection: "lessons", idField: "_id" },
+        records: {
+          name: "records",
+          label: "Records",
+          source: { collection: "records", idField: "_id" },
           titleField: "title",
-          listFields: ["title", "chapter", "updatedAt"],
+          listFields: ["title", "child", "updatedAt"],
           views: {
             list: {
               pageSize: 50,
               fields: [
                 { name: "title", role: "primary", width: "fill" },
-                { name: "chapter", display: "label", width: "sm" },
+                { name: "child", display: "label", width: "sm" },
                 { name: "updatedAt", sortable: false },
               ],
             },
-            detail: { fields: ["_id", "title", "chapter", "updatedAt"] },
-            form: { fields: ["title", "chapter"] },
+            detail: { fields: ["_id", "title", "child", "updatedAt"] },
+            form: { fields: ["title", "child"] },
           },
           fields: [
             { name: "_id", type: "id", label: "ID", readOnly: true },
             { name: "title", type: "text", label: "Title" },
             {
-              name: "chapter",
+              name: "child",
               type: "relation",
-              label: "Chapter",
-              target: "chapters",
+              label: "Child",
+              target: "children",
             },
             { name: "updatedAt", type: "date", label: "Updated At" },
           ],
           filters: [
             { field: "title", operators: ["contains", "equals"] },
-            { field: "chapter", operators: ["equals"] },
+            { field: "child", operators: ["equals"] },
           ],
         },
       },
     });
 
-    expect(config.collections.lessons.adapter).toBe("content-store");
-    expect(config.collections.lessons.writePolicy).toBe("read-only");
-    expect(config.collections.lessons.searchFields).toEqual(["title"]);
-    expect(config.collections.lessons.listFields).toEqual([
+    expect(config.collections.records.adapter).toBe("content-store");
+    expect(config.collections.records.writePolicy).toBe("read-only");
+    expect(config.collections.records.searchFields).toEqual(["title"]);
+    expect(config.collections.records.listFields).toEqual([
       "title",
-      "chapter",
+      "child",
       "updatedAt",
     ]);
-    expect(config.collections.lessons.views?.list?.pageSize).toBe(50);
-    expect(config.collections.lessons.views?.list?.fields).toEqual([
+    expect(config.collections.records.views?.list?.pageSize).toBe(50);
+    expect(config.collections.records.views?.list?.fields).toEqual([
       { name: "title", role: "primary", width: "fill" },
-      { name: "chapter", display: "label", width: "sm" },
+      { name: "child", display: "label", width: "sm" },
       { name: "updatedAt", sortable: false },
     ]);
-    expect(config.collections.lessons.views?.detail?.fields).toEqual([
+    expect(config.collections.records.views?.detail?.fields).toEqual([
       { name: "_id" },
       { name: "title" },
-      { name: "chapter" },
+      { name: "child" },
       { name: "updatedAt" },
     ]);
-    expect(config.collections.lessons.views?.form?.fields).toEqual([
+    expect(config.collections.records.views?.form?.fields).toEqual([
       { name: "title" },
-      { name: "chapter" },
+      { name: "child" },
     ]);
-    expect(config.collections.lessons.operations).toMatchObject({
+    expect(config.collections.records.operations).toMatchObject({
       list: true,
       get: true,
       search: true,
@@ -276,8 +276,8 @@ describe("CMS config contract", () => {
         },
       },
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           fields: [{ name: "_id", type: "id" }],
         },
       },
@@ -320,13 +320,13 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "title", type: "text" }],
           },
         },
       }),
-    ).toThrow(/lessons\.adapter required when defaultAdapter is not set/);
+    ).toThrow(/records\.adapter required when defaultAdapter is not set/);
   });
 
   it("rejects unknown field types", () => {
@@ -334,8 +334,8 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "title", type: "madeUp" }],
           },
         },
@@ -348,8 +348,8 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             listFields: ["title", "missing"],
             fields: [{ name: "title", type: "text" }],
           },
@@ -363,8 +363,8 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             views: { list: { fields: ["missing"] } },
             fields: [{ name: "title", type: "text" }],
           },
@@ -378,8 +378,8 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "title", type: "text" }],
             defaultSort: [{ field: "missing", direction: "asc" }],
           },
@@ -393,8 +393,8 @@ describe("CMS config contract", () => {
       normalizeCmsConfig({
         version: 1,
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "title", type: "text" }],
             searchFields: ["missing"],
           },
@@ -408,8 +408,8 @@ describe("CMS config contract", () => {
       version: 1,
       defaultAdapter: "memory",
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           fields: [
             { name: "_id", type: "id" },
             { name: "title", type: "text" },
@@ -419,12 +419,12 @@ describe("CMS config contract", () => {
     });
 
     expect(
-      normalizeSortQuery(config.collections.lessons, [
+      normalizeSortQuery(config.collections.records, [
         { field: "title", direction: "asc" },
       ]),
     ).toEqual([{ field: "title", direction: "asc" }]);
     expect(() =>
-      normalizeSortQuery(config.collections.lessons, [
+      normalizeSortQuery(config.collections.records, [
         { field: "$where", direction: "desc" },
       ]),
     ).toThrow(/unknown sort field: \$where/);
@@ -435,8 +435,8 @@ describe("CMS config contract", () => {
       version: 1,
       defaultAdapter: "memory",
       collections: {
-        courses: {
-          name: "courses",
+        parents: {
+          name: "parents",
           titleField: "title",
           fields: [
             { name: "_id", type: "id" },
@@ -447,12 +447,12 @@ describe("CMS config contract", () => {
     });
 
     expect(
-      normalizeSearchQuery(config.collections.courses, {
+      normalizeSearchQuery(config.collections.parents, {
         query: "math",
       }),
     ).toEqual({ query: "math", fields: ["title"] });
     expect(() =>
-      normalizeSearchQuery(config.collections.courses, {
+      normalizeSearchQuery(config.collections.parents, {
         query: "math",
         fields: ["missing"],
       }),
@@ -464,14 +464,14 @@ describe("CMS config contract", () => {
       version: 1,
       defaultAdapter: "memory",
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           fields: [
             { name: "_id", type: "id", storage: { kind: "objectId" } },
             {
-              name: "chapter",
+              name: "child",
               type: "relation",
-              target: "chapters",
+              target: "children",
               storage: { kind: "objectId" },
             },
             {
@@ -484,9 +484,9 @@ describe("CMS config contract", () => {
       },
     });
 
-    expect(config.collections.lessons.fields).toMatchObject([
+    expect(config.collections.records.fields).toMatchObject([
       { name: "_id", storage: { kind: "objectId" } },
-      { name: "chapter", storage: { kind: "objectId" } },
+      { name: "child", storage: { kind: "objectId" } },
       { name: "tags", storage: { kind: "stringArray" } },
     ]);
   });
@@ -496,8 +496,8 @@ describe("CMS config contract", () => {
       version: 1,
       defaultAdapter: "memory",
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           views: {
             table: {
               pageSize: 25,
@@ -511,8 +511,8 @@ describe("CMS config contract", () => {
               name: "title",
               type: "text",
               label: "Title",
-              description: "Public lesson title",
-              placeholder: "Intro to algebra",
+              description: "Public record title",
+              placeholder: "Example record",
               display: {
                 role: "primary",
                 width: "fill",
@@ -538,10 +538,10 @@ describe("CMS config contract", () => {
       },
     });
 
-    expect(config.collections.lessons.fields[0]).toMatchObject({
+    expect(config.collections.records.fields[0]).toMatchObject({
       name: "title",
-      description: "Public lesson title",
-      placeholder: "Intro to algebra",
+      description: "Public record title",
+      placeholder: "Example record",
       display: {
         role: "primary",
         width: "fill",
@@ -553,10 +553,10 @@ describe("CMS config contract", () => {
         pattern: "^[A-Z].+",
       },
     });
-    expect(config.collections.lessons.views?.table).toEqual(
-      config.collections.lessons.views?.list,
+    expect(config.collections.records.views?.table).toEqual(
+      config.collections.records.views?.list,
     );
-    expect(config.collections.lessons.views?.table?.fields).toEqual([
+    expect(config.collections.records.views?.table?.fields).toEqual([
       { name: "title", role: "primary", format: "text", width: "fill" },
       { name: "status", role: "meta", width: "sm", sortable: false },
     ]);
@@ -568,8 +568,8 @@ describe("CMS config contract", () => {
         version: 1,
         defaultAdapter: "memory",
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [
               {
                 name: "title",
@@ -590,13 +590,13 @@ describe("CMS config contract", () => {
         version: 1,
         defaultAdapter: "memory",
         collections: {
-          lessons: {
-            name: "lessons",
+          records: {
+            name: "records",
             fields: [{ name: "_id", type: "id", storage: { kind: "madeUp" } }],
           },
         },
       }),
-    ).toThrow(/lessons\.fields\._id\.storage\.kind is invalid/);
+    ).toThrow(/records\.fields\._id\.storage\.kind is invalid/);
   });
 
   it("normalizes CMS role permissions with admin lockout protection", () => {
@@ -607,8 +607,8 @@ describe("CMS config contract", () => {
         schema: { refresh: ["editor"] },
       },
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           permissions: {
             content: { update: ["editor"], delete: [] },
           },
@@ -618,11 +618,11 @@ describe("CMS config contract", () => {
     });
 
     expect(config.permissions.schema?.refresh).toEqual(["editor", "admin"]);
-    expect(config.collections.lessons.permissions?.content?.update).toEqual([
+    expect(config.collections.records.permissions?.content?.update).toEqual([
       "editor",
       "admin",
     ]);
-    expect(config.collections.lessons.permissions?.content?.delete).toEqual([
+    expect(config.collections.records.permissions?.content?.delete).toEqual([
       "admin",
     ]);
   });
@@ -646,14 +646,14 @@ describe("CMS config contract", () => {
         content: { update: ["editor"] },
       },
       collections: {
-        lessons: {
-          name: "lessons",
+        records: {
+          name: "records",
           fields: [{ name: "_id", type: "id" }],
         },
       },
     });
 
     expect(config.permissions.content?.update).toEqual(["editor", "admin"]);
-    expect(config.collections.lessons.permissions).toBeUndefined();
+    expect(config.collections.records.permissions).toBeUndefined();
   });
 });

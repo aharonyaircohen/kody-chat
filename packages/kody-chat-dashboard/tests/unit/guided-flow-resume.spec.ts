@@ -9,7 +9,7 @@ describe("GuidedFlow resume presentation", () => {
       flows: [
         {
           instance: {
-            instanceId: "lesson-1",
+            instanceId: "record-1",
             revision: 3,
             status: "active",
           },
@@ -18,11 +18,11 @@ describe("GuidedFlow resume presentation", () => {
         },
         {
           instance: {
-            instanceId: "exercise-1",
+            instanceId: "task-1",
             revision: 1,
             status: "active",
           },
-          flow: { title: "Addition exercise", stepIndex: 0, stepCount: 2 },
+          flow: { title: "Example task", stepIndex: 0, stepCount: 2 },
           compatibility: { status: "compatible" },
         },
       ],
@@ -32,12 +32,12 @@ describe("GuidedFlow resume presentation", () => {
       {
         id: "resume",
         label: "Power basics · Step 3 of 6",
-        result: { instanceId: "lesson-1" },
+        result: { instanceId: "record-1" },
       },
       {
         id: "resume",
-        label: "Addition exercise · Step 1 of 2",
-        result: { instanceId: "exercise-1" },
+        label: "Example task · Step 1 of 2",
+        result: { instanceId: "task-1" },
       },
     ]);
   });

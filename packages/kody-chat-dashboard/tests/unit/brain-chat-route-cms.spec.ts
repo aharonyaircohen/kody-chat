@@ -49,7 +49,7 @@ beforeEach(() => {
 
 describe("POST /api/kody/chat/brain CMS context", () => {
   it("forwards the selected Dashboard store target to Brain CMS", async () => {
-    const res = await POST(request({ chatId: "c1", message: "show course" }));
+    const res = await POST(request({ chatId: "c1", message: "show parent" }));
 
     expect(res.status).toBe(200);
     expect(streamBrainChat).toHaveBeenCalledOnce();

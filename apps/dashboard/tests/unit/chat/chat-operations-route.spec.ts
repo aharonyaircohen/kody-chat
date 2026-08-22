@@ -177,11 +177,10 @@ describe("Chat operations route", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await POST(
-      request("/run-workflow extract-pdf-exercises", {
+      request("/run-workflow custom-workflow", {
         flowData: {
-          courseId: "course-1",
-          lessonName: "Algebra",
-          pdfPath: "lesson.pdf",
+          resourceId: "resource-1",
+          assetPath: "input.bin",
           stepResults: { ignored: true },
         },
       }),
@@ -198,14 +197,13 @@ describe("Chat operations route", () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(
       new URL(
-        "https://dashboard.test/api/kody/company/workflows/extract-pdf-exercises/run",
+        "https://dashboard.test/api/kody/company/workflows/custom-workflow/run",
       ),
       expect.objectContaining({
         body: JSON.stringify({
           input: {
-            courseId: "course-1",
-            lessonName: "Algebra",
-            pdfPath: "lesson.pdf",
+            resourceId: "resource-1",
+            assetPath: "input.bin",
           },
         }),
       }),
@@ -224,11 +222,11 @@ describe("Chat operations route", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await POST(
-      request("/run-workflow extract-pdf-exercises", {
+      request("/run-workflow custom-workflow", {
         actionId: "approve",
         flowData: {
-          lessonName: "Algebra",
-          pdfPath: "lesson.pdf",
+          resourceId: "resource-1",
+          assetPath: "input.bin",
           status: "needs_attention",
           summary: "Approve this workflow.",
           approvalChallenge: "signed-challenge",
@@ -236,8 +234,8 @@ describe("Chat operations route", () => {
         previousResult: {
           approvalChallenge: "signed-challenge",
           workflowInput: {
-            lessonName: "Algebra",
-            pdfPath: "lesson.pdf",
+            resourceId: "resource-1",
+            assetPath: "input.bin",
           },
         },
       }),
@@ -250,21 +248,21 @@ describe("Chat operations route", () => {
     });
     expect(fetchMock.mock.calls[0]?.[0]).toEqual(
       new URL(
-        "https://dashboard.test/api/kody/company/workflows/extract-pdf-exercises/approve",
+        "https://dashboard.test/api/kody/company/workflows/custom-workflow/approve",
       ),
     );
     expect(fetchMock.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({
         body: JSON.stringify({
           approvalToken: "signed-challenge",
-          input: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+          input: { resourceId: "resource-1", assetPath: "input.bin" },
         }),
       }),
     );
     expect(fetchMock.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
         body: JSON.stringify({
-          input: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+          input: { resourceId: "resource-1", assetPath: "input.bin" },
           approvalId: "approval-1",
         }),
       }),
@@ -286,8 +284,8 @@ describe("Chat operations route", () => {
     );
 
     const response = await POST(
-      request("/run-workflow extract-pdf-exercises", {
-        flowData: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+      request("/run-workflow custom-workflow", {
+        flowData: { resourceId: "resource-1", assetPath: "input.bin" },
       }),
     );
 
@@ -295,7 +293,7 @@ describe("Chat operations route", () => {
       result: {
         status: "needs_attention",
         approvalChallenge: "signed-challenge",
-        workflowInput: { lessonName: "Algebra", pdfPath: "lesson.pdf" },
+        workflowInput: { resourceId: "resource-1", assetPath: "input.bin" },
       },
     });
   });

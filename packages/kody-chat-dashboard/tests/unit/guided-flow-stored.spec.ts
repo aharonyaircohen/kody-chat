@@ -206,8 +206,8 @@ describe("stored guided flow definitions", () => {
               ...definition("Pick a file").steps[0],
               routeId: "files",
               filePicker: {
-                resultField: "pdfPath",
-                extensions: [".pdf"],
+                resultField: "selectedFile",
+                extensions: [".txt"],
               },
             },
           ],
@@ -217,7 +217,7 @@ describe("stored guided flow definitions", () => {
       {
         steps: [
           expect.objectContaining({
-            filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
+            filePicker: { resultField: "selectedFile", extensions: [".txt"] },
           }),
         ],
       },

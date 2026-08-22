@@ -537,12 +537,13 @@ describe("GuidedFlow route", () => {
     expect(listed.status).toBe(200);
     const body = await listed.json();
     expect(body.flows).toHaveLength(1);
-    expect(body.definitions.map((definition: { id: string }) => definition.id))
-      .toEqual(
-        expect.arrayContaining(
-          listGuidedFlowDefinitions().map((definition) => definition.id),
-        ),
-      );
+    expect(
+      body.definitions.map((definition: { id: string }) => definition.id),
+    ).toEqual(
+      expect.arrayContaining(
+        listGuidedFlowDefinitions().map((definition) => definition.id),
+      ),
+    );
   });
 
   it("binds an existing instance without changing its progress", async () => {
@@ -770,17 +771,17 @@ describe("GuidedFlow route", () => {
       request({
         action: "create-definition",
         draft: {
-          title: "Back-enabled lesson",
+          title: "Back-enabled record",
           controls: ["back"],
           steps: [
             {
               title: "Introduction",
-              explanation: "Start the lesson.",
+              explanation: "Start the record.",
               rendererSlug: "approval-card",
             },
             {
               title: "Review",
-              explanation: "Review the lesson.",
+              explanation: "Review the record.",
               rendererSlug: "approval-card",
             },
           ],
@@ -790,7 +791,7 @@ describe("GuidedFlow route", () => {
     expect(created.status).toBe(201);
 
     const started = await POST(
-      request({ action: "start", flowId: "back-enabled-lesson" }),
+      request({ action: "start", flowId: "back-enabled-record" }),
     );
     const instanceId = (await started.json()).instance.instanceId as string;
     const advanced = await POST(
@@ -833,16 +834,16 @@ describe("GuidedFlow route", () => {
       request({
         action: "create-definition",
         draft: {
-          title: "Forward-only lesson",
+          title: "Forward-only record",
           steps: [
             {
               title: "Introduction",
-              explanation: "Start the lesson.",
+              explanation: "Start the record.",
               rendererSlug: "approval-card",
             },
             {
               title: "Review",
-              explanation: "Review the lesson.",
+              explanation: "Review the record.",
               rendererSlug: "approval-card",
             },
           ],
@@ -850,7 +851,7 @@ describe("GuidedFlow route", () => {
       }),
     );
     const started = await POST(
-      request({ action: "start", flowId: "forward-only-lesson" }),
+      request({ action: "start", flowId: "forward-only-record" }),
     );
     const instanceId = (await started.json()).instance.instanceId as string;
     await POST(
@@ -915,7 +916,7 @@ describe("GuidedFlow route", () => {
       request({
         action: "create-definition",
         draft: {
-          title: "Addition exercise",
+          title: "Example task",
           steps: [
             {
               title: "Choose the answer",
@@ -932,7 +933,7 @@ describe("GuidedFlow route", () => {
       request({
         action: "create-definition",
         draft: {
-          title: "Addition guide",
+          title: "Example guide",
           steps: [
             {
               title: "Introduction",
@@ -941,9 +942,9 @@ describe("GuidedFlow route", () => {
             },
             {
               type: "flow",
-              title: "Exercise",
-              explanation: "Complete the exercise.",
-              flowId: "addition-exercise",
+              title: "Task",
+              explanation: "Complete the task.",
+              flowId: "example-task",
               flowVersion: 1,
             },
             {
@@ -958,13 +959,13 @@ describe("GuidedFlow route", () => {
     expect(parent.status).toBe(201);
 
     const started = await POST(
-      request({ action: "start", flowId: "addition-guide" }),
+      request({ action: "start", flowId: "example-guide" }),
     );
     const startedPayload = await started.json();
     const instanceId = startedPayload.instance.instanceId as string;
     expect(startedPayload).toMatchObject({
       instance: {
-        flowId: "addition-guide",
+        flowId: "example-guide",
         currentStepId: "step-1",
         revision: 0,
       },
@@ -984,21 +985,21 @@ describe("GuidedFlow route", () => {
     expect(await childStep.json()).toMatchObject({
       instance: {
         instanceId,
-        flowId: "addition-exercise",
+        flowId: "example-task",
         currentStepId: "step-1",
         revision: 1,
         stack: [
           {
-            flowId: "addition-guide",
+            flowId: "example-guide",
             currentStepId: "step-2",
           },
         ],
       },
-      flow: { id: "addition-exercise" },
+      flow: { id: "example-task" },
     });
     expect(store.rows[0]).toMatchObject({
-      flowId: "addition-exercise",
-      stack: [{ flowId: "addition-guide" }],
+      flowId: "example-task",
+      stack: [{ flowId: "example-guide" }],
     });
 
     const summary = await POST(
@@ -1016,26 +1017,26 @@ describe("GuidedFlow route", () => {
     expect(await summary.json()).toMatchObject({
       instance: {
         instanceId,
-        flowId: "addition-guide",
+        flowId: "example-guide",
         currentStepId: "step-3",
         revision: 2,
         stack: [],
         data: {
           flowResults: {
             "step-2": {
-              flowId: "addition-exercise",
+              flowId: "example-task",
               status: "completed",
               output: { answer: "four" },
             },
           },
         },
       },
-      flow: { id: "addition-guide" },
+      flow: { id: "example-guide" },
     });
     expect(store.submissions.at(-1)).toMatchObject({
       instanceId,
       revision: 2,
-      flowId: "addition-exercise",
+      flowId: "example-task",
       stepId: "step-1",
       actionId: "continue",
       result: { answer: "four" },

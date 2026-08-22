@@ -22,7 +22,7 @@ describe("guided flow persistence mapping", () => {
           {
             flowId: "parent",
             flowVersion: 1,
-            currentStepId: "exercise",
+            currentStepId: "task",
             data: null,
             history: ["intro"],
           },
@@ -42,7 +42,7 @@ describe("guided flow persistence mapping", () => {
         {
           flowId: "parent",
           flowVersion: 1,
-          currentStepId: "exercise",
+          currentStepId: "task",
           data: {},
           backStack: ["intro"],
         },
@@ -53,7 +53,7 @@ describe("guided flow persistence mapping", () => {
   it("creates one persistence payload for every transport", () => {
     const instance = guidedFlowInstanceFromRow({
       instanceId: "instance-1",
-      instanceKey: "lesson",
+      instanceKey: "record",
       flowId: "child",
       flowVersion: 2,
       currentStepId: "answer",
@@ -67,7 +67,7 @@ describe("guided flow persistence mapping", () => {
 
     expect(guidedFlowInstanceWriteFields(instance)).toEqual({
       instanceId: "instance-1",
-      instanceKey: "lesson",
+      instanceKey: "record",
       flowId: "child",
       flowVersion: 2,
       currentStepId: "answer",

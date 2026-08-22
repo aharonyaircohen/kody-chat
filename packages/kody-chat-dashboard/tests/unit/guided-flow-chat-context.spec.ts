@@ -17,7 +17,7 @@ function reader(
     getData: async () => ({}),
     getHistory: async () => ({ items: [] }),
     getModelGuides: async () => [
-      "Request Blueprint: Exercise\nPurpose: Help the user answer correctly.\n1. question [view: selection-list]\n   guidance: Choose one.",
+      "Request Blueprint: Task\nPurpose: Help the user answer correctly.\n1. question [view: selection-list]\n   guidance: Choose one.",
     ],
   };
 }
@@ -32,7 +32,7 @@ describe("GuidedFlow Chat turn context", () => {
         },
         instance: {
           instanceId: "instance-1",
-          flowId: "exercise",
+          flowId: "task",
           flowVersion: 2,
           currentStepId: "question",
           status: "active",
@@ -42,18 +42,18 @@ describe("GuidedFlow Chat turn context", () => {
           backStack: ["intro"],
           stack: [
             {
-              flowId: "lesson",
+              flowId: "record",
               flowVersion: 1,
-              currentStepId: "exercise",
+              currentStepId: "task",
               data: {},
               backStack: ["welcome"],
             },
           ],
         },
         definition: {
-          id: "exercise",
+          id: "task",
           version: 2,
-          title: "Exercise",
+          title: "Task",
           steps: [
             {
               id: "question",
@@ -73,9 +73,9 @@ describe("GuidedFlow Chat turn context", () => {
         },
         path: [
           {
-            flowId: "lesson",
+            flowId: "record",
             flowVersion: 1,
-            currentStepId: "exercise",
+            currentStepId: "task",
             data: {},
             backStack: ["welcome"],
           },
@@ -84,8 +84,8 @@ describe("GuidedFlow Chat turn context", () => {
     );
 
     expect(context).toContain("instance-1");
-    expect(context).toContain("exercise@2 / question");
-    expect(context).toContain("lesson@1 / exercise");
+    expect(context).toContain("task@2 / question");
+    expect(context).toContain("record@1 / task");
     expect(context).toContain("guided_flow_read");
     expect(context).toContain("Purpose: Help the user answer correctly.");
     expect(context).toContain("guidance: Choose one.");

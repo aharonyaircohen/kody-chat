@@ -19,7 +19,7 @@ const widgetView: RenderedViewDirective = {
   rendererName: "Question",
   resultTarget: "guided-flow",
   guidedFlow: {
-    instanceId: "lesson-1",
+    instanceId: "record-1",
     stepId: "question-1",
     revision: 0,
   },

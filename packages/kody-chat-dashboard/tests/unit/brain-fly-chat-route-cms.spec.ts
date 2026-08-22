@@ -104,7 +104,7 @@ beforeEach(() => {
 describe("POST /api/kody/chat/brain-fly CMS context", () => {
   it("uses resolveFlyContext repo and token for Brain CMS even when getRequestAuth is unavailable later", async () => {
     const res = await POST(
-      request({ chatId: "c1", message: "show course", includeContext: true }),
+      request({ chatId: "c1", message: "show parent", includeContext: true }),
     );
 
     expect(res.status).toBe(200);

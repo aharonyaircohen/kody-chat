@@ -17,9 +17,9 @@ const QUESTION_RENDERER: ViewRendererDefinition = {
       type: "json",
       valueSchema: {
         kind: "object",
-        required: ["exerciseId", "questionId"],
+        required: ["taskId", "questionId"],
         properties: {
-          exerciseId: { kind: "string" },
+          taskId: { kind: "string" },
           questionId: { kind: "string" },
         },
         additionalProperties: false,
@@ -40,9 +40,9 @@ function definition(
   question: unknown,
 ): GuidedFlowDefinition {
   return {
-    id: "addition-lesson",
+    id: "example-record",
     version: 3,
-    title: "Addition lesson",
+    title: "Example record",
     steps: [
       {
         id: "question",
@@ -60,7 +60,7 @@ function definition(
 describe("GuidedFlow renderer compatibility", () => {
   it("rejects custom renderers that were not pinned by the flow definition", () => {
     const flow = definition(undefined, {
-      exerciseId: "addition",
+      taskId: "example",
       questionId: "q1",
     });
 
@@ -78,7 +78,7 @@ describe("GuidedFlow renderer compatibility", () => {
 
   it("rejects a renderer version that differs from the pinned version", () => {
     const flow = definition(1, {
-      exerciseId: "addition",
+      taskId: "example",
       questionId: "q1",
     });
 
@@ -114,7 +114,7 @@ describe("GuidedFlow renderer compatibility", () => {
 
   it("accepts a pinned renderer with valid structured input", () => {
     const flow = definition(2, {
-      exerciseId: "addition",
+      taskId: "example",
       questionId: "q1",
     });
 
