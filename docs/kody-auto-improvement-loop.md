@@ -462,3 +462,55 @@ For every finding, append a dated entry with:
 - Product run: PR #22 merged as
   `61a9c16a522a2764b9ccb9a9bece08391815ca57`; lifecycle run `32593049336`
   closed issue #21 and finalized it as `kody:done`.
+
+## 2026-08-22 — Delivery now requires acceptance and behavior proof
+
+- Prompt: implement reliability improvements 1–4 before continuing TDR:
+  preserve the existing quality gate, base completion on real delivery, check
+  explicit acceptance criteria, and require tests to name the changed behavior.
+- Actual: repository verification already existed, but an agent could still
+  reach delivery with incomplete acceptance coverage or generic test prose.
+  PR and issue summaries also did not preserve enough wrapper-owned proof to
+  distinguish an agent claim from a pushed, verified result.
+- Expected: every explicit acceptance item is numbered and evidenced; every
+  changed behavior names its regression proof; UI work names its mounted
+  journey or blocker; success comments report wrapper-confirmed verification
+  and push state.
+- Classification: generic Engine reliability and documentation gap.
+- Decision: automatic clean correction. The change extends the existing prompt,
+  parser, delivery gate, PR body, and issue-comment boundaries without adding a
+  second quality system.
+- Change: Engine extracts explicit issue acceptance lists as `A1`, `A2`, and so
+  on; requires `ACCEPTANCE_EVIDENCE` and `TEST_EVIDENCE`; blocks missing IDs;
+  copies both sections into the PR; and adds repository verification plus the
+  pushed commit to the final issue comment.
+- Proof: focused regression coverage passed 100 tests; full Engine unit,
+  integration, smoke, runtime-service, typecheck, lint, and build gates passed.
+  Engine CI run `32594070620` passed and package `0.4.626` published through
+  `.github/workflows/kody.yml`. Consumer PR #4000 proved the new PR-body and
+  issue-comment evidence, while surfacing the next Engine defect below.
+
+## 2026-08-22 — Successful PR delivery was falsely marked failed
+
+- Prompt: repeat the new evidence contract against the published package in
+  `aharonyaircohen/Kody-Engine-Tester`.
+- Actual: Kody opened a correct, green PR and posted a verified success comment,
+  then failed the workflow because it validated `{prUrl}` against the
+  repository's strict `{status, summary}` capability contract. The issue ended
+  with both success and failure messages.
+- Expected: the PR URL remains delivery metadata, while the capability result
+  reports the canonical changed status and summary declared by repository
+  contracts.
+- Classification: generic Engine output-boundary defect.
+- Decision: automatic clean correction. This is one compatibility mapping at
+  the existing output-contract boundary, with no Store, repository, workflow,
+  or schema special case.
+- Change: successful PR delivery without explicit JSON output now yields
+  `status: changed` plus a plain summary, while retaining `prUrl` separately.
+  The strict-contract regression disallows extra output properties so it
+  reproduces the live failure exactly.
+- Proof: local focused and full Engine gates passed; Engine CI run
+  `32594824984` passed; package `0.4.627` published through `kody.yml` run
+  `32594909530`. Fresh consumer run `32595004665` completed successfully, issue
+  #4001 has only `kody:reviewing`, and PR #4002 contains all acceptance/test
+  evidence with two green checks and no second failure comment.
