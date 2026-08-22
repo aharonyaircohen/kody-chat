@@ -294,3 +294,33 @@ For every finding, append a dated entry with:
 - Product run: merge lifecycle run `32587746011` automatically finalized issue
   #9 and PR #10 as `kody:done`; post-merge CI run `32587748410` passed both
   verification and all seven browser journeys.
+
+## 2026-08-22 — Existing sequential lesson rule was not enforced
+
+- Prompt: make the existing `canEnterLesson` rule real across the learner UI,
+  direct navigation, and lesson actions without adding a permissions system.
+- Actual: every future lesson remained linked, direct URLs opened normally,
+  and Next appeared before completion. Kody's first repair covered the visible
+  UI and page redirect but left seed, message, and completion APIs able to
+  mutate locked lessons. Its first browser check also expected `Start` while
+  the untouched course incorrectly rendered `Continue`, causing red CI.
+- Expected: one policy owner governs cards, pages, and mutations; an untouched
+  course says Start, locked work cannot be changed through APIs, and completion
+  immediately unlocks the next lesson.
+- Classification: surfaced TDR product and enforcement-boundary defects; no
+  generic Engine defect was found.
+- Decision: automatic clean correction. The existing helper was reused at the
+  service boundary, with no new authorization model, schema, or subsystem.
+- Change: future lessons render Locked without links, locked URLs redirect to
+  the current lesson, Next is completion-gated, and the shared service rejects
+  locked seed/message/complete mutations with `409`. Course action wording now
+  distinguishes untouched Start from active Continue.
+- Proof: local typecheck, lint, and 69 unit/integration tests passed, including
+  mutation-bypass coverage; all nine Playwright journeys passed. In the mounted
+  app, lessons 2–3 were locked, direct lesson-2 navigation redirected, all three
+  mutation endpoints returned `409`, and completing lesson 1 immediately
+  exposed Next and unlocked lesson 2. PR #12 merged as
+  `bfac10d6a5fb838f74d1a0691d9503753338b671`.
+- Product run: lifecycle run `32588635911` automatically finalized issue #11
+  and PR #12 as `kody:done`; post-merge CI run `32588638458` passed verification
+  and all nine browser journeys.
