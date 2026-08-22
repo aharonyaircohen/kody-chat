@@ -146,5 +146,31 @@ For every finding, append a dated entry with:
   instructions. Regression coverage distinguishes an autonomous command from
   a question merely about autonomous behavior.
 - Proof: the focused shared Chat output-policy suite passes all 21 tests.
-- Product run: TDR issue #3 remains active while this fix is verified through
-  the remaining repository and browser gates.
+- Product run: TDR issue #3 produced focused UI-polish PR #4; the operator is
+  completing its final repository and browser gates.
+
+## 2026-08-22 — Engine runtime manifest falsely failed safe delivery
+
+- Prompt: implement TDR issue #3 and deliver only the requested learner UI
+  work.
+- Actual: Kody safely committed and pushed the full product change, but the
+  workflow ended red because definition hydration had refreshed
+  `.kody-engine/definitions/manifest.json`. The protected-file reporter treated
+  that Engine-owned runtime cache as omitted agent work.
+- Expected: generated runtime/cache files stay outside the PR without affecting
+  the result; only blocked user/model-authored protected configuration should
+  fail delivery and name the omitted path.
+- Classification: regression in the Engine delivery-reporting boundary.
+- Decision: automatic generic fix. Runtime ownership is already explicit and
+  permanently non-deliverable, so ignoring its generated churn is the simplest
+  correct behavior and does not weaken the security boundary.
+- Change: Engine now distinguishes generated runtime/cache paths from
+  reportable protected configuration. GitHub workflow and operator-config
+  omissions still fail visibly. A new packaged delivery-boundary guide explains
+  both outcomes and approved allowlisted delivery.
+- Proof: the regression reproduces hydrated manifest churn beside a real source
+  edit; the full Engine suite passed 2,253 tests with four files skipped,
+  typecheck and build passed, npm pack includes the new guide, and version
+  `0.4.622` published successfully through `kody.yml` run `32583168522`.
+- Product run: TDR PR #4 remained intact; its safe product files were already
+  delivered, and its PR checks continued normally.
