@@ -236,3 +236,31 @@ For every finding, append a dated entry with:
   persistence defect: normal development startup currently deletes learner
   progress and chat history even though the product promises restart-safe
   persistence.
+
+## 2026-08-22 — Normal TDR startup deleted learner state
+
+- Prompt: continue building the LMS while auditing each existing product
+  promise before adding the next feature.
+- Actual: TDR ran its seed from every normal `npm run dev` startup, and the
+  seed deleted all messages and progress for the seeded lessons. Closing and
+  restarting the app therefore erased the learner journey advertised as
+  persistent.
+- Expected: ordinary setup may update seeded course content but must preserve
+  learner-owned state; erasure must require the explicit reset command.
+- Classification: surfaced TDR product defect, not an Engine defect.
+- Decision: automatic product correction. Removing unconditional learner-data
+  deletion restores the existing contract without changing the schema or
+  adding a new subsystem.
+- Change: Kody made the course seed non-destructive, retained `npm run
+  db:reset` as the explicit destructive path, added real-seed integration
+  coverage, and clarified startup/reset behavior in README and proof docs.
+- Proof: 49 typechecked and linted unit/integration tests passed locally,
+  including two real seed-command regressions; all six Playwright journeys
+  passed locally and in PR CI. PR #8 merged as
+  `a0cf29684d859265ba1ed234e9bfba9f8eaed8c2`; post-merge `main` CI run
+  `32586275685` passed verification and e2e.
+- Product run: the newly published lifecycle handler processed the real merge
+  in run `32586273078` and automatically changed issue #7 and PR #8 from
+  `kody:reviewing` to `kody:done`. Issue #9 was then dispatched to repair the
+  next surfaced learner blocker: an incorrect chat answer permanently poisons
+  transcript replay and prevents a later correct retry from advancing.
