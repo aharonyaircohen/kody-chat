@@ -11,6 +11,10 @@ const auth = vi.hoisted(() => ({
   })),
 }));
 const install = vi.hoisted(() => ({ installEngine: vi.fn() }));
+const personalModels = vi.hoisted(() => ({
+  readPersonalCredential: vi.fn(),
+  readPersonalModelSettings: vi.fn(),
+}));
 const chat = vi.hoisted(() => ({
   resolveChatModel: vi.fn(),
   generateText: vi.fn(),
@@ -21,6 +25,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: vi.fn(() => ({ mocked: true })),
 }));
 vi.mock("@dashboard/lib/engine/install", () => install);
+vi.mock("@dashboard/lib/chat/personal-model-settings", () => personalModels);
 vi.mock("@dashboard/lib/auth/kody-user", () => ({
   requireKodyUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
 }));
@@ -48,6 +53,15 @@ function request(input: string): NextRequest {
 describe("Chat operations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    personalModels.readPersonalModelSettings.mockResolvedValue({
+      models: [
+        {
+          id: "minimax/MiniMax-M3",
+          label: "MiniMax M3",
+          apiKeySecret: "MINIMAX_API_KEY",
+        },
+      ],
+    });
     install.installEngine.mockResolvedValue({
       ok: true,
       summary: "Kody Engine is ready.",
@@ -77,6 +91,10 @@ describe("Chat operations route", () => {
         repo: "widgets",
         token: "secret-token",
         force: true,
+        resolvePersonalSecret: personalModels.readPersonalCredential,
+        personalModels: [
+          expect.objectContaining({ apiKeySecret: "MINIMAX_API_KEY" }),
+        ],
       }),
     );
   });

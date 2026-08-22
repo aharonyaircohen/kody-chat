@@ -8,6 +8,10 @@ import { createChatInputDispatcher } from "@kody-ade/kody-chat-dashboard/platfor
 import { installEngine } from "@dashboard/lib/engine/install";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
+import {
+  readPersonalCredential,
+  readPersonalModelSettings,
+} from "@dashboard/lib/chat/personal-model-settings";
 import { resolveChatModel } from "../resolve-model";
 import {
   KODY_OPENROUTER_FREE_CHAT_MODEL,
@@ -142,6 +146,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
         const auth = getRequestAuth(req);
         if (!auth) throw new ChatOperationError("missing_auth", 401);
+        const personalSettings = await readPersonalModelSettings();
         const result = await installEngine({
           octokit: createUserOctokit(auth.token),
           owner: auth.owner,
@@ -149,6 +154,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           token: auth.token,
           hookUrl: `${getPublicBaseUrl(req)}/api/webhooks/github`,
           force: args.includes("--force"),
+          resolvePersonalSecret: readPersonalCredential,
+          personalModels: personalSettings?.models ?? [],
         });
         if (!result.ok) {
           throw new ChatOperationError(result.error, 502);
