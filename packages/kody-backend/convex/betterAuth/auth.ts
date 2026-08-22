@@ -49,7 +49,7 @@ function socialProviders(): BetterAuthOptions["socialProviders"] {
 
 function createAuthWithOptions(
   ctx: GenericCtx<DataModel>,
-  options: { allowEmailSignUp?: boolean } = {},
+  options: { emailAndPassword: NonNullable<BetterAuthOptions["emailAndPassword"]> },
 ) {
   return betterAuth({
     appName: "Kody",
@@ -58,9 +58,7 @@ function createAuthWithOptions(
     secret: process.env.BETTER_AUTH_SECRET,
     database: authComponent.adapter(ctx),
     socialProviders: socialProviders(),
-    emailAndPassword: emailPasswordOptions({
-      allowSignUp: options.allowEmailSignUp,
-    }),
+    emailAndPassword: options.emailAndPassword,
     account: {
       accountLinking: {
         enabled: true,
@@ -76,10 +74,18 @@ function createAuthWithOptions(
 }
 
 export function createAuth(ctx: GenericCtx<DataModel>) {
-  return createAuthWithOptions(ctx);
+  return createAuthWithOptions(ctx, {
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      requireEmailVerification: false,
+    },
+  });
 }
 
 /** Used only by the internal, CLI-invoked QA account provisioner. */
 export function createQaProvisioningAuth(ctx: GenericCtx<DataModel>) {
-  return createAuthWithOptions(ctx, { allowEmailSignUp: true });
+  return createAuthWithOptions(ctx, {
+    emailAndPassword: emailPasswordOptions({ allowSignUp: true }),
+  });
 }
