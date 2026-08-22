@@ -431,3 +431,34 @@ For every finding, append a dated entry with:
 - Product run: PR #20 merged as
   `058be8bab76b66d97ef5d986d0a794e6a4d81d1f`; lifecycle run `32591264544`
   closed issue #19 and finalized both issue and PR as `kody:done`.
+
+## 2026-08-22 — Lesson transcripts became learner-owned
+
+- Prompt: migrate existing lesson messages to the demo learner without data
+  loss, then isolate all future transcript reads and writes by learner.
+- Actual: Kody implemented the ownership migration and isolation, but its reset
+  endpoint created openings for every lesson before first entry, and its
+  two-browser proof hard-coded port 3000 and could not start two Next.js dev
+  servers from one build directory.
+- Expected: legacy IDs and contents survive under `demo-learner`; new messages
+  always name an owner; reset leaves empty learner state; two independent
+  learner identities can use the same lesson without seeing each other.
+- Classification: approved TDR data-ownership migration plus Kody
+  implementation and proof-quality mistakes; no generic Engine defect was
+  found.
+- Decision: the schema migration required approval and was dispatched only
+  after approval. The operator then made automatic clean corrections within
+  that approved scope.
+- Change: messages now require `learnerId`; legacy rows are backfilled before
+  schema sync; reads, replay, seed, and all chat writes are learner-scoped.
+  The operator made reset genuinely empty, asserted that the temporary legacy
+  default is removed, and made the two-server browser proof portable with
+  separate ports and build directories.
+- Proof: local typecheck, lint, and all 78 unit/integration tests passed,
+  including real legacy upgrade, ID/content preservation, restart, concurrent
+  seed, and default-removal checks. The full local Playwright suite passed all
+  12 journeys. PR CI and post-merge `main` CI run `32593049582` passed
+  verification and all 12 browser journeys.
+- Product run: PR #22 merged as
+  `61a9c16a522a2764b9ccb9a9bece08391815ca57`; lifecycle run `32593049336`
+  closed issue #21 and finalized it as `kody:done`.
