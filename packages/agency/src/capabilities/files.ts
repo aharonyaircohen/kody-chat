@@ -271,11 +271,39 @@ export async function readCapabilityFile(
 export async function readResolvedCapabilityFile(
   slug: string,
   octokit?: Octokit,
+  options: { activeStoreSlugs?: ReadonlySet<string> } = {},
 ): Promise<CapabilityDetail | null> {
-  return (
-    (await readCapabilityFile(slug)) ??
-    readStoreCapabilityFile(slug, octokit ?? getOctokit())
+  const local = await readCapabilityFile(slug);
+  if (local) return local;
+  if (options.activeStoreSlugs && !options.activeStoreSlugs.has(slug)) {
+    return null;
+  }
+  return readStoreCapabilityFile(slug, octokit ?? getOctokit());
+}
+
+/**
+ * Resolve every capability referenced by a Workflow against the same sources
+ * the Dashboard exposes: local backend definitions and explicitly active Store
+ * capabilities. This prevents a slug-only allowlist from passing a workflow
+ * that Engine cannot hydrate at run time.
+ */
+export async function findMissingCapabilitySlugs(
+  slugs: readonly string[],
+  options: {
+    octokit?: Octokit;
+    activeStoreSlugs?: ReadonlySet<string>;
+    builtInSlugs?: ReadonlySet<string>;
+  } = {},
+): Promise<string[]> {
+  const unique = [...new Set(slugs)].filter(
+    (slug) => !options.builtInSlugs?.has(slug),
   );
+  const resolved = await Promise.all(
+    unique.map(async (slug) =>
+      Boolean(await readResolvedCapabilityFile(slug, options.octokit, options)),
+    ),
+  );
+  return unique.filter((_, index) => !resolved[index]);
 }
 
 export async function readCapabilityFolderFiles(

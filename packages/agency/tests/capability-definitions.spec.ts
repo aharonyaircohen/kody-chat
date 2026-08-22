@@ -6,6 +6,7 @@ const backend = vi.hoisted(() => ({
   mutation: vi.fn(),
 }));
 const storeAssets = vi.hoisted(() => ({
+  companyStoreAssetPath: vi.fn(),
   listSlugs: vi.fn(),
   listDirectory: vi.fn(),
   readText: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("@kody-ade/base/github/core", () => ({
 vi.mock("@kody-ade/base/company-store/assets", () => ({
   buildCompanyStoreHtmlUrl: (_type: string, slug: string) =>
     `https://store.example/capabilities/${slug}`,
-  companyStoreAssetPath: vi.fn(),
+  companyStoreAssetPath: storeAssets.companyStoreAssetPath,
   listCompanyStoreAssetSlugs: storeAssets.listSlugs,
   listCompanyStoreDirectorySafe: storeAssets.listDirectory,
   mergeAssetsBySlug: (local: unknown[], store: unknown[]) => [
@@ -35,9 +36,11 @@ vi.mock("@kody-ade/base/company-store/assets", () => ({
 import {
   assertSimpleCapabilityFolder,
   deleteCapabilityFile,
+  findMissingCapabilitySlugs,
   listLocalCapabilityFiles,
   listStoreCapabilityFiles,
   readCapabilityFile,
+  readResolvedCapabilityFile,
   writeCapabilityFolderFiles,
 } from "../src/capabilities/files";
 
@@ -168,6 +171,43 @@ describe("simple capability folders", () => {
     ]);
     expect(storeAssets.listDirectory).not.toHaveBeenCalled();
     expect(storeAssets.readText).not.toHaveBeenCalled();
+  });
+
+  it("resolves only local or explicitly active Store capabilities", async () => {
+    backend.query.mockImplementation((ref) => {
+      const name = getFunctionName(ref);
+      if (name === "definitions:getCurrent") return Promise.resolve(null);
+      if (name === "repoDocs:get") return Promise.resolve(null);
+      return Promise.resolve(null);
+    });
+    storeAssets.companyStoreAssetPath.mockResolvedValue("capabilities/release");
+    storeAssets.listDirectory.mockResolvedValue([
+      { type: "file", name: "instructions.md" },
+      { type: "file", name: "contract.json" },
+    ]);
+    storeAssets.readText.mockImplementation(
+      async (_octokit: unknown, path: string) =>
+        path.endsWith("instructions.md")
+          ? "Release the project.\n"
+          : JSON.stringify({ input: {}, output: {} }),
+    );
+
+    await expect(
+      readResolvedCapabilityFile("release", {} as never, {
+        activeStoreSlugs: new Set(),
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      readResolvedCapabilityFile("release", {} as never, {
+        activeStoreSlugs: new Set(["release"]),
+      }),
+    ).resolves.toMatchObject({ slug: "release", source: "store" });
+    await expect(
+      findMissingCapabilitySlugs(["release", "missing"], {
+        octokit: {} as never,
+        activeStoreSlugs: new Set(["release"]),
+      }),
+    ).resolves.toEqual(["missing"]);
   });
 
   it("accepts contracts but rejects profiles and missing instructions", () => {

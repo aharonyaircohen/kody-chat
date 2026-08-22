@@ -7,6 +7,7 @@ export {
   readCapabilityFolderFiles,
   readCompanyStoreCapabilityFolderFiles,
   readResolvedCapabilityFile,
+  findMissingCapabilitySlugs,
   assertSimpleCapabilityFolder,
   writeCapabilityFolderFiles,
   isValidSlug,
