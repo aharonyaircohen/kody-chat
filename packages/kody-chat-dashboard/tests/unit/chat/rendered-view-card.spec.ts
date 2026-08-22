@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isReadOnlyViewInput,
+  isViewInputDisabled,
   replaceFirstRenderedViewList,
 } from "../../../src/dashboard/lib/chat/surface/RenderedViewCard";
 
@@ -13,6 +14,11 @@ describe("RenderedViewCard input ownership", () => {
     expect(
       isReadOnlyViewInput({ type: "input", value: "repo", readOnly: false }),
     ).toBe(false);
+  });
+
+  it("disables editable fields when their view card is inactive", () => {
+    expect(isViewInputDisabled(true)).toBe(true);
+    expect(isViewInputDisabled(false)).toBe(false);
   });
 });
 

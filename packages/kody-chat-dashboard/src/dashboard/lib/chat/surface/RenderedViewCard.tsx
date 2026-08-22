@@ -90,6 +90,11 @@ export function isReadOnlyViewInput(
   return node.readOnly !== false;
 }
 
+/** Inactive view cards must not leave editable fields in the tab order. */
+export function isViewInputDisabled(cardDisabled: boolean): boolean {
+  return cardDisabled;
+}
+
 export function validateGuidedFlowInput(
   ui: RenderedViewUiNode,
   inputValues: Record<string, string>,
@@ -462,6 +467,7 @@ export function RenderedViewCard({
             <textarea
               value={value}
               readOnly={false}
+              disabled={isViewInputDisabled(disabled)}
               rows={4}
               onChange={onChange}
               className="min-h-24 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -470,6 +476,7 @@ export function RenderedViewCard({
             <input
               value={value}
               readOnly={false}
+              disabled={isViewInputDisabled(disabled)}
               type={node.inputType ?? "text"}
               onChange={onChange}
               className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
