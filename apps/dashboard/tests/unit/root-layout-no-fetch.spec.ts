@@ -69,4 +69,18 @@ describe("root dashboard layout (e2e gate regression)", () => {
     // silently re-couple identity into the root layout.
     expect(LAYOUT_SOURCE).not.toMatch(/from\s+["']next\/headers["']/);
   });
+
+  it("does not construct a Promise at the top of the layout body", () => {
+    // Belt-and-braces: an unawaited `new Promise(...)` or `Promise.all([...])`
+    // at the top of `KodyLayout` would still be evaluated during prerender
+    // and could throw the same `TypeError: fetch failed` signature if the
+    // executor calls a network-bound function. Block the constructor patterns
+    // so the layout stays free of any request-time work.
+    const bodyMatch = LAYOUT_SOURCE.match(
+      /export\s+default\s+function\s+KodyLayout\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/,
+    );
+    const body = bodyMatch ? bodyMatch[1] : "";
+    expect(body).not.toMatch(/\bnew\s+Promise\s*\(/);
+    expect(body).not.toMatch(/\bPromise\.(all|race|allSettled|any)\s*\(/);
+  });
 });
