@@ -49,4 +49,15 @@ describe("root dashboard layout (e2e gate regression)", () => {
     // match so `await(`, `await\n`, or `await;` patterns all trip the guard.
     expect(LAYOUT_SOURCE).not.toMatch(/\bawait\b/);
   });
+
+  it("does not call fetch() at module scope inside the layout body", () => {
+    // Belt-and-braces: even a non-awaited `fetch(...)` at the top level of
+    // `KodyLayout` would run during prerender and fail CI with the same
+    // `TypeError: fetch failed` signature. Block the bare call directly.
+    const bodyMatch = LAYOUT_SOURCE.match(
+      /export\s+default\s+function\s+KodyLayout\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/,
+    );
+    const body = bodyMatch ? bodyMatch[1] : "";
+    expect(body).not.toMatch(/\bfetch\s*\(/);
+  });
 });
