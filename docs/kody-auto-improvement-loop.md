@@ -324,3 +324,30 @@ For every finding, append a dated entry with:
 - Product run: lifecycle run `32588635911` automatically finalized issue #11
   and PR #12 as `kody:done`; post-merge CI run `32588638458` passed verification
   and all nine browser journeys.
+
+## 2026-08-22 — Documentation overstated learner ownership
+
+- Prompt: audit the next product boundary before adding multi-user accounts or
+  course authoring.
+- Actual: TDR documentation described both `Message` and `Progress` as
+  learner-owned, but only `Progress` has a `learnerId`; transcript queries key
+  messages by lesson alone.
+- Expected: documentation must state the current single-learner boundary and
+  warn that accounts are unsafe until transcripts gain learner ownership.
+- Classification: surfaced TDR documentation defect and an important pending
+  product data-ownership decision; no generic Engine defect was found.
+- Decision: automatic documentation correction only. Changing schema, stored
+  records, or query ownership requires approval, so Kody was explicitly kept
+  out of runtime code.
+- Change: README and architecture docs now state that
+  `CURRENT_LEARNER_ID` scopes progress only, while seed/read/replay message
+  queries remain lesson-global. Proof and seed comments no longer call messages
+  learner-owned.
+- Proof: the PR changed only four documentation/comment files. Local typecheck,
+  lint, and all 69 unit/integration tests passed; PR CI and post-merge CI run
+  `32589123023` passed verification and all nine Playwright journeys. No mounted
+  local or deployed UI check was needed because runtime behavior did not change.
+- Product run: PR #14 merged as
+  `273d87d79aa9ecc1300d178da6f1b6114f335283`; lifecycle run `32589123068`
+  closed issue #13 and finalized both issue and PR as `kody:done`. Multi-user
+  work remains gated on approval for learner-owned message migration.
