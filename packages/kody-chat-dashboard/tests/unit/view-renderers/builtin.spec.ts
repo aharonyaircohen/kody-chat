@@ -93,4 +93,13 @@ describe("builtin view renderers", () => {
       "guided-flow-command",
     );
   });
+
+  it("renders Guide instructions as Markdown for every list renderer", () => {
+    for (const slug of ["selection-list", "multi-select-list"]) {
+      const renderer = getBuiltinViewRendererDefinition(slug);
+      expect(JSON.stringify(renderer?.ui)).toContain(
+        '"type":"markdown","value":"$body"',
+      );
+    }
+  });
 });
