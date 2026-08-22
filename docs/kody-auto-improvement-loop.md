@@ -351,3 +351,31 @@ For every finding, append a dated entry with:
   `273d87d79aa9ecc1300d178da6f1b6114f335283`; lifecycle run `32589123068`
   closed issue #13 and finalized both issue and PR as `kody:done`. Multi-user
   work remains gated on approval for learner-owned message migration.
+
+## 2026-08-22 — Final tutor reply disappeared after refresh
+
+- Prompt: continue auditing the safe single-learner journey while the
+  learner-owned message migration remains approval-gated.
+- Actual: `sendTurn` returned the final tutor reply with a fabricated
+  `terminal-*` id instead of saving it. The learner saw the closing line once,
+  but refresh removed it; direct API calls could also append turns after
+  completion.
+- Expected: the closing tutor line is a normal persisted message, and a
+  completed transcript is read-only through both UI and API.
+- Classification: surfaced TDR persistence and mutation-boundary defect; no
+  generic Engine defect was found.
+- Decision: automatic clean correction. It restores the existing persistence
+  promise using the current service and API boundaries, with no schema,
+  ownership, authentication, or navigation change.
+- Change: Kody persisted every tutor reply and added a completed-lesson conflict
+  at the shared service boundary, mapped to HTTP `409`. The operator removed
+  duplicated proof and corrected Kody's browser test, which had hard-coded the
+  wrong number of scripted tutor turns.
+- Proof: local typecheck, lint, and 71 unit/integration tests passed. The first
+  browser run exposed the incorrect Kody assertion; the corrected suite passed
+  all ten Playwright journeys on isolated port 3019. PR CI and latest
+  post-merge `main` CI run `32589953857` passed verification and all ten
+  browser journeys.
+- Product run: PR #16 merged as
+  `57b955a3ee644463121d590e5db4247359d83d11`; lifecycle run `32589952311`
+  closed issue #15 and finalized both issue and PR as `kody:done`.
