@@ -211,3 +211,28 @@ For every finding, append a dated entry with:
   `32585370840` passed verification and all six Playwright journeys. The mounted
   local dashboard also rendered the correct most-recent course and navigated
   its Resume lesson action to the persisted transcript.
+
+## 2026-08-22 — Merged Kody work kept stale failure/review labels
+
+- Prompt: finish verified Kody work and continue the autonomous product loop.
+- Actual: merged TDR PRs #2, #4, and #6, plus their closed issues, still showed
+  `kody:reviewing` or `kody:failed`. The Engine ignored closed pull-request
+  events, so the visible lifecycle never reached done.
+- Expected: when a Kody-owned PR is merged, both the PR and any issue closed by
+  its standard `Closes`, `Fixes`, or `Resolves` reference should show
+  `kody:done`.
+- Classification: Engine pull-request lifecycle gap.
+- Decision: automatic generic fix. GitHub's merged flag and closing references
+  provide a narrow, standard boundary; unrelated PRs remain untouched.
+- Change: Engine now handles merged pull-request events, recognizes only PRs
+  already carrying a Kody lifecycle label, and finalizes the PR and linked
+  issues as done. The new pull-request lifecycle guide documents the trigger,
+  scope, and failure behavior.
+- Proof: focused lifecycle tests, the full Engine suite, typecheck, build, and
+  coverage gate passed. Engine `0.4.624` published successfully through
+  `kody.yml` run `32585732169`. Existing stale labels on TDR issues #1, #3,
+  and #5 and PRs #2, #4, and #6 were repaired to `kody:done`.
+- Product run: TDR issue #7 was dispatched next to correct a newly surfaced
+  persistence defect: normal development startup currently deletes learner
+  progress and chat history even though the product promises restart-safe
+  persistence.
