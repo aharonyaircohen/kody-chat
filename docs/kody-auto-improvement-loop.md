@@ -146,8 +146,9 @@ For every finding, append a dated entry with:
   instructions. Regression coverage distinguishes an autonomous command from
   a question merely about autonomous behavior.
 - Proof: the focused shared Chat output-policy suite passes all 21 tests.
-- Product run: TDR issue #3 produced focused UI-polish PR #4; the operator is
-  completing its final repository and browser gates.
+- Product run: TDR issue #3 produced focused UI-polish PR #4. The operator
+  repaired its browser-proof races and idempotent seed boundary, merged it,
+  and confirmed green post-merge CI on `main`.
 
 ## 2026-08-22 — Engine runtime manifest falsely failed safe delivery
 
@@ -174,3 +175,39 @@ For every finding, append a dated entry with:
   `0.4.622` published successfully through `kody.yml` run `32583168522`.
 - Product run: TDR PR #4 remained intact; its safe product files were already
   delivered, and its PR checks continued normally.
+
+## 2026-08-22 — Review-ready PR opened without repository verification
+
+- Prompt: extend the working TDR learner journey with a multi-course dashboard,
+  independent progress, real browser proof, and green CI; proceed autonomously.
+- Actual: Kody opened PR #6 and labeled it `kody:reviewing` without running the
+  repository's verification commands. Three new tests failed in the first CI
+  run, legacy browser selectors were stale, and six screenshots described in
+  the proof document were absent from the commit.
+- Expected: Kody should discover the repository's existing quality scripts,
+  run them before normal PR delivery, and never rely on optimistic browser UI
+  as persistence proof.
+- Classification: Engine onboarding/configuration gap plus agent proof failure.
+- Decision: automatic generic fix. Conventional package scripts are an
+  existing repository-owned contract; discovering them when explicit quality
+  configuration is absent is simple, reversible, credential-safe, and useful
+  to every consumer repository.
+- Change: Engine now discovers `typecheck`, `lint`, `test:unit`/`test`, and
+  non-mutating format-check scripts using the repository's lockfile package
+  manager. Explicit quality values, including explicit empty strings, still
+  win. `kody-engine init`, the configuration schema, README, and the new
+  `docs/quality-gates.md` explain the behavior and the empty-repository → later
+  application setup order.
+- Proof: the Engine regression covers automatic discovery and explicit
+  overrides; the full Engine suite, typecheck, and build passed. The unchanged
+  TDR config resolves to `npm run typecheck`, `npm run lint`, and
+  `npm run test:unit`. Engine `0.4.623` published through `kody.yml` run
+  `32585359819`.
+- Product run: the operator corrected invalid fixtures and stale selectors,
+  removed a duplicate dashboard query, made browser waits prove persisted tutor
+  responses, generated and visually checked all six screenshots, and linked
+  the substantive green CI run. PR #6 merged as
+  `4763ab5ddd4ab1ccd672506d95215b1aac3e25d1`; post-merge `main` CI run
+  `32585370840` passed verification and all six Playwright journeys. The mounted
+  local dashboard also rendered the correct most-recent course and navigated
+  its Resume lesson action to the persisted transcript.
