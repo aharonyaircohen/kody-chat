@@ -225,7 +225,8 @@ export function QualityEditorDialog({
                 <legend className="text-sm font-medium">
                   Actions in order
                 </legend>
-                {activeActions.length === 0 && draft.actionSlugs.length === 0 ? (
+                {activeActions.length === 0 &&
+                draft.actionSlugs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Create an Action first.
                   </p>
@@ -482,9 +483,9 @@ export function QualityEditorDialog({
                 />
               </label>
               <label className="grid gap-1.5">
-                <Label>Environment</Label>
+                <Label>Website to test</Label>
                 <select
-                  aria-label="Environment"
+                  aria-label="Website to test"
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={draft.environmentId ?? ""}
                   onChange={(event) =>
@@ -494,7 +495,7 @@ export function QualityEditorDialog({
                     })
                   }
                 >
-                  <option value="">Select environment</option>
+                  <option value="">Select website</option>
                   {map.environments
                     .filter((environment) => environment.url)
                     .map((environment) => (
@@ -505,7 +506,9 @@ export function QualityEditorDialog({
                 </select>
                 {map.environments.every((environment) => !environment.url) ? (
                   <span className="text-xs text-amber-300">
-                    Add a URL environment on the Preview page first.
+                    Add a website URL on the Preview page first. Kody runs the
+                    test through the repository&apos;s GitHub Engine; this
+                    website is only the page being tested.
                   </span>
                 ) : null}
               </label>

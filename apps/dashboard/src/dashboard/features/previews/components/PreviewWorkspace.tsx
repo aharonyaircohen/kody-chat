@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, MonitorPlay, Upload } from "lucide-react";
+import { Globe2, Loader2, MonitorPlay, Upload } from "lucide-react";
 
 import { useChatScope } from "@dashboard/lib/components/ChatRailShell";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
@@ -121,7 +121,9 @@ function isExternalPreviewOnLocalhost(url: string | undefined): boolean {
     return false;
   }
   try {
-    return new URL(url, window.location.origin).origin !== window.location.origin;
+    return (
+      new URL(url, window.location.origin).origin !== window.location.origin
+    );
   } catch {
     return false;
   }
@@ -167,6 +169,8 @@ export function PreviewWorkspace({
 
   // Remember the last-picked environment per repo so /preview restores it.
   const [storedId, setStoredId] = useState<string | null>(null);
+  const [websiteName, setWebsiteName] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const pendingSelectionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!owner || !repo) return;
@@ -440,6 +444,26 @@ export function PreviewWorkspace({
     toast.success(`Saved "${created.label}"`);
   };
 
+  const addWebsiteEnvironment = async (): Promise<void> => {
+    const normalizedUrl = normalizeEnvUrl(websiteUrl);
+    if (!normalizedUrl) {
+      toast.error("Enter a valid website URL");
+      return;
+    }
+    const label = websiteName.trim() || labelFromPreviewUrl(normalizedUrl);
+    const next = addEnvironment(environments, label, normalizedUrl);
+    const created = next[next.length - 1];
+    if (!created) {
+      toast.error("Couldn't save website");
+      return;
+    }
+    await persist(next);
+    setWebsiteName("");
+    setWebsiteUrl("");
+    selectEnv(created);
+    toast.success(`Saved "${created.label}"`);
+  };
+
   // Upload file(s) into the backend under views/<id> and
   // add the dashboard-served URL as a named preview environment.
   const uploadFiles = async (files: File[]): Promise<void> => {
@@ -539,11 +563,7 @@ export function PreviewWorkspace({
         repo={repo}
         showBrowserChrome
         iframeSandbox={
-          isRepoViewPdf
-            ? null
-            : repoViewId
-              ? REPO_VIEW_SANDBOX
-              : undefined
+          isRepoViewPdf ? null : repoViewId ? REPO_VIEW_SANDBOX : undefined
         }
         onComposerInjection={setComposerInjection}
         onAttachmentInjection={setAttachmentInjection}
@@ -605,13 +625,50 @@ export function PreviewWorkspace({
                     <MonitorPlay className="w-5 h-5 text-sky-300" />
                   </span>
                   <h2 className="text-sm font-semibold text-zinc-200">
-                    Add a branch preview
+                    Add a website to preview
                   </h2>
                   <p className="text-xs text-zinc-500">
-                    Pick a tracked Fly branch preview for this repo. Stored at{" "}
-                    <code className="text-zinc-400">state dashboard.json</code>.
+                    Save any public website URL for previews and Quality tests.
                   </p>
                 </div>
+                <form
+                  className="flex flex-col gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void addWebsiteEnvironment();
+                  }}
+                >
+                  <label className="flex flex-col gap-1 text-xs text-zinc-300">
+                    Website name
+                    <input
+                      aria-label="Website name"
+                      value={websiteName}
+                      onChange={(event) => setWebsiteName(event.target.value)}
+                      placeholder="Production"
+                      className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 outline-none focus:border-sky-500"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-zinc-300">
+                    Website URL
+                    <input
+                      aria-label="Website URL"
+                      type="url"
+                      required
+                      value={websiteUrl}
+                      onChange={(event) => setWebsiteUrl(event.target.value)}
+                      placeholder="https://example.com"
+                      className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 outline-none focus:border-sky-500"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={saveMutation.isPending || !websiteUrl.trim()}
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Globe2 className="h-3.5 w-3.5" />
+                    Add website
+                  </button>
+                </form>
                 <PreviewBranchEnvForm
                   repoFullName={repoFullName}
                   submitLabel="Add branch preview"

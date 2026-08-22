@@ -286,7 +286,7 @@ test("binds a Scenario to a repository environment", async ({ page }) => {
   await page
     .getByLabel("Stored-state proof")
     .fill("No state change is needed.");
-  await expect(page.getByLabel("Environment")).toHaveValue("production");
+  await expect(page.getByLabel("Website to test")).toHaveValue("production");
   await page.getByLabel("Status").selectOption("active");
   await page.getByRole("button", { name: "Save" }).click();
 

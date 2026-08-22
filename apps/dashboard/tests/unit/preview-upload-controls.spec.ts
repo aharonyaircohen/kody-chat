@@ -54,4 +54,14 @@ describe("Preview upload controls", () => {
     );
     expect(WORKSPACE_SOURCE).toMatch(/pendingSelectionRef\.current = env\.id/);
   });
+
+  it("lets an empty Preview workspace save a public website directly", () => {
+    expect(WORKSPACE_SOURCE).toMatch(/Website name/);
+    expect(WORKSPACE_SOURCE).toMatch(/Website URL/);
+    expect(WORKSPACE_SOURCE).toMatch(/Add website/);
+    expect(WORKSPACE_SOURCE).toMatch(/addWebsiteEnvironment/);
+    expect(WORKSPACE_SOURCE).toMatch(
+      /addEnvironment\(environments, label, normalizedUrl\)/,
+    );
+  });
 });

@@ -91,8 +91,9 @@ export function QualityRunDialog({
         </label>
         {executable.length === 0 ? (
           <p className="text-sm text-amber-300">
-            An active Scenario needs an environment and active Journeys with
-            active Actions.
+            An active Scenario needs a website to test and active Journeys with
+            active Actions. The test runs through the repository&apos;s GitHub
+            Engine; it does not run on the selected website.
           </p>
         ) : null}
         <div className="flex justify-end gap-2">

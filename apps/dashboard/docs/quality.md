@@ -32,6 +32,12 @@ The executor chooses how to use the current page, but it does not choose what
 success means. The saved Action outcomes and Scenario expectations define
 success.
 
+## Where the test runs
+
+The repository's existing GitHub Engine runs a Quality test. A Scenario's
+website is only the public URL that the test opens. Selecting a Vercel, Fly, or
+other website does not move the runner there.
+
 ## Authoring order
 
 1. Write the Scenario's full user outcome.
