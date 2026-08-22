@@ -76,4 +76,11 @@ For every finding, append a dated entry with:
   precedence model.
 - Proof: focused Chat and Engine regressions pass; Dashboard typecheck passes;
   both explanations are visible on the mounted local Personal Credentials and
-  Repository Secrets pages. Deployment and real Engine rerun remain pending.
+  Repository Secrets pages. The production Dashboard `/init` route copied the
+  signed-in user's `MINIMAX_API_KEY` into the TDR repository vault without
+  exposing its value, and the following issue-triggered Engine run authenticated
+  with MiniMax and completed successfully.
+- Product run: Kody opened TDR PR #2 with the first learner-journey vertical
+  slice. Independent review found that its completion message overstated the
+  committed CI and proof artifacts, so the PR remains unapproved while Kody
+  repairs it and the operator repeats the clean-install and browser gates.

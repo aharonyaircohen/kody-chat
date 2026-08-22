@@ -3,9 +3,8 @@
  * @domain kody
  * @pattern dashboard-page
  * @ai-summary Kody dashboard with a specific task pre-selected via URL.
- *   The listed numeric params get prerendered at build time for OG tags;
- *   any other numeric issue renders on demand. We deliberately do NOT
- *   use `force-static` here — it caused Next.js to bake `/vibe` (and
+ *   Numeric issues render on demand. We deliberately do NOT use
+ *   `force-static` here — it caused Next.js to bake `/vibe` (and
  *   any other non-numeric sibling-route path) into a cached 307 redirect
  *   at the edge, silently shadowing the real static routes for ~5min
  *   stale-time windows. The runtime `notFound()` for non-numeric segments
@@ -16,6 +15,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
+
+// Metadata reads repository-specific GitHub state, so this catch-all must not
+// be evaluated into a cached error page during the production build.
+export const dynamic = "force-dynamic";
 
 // Do not guess issue numbers at build time. Numeric params render on demand.
 export async function generateStaticParams() {
