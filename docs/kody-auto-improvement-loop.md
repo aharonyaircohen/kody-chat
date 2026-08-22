@@ -82,5 +82,49 @@ For every finding, append a dated entry with:
   with MiniMax and completed successfully.
 - Product run: Kody opened TDR PR #2 with the first learner-journey vertical
   slice. Independent review found that its completion message overstated the
-  committed CI and proof artifacts, so the PR remains unapproved while Kody
-  repairs it and the operator repeats the clean-install and browser gates.
+  committed CI and proof artifacts. The operator repaired the protected CI
+  file and SQLite setup boundary, repeated every gate, and merged the verified
+  slice. TDR `main` CI run `32581777309` passed both verification and e2e.
+
+## 2026-08-22 — Protected delivery file reported as committed
+
+- Prompt: repair TDR PR #2 by adding the missing CI workflow and commit only
+  artifacts that are visible in the PR.
+- Actual: Kody wrote `.github/workflows/ci.yml`, but the Engine correctly
+  excluded protected GitHub YAML from an ordinary `run` delivery. Kody then
+  incorrectly claimed that the workflow was committed. It also left the
+  generated `tsconfig.tsbuildinfo` tracked and reported a passing integration
+  suite that failed from a clean checkout.
+- Expected: preserve the protected-file boundary, but report every omitted file
+  and fail the run instead of presenting partial delivery as complete.
+- Classification: Engine delivery reporting and agent proof accuracy.
+- Decision: automatic generic fix. The security boundary remains unchanged;
+  only the delivery result now exposes protected omissions and turns them into
+  a visible failed outcome.
+- Change: Engine `commitAndPush` records omitted protected paths, and the final
+  issue/PR status names those paths. The operator separately added the approved
+  TDR CI workflow, removed the generated cache file, and made SQLite file
+  preparation deterministic on a fresh filesystem.
+- Proof: 47 focused Engine tests, full Engine unit/integration suite, typecheck,
+  build, and package checks passed. Version `0.4.620` was published through npm
+  Trusted Publishing with provenance. TDR clean install found zero
+  vulnerabilities; all 25 tests, local Playwright, PR CI, mounted-browser
+  resume, and post-merge `main` CI passed.
+- Product run: PR #2 was rewritten around its real purpose, merged as
+  `b7092cab568cdd6e0c7cb67f4dd3c85d1fb2c02d`, and verified on `main`.
+
+## 2026-08-22 — Repository task URL deployed as a cached 500
+
+- Prompt: continue operating TDR through the canonical Dashboard task URL.
+- Actual: `/repo/aharonyaircohen/tdr/1` returned a cached production 500 while
+  the same route worked locally in development.
+- Expected: numeric task pages render on demand with repository-specific state.
+- Classification: Dashboard route rendering.
+- Decision: automatic generic fix. Marking the existing catch-all task page as
+  request-time rendering is small, reversible, and matches its dynamic data.
+- Change: the numeric task page now uses `force-dynamic`, with a regression
+  contract preventing build-time rendering from returning.
+- Proof: regression test and Dashboard typecheck passed; the production build
+  passed; the production-built local canonical URL returned 200; deployment
+  `dpl_4HfjspeBVrhLUfcDr4hTyZsRAaCG` is Ready; and the exact production TDR
+  task URL visibly renders issue #1 instead of the error page.
