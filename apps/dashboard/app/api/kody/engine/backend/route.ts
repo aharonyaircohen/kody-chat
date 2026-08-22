@@ -28,6 +28,11 @@ const operations = {
   "repoDocs.save": { kind: "mutation", fn: backendApi.repoDocs.save },
   "dailyLogs.append": { kind: "mutation", fn: backendApi.dailyLogs.append },
   "chatEvents.append": { kind: "mutation", fn: backendApi.chatEvents.append },
+  "conversations.get": { kind: "query", fn: backendApi.conversations.get },
+  "conversations.appendEntry": {
+    kind: "mutation",
+    fn: backendApi.conversations.appendEntry,
+  },
   "agencyRuns.save": { kind: "mutation", fn: backendApi.agencyRuns.save },
   "agencyRequestLoops.list": {
     kind: "query",

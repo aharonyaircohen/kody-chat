@@ -100,6 +100,47 @@ describe("POST /api/kody/engine/backend", () => {
     });
   });
 
+  it("allows the Engine to read and append its repository conversation", async () => {
+    backend.query.mockResolvedValue({ conversation: {}, entries: [] });
+    backend.mutation.mockResolvedValue("entry-1");
+
+    const readResponse = await POST(
+      request({
+        kind: "query",
+        operation: "conversations.get",
+        args: { tenantId: "attacker/repo", conversationId: "conversation-1" },
+      }),
+    );
+    const appendResponse = await POST(
+      request({
+        kind: "mutation",
+        operation: "conversations.appendEntry",
+        args: {
+          tenantId: "attacker/repo",
+          conversationId: "conversation-1",
+          entryId: "entry-1",
+          idempotencyKey: "entry-1",
+          entry: { kind: "message", role: "assistant", content: "Done" },
+        },
+      }),
+    );
+
+    expect(readResponse.status).toBe(200);
+    expect(appendResponse.status).toBe(200);
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      conversationId: "conversation-1",
+    });
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "trusted/repo",
+        conversationId: "conversation-1",
+        entryId: "entry-1",
+      }),
+    );
+  });
+
   it("allows the Engine to acquire a repository-scoped Workflow run lease", async () => {
     backend.mutation.mockResolvedValue({ acquired: true });
 
