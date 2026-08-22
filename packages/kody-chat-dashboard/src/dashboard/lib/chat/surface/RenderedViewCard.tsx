@@ -29,6 +29,7 @@ import {
 import { authHeaders } from "../../kody-chat-live-session";
 import { cmsSelectionItems } from "../../guided-flows/cms-items";
 import { createWidgetCmsClient } from "./widget-host";
+import { consumeGuidedFlowFileSelection } from "../../guided-flows/file-picker";
 
 export function replaceFirstRenderedViewList(
   node: RenderedViewUiNode,
@@ -168,6 +169,19 @@ export function RenderedViewCard({
   >({});
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [validationError, setValidationError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!view.guidedFlow || !view.filePicker) return;
+    const selection = consumeGuidedFlowFileSelection(window.sessionStorage, {
+      ...view.guidedFlow,
+      ...view.filePicker,
+    });
+    if (!selection) return;
+    setInputValues((current) => ({
+      ...current,
+      [selection.resultField]: selection.filePath,
+      [`${selection.resultField}Name`]: selection.fileName,
+    }));
+  }, [view.filePicker, view.guidedFlow]);
   useEffect(() => {
     trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
   }, [view.rendererSlug]);

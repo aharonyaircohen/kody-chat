@@ -47,9 +47,9 @@ describe("stored guided flow definitions", () => {
       id: "release",
       version: 2,
     });
-    expect(
-      latestAvailableGuidedFlowDefinitions(flow ? [flow] : []),
-    ).toEqual([expect.objectContaining({ source: flow?.source })]);
+    expect(latestAvailableGuidedFlowDefinitions(flow ? [flow] : [])).toEqual([
+      expect.objectContaining({ source: flow?.source }),
+    ]);
   });
 
   it("preserves supported optional controls", () => {
@@ -190,6 +190,34 @@ describe("stored guided flow definitions", () => {
         steps: [
           expect.objectContaining({
             routeParameters: { issueNumber: "42" },
+          }),
+        ],
+      },
+    ]);
+  });
+
+  it("preserves a generic file picker on a view step", () => {
+    expect(
+      parseStoredGuidedFlowDefinitions([
+        {
+          ...definition("Pick a file"),
+          steps: [
+            {
+              ...definition("Pick a file").steps[0],
+              routeId: "files",
+              filePicker: {
+                resultField: "pdfPath",
+                extensions: [".pdf"],
+              },
+            },
+          ],
+        },
+      ]),
+    ).toMatchObject([
+      {
+        steps: [
+          expect.objectContaining({
+            filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
           }),
         ],
       },

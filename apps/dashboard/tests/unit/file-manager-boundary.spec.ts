@@ -58,9 +58,13 @@ describe("File Manager dependency boundary", () => {
     expect(core).not.toContain("useAuth");
     expect(core).not.toContain("useRepoScopedHref");
     expect(core).not.toContain("createGitHubFilesTransport");
+    expect(core).not.toContain("guidedFlowPicker");
+    expect(core).not.toContain("Use this file");
     expect(host).toContain("useAuth");
     expect(host).toContain("useRepoScopedHref");
     expect(host).toContain("createGitHubFilesTransport");
+    expect(host).toContain("parseGuidedFlowFilePicker");
+    expect(host).toContain("Use this file");
   });
 
   it("separates workspace identity from data refreshes", () => {

@@ -531,7 +531,7 @@ test("runs onboarding manually and lets the user advance after completing each p
         id: "onboarding-provider-choice-3",
         stepId: "choose-chat-provider",
         revision: 3,
-          title: "Set up Chat",
+        title: "Set up Chat",
         actionId: "openrouter",
         actionLabel: "Set up OpenRouter",
         actions: [
@@ -606,9 +606,7 @@ test("runs onboarding manually and lets the user advance after completing each p
   ).toBeVisible();
 });
 
-test("starts or resumes an unfinished GuidedFlow in Chat", async ({
-  page,
-}) => {
+test("starts or resumes an unfinished GuidedFlow in Chat", async ({ page }) => {
   let startAttempts = 0;
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const request = route.request();
@@ -1167,6 +1165,56 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
       controls: ["back"],
       steps: expect.arrayContaining([
         expect.objectContaining({ routeId: "findings" }),
+      ]),
+    }),
+  });
+});
+
+test("configures a Guide step to choose a file without changing ordinary Files", async ({
+  page,
+}) => {
+  const posts: unknown[] = [];
+  await page.route("**/api/kody/guided-flows**", async (route) => {
+    if (route.request().method() === "GET") {
+      await json(route, { definitions: [] });
+      return;
+    }
+    posts.push(route.request().postDataJSON());
+    await json(
+      route,
+      {
+        definition: {
+          id: "lesson-from-pdf",
+          title: "Lesson from PDF",
+          steps: [{ rendererSlug: "guided-form" }],
+        },
+      },
+      201,
+    );
+  });
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page
+    .getByRole("button", { name: "Add Guided Flow", exact: true })
+    .click();
+  await page.getByLabel("Flow name").fill("Lesson from PDF");
+  await page.getByLabel("Step 1 title").fill("Select PDF");
+  await page.getByLabel("Step 1 instructions").fill("Choose the lesson PDF.");
+  await page.getByLabel("Step 1 page").selectOption({ label: "Files" });
+  await page.getByLabel("Step 1 choose a file").check();
+  await page.getByLabel("Step 1 file result field").fill("pdfPath");
+  await page.getByLabel("Step 1 allowed file extensions").fill(".pdf");
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
+
+  expect(posts).toContainEqual({
+    action: "create-definition",
+    draft: expect.objectContaining({
+      steps: expect.arrayContaining([
+        expect.objectContaining({
+          routeId: "files",
+          filePicker: { resultField: "pdfPath", extensions: [".pdf"] },
+        }),
       ]),
     }),
   });

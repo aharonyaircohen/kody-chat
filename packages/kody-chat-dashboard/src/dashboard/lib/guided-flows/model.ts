@@ -42,6 +42,10 @@ export interface GuidedFlowViewStepDefinition extends GuidedFlowStepBase {
   readonly rendererVersion?: number;
   readonly rendererData?: Readonly<Record<string, unknown>>;
   readonly itemsSource?: GuidedFlowCmsItemsSource;
+  readonly filePicker?: {
+    readonly resultField: string;
+    readonly extensions?: readonly string[];
+  };
 }
 
 export interface GuidedFlowNestedStepDefinition extends GuidedFlowStepBase {

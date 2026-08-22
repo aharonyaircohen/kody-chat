@@ -183,6 +183,10 @@ export interface RenderedViewDirective {
     stepId: string;
     revision: number;
   };
+  filePicker?: {
+    resultField: string;
+    extensions?: readonly string[];
+  };
   ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
   dataSource?: RenderedViewCmsItemsSource;
@@ -366,7 +370,10 @@ export function isRenderedViewDirective(
       return false;
     }
   }
-  if (v.dataSource !== undefined && !isRenderedViewCmsItemsSource(v.dataSource)) {
+  if (
+    v.dataSource !== undefined &&
+    !isRenderedViewCmsItemsSource(v.dataSource)
+  ) {
     return false;
   }
   if (v.result !== undefined) {
@@ -382,7 +389,9 @@ export function isRenderedViewDirective(
     const resultData = (result as Record<string, unknown>).data;
     if (
       resultData !== undefined &&
-      (!resultData || typeof resultData !== "object" || Array.isArray(resultData))
+      (!resultData ||
+        typeof resultData !== "object" ||
+        Array.isArray(resultData))
     ) {
       return false;
     }

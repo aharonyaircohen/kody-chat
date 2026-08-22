@@ -72,6 +72,7 @@ export function buildGuidedFlowView(
       stepId: step.id,
       revision: instance.revision,
     },
+    ...(step.filePicker ? { filePicker: step.filePicker } : {}),
   };
 }
 

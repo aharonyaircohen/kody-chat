@@ -59,6 +59,7 @@ export function presentGuidedFlow(
             view: buildGuidedFlowView(definition, instance, renderers),
             navigation: navigationForStep(
               getGuidedFlowStep(definition, instance),
+              instance,
             ),
           }
         : {}

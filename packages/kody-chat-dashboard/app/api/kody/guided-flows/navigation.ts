@@ -4,6 +4,8 @@ import type {
 } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 import type { DashboardNavigateDirective } from "../../../../src/dashboard/lib/chat-ui-actions";
 import { resolveDashboardNavigationTarget } from "../../../../src/dashboard/lib/dashboard-navigation";
+import { buildGuidedFlowFilePickerHref } from "../../../../src/dashboard/lib/guided-flows/file-picker";
+import type { GuidedFlowInstance } from "@kody-ade/kody-chat-dashboard/guided-flows/controller";
 
 export type GuidedFlowNavigationError =
   "invalid_completion_route" | "invalid_step_route";
@@ -53,6 +55,7 @@ export function navigationForCompletion(
 
 export function navigationForStep(
   step: GuidedFlowStepDefinition,
+  instance: GuidedFlowInstance,
 ): DashboardNavigateDirective | undefined {
   if (!step.routeId) return undefined;
   const resolved = resolveDashboardNavigationTarget({
@@ -61,5 +64,14 @@ export function navigationForStep(
     reason: `Open ${step.title}`,
   });
   if ("error" in resolved) throw new Error(resolved.error);
-  return { action: "dashboard_navigate", ...resolved };
+  const href =
+    step.type !== "flow" && step.type !== "command" && step.filePicker
+      ? buildGuidedFlowFilePickerHref(resolved.href, {
+          instanceId: instance.instanceId,
+          stepId: step.id,
+          revision: instance.revision,
+          ...step.filePicker,
+        })
+      : resolved.href;
+  return { action: "dashboard_navigate", ...resolved, href };
 }

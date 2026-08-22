@@ -196,6 +196,14 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
               routeParameters: step.routeParameters,
               rendererVersion: step.rendererVersion,
               itemsSource: step.itemsSource,
+              filePicker: step.filePicker
+                ? {
+                    resultField: step.filePicker.resultField,
+                    ...(step.filePicker.extensions
+                      ? { extensions: [...step.filePicker.extensions] }
+                      : {}),
+                  }
+                : undefined,
               ...(listAuthoringRendererSlugs().includes(step.rendererSlug)
                 ? { rendererData: step.rendererData }
                 : {
@@ -812,7 +820,9 @@ function FlowBuilder({
                                   )
                                 }
                               >
-                                <option value="generated">Generated choices</option>
+                                <option value="generated">
+                                  Generated choices
+                                </option>
                                 <option value="cms">CMS collection</option>
                               </select>
                             </label>
@@ -832,7 +842,11 @@ function FlowBuilder({
                                     <input
                                       aria-label={`Step ${index + 1} ${label.toLowerCase()}`}
                                       className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
-                                      value={step.itemsSource?.[field as keyof typeof step.itemsSource] as string}
+                                      value={
+                                        step.itemsSource?.[
+                                          field as keyof typeof step.itemsSource
+                                        ] as string
+                                      }
                                       disabled={readOnly}
                                       onChange={(event) =>
                                         updateStep(index, (current) =>
@@ -943,6 +957,124 @@ function FlowBuilder({
                             }
                           />
                         </div>
+                        {step.type !== "flow" &&
+                        step.type !== "command" &&
+                        step.routeId === "files" &&
+                        step.rendererSlug === "guided-form" ? (
+                          <div className="mt-3 space-y-3 rounded-lg border border-white/10 bg-black/15 p-3">
+                            <label className="flex items-center gap-3 text-sm text-white/80">
+                              <input
+                                type="checkbox"
+                                aria-label={`Step ${index + 1} choose a file`}
+                                checked={Boolean(step.filePicker)}
+                                disabled={readOnly}
+                                onChange={(event) =>
+                                  updateStep(index, (current) =>
+                                    current.type === "flow" ||
+                                    current.type === "command"
+                                      ? current
+                                      : {
+                                          ...current,
+                                          filePicker: event.target.checked
+                                            ? {
+                                                resultField: "filePath",
+                                              }
+                                            : undefined,
+                                          rendererData: event.target.checked
+                                            ? {
+                                                ...(current.rendererData ?? {}),
+                                                fields: [
+                                                  {
+                                                    name: "filePath",
+                                                    label: "Selected file",
+                                                    value: "",
+                                                    inputType: "text",
+                                                  },
+                                                ],
+                                              }
+                                            : current.rendererData,
+                                        },
+                                  )
+                                }
+                              />
+                              Let the user choose a file
+                            </label>
+                            {step.filePicker ? (
+                              <>
+                                <label className="block text-sm text-white/70">
+                                  Save file path as
+                                  <input
+                                    aria-label={`Step ${index + 1} file result field`}
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                    value={step.filePicker.resultField}
+                                    disabled={readOnly}
+                                    onChange={(event) =>
+                                      updateStep(index, (current) =>
+                                        current.type === "flow" ||
+                                        current.type === "command" ||
+                                        !current.filePicker
+                                          ? current
+                                          : {
+                                              ...current,
+                                              filePicker: {
+                                                ...current.filePicker,
+                                                resultField: event.target.value,
+                                              },
+                                              rendererData: {
+                                                ...(current.rendererData ?? {}),
+                                                fields: [
+                                                  {
+                                                    name: event.target.value,
+                                                    label: "Selected file",
+                                                    value: "",
+                                                    inputType: "text",
+                                                  },
+                                                ],
+                                              },
+                                            },
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="block text-sm text-white/70">
+                                  Allowed extensions (optional)
+                                  <input
+                                    aria-label={`Step ${index + 1} allowed file extensions`}
+                                    placeholder=".pdf, .docx"
+                                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                                    value={
+                                      step.filePicker.extensions?.join(", ") ??
+                                      ""
+                                    }
+                                    disabled={readOnly}
+                                    onChange={(event) => {
+                                      const extensions = event.target.value
+                                        .split(",")
+                                        .map((value) => value.trim())
+                                        .filter(Boolean);
+                                      updateStep(index, (current) =>
+                                        current.type === "flow" ||
+                                        current.type === "command" ||
+                                        !current.filePicker
+                                          ? current
+                                          : {
+                                              ...current,
+                                              filePicker: {
+                                                ...current.filePicker,
+                                                extensions:
+                                                  extensions.length > 0
+                                                    ? extensions
+                                                    : undefined,
+                                              },
+                                            },
+                                      );
+                                    }}
+                                  />
+                                </label>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </section>
                       <section className="border-t border-white/10 pt-5">
                         <MarkdownEditor

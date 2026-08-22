@@ -39,6 +39,11 @@ export const guidedFlowCmsItemsSourceSchema = z.object({
     .optional(),
 });
 
+export const guidedFlowFilePickerSchema = z.object({
+  resultField: z.string().trim().min(1).max(80),
+  extensions: z.array(z.string().trim().min(1).max(20)).max(20).optional(),
+});
+
 export const guidedFlowDraftViewStepSchema = z.object({
   ...guidedFlowDraftStepBaseSchema,
   type: z.literal("view").optional(),
@@ -46,6 +51,7 @@ export const guidedFlowDraftViewStepSchema = z.object({
   rendererVersion: z.number().int().positive().optional(),
   rendererData: z.record(z.string(), z.unknown()).optional(),
   itemsSource: guidedFlowCmsItemsSourceSchema.optional(),
+  filePicker: guidedFlowFilePickerSchema.optional(),
   /** Raw editor input compiled into rendererData; never stored at runtime. */
   rendererDataJson: z.string().max(100_000).optional(),
   /** Widget/result signal that advances this authored view step. */
@@ -591,6 +597,7 @@ export function buildGuidedFlowDefinition(
       ...(routeParameters ? { routeParameters } : {}),
       rendererSlug: step.rendererSlug,
       ...(step.itemsSource ? { itemsSource: step.itemsSource } : {}),
+      ...(step.filePicker ? { filePicker: step.filePicker } : {}),
       ...(step.rendererVersion
         ? { rendererVersion: step.rendererVersion }
         : {}),
