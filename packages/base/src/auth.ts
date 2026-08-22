@@ -178,6 +178,69 @@ const WRITE_REPOSITORY_PERMISSIONS = new Set([
   "admin",
 ]);
 
+type GithubVerificationStage = "identity" | "permission";
+
+function repositoryGithubErrorStatus(error: unknown): number | null {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+  return null;
+}
+
+function githubVerificationFailure(
+  error: unknown,
+  stage: GithubVerificationStage,
+  auth: Pick<RequestAuth, "owner" | "repo">,
+): NextResponse {
+  const githubStatus = repositoryGithubErrorStatus(error);
+  logger.warn(
+    {
+      event: `github_${stage}_verification_failed`,
+      githubStatus,
+      owner: auth.owner,
+      repo: auth.repo,
+    },
+    "GitHub repository access verification failed",
+  );
+
+  if (githubStatus === 401) {
+    return NextResponse.json({ error: "invalid_token" }, { status: 401 });
+  }
+  if (githubStatus === 403) {
+    return NextResponse.json(
+      { error: `github_${stage}_verification_forbidden` },
+      { status: 403 },
+    );
+  }
+  if (githubStatus === 404 && stage === "permission") {
+    return NextResponse.json(
+      { error: "repository_not_found_or_inaccessible" },
+      { status: 404 },
+    );
+  }
+  if (githubStatus === 429) {
+    return NextResponse.json(
+      { error: "github_rate_limited" },
+      { status: 429 },
+    );
+  }
+  if (githubStatus !== null && githubStatus >= 500) {
+    return NextResponse.json(
+      { error: "github_access_unavailable" },
+      { status: 503 },
+    );
+  }
+  return NextResponse.json(
+    { error: `github_${stage}_verification_failed` },
+    { status: 502 },
+  );
+}
+
 async function verifyRepoAccess(
   req: NextRequest,
   allowedPermissions: ReadonlySet<string>,
@@ -191,8 +254,15 @@ async function verifyRepoAccess(
       { status: 401 },
     );
   }
+  let actor: { login: string; id: number };
   try {
-    const { data: actor } = await octokit.rest.users.getAuthenticated();
+    const response = await octokit.rest.users.getAuthenticated();
+    actor = response.data;
+  } catch (error) {
+    return githubVerificationFailure(error, "identity", auth);
+  }
+
+  try {
     const { data: access } =
       await octokit.rest.repos.getCollaboratorPermissionLevel({
         owner: auth.owner,
@@ -209,11 +279,8 @@ async function verifyRepoAccess(
       permission: access.permission,
       octokit,
     };
-  } catch {
-    return NextResponse.json(
-      { error: "github_identity_verification_failed" },
-      { status: 403 },
-    );
+  } catch (error) {
+    return githubVerificationFailure(error, "permission", auth);
   }
 }
 

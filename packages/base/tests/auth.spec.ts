@@ -142,12 +142,36 @@ describe("repository access verification", () => {
   });
 
   it("rejects invalid tokens and missing headers", async () => {
-    github.getAuthenticated.mockRejectedValue(new Error("bad credentials"));
-    await expect(
-      verifyRepoReadAccess(request("invalid")),
-    ).resolves.toMatchObject({ status: 403 });
+    github.getAuthenticated.mockRejectedValue({ status: 401 });
+    const invalidToken = await verifyRepoReadAccess(request("invalid"));
+    expect(invalidToken).toMatchObject({ status: 401 });
+    await expect((invalidToken as Response).json()).resolves.toMatchObject({
+      error: "invalid_token",
+    });
     await expect(
       verifyRepoReadAccess(new NextRequest("https://dash.test/api")),
     ).resolves.toMatchObject({ status: 401 });
+  });
+
+  it("reports repository permission lookup failures separately", async () => {
+    github.getCollaboratorPermissionLevel.mockRejectedValue({ status: 404 });
+
+    const response = await verifyRepoWriteAccess(request());
+
+    expect(response).toMatchObject({ status: 404 });
+    await expect((response as Response).json()).resolves.toMatchObject({
+      error: "repository_not_found_or_inaccessible",
+    });
+  });
+
+  it("preserves GitHub permission denials without leaking details", async () => {
+    github.getCollaboratorPermissionLevel.mockRejectedValue({ status: 403 });
+
+    const response = await verifyRepoWriteAccess(request());
+
+    expect(response).toMatchObject({ status: 403 });
+    await expect((response as Response).json()).resolves.toMatchObject({
+      error: "github_permission_verification_forbidden",
+    });
   });
 });
