@@ -51,6 +51,7 @@ describe("kody-chat company activation", () => {
       "prepare-strategy-application",
       "apply-strategy",
       "qa-engineer",
+      "qa-issue-sync",
       "verify-strategy-application",
     ]);
     expect(config.company.activeWorkflows).toEqual([
@@ -62,6 +63,8 @@ describe("kody-chat company activation", () => {
       "quality-run",
       "apply-strategy",
       "qa-scan",
+      "qa-issue-sync",
+      "qa-fix",
     ]);
     expect(config.defaultImplementation).toBe("run");
     expect(config.defaultPrImplementation).toBe("fix");

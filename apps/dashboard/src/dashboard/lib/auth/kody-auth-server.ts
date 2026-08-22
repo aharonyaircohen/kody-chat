@@ -27,6 +27,7 @@ export async function getCurrentKodySessionUser(): Promise<{
   name?: string | null;
   email?: string | null;
 } | null> {
+  if (!process.env.NEXT_PUBLIC_CONVEX_URL) return null;
   const requestHeaders = new Headers(await headers());
   const host =
     requestHeaders.get("x-forwarded-host") ??
