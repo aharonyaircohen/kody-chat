@@ -221,6 +221,29 @@ describe("CMS service GitHub adapter integration", () => {
     expect(cmsFiles.size).toBe(0);
   });
 
+  it("normalizes schema-declared scalar inputs before adapter writes", async () => {
+    const created = await createCmsDocument(
+      request(),
+      octokit as never,
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "articles",
+      {
+        id: "typed-input",
+        title: "Typed input",
+        order: "2",
+        published: "false",
+      },
+    );
+
+    expect(created).toEqual({
+      id: "typed-input",
+      title: "Typed input",
+      order: 2,
+      published: false,
+    });
+  });
+
   it("updates and deletes GitHub-backed documents through Dashboard service", async () => {
     const req = request();
     await createCmsDocument(
@@ -523,6 +546,8 @@ const stateFiles: Record<string, string> = {
       { name: "id", type: "id", readOnly: true },
       { name: "title", type: "text", required: true },
       { name: "status", type: "select", options: ["draft", "published"] },
+      { name: "order", type: "number" },
+      { name: "published", type: "boolean" },
     ],
     filters: [{ field: "status", operators: ["equals"] }],
   }),

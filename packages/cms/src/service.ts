@@ -24,7 +24,10 @@ import {
 } from "./adapters";
 import { defaultCmsAdapterSettings } from "./adapter-catalog";
 import { getCmsActorRole } from "./roles";
-import { getCmsDocumentValidationIssues } from "./validation";
+import {
+  getCmsDocumentValidationIssues,
+  normalizeCmsDocumentInput,
+} from "./validation";
 import { createCmsRepoDocsTransport } from "./repo-docs";
 import type {
   CmsCollectionConfig,
@@ -173,7 +176,8 @@ export async function createCmsDocument(
     actorRole,
     config.permissions,
   );
-  assertCmsDocumentMatchesSchema(collection, data);
+  const normalizedData = normalizeCmsDocumentInput(collection, data);
+  assertCmsDocumentMatchesSchema(collection, normalizedData);
 
   const { adapter, context } = getAdapterContext(
     req,
@@ -183,7 +187,7 @@ export async function createCmsDocument(
     config,
     collection,
   );
-  return callCmsAdapter(() => adapter.create(context, data));
+  return callCmsAdapter(() => adapter.create(context, normalizedData));
 }
 
 export async function updateCmsDocument(
@@ -212,7 +216,8 @@ export async function updateCmsDocument(
     actorRole,
     config.permissions,
   );
-  assertCmsDocumentMatchesSchema(collection, data, { partial: true });
+  const normalizedData = normalizeCmsDocumentInput(collection, data);
+  assertCmsDocumentMatchesSchema(collection, normalizedData, { partial: true });
 
   const { adapter, context } = getAdapterContext(
     req,
@@ -222,7 +227,7 @@ export async function updateCmsDocument(
     config,
     collection,
   );
-  return callCmsAdapter(() => adapter.update(context, id, data));
+  return callCmsAdapter(() => adapter.update(context, id, normalizedData));
 }
 
 export async function deleteCmsDocument(

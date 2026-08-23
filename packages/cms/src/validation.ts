@@ -5,6 +5,22 @@ import type {
   CmsFieldOption,
 } from "./types";
 
+export function normalizeCmsDocumentInput(
+  collection: CmsCollectionConfig,
+  document: CmsDocument,
+): CmsDocument {
+  const fieldsByName = new Map(
+    collection.fields.map((field) => [field.name, field]),
+  );
+
+  return Object.fromEntries(
+    Object.entries(document).map(([name, value]) => [
+      name,
+      normalizeCmsFieldInput(fieldsByName.get(name), value),
+    ]),
+  );
+}
+
 export function getCmsDocumentValidationIssues(
   collection: CmsCollectionConfig,
   document: CmsDocument,
@@ -158,6 +174,26 @@ export function isBlankCmsValue(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length === 0;
   if (Array.isArray(value)) return value.length === 0;
   return false;
+}
+
+function normalizeCmsFieldInput(
+  field: CmsFieldConfig | undefined,
+  value: unknown,
+): unknown {
+  if (!field || typeof value !== "string") return value;
+  const trimmed = value.trim();
+
+  if (field.type === "number" && trimmed !== "") {
+    const number = Number(trimmed);
+    return Number.isFinite(number) ? number : value;
+  }
+
+  if (field.type === "boolean") {
+    if (trimmed.toLowerCase() === "true") return true;
+    if (trimmed.toLowerCase() === "false") return false;
+  }
+
+  return value;
 }
 
 function validateOptions(

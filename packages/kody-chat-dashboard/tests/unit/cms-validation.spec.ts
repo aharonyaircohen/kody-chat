@@ -4,10 +4,36 @@ import {
   getCmsDocumentValidationIssues,
   getCmsFieldValidationIssue,
   isBlankCmsValue,
+  normalizeCmsDocumentInput,
 } from "@kody-ade/cms/validation";
 import type { CmsCollectionConfig, CmsFieldConfig } from "@kody-ade/cms/types";
 
 describe("CMS field validation", () => {
+  it("normalizes scalar inputs using the collection schema", () => {
+    const collection = testCollection();
+    collection.fields.push({ name: "order", type: "number", label: "Order" });
+
+    expect(
+      normalizeCmsDocumentInput(collection, {
+        title: "Lesson",
+        published: "false",
+        order: "3",
+      }),
+    ).toEqual({ title: "Lesson", published: false, order: 3 });
+  });
+
+  it("leaves invalid scalar inputs unchanged for strict validation", () => {
+    const collection = testCollection();
+    collection.fields.push({ name: "order", type: "number", label: "Order" });
+
+    expect(
+      normalizeCmsDocumentInput(collection, {
+        published: "yes",
+        order: "not-a-number",
+      }),
+    ).toEqual({ published: "yes", order: "not-a-number" });
+  });
+
   it("treats optional blank values as valid and required blank values as invalid", () => {
     const field: CmsFieldConfig = { name: "title", type: "text" };
 
