@@ -230,6 +230,7 @@ export async function POST(req: NextRequest) {
       ...validateWorkflowDefinition(workflow),
       ...(await unresolvedWorkflowCapabilityIssues(workflow, {
         octokit,
+        tenantId: `${headerAuth.owner}/${headerAuth.repo}`,
         activeStoreSlugs: new Set(activeCapabilitySlugs(config)),
         builtInSlugs: ENGINE_BUILT_IN_CAPABILITIES,
       })),

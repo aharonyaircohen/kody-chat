@@ -23,6 +23,7 @@ export async function resolveWorkflowCapabilities(
     octokit: Octokit;
     activeStoreSlugs?: ReadonlySet<string>;
     builtInSlugs?: ReadonlySet<string>;
+    tenantId?: string;
   },
 ): Promise<CapabilityDetail[]> {
   const slugs = [...new Set(referencedCapabilities(workflow))];
@@ -44,6 +45,7 @@ export async function unresolvedWorkflowCapabilityIssues(
     octokit: Octokit;
     activeStoreSlugs?: ReadonlySet<string>;
     builtInSlugs?: ReadonlySet<string>;
+    tenantId?: string;
   },
 ): Promise<WorkflowValidationIssue[]> {
   const missing = new Set(

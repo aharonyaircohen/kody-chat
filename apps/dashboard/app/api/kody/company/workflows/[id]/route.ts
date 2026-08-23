@@ -265,6 +265,7 @@ export async function PATCH(
       ...validateWorkflowDefinition(workflow),
       ...(await unresolvedWorkflowCapabilityIssues(workflow, {
         octokit: context.octokit,
+        tenantId: `${context.headerAuth.owner}/${context.headerAuth.repo}`,
         activeStoreSlugs: activeCapabilities,
         builtInSlugs: ENGINE_BUILT_IN_CAPABILITIES,
       })),

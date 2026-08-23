@@ -210,6 +210,19 @@ describe("simple capability folders", () => {
     ).resolves.toEqual(["missing"]);
   });
 
+  it("uses an explicit tenant while concurrent requests change context", async () => {
+    backend.query.mockResolvedValue(null);
+
+    await readCapabilityFile("release", undefined, {
+      tenantId: "acme/widgets",
+    });
+
+    expect(backend.query).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tenantId: "acme/widgets" }),
+    );
+  });
+
   it("accepts contracts but rejects profiles and missing instructions", () => {
     expect(() =>
       assertSimpleCapabilityFolder({

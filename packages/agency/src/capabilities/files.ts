@@ -239,11 +239,12 @@ export async function listStoreCapabilityFiles(
 export async function readCapabilityFile(
   slug: string,
   _octokit?: Octokit,
+  options: { tenantId?: string } = {},
 ): Promise<CapabilityDetail | null> {
   if (!isValidSlug(slug)) return null;
   const backend = createBackendClient();
   const definition = (await backend.query(api.definitions.getCurrent, {
-    tenantId: tenantId(),
+    tenantId: options.tenantId ?? tenantId(),
     kind: "capability",
     slug,
   })) as CapabilityDefinition | null;
@@ -253,8 +254,8 @@ export async function readCapabilityFile(
         doc: { files: definition.bundle.files },
         updatedAt: definition.updatedAt,
       }
-    : ((await backend.query(api.repoDocs.get, {
-        tenantId: tenantId(),
+      : ((await backend.query(api.repoDocs.get, {
+          tenantId: options.tenantId ?? tenantId(),
         kind: `${KIND_PREFIX}${slug}`,
       })) as RepoDoc | null);
   const files = row ? parseStoredFiles(row.doc) : null;
@@ -271,9 +272,12 @@ export async function readCapabilityFile(
 export async function readResolvedCapabilityFile(
   slug: string,
   octokit?: Octokit,
-  options: { activeStoreSlugs?: ReadonlySet<string> } = {},
+  options: {
+    activeStoreSlugs?: ReadonlySet<string>;
+    tenantId?: string;
+  } = {},
 ): Promise<CapabilityDetail | null> {
-  const local = await readCapabilityFile(slug);
+  const local = await readCapabilityFile(slug, undefined, options);
   if (local) return local;
   if (options.activeStoreSlugs && !options.activeStoreSlugs.has(slug)) {
     return null;
@@ -293,6 +297,7 @@ export async function findMissingCapabilitySlugs(
     octokit?: Octokit;
     activeStoreSlugs?: ReadonlySet<string>;
     builtInSlugs?: ReadonlySet<string>;
+    tenantId?: string;
   } = {},
 ): Promise<string[]> {
   const unique = [...new Set(slugs)].filter(
