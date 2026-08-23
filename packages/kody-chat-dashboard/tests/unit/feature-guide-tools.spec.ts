@@ -51,4 +51,27 @@ describe("feature guide Agent tools", () => {
       details: expect.stringContaining("Unbounded cycles"),
     });
   });
+
+  it("exposes the delegated Brand Chat consumer contract to Kody", async () => {
+    const listed = (await listDashboardFeaturesTool.execute!(
+      {},
+      {} as never,
+    )) as { features: Array<{ id: string }> };
+    expect(listed.features).toContainEqual(
+      expect.objectContaining({ id: "brand-chat-access" }),
+    );
+
+    const described = await describeFeatureTool.execute!(
+      { id: "brand-chat-access" },
+      {} as never,
+    );
+    expect(described).toMatchObject({
+      details: expect.stringContaining(
+        "POST /api/client-session/external-launch",
+      ),
+    });
+    expect(described).toMatchObject({
+      details: expect.stringContaining("CLIENT_IDENTITY_JWKS_URL"),
+    });
+  });
 });

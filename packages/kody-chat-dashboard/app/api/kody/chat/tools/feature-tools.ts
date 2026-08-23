@@ -221,6 +221,43 @@ Commands run with the user's local permissions. The assistant always confirms
 before destructive operations.`,
   },
   {
+    id: "brand-chat-access",
+    name: "Brand Chat delegated client access",
+    summary:
+      "Lets an external application keep its own login and launch a tenant-scoped branded Kody Chat session.",
+    details: `Brand Chat consumes identity; it does not provide login or own the host application's business data.
+
+**External host launch**
+- Configure the repository brand with \`access.mode: delegated\`.
+- Configure repository variables \`CLIENT_IDENTITY_ISSUER\`,
+  \`CLIENT_IDENTITY_AUDIENCE\`, and \`CLIENT_IDENTITY_JWKS_URL\`.
+- The issuer and JWKS URL must share one HTTPS origin. Supported assertion
+  algorithms are RS256, ES256, and EdDSA.
+- The host application form-posts a short-lived JWT to
+  \`POST /api/client-session/external-launch\` with \`assertion\`, \`owner\`,
+  \`repo\`, and \`brandSlug\` fields.
+- Required JWT claims are \`sub\`, \`aud\`, \`iss\`, \`iat\`, \`exp\`, \`jti\`,
+  \`tenant_id\` (exact \`owner/repo\`), and \`brand_slug\`. The maximum launch
+  lifetime is five minutes and \`jti\` is single-use.
+- Kody verifies the assertion, creates a 30-minute HttpOnly session, and
+  redirects to \`/client/<owner>/<repo>/<brandSlug>\`.
+
+**Ownership boundary**
+- The host application owns registration, login, users, business APIs, and
+  business persistence.
+- Kody owns assertion verification, the scoped Brand Chat session, Chat,
+  GuidedFlow presentation, view renderers, and widget mounting.
+- Widgets own their business calls and persistence. They receive opaque data
+  and may use \`postToChat\`, \`sendToKody\`, and \`submitResult\`; Kody does not
+  invent a host API or automatically persist widget results.
+- GuidedFlows own navigation and collected step results, while the host feature
+  continues to own real work and data.
+
+Missing or invalid delegated identity fails closed. A session scoped to another
+repository or brand is rejected. Do not replace this contract with a second
+Kody login or put assertions in URLs.`,
+  },
+  {
     id: "voice-modality",
     name: "Voice Modality",
     summary:
@@ -265,6 +302,7 @@ const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
   "/secrets": "secrets-vault",
   "/capabilities": "kody-capabilities",
   "/agents": "kody-agent",
+  "/brands": "brand-chat-access",
 };
 
 function kebab(label: string): string {

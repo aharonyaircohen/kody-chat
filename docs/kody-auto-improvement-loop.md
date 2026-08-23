@@ -514,3 +514,28 @@ For every finding, append a dated entry with:
   `32594909530`. Fresh consumer run `32595004665` completed successfully, issue
   #4001 has only `kody:reviewing`, and PR #4002 contains all acceptance/test
   evidence with two green checks and no second failure comment.
+
+## 2026-08-23 — Existing delegated client access was invisible to Kody
+
+- Prompt: integrate TDR as a consumer LMS without changing Kody runtime code;
+  reuse Kody Chat, Guided Flows, View Renderers, Widgets, and delegated client
+  sessions.
+- Actual: Kody correctly stopped because its available feature catalog exposed
+  only shallow Brands, Renderer, and Widget page descriptions. It could not
+  discover the existing external-launch endpoint, JWT claims, repository trust
+  variables, session scope, or ownership boundary, even though these were
+  already implemented, tested, and documented in the repository.
+- Expected: asking Kody how an external application launches a signed-in client
+  surface returns the existing public contract and its security limits.
+- Classification: generic Kody documentation-discovery defect; no runtime
+  behavior change was required.
+- Decision: automatic clean correction. Reuse the existing feature-description
+  tool and add one deep catalog entry instead of creating another docs loader or
+  integration system.
+- Change: `brand-chat-access` now teaches Kody the delegated form POST, required
+  JWT claims, repository variables, redirect/session behavior, failure rules,
+  and the host/Kody/GuidedFlow/Widget ownership split. The Brands nav entry
+  resolves to this canonical explanation.
+- Proof: the feature-tool regression confirms the entry is listed and includes
+  both the launch endpoint and JWKS variable. The focused test passed three
+  tests; package typecheck and lint passed with only existing warnings.
