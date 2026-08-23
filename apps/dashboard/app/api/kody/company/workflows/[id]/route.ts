@@ -38,7 +38,10 @@ import {
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
-import { unresolvedWorkflowCapabilityIssues } from "@dashboard/lib/capabilities/resolve-workflow";
+import {
+  unresolvedWorkflowCapabilityIssues,
+  workflowValidationMessage,
+} from "@dashboard/lib/capabilities/resolve-workflow";
 import { ENGINE_BUILT_IN_CAPABILITIES } from "@dashboard/lib/store-solutions";
 import {
   effectiveActiveWorkflowIds,
@@ -270,7 +273,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error: "invalid_workflow",
-          message: "Workflow is not safe to save.",
+          message: workflowValidationMessage(validationIssues),
           issues: validationIssues,
         },
         { status: 400 },

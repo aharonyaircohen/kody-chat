@@ -73,3 +73,14 @@ export async function unresolvedWorkflowCapabilityIssues(
   });
   return issues;
 }
+
+export function workflowValidationMessage(
+  issues: readonly WorkflowValidationIssue[],
+): string {
+  const details = [...new Set(issues.map((issue) => issue.message.trim()))]
+    .filter(Boolean)
+    .join(" ");
+  return details
+    ? `Workflow is not safe to save: ${details}`
+    : "Workflow is not safe to save.";
+}

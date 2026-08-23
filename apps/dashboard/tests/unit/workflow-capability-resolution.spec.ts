@@ -10,6 +10,7 @@ vi.mock("@kody-ade/agency/capabilities", () => capabilities);
 import {
   resolveWorkflowCapabilities,
   unresolvedWorkflowCapabilityIssues,
+  workflowValidationMessage,
 } from "../../src/dashboard/lib/capabilities/resolve-workflow";
 
 const workflow = {
@@ -52,5 +53,13 @@ describe("workflow capability resolution", () => {
       { slug: "extract-pdf-exercises" },
       { slug: "review-exercises" },
     ]);
+  });
+
+  it("explains why a workflow cannot be saved", () => {
+    expect(
+      workflowValidationMessage([
+        { code: "unknown", path: "steps[0]", message: "Input is missing." },
+      ]),
+    ).toBe("Workflow is not safe to save: Input is missing.");
   });
 });
