@@ -34,8 +34,14 @@ describe("Workflow API boundary", () => {
   it("keeps Workflow validation and approval behavior", () => {
     expect(listSource).toContain("validateWorkflowDefinition");
     expect(listSource).toContain("runWithoutApproval");
+    expect(listSource).toContain(
+      "report: z.record(z.string(), z.unknown()).optional()",
+    );
     expect(listSource).not.toContain("workflowInputMappingSchema");
     expect(detailSource).toContain("validateWorkflowDefinition");
+    expect(detailSource).toContain(
+      "report: z.record(z.string(), z.unknown()).optional()",
+    );
     expect(detailSource).not.toContain("workflowInputMappingSchema");
   });
 

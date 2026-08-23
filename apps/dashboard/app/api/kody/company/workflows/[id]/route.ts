@@ -55,6 +55,7 @@ const workflowPatchSchema = z.object({
   inputSchema: z.record(z.string(), z.unknown()).optional(),
   startAt: z.string().trim().min(1).max(80).optional(),
   steps: z.array(workflowStepDefinitionSchema).min(1).optional(),
+  report: z.record(z.string(), z.unknown()).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
