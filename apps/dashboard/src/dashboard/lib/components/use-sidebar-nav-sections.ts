@@ -30,15 +30,19 @@ const PERSONAL_SIDEBAR_PATHS = PERSONAL_DASHBOARD_PATHS.filter(
 const PERSONAL_SIDEBAR_HREFS = new Set(PERSONAL_SIDEBAR_PATHS);
 const EXPLICIT_SCOPE_LABELS: Readonly<Record<string, string>> = {
   "/commands": "Personal Commands",
+  "/guided-flows": "Personal Guided Flows",
   "/memory": "Personal Memory",
   "/secrets": "Personal Credentials",
 };
 const REPOSITORY_SCOPE_ITEMS: Readonly<
   Record<string, readonly { href: string; label: string }[]>
 > = {
-  Work: [{ href: "/commands", label: "Repository Commands" }],
-  Knowledge: [{ href: "/memory", label: "Repository Memory" }],
-  System: [{ href: "/secrets", label: "Repository Secrets" }],
+  Chat: [
+    { href: "/commands", label: "Repo Commands" },
+    { href: "/guided-flows", label: "Repo Guided Flows" },
+    { href: "/secrets", label: "Repo Secrets" },
+    { href: "/memory", label: "Repo Memory" },
+  ],
 };
 
 export interface SidebarNavExtensions {
@@ -109,7 +113,11 @@ export function extendSidebarNavSections(
           ],
         };
       }
-      return { ...section, items: repositoryItems };
+      return {
+        ...section,
+        title: section.title === "Chat" ? "Repo Chat" : section.title,
+        items: repositoryItems,
+      };
     })
     .filter((section) => section.items.length > 0);
   if (repositorySections[0]) {

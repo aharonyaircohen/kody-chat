@@ -12,7 +12,7 @@ describe("Kody scope", () => {
     expect(isPersonalDashboardPath("/chat/conversation-1")).toBe(true);
     expect(isPersonalDashboardPath("/commands/edit")).toBe(true);
     expect(isPersonalDashboardPath("/memory")).toBe(true);
-    expect(isPersonalDashboardPath("/guided-flows")).toBe(false);
+    expect(isPersonalDashboardPath("/guided-flows")).toBe(true);
     expect(isPersonalDashboardPath("/workflows")).toBe(false);
   });
 
@@ -30,13 +30,13 @@ describe("Kody scope", () => {
         "secrets",
         "instructions",
         "commands",
+        "guided-flows",
         "renderers",
         "widgets",
         "memory",
       ]),
     );
     expect(capabilitiesForScope(scope)).not.toContain("repository-code");
-    expect(capabilitiesForScope(scope)).not.toContain("guided-flows");
   });
 
   it("adds repository capabilities without removing personal capabilities", () => {

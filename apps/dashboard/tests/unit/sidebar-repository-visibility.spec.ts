@@ -23,6 +23,7 @@ describe("repository navigation visibility", () => {
       "/chat",
       "/models",
       "/commands",
+      "/guided-flows",
       "/views/renderers",
       "/views/widgets",
       "/instructions",
@@ -35,6 +36,7 @@ describe("repository navigation visibility", () => {
     expect(sections[0]?.items.map((item) => item.label)).toEqual(
       expect.arrayContaining([
         "Personal Commands",
+        "Personal Guided Flows",
         "Personal Credentials",
         "Personal Memory",
       ]),
@@ -64,25 +66,35 @@ describe("repository navigation visibility", () => {
       .flatMap((section) => section.items);
     expect(
       sections
-        .find((section) => section.title === "Work")
+        .find((section) => section.title === "Repo Chat")
         ?.items.map((item) => item.href),
     ).toContain("/guided-flows");
-    expect(
-      sections
-        .find((section) => section.title === "Chat")
-        ?.items.map((item) => item.href),
-    ).not.toContain("/guided-flows");
     expect(repositoryItems.map((item) => item.label)).toEqual(
       expect.arrayContaining([
-        "Repository Commands",
-        "Repository Secrets",
-        "Repository Memory",
+        "Repo Commands",
+        "Repo Guided Flows",
+        "Repo Secrets",
+        "Repo Memory",
+      ]),
+    );
+    expect(
+      sections
+        .find((section) => section.title === "Repo Chat")
+        ?.items.map((item) => item.label),
+    ).toEqual(
+      expect.arrayContaining([
+        "Repo Commands",
+        "Repo Guided Flows",
+        "Repo Secrets",
+        "Repo Memory",
       ]),
     );
     expect(
       repositoryItems
         .filter((item) =>
-          ["/commands", "/secrets", "/memory"].includes(item.href),
+          ["/commands", "/guided-flows", "/secrets", "/memory"].includes(
+            item.href,
+          ),
         )
         .every((item) => item.scope === "repository"),
     ).toBe(true);

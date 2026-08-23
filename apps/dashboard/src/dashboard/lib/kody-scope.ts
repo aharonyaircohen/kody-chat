@@ -8,6 +8,7 @@ export type KodyPersonalCapability =
   | "secrets"
   | "instructions"
   | "commands"
+  | "guided-flows"
   | "renderers"
   | "widgets"
   | "memory"
@@ -18,7 +19,6 @@ export type KodyRepositoryCapability =
   | "repository-tasks"
   | "repository-reports"
   | "repository-workflows"
-  | "guided-flows"
   | "repository-agency"
   | "repository-secrets";
 
@@ -37,6 +37,7 @@ export const PERSONAL_DASHBOARD_PATHS = Object.freeze([
   "/chat",
   "/models",
   "/commands",
+  "/guided-flows",
   "/views/renderers",
   "/views/widgets",
   "/instructions",
@@ -61,6 +62,7 @@ const PERSONAL_CAPABILITIES: readonly KodyPersonalCapability[] = [
   "secrets",
   "instructions",
   "commands",
+  "guided-flows",
   "renderers",
   "widgets",
   "memory",
@@ -72,7 +74,6 @@ const REPOSITORY_CAPABILITIES: readonly KodyRepositoryCapability[] = [
   "repository-tasks",
   "repository-reports",
   "repository-workflows",
-  "guided-flows",
   "repository-agency",
   "repository-secrets",
 ];
