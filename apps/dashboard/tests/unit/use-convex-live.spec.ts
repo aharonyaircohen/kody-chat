@@ -89,8 +89,16 @@ describe("useWorkflowRunStateLive", () => {
       "https://x.convex.cloud",
     );
     reactClient.useQuery.mockReturnValue([
-      { runId: "run-a", state: { ...RUN_STATE, status: "done" } },
-      { runId: "run-b", state: RUN_STATE },
+      {
+        runId: "run-z",
+        state: { ...RUN_STATE, status: "done" },
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        runId: "run-a",
+        state: RUN_STATE,
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
       { runId: "draft", state: RUN_STATE },
     ]);
 
@@ -101,7 +109,7 @@ describe("useWorkflowRunStateLive", () => {
     expect(args).toEqual({ tenantId: "acme/widgets", workflowId: "wf1" });
     expect(record).toMatchObject({
       workflowId: "wf1",
-      runId: "run-b",
+      runId: "run-a",
       state: { status: "running" },
     });
   });

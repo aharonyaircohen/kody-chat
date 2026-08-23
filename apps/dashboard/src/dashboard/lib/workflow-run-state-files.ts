@@ -11,6 +11,7 @@ import {
   tenantIdFor,
 } from "./backend/convex-backend";
 import {
+  latestWorkflowRunDocument,
   normalizeWorkflowRunState,
   type WorkflowRunStateRecord,
 } from "./workflow-run-state";
@@ -33,6 +34,8 @@ function assertIds(workflowId: string, runId?: string): void {
 interface WorkflowRunDoc {
   runId: string;
   state: unknown;
+  updatedAt?: string;
+  _creationTime?: number;
 }
 
 export async function readWorkflowRunStateFile(
@@ -62,13 +65,10 @@ export async function readLatestWorkflowRunStateFile(
     tenantId: tenantIdFor(owner, repo),
     workflowId,
   })) as WorkflowRunDoc[];
-  const latest = docs
-    .filter((doc) => isWorkflowRunStateId(doc.runId))
-    .map((doc) => doc.runId)
-    .sort()
-    .at(-1);
-  if (!latest) return null;
-  const doc = docs.find((d) => d.runId === latest);
+  const doc = latestWorkflowRunDocument(
+    docs.filter((candidate) => isWorkflowRunStateId(candidate.runId)),
+  );
+  if (!doc) return null;
   const state = doc ? normalizeWorkflowRunState(doc.state) : null;
-  return state ? { workflowId, runId: latest, state } : null;
+  return state ? { workflowId, runId: doc.runId, state } : null;
 }

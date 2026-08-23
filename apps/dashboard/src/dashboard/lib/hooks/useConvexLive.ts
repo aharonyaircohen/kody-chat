@@ -17,6 +17,7 @@ import { api as backendApi } from "@kody-ade/backend/api";
 import { deepUnescapeKeys } from "@kody-ade/backend/escape-keys";
 import { getStoredAuth } from "../api";
 import {
+  latestWorkflowRunDocument,
   normalizeWorkflowRunState,
   type WorkflowRunStateRecord,
 } from "../workflow-run-state";
@@ -67,6 +68,8 @@ interface ChatEventDoc {
 interface WorkflowRunDoc {
   runId: string;
   state: unknown;
+  updatedAt?: string;
+  _creationTime?: number;
 }
 
 /**
@@ -115,11 +118,9 @@ export function useWorkflowRunStateLive(
 
   const targetRunId =
     runId ??
-    docs
-      .filter((doc) => /^run-[a-z0-9_-]+$/i.test(doc.runId))
-      .map((doc) => doc.runId)
-      .sort()
-      .at(-1);
+    latestWorkflowRunDocument(
+      docs.filter((doc) => /^run-[a-z0-9_-]+$/i.test(doc.runId)),
+    )?.runId;
   if (!targetRunId) return null;
 
   const doc = docs.find((d) => d.runId === targetRunId);

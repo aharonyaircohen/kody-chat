@@ -200,7 +200,7 @@ describe("Guided Flow command execution", () => {
       }),
     ).resolves.toMatchObject({
       status: "needs_attention",
-      summary: "Missing lesson",
+      summary: "Workflow blocked: Missing lesson",
     });
   });
 });

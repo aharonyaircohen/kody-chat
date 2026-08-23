@@ -82,10 +82,18 @@ describe("workflow run state convex reads", () => {
     expect(convex.query).not.toHaveBeenCalled();
   });
 
-  it("picks the lexicographically newest run from workflowRuns.list", async () => {
+  it("picks the most recently updated run from workflowRuns.list", async () => {
     convex.query.mockResolvedValue([
-      { runId: "run-a1", state: { ...RUN_STATE, runId: "run-a1" } },
-      { runId: "run-b2", state: RUN_STATE },
+      {
+        runId: "run-z9",
+        state: { ...RUN_STATE, runId: "run-z9" },
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        runId: "run-a1",
+        state: RUN_STATE,
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
       { runId: "not-a-run", state: RUN_STATE },
     ]);
 
@@ -95,7 +103,7 @@ describe("workflow run state convex reads", () => {
       "release",
     );
 
-    expect(record?.runId).toBe("run-b2");
+    expect(record?.runId).toBe("run-a1");
     const [ref, args] = convex.query.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("workflowRuns:list");
     expect(args).toEqual({ tenantId: "acme/widgets", workflowId: "release" });

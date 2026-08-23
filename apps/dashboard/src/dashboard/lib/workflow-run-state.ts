@@ -27,6 +27,20 @@ export interface WorkflowRunStateRecord {
   state: WorkflowRunState;
 }
 
+export function latestWorkflowRunDocument<
+  T extends { runId: string; updatedAt?: string; _creationTime?: number },
+>(docs: readonly T[]): T | undefined {
+  return [...docs].sort((left, right) => {
+    const leftTime = left.updatedAt
+      ? Date.parse(left.updatedAt)
+      : (left._creationTime ?? 0);
+    const rightTime = right.updatedAt
+      ? Date.parse(right.updatedAt)
+      : (right._creationTime ?? 0);
+    return leftTime - rightTime || left.runId.localeCompare(right.runId);
+  }).at(-1);
+}
+
 export function normalizeWorkflowRunState(
   raw: unknown,
 ): WorkflowRunState | null {

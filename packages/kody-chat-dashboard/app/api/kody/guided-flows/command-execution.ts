@@ -122,7 +122,7 @@ export async function refreshGuidedFlowCommand(
       status: "needs_attention",
       summary:
         typeof blocker === "string" && blocker.trim()
-          ? blocker
+          ? `Workflow ${status}: ${blocker}`
           : status === "blocked"
             ? "Workflow is blocked."
             : "Workflow failed.",
