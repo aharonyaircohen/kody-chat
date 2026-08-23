@@ -98,7 +98,10 @@ export async function refreshGuidedFlowCommand(
       `/api/kody/company/workflows/${encodeURIComponent(workflowId)}/runs?runId=${encodeURIComponent(runId)}`,
       req.url,
     ),
-    { headers: guidedFlowInternalJsonHeaders(req, `status:${runId}`) },
+    {
+      cache: "no-store",
+      headers: guidedFlowInternalJsonHeaders(req, `status:${runId}`),
+    },
   );
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
