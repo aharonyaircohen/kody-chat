@@ -71,6 +71,7 @@ interface FileEditorProps {
   sha: string;
   onShowFilePanel?: () => void;
   defaultMode?: FileEditorMode;
+  onContentChange?: (content: string, isDirty: boolean) => void;
 }
 
 export function FileEditor({
@@ -78,6 +79,7 @@ export function FileEditor({
   sha,
   onShowFilePanel,
   defaultMode = "edit",
+  onContentChange,
 }: FileEditorProps) {
   const theme = useFileManagerColorScheme();
   const [originalContent, setOriginalContent] = useState<string>("");
@@ -174,6 +176,11 @@ export function FileEditor({
 
   useEffect(() => {
     if (!draftReady) return;
+    onContentChange?.(content, content !== originalContent);
+  }, [content, draftReady, onContentChange, originalContent]);
+
+  useEffect(() => {
+    if (!draftReady) return;
 
     if (content === originalContent) {
       localStorage.removeItem(draftStorageKey);
@@ -228,13 +235,7 @@ export function FileEditor({
     } finally {
       setSaving(false);
     }
-  }, [
-    transport,
-    path,
-    content,
-    loadedSha,
-    draftStorageKey,
-  ]);
+  }, [transport, path, content, loadedSha, draftStorageKey]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

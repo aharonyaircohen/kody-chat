@@ -96,6 +96,14 @@ interface SelectedFile {
   sha: string;
   size: number;
   isBinary: boolean;
+  content: string | null;
+}
+
+export interface ActiveFileContext {
+  path: string;
+  content: string | null;
+  isBinary: boolean;
+  isDirty: boolean;
 }
 
 function emptyTreeOverlay(): FileTreeOverlay {
@@ -147,6 +155,8 @@ export interface FilesPageProps {
     selectedPath: string | null;
     isFile: boolean;
   }) => ReactNode;
+  /** Reports the selected file and its current editor text to the host. */
+  onActiveFileChange?: (file: ActiveFileContext | null) => void;
 }
 
 export function FilesPage({
@@ -168,6 +178,7 @@ export function FilesPage({
   resolveHref = (href) => href,
   subtitle = "Browse and edit files",
   headerActions,
+  onActiveFileChange,
 }: FilesPageProps) {
   const activeTransport = transport;
 
@@ -277,6 +288,39 @@ export function FilesPage({
     return confineRepoPathToRoot(selectedFolder, workspaceRoot);
   }, [selectedPath, selectedPathType, workspaceRoot]);
 
+  useEffect(() => {
+    if (!selectedFile) {
+      onActiveFileChange?.(null);
+      return;
+    }
+    onActiveFileChange?.({
+      path: selectedFile.path,
+      content: selectedFile.content,
+      isBinary: selectedFile.isBinary,
+      isDirty: false,
+    });
+  }, [onActiveFileChange, selectedFile]);
+
+  useEffect(
+    () => () => {
+      onActiveFileChange?.(null);
+    },
+    [onActiveFileChange],
+  );
+
+  const handleEditorContentChange = useCallback(
+    (content: string, isDirty: boolean) => {
+      if (!selectedFile) return;
+      onActiveFileChange?.({
+        path: selectedFile.path,
+        content,
+        isBinary: false,
+        isDirty,
+      });
+    },
+    [onActiveFileChange, selectedFile],
+  );
+
   const updateFileHref = useCallback(
     (path: string, options: { replace?: boolean } = {}) => {
       const normalizedPath = normalizeRepoPath(path);
@@ -370,6 +414,7 @@ export function FilesPage({
             sha: file.sha,
             size: file.size,
             isBinary: file.isBinary,
+            content: file.isBinary ? null : file.content,
           });
           setViewMode(
             writeable && fileSupportsTextEditing(file.path, file.isBinary)
@@ -454,6 +499,7 @@ export function FilesPage({
           sha: file.sha,
           size: file.size,
           isBinary: file.isBinary,
+          content: file.isBinary ? null : file.content,
         });
       })
       .catch(() => {
@@ -698,7 +744,13 @@ export function FilesPage({
         setShowNewFileDialog(false);
         setNewItemPath("");
         setSelectedPath(path);
-        setSelectedFile({ path, sha, size: 0, isBinary: false });
+        setSelectedFile({
+          path,
+          sha,
+          size: 0,
+          isBinary: false,
+          content: "",
+        });
         setViewMode(
           writeable && fileSupportsTextEditing(path, false)
             ? "editor"
@@ -1043,6 +1095,7 @@ export function FilesPage({
         <FileEditor
           path={selectedFile.path}
           sha={selectedFile.sha}
+          onContentChange={handleEditorContentChange}
           onShowFilePanel={
             panelState === "hidden" ? () => setPanelState("split") : undefined
           }

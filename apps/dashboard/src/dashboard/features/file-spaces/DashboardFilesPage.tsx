@@ -5,10 +5,12 @@ import { Octokit } from "@octokit/rest";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
+  type ActiveFileContext,
   FilesPage,
   type FilesPageProps,
   type FilesTransport,
 } from "@dashboard/features/file-manager";
+import { useChatScope } from "@dashboard/lib/components/ChatRailShell";
 import { createGitHubFilesTransport } from "@dashboard/features/file-manager/lib/github-files-transport";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
@@ -20,6 +22,7 @@ import {
   parseGuidedFlowFilePicker,
   storeGuidedFlowFileSelection,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/file-picker";
+import { buildActiveFileChatContext } from "./active-file-chat-context";
 
 export type DashboardFilesPageProps = Omit<
   FilesPageProps,
@@ -47,6 +50,13 @@ export function DashboardFilesPage({
     [searchParams],
   );
   const resolveHref = useRepoScopedHref();
+  const { setPreviewContext } = useChatScope();
+  const handleActiveFileChange = useCallback(
+    (file: ActiveFileContext | null) => {
+      setPreviewContext(file ? buildActiveFileChatContext(file) : null);
+    },
+    [setPreviewContext],
+  );
   const resolveFileHref = useCallback(
     (href: string) =>
       resolveHref(
@@ -70,6 +80,7 @@ export function DashboardFilesPage({
       {...props}
       transport={transport ?? githubTransport}
       resolveHref={resolveFileHref}
+      onActiveFileChange={handleActiveFileChange}
       headerActions={(context) => (
         <>
           {headerActions?.(context)}

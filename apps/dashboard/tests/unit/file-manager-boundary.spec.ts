@@ -67,6 +67,9 @@ describe("File Manager dependency boundary", () => {
     expect(host).toContain("Use this file");
     expect(host).toContain("router.push(filePicker.returnHref)");
     expect(host).toContain("GUIDED_FLOW_FILE_SELECTED_EVENT");
+    expect(core).toContain("onActiveFileChange");
+    expect(host).toContain("buildActiveFileChatContext");
+    expect(host).toContain("setPreviewContext");
   });
 
   it("separates workspace identity from data refreshes", () => {

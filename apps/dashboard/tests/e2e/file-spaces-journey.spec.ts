@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { openChatSetupSection } from "./support/chat-setup";
 import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const OWNER = "file-spaces-e2e";
@@ -375,4 +376,104 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   expect(pageErrors).toEqual([]);
   expect(failedResponses).toEqual([]);
   expect(consoleErrors).toEqual([]);
+});
+
+test("selected file and its current content reach Kody chat", async ({
+  page,
+}) => {
+  const filePath = "roadmaps/Aug-October-2026.md";
+  const fileContent = "# August–October 2026\n\nCurrent roadmap text.";
+  let capturedChatBody: Record<string, unknown> | null = null;
+
+  await seedAuth(page);
+  await mockDashboardShellRequests(page);
+  await page.route("**/api/kody/file-spaces**", (route) =>
+    json(route, {
+      spaces: [
+        {
+          id: "roadmaps",
+          title: "Roadmaps",
+          slug: "roadmaps",
+          rootPath: "roadmaps",
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/kody/models", (route) =>
+    json(route, {
+      models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+    }),
+  );
+  await page.route("**/api/kody/chat/conversations**", (route) =>
+    json(route, { conversations: [], turns: [] }),
+  );
+  await page.route("**/api/kody/chat/kody", (route) => {
+    capturedChatBody = route.request().postDataJSON() as Record<
+      string,
+      unknown
+    >;
+    return route.fulfill({
+      status: 200,
+      headers: { "content-type": "text/event-stream; charset=utf-8" },
+      body:
+        'data: {"type":"text-delta","delta":"I can see the selected roadmap."}\n\n' +
+        'data: {"type":"finish"}\n\n' +
+        "data: [DONE]\n\n",
+    });
+  });
+  await page.route("https://api.github.com/**", (route) => {
+    const pathname = decodeURIComponent(
+      new URL(route.request().url()).pathname,
+    );
+    const repoPrefix = `/repos/${OWNER}/${REPO}`;
+    if (pathname === repoPrefix) {
+      return json(route, { default_branch: "main" });
+    }
+    if (pathname.endsWith(`/contents/${filePath}`)) {
+      return json(route, {
+        type: "file",
+        name: "Aug-October-2026.md",
+        path: filePath,
+        sha: "roadmap-sha",
+        size: fileContent.length,
+        encoding: "base64",
+        content: Buffer.from(fileContent).toString("base64"),
+      });
+    }
+    if (pathname.endsWith("/contents/roadmaps")) {
+      return json(route, [
+        {
+          type: "file",
+          name: "Aug-October-2026.md",
+          path: filePath,
+          sha: "roadmap-sha",
+          size: fileContent.length,
+        },
+      ]);
+    }
+    return json(route, {});
+  });
+
+  await page.goto(
+    `/repo/${OWNER}/${REPO}/file-spaces/roadmaps/Aug-October-2026.md`,
+  );
+  await expect(
+    page.getByRole("treeitem", { name: /Aug-October-2026\.md/ }),
+  ).toHaveAttribute("aria-selected", "true");
+
+  const chat = page.locator('[aria-label="Kody chat"]').first();
+  const modelMenu = await openChatSetupSection(chat, "Model");
+  await modelMenu
+    .locator('button[role="option"]')
+    .filter({ hasText: "Kody Test" })
+    .click();
+  await chat.locator("textarea").first().fill("format the selected document");
+  await chat.getByRole("button", { name: "Send message" }).click();
+  await expect(chat.getByText("I can see the selected roadmap.")).toBeVisible();
+  expect(capturedChatBody).toMatchObject({
+    previewContext: expect.stringContaining(`Active file: ${filePath}`),
+  });
+  expect(capturedChatBody).toMatchObject({
+    previewContext: expect.stringContaining(fileContent),
+  });
 });
