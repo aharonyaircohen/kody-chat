@@ -73,6 +73,8 @@ describe("Guided Flow command execution", () => {
           result: {
             status: "needs_attention",
             summary: "Webhook FAILED — Not Found (HTTP 404).",
+            approvalChallenge: "signed-challenge",
+            workflowInput: { resourceId: "resource-1" },
           },
         }),
       ),
@@ -83,6 +85,8 @@ describe("Guided Flow command execution", () => {
     ).resolves.toEqual({
       status: "needs_attention",
       summary: "Webhook FAILED — Not Found (HTTP 404).",
+      approvalChallenge: "signed-challenge",
+      workflowInput: { resourceId: "resource-1" },
     });
   });
 

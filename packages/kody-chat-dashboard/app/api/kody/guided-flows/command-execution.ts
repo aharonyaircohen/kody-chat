@@ -64,5 +64,10 @@ export async function executeGuidedFlowCommand(
       ? { approvalExpiresAt: result.approvalExpiresAt }
       : {}),
     ...(typeof result.runId === "string" ? { runId: result.runId } : {}),
+    ...(result.workflowInput &&
+    typeof result.workflowInput === "object" &&
+    !Array.isArray(result.workflowInput)
+      ? { workflowInput: result.workflowInput }
+      : {}),
   };
 }
