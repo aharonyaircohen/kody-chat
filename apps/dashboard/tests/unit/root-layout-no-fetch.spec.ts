@@ -1,6 +1,6 @@
 /**
- * Regression test for the E2E gate failure (CI run 32629412166 / PR #24,
- * headSha 08adfa3c5c705b0ec1dbc26c0c2e6fb958239ad1): the root dashboard
+ * Regression test for the E2E gate failure (CI run 32632692125 / PR #24,
+ * headSha e42fb1a5165f8b862317be1af5856effce0c164c): the root dashboard
  * layout used to be `async` and called `getKodyAuthToken()` at SSR. In
  * the PW_LOCAL E2E harness the upstream Convex backend isn't reachable,
  * so the `await` triggered a `TypeError: fetch failed` that crashed the
@@ -48,7 +48,13 @@ describe("root dashboard layout (e2e gate regression)", () => {
     // KodyLayout body. Guard against any future top-level await — the layout
     // must stay fully synchronous for prerendering to work. Use a word-boundary
     // match so `await(`, `await\n`, or `await;` patterns all trip the guard.
-    expect(LAYOUT_SOURCE).not.toMatch(/\bawait\b/);
+    // Scope the check to the function body so documentation comments that
+    // mention `await` don't false-positive the regression guard.
+    const bodyMatch = LAYOUT_SOURCE.match(
+      /export\s+default\s+function\s+KodyLayout\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/,
+    );
+    const body = bodyMatch ? bodyMatch[1] : "";
+    expect(body).not.toMatch(/\bawait\b/);
   });
 
   it("does not call fetch() at module scope inside the layout body", () => {
