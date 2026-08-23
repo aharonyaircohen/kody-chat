@@ -88,6 +88,11 @@ describe("workflow chat tools", () => {
       capabilities: ["draft-docs"],
       inputSchema: {},
       steps: [{ id: "draft", capability: "draft-docs" }],
+      report: {
+        type: "documentation-review",
+        owner: "documentation-agency",
+        slug: "documentation-review",
+      },
       runWithoutApproval: false,
     };
 
