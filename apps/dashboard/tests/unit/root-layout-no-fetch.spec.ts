@@ -1,12 +1,13 @@
 /**
- * Regression test for the E2E gate failure (CI run 32251372234 / PR #24):
- * the root dashboard layout used to be `async` and called
- * `getKodyAuthToken()` at SSR. In the PW_LOCAL E2E harness the upstream
- * Convex backend isn't reachable, so the `await` triggered a
- * `TypeError: fetch failed` that crashed the dev server before any test
- * could run. The fix made `KodyLayout` synchronous and removed the
- * server-side token fetch — auth/identity now lives in client-mounted
- * providers (`KodyProviders` → `ConvexClientProvider` + `AuthProvider`).
+ * Regression test for the E2E gate failure (CI run 32629412166 / PR #24,
+ * headSha 08adfa3c5c705b0ec1dbc26c0c2e6fb958239ad1): the root dashboard
+ * layout used to be `async` and called `getKodyAuthToken()` at SSR. In
+ * the PW_LOCAL E2E harness the upstream Convex backend isn't reachable,
+ * so the `await` triggered a `TypeError: fetch failed` that crashed the
+ * dev server before any test could run. The fix made `KodyLayout`
+ * synchronous and removed the server-side token fetch — auth/identity
+ * now lives in client-mounted providers (`KodyProviders` →
+ * `ConvexClientProvider` + `AuthProvider`).
  *
  * This test asserts the structural markers so a future refactor can't
  * silently re-introduce a fetch in the root layout.
