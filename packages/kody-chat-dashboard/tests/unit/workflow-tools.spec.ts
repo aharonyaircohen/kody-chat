@@ -111,4 +111,25 @@ describe("workflow chat tools", () => {
     ).resolves.toEqual({ success: true });
     expect(ctx.removeWorkflow).toHaveBeenCalledWith("documentation-agency");
   });
+
+  it("updates one workflow field without resending array fields", async () => {
+    const tools = createWorkflowTools(ctx);
+    const patch = {
+      id: "documentation-agency",
+      report: {
+        type: "documentation-review",
+        version: 1,
+        owner: "documentation-agency",
+        slug: "documentation-review",
+        title: "Documentation Review",
+      },
+    };
+
+    await expect(
+      tools.create_or_update_workflow.execute!(patch, {} as never),
+    ).resolves.toMatchObject({
+      workflow: { id: "documentation-agency" },
+    });
+    expect(ctx.saveWorkflow).toHaveBeenCalledWith(patch);
+  });
 });

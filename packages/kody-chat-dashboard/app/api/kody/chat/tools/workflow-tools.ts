@@ -14,14 +14,14 @@ interface RunWorkflowInput {
 
 const workflowWriteSchema = z.object({
   id: workflowIdSchema.optional(),
-  name: z.string().trim().min(1).max(160),
-  agent: z.string().trim().min(1).max(80).default("kody"),
-  capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
-  inputSchema: z.record(z.string(), z.unknown()).default({}),
+  name: z.string().trim().min(1).max(160).optional(),
+  agent: z.string().trim().min(1).max(80).optional(),
+  capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
   startAt: z.string().trim().min(1).max(80).optional(),
   steps: z.array(workflowStepDefinitionSchema).min(1).optional(),
   report: z.record(z.string(), z.unknown()).optional(),
-  runWithoutApproval: z.boolean().default(false),
+  runWithoutApproval: z.boolean().optional(),
 });
 
 type WorkflowWriteInput = z.infer<typeof workflowWriteSchema>;
@@ -55,7 +55,7 @@ export function createWorkflowTools(ctx: Ctx) {
     }),
 
     create_or_update_workflow: tool({
-      description: `Create or update one Workflow in ${repoRef} through the same validated Dashboard API used by the visual editor. Store workflows remain protected from editing in this repo.`,
+      description: `Create or update one Workflow in ${repoRef} through the same validated Dashboard API used by the visual editor. For an existing Workflow, send its id and only the fields that need to change; omitted fields are preserved. A new Workflow requires name and capabilities. Store workflows remain protected from editing in this repo.`,
       inputSchema: workflowWriteSchema,
       execute: async (input) => ctx.saveWorkflow(input),
     }),
