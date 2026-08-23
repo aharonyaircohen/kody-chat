@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   ChevronDown,
   ChevronUp,
@@ -54,6 +55,7 @@ import {
   type GuidedFlowSourceScope,
 } from "../guided-flows/chat-controller";
 import { resolveCmsItemsSource } from "../guided-flows/cms-items";
+import { guidedFlowRequestAuth } from "../guided-flows/page-scope";
 import { WidgetStepFields } from "../guided-flows/WidgetStepFields";
 
 type FlowDefinition = GuidedFlowDefinition & { description?: string };
@@ -328,14 +330,15 @@ function FlowBuilder({
   flowOptions,
   onSaved,
   onClose,
+  requestAuth,
 }: {
   mode: "create" | "edit" | "view";
   definition?: FlowDefinition;
   flowOptions: readonly FlowDefinition[];
   onSaved: (definition: FlowDefinition) => void;
   onClose: () => void;
+  requestAuth: ReturnType<typeof useAuth>["auth"];
 }) {
-  const { auth } = useAuth();
   const [draft, setDraft] = useState<GuidedFlowDraft>({
     ...(definition
       ? draftFromDefinition(definition)
@@ -378,7 +381,7 @@ function FlowBuilder({
     const controller = new AbortController();
     setRendererCatalogError(null);
     void fetch("/api/kody/view-renderers", {
-      headers: buildAuthHeaders(auth),
+      headers: buildAuthHeaders(requestAuth),
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -401,7 +404,7 @@ function FlowBuilder({
         );
       });
     return () => controller.abort();
-  }, [auth]);
+  }, [requestAuth]);
 
   function updateStep(
     index: number,
@@ -461,7 +464,7 @@ function FlowBuilder({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...buildAuthHeaders(auth),
+          ...buildAuthHeaders(requestAuth),
         },
         body: JSON.stringify({
           action: mode === "edit" ? "update-definition" : "create-definition",
@@ -1266,7 +1269,9 @@ function FlowBuilder({
 
 function GuidedFlowsManager() {
   const { startFlowInChat } = useGuidedFlowChat();
-  const { auth } = useAuth();
+  const { auth: connectedAuth } = useAuth();
+  const pathname = usePathname();
+  const auth = guidedFlowRequestAuth(pathname, connectedAuth);
   const [definitions, setDefinitions] = useState<FlowDefinition[]>(
     BUILTIN_START_OPTIONS,
   );
@@ -1377,6 +1382,7 @@ function GuidedFlowsManager() {
             definition={editor.definition}
             flowOptions={definitions}
             onClose={() => setEditor(null)}
+            requestAuth={auth}
             onSaved={(definition) => {
               setDefinitions((current) => {
                 const exists = current.some(
