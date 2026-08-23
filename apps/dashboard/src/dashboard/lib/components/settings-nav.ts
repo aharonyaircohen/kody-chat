@@ -632,6 +632,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       TASKS_NAV_ITEM,
       VIBE_NAV_ITEM,
       PREVIEW_NAV_ITEM,
+      navItemForHref("/guided-flows"),
       navItemForHref("/inbox"),
     ],
   },
@@ -703,7 +704,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     items: [
       navItemForHref("/models"),
       navItemForHref("/commands"),
-      navItemForHref("/guided-flows"),
       navItemForHref("/views/renderers"),
       navItemForHref("/views/widgets"),
       navItemForHref("/instructions"),

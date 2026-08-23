@@ -42,7 +42,6 @@ describe("sidebar navigation extensions", () => {
           item("/secrets", "Secrets"),
           item("/views/renderers", "Renderers"),
           item("/views/widgets", "Widgets"),
-          item("/guided-flows", "Guided Flows"),
           item("/workflows", "Workflows"),
         ],
       },
@@ -56,7 +55,6 @@ describe("sidebar navigation extensions", () => {
     expect(result.flatMap((section) => section.items.map((entry) => entry.href))).toEqual([
       "/models",
       "/commands",
-      "/guided-flows",
       "/views/renderers",
       "/views/widgets",
       "/instructions",

@@ -23,7 +23,6 @@ describe("repository navigation visibility", () => {
       "/chat",
       "/models",
       "/commands",
-      "/guided-flows",
       "/views/renderers",
       "/views/widgets",
       "/instructions",
@@ -63,6 +62,16 @@ describe("repository navigation visibility", () => {
     const repositoryItems = sections
       .slice(1)
       .flatMap((section) => section.items);
+    expect(
+      sections
+        .find((section) => section.title === "Work")
+        ?.items.map((item) => item.href),
+    ).toContain("/guided-flows");
+    expect(
+      sections
+        .find((section) => section.title === "Chat")
+        ?.items.map((item) => item.href),
+    ).not.toContain("/guided-flows");
     expect(repositoryItems.map((item) => item.label)).toEqual(
       expect.arrayContaining([
         "Repository Commands",
