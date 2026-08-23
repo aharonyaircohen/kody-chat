@@ -795,7 +795,10 @@ function FlowBuilder({
                               onChange={(event) =>
                                 updateStep(index, (current) =>
                                   current.type === "command"
-                                    ? { ...current, command: event.target.value }
+                                    ? {
+                                        ...current,
+                                        command: event.target.value,
+                                      }
                                     : current,
                                 )
                               }
@@ -1267,8 +1270,101 @@ function FlowBuilder({
   );
 }
 
-function GuidedFlowsManager() {
+function FlowDefinitionList({
+  definitions,
+  sourceScope,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  definitions: readonly FlowDefinition[];
+  sourceScope: GuidedFlowSourceScope;
+  onView: (definition: FlowDefinition) => void;
+  onEdit: (definition: FlowDefinition) => void;
+  onDelete: (definition: FlowDefinition) => void;
+}) {
   const { startFlowInChat } = useGuidedFlowChat();
+  return (
+    <ul className="space-y-2">
+      {definitions.map((option) => (
+        <li key={option.id}>
+          <Card
+            role="article"
+            aria-label={option.title}
+            className="border-white/[0.08] bg-white/[0.03]"
+          >
+            <CardContent className="flex items-center justify-between gap-4 p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-white/90">{option.title}</h3>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
+                    {option.source
+                      ? "Generated"
+                      : isBuiltinDefinition(option)
+                        ? "Built-in"
+                        : "Custom"}
+                  </span>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
+                    v{option.version ?? 1}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-white/50">
+                  {option.description ??
+                    `${option.steps.length} guided step${option.steps.length === 1 ? "" : "s"}.`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  size="sm"
+                  aria-label={`Start ${option.title} in Chat`}
+                  onClick={() =>
+                    startFlowInChat(option.id, undefined, sourceScope)
+                  }
+                >
+                  <Play className="mr-1.5 h-4 w-4" />
+                  Start in Chat
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`View ${option.title}`}
+                  onClick={() => onView(option)}
+                >
+                  <Eye className="mr-1.5 h-4 w-4" />
+                  View
+                </Button>
+                {!isReadOnlyDefinition(option) ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Edit ${option.title}`}
+                      onClick={() => onEdit(option)}
+                    >
+                      <Pencil className="mr-1.5 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Delete ${option.title}`}
+                      onClick={() => onDelete(option)}
+                    >
+                      <Trash2 className="mr-1.5 h-4 w-4" />
+                      Delete
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function GuidedFlowsManager() {
   const { auth: connectedAuth } = useAuth();
   const pathname = usePathname();
   const auth = guidedFlowRequestAuth(pathname, connectedAuth);
@@ -1285,6 +1381,11 @@ function GuidedFlowsManager() {
   const [deleteTarget, setDeleteTarget] = useState<FlowDefinition | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sharedDefinitions = definitions.filter(isReadOnlyDefinition);
+  const ownedDefinitions = definitions.filter(
+    (definition) => !isReadOnlyDefinition(definition),
+  );
+  const ownerLabel = auth ? "Repository" : "Personal";
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -1356,8 +1457,8 @@ function GuidedFlowsManager() {
   useEffect(() => void load(), [load]);
   return (
     <PageShell
-      title="Guided Flows"
-      subtitle="Create and run step-by-step guides for users."
+      title={`${ownerLabel} Guided Flows`}
+      subtitle={`Manage guides owned by ${auth ? "this repository" : "your account"}.`}
       icon={Route}
       iconClassName="text-teal-300"
       width="wide"
@@ -1398,15 +1499,33 @@ function GuidedFlowsManager() {
             }}
           />
         ) : null}
-        <section aria-label="Guided Flow definitions">
+        <section aria-label="Shared guides">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-white/90">
+              Shared guides
+            </h2>
+            <p className="mt-1 text-sm text-white/50">
+              Built-in and generated guides are available in every scope and are
+              read-only.
+            </p>
+          </div>
+          <FlowDefinitionList
+            definitions={sharedDefinitions}
+            sourceScope={sourceScope}
+            onView={(definition) => setEditor({ mode: "view", definition })}
+            onEdit={(definition) => setEditor({ mode: "edit", definition })}
+            onDelete={setDeleteTarget}
+          />
+        </section>
+        <section aria-label={`${ownerLabel} guides`}>
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-white/90">
-                Guided Flow definitions
+                {ownerLabel} guides
               </h2>
               <p className="mt-1 text-sm text-white/50">
-                View, edit, and run Guided Flows. Built-in and generated flows
-                are read-only.
+                These custom guides belong only to{" "}
+                {auth ? "this repository" : "your account"}.
               </p>
             </div>
             <Button size="sm" onClick={() => setEditor({ mode: "create" })}>
@@ -1414,88 +1533,19 @@ function GuidedFlowsManager() {
               Add Guided Flow
             </Button>
           </div>
-          <ul className="space-y-2">
-            {definitions.map((option) => (
-              <li key={option.id}>
-                <Card
-                  role="article"
-                  aria-label={option.title}
-                  className="border-white/[0.08] bg-white/[0.03]"
-                >
-                  <CardContent className="flex items-center justify-between gap-4 p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-white/90">
-                          {option.title}
-                        </h3>
-                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
-                          {option.source
-                            ? "Generated"
-                            : isBuiltinDefinition(option)
-                              ? "Built-in"
-                              : "Custom"}
-                        </span>
-                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
-                          v{option.version ?? 1}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-white/50">
-                        {option.description ??
-                          `${option.steps.length} guided step${option.steps.length === 1 ? "" : "s"}.`}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        size="sm"
-                        aria-label={`Start ${option.title} in Chat`}
-                        onClick={() =>
-                          startFlowInChat(option.id, undefined, sourceScope)
-                        }
-                      >
-                        <Play className="mr-1.5 h-4 w-4" />
-                        Start in Chat
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`View ${option.title}`}
-                        onClick={() =>
-                          setEditor({ mode: "view", definition: option })
-                        }
-                      >
-                        <Eye className="mr-1.5 h-4 w-4" />
-                        View
-                      </Button>
-                      {!isReadOnlyDefinition(option) ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${option.title}`}
-                            onClick={() =>
-                              setEditor({ mode: "edit", definition: option })
-                            }
-                          >
-                            <Pencil className="mr-1.5 h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Delete ${option.title}`}
-                            onClick={() => setDeleteTarget(option)}
-                          >
-                            <Trash2 className="mr-1.5 h-4 w-4" />
-                            Delete
-                          </Button>
-                        </>
-                      ) : null}
-                    </div>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          {ownedDefinitions.length > 0 ? (
+            <FlowDefinitionList
+              definitions={ownedDefinitions}
+              sourceScope={sourceScope}
+              onView={(definition) => setEditor({ mode: "view", definition })}
+              onEdit={(definition) => setEditor({ mode: "edit", definition })}
+              onDelete={setDeleteTarget}
+            />
+          ) : (
+            <p className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center text-sm text-white/50">
+              No {ownerLabel.toLowerCase()} guides yet.
+            </p>
+          )}
         </section>
         <ConfirmDialog
           open={Boolean(deleteTarget)}
