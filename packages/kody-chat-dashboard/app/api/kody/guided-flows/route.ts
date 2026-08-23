@@ -63,6 +63,7 @@ import {
 import {
   executeGuidedFlowCommand,
   GuidedFlowCommandError,
+  refreshGuidedFlowCommand,
 } from "./command-execution";
 import { getChatRequestContextProvider } from "../chat/request-context-provider";
 
@@ -113,7 +114,7 @@ const deleteDefinitionSchema = z.object({
 });
 
 const changeSchema = z.object({
-  action: z.enum(["submit", "cancel", "control"]),
+  action: z.enum(["submit", "cancel", "control", "sync-command"]),
   instanceId: z.string().trim().min(1).max(128),
   stepId: z.string().trim().min(1).max(80).optional(),
   actionId: z.string().trim().min(1).max(80).optional(),
@@ -619,6 +620,30 @@ export async function POST(req: NextRequest) {
       stepId: current.currentStepId,
     };
     let submittedResult = parsed.data.result;
+    if (parsed.data.action === "sync-command") {
+      const activeStep = getGuidedFlowStep(definition, current);
+      if (!isCommandGuidedFlowStep(activeStep) || !activeStep.waitForCompletion) {
+        return json({ error: "command_wait_not_enabled" }, { status: 409 });
+      }
+      const previousResult = guidedFlowStepResult(
+        definition,
+        current,
+        activeStep.id,
+      );
+      if (previousResult?.status !== "running") {
+        return json({ error: "command_not_running" }, { status: 409 });
+      }
+      submittedResult = await refreshGuidedFlowCommand(req, previousResult);
+      if (submittedResult.status === "running") {
+        return json(
+          presentGuidedFlow(
+            definition,
+            current,
+            await loadGuidedFlowRenderers(tenantId, [definition]),
+          ),
+        );
+      }
+    }
     if (parsed.data.action === "submit") {
       const activeStep = getGuidedFlowStep(definition, current);
       if (isCommandGuidedFlowStep(activeStep)) {
@@ -639,6 +664,7 @@ export async function POST(req: NextRequest) {
               ),
               actionId: parsed.data.actionId,
             },
+            activeStep.waitForCompletion === true,
           );
         } else if (parsed.data.actionId === "continue") {
           if (
@@ -651,7 +677,9 @@ export async function POST(req: NextRequest) {
       }
     }
     const runtimeActionId =
-      parsed.data.action === "submit" &&
+      parsed.data.action === "sync-command"
+        ? "run"
+        : parsed.data.action === "submit" &&
       isCommandGuidedFlowStep(getGuidedFlowStep(definition, current)) &&
       parsed.data.actionId === "approve"
         ? "run"
@@ -674,7 +702,8 @@ export async function POST(req: NextRequest) {
       runtime = runGuidedFlowAction({
         definition,
         instance: current,
-        action: parsed.data.action,
+        action:
+          parsed.data.action === "sync-command" ? "submit" : parsed.data.action,
         actionId: runtimeActionId,
         result: submittedResult,
         resolveDefinition: (flowId, flowVersion) =>
@@ -706,7 +735,7 @@ export async function POST(req: NextRequest) {
       ...guidedFlowInstanceWriteFields(next),
       updatedAt: new Date().toISOString(),
       mutationId: parsed.data.mutationId,
-      ...(parsed.data.action === "submit"
+      ...(parsed.data.action === "submit" || parsed.data.action === "sync-command"
         ? {
             submission: {
               ...submittedFlow,

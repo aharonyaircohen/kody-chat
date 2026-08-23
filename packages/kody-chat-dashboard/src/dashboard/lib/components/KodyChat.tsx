@@ -98,6 +98,7 @@ import type {
   PreviewActDirective,
 } from "../chat-ui-actions";
 import { isRenderedViewDirective } from "../chat-ui-actions";
+import { useGuidedFlowCommandCompletion } from "../guided-flows/use-command-completion";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
 import { buildGuidedFlowResumeView } from "../guided-flows/resume";
 import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
@@ -1332,6 +1333,7 @@ export function KodyChat({
     },
     [setChatSessionMessages],
   );
+  useGuidedFlowCommandCompletion({ messages, setMessages });
   useEffect(() => {
     const openWidget = (request: WidgetOpenRequest) => {
       const sessionId = request.conversationId ?? createSelectedChatSession();

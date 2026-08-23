@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { executeGuidedFlowCommand } from "../../app/api/kody/guided-flows/command-execution";
+import {
+  executeGuidedFlowCommand,
+  refreshGuidedFlowCommand,
+} from "../../app/api/kody/guided-flows/command-execution";
 
 function request(): NextRequest {
   return new NextRequest("https://dashboard.test/api/kody/guided-flows", {
@@ -124,5 +127,80 @@ describe("Guided Flow command execution", () => {
         }),
       }),
     );
+  });
+
+  it("keeps an opted-in workflow command running until its persisted run finishes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          handled: true,
+          result: {
+            status: "completed",
+            summary: "Workflow accepted",
+            workflowId: "review-lesson",
+            runId: "run-1",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      executeGuidedFlowCommand(
+        request(),
+        "/run-workflow review-lesson",
+        "mutation-3",
+        undefined,
+        true,
+      ),
+    ).resolves.toMatchObject({
+      status: "running",
+      workflowId: "review-lesson",
+      runId: "run-1",
+    });
+  });
+
+  it("turns the persisted terminal workflow state into command completion", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ run: { state: { status: "done" } } }),
+      ),
+    );
+
+    await expect(
+      refreshGuidedFlowCommand(request(), {
+        status: "running",
+        workflowId: "review-lesson",
+        runId: "run-1",
+      }),
+    ).resolves.toEqual({
+      status: "completed",
+      summary: "Workflow completed.",
+      workflowId: "review-lesson",
+      runId: "run-1",
+    });
+  });
+
+  it("shows a persisted workflow blocker instead of completing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          run: { state: { status: "blocked", blocker: "Missing lesson" } },
+        }),
+      ),
+    );
+
+    await expect(
+      refreshGuidedFlowCommand(request(), {
+        status: "running",
+        workflowId: "review-lesson",
+        runId: "run-1",
+      }),
+    ).resolves.toMatchObject({
+      status: "needs_attention",
+      summary: "Missing lesson",
+    });
   });
 });

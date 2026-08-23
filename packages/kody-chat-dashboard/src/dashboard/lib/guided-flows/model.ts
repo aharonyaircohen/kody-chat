@@ -57,6 +57,7 @@ export interface GuidedFlowNestedStepDefinition extends GuidedFlowStepBase {
 export interface GuidedFlowCommandStepDefinition extends GuidedFlowStepBase {
   readonly type: "command";
   readonly command: string;
+  readonly waitForCompletion?: boolean;
 }
 
 export type GuidedFlowStepDefinition =

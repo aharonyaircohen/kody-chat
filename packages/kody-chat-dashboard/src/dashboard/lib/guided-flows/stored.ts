@@ -69,6 +69,7 @@ const storedGuidedFlowStepSchema = z.union([
       .min(2)
       .max(200)
       .regex(/^\/[a-z][a-z0-9-]*(?:\s+[^\r\n]+)?$/i),
+    waitForCompletion: z.boolean().optional(),
   }),
   z.object({
     ...storedStepBaseSchema,

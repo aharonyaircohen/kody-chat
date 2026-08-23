@@ -766,6 +766,101 @@ describe("GuidedFlow route", () => {
     expect(created.status).toBe(201);
   });
 
+  it("waits for an opted-in workflow command before enabling continuation", async () => {
+    await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Review lesson",
+          steps: [
+            {
+              type: "command",
+              title: "Generate review",
+              explanation: "Wait for the review report.",
+              command: "/run-workflow review-lesson",
+              waitForCompletion: true,
+            },
+          ],
+        },
+      }),
+    );
+    const started = await POST(
+      request({ action: "start", flowId: "review-lesson" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          handled: true,
+          result: {
+            status: "completed",
+            summary: "Workflow accepted",
+            workflowId: "review-lesson-report",
+            runId: "run-1",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ run: { state: { status: "running" } } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ run: { state: { status: "done" } } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const executed = await POST(
+        request({
+          action: "submit",
+          instanceId,
+          stepId: "step-1",
+          expectedRevision: 0,
+          actionId: "run",
+          mutationId: "run-review",
+        }),
+      );
+      expect(await executed.json()).toMatchObject({
+        instance: { revision: 1 },
+        view: { data: { status: "running", actions: [] } },
+      });
+
+      const stillRunning = await POST(
+        request({
+          action: "sync-command",
+          instanceId,
+          expectedRevision: 1,
+          mutationId: "sync-review-1",
+        }),
+      );
+      expect(await stillRunning.json()).toMatchObject({
+        instance: { revision: 1 },
+        view: { data: { status: "running" } },
+      });
+
+      const completed = await POST(
+        request({
+          action: "sync-command",
+          instanceId,
+          expectedRevision: 1,
+          mutationId: "sync-review-2",
+        }),
+      );
+      expect(await completed.json()).toMatchObject({
+        instance: { revision: 2 },
+        view: {
+          data: {
+            status: "completed",
+            actions: expect.arrayContaining([
+              expect.objectContaining({ id: "continue" }),
+            ]),
+          },
+        },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("executes an enabled control and persists the returned flow state", async () => {
     const created = await POST(
       request({

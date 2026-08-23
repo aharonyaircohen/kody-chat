@@ -17,6 +17,7 @@ export function buildGuidedFlowCommandView(
   if (!renderer) throw new Error("GuidedFlow command renderer not found");
   const result = guidedFlowStepResult(definition, instance, step.id);
   const completed = result?.status === "completed";
+  const running = result?.status === "running";
   const needsAttention = result?.status === "needs_attention";
   const hasApprovalChallenge =
     needsAttention && typeof result?.approvalChallenge === "string";
@@ -29,6 +30,8 @@ export function buildGuidedFlowCommandView(
       command: step.command,
       status: completed
         ? "completed"
+        : running
+          ? "running"
         : needsAttention
           ? "needs_attention"
           : "ready",
@@ -37,8 +40,12 @@ export function buildGuidedFlowCommandView(
           ? result.summary
           : completed
             ? "Command completed."
+            : running
+              ? "Workflow is running…"
             : "Ready to run.",
-      actions: completed
+      actions: running
+        ? []
+        : completed
         ? [
             {
               id: "run",

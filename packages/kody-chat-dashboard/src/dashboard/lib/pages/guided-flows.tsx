@@ -225,6 +225,7 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
               routeId: step.routeId,
               routeParameters: step.routeParameters,
               command: step.command,
+              waitForCompletion: step.waitForCompletion,
             }
           : {
               title: step.title ?? definition.title,
@@ -781,20 +782,41 @@ function FlowBuilder({
                             </select>
                           </label>
                         ) : step.type === "command" ? (
-                          <input
-                            aria-label={`Step ${index + 1} command`}
-                            placeholder="/init"
-                            className="mt-3 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
-                            value={step.command}
-                            disabled={readOnly}
-                            onChange={(event) =>
-                              updateStep(index, (current) =>
-                                current.type === "command"
-                                  ? { ...current, command: event.target.value }
-                                  : current,
-                              )
-                            }
-                          />
+                          <div className="mt-3 space-y-3">
+                            <input
+                              aria-label={`Step ${index + 1} command`}
+                              placeholder="/init"
+                              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 font-mono text-white"
+                              value={step.command}
+                              disabled={readOnly}
+                              onChange={(event) =>
+                                updateStep(index, (current) =>
+                                  current.type === "command"
+                                    ? { ...current, command: event.target.value }
+                                    : current,
+                                )
+                              }
+                            />
+                            <label className="flex items-center gap-2 text-sm text-white/70">
+                              <input
+                                type="checkbox"
+                                checked={step.waitForCompletion === true}
+                                disabled={readOnly}
+                                onChange={(event) =>
+                                  updateStep(index, (current) =>
+                                    current.type === "command"
+                                      ? {
+                                          ...current,
+                                          waitForCompletion:
+                                            event.target.checked,
+                                        }
+                                      : current,
+                                  )
+                                }
+                              />
+                              Wait for workflow completion
+                            </label>
+                          </div>
                         ) : widgetStep ? (
                           <WidgetStepFields
                             index={index}

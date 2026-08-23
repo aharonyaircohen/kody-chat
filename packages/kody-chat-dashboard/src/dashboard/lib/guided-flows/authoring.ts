@@ -75,6 +75,7 @@ export const guidedFlowDraftCommandStepSchema = z.object({
   ...guidedFlowDraftStepBaseSchema,
   type: z.literal("command"),
   command: z.string().trim().min(2).max(200).regex(SLASH_COMMAND_RE),
+  waitForCompletion: z.boolean().optional(),
 });
 
 export const guidedFlowDraftSchema = z.object({
@@ -578,6 +579,7 @@ export function buildGuidedFlowDefinition(
         ...(step.routeId?.trim() ? { routeId: step.routeId.trim() } : {}),
         ...(routeParameters ? { routeParameters } : {}),
         command: step.command.trim(),
+        ...(step.waitForCompletion ? { waitForCompletion: true } : {}),
         actions: [
           { id: "run", target: { type: "stay" as const } },
           {
