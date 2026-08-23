@@ -1,6 +1,6 @@
 /**
- * Regression test for the E2E gate failure (CI run 32634913174 / PR #24,
- * headSha f15c86c1c5222b10e4de9ad215e89137daf072b4): the root dashboard
+ * Regression test for the E2E gate failure (CI run 32637588777 / PR #24,
+ * headSha bd230a9ced2fb1b794e5b712e571d1bc3483f3d9): the root dashboard
  * layout used to be `async` and called `getKodyAuthToken()` at SSR. In
  * the PW_LOCAL E2E harness the upstream Convex backend isn't reachable,
  * so the `await` triggered a `TypeError: fetch failed` that crashed the
