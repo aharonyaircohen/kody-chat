@@ -12,7 +12,8 @@ describe("production email sign-in", () => {
       "utf8",
     );
 
-    expect(source).toMatch(/emailAndPassword:\s*\{[\s\S]*enabled:\s*true/);
-    expect(source).toMatch(/emailAndPassword:\s*\{[\s\S]*disableSignUp:\s*true/);
+    expect(source).toMatch(/emailPasswordOptions\s*\(/);
+    expect(source).toMatch(/enabled:\s*true/);
+    expect(source).toMatch(/disableSignUp:\s*!options\.allowSignUp/);
   });
 });
