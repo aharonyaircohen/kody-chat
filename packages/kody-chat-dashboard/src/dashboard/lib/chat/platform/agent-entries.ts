@@ -11,7 +11,11 @@ import {
   resolveReasoning,
   type ModelReasoning,
 } from "../core/reasoning-adapter";
-import { AUTOMATIC_MODEL_ID } from "@kody-ade/base/variables/models";
+import {
+  AUTOMATIC_MODEL_ID,
+  chatModelScopeFromId,
+  storedChatModelId,
+} from "@kody-ade/base/variables/models";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {
@@ -36,6 +40,7 @@ export interface ChatDropdownEntry {
 export interface ChatModelEntry {
   id: string;
   label: string;
+  scope?: "personal" | "repo";
   enabled?: boolean;
   automatic?: boolean;
   speech?: boolean;
@@ -149,12 +154,13 @@ export function buildAgentList(
   }
   for (const m of models) {
     if (m.enabled === false) continue;
+    const scope = m.scope ?? chatModelScopeFromId(m.id) ?? undefined;
     entries.push({
       key: `kody:${m.id}`,
       agentId: "kody",
       modelId: m.id,
       name: m.label,
-      description: m.id,
+      description: `${scope === "repo" ? "Repo" : scope === "personal" ? "Personal" : "Built in"} · ${storedChatModelId(m.id)}`,
       icon: kody.icon,
       reasoning: resolveReasoning(m),
     });

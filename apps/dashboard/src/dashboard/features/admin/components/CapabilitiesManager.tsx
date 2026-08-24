@@ -398,8 +398,15 @@ function NewCapabilityFolder({ basePath }: { basePath: string }) {
       <div>
         <h1 className="text-xl font-semibold">New capability folder</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Name the folder, then edit its contents in Files.
+          Create one reusable Kody action. Its instructions and contract are
+          stored in Kody and loaded by Engine when a workflow runs.
         </p>
+      </div>
+      <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+        This does not create a GitHub Actions workflow or a CMS entry. After
+        creation, edit <code>instructions.md</code> and{" "}
+        <code>contract.json</code>
+        in Files.
       </div>
       <Input
         aria-label="Capability folder name"

@@ -53,7 +53,7 @@ test("starts a GuidedFlow in Chat and keeps its conversation binding when the us
       request.method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),
@@ -184,7 +184,7 @@ test("loads Guided Flow choices from the repository CMS", async ({ page }) => {
       route.request().method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),
@@ -415,7 +415,7 @@ test("runs onboarding manually and lets the user advance after completing each p
       route.request().method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [
         { id: "openrouter/free", label: "OpenRouter Free", enabled: true },
@@ -621,7 +621,7 @@ test("starts or resumes an unfinished GuidedFlow in Chat", async ({ page }) => {
       request.method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),
@@ -756,7 +756,7 @@ test("dispatches an enabled Back control through the GuidedFlow API", async ({
       request.method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),
@@ -881,7 +881,7 @@ test("lets the user choose between multiple active GuidedFlows", async ({
       request.method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),

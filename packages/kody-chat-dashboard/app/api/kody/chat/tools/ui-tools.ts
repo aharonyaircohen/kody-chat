@@ -78,8 +78,12 @@ function hasInteractiveControl(node: RenderedViewUiNode): boolean {
 function requiresBoundActionApproval(userText: string | undefined): boolean {
   const text = userText ?? "";
   return (
-    /\b(?:create|prepare|file|open|save|update)\b/i.test(text) &&
-    /\b(?:task|issue|agent|workflow)\b/i.test(text)
+    /\b(?:apply|configure|create|prepare|file|open|save|update)\b/i.test(
+      text,
+    ) &&
+    /\b(?:agent|capability|configuration|intent|issue|loop|task|todo|workflow)\b/i.test(
+      text,
+    )
   );
 }
 
@@ -299,7 +303,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Use this whenever the reply asks the user to choose, approve, confirm, continue, cancel, or pick an action — and when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
         "Compose the spec only from the components listed below. " +
         "Put only data that belongs to the current interaction into the view; do not copy preview, page, repo, task, memory, or research context into it. " +
-        "Never use show_view to approve creating or saving a Task, Agent, or Workflow; call the matching action tool because it returns a server-bound approval card. " +
+        "Never use show_view to approve creating, configuring, or saving repository state such as a Task, Agent, Capability, Workflow, Loop, Intent, or Todo; call the matching action tool because it returns a server-bound approval card. " +
         "Section counts must match the number of visible items; omit a count when it is uncertain. " +
         "This tool only shows UI; it does not execute the selected action. " +
         "If the call returns an error, fix the spec it describes and call again.\n\n" +

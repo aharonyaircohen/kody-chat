@@ -49,6 +49,7 @@ interface CmsModelResponse {
 
 export interface GenerateCmsSchemaPayload {
   adapter: "mongodb";
+  connectionName: string;
   name?: string;
   refresh?: boolean;
 }
@@ -62,6 +63,7 @@ export interface CmsAdapterCatalogItem {
 }
 
 export interface SaveCmsPermissionsPayload {
+  connectionName: string;
   permissions?: CmsPermissionsConfig;
   collections: Array<{
     name: string;
@@ -72,6 +74,7 @@ export interface SaveCmsPermissionsPayload {
 
 export interface SaveCmsAdapterPayload {
   adapter: string;
+  connectionName?: string;
   adapterSettings?: Record<string, unknown>;
 }
 

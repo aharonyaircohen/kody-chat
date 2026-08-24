@@ -1,9 +1,10 @@
 # Dashboard setup
 
-The dashboard manages your per-repo data as **files committed to the
-connected GitHub repo** (everything under `backend-managed resources/`), edited through
-dashboard pages — never hand-edited loose in the repo. Most stores are
-plaintext markdown or JSON; one (Secrets) is a single encrypted blob.
+The dashboard manages your per-repo definitions in the Kody backend, scoped to
+the connected GitHub repository and edited through dashboard pages. The Engine
+hydrates those definitions into a disposable consumer checkout at run time;
+they are not normally committed to the consumer repository. Company Store
+assets remain read-only files in the Store repository.
 
 There is exactly **one** required server-side env var: `KODY_MASTER_KEY`,
 which unlocks the encrypted vault. See
@@ -13,18 +14,18 @@ through the dashboard once you're logged in.
 
 ## Stores at a glance
 
-| Store            | Page            | In the repo                                 | Secret?               | Doc                                                       |
+| Store            | Page            | Current storage                             | Secret?               | Doc                                                       |
 | ---------------- | --------------- | ------------------------------------------- | --------------------- | --------------------------------------------------------- |
-| **Agents**       | `/agent`        | `backend definitions (agents)*.md`          | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
-| **Capabilities** | `/capabilities` | `backend definitions (capabilities)<slug>/` | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
-| **Commands**     | `/commands`     | `backend repo documents (commands)*.md`     | No (plaintext)        | [Commands](./commands.md)                                 |
-| **Secrets**      | `/secrets`      | `backend vault record`                      | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)                       |
-| **Variables**    | `/variables`    | `backend variables record`                  | No (plaintext)        | [Variables](./variables.md)                               |
-| **Context**      | `/context`      | `backend repo documents (context)*.md`      | No (plaintext)        | [Context](./context.md)                                   |
+| **Agents**       | `/agent`        | Kody backend definition bundle              | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
+| **Capabilities** | `/capabilities` | Kody backend `capability:<slug>` definition | No (plaintext)        | [Agents & Capabilities](./concepts/staff-capabilities.md) |
+| **Commands**     | `/commands`     | Kody backend `command:<slug>` documents     | No (plaintext)        | [Commands](./commands.md)                                 |
+| **Secrets**      | `/secrets`      | Kody encrypted vault record                 | **Yes** (AES-256-GCM) | [Secrets vault](./secrets-vault.md)                       |
+| **Variables**    | `/variables`    | Kody backend `variables` document           | No (plaintext)        | [Variables](./variables.md)                               |
+| **Context**      | `/context`      | Kody backend `context:<slug>` documents     | No (plaintext)        | [Context](./context.md)                                   |
 
 Each store is per-repo: switch the connected repo and you're editing a
-different set of files. All writes commit to the repo through the GitHub
-Contents API, so changes show up in the repo history.
+different tenant. Runtime hydration creates `.kody-engine/definitions/` in the
+consumer checkout; that cache is disposable and is not written back to GitHub.
 
 ## What goes where
 
@@ -39,18 +40,18 @@ identity — no tasks, schedules, or implementation recipes. See
 
 ### Capabilities — `/capabilities`
 
-A capability folder describes the capability purpose, output, allowed commands,
-and restrictions in `capability.md`; stores kind, agent, cadence, public action,
-and implementation metadata in `profile.json`; and can be run manually or by the
-engine scheduler. Toggle a capability off with `disabled: true`. Legacy
-capability folders under `backend definitions (capabilities)` still load as
-a fallback while repos migrate. See
+A capability folder contains the required `instructions.md` plus optional
+`contract.json`, `skills/`, and `tools/`. It owns the reusable behavior and its
+input/output contract; it does not own an Agent, Workflow, Loop, model, or
+schedule. Older `capability.md`/`definition.json` and implementation-profile
+folders still load only as Engine compatibility formats while repos migrate.
+See
 [Agents & Capabilities](./concepts/staff-capabilities.md).
 
 ### Commands — `/commands`
 
-Slash commands for the chat composer. Repo commands live at
-`backend repo documents (commands)<slug>.md` and merge with the shipped built-ins (`/plan`,
+Slash commands for the chat composer. Repo commands are stored in the Kody
+backend as `command:<slug>` documents and merge with the shipped built-ins (`/plan`,
 `/research`, `/review`, …); a repo command wins on slug collision. Bodies
 support `$ARGUMENTS` / `$0` / `$1` substitution and work identically
 across all chat backends. See [Commands](./commands.md).
@@ -72,8 +73,8 @@ and passwords in Secrets, not here. See [Variables](./variables.md).
 
 ### Context — `/context`
 
-Free-form markdown context about your product/company at
-`backend repo documents (context)<slug>.md` — the kind of background you'd brief a new
+Free-form markdown context about your product/company is stored in the Kody
+backend as `context:<slug>` — the kind of background you'd brief a new
 teammate with. The dashboard injects the matching entries into chat and
 agent context so answers are grounded in your domain. See
 [Context](./context.md).

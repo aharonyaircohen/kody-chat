@@ -49,7 +49,7 @@ test.describe("Admin Kody chat regression", () => {
       id: "admin-chat-e2e",
       name: "Admin Chat E2E",
     });
-    await page.route("**/api/kody/models", (route) =>
+    await page.route("**/api/kody/models*", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

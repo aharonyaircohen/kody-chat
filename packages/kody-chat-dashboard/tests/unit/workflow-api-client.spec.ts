@@ -162,4 +162,44 @@ describe("workflow API client", () => {
       input: { issue: 42 },
     });
   });
+
+  it("uses the exact configuration approval for its first verification run", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "approval_required",
+            approvalToken: "workflow.challenge",
+          }),
+          { status: 409 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ approvalId: "approval-config-1" }), {
+          status: 201,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, runId: "run-config-1" }), {
+          status: 202,
+        }),
+      );
+    const client = createWorkflowApiClient({ request, approval, fetchImpl });
+    const command = { workflowId: "daily-ci-watch", input: {} };
+
+    await expect(
+      client.run(command, { approvedByConfiguration: true }),
+    ).resolves.toMatchObject({ ok: true, runId: "run-config-1" });
+
+    expect(fetchImpl.mock.calls[1]![0].toString()).toContain("/approve");
+    expect(JSON.parse(fetchImpl.mock.calls[1]![1]!.body as string)).toEqual({
+      approvalToken: "workflow.challenge",
+      input: {},
+    });
+    expect(JSON.parse(fetchImpl.mock.calls[2]![1]!.body as string)).toEqual({
+      approvalId: "approval-config-1",
+      input: {},
+    });
+  });
 });

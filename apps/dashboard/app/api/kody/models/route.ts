@@ -1,12 +1,19 @@
 /** User-owned chat model settings. Repository Engine models are configured separately. */
 import { NextRequest, NextResponse } from "next/server";
-import { AutomaticModelSchema, ChatModelsSchema } from "@kody-ade/base/variables/models";
+import {
+  AutomaticModelSchema,
+  ChatModelsSchema,
+  scopedChatModelId,
+} from "@kody-ade/base/variables/models";
 import { ModelsWriteSchema } from "@kody-ade/base/variables/mutations";
 import { logger } from "@kody-ade/base/logger";
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
+import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
+import { isBuiltInChatModelId } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
   backendApi,
   getConvexClient,
+  tenantIdFor,
 } from "@dashboard/lib/backend/convex-backend";
 
 export const dynamic = "force-dynamic";
@@ -30,18 +37,78 @@ function parseStoredSettings(value: unknown) {
   };
 }
 
-export async function GET(_req?: NextRequest) {
+export async function GET(req?: NextRequest) {
   const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
 
   try {
-    const stored = await getConvexClient().query(backendApi.userPreferences.get, {
-      namespace: NAMESPACE,
-      userKey: actor.id,
-    });
-    return NextResponse.json(parseStoredSettings(stored?.data), {
-      headers: NO_STORE_HEADERS,
-    });
+    const stored = await getConvexClient().query(
+      backendApi.userPreferences.get,
+      {
+        namespace: NAMESPACE,
+        userKey: actor.id,
+      },
+    );
+    const personal = parseStoredSettings(stored?.data);
+    const auth = req ? getRequestAuth(req) : null;
+    if (!req || !auth || req.nextUrl.searchParams.get("scope") === "personal") {
+      return NextResponse.json(personal, { headers: NO_STORE_HEADERS });
+    }
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json(personal, { headers: NO_STORE_HEADERS });
+    }
+    try {
+      await octokit.rest.repos.get({ owner: auth.owner, repo: auth.repo });
+    } catch {
+      return NextResponse.json(personal, { headers: NO_STORE_HEADERS });
+    }
+    const repositoryStored = await getConvexClient().query(
+      backendApi.repositoryPreferences.get,
+      {
+        tenantId: tenantIdFor(auth.owner, auth.repo),
+        namespace: NAMESPACE,
+      },
+    );
+    const repository = parseStoredSettings(repositoryStored?.data);
+    const repositoryHasDefault =
+      repository.automatic.default === true ||
+      repository.models.some((model) => model.default === true);
+    return NextResponse.json(
+      {
+        models: [
+          ...repository.models.map((model) => ({
+            ...model,
+            id: scopedChatModelId("repo", model.id),
+            scope: "repo",
+          })),
+          ...personal.models.map((model) =>
+            isBuiltInChatModelId(model.id)
+              ? repositoryHasDefault
+                ? { ...model, default: false }
+                : model
+              : repositoryHasDefault
+                ? {
+                    ...model,
+                    id: scopedChatModelId("personal", model.id),
+                    default: false,
+                    scope: "personal",
+                  }
+                : {
+                    ...model,
+                    id: scopedChatModelId("personal", model.id),
+                    scope: "personal",
+                  },
+          ),
+        ],
+        automatic: repository.automatic.default
+          ? repository.automatic
+          : personal.automatic,
+      },
+      {
+        headers: NO_STORE_HEADERS,
+      },
+    );
   } catch (error) {
     logger.error({ error, userId: actor.id }, "personal models: list failed");
     return NextResponse.json(
@@ -63,7 +130,10 @@ export async function PUT(req: NextRequest) {
           models: Array.isArray((raw as { models?: unknown }).models)
             ? ((raw as { models: unknown[] }).models.map((model) =>
                 model && typeof model === "object"
-                  ? { ...(model as Record<string, unknown>), engineDefault: false }
+                  ? {
+                      ...(model as Record<string, unknown>),
+                      engineDefault: false,
+                    }
                   : model,
               ) as unknown[])
             : (raw as { models?: unknown }).models,
@@ -71,7 +141,7 @@ export async function PUT(req: NextRequest) {
             (raw as { automatic?: unknown }).automatic &&
             typeof (raw as { automatic?: unknown }).automatic === "object"
               ? {
-                  ...((raw as { automatic: Record<string, unknown> }).automatic),
+                  ...(raw as { automatic: Record<string, unknown> }).automatic,
                   engineDefault: false,
                 }
               : (raw as { automatic?: unknown }).automatic,

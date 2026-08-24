@@ -24,11 +24,13 @@ import {
 } from "@kody-ade/base/variables/load-chat-models";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
+  builtInPublicModelCredential,
   composeChatModelCatalog,
 } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
   AUTOMATIC_MODEL_ID,
   PROVIDER_PRESETS,
+  chatModelScopeFromId,
   pickModelById,
   pickDefaultModel,
   type ChatModel,
@@ -49,13 +51,17 @@ import {
 
 async function resolveModelCredential(
   req: NextRequest,
-  name: string,
+  model: ChatModel,
   personalProvider: ChatModelSettingsProvider | null,
 ): Promise<string | null> {
+  const publicCredential = builtInPublicModelCredential(model);
+  if (publicCredential) return publicCredential;
+  const name = model.apiKeySecret;
   if (getRequestAuth(req)) {
     const repositoryValue = await getSecret(name, { req, vaultOnly: true });
     if (repositoryValue) return repositoryValue;
   }
+  if (chatModelScopeFromId(model.id) === "repo") return null;
   const personalValue = personalProvider
     ? await personalProvider.getCredential(req, name)
     : null;
@@ -257,7 +263,7 @@ export async function resolveChatModel(
         : candidate;
       const apiKey = await resolveModelCredential(
         req,
-        resolved.apiKeySecret,
+        resolved,
         requestSettingsProvider,
       );
       if (!apiKey) {
@@ -349,7 +355,7 @@ export async function resolveChatModel(
 
   const apiKey = await resolveModelCredential(
     req,
-    resolvedModel.apiKeySecret,
+    resolvedModel,
     requestSettingsProvider,
   );
   if (!apiKey) {

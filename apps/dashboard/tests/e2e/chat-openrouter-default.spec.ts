@@ -26,7 +26,7 @@ async function seedAuth(page: Page): Promise<void> {
 test("shows OpenRouter Free in the chat header model picker", async ({
   page,
 }) => {
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

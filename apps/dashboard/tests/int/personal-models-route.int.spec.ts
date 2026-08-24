@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   requireKodyUser: vi.fn(),
+  getRequestAuth: vi.fn(),
+  getUserOctokit: vi.fn(),
+  getRepository: vi.fn(),
   query: vi.fn(),
   mutation: vi.fn(),
 }));
@@ -11,13 +14,20 @@ vi.mock("@dashboard/lib/auth/kody-user", () => ({
   requireKodyUser: mocks.requireKodyUser,
 }));
 
+vi.mock("@kody-ade/base/auth", () => ({
+  getRequestAuth: mocks.getRequestAuth,
+  getUserOctokit: mocks.getUserOctokit,
+}));
+
 vi.mock("@dashboard/lib/backend/convex-backend", () => ({
   backendApi: {
     userPreferences: {
       get: "userPreferences.get",
       save: "userPreferences.save",
     },
+    repositoryPreferences: { get: "repositoryPreferences.get" },
   },
+  tenantIdFor: (owner: string, repo: string) => `${owner}/${repo}`,
   getConvexClient: () => ({
     query: mocks.query,
     mutation: mocks.mutation,
@@ -47,6 +57,7 @@ const MODEL = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireKodyUser.mockResolvedValue(USER);
+  mocks.getRequestAuth.mockReturnValue(null);
 });
 
 describe("personal models API", () => {
@@ -91,6 +102,35 @@ describe("personal models API", () => {
         },
       }),
     );
+  });
+
+  it("returns personal and repository models together in repository chat", async () => {
+    mocks.getRequestAuth.mockReturnValue({ owner: "acme", repo: "website" });
+    mocks.getRepository.mockResolvedValue({ data: { id: 1 } });
+    mocks.getUserOctokit.mockResolvedValue({
+      rest: { repos: { get: mocks.getRepository } },
+    });
+    mocks.query
+      .mockResolvedValueOnce({ data: { models: [MODEL], automatic: {} } })
+      .mockResolvedValueOnce({
+        data: {
+          models: [
+            { ...MODEL, id: "anthropic/repository", label: "Repository" },
+          ],
+          automatic: {},
+        },
+      });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/kody/models"),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      models: [
+        { id: "repo::anthropic/repository", scope: "repo" },
+        { id: "personal::minimax/MiniMax-M3", scope: "personal" },
+      ],
+    });
   });
 
   it("stops before storage when the Kody session is missing", async () => {

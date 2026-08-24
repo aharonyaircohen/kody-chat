@@ -58,7 +58,7 @@ test("saving a new pending turn before dispatch survives an immediate refresh", 
     modelRequestStarted = resolve;
   });
 
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -274,7 +274,7 @@ test("a refreshed chat keeps Thinking visible and loads the durable reply", asyn
     },
   };
 
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

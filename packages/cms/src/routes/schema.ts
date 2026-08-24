@@ -34,6 +34,7 @@ const DEFAULT_SCHEMA_SAMPLE_SIZE = 100;
 
 interface GenerateSchemaPayload {
   adapter: "mongodb";
+  connectionName?: string;
   databaseUriSecret: string;
   environment: string;
   name?: string;
@@ -85,6 +86,8 @@ export async function POST(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
+    const connectionName =
+      payload.connectionName ?? currentConfig?.defaultAdapter ?? "mongodb";
     if (currentConfig) {
       assertSchemaOperationAllowed(
         currentConfig,
@@ -100,24 +103,40 @@ export async function POST(req: NextRequest) {
         },
       );
     }
-    const schemaAlreadyHasCollections = cmsSchemaHasCollections(rawConfig);
+    const schemaAlreadyHasCollections = currentConfig
+      ? Object.values(currentConfig.collections).some(
+          (collection) => collection.adapter === connectionName,
+        )
+      : cmsSchemaHasCollections(rawConfig);
     if (schemaAlreadyHasCollections && !payload.refresh) {
       return NextResponse.json(
         {
           error: "cms_schema_exists",
-          message:
-            "CMS schema already has collections. Use refresh to update it.",
+          message: `${connectionName} already has models. Use refresh to update them.`,
         },
         { status: 409, headers: NO_STORE_HEADERS },
       );
     }
 
-    const uri = await getSecret(CMS_DATABASE_URL_SECRET, { req });
+    const connectionSettings = currentConfig?.adapters[connectionName] ?? {};
+    const sourceType =
+      stringValue(connectionSettings.adapter) ?? connectionName;
+    if (sourceType !== "mongodb") {
+      throw new CmsRuntimeError(
+        "schema_generation_unsupported",
+        `${connectionName} does not support MongoDB schema generation.`,
+        400,
+      );
+    }
+    const databaseUriSecret =
+      stringValue(connectionSettings.databaseUriSecret) ??
+      CMS_DATABASE_URL_SECRET;
+    const uri = await getSecret(databaseUriSecret, { req });
     if (!uri) {
       return NextResponse.json(
         {
           error: "secret_not_configured",
-          message: `Secret "${CMS_DATABASE_URL_SECRET}" is not configured.`,
+          message: `Secret "${databaseUriSecret}" is not configured.`,
         },
         { status: 400, headers: NO_STORE_HEADERS },
       );
@@ -129,7 +148,7 @@ export async function POST(req: NextRequest) {
     );
     const generated = await generateMongoCmsSchemaFiles({
       uri,
-      databaseUriSecret: CMS_DATABASE_URL_SECRET,
+      databaseUriSecret,
       repoName: headerAuth.repo,
       cmsName: payload.name ?? `${headerAuth.repo} CMS`,
       environment: payload.environment,
@@ -139,17 +158,23 @@ export async function POST(req: NextRequest) {
     if (generated.collectionCount < 1) {
       throw new CmsRuntimeError(
         "cms_schema_empty",
-        `No MongoDB collections found from ${CMS_DATABASE_URL_SECRET}.`,
+        `No MongoDB collections found from ${databaseUriSecret}.`,
         400,
       );
     }
 
+    const scopedFiles = scopeGeneratedSchemaFiles({
+      files: generated.files,
+      rawConfig,
+      currentConfig,
+      connectionName,
+    });
     await writeRepoDocFiles({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       files: preserveSchemaGenerationSkipCollections(
-        generated.files,
+        scopedFiles,
         skipCollections,
       ),
       message: payload.refresh
@@ -201,6 +226,7 @@ function parseGenerateSchemaPayload(
 
   return {
     adapter: "mongodb",
+    connectionName: stringValue(body.connectionName),
     databaseUriSecret: CMS_DATABASE_URL_SECRET,
     environment: "default",
     name: stringValue(body.name) ?? `${repo} CMS`,
@@ -208,6 +234,83 @@ function parseGenerateSchemaPayload(
     sampleSize: DEFAULT_SCHEMA_SAMPLE_SIZE,
     skipCollections: stringArrayValue(body.skipCollections),
   };
+}
+
+function scopeGeneratedSchemaFiles({
+  files,
+  rawConfig,
+  currentConfig,
+  connectionName,
+}: {
+  files: CmsWriteFile[];
+  rawConfig: Record<string, unknown> | null;
+  currentConfig: Awaited<ReturnType<typeof loadCmsConfigFromState>>;
+  connectionName: string;
+}): CmsWriteFile[] {
+  const generatedCollectionRefs: string[] = [];
+  const generatedCollectionNames = new Set<string>();
+  const scoped = files.flatMap((file) => {
+    if (file.path.startsWith("cms/environments/")) return [];
+    if (!file.path.startsWith("cms/collections/")) return [file];
+    const collection = JSON.parse(file.content) as Record<string, unknown>;
+    const name = stringValue(collection.name);
+    if (name) {
+      generatedCollectionNames.add(name);
+      generatedCollectionRefs.push(file.path.replace(/^cms\//, ""));
+    }
+    return [
+      {
+        ...file,
+        content: `${JSON.stringify({ ...collection, adapter: connectionName }, null, 2)}\n`,
+      },
+    ];
+  });
+
+  for (const collection of Object.values(currentConfig?.collections ?? {})) {
+    if (
+      collection.adapter !== connectionName &&
+      generatedCollectionNames.has(collection.name)
+    ) {
+      throw new CmsRuntimeError(
+        "cms_collection_connection_conflict",
+        `Model "${collection.name}" already belongs to ${collection.adapter}.`,
+        409,
+      );
+    }
+  }
+
+  return scoped.map((file) => {
+    if (file.path !== "cms/config.json") return file;
+    const generatedRoot = JSON.parse(file.content) as Record<string, unknown>;
+    const existingRefs = Array.isArray(rawConfig?.collections)
+      ? rawConfig.collections.filter(
+          (entry): entry is string => typeof entry === "string",
+        )
+      : [];
+    const replacedNames = new Set(
+      Object.values(currentConfig?.collections ?? {})
+        .filter((collection) => collection.adapter === connectionName)
+        .map((collection) => collection.name),
+    );
+    const preservedRefs = existingRefs.filter((ref) => {
+      const name =
+        ref
+          .split("/")
+          .pop()
+          ?.replace(/\.json$/, "") ?? "";
+      return !replacedNames.has(name);
+    });
+    const root = {
+      ...generatedRoot,
+      ...(rawConfig ?? {}),
+      defaultAdapter: stringValue(rawConfig?.defaultAdapter) ?? connectionName,
+      adapters: currentConfig?.adapters ?? rawConfig?.adapters ?? {},
+      collections: [
+        ...new Set([...preservedRefs, ...generatedCollectionRefs]),
+      ].sort(),
+    };
+    return { ...file, content: `${JSON.stringify(root, null, 2)}\n` };
+  });
 }
 
 async function readCmsConfigRoot(

@@ -63,6 +63,31 @@ writes through the configured backend, for example:
 The schema generator assumes the Mongo connection string already includes the
 database name when the URI is database-scoped.
 
+## Connections
+
+Content sources are saved as named connections. Each model selects one
+connection, and all entries for that model use it. This allows one repository
+to use several sources, including multiple sources of the same adapter type.
+
+```json
+{
+  "defaultAdapter": "production-content",
+  "adapters": {
+    "production-content": {
+      "adapter": "mongodb",
+      "databaseUriSecret": "PRODUCTION_CONTENT_DATABASE_URL"
+    },
+    "archive-content": {
+      "adapter": "mongodb",
+      "databaseUriSecret": "ARCHIVE_CONTENT_DATABASE_URL"
+    }
+  }
+}
+```
+
+Existing configurations where the connection name is also the adapter name
+remain supported.
+
 ## MongoDB Adapter
 
 The current adapter is `mongodb`.

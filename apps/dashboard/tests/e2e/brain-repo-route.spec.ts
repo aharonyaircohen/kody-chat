@@ -88,35 +88,21 @@ test("redirects the old repository Brain URL to personal Brain", async ({
   ).toBeVisible();
 });
 
-test("separates personal Chat Models from repository Engine Models", async ({
-  page,
-}) => {
+test("separates personal and repository Chat Models", async ({ page }) => {
   await seedRepoAuth(page);
-  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/models`);
+  await page.goto(`${BASE_URL}/models`);
 
   await expect(
-    page.getByText(
-      "Your chat models and API keys belong to your Kody account.",
-      { exact: true },
-    ),
+    page.getByRole("heading", { name: "Personal Chat Models" }),
+  ).toBeVisible();
+
+  await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/repository-models`);
+
+  await expect(
+    page.getByRole("heading", { name: "Repository Chat Models" }),
   ).toBeVisible();
   await expect(
-    page.getByText(
-      "Repository automation uses Engine Models configured in Variables.",
-      { exact: true },
-    ),
-  ).toBeVisible();
-  const variablesLink = page.getByRole("link", { name: "Variables" });
-  await expect(variablesLink).toHaveAttribute(
-    "href",
-    `/repo/${OWNER}/${REPO}/variables`,
-  );
-  await variablesLink.click();
-  await expect(
-    page.getByText(
-      "Repository settings shared across Engine runs. LLM_MODELS controls the repository's Engine Models.",
-      { exact: true },
-    ),
+    page.getByText(/shared with everyone using test-owner\/test-repo/),
   ).toBeVisible();
 });
 
@@ -133,9 +119,9 @@ test("keeps personal and repository tools as explicit destinations", async ({
     ["Personal Commands", "/commands"],
     ["Personal Credentials", "/secrets"],
     ["Personal Memory", "/memory"],
-    ["Repository Commands", `/repo/${OWNER}/${REPO}/commands`],
-    ["Repository Secrets", `/repo/${OWNER}/${REPO}/secrets`],
-    ["Repository Memory", `/repo/${OWNER}/${REPO}/memory`],
+    ["Repo Commands", `/repo/${OWNER}/${REPO}/commands`],
+    ["Repo Secrets", `/repo/${OWNER}/${REPO}/secrets`],
+    ["Repo Memory", `/repo/${OWNER}/${REPO}/memory`],
   ] as const) {
     const link = navigation.locator(`a[aria-label="${label}"]`);
     await expect(link).toHaveAttribute("href", href);
@@ -172,11 +158,13 @@ test("keeps repository fallback commands out of Personal Commands", async ({
   await expect(
     page.getByRole("heading", { name: "Personal Commands" }),
   ).toBeVisible();
-  await expect(page.getByText("/personal-check", { exact: true })).toBeVisible();
-  await expect(page.getByText("/init", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByText(/Built-ins ship with the dashboard/),
-  ).toHaveCount(0);
+    page.getByText("/personal-check", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("/init", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Built-ins ship with the dashboard/)).toHaveCount(
+    0,
+  );
 });
 
 test("shows Brain with the repository Fly tools", async ({ page }) => {

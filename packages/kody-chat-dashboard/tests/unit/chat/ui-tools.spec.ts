@@ -301,6 +301,30 @@ describe("ui tools", () => {
     });
   });
 
+  it("rejects an unbound approval card for repository self-configuration", async () => {
+    const tools = createUiTools({
+      userText:
+        "Configure this repository with a capability, workflow, and loop.",
+    }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
+    };
+
+    await expect(
+      showView.execute({
+        root: "card",
+        elements: {
+          card: {
+            type: "ApprovalCard",
+            props: { title: "Apply configuration?", body: "Ready to apply." },
+          },
+        },
+      }),
+    ).resolves.toEqual({
+      error: expect.stringContaining("matching action tool"),
+    });
+  });
+
   it("uses caller-owned guaranteed view data when the model omits it", async () => {
     const forcedViewInput = {
       root: "form",

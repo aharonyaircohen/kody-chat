@@ -45,13 +45,12 @@ const nextConfig = {
           source: "/repo/:owner/:repo/memory/:path+",
           destination: "/memory-files/:path+",
         },
-      ],
-      fallback: [
         {
           source: "/repo/:owner/:repo/:path+",
           destination: "/:path+",
         },
       ],
+      fallback: [],
     };
   },
   experimental: {

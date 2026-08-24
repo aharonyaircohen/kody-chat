@@ -106,13 +106,25 @@ export async function resolveExternalIdentityConfig(
 
   const issuerUrl = new URL(issuer);
   const keysUrl = new URL(jwksUrl);
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const isLoopback = (url: URL) =>
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]";
+  const secureOrigin =
+    issuerUrl.protocol === "https:" && keysUrl.protocol === "https:";
+  const localDevelopmentOrigin =
+    isDevelopment &&
+    issuerUrl.protocol === "http:" &&
+    keysUrl.protocol === "http:" &&
+    isLoopback(issuerUrl) &&
+    isLoopback(keysUrl);
   if (
-    issuerUrl.protocol !== "https:" ||
-    keysUrl.protocol !== "https:" ||
+    (!secureOrigin && !localDevelopmentOrigin) ||
     issuerUrl.origin !== keysUrl.origin
   ) {
     throw new Error(
-      "Client identity issuer and JWKS URL must share an HTTPS origin",
+      "Client identity issuer and JWKS URL must share an HTTPS origin; loopback HTTP is allowed only in local development",
     );
   }
   return {

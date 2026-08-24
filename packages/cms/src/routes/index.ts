@@ -228,6 +228,28 @@ export async function PATCH(req: NextRequest) {
     const adapterSettings = adapter
       ? readCmsAdapterSettings(rawPayload)
       : undefined;
+    const connectionName = adapter
+      ? readCmsConnectionName(rawPayload, adapter)
+      : null;
+    const permissionsPatch = adapter
+      ? null
+      : sanitizePermissionsPayload(rawPayload);
+    if (permissionsPatch?.connectionName) {
+      for (const collection of permissionsPatch.collections) {
+        const configured =
+          config.collections[normalizeCmsCollectionSlug(collection.name)];
+        if (
+          !configured ||
+          configured.adapter !== permissionsPatch.connectionName
+        ) {
+          throw new CmsRuntimeError(
+            "cms_connection_scope_invalid",
+            `${collection.name} does not belong to ${permissionsPatch.connectionName}.`,
+            400,
+          );
+        }
+      }
+    }
     const files = adapter
       ? await buildCmsAdapterFiles(
           octokit,
@@ -236,12 +258,13 @@ export async function PATCH(req: NextRequest) {
           config.defaultAdapter,
           adapter,
           adapterSettings,
+          connectionName ?? adapter,
         )
       : await buildCmsPermissionFiles(
           octokit,
           headerAuth.owner,
           headerAuth.repo,
-          sanitizePermissionsPayload(rawPayload),
+          permissionsPatch!,
         );
 
     if (files.length > 0) {
@@ -340,6 +363,29 @@ function readCmsAdapterSettings(
   return { ...(settings as CmsAdapterSettings) };
 }
 
+function readCmsConnectionName(payload: unknown, fallback: string): string {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("connectionName" in payload)
+  ) {
+    return fallback;
+  }
+  const name = String(
+    (payload as { connectionName?: unknown }).connectionName ?? "",
+  )
+    .trim()
+    .toLowerCase();
+  if (!name || !isValidCmsAdapterName(name)) {
+    throw new CmsRuntimeError(
+      "invalid_body",
+      "connection name is invalid",
+      400,
+    );
+  }
+  return name;
+}
+
 const CMS_ROLES = new Set<CmsRole>(["viewer", "editor", "admin"]);
 const CONTENT_PERMISSION_OPERATIONS: CmsContentOperation[] = [
   "list",
@@ -354,6 +400,7 @@ type CmsWriteOperation = (typeof CMS_WRITE_OPERATIONS)[number];
 type CmsWriteOperationsPatch = Pick<CmsCollectionOperations, CmsWriteOperation>;
 
 interface CmsPermissionsPatch {
+  connectionName?: string;
   permissions?: CmsPermissionsConfig;
   collections: Array<{
     name: string;
@@ -373,11 +420,25 @@ function sanitizePermissionsPayload(input: unknown): CmsPermissionsPatch {
 
   const body = input as Record<string, unknown>;
   return {
+    connectionName: readOptionalConnectionName(body.connectionName),
     permissions: sanitizePermissions(body.permissions),
     collections: Array.isArray(body.collections)
       ? body.collections.map(sanitizeCollectionPermissionPatch)
       : [],
   };
+}
+
+function readOptionalConnectionName(input: unknown): string | undefined {
+  if (input == null) return undefined;
+  const name = String(input).trim().toLowerCase();
+  if (!name || !isValidCmsAdapterName(name)) {
+    throw new CmsRuntimeError(
+      "invalid_body",
+      "connection name is invalid",
+      400,
+    );
+  }
+  return name;
 }
 
 function sanitizeCollectionPermissionPatch(input: unknown): {
@@ -636,6 +697,7 @@ async function buildCmsAdapterFiles(
   previousDefaultAdapter: string | undefined,
   adapter: string,
   adapterSettings: CmsAdapterSettings | undefined = undefined,
+  connectionName: string = adapter,
 ) {
   if (!octokit)
     throw new CmsRuntimeError("no_user_token", "No user token", 401);
@@ -658,7 +720,7 @@ async function buildCmsAdapterFiles(
     typeof root.defaultAdapter === "string" && root.defaultAdapter.trim()
       ? root.defaultAdapter.trim()
       : previousDefaultAdapter;
-  root.defaultAdapter = adapter;
+  if (!oldDefault) root.defaultAdapter = connectionName;
 
   const adapters =
     root.adapters &&
@@ -667,15 +729,16 @@ async function buildCmsAdapterFiles(
       ? { ...(root.adapters as Record<string, unknown>) }
       : {};
   const existingAdapterSettings =
-    adapters[adapter] &&
-    typeof adapters[adapter] === "object" &&
-    !Array.isArray(adapters[adapter])
-      ? (adapters[adapter] as Record<string, unknown>)
+    adapters[connectionName] &&
+    typeof adapters[connectionName] === "object" &&
+    !Array.isArray(adapters[connectionName])
+      ? (adapters[connectionName] as Record<string, unknown>)
       : {};
-  adapters[adapter] = normalizeCmsAdapterSettings(adapter, {
+  adapters[connectionName] = normalizeCmsAdapterSettings(adapter, {
     ...defaultCmsAdapterSettings(adapter),
     ...existingAdapterSettings,
     ...(adapterSettings ?? {}),
+    adapter,
   });
   root.adapters = adapters;
 
@@ -683,15 +746,18 @@ async function buildCmsAdapterFiles(
     { path: "cms/config.json", content: `${JSON.stringify(root, null, 2)}\n` },
   ];
 
-  await applyAdapterToDefaultCollections(
-    octokit,
-    owner,
-    repo,
-    root,
-    oldDefault,
-    adapter,
-    files,
-  );
+  if (connectionName === adapter) {
+    root.defaultAdapter = adapter;
+    await applyAdapterToDefaultCollections(
+      octokit,
+      owner,
+      repo,
+      root,
+      oldDefault,
+      adapter,
+      files,
+    );
+  }
   files[0] = {
     path: "cms/config.json",
     content: `${JSON.stringify(root, null, 2)}\n`,

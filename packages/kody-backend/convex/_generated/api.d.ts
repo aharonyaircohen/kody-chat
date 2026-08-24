@@ -53,6 +53,7 @@ import type * as qaUserProvisioning from "../qaUserProvisioning.js";
 import type * as quality from "../quality.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
+import type * as repositoryPreferences from "../repositoryPreferences.js";
 import type * as runEvents from "../runEvents.js";
 import type * as taskState from "../taskState.js";
 import type * as userCredentials from "../userCredentials.js";
@@ -119,6 +120,7 @@ declare const fullApi: ApiFromModules<{
   quality: typeof quality;
   repoDocs: typeof repoDocs;
   reports: typeof reports;
+  repositoryPreferences: typeof repositoryPreferences;
   runEvents: typeof runEvents;
   taskState: typeof taskState;
   userCredentials: typeof userCredentials;

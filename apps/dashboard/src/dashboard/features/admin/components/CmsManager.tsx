@@ -101,7 +101,10 @@ import {
   type CmsListFilterValues,
   type CmsListState,
 } from "@dashboard/features/admin/components/cms/list-state";
-import { canWriteOperation, writeDisabledReason } from "@dashboard/features/admin/components/cms/operations";
+import {
+  canWriteOperation,
+  writeDisabledReason,
+} from "@dashboard/features/admin/components/cms/operations";
 import {
   CONTENT_ENTRIES_PATH,
   CONTENT_SETTINGS_PATH,
@@ -245,10 +248,12 @@ function CmsConfigPage() {
   const cmsQueryKey = ["cms-config", scope] as const;
 
   const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+  const [selectedConnection, setSelectedConnection] = useState("");
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [schemaGenerationRequest, setSchemaGenerationRequest] = useState<{
     refresh?: boolean;
+    connectionName?: string;
   } | null>(null);
 
   const cmsQuery = useQuery({
@@ -296,7 +301,7 @@ function CmsConfigPage() {
     },
   });
   const generateSchemaMutation = useMutation({
-    mutationFn: (options?: { refresh?: boolean }) =>
+    mutationFn: (options: { refresh?: boolean; connectionName: string }) =>
       generateCmsSchema(
         headers,
         buildGenerateSchemaPayload(auth?.repo, options),
@@ -314,8 +319,25 @@ function CmsConfigPage() {
       ? adaptersQuery.data
       : DEFAULT_CMS_ADAPTERS;
   const config = cmsQuery.data?.configured === true ? cmsQuery.data : null;
-  const currentCmsAdapter = config?.defaultAdapter ?? selectedAdapter;
-  const currentAdapter = findCmsAdapter(adapters, currentCmsAdapter);
+  const connectionNames = useMemo(
+    () => (config ? Object.keys(config.adapters ?? {}) : []),
+    [config],
+  );
+  const selectedCollections = useMemo(
+    () =>
+      config?.collections.filter(
+        (collection) => collection.adapter === selectedConnection,
+      ) ?? [],
+    [config, selectedConnection],
+  );
+  const currentCmsAdapter =
+    selectedConnection || config?.defaultAdapter || selectedAdapter;
+  const currentConnectionSettings = config
+    ? cmsAdapterSettings(config, currentCmsAdapter)
+    : {};
+  const selectedSourceType =
+    stringCmsSetting(currentConnectionSettings.adapter) || currentCmsAdapter;
+  const currentAdapter = findCmsAdapter(adapters, selectedSourceType);
   const schemaGenerationSupported =
     currentAdapter?.supportsSchemaGeneration === true ||
     currentCmsAdapter === DEFAULT_CMS_ADAPTER;
@@ -334,6 +356,13 @@ function CmsConfigPage() {
     if (!config?.defaultAdapter) return;
     setSelectedAdapter(config.defaultAdapter);
   }, [config?.defaultAdapter]);
+
+  useEffect(() => {
+    if (!config) return;
+    if (selectedConnection && connectionNames.includes(selectedConnection))
+      return;
+    setSelectedConnection(config.defaultAdapter ?? connectionNames[0] ?? "");
+  }, [config, connectionNames, selectedConnection]);
 
   const error =
     cmsQuery.error instanceof Error
@@ -383,13 +412,32 @@ function CmsConfigPage() {
       }
       error={error}
       actions={
-        <CmsHeaderActions
-          loading={cmsQuery.isFetching || adaptersQuery.isFetching}
-          onRefresh={() => {
-            void cmsQuery.refetch();
-            void adaptersQuery.refetch();
-          }}
-        />
+        <div className="flex items-center gap-2">
+          {connectionNames.length > 0 ? (
+            <Select
+              value={selectedConnection}
+              onValueChange={setSelectedConnection}
+            >
+              <SelectTrigger className="w-48" aria-label="Database">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {connectionNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <CmsHeaderActions
+            loading={cmsQuery.isFetching || adaptersQuery.isFetching}
+            onRefresh={() => {
+              void cmsQuery.refetch();
+              void adaptersQuery.refetch();
+            }}
+          />
+        </div>
       }
     >
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
@@ -399,17 +447,24 @@ function CmsConfigPage() {
               config={config}
               adapters={adapters}
               saving={saveAdapterMutation.isPending}
+              selectedConnection={selectedConnection}
+              onSelectConnection={setSelectedConnection}
               onSave={(payload) => saveAdapterMutation.mutate(payload)}
             />
             <CmsSchemaPanel
               config={config}
+              connectionName={selectedConnection}
+              databaseUriSecret={stringCmsSetting(
+                currentConnectionSettings.databaseUriSecret,
+              )}
               adapterLabel={currentAdapter?.label ?? currentCmsAdapter}
               supported={schemaGenerationSupported}
               loading={generateSchemaMutation.isPending}
               onRequest={setSchemaGenerationRequest}
             />
             <CmsPermissionsPanel
-              config={config}
+              config={{ ...config, collections: selectedCollections }}
+              connectionName={selectedConnection}
               saving={savePermissionsMutation.isPending}
               onOpen={() => setPermissionsOpen(true)}
             />
@@ -429,7 +484,7 @@ function CmsConfigPage() {
                 ? "Update content schema?"
                 : "Generate content schema?"
             }
-            description="Kody will read the connected database and write the generated content config into the backend. Review any state changes before shipping them."
+            description={`Kody will read ${selectedConnection} and update only models assigned to that database.`}
             confirmLabel={
               schemaGenerationRequest?.refresh
                 ? "Update schema"
@@ -437,12 +492,16 @@ function CmsConfigPage() {
             }
             onClose={() => setSchemaGenerationRequest(null)}
             onConfirm={() =>
-              generateSchemaMutation.mutate(schemaGenerationRequest ?? {})
+              generateSchemaMutation.mutate({
+                ...(schemaGenerationRequest ?? {}),
+                connectionName: selectedConnection,
+              })
             }
           />
           <CmsPermissionsDialog
             open={permissionsOpen}
-            config={config}
+            config={{ ...config, collections: selectedCollections }}
+            connectionName={selectedConnection}
             saving={savePermissionsMutation.isPending}
             error={
               savePermissionsMutation.error instanceof Error
@@ -498,6 +557,9 @@ function CmsListPage({
     initialListState.pageSize,
   );
   const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+  const [connectionFilter, setConnectionFilter] = useState(
+    searchParams.get("connection") ?? "all",
+  );
   const parsedListState = useMemo(
     () => parseCmsListState(new URLSearchParams(currentListSearch)),
     [currentListSearch],
@@ -572,7 +634,6 @@ function CmsListPage({
     cmsQuery.data?.configured === true
       ? (cmsQuery.data.defaultAdapter ?? DEFAULT_CMS_ADAPTER)
       : selectedAdapter;
-  const currentAdapter = findCmsAdapter(adapters, currentCmsAdapter);
   const selectedCollection = selectedCollectionName
     ? (collections.find(
         (collection) => collection.name === selectedCollectionName,
@@ -580,12 +641,7 @@ function CmsListPage({
     : null;
   const selectedCollectionAdapterName =
     selectedCollection?.adapter ?? currentCmsAdapter;
-  const selectedCollectionAdapter = findCmsAdapter(
-    adapters,
-    selectedCollectionAdapterName,
-  );
-  const selectedCollectionAdapterLabel =
-    selectedCollectionAdapter?.label ?? selectedCollectionAdapterName;
+  const selectedCollectionAdapterLabel = selectedCollectionAdapterName;
 
   useEffect(() => {
     if (!adaptersQuery.data?.length) return;
@@ -607,7 +663,8 @@ function CmsListPage({
     setSort(parsedListState.sort);
     setOffset(parsedListState.offset);
     setPageSizeOverride(parsedListState.pageSize);
-  }, [currentListSearch, parsedListState]);
+    setConnectionFilter(searchParams.get("connection") ?? "all");
+  }, [currentListSearch, parsedListState, searchParams]);
 
   useEffect(() => {
     if (skipListStateWriteRef.current) {
@@ -668,6 +725,29 @@ function CmsListPage({
     currentListSearch,
     router,
     selectedCollectionName,
+  ]);
+
+  useEffect(() => {
+    if (connectionFilter === "all") return;
+    if (selectedCollection?.adapter === connectionFilter) return;
+    const firstMatch = collections.find(
+      (collection) => collection.adapter === connectionFilter,
+    );
+    if (!firstMatch) return;
+    const params = new URLSearchParams(currentListSearch);
+    params.set("connection", connectionFilter);
+    router.replace(
+      withSearchString(
+        selectionPath(CONTENT_ENTRIES_PATH, firstMatch.name),
+        params.toString(),
+      ),
+    );
+  }, [
+    collections,
+    connectionFilter,
+    currentListSearch,
+    router,
+    selectedCollection?.adapter,
   ]);
 
   const selectCollection = (collectionName: string) => {
@@ -767,20 +847,53 @@ function CmsListPage({
       title="Entries"
       subtitle={
         cmsQuery.data
-          ? `${cmsQuery.data.name} / ${cmsQuery.data.environment} / ${
-              currentAdapter?.label ?? currentCmsAdapter
+          ? `${cmsQuery.data.name} / ${
+              selectedCollection?.adapter ?? currentCmsAdapter
             }`
           : undefined
       }
       error={error}
       actions={
-        <CmsHeaderActions
-          loading={cmsQuery.isFetching || documentsQuery.isFetching}
-          onRefresh={() => {
-            void cmsQuery.refetch();
-            void documentsQuery.refetch();
-          }}
-        />
+        <div className="flex items-center gap-2">
+          {new Set(collections.map((collection) => collection.adapter)).size >
+          1 ? (
+            <Select
+              value={connectionFilter}
+              onValueChange={(value) => {
+                setConnectionFilter(value);
+                const params = new URLSearchParams(currentListSearch);
+                if (value === "all") params.delete("connection");
+                else params.set("connection", value);
+                router.replace(withSearchString(pathname, params.toString()), {
+                  scroll: false,
+                });
+              }}
+            >
+              <SelectTrigger className="w-44" aria-label="Database">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All databases</SelectItem>
+                {[
+                  ...new Set(
+                    collections.map((collection) => collection.adapter),
+                  ),
+                ].map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <CmsHeaderActions
+            loading={cmsQuery.isFetching || documentsQuery.isFetching}
+            onRefresh={() => {
+              void cmsQuery.refetch();
+              void documentsQuery.refetch();
+            }}
+          />
+        </div>
       }
     >
       <CmsRelationProvider
@@ -794,6 +907,7 @@ function CmsListPage({
             collections={collections}
             selectedName={selectedCollection?.name ?? ""}
             search={collectionSearch}
+            connection={connectionFilter}
             onSearchChange={setCollectionSearch}
             onSelect={selectCollection}
           />
@@ -1281,14 +1395,24 @@ function CmsAdapterSettingsPanel({
   config,
   adapters,
   saving,
+  selectedConnection,
+  onSelectConnection,
   onSave,
 }: {
   config: CmsPublicConfig;
   adapters: CmsAdapterCatalogItem[];
   saving: boolean;
+  selectedConnection: string;
+  onSelectConnection: (connection: string) => void;
   onSave: (payload: SaveCmsAdapterPayload) => void;
 }) {
-  const currentAdapter = config.defaultAdapter ?? DEFAULT_CMS_ADAPTER;
+  const currentConnection = config.defaultAdapter ?? DEFAULT_CMS_ADAPTER;
+  const currentConnectionSettings = cmsAdapterSettings(
+    config,
+    currentConnection,
+  );
+  const currentAdapter =
+    stringCmsSetting(currentConnectionSettings.adapter) || currentConnection;
   const availableAdapters = adapters.some(
     (adapter) => adapter.name === currentAdapter,
   )
@@ -1305,36 +1429,54 @@ function CmsAdapterSettingsPanel({
       ];
 
   const [adapter, setAdapter] = useState(currentAdapter);
+  const [connectionName, setConnectionName] = useState(
+    selectedConnection || currentConnection,
+  );
   const [databaseUriSecret, setDatabaseUriSecret] = useState("DATABASE_URL");
   const [rootDir, setRootDir] = useState("cms/content");
+  const connectionNames = Object.keys(config.adapters ?? {});
   const selected = findCmsAdapter(availableAdapters, adapter);
-  const selectedSettings = cmsAdapterSettings(config, adapter);
+  const selectedSettings = cmsAdapterSettings(config, connectionName);
   const nextSettings = editableCmsAdapterSettings(adapter, {
     databaseUriSecret,
     rootDir,
   });
   const settingsChanged = !sameJson(nextSettings, selectedSettings);
-  const adapterChanged = adapter !== currentAdapter;
+  const adapterChanged =
+    adapter !== currentAdapter || connectionName !== currentConnection;
   const rootDirInvalid = adapter === "file" && rootDir.trim() === "";
   const databaseSecretInvalid =
     adapter === "mongodb" && databaseUriSecret.trim() === "";
 
   useEffect(() => {
-    setAdapter(currentAdapter);
-  }, [currentAdapter]);
+    setConnectionName(selectedConnection || currentConnection);
+  }, [currentConnection, selectedConnection]);
 
   useEffect(() => {
-    const settings = cmsAdapterSettings(config, adapter);
+    if (!connectionName) {
+      setAdapter(currentAdapter);
+      setDatabaseUriSecret("DATABASE_URL");
+      setRootDir("cms/content");
+      return;
+    }
+    const settings = cmsAdapterSettings(config, connectionName);
+    const savedAdapter = stringCmsSetting(settings.adapter);
+    setAdapter(
+      savedAdapter ||
+        (adapters.some((item) => item.name === connectionName)
+          ? connectionName
+          : DEFAULT_CMS_ADAPTER),
+    );
     setDatabaseUriSecret(
       stringCmsSetting(settings.databaseUriSecret) || "DATABASE_URL",
     );
     setRootDir(stringCmsSetting(settings.rootDir) || "cms/content");
-  }, [adapter, config]);
+  }, [adapters, config, connectionName, currentAdapter]);
 
   return (
     <CmsConfigSection
-      title="Adapter"
-      description="Select the default content adapter and edit its stored settings."
+      title="Connections"
+      description="Add named content sources. Models choose which connection they use."
       icon={Settings}
       actions={
         <Button
@@ -1343,95 +1485,153 @@ function CmsAdapterSettingsPanel({
           disabled={
             saving ||
             !adapter ||
+            !connectionName ||
             (!adapterChanged && !settingsChanged) ||
             rootDirInvalid ||
             databaseSecretInvalid
           }
-          onClick={() => onSave({ adapter, adapterSettings: nextSettings })}
+          onClick={() => {
+            onSelectConnection(connectionName);
+            onSave({ adapter, connectionName, adapterSettings: nextSettings });
+          }}
         >
           {saving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          Save adapter
+          Save connection
         </Button>
       }
     >
-      <div className="grid gap-4 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
-        <div className="grid gap-2">
-          <div className="text-xs font-medium uppercase text-muted-foreground">
-            Default adapter
+      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="rounded border border-border bg-background/50 p-2">
+          <div className="px-2 pb-2 text-xs font-medium uppercase text-muted-foreground">
+            Database connections
           </div>
-          <Select
-            value={adapter}
-            onValueChange={setAdapter}
-            disabled={saving || availableAdapters.length === 0}
+          <div className="space-y-1">
+            {connectionNames.map((name) => (
+              <Button
+                key={name}
+                type="button"
+                variant={name === connectionName ? "secondary" : "ghost"}
+                onClick={() => {
+                  setConnectionName(name);
+                  onSelectConnection(name);
+                }}
+                disabled={saving}
+                className="w-full justify-start"
+              >
+                <Database className="mr-2 h-4 w-4" />
+                <span className="truncate">{name}</span>
+              </Button>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setConnectionName("");
+              setAdapter(currentAdapter);
+            }}
+            disabled={saving}
+            className="mt-2 w-full"
           >
-            <SelectTrigger aria-label="Default adapter">
-              <SelectValue placeholder="Select adapter" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableAdapters.map((item) => (
-                <SelectItem key={item.name} value={item.name}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selected?.description ? (
-            <div className="text-xs text-muted-foreground">
-              {selected.description}
-            </div>
-          ) : null}
-        </div>
+            <Plus className="mr-2 h-4 w-4" />
+            Add connection
+          </Button>
+        </aside>
 
-        <div className="grid gap-3">
-          <div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid content-start gap-2">
             <div className="text-xs font-medium uppercase text-muted-foreground">
-              Adapter settings
+              Connection
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              These values are written to cms/config.json.
+            <Input
+              value={connectionName}
+              onChange={(event) =>
+                setConnectionName(
+                  event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""),
+                )
+              }
+              placeholder="production-db"
+              aria-label="Connection name"
+              disabled={saving}
+            />
+            <div className="text-xs font-medium uppercase text-muted-foreground">
+              Source type
             </div>
+            <Select
+              value={adapter}
+              onValueChange={setAdapter}
+              disabled={saving || availableAdapters.length === 0}
+            >
+              <SelectTrigger aria-label="Source type">
+                <SelectValue placeholder="Select adapter" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableAdapters.map((item) => (
+                  <SelectItem key={item.name} value={item.name}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selected?.description ? (
+              <div className="text-xs text-muted-foreground">
+                {selected.description}
+              </div>
+            ) : null}
           </div>
 
-          {adapter === "mongodb" ? (
-            <label className="grid gap-1">
-              <span className="text-sm font-medium text-foreground">
-                databaseUriSecret
-              </span>
-              <Input
-                value={databaseUriSecret}
-                onChange={(event) => setDatabaseUriSecret(event.target.value)}
-                placeholder="DATABASE_URL"
-                disabled={saving}
-              />
-              <span className="text-xs text-muted-foreground">
-                Secret name that stores the MongoDB connection string.
-              </span>
-            </label>
-          ) : adapter === "file" ? (
-            <label className="grid gap-1">
-              <span className="text-sm font-medium text-foreground">
-                rootDir
-              </span>
-              <Input
-                value={rootDir}
-                onChange={(event) => setRootDir(event.target.value)}
-                placeholder="cms/content"
-                disabled={saving}
-              />
-              <span className="text-xs text-muted-foreground">
-                Folder inside Kody backend used by this adapter. Collection file
-                paths stay in Models.
-              </span>
-            </label>
-          ) : (
-            <div className="rounded border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-              This adapter has no editable settings in Dashboard yet.
+          <div className="grid content-start gap-3">
+            <div>
+              <div className="text-xs font-medium uppercase text-muted-foreground">
+                Connection settings
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                These values are written to cms/config.json.
+              </div>
             </div>
-          )}
+
+            {adapter === "mongodb" ? (
+              <label className="grid gap-1">
+                <span className="text-sm font-medium text-foreground">
+                  databaseUriSecret
+                </span>
+                <Input
+                  value={databaseUriSecret}
+                  onChange={(event) => setDatabaseUriSecret(event.target.value)}
+                  placeholder="DATABASE_URL"
+                  disabled={saving}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Secret name that stores the MongoDB connection string.
+                </span>
+              </label>
+            ) : adapter === "file" ? (
+              <label className="grid gap-1">
+                <span className="text-sm font-medium text-foreground">
+                  rootDir
+                </span>
+                <Input
+                  value={rootDir}
+                  onChange={(event) => setRootDir(event.target.value)}
+                  placeholder="cms/content"
+                  disabled={saving}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Folder inside Kody backend used by this adapter. Collection
+                  file paths stay in Models.
+                </span>
+              </label>
+            ) : (
+              <div className="rounded border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+                This adapter has no editable settings in Dashboard yet.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </CmsConfigSection>
@@ -1440,23 +1640,30 @@ function CmsAdapterSettingsPanel({
 
 function CmsSchemaPanel({
   config,
+  connectionName,
+  databaseUriSecret,
   adapterLabel,
   supported,
   loading,
   onRequest,
 }: {
   config: CmsPublicConfig;
+  connectionName: string;
+  databaseUriSecret: string;
   adapterLabel: string;
   supported: boolean;
   loading: boolean;
   onRequest: (request: { refresh?: boolean }) => void;
 }) {
-  const hasCollections = config.collections.length > 0;
+  const collectionCount = config.collections.filter(
+    (collection) => collection.adapter === connectionName,
+  ).length;
+  const hasCollections = collectionCount > 0;
 
   return (
     <CmsConfigSection
       title="Schema"
-      description="Generate or update the content schema from the configured source."
+      description={`Generate or update models from ${connectionName}.`}
       icon={Database}
       actions={
         <Button
@@ -1478,12 +1685,11 @@ function CmsSchemaPanel({
         {supported ? (
           <>
             <p>
-              MongoDB schema generation uses the `DATABASE_URL` secret and
-              writes cms/config.json changes to the backend.
+              This database uses the {databaseUriSecret || "configured secret"}{" "}
+              secret.
             </p>
             <p>
-              Current schema has {config.collections.length.toLocaleString()}{" "}
-              collections.
+              {connectionName} has {collectionCount.toLocaleString()} models.
             </p>
           </>
         ) : (
@@ -1496,10 +1702,12 @@ function CmsSchemaPanel({
 
 function CmsPermissionsPanel({
   config,
+  connectionName,
   saving,
   onOpen,
 }: {
   config: CmsPublicConfig;
+  connectionName: string;
   saving: boolean;
   onOpen: () => void;
 }) {
@@ -1508,7 +1716,7 @@ function CmsPermissionsPanel({
   return (
     <CmsConfigSection
       title="Permissions"
-      description="Set global content write policy and collection exceptions."
+      description={`Control writes for models using ${connectionName}.`}
       icon={ShieldCheck}
       actions={
         <Button type="button" size="sm" disabled={saving} onClick={onOpen}>
@@ -1520,8 +1728,7 @@ function CmsPermissionsPanel({
       <div className="grid gap-2 text-sm text-muted-foreground">
         <p>Current role: {actorRole}</p>
         <p>
-          {config.collections.length.toLocaleString()} collections can inherit
-          the default policy or define overrides.
+          {config.collections.length.toLocaleString()} models use this database.
         </p>
       </div>
     </CmsConfigSection>
@@ -1794,6 +2001,7 @@ const CMS_PERMISSION_POLICY_PRESETS: Array<{
 function CmsPermissionsDialog({
   open,
   config,
+  connectionName,
   saving,
   error,
   onOpenChange,
@@ -1801,6 +2009,7 @@ function CmsPermissionsDialog({
 }: {
   open: boolean;
   config: CmsPublicConfig;
+  connectionName: string;
   saving: boolean;
   error: string | null;
   onOpenChange: (open: boolean) => void;
@@ -1902,15 +2111,7 @@ function CmsPermissionsDialog({
 
   const submit = () => {
     onSave({
-      permissions: {
-        ...config.permissions,
-        content: {
-          ...config.permissions.content,
-          create: rolesForWritePreset(globalPresets.create),
-          update: rolesForWritePreset(globalPresets.update),
-          delete: rolesForWritePreset(globalPresets.delete),
-        },
-      },
+      connectionName,
       collections: config.collections.flatMap((collection) => {
         const enabled = overrides[collection.name] === true;
         const operations = {
@@ -1924,29 +2125,33 @@ function CmsPermissionsDialog({
             operationFlags[permissionPresetKey(collection.name, "delete")] ??
             collection.operations.delete,
         };
-        const permissions = enabled
-          ? {
-              ...collection.permissions,
-              content: {
-                ...collection.permissions?.content,
-                create: rolesForWritePreset(
-                  collectionPresets[
+        const permissions = {
+          ...collection.permissions,
+          content: {
+            ...collection.permissions?.content,
+            create: rolesForWritePreset(
+              enabled
+                ? (collectionPresets[
                     permissionPresetKey(collection.name, "create")
-                  ] ?? globalPresets.create,
-                ),
-                update: rolesForWritePreset(
-                  collectionPresets[
+                  ] ?? globalPresets.create)
+                : globalPresets.create,
+            ),
+            update: rolesForWritePreset(
+              enabled
+                ? (collectionPresets[
                     permissionPresetKey(collection.name, "update")
-                  ] ?? globalPresets.update,
-                ),
-                delete: rolesForWritePreset(
-                  collectionPresets[
+                  ] ?? globalPresets.update)
+                : globalPresets.update,
+            ),
+            delete: rolesForWritePreset(
+              enabled
+                ? (collectionPresets[
                     permissionPresetKey(collection.name, "delete")
-                  ] ?? globalPresets.delete,
-                ),
-              },
-            }
-          : clearWritePermissionOverrides(collection.permissions);
+                  ] ?? globalPresets.delete)
+                : globalPresets.delete,
+            ),
+          },
+        };
         if (
           sameJson(operations, pickWriteOperations(collection.operations)) &&
           sameJson(
@@ -1971,10 +2176,9 @@ function CmsPermissionsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[82vh] max-w-4xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Content permissions</DialogTitle>
+          <DialogTitle>Content permissions · {connectionName}</DialogTitle>
           <DialogDescription>
-            Set the default CMS access policy once. Use collection overrides
-            only for exceptions.
+            These rules apply only to models using {connectionName}.
           </DialogDescription>
         </DialogHeader>
 
@@ -2347,23 +2551,6 @@ function hasWritePermissionOverride(
   );
 }
 
-function clearWritePermissionOverrides(
-  permissions: CmsPermissionsConfig | undefined,
-): CmsPermissionsConfig {
-  const nextContent = { ...(permissions?.content ?? {}) };
-  delete nextContent.create;
-  delete nextContent.update;
-  delete nextContent.delete;
-
-  const next: CmsPermissionsConfig = { ...(permissions ?? {}) };
-  if (Object.keys(nextContent).length > 0) {
-    next.content = nextContent;
-  } else {
-    delete next.content;
-  }
-  return next;
-}
-
 function pickWriteOperations(
   operations: CmsCollectionConfig["operations"],
 ): Record<CmsPermissionOperation, boolean> {
@@ -2418,6 +2605,7 @@ function CollectionRail({
   collections,
   selectedName,
   search,
+  connection,
   onSearchChange,
   onSelect,
 }: {
@@ -2425,18 +2613,22 @@ function CollectionRail({
   collections: CmsCollectionConfig[];
   selectedName: string;
   search: string;
+  connection: string;
   onSearchChange: (value: string) => void;
   onSelect: (name: string) => void;
 }) {
   const trimmedSearch = search.trim().toLowerCase();
   const visibleCollections = useMemo(() => {
-    if (!trimmedSearch) return collections;
     return collections.filter((collection) => {
+      if (connection !== "all" && collection.adapter !== connection) {
+        return false;
+      }
+      if (!trimmedSearch) return true;
       const label = collection.label.toLowerCase();
       const name = collection.name.toLowerCase();
       return label.includes(trimmedSearch) || name.includes(trimmedSearch);
     });
-  }, [collections, trimmedSearch]);
+  }, [collections, connection, trimmedSearch]);
 
   return (
     <aside
@@ -2502,6 +2694,7 @@ function CollectionRail({
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-2 text-body-xs text-muted-foreground">
                     <span className="truncate">{collection.name}</span>
+                    <span className="truncate">{collection.adapter}</span>
                   </div>
                 </button>
               );
@@ -4714,10 +4907,11 @@ function filterCollectionSort(
 
 function buildGenerateSchemaPayload(
   repoName: string | undefined,
-  options: { refresh?: boolean } = {},
+  options: { refresh?: boolean; connectionName: string },
 ): GenerateCmsSchemaPayload {
   return {
     adapter: "mongodb",
+    connectionName: options.connectionName,
     name: `${repoName ?? "Repo"} CMS`,
     refresh: options.refresh,
   };

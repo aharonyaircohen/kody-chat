@@ -43,7 +43,8 @@ const HMAC_BYTES = 16; // 128 bits — matches chat-token / preview-token
  * Tools a surface-scoped (external, PAT-less) chat turn may call, beyond the
  * always-preserved chat protocol tools (final_answer / show_view). Chosen
  * conservatively from the tools the kody route can build WITHOUT a repo
- * token: read-only feature discovery + public URL fetch. Everything
+ * token: read-only feature discovery, GuidedFlow runtime, and public URL
+ * fetch. Everything
  * repo-scoped (GitHub/task/secret/… tools) is impossible without a PAT and
  * additionally excluded here by allowlist, defense-in-depth.
  */
@@ -51,6 +52,9 @@ export const CLIENT_SURFACE_TOOL_ALLOWLIST: readonly string[] = [
   "fetch_url",
   "list_dashboard_features",
   "describe_feature",
+  "guided_flow_start",
+  "guided_flow_context",
+  "guided_flow_read",
   // Progress: branded students save/resume their position through these
   // generic per-user position tools.
   "get_position",

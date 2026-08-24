@@ -12,10 +12,44 @@ import {
   type ChatModelEntry,
 } from "../../../src/dashboard/lib/chat/platform/agent-entries";
 import {
+  addLockedModelEntry,
   familySnapEntry,
   resolveDefaultAgentEntry,
   resolveSelectedAgentEntry,
 } from "../../../src/dashboard/lib/components/kody-chat-selection";
+
+describe("addLockedModelEntry", () => {
+  it("makes a Brand's server-owned model selectable without a user catalog", () => {
+    const entries = addLockedModelEntry(list(), "kody", "minimax/MiniMax-M3");
+
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        key: "kody:minimax/MiniMax-M3",
+        agentId: "kody",
+        modelId: "minimax/MiniMax-M3",
+      }),
+    );
+    expect(
+      resolveSelectedAgentEntry({
+        draftEntryKey: null,
+        defaultEntry: null,
+        agentList: entries,
+        lockedAgentId: "kody",
+        lockedModelId: "minimax/MiniMax-M3",
+      })?.key,
+    ).toBe("kody:minimax/MiniMax-M3");
+  });
+
+  it("does not duplicate a locked model already in the catalog", () => {
+    const entries = list({
+      models: [{ id: "minimax/MiniMax-M3", label: "MiniMax-M3" }],
+    });
+
+    expect(
+      addLockedModelEntry(entries, "kody", "minimax/MiniMax-M3"),
+    ).toBe(entries);
+  });
+});
 
 const MODELS: ChatModelEntry[] = [
   { id: "claude-sonnet", label: "Claude Sonnet" },

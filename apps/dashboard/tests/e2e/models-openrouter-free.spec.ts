@@ -168,7 +168,7 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
     models?: Array<Record<string, unknown>>;
     automatic?: { default?: boolean; engineDefault?: boolean };
   } | null = null;
-  await page.route("**/api/kody/models", async (route) => {
+  await page.route("**/api/kody/models*", async (route) => {
     if (route.request().method() === "PUT") {
       savedBody = route.request().postDataJSON() as typeof savedBody;
       models = savedBody?.models ?? [];
@@ -189,7 +189,6 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
       body: JSON.stringify({ models, automatic }),
     });
   });
-
   const machineResponse = page.waitForResponse((response) =>
     response.url().includes("/api/kody/chat/machines"),
   );
@@ -216,6 +215,21 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
   await expect(openRouterRow).toBeVisible();
   await expect(openRouterRow).toContainText("OpenRouter · openrouter/free");
   await expect(openRouterRow.getByRole("checkbox")).toHaveCount(1);
+
+  const oxAlphaRow = page.locator("li").filter({
+    has: page.getByText("Ox Alpha", { exact: true }),
+  });
+  await expect(oxAlphaRow).toBeVisible();
+  await expect(oxAlphaRow).toContainText("Public");
+  await expect(oxAlphaRow).toContainText("Custom endpoint · x-preview-f-free");
+  await oxAlphaRow
+    .getByRole("button", { name: "More actions for Ox Alpha" })
+    .click();
+  await expect(page.getByRole("menuitem", { name: "Edit" })).toHaveCount(0);
+  await expect(
+    page.getByRole("menuitem", { name: "Disable model" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
 
   const primaryRow = page.locator("li").filter({
     has: page.getByText("Primary", { exact: true }),
@@ -359,6 +373,7 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
   expect(
     automaticSavedBody.models.every((model) => model.default !== true),
   ).toBe(true);
+
   expect(pageErrors).toEqual([]);
   expect(failedResponses).toEqual([]);
   expect(consoleErrors).toEqual([]);

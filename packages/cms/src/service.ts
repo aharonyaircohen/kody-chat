@@ -302,11 +302,17 @@ function getAdapterContext(
   config: CmsRuntimeConfig,
   collection: CmsCollectionConfig,
 ): { adapter: CmsAdapter; context: CmsAdapterContext } {
-  const adapter = getCmsAdapter(collection.adapter);
+  const connectionSettings = config.adapters[collection.adapter] ?? {};
+  const adapterName =
+    typeof connectionSettings.adapter === "string" &&
+    connectionSettings.adapter.trim()
+      ? connectionSettings.adapter.trim()
+      : collection.adapter;
+  const adapter = getCmsAdapter(adapterName);
   if (!adapter) {
     throw new CmsRuntimeError(
       "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" is not available.`,
+      `CMS connection "${collection.adapter}" uses unavailable adapter "${adapterName}".`,
       400,
     );
   }
@@ -318,8 +324,8 @@ function getAdapterContext(
       config,
       collection,
       settings: {
-        ...defaultCmsAdapterSettings(collection.adapter),
-        ...(config.adapters[collection.adapter] ?? {}),
+        ...defaultCmsAdapterSettings(adapterName),
+        ...connectionSettings,
       },
       store: {
         octokit,

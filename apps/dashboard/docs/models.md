@@ -4,6 +4,14 @@ The repository-scoped `/models` page manages the models available to Chat and
 the Engine. API keys remain in [Secrets](./secrets-vault.md); model entries
 store only the secret name.
 
+## Built-in public models
+
+Kody can include code-owned public models in the same catalog as user-managed
+models. A public model is labeled **Public**, requires no Secrets entry, and
+can be enabled or disabled but not edited. Ox Alpha is available this way for
+Chat while OpenCode offers its public endpoint; it is optional and is not a
+Chat or Engine default.
+
 ## Automatic
 
 Automatic is an ordered fallback choice built from the existing model list.

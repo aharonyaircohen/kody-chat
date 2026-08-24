@@ -162,7 +162,7 @@ test("collects, approves, and starts an Agency request", async ({ page }) => {
   await page.route("**/api/kody/chat/conversations**", (route) =>
     json(route, { conversations: [], turns: [] }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Test model", enabled: true }],
     }),

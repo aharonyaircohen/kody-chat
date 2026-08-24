@@ -19,6 +19,17 @@ existing authenticated Dashboard headers. The server verifies the PAT owner,
 creates the scoped Brand Chat session cookie, and returns the client route.
 Credentials and session tokens are never placed in the URL.
 
+## GuidedFlow learning
+
+Authenticated Brand Chat users can start, read, and resume GuidedFlows saved
+for the exact repository tenant. Their flow position is scoped to that tenant
+and to the identity supplied by the Dashboard or external host.
+
+Brand Chat is a learner surface: it cannot create, edit, or delete GuidedFlow
+definitions, and it does not receive repository administration or GitHub
+tools. Authors create and manage flows from the repository-scoped Dashboard or
+Kody chat; learners run those flows through Brand Chat.
+
 ## External host launch
 
 The host submits a short-lived signed assertion as a browser form POST to
@@ -52,6 +63,12 @@ Repository variables configure trust:
 - `CLIENT_IDENTITY_ISSUER`
 - `CLIENT_IDENTITY_AUDIENCE`
 - `CLIENT_IDENTITY_JWKS_URL`
+
+Add these as plaintext settings on Kody's repository-scoped **Variables** page,
+not as GitHub Actions repository variables. The issuer and JWKS URL must share
+an HTTPS origin. A matching `http://localhost`, `http://127.0.0.1`, or
+`http://[::1]` origin is accepted only while the Kody Dashboard runs in local
+development mode.
 
 Issuer and JWKS must use the same HTTPS origin. Supported algorithms are
 RS256, ES256, and EdDSA. A valid assertion is exchanged for the same internal

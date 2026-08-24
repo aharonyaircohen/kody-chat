@@ -226,6 +226,11 @@ export const TABLES: readonly TableDef[] = [
     global: true,
   },
   {
+    table: "repositoryPreferences",
+    naturalKey: ["namespace"],
+    upsertIndex: "by_repository",
+  },
+  {
     table: "userCredentials",
     naturalKey: ["userKey", "name"],
     upsertIndex: "by_user_name",

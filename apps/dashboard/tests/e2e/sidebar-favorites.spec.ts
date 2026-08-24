@@ -100,7 +100,7 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ agent: [] }),
     }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

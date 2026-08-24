@@ -6,7 +6,9 @@ import {
   buildGuidedFlowView,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat-dashboard/guided-flows/registry";
+import { guidedFlowDraftSchema } from "@kody-ade/kody-chat-dashboard/guided-flows/authoring";
 import { loadGuidedFlowRenderers } from "../../guided-flows/catalog";
+import { saveGuidedFlowDefinition } from "../../guided-flows/definition-service";
 import { ConvexGuidedFlowReader } from "../../guided-flows/reader";
 import { startOrResumeGuidedFlow } from "../../guided-flows/runtime-service";
 import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
@@ -23,6 +25,24 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
     .join(", ");
 
   return {
+    guided_flow_create: tool({
+      description:
+        "Create one tenant-authored GuidedFlow in the current repository. " +
+        "Use only when the user explicitly asks to build or save a reusable " +
+        "step-by-step guide. This configuration write requires approval of " +
+        "the exact draft before it is saved.",
+      inputSchema: guidedFlowDraftSchema,
+      execute: async (draft): Promise<unknown> => {
+        const result = await saveGuidedFlowDefinition(createBackendClient(), {
+          tenantId: ctx.tenantId,
+          mode: "create",
+          draft,
+        });
+        return result.ok
+          ? { ok: true, definition: result.definition }
+          : { error: result.error, status: result.status };
+      },
+    }),
     guided_flow_start: tool({
       description:
         "Start or resume a GuidedFlow for the user. Use when the user " +

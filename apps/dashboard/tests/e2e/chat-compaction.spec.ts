@@ -107,7 +107,7 @@ async function selectKodyAgent(page: Page) {
 test("compacts model context while keeping the visible conversation", async ({
   page,
 }, testInfo) => {
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -182,7 +182,7 @@ test("compacts model context while keeping the visible conversation", async ({
 });
 
 test("manually compacts from the composer menu", async ({ page }, testInfo) => {
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

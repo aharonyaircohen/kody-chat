@@ -763,6 +763,13 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_user", ["namespace", "userKey"]),
 
+  repositoryPreferences: defineTable({
+    tenantId: v.string(),
+    namespace: v.string(),
+    data: v.any(),
+    updatedAt: v.string(),
+  }).index("by_repository", ["tenantId", "namespace"]),
+
   userCredentials: defineTable({
     userKey: v.string(),
     name: v.string(),

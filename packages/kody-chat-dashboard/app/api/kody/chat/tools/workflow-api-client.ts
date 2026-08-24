@@ -19,6 +19,10 @@ interface WorkflowApprovalContext {
   latestUserText: string | null;
 }
 
+interface WorkflowRunOptions {
+  approvedByConfiguration?: boolean;
+}
+
 async function workflowResult(
   response: Response,
 ): Promise<Record<string, unknown>> {
@@ -89,7 +93,10 @@ export function createWorkflowApiClient({
       );
     },
 
-    async run(command: WorkflowCommand): Promise<unknown> {
+    async run(
+      command: WorkflowCommand,
+      options: WorkflowRunOptions = {},
+    ): Promise<unknown> {
       const headers = requestHeaders(request);
       headers.set("content-type", "application/json");
       let approvalId: string | undefined;
@@ -136,6 +143,43 @@ export function createWorkflowApiClient({
       const result = await workflowResult(response);
       if (result.error !== "approval_required") return result;
       if (typeof result.approvalToken !== "string") return result;
+      if (options.approvedByConfiguration) {
+        const approvalResult = await workflowResult(
+          await fetchImpl(
+            new URL(
+              `/api/kody/company/workflows/${encodeURIComponent(command.workflowId)}/approve`,
+              request.url,
+            ),
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                approvalToken: result.approvalToken,
+                input: command.input,
+              }),
+            },
+          ),
+        );
+        if (typeof approvalResult.approvalId !== "string") {
+          return approvalResult;
+        }
+        return workflowResult(
+          await fetchImpl(
+            new URL(
+              `/api/kody/company/workflows/${encodeURIComponent(command.workflowId)}/run`,
+              request.url,
+            ),
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                approvalId: approvalResult.approvalId,
+                input: command.input,
+              }),
+            },
+          ),
+        );
+      }
       return createWorkflowRunApproval({
         owner: approval.owner,
         repo: approval.repo,

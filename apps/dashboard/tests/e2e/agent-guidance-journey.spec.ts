@@ -154,7 +154,7 @@ test("user creates, assigns, and deletes agent guidance", async ({ page }) => {
   await page.route("**/api/kody/guided-flows", (route) =>
     json(route, { flows: [] }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, { models: [] }),
   );
 

@@ -43,9 +43,15 @@ describe("ModelsManager model editor dialog", () => {
   });
 
   it("keeps personal model edits and local services usable without repository auth", () => {
-    expect(SOURCE).toContain("if (auth) {");
+    expect(SOURCE).toContain('if (auth && scope === "personal") {');
     expect(SOURCE).toContain('fetch("/api/kody/model-services"');
     expect(SOURCE).toContain('(m.service.machine === "brain" && !auth)');
     expect(SOURCE).not.toContain("disabled={serviceBusy !== null || !auth}");
+  });
+
+  it("lets repository users switch between personal and shared model settings", () => {
+    expect(SOURCE).toContain("Personal");
+    expect(SOURCE).toContain("Repository");
+    expect(SOURCE).toContain('"/api/kody/repository-models"');
   });
 });

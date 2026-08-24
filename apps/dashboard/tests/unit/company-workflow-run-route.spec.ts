@@ -31,6 +31,13 @@ const approvals = vi.hoisted(() => ({
 const storeSync = vi.hoisted(() => ({
   syncStoreWorkflowExecutionDefinitions: vi.fn(async () => undefined),
 }));
+const capabilityResolution = vi.hoisted(() => ({
+  unresolvedWorkflowCapabilityIssues: vi.fn(
+    async (): Promise<
+      Array<{ code: string; path: string; message: string }>
+    > => [],
+  ),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
@@ -42,6 +49,10 @@ vi.mock("@kody-ade/base/engine/config", () => engineConfig);
 vi.mock("@dashboard/lib/workflow-definition-files", () => workflowFiles);
 vi.mock("@kody-ade/agency/backend/agency-approvals-store", () => approvals);
 vi.mock("@dashboard/lib/store-workflow-execution-sync", () => storeSync);
+vi.mock(
+  "@dashboard/lib/capabilities/resolve-workflow",
+  () => capabilityResolution,
+);
 
 import { POST } from "../../app/api/kody/company/workflows/[id]/run/route";
 
@@ -109,6 +120,9 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     storeSync.syncStoreWorkflowExecutionDefinitions.mockResolvedValue(
       undefined,
     );
+    capabilityResolution.unresolvedWorkflowCapabilityIssues.mockResolvedValue(
+      [],
+    );
     vi.stubEnv("KODY_SERVICE_KEY", "server-only-test-key");
     engineConfig.getEngineConfig.mockResolvedValue({
       config: {
@@ -167,7 +181,9 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
       resource: "learn-from-runs",
       detail: "manual Engine dispatch for workflow learn-from-runs",
     });
-    expect(storeSync.syncStoreWorkflowExecutionDefinitions).toHaveBeenCalledWith(
+    expect(
+      storeSync.syncStoreWorkflowExecutionDefinitions,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",
         repo: "widgets",
@@ -221,6 +237,30 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     );
 
     expect(response.status).toBe(409);
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a workflow whose capability cannot be resolved", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    capabilityResolution.unresolvedWorkflowCapabilityIssues.mockResolvedValue([
+      {
+        code: "unknown_capability",
+        path: "steps[0].capability",
+        message: "workflow step references a missing capability",
+      },
+    ]);
+
+    const response = await POST(
+      request("learn-from-runs"),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_workflow",
+      issues: [expect.objectContaining({ code: "unknown_capability" })],
+    });
     expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 

@@ -39,56 +39,14 @@ describe("built-in Kody specialists", () => {
       readOnly: true,
       whenToUse: expect.stringContaining("project health"),
     });
-    expect(cto?.capabilities).toEqual([
-      "builtin-agent-cto",
-      "assess-architecture",
-      "assess-code-quality",
-      "assess-security",
-      "assess-test-reliability",
-      "assess-delivery-system",
-      "assess-operational-readiness",
-      "assess-scalability",
-      "assess-repository-history",
-      "assess-team-capacity",
-      "assess-continuous-product-qa",
-    ]);
-    for (const slug of cto!.capabilities!.slice(1)) {
-      const assessment = readBuiltinAgentCapability(slug);
-      expect(assessment, slug).not.toBeNull();
-      expect(assessment?.instructions, slug).toMatch(
-        /current repository evidence/i,
-      );
-      expect(assessment?.capabilityTools, slug).toEqual([]);
-    }
+    expect(cto?.capabilities).toEqual(["builtin-agent-cto"]);
     expect(capability?.instructions).toContain("maintainability");
-    expect(cto?.body).toContain(
-      "architecture and domain models are simple, cohesive, and clearly owned",
-    );
-    expect(cto?.body).toContain(
-      "responsibilities and boundaries are separated without duplication",
-    );
-    expect(cto?.body).toContain(
-      "code is readable, consistent, testable, and maintainable",
-    );
-    expect(cto?.body).toContain(
-      "meet expected growth without unnecessary complexity",
-    );
-    expect(cto?.body).toContain("pragmatic, not dogmatic");
-    expect(cto?.body).toContain("reuse before adding");
-    expect(cto?.body).toContain("premature abstraction");
-    expect(cto?.body).toContain("needless fragmentation");
-    expect(cto?.body).toContain(
-      "Preserve consistency with established project patterns",
-    );
+    expect(cto?.body).toContain("technical health and long-term maintainability");
+    expect(cto?.body).toContain("verified facts");
     expect(tools).toEqual(
       expect.arrayContaining([
-        "github_list_tree",
-        "github_get_file",
-        "github_search_code",
         "github_blame",
         "github_commits_for_path",
-        "github_list_commits",
-        "github_list_workflow_runs",
         "github_get_pull_request",
         "github_list_issues",
       ]),
@@ -158,8 +116,6 @@ describe("built-in Kody specialists", () => {
         "list_loops",
         "list_intents",
         "list_todo_lists",
-        "list_agency_runs",
-        "read_agency_run",
       ]),
     );
   });

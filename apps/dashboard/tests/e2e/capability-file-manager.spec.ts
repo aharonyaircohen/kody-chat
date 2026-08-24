@@ -93,7 +93,7 @@ test("Capabilities open as folders in the shared Files workspace", async ({
       },
     });
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, { models: [] }),
   );
   await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));

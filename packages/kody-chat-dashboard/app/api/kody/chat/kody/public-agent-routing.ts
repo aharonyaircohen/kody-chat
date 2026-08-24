@@ -69,6 +69,10 @@ const PROJECT_ASSESSMENT_FIELDS = [
   "maintenanceTime",
 ] as const;
 
+function requestsParentExecution(userText: string): boolean {
+  return /\b(?:do not|don't|dont)\s+(?:delegate|assign)\b/i.test(userText);
+}
+
 export function routeProjectAssessmentSubmission(
   userText: string,
   assignedAgents: readonly PublicDelegationAgent[],
@@ -457,6 +461,9 @@ export async function routePublicAgentTask({
   generate = generateText,
 }: RoutePublicAgentTaskOptions): Promise<PublicAgentRouteDecision> {
   if (!userText.trim() || assignedAgents.length === 0) {
+    return { mode: "self" };
+  }
+  if (requestsParentExecution(userText)) {
     return { mode: "self" };
   }
   const assessment = routeProjectAssessmentSubmission(userText, assignedAgents);

@@ -1,4 +1,14 @@
-import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
+import {
+  expect,
+  resolveLiveGitHubUser,
+  signInLiveKodyAccount,
+  test,
+  type Page,
+} from "./live-test";
+import {
+  KODY_BUILT_IN_CHAT_MODELS,
+  KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
+} from "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/model-catalog";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -20,6 +30,47 @@ async function installAuth(page: Page, owner: string, repo: string) {
     "x-kody-owner": owner,
     "x-kody-repo": repo,
   });
+  const accountResponse = await page.request.get(
+    `${BASE_URL}/api/kody/account/repositories`,
+  );
+  expect(accountResponse.status()).toBe(200);
+  const accountBody = (await accountResponse.json()) as {
+    auth?: Record<string, unknown> & {
+      repos?: Array<Record<string, unknown> & { owner?: string; repo?: string }>;
+    };
+  };
+  const originalAuth = accountBody.auth ?? null;
+  const now = Date.now();
+  const repos = [
+    ...(originalAuth?.repos ?? []).filter(
+      (entry) => entry.owner !== owner || entry.repo !== repo,
+    ),
+    {
+      repoUrl: TEST_REPO,
+      owner,
+      repo,
+      token: TEST_TOKEN,
+      addedAt: now,
+      isLogin: false,
+      user,
+    },
+  ];
+  const activeAuth = {
+    ...(originalAuth ?? {}),
+    repoUrl: TEST_REPO,
+    owner,
+    repo,
+    token: TEST_TOKEN,
+    user,
+    loggedInAt: now,
+    repos,
+    currentRepoIndex: repos.length - 1,
+  };
+  const saveConnection = await page.request.put(
+    `${BASE_URL}/api/kody/account/repositories`,
+    { data: { auth: activeAuth } },
+  );
+  expect(saveConnection.status()).toBe(200);
   await page.context().addInitScript(
     (auth) => {
       localStorage.clear();
@@ -31,15 +82,19 @@ async function installAuth(page: Page, owner: string, repo: string) {
       repo,
       token: TEST_TOKEN,
       user,
-      loggedInAt: Date.now(),
+      loggedInAt: now,
     },
   );
 }
 
 test.describe("Direct Kody chat — real model and persistence", () => {
   test.skip(
-    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
-    "Requires explicit live target and repository credentials",
+    !BASE_URL ||
+      !TEST_TOKEN ||
+      !TEST_REPO ||
+      !process.env.E2E_KODY_EMAIL ||
+      !process.env.E2E_KODY_PASSWORD,
+    "Requires an explicit live target, repository credentials, and Kody account credentials",
   );
 
   test("sends a real direct-model turn, persists it, and restores it after reload", async ({
@@ -49,6 +104,7 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     const { owner, repo } = parseRepo(TEST_REPO);
     expect(owner).toBeTruthy();
     expect(repo).toBeTruthy();
+    await signInLiveKodyAccount(page, BASE_URL);
     await installAuth(page, owner, repo);
 
     const headers = {
@@ -76,13 +132,18 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     const configuredSecrets = new Set(
       (secrets.secrets ?? []).map((secret) => secret.name),
     );
-    const configuredModel = (models.models ?? []).find(
+    const candidates = [...(models.models ?? []), ...KODY_BUILT_IN_CHAT_MODELS];
+    const requestedModelId = process.env.E2E_CHAT_MODEL_ID;
+    const configuredModel = candidates.find(
       (model) =>
-        model.enabled !== false && configuredSecrets.has(model.apiKeySecret),
+        model.enabled !== false &&
+        (!requestedModelId || model.id === requestedModelId) &&
+        (configuredSecrets.has(model.apiKeySecret) ||
+          model.id === KODY_OX_ALPHA_PUBLIC_CHAT_MODEL.id),
     );
     expect(
       configuredModel,
-      "an enabled model must have a vault secret",
+      `an enabled model must have a vault secret (models: ${(models.models ?? []).map((model) => `${model.id}:${model.apiKeySecret}`).join(", ") || "none"}; secrets: ${[...configuredSecrets].join(", ") || "none"})`,
     ).toBeTruthy();
 
     let conversationId = "";

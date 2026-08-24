@@ -125,6 +125,39 @@ export function familySnapEntry(
   return null;
 }
 
+/**
+ * A client Brand pins a server-owned model but has no Dashboard user model
+ * catalog. Give that locked model a local display entry so the composer can
+ * become ready; the chat route remains authoritative for model resolution.
+ */
+export function addLockedModelEntry(
+  agentList: ChatDropdownEntry[],
+  lockedAgentId?: AgentId,
+  lockedModelId?: string | null,
+): ChatDropdownEntry[] {
+  if (
+    lockedAgentId !== "kody" ||
+    !lockedModelId ||
+    agentList.some(
+      (entry) => entry.agentId === "kody" && entry.modelId === lockedModelId,
+    )
+  ) {
+    return agentList;
+  }
+  return [
+    ...agentList,
+    {
+      key: `kody:${lockedModelId}`,
+      agentId: "kody",
+      modelId: lockedModelId,
+      name: lockedModelId,
+      description: "Brand model",
+      icon: AGENT_KODY.icon,
+      reasoning: null,
+    },
+  ];
+}
+
 export function resolveSelectedAgentEntry(options: {
   activeSessionId?: string;
   activeSessionAgentKey?: string;
@@ -244,12 +277,16 @@ export function useAgentSelection(
   // on every chat request as `body.reasoningEffort`; the chat route
   // translates it to the provider's wire shape at request time.
   const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
-  const agentList = buildAgentList(
-    brainConfigured,
-    flyConfigured,
-    brainFlyChatEnabled,
-    chatModels,
-    brainModels,
+  const agentList = addLockedModelEntry(
+    buildAgentList(
+      brainConfigured,
+      flyConfigured,
+      brainFlyChatEnabled,
+      chatModels,
+      brainModels,
+    ),
+    lockedAgentId,
+    lockedModelId,
   );
 
   // Default-entry resolution — see resolveDefaultAgentEntry above.

@@ -123,7 +123,7 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   await page.route("**/api/kody/guided-flows", (route) =>
     json(route, { flows: [] }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, { models: [] }),
   );
   await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
@@ -399,7 +399,7 @@ test("selected file and its current content reach Kody chat", async ({
       ],
     }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [{ id: "test/model", label: "Kody Test", enabled: true }],
     }),

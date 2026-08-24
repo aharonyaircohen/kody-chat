@@ -97,6 +97,23 @@ describe("CMS model draft rules", () => {
     });
   });
 
+  it("preserves the selected connection through model editing", () => {
+    const connectedLessons = { ...lessons, adapter: "production-mongo" };
+    const draft = cmsModelResourceDraftFromCollection(connectedLessons);
+
+    expect(draft.connection).toBe("production-mongo");
+    expect(cmsCollectionFromModelDraft(draft).adapter).toBe("production-mongo");
+    expect(
+      sanitizeCmsModelCollectionPayload(
+        { collection: connectedLessons, originalName: "lessons" },
+        {
+          existingCollections: [connectedLessons, chapters],
+          originalName: "lessons",
+        },
+      ).adapter,
+    ).toBe("production-mongo");
+  });
+
   it("reports duplicate fields and broken relation targets", () => {
     const draft = cmsModelResourceDraftFromCollection(lessons);
     draft.fields.push({ ...draft.fields[0], key: "duplicate-title" });

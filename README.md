@@ -110,9 +110,31 @@ flowchart LR
 - **Agency** defines what should happen and who should do it.
 - **Brain** provides a long-lived conversational controller.
 - **Engine and runners** perform executable work.
-- **Convex** owns Dashboard runtime state.
-- **GitHub** owns repository content, Actions, Engine definitions, Store assets,
-  webhooks, and identity-related integration.
+- **Convex** owns Dashboard runtime state and repository-scoped definitions.
+- **GitHub** owns repository content, Actions, Store assets, webhooks, and
+  identity-related integration; Engine definition files are a disposable run
+  cache unless a legacy repository definition is being migrated.
+
+### Selected repository boundary
+
+Selecting a repository gives Dashboard and Chat a concrete scope. It does not
+mean every change made in Dashboard is stored only in Dashboard, and it does
+not turn the repository into a separate Kody application.
+
+| What the user manages                                             | Source of truth                                             | What uses it                    | Changes the selected repository?                                                   |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| Dashboard runtime state, active runs, and saved interaction state | Convex                                                      | Dashboard and Chat              | No                                                                                 |
+| Repository-created GuidedFlows and their progress                 | Convex, scoped to the selected repository                   | Chat and the GuidedFlow runtime | No                                                                                 |
+| Local Capabilities                                                | Kody backend bundle, hydrated into Engine files at run time | Engine and runners              | No; Dashboard writes the backend definition                                        |
+| Local Workflows                                                   | Kody backend record, hydrated into Engine files at run time | Engine and runners              | No; Dashboard writes the backend workflow                                          |
+| Activated Store assets                                            | Store assets referenced by repository configuration         | Dashboard and Engine            | Configuration may change; the Store asset itself is not copied into the repository |
+| CMS configuration and content                                     | The selected CMS adapter                                    | Dashboard and CMS tools         | Only when the selected adapter uses GitHub                                         |
+
+Dashboard is the normal control surface for these actions. The selected
+repository should contain its actual project content and the Kody launcher or
+configuration that is intentionally repository-owned; feature execution,
+approval state, and conversational progress should not be recreated as a
+second application inside that repository.
 
 ## Current product surfaces
 

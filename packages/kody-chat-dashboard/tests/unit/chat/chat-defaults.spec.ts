@@ -139,6 +139,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
       "app/api/kody/chat/tools/workflow-tools.ts",
+      "app/api/kody/chat/tools/self-configuration-tools.ts",
       "app/api/kody/chat/tools/blueprint-tools.ts",
       "app/api/kody/chat/tools/agency-lifecycle-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
@@ -216,6 +217,7 @@ describe("chat-defaults bundle", () => {
   it("allowlists view tools so Kody can render chat UI", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("final_answer");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("guided_flow_create");
   });
 
   it("discovers and runs workflows without hardcoded workflow routing", () => {
@@ -337,6 +339,7 @@ describe("chat-defaults bundle", () => {
       "read-agency-documentation",
       "report-advise",
       "run-workflow",
+      "self-configure",
       "todo-planner",
       "vibe",
     ]);

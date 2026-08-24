@@ -3,9 +3,9 @@
 **Context** is the curated background you write _for_ Kody — who the
 agency is, what it builds, its domain, customers, vocabulary, plus
 agent briefs and any standing facts a agent member should always have
-on hand. Each entry is a plain markdown file at
-`backend repo documents (context)<slug>.md` in the connected repo, edited from the
-`/context` page, and **attached to one or more agent members** who then
+on hand. Each entry is a plain markdown document stored as
+`context:<slug>` in the Kody backend, edited from the `/context` page, and
+**attached to one or more agent members** who then
 inherit it without you restating it every turn.
 
 The key distinction: Context is what you write _for_ Kody, **not** repo
@@ -157,17 +157,17 @@ reads work with any dashboard auth.
 
 ## File reference
 
-| File                                                                                                    | Purpose                                                                                                        |
-| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                           | CRUD `backend repo documents (context)<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache) |
-| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)               | `agent:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs                 |
-| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                     | `GET` (list), `POST` (create)                                                                                  |
-| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (body and/or agent), `DELETE`                                                            |
-| [`src/dashboard/lib/components/ContextFilesView.tsx`](../src/dashboard/lib/components/ContextFilesView.tsx) | The `/context` file-workspace adapter                                                                         |
-| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                             | `/context` route entry point                                                                                   |
-| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadContextForPrompt()` on each kody-direct turn                                                        |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Context — your default frame` system-prompt section                                             |
-| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `contextApi` client + `ContextEntry` type                                                                      |
+| File                                                                                                        | Purpose                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                               | CRUD `backend repo documents (context)<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache) |
+| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                   | `agent:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs                 |
+| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                         | `GET` (list), `POST` (create)                                                                                  |
+| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                       | `GET` (read), `PATCH` (body and/or agent), `DELETE`                                                            |
+| [`src/dashboard/lib/components/ContextFilesView.tsx`](../src/dashboard/lib/components/ContextFilesView.tsx) | The `/context` file-workspace adapter                                                                          |
+| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                                 | `/context` route entry point                                                                                   |
+| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                     | Calls `loadContextForPrompt()` on each kody-direct turn                                                        |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                     | Builds the `## Context — your default frame` system-prompt section                                             |
+| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                                   | `contextApi` client + `ContextEntry` type                                                                      |
 
 ## FAQ
 

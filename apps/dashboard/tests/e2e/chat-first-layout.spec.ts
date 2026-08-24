@@ -48,7 +48,7 @@ test.describe("Chat-first layout (beta toggle)", () => {
       id: "chat-first-e2e",
       name: "Chat First E2E",
     });
-    await page.route("**/api/kody/models", (route) =>
+    await page.route("**/api/kody/models*", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

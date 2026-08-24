@@ -209,8 +209,11 @@ function VariablesManagerInner() {
     >
       <div className="space-y-3">
         <p className="text-sm text-white/55">
-          Repository settings shared across Engine runs. LLM_MODELS controls
-          the repository&apos;s Engine Models.
+          Repository settings used by Kody and shared across Engine runs. Add
+          client identity settings here, not in GitHub repository variables.
+          LLM_MODELS controls the repository&apos;s Engine Models. Identity issuer
+          and key URLs require HTTPS, except loopback HTTP during local
+          development.
         </p>
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">

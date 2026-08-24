@@ -77,7 +77,7 @@ export function sanitizeCmsModelCollectionPayload(
   const collection: CmsCollectionConfig = {
     name,
     label: stringValue(rawCollection.label) ?? titleizeCmsModelName(name),
-    adapter: "storage",
+    adapter: stringValue(rawCollection.adapter) ?? "storage",
     titleField,
     searchFields,
     writePolicy: "enabled",

@@ -259,6 +259,7 @@ function cmsModelSaveSignature(
   return {
     name: collection.name,
     label: collection.label,
+    connection: collection.adapter,
     sourceCollection: collection.source.collection ?? collection.name,
     fields: collection.fields.map((field) => ({
       name: field.name,

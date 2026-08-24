@@ -119,6 +119,20 @@ function ContentModelWorkspace() {
     () => (cmsQuery.data?.configured === true ? cmsQuery.data.collections : []),
     [cmsQuery.data],
   );
+  const connections = useMemo(() => {
+    if (cmsQuery.data?.configured !== true) return [];
+    return [
+      ...new Set([
+        ...Object.keys(cmsQuery.data.adapters ?? {}),
+        ...cmsQuery.data.collections.map((collection) => collection.adapter),
+        ...(cmsQuery.data.defaultAdapter ? [cmsQuery.data.defaultAdapter] : []),
+      ]),
+    ];
+  }, [cmsQuery.data]);
+  const defaultConnection =
+    cmsQuery.data?.configured === true
+      ? (cmsQuery.data.defaultAdapter ?? connections[0] ?? "")
+      : "";
   const filteredCollections = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return collections;
@@ -168,15 +182,34 @@ function ContentModelWorkspace() {
     }
   }, [draft.fields, selectedFieldKey]);
 
-  const validationIssues = useMemo(
-    () =>
-      validateCmsModelDraft({
-        draft,
-        collections,
-        originalName: isCreating ? null : selectedCollection?.name,
-      }),
-    [collections, draft, isCreating, selectedCollection?.name],
-  );
+  const validationIssues = useMemo(() => {
+    const issues = validateCmsModelDraft({
+      draft,
+      collections,
+      originalName: isCreating ? null : selectedCollection?.name,
+    });
+    if (!draft.connection.trim()) {
+      issues.unshift({ message: "Choose a connection." });
+    } else if (!connections.includes(draft.connection)) {
+      issues.unshift({ message: `Unknown connection: ${draft.connection}.` });
+    }
+    return issues;
+  }, [collections, connections, draft, isCreating, selectedCollection?.name]);
+
+  useEffect(() => {
+    if (selectedCollection || connections.length === 0) return;
+    if (connections.includes(draftRef.current.connection)) return;
+    replaceDraft(
+      { ...draftRef.current, connection: defaultConnection },
+      { dirty: false, sourceName: isCreating ? NEW_RESOURCE_KEY : null },
+    );
+  }, [
+    connections,
+    defaultConnection,
+    isCreating,
+    replaceDraft,
+    selectedCollection,
+  ]);
 
   const saveMutation = useMutation({
     mutationFn: ({ draft: nextDraft, originalName }: SaveCmsModelVariables) =>
@@ -224,7 +257,7 @@ function ContentModelWorkspace() {
       const nextName = nextCollections[0]?.name ?? null;
       setSelectedName(nextName);
       if (!nextName) {
-        replaceDraft(newCmsModelResourceDraft(), {
+        replaceDraft(newCmsModelResourceDraft(defaultConnection), {
           dirty: false,
           sourceName: null,
         });
@@ -314,7 +347,7 @@ function ContentModelWorkspace() {
               size="sm"
               onClick={() => {
                 setSelectedName(NEW_RESOURCE_KEY);
-                const nextDraft = newCmsModelResourceDraft();
+                const nextDraft = newCmsModelResourceDraft(defaultConnection);
                 replaceDraft(nextDraft, {
                   dirty: false,
                   sourceName: NEW_RESOURCE_KEY,
@@ -390,6 +423,7 @@ function ContentModelWorkspace() {
           <ResourceBuilder
             draft={draft}
             collections={collections}
+            connections={connections}
             validationIssues={validationIssues}
             selectedFieldKey={selectedFieldKey}
             onSelectedFieldChange={setSelectedFieldKey}
@@ -423,6 +457,7 @@ function ContentModelWorkspace() {
 function ResourceBuilder({
   draft,
   collections,
+  connections,
   validationIssues,
   selectedFieldKey,
   onSelectedFieldChange,
@@ -433,6 +468,7 @@ function ResourceBuilder({
 }: {
   draft: CmsModelResourceDraft;
   collections: CmsCollectionConfig[];
+  connections: string[];
   validationIssues: CmsModelValidationIssue[];
   selectedFieldKey: string | null;
   onSelectedFieldChange: (key: string | null) => void;
@@ -504,6 +540,7 @@ function ResourceBuilder({
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <ResourceSettingsBar
         draft={draft}
+        connections={connections}
         canDeleteResource={canDeleteResource}
         deleteResourceLoading={deleteResourceLoading}
         onDeleteResource={onDeleteResource}
@@ -548,12 +585,14 @@ function ResourceBuilder({
 
 function ResourceSettingsBar({
   draft,
+  connections,
   canDeleteResource,
   deleteResourceLoading,
   onDeleteResource,
   onChange,
 }: {
   draft: CmsModelResourceDraft;
+  connections: string[];
   canDeleteResource: boolean;
   deleteResourceLoading: boolean;
   onDeleteResource: () => void;
@@ -586,7 +625,7 @@ function ResourceSettingsBar({
           </Button>
         ) : null}
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <FieldShell label="Name">
           <Input
             value={draft.name}
@@ -614,6 +653,23 @@ function ResourceSettingsBar({
             placeholder="Products"
             className="h-9"
           />
+        </FieldShell>
+        <FieldShell label="Connection">
+          <Select
+            value={draft.connection}
+            onValueChange={(connection) => onChange({ ...draft, connection })}
+          >
+            <SelectTrigger className="h-9" aria-label="Connection">
+              <SelectValue placeholder="Choose connection" />
+            </SelectTrigger>
+            <SelectContent>
+              {connections.map((connection) => (
+                <SelectItem key={connection} value={connection}>
+                  {connection}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldShell>
         <FieldShell label="Source">
           <Input

@@ -29,6 +29,7 @@ export interface CmsModelFieldDraft {
 export interface CmsModelResourceDraft {
   name: string;
   label: string;
+  connection: string;
   sourceCollection: string;
   titleField: string;
   fields: CmsModelFieldDraft[];
@@ -78,10 +79,13 @@ export function isCmsModelFieldType(
   );
 }
 
-export function newCmsModelResourceDraft(): CmsModelResourceDraft {
+export function newCmsModelResourceDraft(
+  connection = "storage",
+): CmsModelResourceDraft {
   return {
     name: "",
     label: "",
+    connection,
     sourceCollection: "",
     titleField: "title",
     fields: [
@@ -122,6 +126,7 @@ export function cmsModelResourceDraftFromCollection(
   return {
     name: collection.name,
     label: collection.label,
+    connection: collection.adapter,
     sourceCollection: collection.source.collection ?? collection.name,
     titleField: collection.titleField ?? "",
     fields: collection.fields
@@ -167,7 +172,7 @@ export function cmsCollectionFromModelDraft(
   return {
     name,
     label: draft.label.trim() || titleizeCmsModelName(name),
-    adapter: "storage",
+    adapter: draft.connection.trim() || "storage",
     titleField,
     searchFields,
     writePolicy: "enabled",

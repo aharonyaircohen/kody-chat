@@ -98,6 +98,7 @@ import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
+import { createSelfConfigurationTools } from "../tools/self-configuration-tools";
 import { createBlueprintTools } from "../tools/blueprint-tools";
 import { createWorkflowApiClient } from "../tools/workflow-api-client";
 import { createAgencyApiClient } from "../tools/agency-api-client";
@@ -1629,6 +1630,23 @@ async function handleKodyDirectPost(
         removeWorkflow: (workflowId) => agencyApi.removeWorkflow(workflowId),
         runWorkflow: (command) => workflowApi.run(command),
       }),
+      ...createSelfConfigurationTools({
+        owner: repo.owner,
+        repo: repo.repo,
+        listCapabilities: () => agencyApi.listCapabilities(),
+        readCapability: (slug) => agencyApi.readCapability(slug),
+        saveCapability: (input) => agencyApi.saveCapability(input as never),
+        removeCapability: (slug) => agencyApi.removeCapability(slug),
+        readWorkflow: (id) => workflowApi.read(id, true),
+        saveWorkflow: (input) => agencyApi.saveWorkflow(input),
+        removeWorkflow: (id) => agencyApi.removeWorkflow(id),
+        readLoop: (id) => agencyApi.readLoop(id),
+        saveLoop: (input) => agencyApi.saveLoop(input as never),
+        removeLoop: (id) => agencyApi.removeLoop(id),
+        runWorkflow: (input, options) => workflowApi.run(input, options),
+        listRuns: (limit) => agencyApi.listRuns(limit),
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      }),
       ...createBlueprintTools({
         getBlueprintStatus: () => agencyApi.getBlueprintStatus(),
       }),
@@ -1756,7 +1774,7 @@ async function handleKodyDirectPost(
             : {}),
         })
       : {}),
-    ...(verifiedUserId && !clientSurface
+    ...(verifiedUserId
       ? createGuidedFlowTools({
           tenantId: repo
             ? `${repo.owner}/${repo.repo}`
@@ -2555,6 +2573,15 @@ This turn includes an image from the user. For questions about what is visible i
                       result.toolName !== FINAL_ANSWER_TOOL,
                   ),
                 );
+                const rejectedUnboundApproval = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName === SHOW_VIEW_TOOL &&
+                      getToolErrorMessage(result.output)?.includes(
+                        "not bound to an action",
+                      ),
+                  ),
+                );
                 // Some models (observed: MiniMax-M3) write tool calls as
                 // literal text instead of API tool calls — nothing executes,
                 // then they report fabricated results. Bounce it immediately:
@@ -2570,12 +2597,18 @@ This turn includes an image from the user. For questions about what is visible i
                     "kody-direct: textual tool-call markup detected (bouncing)",
                   );
                 }
-                const stepActiveTools = selectChatOutputActiveTools({
-                  toolNames: allActiveTools,
-                  requireViewOutput,
-                  allowPreRenderTools:
-                    shouldAllowPreRenderTools && !hasPreRenderToolResult,
-                });
+                const stepActiveTools = rejectedUnboundApproval
+                  ? allActiveTools.filter(
+                      (toolName) =>
+                        toolName !== SHOW_VIEW_TOOL &&
+                        toolName !== FINAL_ANSWER_TOOL,
+                    )
+                  : selectChatOutputActiveTools({
+                      toolNames: allActiveTools,
+                      requireViewOutput,
+                      allowPreRenderTools:
+                        shouldAllowPreRenderTools && !hasPreRenderToolResult,
+                    });
                 return {
                   activeTools: stepActiveTools,
                   // Pin show_view by name when it is the only allowed tool —
@@ -2591,7 +2624,13 @@ This turn includes an image from the user. For questions about what is visible i
                           "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
                         ]),
                       }
-                    : {}),
+                    : rejectedUnboundApproval
+                      ? {
+                          system: buildTurnSystemPrompt([
+                            "The approval UI was rejected because it was not bound to a real operation. UI and prose tools are now unavailable for this recovery step. Call the matching repository action tool with the exact prepared input; do not delegate or simulate the action.",
+                          ]),
+                        }
+                      : {}),
                 };
               },
             }
@@ -2846,7 +2885,8 @@ This turn includes an image from the user. For questions about what is visible i
                 isRecoverableRepositoryReadFailure(permanentFailure) &&
                 retryCount < MAX_SILENT_TURN_RETRIES
               ) {
-                const completedAttemptMessages = (await attempt.response)?.messages;
+                const completedAttemptMessages = (await attempt.response)
+                  ?.messages;
                 if (completedAttemptMessages?.length) {
                   attemptMessages = trimToRecent([
                     ...attemptMessages,

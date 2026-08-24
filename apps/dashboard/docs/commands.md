@@ -22,15 +22,15 @@ prompt — same fallback Claude Code uses.
 
 Three layers, merged at runtime:
 
-| Source    | Location                                                      | Editable here?                                       |
-| --------- | ------------------------------------------------------------- | ---------------------------------------------------- |
-| Your repo | `backend repo documents (commands)<slug>.md`                  | Yes — full CRUD                                      |
-| Store     | `backend repo documents (commands)<slug>.md` in company store | Import/remove active reference; Edit forks into repo |
-| Dashboard | bundled fallback built-ins                                    | Forks into repo                                      |
+| Source    | Location                                                              | Editable here?                                       |
+| --------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| Your repo | Kody backend `command:<slug>` document (logical `commands/<slug>.md`) | Yes — full CRUD                                      |
+| Store     | `backend repo documents (commands)<slug>.md` in company store         | Import/remove active reference; Edit forks into repo |
+| Dashboard | bundled fallback built-ins                                            | Forks into repo                                      |
 
 Repo commands win on slug collision, Store commands come next, and Dashboard
-built-ins are fallback only. Dropping `backend repo documents (commands)review.md` in repo
-overrides Store or fallback `/review`. Use **Edit** on a shared command to seed
+built-ins are fallback only. Saving a repo command named `review` overrides Store
+or fallback `/review`. Use **Edit** on a shared command to seed
 same-slug repo file from the shared command's current contents.
 
 Store commands follow the same Dashboard ownership model as Store assets and

@@ -41,6 +41,14 @@ export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
   body: `A Workflow is one validated ordered run of existing Capabilities. Use this skill only when the user explicitly asks to create or change a Kody automation Workflow. A request to build, scaffold, implement, or change software, an application, a website, or a repository is not a Workflow request; do not start the create-workflow GuidedFlow or ask for a capability slug for that work. Research the request and current Capabilities first, read an existing workflow definition (or the authoritative workflow schema) before drafting, and use only fields observed in that definition — never invent workflow fields. Verify every proposed capability slug with \`list_capabilities\` or a direct capability definition read; never infer slugs from names or tool descriptions. Once the proposed graph and handoffs are ready, call \`create_or_update_workflow\`; the tool owns approval and runs the exact saved action only after the click. Workflow steps must use executable capability slugs returned by \`list_capabilities\`; Chat tools such as \`list_workflows\`, \`read_workflow\`, \`run_workflow\`, \`list_agents\`, and \`read_report\` are not workflow steps. The tool uses the same validated Dashboard API as the visual editor. If it returns an error, status, or validation issues, report that the save failed and explain the returned issue; never claim the Workflow was saved. Never call it on the first turn.`,
 };
 
+export const DEFAULT_SKILL_SELF_CONFIGURE: SkillEntry = {
+  slug: "self-configure",
+  title: "self-configure",
+  body: `Use when the user asks Kody for an ongoing repository outcome and expects Kody to build or update its own configuration. Inspect the existing Capabilities, Workflows, and Loops first. Reuse matching definitions and use stable IDs so repeating the same request updates instead of duplicates.
+
+Present one plain-language proposal covering the outcome, changes, schedule, access, and first test. Do not ask the user to choose internal object types. After approval, call \`configure_kody\` once with the complete bundle. The tool validates dependencies, saves in order, rolls back an incomplete save, runs the Workflow once, and checks persisted run evidence. Report success only when verification.status is success; otherwise say the configuration is saved but unverified or failed, using the returned evidence. Never split one approved bundle across the individual creation tools.`,
+};
+
 export const DEFAULT_SKILL_RUN_WORKFLOW: SkillEntry = {
   slug: "run-workflow",
   title: "run-workflow",

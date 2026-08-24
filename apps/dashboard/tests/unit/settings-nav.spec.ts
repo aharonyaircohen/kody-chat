@@ -94,6 +94,26 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/content/settings")).toBe("Settings");
   });
 
+  it("exposes personal and repository chat models as separate destinations", () => {
+    const chat = SETTINGS_NAV_SECTIONS.find(
+      (section) => section.title === "Agent Settings",
+    )?.items;
+    expect(chat).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          href: "/models",
+          label: "Personal Chat Models",
+          scope: "personal",
+        }),
+        expect.objectContaining({
+          href: "/repository-models",
+          label: "Repo Chat Models",
+          scope: "repository",
+        }),
+      ]),
+    );
+  });
+
   it("keeps Dashboard as the only attention-style home entry", () => {
     expect(navLabelForPath("/")).toBe("Dashboard");
     expect(navLabelForPath("/attention")).toBeNull();

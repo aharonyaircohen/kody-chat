@@ -22,6 +22,7 @@ import {
   verifySurfaceTicket,
 } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { mintSessionToken } from "../../../src/dashboard/lib/chat-token";
+import { filterToolsByAllowlist } from "../../../src/dashboard/lib/chat-defaults";
 import { mintPluginToolsToken } from "../../../src/dashboard/lib/chat/platform/plugin-tools-config";
 
 beforeAll(() => {
@@ -164,13 +165,32 @@ describe("rejectSurfaceScopedRequest (admin-only endpoints)", () => {
 });
 
 describe("client surface tool allowlist", () => {
-  it("stays a conservative read-only subset (documented contract)", () => {
+  it("allows tenant-scoped GuidedFlow runtime without allowing authoring", () => {
     expect([...CLIENT_SURFACE_TOOL_ALLOWLIST].sort()).toEqual([
       "describe_feature",
       "fetch_url",
       "get_position",
+      "guided_flow_context",
+      "guided_flow_read",
+      "guided_flow_start",
       "list_dashboard_features",
       "set_position",
+    ]);
+    expect(CLIENT_SURFACE_TOOL_ALLOWLIST).not.toContain("guided_flow_create");
+
+    const filtered = filterToolsByAllowlist(
+      {
+        guided_flow_create: {},
+        guided_flow_start: {},
+        guided_flow_context: {},
+        guided_flow_read: {},
+      },
+      [...CLIENT_SURFACE_TOOL_ALLOWLIST],
+    );
+    expect(Object.keys(filtered).sort()).toEqual([
+      "guided_flow_context",
+      "guided_flow_read",
+      "guided_flow_start",
     ]);
   });
 });

@@ -97,7 +97,7 @@ test("user makes an Agent live and manages its Loop", async ({ page }) => {
       ],
     }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, {
       models: [
         { id: "openrouter/free", label: "OpenRouter Free", enabled: true },

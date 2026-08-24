@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  approvedToolActionContent,
   createToolActionApproval,
   readToolActionApproval,
   runApprovedToolAction,
@@ -33,6 +34,29 @@ describe("tool action approval", () => {
     expect(execute).not.toHaveBeenCalled();
     expect(tools.list_workflows).toBeDefined();
   });
+
+  it.each([
+    "create_or_update_capability",
+    "configure_kody",
+    "guided_flow_create",
+  ])(
+    "protects %s with the same exact-action approval",
+    async (toolName) => {
+      const execute = vi.fn();
+      const tools = stageToolsForApproval(
+        { [toolName]: { execute } },
+        { secret: "github-token", context },
+      ) as Record<string, { execute(input: unknown): Promise<unknown> }>;
+
+      const result = await tools[toolName]!.execute({ slug: "ci-watch" });
+
+      expect(result).toMatchObject({
+        action: "render_view",
+        rendererSlug: "approval-card",
+      });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
 
   it("runs the exact server-bound action after approval", async () => {
     const directive = createToolActionApproval({
@@ -146,5 +170,23 @@ describe("tool action approval", () => {
       action: "approved",
       output: { error: "GitHub unavailable" },
     });
+  });
+
+  it("shows the verified first-run evidence after configuration approval", () => {
+    expect(
+      approvedToolActionContent({
+        toolName: "configure_kody",
+        output: {
+          ok: true,
+          verification: {
+            status: "success",
+            runId: "run-ci-1",
+            summary: "CI is green.",
+          },
+        },
+      }),
+    ).toBe(
+      "Configuration applied and verified. First run run-ci-1 succeeded: CI is green.",
+    );
   });
 });

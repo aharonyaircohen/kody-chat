@@ -10,6 +10,11 @@ describe("repo route rewrites", () => {
     expect(source).not.toContain('source: "/repo/:owner/:repo"');
     expect(source).toContain('source: "/repo/:owner/:repo/:path+"');
     expect(source).toContain('destination: "/:path+"');
+    const beforeFiles = source.slice(
+      source.indexOf("beforeFiles:"),
+      source.indexOf("fallback:"),
+    );
+    expect(beforeFiles).toContain('source: "/repo/:owner/:repo/:path+"');
   });
 
   it("routes the Memory workspace through its dedicated adapter", () => {

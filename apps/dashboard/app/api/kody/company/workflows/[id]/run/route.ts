@@ -15,6 +15,7 @@ import {
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { consumeStoredAgencyApproval } from "@kody-ade/agency/agency-approvals";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import {
   createWorkflowApprovalChallenge,
   workflowRunAction,
@@ -34,6 +35,8 @@ import { createGitHubActionsEngineGateway } from "@dashboard/features/workflows/
 import { startWorkflow } from "@dashboard/features/workflows/server/start-workflow";
 import { workflowRequiresApproval } from "@dashboard/features/workflows/server/workflow-execution-authorization";
 import { getWorkflowApprovalSigningKey } from "@dashboard/features/workflows/server/workflow-approval-signing-key";
+import { unresolvedWorkflowCapabilityIssues } from "@dashboard/lib/capabilities/resolve-workflow";
+import { ENGINE_BUILT_IN_CAPABILITIES } from "@dashboard/lib/store-solutions";
 
 const RUN_ID = /^run-[a-zA-Z0-9_-]{1,123}$/;
 const APPROVAL_ID = /^approval-[a-zA-Z0-9_-]{1,123}$/;
@@ -43,9 +46,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function runOptions(
-  req: NextRequest,
-): Promise<
+async function runOptions(req: NextRequest): Promise<
   | {
       ok: true;
       requestId?: string;
@@ -148,8 +149,19 @@ export async function POST(
           syncStoreDefinitions: true,
         }),
         validateDefinition: validateWorkflowDefinition,
-        validateInput: (schema, input) =>
-          validateWorkflowInput(input, schema),
+        validateResolvedCapabilities: async (workflow) => {
+          const { config } = await getEngineConfig(
+            octokit,
+            auth.owner,
+            auth.repo,
+          );
+          return unresolvedWorkflowCapabilityIssues(workflow, {
+            octokit,
+            activeStoreSlugs: new Set(config.company?.activeCapabilities ?? []),
+            builtInSlugs: ENGINE_BUILT_IN_CAPABILITIES,
+          });
+        },
+        validateInput: (schema, input) => validateWorkflowInput(input, schema),
         requiresApproval: workflowRequiresApproval,
         actionFor: workflowRunAction,
         consumeApproval: (approval) =>
@@ -229,7 +241,9 @@ export async function POST(
       {
         error: "dispatch_failed",
         message:
-          error instanceof Error ? error.message : "Failed to dispatch workflow",
+          error instanceof Error
+            ? error.message
+            : "Failed to dispatch workflow",
       },
       { status: 500 },
     );

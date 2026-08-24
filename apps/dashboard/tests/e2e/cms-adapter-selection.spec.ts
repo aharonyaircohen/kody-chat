@@ -5,6 +5,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -23,6 +24,7 @@ async function seedAuth(page: Page): Promise<void> {
   await page.addInitScript((value) => {
     window.localStorage.setItem("kody_auth", JSON.stringify(value));
   }, auth);
+  await mockDashboardShellRequests(page);
 }
 
 async function mockIdentity(page: Page): Promise<void> {
@@ -72,6 +74,69 @@ async function mockAdapters(page: Page): Promise<void> {
 }
 
 test.describe("CMS adapter setup", () => {
+  test("assigns a new model to one of multiple connections", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "chromium");
+    let savedConnection: string | null = null;
+
+    await seedAuth(page);
+    await mockIdentity(page);
+    await page.route("**/api/kody/cms", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          cms: {
+            configured: true,
+            version: 1,
+            name: "widgets CMS",
+            environment: "default",
+            defaultAdapter: "primary-db",
+            adapters: {
+              "primary-db": { adapter: "mongodb" },
+              "archive-db": { adapter: "mongodb" },
+            },
+            writePolicy: "enabled",
+            permissions: {},
+            collections: [],
+          },
+        }),
+      }),
+    );
+    await page.route("**/api/kody/cms/model", async (route) => {
+      savedConnection = route.request().postDataJSON().collection.adapter;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          cms: {
+            configured: true,
+            version: 1,
+            name: "widgets CMS",
+            environment: "default",
+            defaultAdapter: "primary-db",
+            adapters: {
+              "primary-db": { adapter: "mongodb" },
+              "archive-db": { adapter: "mongodb" },
+            },
+            writePolicy: "enabled",
+            permissions: {},
+            collections: [],
+          },
+        }),
+      });
+    });
+
+    await page.goto("/content/models", { waitUntil: "domcontentloaded" });
+    await page.getByPlaceholder("products").first().fill("articles");
+    await page.getByRole("combobox", { name: "Connection" }).click();
+    await page.getByRole("option", { name: "archive-db" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+
+    await expect.poll(() => savedConnection).toBe("archive-db");
+  });
+
   test("renders documents for the selected content collection", async ({
     page,
   }, testInfo) => {
@@ -100,13 +165,26 @@ test.describe("CMS adapter setup", () => {
             permissions: {},
             adapters: {
               mongodb: { databaseUriSecret: "DATABASE_URL" },
+              "archive-db": {
+                adapter: "mongodb",
+                databaseUriSecret: "ARCHIVE_DATABASE_URL",
+              },
             },
             collections: [
               {
                 name: "lessons",
                 label: "Lessons",
                 adapter: "mongodb",
+                writePolicy: "read-only",
                 source: { collection: "lessons", idField: "_id" },
+                operations: {
+                  list: true,
+                  get: true,
+                  search: true,
+                  create: false,
+                  update: false,
+                  delete: false,
+                },
                 searchFields: [],
                 defaultSort: [],
                 fields: [
@@ -116,10 +194,32 @@ test.describe("CMS adapter setup", () => {
                 filters: [],
                 views: {
                   list: {
-                    fields: [{ field: "title" }],
+                    fields: [{ name: "title" }],
                     pageSize: 25,
                   },
                 },
+              },
+              {
+                name: "articles",
+                label: "Articles",
+                adapter: "archive-db",
+                writePolicy: "read-only",
+                source: { collection: "articles", idField: "_id" },
+                operations: {
+                  list: true,
+                  get: true,
+                  search: true,
+                  create: false,
+                  update: false,
+                  delete: false,
+                },
+                searchFields: [],
+                defaultSort: [],
+                fields: [
+                  { name: "_id", type: "id", label: "ID" },
+                  { name: "title", type: "text", label: "Title" },
+                ],
+                filters: [],
               },
             ],
           },
@@ -149,7 +249,128 @@ test.describe("CMS adapter setup", () => {
     });
     await expect(page.getByText("Intro lesson")).toBeVisible();
     await expect(page.getByText("No items")).toHaveCount(0);
+    await page.getByRole("combobox", { name: "Database" }).click();
+    await page.getByRole("option", { name: "archive-db" }).click();
+    const collectionsRail = page.getByRole("complementary", {
+      name: "Content collections",
+    });
+    await expect(
+      collectionsRail.getByRole("button", { name: /Articles/ }),
+    ).toBeVisible();
+    await expect(
+      collectionsRail.getByRole("button", { name: /Lessons/ }),
+    ).toHaveCount(0);
     expect(requestedPath).toBe("/api/kody/cms/lessons");
+  });
+
+  test("scopes schema generation and permissions to the selected database", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "chromium");
+    let schemaBody: Record<string, unknown> | null = null;
+    let permissionsBody: Record<string, unknown> | null = null;
+
+    await seedAuth(page);
+    await mockIdentity(page);
+    await mockAdapters(page);
+    const cms = {
+      configured: true,
+      version: 1,
+      name: "widgets CMS",
+      environment: "default",
+      defaultAdapter: "primary-db",
+      adapters: {
+        "primary-db": {
+          adapter: "mongodb",
+          databaseUriSecret: "PRIMARY_DATABASE_URL",
+        },
+        "archive-db": {
+          adapter: "mongodb",
+          databaseUriSecret: "ARCHIVE_DATABASE_URL",
+        },
+      },
+      writePolicy: "enabled",
+      permissions: {},
+      collections: [
+        {
+          name: "products",
+          label: "Products",
+          adapter: "primary-db",
+          writePolicy: "enabled",
+          source: { collection: "products", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          searchFields: [],
+          defaultSort: [],
+          fields: [],
+          filters: [],
+        },
+        {
+          name: "archives",
+          label: "Archives",
+          adapter: "archive-db",
+          writePolicy: "enabled",
+          source: { collection: "archives", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          searchFields: [],
+          defaultSort: [],
+          fields: [],
+          filters: [],
+        },
+      ],
+    };
+    await page.route("**/api/kody/cms/schema", async (route) => {
+      schemaBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ cms }),
+      });
+    });
+    await page.route("**/api/kody/cms", async (route) => {
+      if (route.request().method() === "PATCH")
+        permissionsBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ cms }),
+      });
+    });
+
+    await page.goto("/content/settings", { waitUntil: "domcontentloaded" });
+    await page.getByRole("combobox", { name: "Database" }).click();
+    await page.getByRole("option", { name: "archive-db" }).click();
+    await expect(page.getByText("ARCHIVE_DATABASE_URL")).toBeVisible();
+    await page.getByRole("button", { name: "Update schema" }).click();
+    await expect(page.getByRole("dialog")).toContainText("archive-db");
+    await page.getByRole("button", { name: "Update schema" }).last().click();
+    await expect.poll(() => schemaBody?.connectionName).toBe("archive-db");
+
+    await page.getByRole("button", { name: "Edit permissions" }).click();
+    await expect(page.getByRole("dialog")).toContainText("archive-db");
+    await expect(page.getByRole("dialog")).toContainText("Archives");
+    await expect(page.getByRole("dialog")).not.toContainText("Products");
+    await page.getByRole("button", { name: "Save permissions" }).click();
+    await expect.poll(() => permissionsBody?.connectionName).toBe("archive-db");
+    await expect
+      .poll(
+        () =>
+          (permissionsBody?.collections as Array<{ name: string }>)[0]?.name,
+      )
+      .toBe("archives");
   });
 
   test("creates CMS config with the selected Store adapter", async ({
@@ -214,7 +435,8 @@ test.describe("CMS adapter setup", () => {
       "One desktop flow is enough for the adapter selector contract.",
     );
 
-    let patchedBody: { adapter?: string } | null = null;
+    let patchedBody: { adapter?: string; connectionName?: string } | null =
+      null;
     let activeAdapter = "mongodb";
 
     await seedAuth(page);
@@ -222,7 +444,10 @@ test.describe("CMS adapter setup", () => {
     await mockAdapters(page);
     await page.route("**/api/kody/cms", async (route) => {
       if (route.request().method() === "PATCH") {
-        patchedBody = route.request().postDataJSON() as { adapter?: string };
+        patchedBody = route.request().postDataJSON() as {
+          adapter?: string;
+          connectionName?: string;
+        };
         activeAdapter = patchedBody.adapter ?? activeAdapter;
       }
 
@@ -251,10 +476,17 @@ test.describe("CMS adapter setup", () => {
       timeout: 10_000,
     });
 
-    await page.getByRole("combobox", { name: "Default adapter" }).click();
+    await page.getByRole("button", { name: "Add connection" }).click();
+    await page
+      .getByRole("textbox", { name: "Connection name" })
+      .fill("website-content");
+    await page.getByRole("combobox", { name: "Source type" }).click();
     await page.getByRole("option", { name: "GitHub JSON" }).click();
-    await page.getByRole("button", { name: "Save adapter" }).click();
+    await page.getByRole("button", { name: "Save connection" }).click();
 
     await expect.poll(() => patchedBody?.adapter).toBe("github");
+    await expect
+      .poll(() => patchedBody?.connectionName)
+      .toBe("website-content");
   });
 });

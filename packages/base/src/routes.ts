@@ -55,6 +55,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/memory",
   "/messages",
   "/models",
+  "/repository-models",
   "/notifications",
   "/operations",
   "/preview",

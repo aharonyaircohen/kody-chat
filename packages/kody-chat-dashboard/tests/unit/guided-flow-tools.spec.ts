@@ -19,6 +19,7 @@ vi.mock("@kody-ade/backend/api", () => ({
       getConversationBinding: "guidedFlows.getConversationBinding",
       bindConversation: "guidedFlows.bindConversation",
       listSubmissions: "guidedFlows.listSubmissions",
+      saveDefinition: "guidedFlows.saveDefinition",
     },
     viewRenderers: {
       list: "viewRenderers.list",
@@ -87,6 +88,24 @@ vi.mock("@kody-ade/backend/client", () => ({
       return null;
     },
     mutation: async (operation: string, args: Record<string, unknown>) => {
+      if (operation === "guidedFlows.saveDefinition") {
+        const definitions = Array.isArray(
+          backend.userState["guided-flow-definitions"],
+        )
+          ? (backend.userState["guided-flow-definitions"] as Array<
+              Record<string, unknown>
+            >)
+          : [];
+        const version =
+          definitions.filter((definition) => definition.id === args.flowId)
+            .length + 1;
+        definitions.push({
+          ...(args.definition as Record<string, unknown>),
+          version,
+        });
+        backend.userState["guided-flow-definitions"] = definitions;
+        return version;
+      }
       if (operation === "guidedFlows.startOrResume") {
         const row = { ...args };
         backend.rows.push(row);
@@ -225,6 +244,45 @@ describe("guided_flow_start chat tool", () => {
       {} as never,
     )) as { guidedFlow?: { instanceId: string } };
     expect(result.guidedFlow?.instanceId).toBeTruthy();
+  });
+
+  it("creates one validated tenant-authored flow", async () => {
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+    });
+
+    const result = await tools.guided_flow_create.execute!(
+      {
+        title: "Course basics",
+        steps: [
+          {
+            title: "Lesson one",
+            explanation: "Read lesson one, then continue.",
+            rendererSlug: "approval-card",
+          },
+          {
+            title: "Lesson two",
+            explanation: "Read lesson two, then finish.",
+            rendererSlug: "approval-card",
+          },
+        ],
+      },
+      {} as never,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      definition: {
+        id: "course-basics",
+        version: 1,
+        steps: [
+          expect.objectContaining({ id: "step-1" }),
+          expect.objectContaining({ id: "step-2" }),
+        ],
+      },
+    });
+    expect(backend.userState["guided-flow-definitions"]).toHaveLength(1);
   });
 
   it("starts a custom flow published for the repository", async () => {

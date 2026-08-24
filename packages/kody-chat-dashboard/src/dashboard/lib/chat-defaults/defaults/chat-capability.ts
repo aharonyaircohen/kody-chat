@@ -52,6 +52,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "final_answer",
     // ── User-managed view renderers
     "show_view",
+    "guided_flow_create",
     "guided_flow_start",
     "guided_flow_context",
     "guided_flow_read",
@@ -74,6 +75,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "run_workflow_creator",
     "read_capability_creation_guide",
     "create_or_update_capability",
+    "configure_kody",
     // ── Workflow discovery and execution (repo-gated) ─────────────────────
     "list_workflows",
     "read_workflow",
@@ -180,6 +182,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "create-capability",
     "create-agent",
     "create-workflow",
+    "self-configure",
     "run-workflow",
     "author-quality",
     "vibe",

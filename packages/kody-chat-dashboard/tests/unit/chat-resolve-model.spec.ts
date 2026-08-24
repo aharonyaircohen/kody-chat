@@ -146,6 +146,43 @@ describe("resolveChatModel", () => {
     );
   });
 
+  it("never falls back to a personal credential for a repo model", async () => {
+    vi.mocked(getSecret).mockResolvedValue(null);
+    const personalCredential = vi.fn(async () => "personal-provider-key");
+    setChatModelSettingsProvider({
+      load: vi.fn(async () => ({
+        models: [
+          {
+            id: "repo::minimax/MiniMax-M3",
+            label: "Repo MiniMax",
+            provider: "minimax" as const,
+            protocol: "openai" as const,
+            baseURL: "https://api.minimax.io/v1",
+            modelName: "MiniMax-M3",
+            apiKeySecret: "MINIMAX_API_KEY",
+            enabled: true,
+            default: true,
+          },
+        ],
+        automatic: { default: false, engineDefault: false },
+      })),
+      getCredential: personalCredential,
+    });
+
+    const result = await resolveChatModel(
+      request(),
+      "repo::minimax/MiniMax-M3",
+    );
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error.status).toBe(409);
+    await expect(result.error.json()).resolves.toMatchObject({
+      error: "model_api_key_missing",
+    });
+    expect(personalCredential).not.toHaveBeenCalled();
+  });
+
   it("uses the embedded OpenRouter model when LLM_MODELS is empty", async () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",
@@ -177,6 +214,33 @@ describe("resolveChatModel", () => {
         apiKey: "provider-key",
         baseURL: "https://openrouter.ai/api/v1",
         transformRequestBody: expect.any(Function),
+      }),
+    );
+  });
+
+  it("uses built-in public access for Ox Alpha without reading a saved secret", async () => {
+    vi.mocked(getSecret).mockResolvedValue(null);
+
+    const result = await resolveChatModel(
+      request(),
+      "opencode/x-preview-f-free",
+    );
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel).toMatchObject({
+      id: "opencode/x-preview-f-free",
+      label: "Ox Alpha",
+      provider: "custom",
+      modelName: "x-preview-f-free",
+    });
+    expect(result.apiKey).toBe("public");
+    expect(getSecret).not.toHaveBeenCalled();
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "custom",
+        apiKey: "public",
+        baseURL: "https://opencode.ai/zen/v1",
       }),
     );
   });

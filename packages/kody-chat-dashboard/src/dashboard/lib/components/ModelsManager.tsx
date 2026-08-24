@@ -66,6 +66,7 @@ import {
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
+  builtInPublicModelCredential,
   composeChatModelCatalog,
 } from "../chat/model-catalog";
 import { TerminalSessionInputSchema } from "@kody-ade/terminal/terminal-session-model";
@@ -76,16 +77,23 @@ import {
 
 export const modelsQueryKeys = {
   all: ["kody-chat-models"] as const,
-  list: (_legacyRepoScope?: unknown) =>
-    ["kody-chat-models", "personal"] as const,
+  list: (scopeOrLegacy?: "personal" | "repository" | unknown) => {
+    const scope = scopeOrLegacy === "repository" ? "repository" : "personal";
+    return ["kody-chat-models", scope] as const;
+  },
 };
 
 const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,127}$/;
 
 async function fetchModels(
   headers: Record<string, string>,
+  scope: "personal" | "repository",
 ): Promise<{ models: ChatModel[]; automatic: AutomaticModel }> {
-  const res = await fetch("/api/kody/models", {
+  const endpoint =
+    scope === "repository"
+      ? "/api/kody/repository-models"
+      : "/api/kody/models?scope=personal";
+  const res = await fetch(endpoint, {
     headers,
     cache: "no-store",
   });
@@ -130,12 +138,16 @@ async function saveModels(
   headers: Record<string, string>,
   models: ChatModel[],
   automatic: AutomaticModel,
+  scope: "personal" | "repository",
 ): Promise<void> {
-  const res = await fetch("/api/kody/models", {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({ models, automatic }),
-  });
+  const res = await fetch(
+    scope === "repository" ? "/api/kody/repository-models" : "/api/kody/models",
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ models, automatic }),
+    },
+  );
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
     message?: string;
@@ -346,13 +358,17 @@ async function executeServiceCommand(
   }
 }
 
-export function ModelsManager() {
+export function ModelsManager({
+  scope = "personal",
+}: {
+  scope?: "personal" | "repository";
+}) {
   const { auth } = useAuth();
   const headers = {
     "Content-Type": "application/json",
     ...buildAuthHeaders(auth),
   };
-  const listQueryKey = modelsQueryKeys.list();
+  const listQueryKey = modelsQueryKeys.list(scope);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery<{
@@ -360,7 +376,8 @@ export function ModelsManager() {
     automatic: AutomaticModel;
   }>({
     queryKey: listQueryKey,
-    queryFn: () => fetchModels(headers),
+    queryFn: () => fetchModels(headers, scope),
+    enabled: scope === "personal" || !!auth,
     staleTime: 30_000,
   });
   const { data: engineData } = useQuery({
@@ -372,16 +389,22 @@ export function ModelsManager() {
   const engineById = new Map(
     (engineData?.models ?? []).map((model) => [model.id, model]),
   );
-  const models: ChatModel[] = composeChatModelCatalog<ChatModel>(
-    data?.models ?? [],
-    KODY_BUILT_IN_CHAT_MODELS,
-  ).map((model) => ({
+  const scopedModels =
+    scope === "personal"
+      ? composeChatModelCatalog<ChatModel>(
+          data?.models ?? [],
+          KODY_BUILT_IN_CHAT_MODELS,
+        )
+      : (data?.models ?? []);
+  const models: ChatModel[] = scopedModels.map((model) => ({
     ...model,
-    engineDefault: engineById.get(model.id)?.engineDefault === true,
+    engineDefault:
+      scope === "personal" && engineById.get(model.id)?.engineDefault === true,
   }));
   const automatic = {
     ...(data?.automatic ?? { default: false, engineDefault: false }),
-    engineDefault: engineData?.automatic?.engineDefault === true,
+    engineDefault:
+      scope === "personal" && engineData?.automatic?.engineDefault === true,
   };
   const selectedAutomaticModels = models.filter(
     (model) => model.automatic === true,
@@ -411,9 +434,14 @@ export function ModelsManager() {
         engineDefault: nextAutomatic.engineDefault === true,
       };
       const requests: Promise<void>[] = [
-        saveModels(headers, list, { ...nextAutomatic, engineDefault: false }),
+        saveModels(
+          headers,
+          list,
+          { ...nextAutomatic, engineDefault: false },
+          scope,
+        ),
       ];
-      if (auth) {
+      if (auth && scope === "personal") {
         requests.push(saveEngineModels(headers, engineList, engineAutomatic));
       }
       return Promise.all(requests).then(() => undefined);
@@ -589,7 +617,11 @@ export function ModelsManager() {
 
   return (
     <PageShell
-      title="Chat Models"
+      title={
+        scope === "repository"
+          ? "Repository Chat Models"
+          : "Personal Chat Models"
+      }
       icon={Bot}
       iconClassName="text-violet-400"
       actions={
@@ -605,8 +637,9 @@ export function ModelsManager() {
     >
       <div className="space-y-3">
         <p className="text-sm text-white/55">
-          Your chat models belong to your Kody account. API keys stay in
-          repository Secrets.
+          {scope === "repository"
+            ? `These chat models are shared with everyone using ${auth?.owner}/${auth?.repo}. API keys stay in repository Secrets.`
+            : "Your chat models belong to your Kody account. API keys stay in repository Secrets."}
         </p>
         {auth ? (
           <p className="text-sm text-white/55">
@@ -661,7 +694,7 @@ export function ModelsManager() {
                       <Star className="h-3 w-3" /> Chat
                     </span>
                   )}
-                  {automatic.engineDefault && (
+                  {scope === "personal" && automatic.engineDefault && (
                     <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">
                       <Cpu className="w-3 h-3" /> Engine
                     </span>
@@ -685,17 +718,19 @@ export function ModelsManager() {
                   />
                   Chat default
                 </label>
-                <label className="flex items-center gap-2 text-xs text-white/70">
-                  <Checkbox
-                    checked={automatic.engineDefault === true}
-                    disabled={automaticModels.length < 2}
-                    onCheckedChange={(checked) =>
-                      setAutomaticEngineDefault(checked === true)
-                    }
-                    aria-label="Use Automatic as the Engine default"
-                  />
-                  Engine default
-                </label>
+                {scope === "personal" ? (
+                  <label className="flex items-center gap-2 text-xs text-white/70">
+                    <Checkbox
+                      checked={automatic.engineDefault === true}
+                      disabled={automaticModels.length < 2}
+                      onCheckedChange={(checked) =>
+                        setAutomaticEngineDefault(checked === true)
+                      }
+                      aria-label="Use Automatic as the Engine default"
+                    />
+                    Engine default
+                  </label>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -714,13 +749,17 @@ export function ModelsManager() {
                         <span className="font-medium text-sm text-white/90 truncate">
                           {m.label || m.modelName || m.id}
                         </span>
-                        {KODY_BUILT_IN_CHAT_MODELS.some(
-                          (builtIn) => builtIn.id === m.id,
-                        ) && (
+                        {builtInPublicModelCredential(m) ? (
+                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
+                            Public
+                          </span>
+                        ) : KODY_BUILT_IN_CHAT_MODELS.some(
+                            (builtIn) => builtIn.id === m.id,
+                          ) ? (
                           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
                             Built in
                           </span>
-                        )}
+                        ) : null}
                         {m.enabled === false && (
                           <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
                             Disabled
@@ -757,7 +796,7 @@ export function ModelsManager() {
                             Chat
                           </span>
                         )}
-                        {m.engineDefault && (
+                        {scope === "personal" && m.engineDefault && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300"
                             title="The model the engine runs (Kody Live, issue + PR runs)"
@@ -903,13 +942,17 @@ export function ModelsManager() {
                             ? "Enable model"
                             : "Disable model"}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setEditing({ mode: "edit", idx })}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </DropdownMenuItem>
+                        {!builtInPublicModelCredential(m) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setEditing({ mode: "edit", idx })}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         {!KODY_BUILT_IN_CHAT_MODELS.some(
                           (builtIn) => builtIn.id === m.id,
                         ) && (
@@ -940,6 +983,7 @@ export function ModelsManager() {
           existing={models}
           editingIdx={editing.mode === "edit" ? editing.idx : null}
           saving={save.isPending}
+          allowEngineDefault={scope === "personal"}
           onClose={() => setEditing(null)}
           onSave={upsert}
         />
@@ -948,7 +992,11 @@ export function ModelsManager() {
       <ConfirmDialog
         open={deleting !== null}
         title="Delete this model?"
-        description="The model is removed from your account. Its repository secret is not changed."
+        description={
+          scope === "repository"
+            ? "The model is removed for everyone using this repository. Its secret is not changed."
+            : "The model is removed from your account. Its repository secret is not changed."
+        }
         confirmLabel={save.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -965,6 +1013,7 @@ interface ModelEditorProps {
   existing: ChatModel[];
   editingIdx: number | null;
   saving: boolean;
+  allowEngineDefault: boolean;
   onClose: () => void;
   onSave: (m: ChatModel) => Promise<void>;
 }
@@ -974,6 +1023,7 @@ function ModelEditor({
   existing,
   editingIdx,
   saving,
+  allowEngineDefault,
   onClose,
   onSave,
 }: ModelEditorProps) {
@@ -1173,16 +1223,21 @@ function ModelEditor({
             Default for chat (used for new conversations)
           </label>
 
-          <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
-            <Checkbox
-              checked={draft.engineDefault === true}
-              onCheckedChange={(checked) =>
-                setDraft((cur) => ({ ...cur, engineDefault: checked === true }))
-              }
-            />
-            <Cpu className="w-3.5 h-3.5 text-white/40" />
-            Default for engine (Kody Live, issue + PR runs)
-          </label>
+          {allowEngineDefault ? (
+            <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+              <Checkbox
+                checked={draft.engineDefault === true}
+                onCheckedChange={(checked) =>
+                  setDraft((cur) => ({
+                    ...cur,
+                    engineDefault: checked === true,
+                  }))
+                }
+              />
+              <Cpu className="w-3.5 h-3.5 text-white/40" />
+              Default for engine (Kody Live, issue + PR runs)
+            </label>
+          ) : null}
 
           <section
             className="space-y-3 border-t border-white/[0.06] pt-3"

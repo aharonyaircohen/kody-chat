@@ -76,10 +76,8 @@ const stateRepo = vi.hoisted(() => ({
   deleteStateFile: vi.fn(async (_input: unknown): Promise<void> => undefined),
 }));
 vi.mock("@kody-ade/cms/repo-docs", () => ({
-  runWithCmsRepoDocsStore: <T>(
-    _store: unknown,
-    callback: () => T,
-  ): T => callback(),
+  runWithCmsRepoDocsStore: <T>(_store: unknown, callback: () => T): T =>
+    callback(),
   readCmsFile: async (owner: string, repo: string, filePath: string) =>
     stateRepo.readStateText({}, owner, repo, filePath),
   readRepoDocFile: (...args: unknown[]) => stateRepo.readStateText(...args),
@@ -1322,6 +1320,105 @@ describe("CMS API routes", () => {
       message: "No MongoDB collections found from DATABASE_URL.",
     });
     expect(stateRepo.writeStateFiles).not.toHaveBeenCalled();
+  });
+
+  it("refreshes only the selected database connection", async () => {
+    const root = {
+      version: 1,
+      name: "Example CMS",
+      defaultAdapter: "primary-db",
+      adapters: {
+        "primary-db": { adapter: "mongodb", databaseUriSecret: "PRIMARY_URL" },
+        "archive-db": { adapter: "mongodb", databaseUriSecret: "ARCHIVE_URL" },
+      },
+      writePolicy: "enabled",
+      collections: [
+        "collections/products.json",
+        "collections/archive-old.json",
+      ],
+    };
+    const collection = (name: string, adapter: string) => ({
+      name,
+      label: name,
+      adapter,
+      writePolicy: "enabled",
+      source: { collection: name, idField: "_id" },
+      operations: {
+        list: true,
+        get: true,
+        search: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      fields: [{ name: "_id", type: "id" }],
+      filters: [],
+    });
+    stateRepo.readStateText.mockImplementation(async (...args: unknown[]) => {
+      const path = args[3];
+      if (path === "cms/config.json")
+        return { path, content: JSON.stringify(root), sha: "root" };
+      if (path === "cms/collections/products.json")
+        return {
+          path,
+          content: JSON.stringify(collection("products", "primary-db")),
+          sha: "products",
+        };
+      if (path === "cms/collections/archive-old.json")
+        return {
+          path,
+          content: JSON.stringify(collection("archive-old", "archive-db")),
+          sha: "archive",
+        };
+      return null;
+    });
+    mongoSchema.generateMongoCmsSchemaFiles.mockResolvedValueOnce({
+      collectionCount: 1,
+      files: [
+        {
+          path: "cms/config.json",
+          content: JSON.stringify({
+            version: 1,
+            name: "Example CMS",
+            collections: ["collections/archive-new.json"],
+          }),
+        },
+        {
+          path: "cms/collections/archive-new.json",
+          content: JSON.stringify(collection("archive-new", "mongodb")),
+        },
+      ],
+    });
+
+    const res = await schemaPOST(
+      jsonRequest("https://dash.test/api/kody/cms/schema", "POST", {
+        adapter: "mongodb",
+        connectionName: "archive-db",
+        refresh: true,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(vault.getSecret).toHaveBeenCalledWith(
+      "ARCHIVE_URL",
+      expect.anything(),
+    );
+    const write = stateRepo.writeStateFiles.mock.calls[0][0] as {
+      files: Array<{ path: string; content: string }>;
+    };
+    const writtenRoot = JSON.parse(
+      write.files.find((file) => file.path === "cms/config.json")!.content,
+    );
+    expect(writtenRoot.collections).toEqual([
+      "collections/archive-new.json",
+      "collections/products.json",
+    ]);
+    const generatedCollection = JSON.parse(
+      write.files.find(
+        (file) => file.path === "cms/collections/archive-new.json",
+      )!.content,
+    );
+    expect(generatedCollection.adapter).toBe("archive-db");
   });
 
   it("does not regenerate schema when collections already exist", async () => {

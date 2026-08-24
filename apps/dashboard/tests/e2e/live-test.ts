@@ -15,6 +15,8 @@ const SECRET_ENVIRONMENT_NAMES = [
   "GH_TOKEN",
   "FLY_API_TOKEN",
   "BRAIN_CHAT_API_KEY",
+  "E2E_KODY_EMAIL",
+  "E2E_KODY_PASSWORD",
 ];
 
 function configuredSecrets(): string[] {
@@ -145,6 +147,38 @@ export async function resolveLiveGitHubUser(
     avatar_url: body.user.avatar_url ?? "",
     id: body.user.githubId ?? 0,
   };
+}
+
+export async function signInLiveKodyAccount(
+  page: Page,
+  baseUrl: string,
+): Promise<void> {
+  const email = process.env.E2E_KODY_EMAIL ?? "";
+  const password = process.env.E2E_KODY_PASSWORD ?? "";
+  if (!email || !password) {
+    throw new Error(
+      "Real account-owned Chat tests require E2E_KODY_EMAIL and E2E_KODY_PASSWORD",
+    );
+  }
+  const response = await page.request.post(
+    `${baseUrl}/api/auth/sign-in/email`,
+    {
+      data: { email, password, callbackURL: "/chat" },
+      headers: { Origin: new URL(baseUrl).origin },
+    },
+  );
+  if (!response.ok()) {
+    const reason = await response.text().catch(() => "");
+    throw new Error(
+      `Kody account sign-in failed (${response.status()}): ${reason.slice(0, 300)}`,
+    );
+  }
+  const session = await page.request.get(`${baseUrl}/api/auth/get-session`);
+  if (!session.ok() || (await session.json().catch(() => null)) === null) {
+    throw new Error(
+      `Kody account session was not established (${session.status()})`,
+    );
+  }
 }
 
 export { expect };

@@ -38,7 +38,7 @@ test.beforeEach(async ({ page }) => {
       user: { login: "e2e-test", avatar_url: "", githubId: 1 },
     }),
   );
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, { models: [] }),
   );
   await page.route("**/api/kody/commands", (route) =>

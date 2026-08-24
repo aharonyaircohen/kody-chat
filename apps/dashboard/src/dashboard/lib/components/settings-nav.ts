@@ -472,10 +472,19 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
       },
       {
         href: "/models",
-        label: "Chat Models",
+        label: "Personal Chat Models",
         icon: Cpu,
-        description: "LLM provider + model selection.",
+        description: "Your chat models, available across repositories.",
         tint: "text-emerald-300 bg-emerald-500/10",
+        scope: "personal",
+      },
+      {
+        href: "/repository-models",
+        label: "Repo Chat Models",
+        icon: Cpu,
+        description: "Chat models shared with everyone using this repository.",
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+        scope: "repository",
       },
       {
         href: "/commands",
@@ -702,6 +711,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/models"),
+      navItemForHref("/repository-models"),
       navItemForHref("/commands"),
       navItemForHref("/guided-flows"),
       navItemForHref("/views/renderers"),

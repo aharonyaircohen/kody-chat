@@ -12,6 +12,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { openChatSetupSection } from "./support/chat-setup";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "ghp_placeholder";
@@ -81,6 +82,7 @@ async function selectKodyAgent(page: Page): Promise<void> {
 
 test.describe("Kody direct agent", () => {
   test.beforeEach(async ({ page }) => {
+    await mockKodyAccountSession(page);
     await page.route("**/api/kody/chat/conversations**", (route) => {
       const request = route.request();
       const isCollection = new URL(request.url()).pathname.endsWith(
@@ -100,7 +102,7 @@ test.describe("Kody direct agent", () => {
     // one enabled model is configured (one dropdown row per model, named by
     // its label). Mock the model list so the option exists — labelled
     // "Kody …" so the existing /^Kody\b/ option selector still matches.
-    await page.route("**/api/kody/models", (route) =>
+    await page.route("**/api/kody/models*", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -215,10 +217,7 @@ test.describe("Kody direct agent", () => {
       { timeout: 15_000 },
     );
     await expect
-      .poll(
-        () => conversationCommands,
-        { timeout: 10_000 },
-      )
+      .poll(() => conversationCommands, { timeout: 10_000 })
       .toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -242,6 +241,114 @@ test.describe("Kody direct agent", () => {
         }),
       ]),
     );
+  });
+
+  test("self-configuration uses one approval and ends with verified run evidence", async ({
+    page,
+  }) => {
+    let turn = 0;
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      turn += 1;
+      const output =
+        turn === 1
+          ? {
+              action: "render_view",
+              view: "renderer",
+              id: "kody-action.bound-plan.signature",
+              rendererSlug: "approval-card",
+              rendererName: "Approval card",
+              resultTarget: "chat",
+              ui: {
+                type: "stack",
+                children: [
+                  {
+                    type: "text",
+                    value: "Apply daily CI monitoring?",
+                    variant: "title",
+                  },
+                  {
+                    type: "markdown",
+                    value:
+                      "Kody will reuse CI access, add one daily workflow, run it once, and verify the result.",
+                  },
+                  {
+                    type: "row",
+                    children: [
+                      {
+                        type: "button",
+                        label: "Approve",
+                        action: {
+                          id: "approve",
+                          label: "Approve",
+                          response: "approve",
+                          variant: "primary",
+                        },
+                      },
+                      {
+                        type: "button",
+                        label: "Cancel",
+                        action: {
+                          id: "cancel",
+                          label: "Cancel",
+                          response: "cancel",
+                          variant: "secondary",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              data: {},
+            }
+          : {
+              content:
+                "Configuration applied and verified. First run run-ci-1 succeeded: CI is green.",
+            };
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          `data: ${JSON.stringify({
+            type: "tool-input-available",
+            toolCallId: `self-config-${turn}`,
+            toolName: turn === 1 ? "configure_kody" : "final_answer",
+            input: turn === 1 ? { outcome: "Daily CI monitoring" } : output,
+          })}\n\n` +
+          `data: ${JSON.stringify({
+            type: "tool-output-available",
+            toolCallId: `self-config-${turn}`,
+            output,
+          })}\n\n` +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      });
+    });
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    await chat
+      .locator("textarea")
+      .first()
+      .fill("Check this repository's CI every morning and report failures.");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByText("Apply daily CI monitoring?", { exact: true }),
+    ).toBeVisible();
+    await chat.getByRole("button", { name: "Approve" }).click();
+    await expect(
+      chat.getByText(
+        "Configuration applied and verified. First run run-ci-1 succeeded: CI is green.",
+        { exact: true },
+      ),
+    ).toBeVisible({ timeout: 15_000 });
+    expect(turn).toBe(2);
   });
 
   test("shows a clear warning when the selected model cannot use operation tools", async ({

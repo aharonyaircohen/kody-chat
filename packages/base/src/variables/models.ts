@@ -14,6 +14,29 @@ export const VAR_LLM_MODELS = "LLM_MODELS";
 export const VAR_LLM_AUTOMATIC = "LLM_AUTOMATIC";
 export const AUTOMATIC_MODEL_ID = "automatic";
 
+export type ChatModelScope = "personal" | "repo";
+const CHAT_MODEL_SCOPE_SEPARATOR = "::";
+
+export function scopedChatModelId(
+  scope: ChatModelScope,
+  storedId: string,
+): string {
+  return `${scope}${CHAT_MODEL_SCOPE_SEPARATOR}${storedId}`;
+}
+
+export function chatModelScopeFromId(id: string): ChatModelScope | null {
+  if (id.startsWith(`personal${CHAT_MODEL_SCOPE_SEPARATOR}`)) return "personal";
+  if (id.startsWith(`repo${CHAT_MODEL_SCOPE_SEPARATOR}`)) return "repo";
+  return null;
+}
+
+export function storedChatModelId(id: string): string {
+  const scope = chatModelScopeFromId(id);
+  return scope
+    ? id.slice(scope.length + CHAT_MODEL_SCOPE_SEPARATOR.length)
+    : id;
+}
+
 export const AutomaticModelSchema = z.object({
   /** New chats select the ordered enabled-model list by default. */
   default: z.boolean().optional().default(false),

@@ -101,7 +101,7 @@ test("branches from the provider step to xKiro setup", async ({ page }) => {
       route.request().method() === "POST" && isCollection ? 201 : 200,
     );
   });
-  await page.route("**/api/kody/models", (route) =>
+  await page.route("**/api/kody/models*", (route) =>
     json(route, { models: [{ id: "test/model", label: "Test", enabled: true }] }),
   );
   await page.route("**/api/kody/orgs/**/repos", (route) =>

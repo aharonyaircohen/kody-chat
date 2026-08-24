@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   readVariables: vi.fn(),
@@ -53,6 +53,10 @@ function validPayload() {
 }
 
 describe("external client identity", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("accepts only the stable identity from an exact, one-time assertion", async () => {
     const consumeToken = vi.fn().mockResolvedValue(true);
 
@@ -126,6 +130,65 @@ describe("external client identity", () => {
     await expect(
       resolveExternalIdentityConfig(TARGET.owner, TARGET.repo),
     ).rejects.toThrow("HTTPS origin");
+  });
+
+  it("allows matching loopback HTTP identity URLs in local development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    h.readVariables.mockResolvedValue({
+      doc: {
+        variables: {
+          CLIENT_IDENTITY_ISSUER: { value: "http://localhost:3000" },
+          CLIENT_IDENTITY_AUDIENCE: { value: "kody-brand-chat" },
+          CLIENT_IDENTITY_JWKS_URL: {
+            value: "http://localhost:3000/.well-known/jwks.json",
+          },
+        },
+      },
+    });
+
+    await expect(
+      resolveExternalIdentityConfig(TARGET.owner, TARGET.repo),
+    ).resolves.toEqual({
+      issuer: "http://localhost:3000",
+      audience: "kody-brand-chat",
+      jwksUrl: "http://localhost:3000/.well-known/jwks.json",
+    });
+  });
+
+  it("rejects non-loopback HTTP identity URLs in local development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    h.readVariables.mockResolvedValue({
+      doc: {
+        variables: {
+          CLIENT_IDENTITY_ISSUER: { value: "http://identity.example" },
+          CLIENT_IDENTITY_AUDIENCE: { value: "kody-brand-chat" },
+          CLIENT_IDENTITY_JWKS_URL: {
+            value: "http://identity.example/jwks.json",
+          },
+        },
+      },
+    });
+
+    await expect(
+      resolveExternalIdentityConfig(TARGET.owner, TARGET.repo),
+    ).rejects.toThrow("loopback HTTP");
+  });
+
+  it("rejects loopback HTTP identity URLs outside local development", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    h.readVariables.mockResolvedValue({
+      doc: {
+        variables: {
+          CLIENT_IDENTITY_ISSUER: { value: "http://localhost:3000" },
+          CLIENT_IDENTITY_AUDIENCE: { value: "kody-brand-chat" },
+          CLIENT_IDENTITY_JWKS_URL: { value: "http://localhost:3000/jwks.json" },
+        },
+      },
+    });
+
+    await expect(
+      resolveExternalIdentityConfig(TARGET.owner, TARGET.repo),
+    ).rejects.toThrow("local development");
   });
 
   it("verifies a real ES256 assertion against the host public key", async () => {

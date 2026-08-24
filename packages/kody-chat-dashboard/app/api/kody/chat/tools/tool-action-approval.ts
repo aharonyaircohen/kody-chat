@@ -26,7 +26,15 @@ export interface ToolActionApproval {
   input: unknown;
 }
 
-type ExecutableTool = { execute?: (input: unknown) => Promise<unknown> | unknown };
+type ExecutableTool = {
+  execute?: (input: unknown) => Promise<unknown> | unknown;
+};
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 export const APPROVAL_REQUIRED_TOOL_NAMES = new Set([
   "create_feature",
@@ -35,8 +43,11 @@ export const APPROVAL_REQUIRED_TOOL_NAMES = new Set([
   "create_documentation",
   "create_chore",
   "report_bug",
+  "create_or_update_capability",
   "create_kody_agent",
   "create_or_update_workflow",
+  "configure_kody",
+  "guided_flow_create",
 ]);
 
 function signature(encodedPayload: string, secret: string): Buffer {
@@ -44,12 +55,19 @@ function signature(encodedPayload: string, secret: string): Buffer {
 }
 
 function encodePayload(payload: ToolActionPayload, secret: string): string {
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const encodedSignature = signature(encodedPayload, secret).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+    "base64url",
+  );
+  const encodedSignature = signature(encodedPayload, secret).toString(
+    "base64url",
+  );
   return `${TOKEN_PREFIX}.${encodedPayload}.${encodedSignature}`;
 }
 
-function decodePayload(token: string, secret: string): ToolActionPayload | null {
+function decodePayload(
+  token: string,
+  secret: string,
+): ToolActionPayload | null {
   const [prefix, encodedPayload, encodedSignature, extra] = token.split(".");
   if (
     prefix !== TOKEN_PREFIX ||
@@ -188,6 +206,32 @@ export async function runApprovedToolAction(
   };
 }
 
+export function approvedToolActionContent(result: {
+  toolName: string;
+  output: unknown;
+}): string {
+  const output = record(result.output) ?? {};
+  const verification = record(output.verification);
+  if (typeof output.error === "string") {
+    return `Action failed: ${typeof output.message === "string" ? output.message : output.error}`;
+  }
+  if (typeof output.number === "number")
+    return `Created task #${output.number}.`;
+  if (result.toolName === "create_kody_agent") return "Agent created.";
+  if (result.toolName === "create_or_update_workflow") return "Workflow saved.";
+  if (result.toolName === "guided_flow_create") return "GuidedFlow saved.";
+  if (result.toolName === "configure_kody" && verification) {
+    const status = String(verification.status ?? "unverified");
+    const runId = String(verification.runId ?? "").trim();
+    const summary =
+      typeof verification.summary === "string" ? verification.summary : null;
+    return status === "success"
+      ? `Configuration applied and verified.${runId ? ` First run ${runId} succeeded` : ""}${summary ? `: ${summary}` : "."}`
+      : `Configuration saved, but the first run is ${status}${summary ? `: ${summary}` : "."}`;
+  }
+  return "Approved action completed.";
+}
+
 function actionTitle(toolName: string, input: unknown): string {
   const record =
     input && typeof input === "object" && !Array.isArray(input)
@@ -202,9 +246,13 @@ function actionTitle(toolName: string, input: unknown): string {
           ? record.slug
           : typeof record.workflowId === "string"
             ? record.workflowId
-            : "this action";
+            : typeof record.outcome === "string"
+              ? record.outcome
+              : "this action";
   if (toolName === "create_kody_agent") return `Create Agent ${name}?`;
+  if (toolName === "configure_kody") return `Apply ${name}?`;
   if (toolName === "create_or_update_workflow") return `Save Workflow ${name}?`;
+  if (toolName === "guided_flow_create") return `Save GuidedFlow ${name}?`;
   return `Create task ${name}?`;
 }
 
@@ -283,16 +331,10 @@ export function createApprovedToolActionResponse(
         !Array.isArray(result.output)
           ? (result.output as Record<string, unknown>)
           : {};
-      const content =
-        typeof record.error === "string"
-          ? `Action failed: ${typeof record.message === "string" ? record.message : record.error}`
-          : typeof record.number === "number"
-            ? `Created task #${record.number}.`
-            : result.toolName === "create_kody_agent"
-              ? "Agent created."
-              : result.toolName === "create_or_update_workflow"
-                ? "Workflow saved."
-                : "Approved action completed.";
+      const content = approvedToolActionContent({
+        toolName: result.toolName,
+        output: record,
+      });
       writer.write({
         type: "tool-input-available",
         toolCallId: `${toolCallId}-answer`,

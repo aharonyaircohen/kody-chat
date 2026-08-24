@@ -71,6 +71,7 @@ describe("repository navigation visibility", () => {
     ).toContain("/guided-flows");
     expect(repositoryItems.map((item) => item.label)).toEqual(
       expect.arrayContaining([
+        "Repo Chat Models",
         "Repo Commands",
         "Repo Guided Flows",
         "Repo Secrets",

@@ -15,6 +15,7 @@ const ROUTE_FOR: Record<string, string> = {
   brain: "app/(chat-rail)/brain/page.tsx",
   "guided-flows": "app/(chat-rail)/guided-flows/page.tsx",
   models: "app/(chat-rail)/models/page.tsx",
+  "repository-models": "app/(chat-rail)/repository-models/page.tsx",
   secrets: "app/(chat-rail)/secrets/page.tsx",
   brands: "app/(chat-rail)/brands/page.tsx",
   "brand-detail": "app/(chat-rail)/brands/[slug]/page.tsx",
@@ -66,9 +67,10 @@ describe("shared pages route coverage", () => {
 
   it("every dash-owned override route exists", () => {
     for (const route of Object.values(DASH_OWNED_OVERRIDES)) {
-      expect(existsSync(join(process.cwd(), route)), `${route} is missing`).toBe(
-        true,
-      );
+      expect(
+        existsSync(join(process.cwd(), route)),
+        `${route} is missing`,
+      ).toBe(true);
     }
   });
 

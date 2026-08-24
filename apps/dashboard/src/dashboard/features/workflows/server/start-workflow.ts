@@ -15,6 +15,9 @@ export interface WorkflowExecutionDependencies {
     workflowId: string,
   ): Promise<{ workflow: WorkflowDefinition } | null>;
   validateDefinition(workflow: WorkflowDefinition): WorkflowValidationIssue[];
+  validateResolvedCapabilities?(
+    workflow: WorkflowDefinition,
+  ): Promise<WorkflowValidationIssue[]>;
   validateInput(
     schema: WorkflowDefinition["inputSchema"],
     input: Record<string, unknown>,
@@ -65,6 +68,9 @@ export async function startWorkflow(
 
   const issues = [
     ...dependencies.validateDefinition(loaded.workflow),
+    ...(dependencies.validateResolvedCapabilities
+      ? await dependencies.validateResolvedCapabilities(loaded.workflow)
+      : []),
     ...(command.resume
       ? []
       : dependencies.validateInput(
