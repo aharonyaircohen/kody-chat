@@ -68,6 +68,9 @@ export function navigationForStep(
         )
       : undefined;
   if (step.type === "command" && !commandResult) return undefined;
+  if (step.type === "command" && commandResult?.status === "needs_attention") {
+    return undefined;
+  }
   const resolved = resolveDashboardNavigationTarget({
     routeId: step.routeId,
     parameters: step.routeParameters,

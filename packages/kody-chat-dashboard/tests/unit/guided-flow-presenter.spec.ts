@@ -325,7 +325,7 @@ describe("GuidedFlow presenter navigation", () => {
     expect(presentGuidedFlow(DEFINITION, started).navigation).toBeUndefined();
   });
 
-  it("opens a workflow command page only after the command has started", () => {
+  it("opens a workflow command page only after approval starts the run", () => {
     const definition: GuidedFlowDefinition = {
       id: "workflow-navigation",
       version: 1,
@@ -346,14 +346,28 @@ describe("GuidedFlow presenter navigation", () => {
 
     expect(presentGuidedFlow(definition, started).navigation).toBeUndefined();
 
-    const executed = advanceGuidedFlow(definition, started, {
+    const awaitingApproval = advanceGuidedFlow(definition, started, {
       actionId: "run",
       result: {
         status: "needs_attention",
         workflowId: "extract-pdf-exercises",
+        approvalChallenge: "challenge",
       },
     });
-    expect(presentGuidedFlow(definition, executed).navigation).toMatchObject({
+
+    expect(
+      presentGuidedFlow(definition, awaitingApproval).navigation,
+    ).toBeUndefined();
+
+    const running = advanceGuidedFlow(definition, awaitingApproval, {
+      actionId: "run",
+      result: {
+        status: "running",
+        workflowId: "extract-pdf-exercises",
+        runId: "run-1",
+      },
+    });
+    expect(presentGuidedFlow(definition, running).navigation).toMatchObject({
       routeId: "workflows",
       href: "/workflows/extract-pdf-exercises",
     });
