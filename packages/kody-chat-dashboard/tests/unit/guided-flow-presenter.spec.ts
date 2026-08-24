@@ -152,6 +152,45 @@ describe("GuidedFlow presenter navigation", () => {
       title: "Run workflow",
       steps: [
         {
+          id: "course",
+          title: "Course",
+          explanation: "Choose a course.",
+          rendererSlug: "selection-list",
+          actions: [
+            { id: "continue", target: { type: "step", stepId: "chapter" } },
+          ],
+        },
+        {
+          id: "chapter",
+          title: "Chapter",
+          explanation: "Choose a chapter.",
+          rendererSlug: "selection-list",
+          actions: [
+            { id: "continue", target: { type: "step", stepId: "lesson" } },
+          ],
+        },
+        {
+          id: "lesson",
+          title: "Lesson",
+          explanation: "Name the lesson.",
+          rendererSlug: "guided-form",
+          actions: [
+            { id: "continue", target: { type: "step", stepId: "pdf" } },
+          ],
+        },
+        {
+          id: "pdf",
+          title: "PDF",
+          explanation: "Choose a PDF.",
+          rendererSlug: "guided-form",
+          actions: [
+            {
+              id: "continue",
+              target: { type: "step", stepId: "run-workflow" },
+            },
+          ],
+        },
+        {
           id: "run-workflow",
           type: "command",
           title: "Run operation",
@@ -168,15 +207,36 @@ describe("GuidedFlow presenter navigation", () => {
       definition,
       {
         ...createGuidedFlowInstance(definition, "instance-approval"),
+        currentStepId: "run-workflow",
         data: {
-          courseId: "course-1",
-          courseIdLabel: "Five units",
           chapterId: "chapter-1",
           chapterIdLabel: "Algebra",
+          courseId: "course-1",
+          courseIdLabel: "Five units",
           lessonName: "Linear equations",
           pdfPath: "materials/lesson.pdf",
           pdfPathName: "lesson.pdf",
           apiToken: "must-not-be-rendered",
+          stepResults: {
+            "workflow-approval@1/course": {
+              result: { courseId: "course-1", courseIdLabel: "Five units" },
+            },
+            "workflow-approval@1/chapter": {
+              result: { chapterId: "chapter-1", chapterIdLabel: "Algebra" },
+            },
+            "workflow-approval@1/lesson": {
+              result: {
+                lessonName: "Linear equations",
+                apiToken: "must-not-be-rendered",
+              },
+            },
+            "workflow-approval@1/pdf": {
+              result: {
+                pdfPath: "materials/lesson.pdf",
+                pdfPathName: "lesson.pdf",
+              },
+            },
+          },
         },
       },
       {

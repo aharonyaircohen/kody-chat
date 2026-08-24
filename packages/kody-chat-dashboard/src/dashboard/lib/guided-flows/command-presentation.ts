@@ -82,6 +82,37 @@ function reviewItems(
   });
 }
 
+function collectedStepData(
+  definition: GuidedFlowDefinition,
+  instance: GuidedFlowInstance,
+  currentStepId: string,
+): Readonly<Record<string, unknown>> {
+  const recordedResults = instance.data.stepResults;
+  if (
+    !recordedResults ||
+    typeof recordedResults !== "object" ||
+    Array.isArray(recordedResults)
+  ) {
+    return instance.data;
+  }
+
+  const collected: Record<string, unknown> = {};
+  for (const collectedStep of definition.steps) {
+    if (collectedStep.id === currentStepId) break;
+    const recorded = (recordedResults as Readonly<Record<string, unknown>>)[
+      `${definition.id}@${definition.version}/${collectedStep.id}`
+    ];
+    if (!recorded || typeof recorded !== "object" || Array.isArray(recorded)) {
+      continue;
+    }
+    const result = (recorded as { readonly result?: unknown }).result;
+    if (!result || typeof result !== "object" || Array.isArray(result))
+      continue;
+    Object.assign(collected, result);
+  }
+  return Object.keys(collected).length > 0 ? collected : instance.data;
+}
+
 export function buildGuidedFlowCommandView(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
@@ -93,7 +124,7 @@ export function buildGuidedFlowCommandView(
   const completed = result?.status === "completed";
   const running = result?.status === "running";
   const needsAttention = result?.status === "needs_attention";
-  const review = reviewItems(instance.data);
+  const review = reviewItems(collectedStepData(definition, instance, step.id));
   const hasApprovalChallenge =
     needsAttention && typeof result?.approvalChallenge === "string";
   const view = buildRenderedViewDirective({
