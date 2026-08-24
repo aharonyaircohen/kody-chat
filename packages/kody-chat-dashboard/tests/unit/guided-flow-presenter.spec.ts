@@ -166,7 +166,19 @@ describe("GuidedFlow presenter navigation", () => {
     };
     const warning = advanceGuidedFlow(
       definition,
-      createGuidedFlowInstance(definition, "instance-approval"),
+      {
+        ...createGuidedFlowInstance(definition, "instance-approval"),
+        data: {
+          courseId: "course-1",
+          courseIdLabel: "Five units",
+          chapterId: "chapter-1",
+          chapterIdLabel: "Algebra",
+          lessonName: "Linear equations",
+          pdfPath: "materials/lesson.pdf",
+          pdfPathName: "lesson.pdf",
+          apiToken: "must-not-be-rendered",
+        },
+      },
       {
         actionId: "run",
         result: {
@@ -179,6 +191,13 @@ describe("GuidedFlow presenter navigation", () => {
 
     expect(presentGuidedFlow(definition, warning).view).toMatchObject({
       data: {
+        reviewTitle: "Review before running",
+        review: [
+          { label: "Course", value: "Five units" },
+          { label: "Chapter", value: "Algebra" },
+          { label: "Lesson name", value: "Linear equations" },
+          { label: "PDF", value: "lesson.pdf" },
+        ],
         actions: [
           { id: "approve", label: "Approve and run" },
           { id: "run", label: "Run again" },

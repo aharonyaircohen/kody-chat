@@ -20,6 +20,15 @@ const BUILTIN_SOURCES: readonly string[] = [
       title: { type: "text", description: "Step heading." },
       body: { type: "markdown", description: "Step instructions." },
       command: { type: "text", description: "Raw slash command." },
+      reviewTitle: {
+        type: "text",
+        optional: true,
+        description: "Heading shown above values collected by the guide.",
+      },
+      review: {
+        type: "json",
+        description: "User-visible values collected before the command runs.",
+      },
       status: { type: "text", description: "Execution status." },
       summary: { type: "text", description: "Execution result." },
       actions: { type: "actions", description: "Run and continue actions." },
@@ -31,6 +40,19 @@ const BUILTIN_SOURCES: readonly string[] = [
         { type: "text", variant: "title", value: "$title" },
         { type: "markdown", value: "$body" },
         { type: "text", variant: "label", value: "$command" },
+        { type: "text", variant: "label", value: "$reviewTitle" },
+        {
+          type: "list",
+          for: "$review",
+          as: "item",
+          item: {
+            type: "row",
+            children: [
+              { type: "text", variant: "label", value: "$item.label" },
+              { type: "text", value: "$item.value" },
+            ],
+          },
+        },
         { type: "text", value: "$summary" },
         {
           type: "row",
