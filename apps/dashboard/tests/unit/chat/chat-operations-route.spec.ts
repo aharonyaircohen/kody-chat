@@ -292,6 +292,7 @@ describe("Chat operations route", () => {
     await expect(response.json()).resolves.toMatchObject({
       result: {
         status: "needs_attention",
+        workflowId: "custom-workflow",
         approvalChallenge: "signed-challenge",
         workflowInput: { resourceId: "resource-1", assetPath: "input.bin" },
       },

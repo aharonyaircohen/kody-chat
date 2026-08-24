@@ -246,6 +246,40 @@ describe("GuidedFlow presenter navigation", () => {
     expect(presentGuidedFlow(DEFINITION, started).navigation).toBeUndefined();
   });
 
+  it("opens a workflow command page only after the command has started", () => {
+    const definition: GuidedFlowDefinition = {
+      id: "workflow-navigation",
+      version: 1,
+      title: "Run workflow",
+      steps: [
+        {
+          id: "run-workflow",
+          type: "command",
+          title: "Run workflow",
+          explanation: "Start the workflow.",
+          command: "/run-workflow extract-pdf-exercises",
+          routeId: "workflows",
+          actions: [{ id: "run", target: { type: "stay" } }],
+        },
+      ],
+    };
+    const started = createGuidedFlowInstance(definition, "instance-1");
+
+    expect(presentGuidedFlow(definition, started).navigation).toBeUndefined();
+
+    const executed = advanceGuidedFlow(definition, started, {
+      actionId: "run",
+      result: {
+        status: "needs_attention",
+        workflowId: "extract-pdf-exercises",
+      },
+    });
+    expect(presentGuidedFlow(definition, executed).navigation).toMatchObject({
+      routeId: "workflows",
+      href: "/workflows/extract-pdf-exercises",
+    });
+  });
+
   it("keeps the user in place after completing UI login setup", () => {
     const definition = getGuidedFlowDefinition("setup-ui-login");
     expect(definition).not.toBeNull();

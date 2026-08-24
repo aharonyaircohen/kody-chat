@@ -197,6 +197,7 @@ async function runWorkflowFromGuidedFlow(
     return {
       status: "needs_attention" as const,
       summary: "The workflow is ready. Approve it to start generating drafts.",
+      workflowId,
       approvalChallenge: payload.approvalToken,
       workflowInput: input,
       ...(typeof payload.approvalExpiresAt === "string"
