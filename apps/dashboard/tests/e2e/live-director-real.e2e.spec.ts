@@ -125,7 +125,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
         slug: agentSlug,
         title: "Director E2E",
         capabilities: ["director-ci-monitor"],
-        body: `# Director\n\nManage repository health from evidence. Ignore Reports at or before ${baseline}. First read the newest ${REPORT_SLUG} Report after the last handled time. If it is unhealthy, reconcile the ${TODO_SLUG} Todo as open; if healthy, reconcile that same Todo as resolved. Store the Report time in continuation state. When no unseen Report exists and no check is pending, start director-ci-monitor and record that it is pending. When a check is pending, wait for its Report. Never create another Todo for this CI problem.`,
+        body: `# Director\n\nManage repository health from evidence. Ignore Reports at or before ${baseline}. First read the newest ${REPORT_SLUG} Report after the last handled time. When an unseen Report arrives, handle it and clear the pending check in continuation state. The stable work key for this problem is repo-ci-main: the ${TODO_SLUG} Todo must contain exactly one item with id repo-ci-main, and every later decision must update that exact item rather than append another item. If the Report is unhealthy, reconcile that item as open; if healthy, reconcile that same item as resolved. When no unseen Report exists and no check is pending, start director-ci-monitor and record that it is pending. When a check is pending, wait for its Report. Perform every required Todo update and Capability start before calling submit_state. Call submit_state last, storing the handled Report time and current pending-check status.`,
         actorLogin: user.login,
       },
     });
