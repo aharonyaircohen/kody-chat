@@ -73,6 +73,23 @@ describe("POST /api/kody/engine/backend", () => {
     expect(backend.mutation).not.toHaveBeenCalled();
   });
 
+  it("allows the live Agent to read repository Reports", async () => {
+    backend.query.mockResolvedValue([{ slug: "director-repo-ci" }]);
+
+    const response = await POST(
+      request({
+        kind: "query",
+        operation: "reports.list",
+        args: { tenantId: "attacker/repo" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+    });
+  });
+
   it("allows the Engine to renew an active Loop reservation", async () => {
     backend.mutation.mockResolvedValue(undefined);
 

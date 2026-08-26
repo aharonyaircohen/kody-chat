@@ -73,6 +73,7 @@ const operations = {
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },
+  "reports.list": { kind: "query", fn: backendApi.reports.list },
   "definitions.listCurrent": {
     kind: "query",
     fn: backendApi.definitions.listCurrent,
