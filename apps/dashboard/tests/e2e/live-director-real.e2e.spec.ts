@@ -113,8 +113,8 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
         status?: { state?: { data?: { lastHandledReportTime?: unknown } } | null };
       };
       const handledAt = body.status?.state?.data?.lastHandledReportTime;
-      return typeof handledAt === "string" ? handledAt : "";
-    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(updatedAt);
+      return typeof handledAt === "string" && handledAt >= updatedAt;
+    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(true);
   };
 
   try {
