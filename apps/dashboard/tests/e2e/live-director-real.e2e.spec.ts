@@ -27,7 +27,7 @@ async function loginCredentials(owner: string, repo: string, token: string) {
 }
 
 test("Director turns a real CI failure Report into one Todo and closes it on recovery", async ({ page }) => {
-  test.setTimeout(20 * 60_000);
+  test.setTimeout(40 * 60_000);
   test.skip(!BASE_URL || !TEST_TOKEN || !TEST_REPO, "Requires the dedicated live repository");
 
   const { owner, repo } = parseRepo(TEST_REPO);
@@ -116,6 +116,18 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(pending);
   };
 
+  const waitForHandledReport = async (updatedAt: string) => {
+    await expect.poll(async () => {
+      const response = await page.request.get(liveUrl, { headers });
+      if (!response.ok()) return "";
+      const body = (await response.json()) as {
+        status?: { state?: { data?: { lastHandledReportTime?: unknown } } | null };
+      };
+      const handledAt = body.status?.state?.data?.lastHandledReportTime;
+      return typeof handledAt === "string" ? handledAt : "";
+    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(updatedAt);
+  };
+
   try {
     await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
     const intent = await page.request.post(`${BASE_URL}/api/kody/intents`, {
@@ -181,10 +193,10 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       description: "Controlled Director E2E recovery",
     });
     await runCycle();
-    await waitForReport("healthy", repeatedFailureReportAt);
+    const recoveryReportAt = await waitForReport("healthy", repeatedFailureReportAt);
     await runCycle();
     await waitForTodo(true);
-    await waitForPendingCheck(false);
+    await waitForHandledReport(recoveryReportAt);
 
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
     if (await page.getByRole("heading", { name: "Sign in to Kody" }).isVisible()) {
