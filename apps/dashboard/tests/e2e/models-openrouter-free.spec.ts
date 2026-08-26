@@ -220,8 +220,8 @@ test("configures the built-in OpenRouter Free model for personal Chat", async ({
     has: page.getByText("Ox Alpha", { exact: true }),
   });
   await expect(oxAlphaRow).toBeVisible();
-  await expect(oxAlphaRow).toContainText("Public");
-  await expect(oxAlphaRow).toContainText("Custom endpoint · x-preview-f-free");
+  await expect(oxAlphaRow).toContainText("Built in");
+  await expect(oxAlphaRow).toContainText("Custom endpoint · ox-alpha");
   await oxAlphaRow
     .getByRole("button", { name: "More actions for Ox Alpha" })
     .click();

@@ -27,6 +27,15 @@ export interface KodyConfig {
    * (e.g. `{ "research": "anthropic/claude-opus-4-7" }`). */
   agent?: {
     model?: string;
+    /** Runtime endpoint and credential mapping for a fixed selected model. */
+    modelConfig?: {
+      spec: string;
+      provider: string;
+      protocol: string;
+      baseURL?: string;
+      modelName: string;
+      apiKeyEnvVar: string;
+    };
     /** Ordered non-secret model metadata used when `model` is `automatic`. */
     automaticModels?: Array<{
       spec: string;
@@ -403,6 +412,7 @@ export async function writeEngineModelSelection(
   repo: string,
   selection: {
     modelSpec: string | null;
+    modelConfig?: KodyAutomaticModel;
     automaticModels?: KodyAutomaticModel[];
   },
   commitMessage?: string,
@@ -421,6 +431,11 @@ export async function writeEngineModelSelection(
       const agent: Record<string, unknown> = selection.modelSpec
         ? { ...prevAgent, model: selection.modelSpec }
         : { ...prevAgent };
+      if (selection.modelConfig !== undefined) {
+        agent.modelConfig = selection.modelConfig;
+      } else if (selection.modelSpec) {
+        delete agent.modelConfig;
+      }
       if (selection.automaticModels !== undefined) {
         if (selection.automaticModels.length > 0) {
           agent.automaticModels = selection.automaticModels;

@@ -218,29 +218,29 @@ describe("resolveChatModel", () => {
     );
   });
 
-  it("uses built-in public access for Ox Alpha without reading a saved secret", async () => {
-    vi.mocked(getSecret).mockResolvedValue(null);
+  it("requires the configured Ox Alpha API key", async () => {
+    vi.mocked(getSecret).mockResolvedValue("ox-alpha-key");
 
-    const result = await resolveChatModel(
-      request(),
-      "opencode/x-preview-f-free",
-    );
+    const result = await resolveChatModel(request(), "openai/ox-alpha");
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
     expect(result.resolvedModel).toMatchObject({
-      id: "opencode/x-preview-f-free",
+      id: "openai/ox-alpha",
       label: "Ox Alpha",
       provider: "custom",
-      modelName: "x-preview-f-free",
+      modelName: "ox-alpha",
     });
-    expect(result.apiKey).toBe("public");
-    expect(getSecret).not.toHaveBeenCalled();
+    expect(result.apiKey).toBe("ox-alpha-key");
+    expect(getSecret).toHaveBeenCalledWith("OXALPHA_API_KEY", {
+      req: expect.any(NextRequest),
+      vaultOnly: true,
+    });
     expect(createOpenAICompatible).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "custom",
-        apiKey: "public",
-        baseURL: "https://opencode.ai/zen/v1",
+        apiKey: "ox-alpha-key",
+        baseURL: "https://oxalpha.run/api/v1",
       }),
     );
   });

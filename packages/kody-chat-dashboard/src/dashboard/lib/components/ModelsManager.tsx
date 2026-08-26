@@ -66,7 +66,6 @@ import {
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
-  builtInPublicModelCredential,
   composeChatModelCatalog,
 } from "../chat/model-catalog";
 import { TerminalSessionInputSchema } from "@kody-ade/terminal/terminal-session-model";
@@ -749,13 +748,9 @@ export function ModelsManager({
                         <span className="font-medium text-sm text-white/90 truncate">
                           {m.label || m.modelName || m.id}
                         </span>
-                        {builtInPublicModelCredential(m) ? (
-                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
-                            Public
-                          </span>
-                        ) : KODY_BUILT_IN_CHAT_MODELS.some(
-                            (builtIn) => builtIn.id === m.id,
-                          ) ? (
+                        {KODY_BUILT_IN_CHAT_MODELS.some(
+                          (builtIn) => builtIn.id === m.id,
+                        ) ? (
                           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/50">
                             Built in
                           </span>
@@ -942,17 +937,13 @@ export function ModelsManager({
                             ? "Enable model"
                             : "Disable model"}
                         </DropdownMenuItem>
-                        {!builtInPublicModelCredential(m) && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setEditing({ mode: "edit", idx })}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </DropdownMenuItem>
-                          </>
-                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setEditing({ mode: "edit", idx })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </DropdownMenuItem>
                         {!KODY_BUILT_IN_CHAT_MODELS.some(
                           (builtIn) => builtIn.id === m.id,
                         ) && (

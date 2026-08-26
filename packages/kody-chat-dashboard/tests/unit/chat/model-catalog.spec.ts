@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatModel } from "@kody-ade/base/variables/models";
 import {
-  KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
+  KODY_OX_ALPHA_CHAT_MODEL,
   KODY_XKIRO_FREE_CHAT_MODEL,
   KODY_OPENROUTER_FREE_CHAT_MODEL,
-  builtInPublicModelCredential,
   composeChatModelCatalog,
 } from "../../../src/dashboard/lib/chat/model-catalog";
 
@@ -45,33 +44,21 @@ describe("Kody Chat model catalog", () => {
     });
   });
 
-  it("defines Ox Alpha as a public built-in model", () => {
-    expect(KODY_OX_ALPHA_PUBLIC_CHAT_MODEL).toMatchObject({
-      id: "opencode/x-preview-f-free",
+  it("defines the keyed Ox Alpha configuration", () => {
+    expect(KODY_OX_ALPHA_CHAT_MODEL).toMatchObject({
+      id: "openai/ox-alpha",
       label: "Ox Alpha",
       provider: "custom",
       adapter: "openai-compatible",
-      adapterBaseURL: "https://opencode.ai/zen/v1",
+      adapterBaseURL: "https://oxalpha.run/api/v1",
       protocol: "openai",
-      baseURL: "https://opencode.ai/zen/v1",
-      modelName: "x-preview-f-free",
+      baseURL: "https://oxalpha.run/api/v1",
+      modelName: "ox-alpha",
+      apiKeySecret: "OXALPHA_API_KEY",
       enabled: true,
       default: false,
       engineDefault: false,
     });
-    expect(builtInPublicModelCredential(KODY_OX_ALPHA_PUBLIC_CHAT_MODEL)).toBe(
-      "public",
-    );
-  });
-
-  it("does not grant the built-in public credential to an overridden endpoint", () => {
-    expect(
-      builtInPublicModelCredential({
-        ...KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
-        adapterBaseURL: "https://example.test/v1",
-        baseURL: "https://example.test/v1",
-      }),
-    ).toBeNull();
   });
 
   it("composes every built-in model without overwriting configured models", () => {
@@ -80,14 +67,14 @@ describe("Kody Chat model catalog", () => {
       [
         KODY_OPENROUTER_FREE_CHAT_MODEL,
         KODY_XKIRO_FREE_CHAT_MODEL,
-        KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
+        KODY_OX_ALPHA_CHAT_MODEL,
       ],
     );
 
     expect(catalog.map((model) => model.id)).toEqual([
       "openrouter/free",
       "xkiro/deepseek/deepseek-v4-flash",
-      "opencode/x-preview-f-free",
+      "openai/ox-alpha",
       "minimax/MiniMax-M3",
     ]);
     expect(catalog[0]).toMatchObject({ default: true });

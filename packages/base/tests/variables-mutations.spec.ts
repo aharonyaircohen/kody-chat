@@ -77,6 +77,14 @@ describe("shared variable mutations", () => {
       "app",
       {
         modelSpec: "openrouter/free",
+        modelConfig: {
+          spec: "openrouter/free",
+          provider: "openrouter",
+          protocol: "openai",
+          baseURL: "https://openrouter.ai/api/v1",
+          modelName: "openrouter/free",
+          apiKeyEnvVar: "OPENROUTER_API_KEY",
+        },
         automaticModels: [],
       },
     );

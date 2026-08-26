@@ -34,52 +34,25 @@ export const KODY_XKIRO_FREE_CHAT_MODEL = Object.freeze({
   engineDefault: false,
 } as const satisfies ChatModel);
 
-export const KODY_OX_ALPHA_PUBLIC_CHAT_MODEL = Object.freeze({
-  id: "opencode/x-preview-f-free",
+export const KODY_OX_ALPHA_CHAT_MODEL = Object.freeze({
+  id: "openai/ox-alpha",
   label: "Ox Alpha",
   provider: "custom",
   adapter: "openai-compatible",
-  adapterBaseURL: "https://opencode.ai/zen/v1",
+  adapterBaseURL: "https://oxalpha.run/api/v1",
   protocol: "openai",
-  baseURL: "https://opencode.ai/zen/v1",
-  modelName: "x-preview-f-free",
-  apiKeySecret: "KODY_MANAGED_PUBLIC_ACCESS",
+  baseURL: "https://oxalpha.run/api/v1",
+  modelName: "ox-alpha",
+  apiKeySecret: "OXALPHA_API_KEY",
   enabled: true,
   default: false,
   engineDefault: false,
 } as const satisfies ChatModel);
 
-export function builtInPublicModelCredential(
-  model: Pick<
-    ChatModel,
-    | "id"
-    | "provider"
-    | "adapter"
-    | "adapterBaseURL"
-    | "baseURL"
-    | "modelName"
-    | "apiKeySecret"
-  >,
-): string | null {
-  const builtIn = KODY_OX_ALPHA_PUBLIC_CHAT_MODEL;
-  if (
-    model.id !== builtIn.id ||
-    model.provider !== builtIn.provider ||
-    model.adapter !== builtIn.adapter ||
-    model.adapterBaseURL !== builtIn.adapterBaseURL ||
-    model.baseURL !== builtIn.baseURL ||
-    model.modelName !== builtIn.modelName ||
-    model.apiKeySecret !== builtIn.apiKeySecret
-  ) {
-    return null;
-  }
-  return "public";
-}
-
 export const KODY_BUILT_IN_CHAT_MODELS = Object.freeze([
   KODY_OPENROUTER_FREE_CHAT_MODEL,
   KODY_XKIRO_FREE_CHAT_MODEL,
-  KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
+  KODY_OX_ALPHA_CHAT_MODEL,
 ]);
 
 export function isBuiltInChatModelId(id: string): boolean {

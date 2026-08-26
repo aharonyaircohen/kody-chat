@@ -24,7 +24,6 @@ import {
 } from "@kody-ade/base/variables/load-chat-models";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
-  builtInPublicModelCredential,
   composeChatModelCatalog,
 } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
@@ -54,8 +53,6 @@ async function resolveModelCredential(
   model: ChatModel,
   personalProvider: ChatModelSettingsProvider | null,
 ): Promise<string | null> {
-  const publicCredential = builtInPublicModelCredential(model);
-  if (publicCredential) return publicCredential;
   const name = model.apiKeySecret;
   if (getRequestAuth(req)) {
     const repositoryValue = await getSecret(name, { req, vaultOnly: true });

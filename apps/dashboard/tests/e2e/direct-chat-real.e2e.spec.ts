@@ -7,7 +7,6 @@ import {
 } from "./live-test";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
-  KODY_OX_ALPHA_PUBLIC_CHAT_MODEL,
 } from "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/model-catalog";
 
 const BASE_URL = process.env.BASE_URL ?? "";
@@ -138,8 +137,7 @@ test.describe("Direct Kody chat — real model and persistence", () => {
       (model) =>
         model.enabled !== false &&
         (!requestedModelId || model.id === requestedModelId) &&
-        (configuredSecrets.has(model.apiKeySecret) ||
-          model.id === KODY_OX_ALPHA_PUBLIC_CHAT_MODEL.id),
+        configuredSecrets.has(model.apiKeySecret),
     );
     expect(
       configuredModel,

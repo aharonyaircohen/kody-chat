@@ -38,7 +38,8 @@ across three pages by concern — /config owns the repo-wide behavior fields:
 | `access.allowedAssociations`                        | GitHub author associations allowed to trigger `@kody` (OWNER/MEMBER/…). Empty = engine default (team only).                     | **/config** → Access gate      |
 | `git.defaultBranch`                                 | Base branch new work branches off and targets. Blank = engine default (`main`).                                                 | **/config** → Default branch   |
 | `aliases`                                           | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                             | **/config** → Comment aliases  |
-| `agent.model`                                       | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                          | /models (synced on save)       |
+| `agent.model`                                       | The `provider/model` selection the engine runs.                                                                                  | /models (synced on save)       |
+| `agent.modelConfig`                                 | Non-secret endpoint and credential-name metadata for a fixed custom model.                                                      | /models (synced on save)       |
 | `agent.perImplementation`                           | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                     | /models                        |
 | `defaultImplementation` / `defaultPrImplementation` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).             | /config                        |
 | `company.activeWorkflows`                           | Store workflow slugs linked into this repo. Removing a Store workflow clears this link, not the Store asset.                    | /workflows and /store-catalog  |
@@ -113,8 +114,9 @@ change.
 
 ## The model is special — `agent.model`, not `model`
 
-The engine reads **`agent.model`** (`parseProviderModel(cfg.agent.model)`) and
-nothing else for its model. There is **no `model.default` and no top-level
+The engine selects with **`agent.model`** and uses `agent.modelConfig` only for
+the selected model's non-secret runtime details, such as a custom endpoint and
+vault key name. There is **no `model.default` and no top-level
 `model` field** — `mutateConfig` actively deletes any top-level `model` key on
 every write, because the engine never read it. Do not reintroduce it.
 

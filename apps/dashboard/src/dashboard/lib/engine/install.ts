@@ -34,6 +34,7 @@ import {
   AutomaticModelSchema,
   AUTOMATIC_MODEL_ID,
   engineAutomaticModelConfigs,
+  engineRuntimeModelConfig,
   pickEngineDefaultModel,
   engineModelSpec,
   VAR_LLM_MODELS,
@@ -328,6 +329,10 @@ export async function installEngine(
           : existingModel
             ? null
             : engineModelSpec(KODY_OPENROUTER_FREE_CHAT_MODEL),
+      modelConfig:
+        !automatic.engineDefault && engineModel
+          ? engineRuntimeModelConfig(engineModel)
+          : undefined,
       automaticModels: engineAutomaticModelConfigs(models),
     });
 

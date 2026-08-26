@@ -5,6 +5,7 @@ import {
   AUTOMATIC_MODEL_ID,
   AutomaticModelSchema,
   engineAutomaticModelConfigs,
+  engineRuntimeModelConfig,
   engineModelSpec,
   pickEngineDefaultModel,
   ChatModelsSchema,
@@ -215,6 +216,10 @@ export async function saveManagedChatModels(input: {
       : null;
   if (!modelSpec) return { models };
   const automaticModels = engineAutomaticModelConfigs(models);
+  const modelConfig =
+    !automatic.engineDefault && engineModel
+      ? engineRuntimeModelConfig(engineModel)
+      : undefined;
   try {
     const { config } = await getEngineConfig(
       input.octokit,
@@ -224,11 +229,14 @@ export async function saveManagedChatModels(input: {
     );
     if (
       config.agent?.model !== modelSpec ||
+      JSON.stringify(config.agent?.modelConfig ?? null) !==
+        JSON.stringify(modelConfig ?? null) ||
       JSON.stringify(config.agent?.automaticModels ?? []) !==
         JSON.stringify(automaticModels)
     ) {
       await writeEngineModelSelection(input.octokit, input.owner, input.repo, {
         modelSpec,
+        modelConfig,
         automaticModels,
       });
     }
