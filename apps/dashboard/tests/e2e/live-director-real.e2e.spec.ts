@@ -105,6 +105,17 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed });
   };
 
+  const waitForPendingCheck = async (pending: boolean) => {
+    await expect.poll(async () => {
+      const response = await page.request.get(liveUrl, { headers });
+      if (!response.ok()) return null;
+      const body = (await response.json()) as {
+        status?: { state?: { data?: { pendingCheck?: unknown } } | null };
+      };
+      return body.status?.state?.data?.pendingCheck != null;
+    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(pending);
+  };
+
   try {
     await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
     const intent = await page.request.post(`${BASE_URL}/api/kody/intents`, {
@@ -125,7 +136,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
         slug: agentSlug,
         title: "Director E2E",
         capabilities: ["director-ci-monitor"],
-        body: `# Director\n\nManage repository health from evidence. Ignore Reports at or before ${baseline}. First read the newest ${REPORT_SLUG} Report after the last handled time. When an unseen Report arrives, handle it and clear the pending check in continuation state. The stable work key for this problem is repo-ci-main: the ${TODO_SLUG} Todo must contain exactly one item with id repo-ci-main, and every later decision must update that exact item rather than append another item. If the Report is unhealthy, reconcile that item as open; if healthy, reconcile that same item as resolved. When no unseen Report exists and no check is pending, start director-ci-monitor and record that it is pending. When a check is pending, wait for its Report. Perform every required Todo update and Capability start before calling submit_state. Call submit_state last, storing the handled Report time and current pending-check status.`,
+        body: `# Director\n\nManage repository health from evidence. Ignore Reports at or before ${baseline}. First read the newest ${REPORT_SLUG} Report after the last handled time. Continuation data has exactly two responsibility fields: lastHandledReportTime and pendingCheck. When an unseen Report arrives, handle it and submit pendingCheck: null; a completed handoff is never still pending. The stable work key for this problem is repo-ci-main: the ${TODO_SLUG} Todo must contain exactly one item with id repo-ci-main, and every later decision must update that exact item rather than append another item. If the Report is unhealthy, reconcile that item as open; if healthy, reconcile that same item as resolved. When no unseen Report exists and pendingCheck is null, start director-ci-monitor and store its returned run as pendingCheck. When pendingCheck is not null and no unseen Report exists, wait. Perform every required Todo update and Capability start before calling submit_state. Call submit_state last, storing the handled Report time and current pendingCheck value.`,
         actorLogin: user.login,
       },
     });
@@ -153,11 +164,13 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     const firstFailureReportAt = await waitForReport("unhealthy", baseline);
     await runCycle();
     await waitForTodo(false);
+    await waitForPendingCheck(false);
 
     await runCycle();
     const repeatedFailureReportAt = await waitForReport("unhealthy", firstFailureReportAt);
     await runCycle();
     await waitForTodo(false);
+    await waitForPendingCheck(false);
 
     await octokit.repos.createCommitStatus({
       owner,
@@ -171,6 +184,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await waitForReport("healthy", repeatedFailureReportAt);
     await runCycle();
     await waitForTodo(true);
+    await waitForPendingCheck(false);
 
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
     if (await page.getByRole("heading", { name: "Sign in to Kody" }).isVisible()) {
