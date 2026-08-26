@@ -91,30 +91,20 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       return body.report.body ?? "";
     }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
     const response = await page.request.get(reportUrl, { headers });
-    const body = (await response.json()) as { report: { updatedAt: string } };
-    return body.report.updatedAt;
+    const body = (await response.json()) as { report: { updatedAt: string; runId: string } };
+    return body.report;
   };
 
-  const waitForTodo = async (completed: boolean) => {
+  const waitForTodo = async (completed: boolean, reportRunId: string) => {
     await expect.poll(async () => {
       const response = await page.request.get(todoUrl, { headers });
       if (!response.ok()) return null;
-      const body = (await response.json()) as { todo?: { items?: Array<{ id: string; completed: boolean }> } };
-      const items = body.todo?.items ?? [];
-      return { count: items.length, completed: items[0]?.completed };
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed });
-  };
-
-  const waitForHandledReport = async (updatedAt: string) => {
-    await expect.poll(async () => {
-      const response = await page.request.get(liveUrl, { headers });
-      if (!response.ok()) return "";
       const body = (await response.json()) as {
-        status?: { state?: { data?: { lastHandledReportTime?: unknown } } | null };
+        todo?: { items?: Array<{ id: string; completed: boolean; meta?: { reportRunId?: string } }> };
       };
-      const handledAt = body.status?.state?.data?.lastHandledReportTime;
-      return typeof handledAt === "string" && handledAt >= updatedAt;
-    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(true);
+      const items = body.todo?.items ?? [];
+      return { count: items.length, completed: items[0]?.completed, reportRunId: items[0]?.meta?.reportRunId };
+    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed, reportRunId });
   };
 
   try {
@@ -162,16 +152,14 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     });
 
     await runCycle();
-    const firstFailureReportAt = await waitForReport("unhealthy", baseline);
+    const firstFailureReport = await waitForReport("unhealthy", baseline);
     await runCycle();
-    await waitForTodo(false);
-    await waitForHandledReport(firstFailureReportAt);
+    await waitForTodo(false, firstFailureReport.runId);
 
     await runCycle();
-    const repeatedFailureReportAt = await waitForReport("unhealthy", firstFailureReportAt);
+    const repeatedFailureReport = await waitForReport("unhealthy", firstFailureReport.updatedAt);
     await runCycle();
-    await waitForTodo(false);
-    await waitForHandledReport(repeatedFailureReportAt);
+    await waitForTodo(false, repeatedFailureReport.runId);
 
     await octokit.repos.createCommitStatus({
       owner,
@@ -182,10 +170,9 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       description: "Controlled Director E2E recovery",
     });
     await runCycle();
-    const recoveryReportAt = await waitForReport("healthy", repeatedFailureReportAt);
+    const recoveryReport = await waitForReport("healthy", repeatedFailureReport.updatedAt);
     await runCycle();
-    await waitForTodo(true);
-    await waitForHandledReport(recoveryReportAt);
+    await waitForTodo(true, recoveryReport.runId);
 
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
     if (await page.getByRole("heading", { name: "Sign in to Kody" }).isVisible()) {
