@@ -17,7 +17,33 @@
     ]
   },
   "agent": {
-    "model": "minimax/MiniMax-M3"
+    "model": "automatic",
+    "automaticModels": [
+      {
+        "spec": "openrouter/free",
+        "provider": "openrouter",
+        "protocol": "openai",
+        "baseURL": "https://openrouter.ai/api/v1",
+        "modelName": "openrouter/free",
+        "apiKeyEnvVar": "OPENROUTER_API_KEY"
+      },
+      {
+        "spec": "openai/ox-alpha",
+        "provider": "custom",
+        "protocol": "openai",
+        "baseURL": "https://oxalpha.run/api/v1",
+        "modelName": "ox-alpha",
+        "apiKeyEnvVar": "OXALPHA_API_KEY"
+      },
+      {
+        "spec": "xkiro/deepseek/deepseek-v4-flash",
+        "provider": "xkiro",
+        "protocol": "openai",
+        "baseURL": "https://api.xkiro.com/v1",
+        "modelName": "deepseek/deepseek-v4-flash",
+        "apiKeyEnvVar": "XKIRO_API_KEY"
+      }
+    ]
   },
   "company": {
     "activeAgents": [
