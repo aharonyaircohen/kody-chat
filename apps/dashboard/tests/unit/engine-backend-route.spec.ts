@@ -90,6 +90,42 @@ describe("POST /api/kody/engine/backend", () => {
     });
   });
 
+  it("allows the live Agent to load and save its repository-scoped state", async () => {
+    backend.query.mockResolvedValue({ agent: "director" });
+    backend.mutation.mockResolvedValue(undefined);
+
+    const readResponse = await POST(
+      request({
+        kind: "query",
+        operation: "agentStates.get",
+        args: { tenantId: "attacker/repo", agent: "director" },
+      }),
+    );
+    const saveResponse = await POST(
+      request({
+        kind: "mutation",
+        operation: "agentStates.save",
+        args: {
+          tenantId: "attacker/repo",
+          agent: "director",
+          status: "active",
+        },
+      }),
+    );
+
+    expect(readResponse.status).toBe(200);
+    expect(saveResponse.status).toBe(200);
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      agent: "director",
+    });
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+      agent: "director",
+      status: "active",
+    });
+  });
+
   it("allows the Engine to renew an active Loop reservation", async () => {
     backend.mutation.mockResolvedValue(undefined);
 

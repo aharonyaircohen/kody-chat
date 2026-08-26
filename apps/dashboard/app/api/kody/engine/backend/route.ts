@@ -20,6 +20,8 @@ const requestSchema = z.object({
 const operations = {
   "taskState.get": { kind: "query", fn: backendApi.taskState.get },
   "taskState.save": { kind: "mutation", fn: backendApi.taskState.save },
+  "agentStates.get": { kind: "query", fn: backendApi.agentStates.get },
+  "agentStates.save": { kind: "mutation", fn: backendApi.agentStates.save },
   "repoDocs.get": { kind: "query", fn: backendApi.repoDocs.get },
   "repoDocs.listByPrefix": {
     kind: "query",
