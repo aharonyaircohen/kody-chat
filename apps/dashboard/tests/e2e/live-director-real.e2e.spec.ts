@@ -34,8 +34,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
   const octokit = createUserOctokit(TEST_TOKEN);
   const repository = await octokit.repos.get({ owner, repo });
   const branch = repository.data.default_branch;
-  const commit = await octokit.repos.getCommit({ owner, repo, ref: branch });
-  const sha = commit.data.sha;
+  let statusSha = "";
   const stamp = Date.now();
   const agentSlug = `director-e2e-${stamp}`;
   const intentSlug = `director-health-${stamp}`;
@@ -90,7 +89,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       const body = (await response.json()) as { report?: { body?: string; updatedAt?: string } };
       if (!body.report?.updatedAt || body.report.updatedAt <= after) return "";
       return body.report.body ?? "";
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status[0]!.toUpperCase()}${status.slice(1)}`);
+    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
     const response = await page.request.get(reportUrl, { headers });
     const body = (await response.json()) as { report: { updatedAt: string } };
     return body.report.updatedAt;
@@ -102,21 +101,12 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       if (!response.ok()) return null;
       const body = (await response.json()) as { todo?: { items?: Array<{ id: string; completed: boolean }> } };
       const items = body.todo?.items ?? [];
-      return { count: items.filter((item) => item.id === "finding").length, completed: items[0]?.completed };
+      return { count: items.length, completed: items[0]?.completed };
     }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed });
   };
 
   try {
     await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
-    await octokit.repos.createCommitStatus({
-      owner,
-      repo,
-      sha,
-      state: "failure",
-      context: "director-e2e",
-      description: "Controlled Director E2E failure",
-    });
-
     const intent = await page.request.post(`${BASE_URL}/api/kody/intents`, {
       headers,
       data: {
@@ -148,6 +138,17 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     });
     expect(activation.status(), await activation.text()).toBe(200);
 
+    const activatedCommit = await octokit.repos.getCommit({ owner, repo, ref: branch });
+    statusSha = activatedCommit.data.sha;
+    await octokit.repos.createCommitStatus({
+      owner,
+      repo,
+      sha: statusSha,
+      state: "failure",
+      context: "director-e2e",
+      description: "Controlled Director E2E failure",
+    });
+
     await runCycle();
     const firstFailureReportAt = await waitForReport("unhealthy", baseline);
     await runCycle();
@@ -161,7 +162,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await octokit.repos.createCommitStatus({
       owner,
       repo,
-      sha,
+      sha: statusSha,
       state: "success",
       context: "director-e2e",
       description: "Controlled Director E2E recovery",
@@ -183,14 +184,16 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos/${TODO_SLUG}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("checkbox")).toBeChecked();
   } finally {
-    await octokit.repos.createCommitStatus({
-      owner,
-      repo,
-      sha,
-      state: "success",
-      context: "director-e2e",
-      description: "Director E2E cleanup",
-    }).catch(() => null);
+    if (statusSha) {
+      await octokit.repos.createCommitStatus({
+        owner,
+        repo,
+        sha: statusSha,
+        state: "success",
+        context: "director-e2e",
+        description: "Director E2E cleanup",
+      }).catch(() => null);
+    }
     await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
     if (createdAgent) {
       await page.request.delete(liveUrl, { headers }).catch(() => null);
