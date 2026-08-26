@@ -105,17 +105,6 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed });
   };
 
-  const waitForPendingCheck = async (pending: boolean) => {
-    await expect.poll(async () => {
-      const response = await page.request.get(liveUrl, { headers });
-      if (!response.ok()) return null;
-      const body = (await response.json()) as {
-        status?: { state?: { data?: { pendingCheck?: unknown } } | null };
-      };
-      return body.status?.state?.data?.pendingCheck != null;
-    }, { timeout: 30_000, intervals: [1_000, 2_000, 5_000] }).toBe(pending);
-  };
-
   const waitForHandledReport = async (updatedAt: string) => {
     await expect.poll(async () => {
       const response = await page.request.get(liveUrl, { headers });
@@ -176,13 +165,13 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     const firstFailureReportAt = await waitForReport("unhealthy", baseline);
     await runCycle();
     await waitForTodo(false);
-    await waitForPendingCheck(false);
+    await waitForHandledReport(firstFailureReportAt);
 
     await runCycle();
     const repeatedFailureReportAt = await waitForReport("unhealthy", firstFailureReportAt);
     await runCycle();
     await waitForTodo(false);
-    await waitForPendingCheck(false);
+    await waitForHandledReport(repeatedFailureReportAt);
 
     await octokit.repos.createCommitStatus({
       owner,
