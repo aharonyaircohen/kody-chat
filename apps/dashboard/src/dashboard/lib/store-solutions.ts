@@ -67,7 +67,7 @@ export interface StoreSolutionCatalog {
     string,
     {
       id: string;
-      target: { kind: "workflow" | "capability"; id: string };
+      target: { kind: "workflow" | "capability" | "agent" | "pipeline"; id: string };
     }
   >;
   triggers: ReadonlyMap<
@@ -238,7 +238,7 @@ export function resolveStoreSolutionTree(
   };
 
   const resolve = (
-    kind: "loop" | "pipeline" | "trigger" | "workflow" | "capability",
+    kind: "loop" | "pipeline" | "trigger" | "workflow" | "capability" | "agent",
     slug: string,
     ancestors: ReadonlySet<string>,
   ): StoreSolutionNode => {
