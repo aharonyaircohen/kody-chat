@@ -1,0 +1,23 @@
+{
+  "name": "Director CI Monitor",
+  "capabilities": ["observe-repo-ci"],
+  "startAt": "check-ci",
+  "createdAt": "2026-08-26T00:00:00Z",
+  "updatedAt": "2026-08-26T00:00:00Z",
+  "steps": [
+    {
+      "id": "check-ci",
+      "capability": "observe-repo-ci",
+      "input": { "owner": "director" },
+      "report": {
+        "type": "repo-ci-health",
+        "version": 1,
+        "owner": "director",
+        "slug": "director-repo-ci",
+        "title": "Repository CI health",
+        "reviewArea": "repo-health"
+      }
+    }
+  ],
+  "agent": "kody"
+}
