@@ -64,6 +64,11 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
+import {
+  deleteRepositoryWorkflow,
+  prepareRepositoryWorkflowFile,
+  saveRepositoryWorkflow,
+} from "@dashboard/lib/repository-workflows";
 import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
 
 export const dynamic = "force-dynamic";
@@ -657,6 +662,31 @@ async function activate(
     capabilitySlugs,
   );
 
+  let workflowRuntimeResult: ActivateResult | undefined;
+  if (kind === "workflow" && asset) {
+    if (repositoryWriteMode === "defer") {
+      const file = prepareRepositoryWorkflowFile(slug, asset);
+      workflowRuntimeResult = {
+        imported: true,
+        status: "prepared",
+        files: [{ path: file.path, content: file.content }],
+      };
+    } else {
+      const result = await saveRepositoryWorkflow(
+        octokit,
+        owner,
+        repo,
+        slug,
+        asset,
+        `chore(kody): install store workflow ${slug}`,
+      );
+      workflowRuntimeResult = {
+        imported: result.written,
+        status: result.written ? "imported" : "already_local",
+      };
+    }
+  }
+
   if (kind === "workflow" && asset) {
     const workflowDefinition = asset as WorkflowDefinition;
     patch.activeWorkflows = append(company?.activeWorkflows, [slug]);
@@ -696,7 +726,10 @@ async function activate(
         asset as PipelineDefinition,
       );
     }
-    return combineActivationResults(dependencyResults);
+    return combineActivationResults([
+      ...dependencyResults,
+      ...(workflowRuntimeResult ? [workflowRuntimeResult] : []),
+    ]);
   }
 
   if (repositoryWriteMode === "commit") {
@@ -725,6 +758,7 @@ async function activate(
   }
   return combineActivationResults([
     ...dependencyResults,
+    ...(workflowRuntimeResult ? [workflowRuntimeResult] : []),
     {
       imported: true,
       status: repositoryWriteMode === "defer" ? "prepared" : "imported",
@@ -789,6 +823,16 @@ async function deactivate(
   const next = without(current, slug);
   if (next.length === (current ?? []).length) {
     await saveProjectedEngineConfig(owner, repo, config, sha);
+    const removedWorkflow =
+      kind === "workflow"
+        ? await deleteRepositoryWorkflow(
+            octokit,
+            owner,
+            repo,
+            slug,
+            `chore(kody): remove orphaned store workflow ${slug}`,
+          )
+        : false;
     if (kind === "workflow") {
       await removeStoreWorkflowProjection(owner, repo, slug);
     } else if (kind === "pipeline") {
@@ -796,7 +840,12 @@ async function deactivate(
     } else if (kind === "agent" || kind === "capability") {
       await retireStoreDefinition(owner, repo, kind, slug);
     }
-    return { removed: false, status: "already_missing" as const };
+    return {
+      removed: removedWorkflow,
+      status: removedWorkflow
+        ? ("removed" as const)
+        : ("already_missing" as const),
+    };
   }
 
   if (kind === "agent" || kind === "capability") {
@@ -838,6 +887,13 @@ async function deactivate(
     `chore(kody): remove store ${kind} ${slug}`,
   );
   if (kind === "workflow") {
+    await deleteRepositoryWorkflow(
+      octokit,
+      owner,
+      repo,
+      slug,
+      `chore(kody): remove store workflow ${slug}`,
+    );
     await removeStoreWorkflowProjection(owner, repo, slug);
   } else if (kind === "pipeline") {
     await removeStorePipelineProjection(owner, repo, slug);

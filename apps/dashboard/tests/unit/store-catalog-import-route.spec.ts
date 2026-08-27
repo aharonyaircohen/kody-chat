@@ -37,6 +37,21 @@ describe("simple Store activation", () => {
     expect(source).toContain("activeWorkflowBlockers");
   });
 
+  it("installs and removes the Workflow file used by nested Engine dispatch", () => {
+    expect(source).toContain("prepareRepositoryWorkflowFile");
+    expect(source).toContain("saveRepositoryWorkflow");
+    expect(source).toContain("deleteRepositoryWorkflow");
+    expect(source).toMatch(
+      /kind === "workflow"[\s\S]*repositoryWriteMode === "defer"[\s\S]*prepareRepositoryWorkflowFile/,
+    );
+    expect(source).toMatch(
+      /kind === "workflow"[\s\S]*await saveRepositoryWorkflow/,
+    );
+    expect(source).toMatch(
+      /kind === "workflow"[\s\S]*await deleteRepositoryWorkflow/,
+    );
+  });
+
   it("activating a Loop activates its target before writing the Loop", () => {
     expect(source).toMatch(
       /if \(kind === "loop"\)[\s\S]*await activate\([\s\S]*storeLoop\.loop\.target\.kind[\s\S]*storeLoop\.loop\.target\.id[\s\S]*await saveRepositoryLoop/,
