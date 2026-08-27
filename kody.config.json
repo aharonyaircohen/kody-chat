@@ -75,6 +75,7 @@
       "apply-strategy",
       "qa-engineer",
       "qa-issue-sync",
+      "observe-repo-ci",
       "verify-strategy-application"
     ],
     "activeWorkflows": [
@@ -87,7 +88,8 @@
       "apply-strategy",
       "qa-scan",
       "qa-issue-sync",
-      "qa-fix"
+      "qa-fix",
+      "director-ci-monitor"
     ],
     "activePipelines": [
       "review-and-merge",
