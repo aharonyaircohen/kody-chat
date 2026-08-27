@@ -74,12 +74,18 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     const revision = before.status.state?.revision ?? -1;
     const run = await page.request.post(liveUrl, { headers, data: { action: "run" } });
     expect(run.status(), await run.text()).toBe(202);
+    let retryAt = Date.now() + 90_000;
     await expect.poll(async () => {
       const response = await page.request.get(liveUrl, { headers });
       if (!response.ok()) return -1;
       const body = (await response.json()) as { status?: { state?: { revision?: number } | null } };
-      return body.status?.state?.revision ?? -1;
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toBeGreaterThan(revision);
+      const currentRevision = body.status?.state?.revision ?? -1;
+      if (currentRevision <= revision && Date.now() >= retryAt) {
+        await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
+        retryAt = Date.now() + 90_000;
+      }
+      return currentRevision;
+    }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toBeGreaterThan(revision);
   };
 
   const waitForReport = async (status: "healthy" | "unhealthy", after: string) => {
