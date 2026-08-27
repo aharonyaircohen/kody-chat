@@ -8,6 +8,7 @@ const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 const TODO_SLUG = "director-repo-ci";
 const REPORT_SLUG = "director-repo-ci";
+const RUN_RETRY_MS = 4 * 60_000;
 
 function parseRepo(value: string) {
   const path = value.includes("://") ? new URL(value).pathname : value;
@@ -60,6 +61,17 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
 
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
   await page.evaluate((value) => localStorage.setItem("kody_auth", JSON.stringify(value)), auth);
+  await page.goto(`${BASE_URL}/chat`, { waitUntil: "domcontentloaded" });
+  await expect.poll(async () => {
+    const text = await page.locator("body").innerText();
+    return text.includes("Sign in to Kody") || text.includes("Global chat");
+  }, { timeout: 30_000 }).toBe(true);
+  if (await page.getByText("Sign in to Kody", { exact: true }).isVisible()) {
+    await page.getByLabel("Email").fill(credentials.loginUser);
+    await page.getByLabel("Password").fill(credentials.loginPassword);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForURL(`${BASE_URL}/chat`);
+  }
 
   const liveUrl = `${BASE_URL}/api/kody/agents/${agentSlug}/live`;
   const reportUrl = `${BASE_URL}/api/kody/reports/${REPORT_SLUG}`;
@@ -74,7 +86,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     const revision = before.status.state?.revision ?? -1;
     const run = await page.request.post(liveUrl, { headers, data: { action: "run" } });
     expect(run.status(), await run.text()).toBe(202);
-    let retryAt = Date.now() + 90_000;
+    let retryAt = Date.now() + RUN_RETRY_MS;
     await expect.poll(async () => {
       const response = await page.request.get(liveUrl, { headers });
       if (!response.ok()) return -1;
@@ -82,14 +94,14 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       const currentRevision = body.status?.state?.revision ?? -1;
       if (currentRevision <= revision && Date.now() >= retryAt) {
         await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
-        retryAt = Date.now() + 90_000;
+        retryAt = Date.now() + RUN_RETRY_MS;
       }
       return currentRevision;
     }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toBeGreaterThan(revision);
   };
 
   const waitForReport = async (status: "healthy" | "unhealthy", after: string) => {
-    let retryAt = Date.now() + 90_000;
+    let retryAt = Date.now() + RUN_RETRY_MS;
     await expect.poll(async () => {
       const response = await page.request.get(reportUrl, { headers });
       if (response.ok()) {
@@ -100,7 +112,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       }
       if (Date.now() >= retryAt) {
         await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
-        retryAt = Date.now() + 90_000;
+        retryAt = Date.now() + RUN_RETRY_MS;
       }
       return "";
     }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
@@ -158,7 +170,7 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
 
     const activation = await page.request.post(liveUrl, {
       headers,
-      data: { action: "activate", intent: intentSlug, every: "15m" },
+      data: { action: "activate", intent: intentSlug, every: "1h" },
     });
     expect(activation.status(), await activation.text()).toBe(200);
 
@@ -196,22 +208,13 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await runCycle();
     await waitForTodo(true, recoveryReport.runId);
 
-    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
-    await expect.poll(async () => {
-      const text = await page.locator("body").innerText();
-      return text.includes("Sign in to Kody") || text.includes("Repository CI health");
-    }, { timeout: 30_000 }).toBe(true);
-    if (await page.getByText("Sign in to Kody", { exact: true }).isVisible()) {
-      await page.getByLabel("Email").fill(credentials.loginUser);
-      await page.getByLabel("Password").fill(credentials.loginPassword);
-      await page.getByRole("button", { name: "Sign in" }).click();
-      await page.waitForURL(`${BASE_URL}/chat`);
-      await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
-    }
-    await expect(page.getByRole("heading", { name: REPORT_SLUG })).toBeVisible();
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("treeitem", { name: /Repository CI health/ }).click();
+    await page.getByRole("treeitem", { name: new RegExp(recoveryReport.runId) }).click();
     await expect(page.getByText("Repository CI health", { exact: true }).first()).toBeVisible();
-    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos/${TODO_SLUG}`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("1/1 items complete", { exact: true })).toBeVisible();
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /Repository CI health/ }).click();
+    await expect(page.getByText("1/1 items complete", { exact: true })).toBeVisible({ timeout: 30_000 });
   } finally {
     if (statusSha) {
       await octokit.repos.createCommitStatus({
