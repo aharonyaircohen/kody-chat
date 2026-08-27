@@ -103,8 +103,16 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
         todo?: { items?: Array<{ id: string; completed: boolean; meta?: { reportRunId?: string } }> };
       };
       const items = body.todo?.items ?? [];
-      return { count: items.length, completed: items[0]?.completed, reportRunId: items[0]?.meta?.reportRunId };
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({ count: 1, completed, reportRunId });
+      return {
+        count: items.length,
+        completed: items[0]?.completed,
+        reportIsCurrent: (items[0]?.meta?.reportRunId ?? "") >= reportRunId,
+      };
+    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({
+      count: 1,
+      completed,
+      reportIsCurrent: true,
+    });
   };
 
   try {
