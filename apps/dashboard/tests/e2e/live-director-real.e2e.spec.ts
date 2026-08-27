@@ -183,16 +183,21 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await waitForTodo(true, recoveryReport.runId);
 
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
-    if (await page.getByRole("heading", { name: "Sign in to Kody" }).isVisible()) {
+    await expect.poll(async () => {
+      const text = await page.locator("body").innerText();
+      return text.includes("Sign in to Kody") || text.includes("Repository CI health");
+    }, { timeout: 30_000 }).toBe(true);
+    if (await page.getByText("Sign in to Kody", { exact: true }).isVisible()) {
       await page.getByLabel("Email").fill(credentials.loginUser);
       await page.getByLabel("Password").fill(credentials.loginPassword);
       await page.getByRole("button", { name: "Sign in" }).click();
       await page.waitForURL(`${BASE_URL}/chat`);
       await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports/${REPORT_SLUG}`, { waitUntil: "domcontentloaded" });
     }
-    await expect(page.getByRole("heading", { name: "Repository CI health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: REPORT_SLUG })).toBeVisible();
+    await expect(page.getByText("Repository CI health", { exact: true }).first()).toBeVisible();
     await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos/${TODO_SLUG}`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("checkbox")).toBeChecked();
+    await expect(page.getByText("1/1 items complete", { exact: true })).toBeVisible();
   } finally {
     if (statusSha) {
       await octokit.repos.createCommitStatus({
