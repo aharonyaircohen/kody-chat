@@ -1,0 +1,16 @@
+{
+  "id": "live-agent-director",
+  "trigger": {
+    "type": "schedule",
+    "every": "15m"
+  },
+  "target": {
+    "kind": "capability",
+    "id": "live-agent"
+  },
+  "input": {
+    "agent": "director",
+    "intent": "maintain-repository-health"
+  },
+  "enabled": true
+}
