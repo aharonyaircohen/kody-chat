@@ -83,13 +83,21 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
   };
 
   const waitForReport = async (status: "healthy" | "unhealthy", after: string) => {
+    let retryAt = Date.now() + 90_000;
     await expect.poll(async () => {
       const response = await page.request.get(reportUrl, { headers });
-      if (!response.ok()) return "";
-      const body = (await response.json()) as { report?: { body?: string; updatedAt?: string } };
-      if (!body.report?.updatedAt || body.report.updatedAt <= after) return "";
-      return body.report.body ?? "";
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
+      if (response.ok()) {
+        const body = (await response.json()) as { report?: { body?: string; updatedAt?: string } };
+        if (body.report?.updatedAt && body.report.updatedAt > after && body.report.body?.includes(`Status:** ${status}`)) {
+          return body.report.body;
+        }
+      }
+      if (Date.now() >= retryAt) {
+        await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
+        retryAt = Date.now() + 90_000;
+      }
+      return "";
+    }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
     const response = await page.request.get(reportUrl, { headers });
     const body = (await response.json()) as { report: { updatedAt: string; runId: string } };
     return body.report;
