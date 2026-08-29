@@ -160,6 +160,18 @@ describe("guided_flow_start chat tool", () => {
     vi.clearAllMocks();
   });
 
+  it("does not route named configuration creation into an Agency request", () => {
+    const tools = createGuidedFlowTools({
+      tenantId: "acme/widgets",
+      actorId: "alice",
+      conversationId: "conversation-1",
+    });
+
+    expect(tools.guided_flow_start.description).toContain(
+      "Do not use new-agency-request to create a named Workflow, Agent, or Capability",
+    );
+  });
+
   it("publishes section as a required top-level field for model tool calls", () => {
     const tools = createGuidedFlowTools({
       tenantId: "acme/widgets",

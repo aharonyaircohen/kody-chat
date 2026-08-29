@@ -45,6 +45,8 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
     }),
     guided_flow_start: tool({
       description:
+        "Do not use new-agency-request to create a named Workflow, Agent, or Capability; " +
+        "use the matching artifact tool or create-workflow flow instead. " +
         "Start or resume a GuidedFlow for the user. Use when the user " +
         "explicitly asks for step-by-step help with a supported task. Also start " +
         "new-agency-request when the user asks Kody to take responsibility for " +

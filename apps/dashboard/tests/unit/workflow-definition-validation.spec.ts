@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildWorkflowDefinition,
   type WorkflowDefinition,
   type WorkflowStepDefinition,
   normalizeWorkflowDefinition,
@@ -24,6 +25,28 @@ function workflow(
 }
 
 describe("validateWorkflowDefinition", () => {
+  it("builds a runnable ordered workflow when simple creation omits steps", () => {
+    const built = buildWorkflowDefinition({
+      name: "QA pass",
+      capabilities: ["inspect", "repair"],
+    });
+
+    expect(built.steps).toEqual([
+      {
+        id: "inspect",
+        capability: "inspect",
+        next: [{ to: "repair", default: true }],
+      },
+      {
+        id: "repair",
+        capability: "repair",
+        next: [{ to: "$end", default: true }],
+      },
+    ]);
+    expect(built.startAt).toBe("inspect");
+    expect(validateWorkflowDefinition(built)).toEqual([]);
+  });
+
   it("keeps one capability input value", () => {
     expect(
       normalizeWorkflowDefinition({

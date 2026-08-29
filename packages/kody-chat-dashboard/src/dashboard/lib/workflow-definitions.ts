@@ -385,15 +385,30 @@ export function buildWorkflowDefinition(
   existing?: WorkflowDefinition,
 ): WorkflowDefinition {
   const now = new Date().toISOString();
+  const capabilities = normalizeWorkflowCapabilities(input.capabilities);
+  const steps =
+    input.steps && input.steps.length > 0
+      ? input.steps
+      : capabilities.map((capability, index) => ({
+          id: capability,
+          capability,
+          next: [
+            {
+              to: capabilities[index + 1] ?? "$end",
+              default: true,
+            },
+          ],
+        }));
+  const startAt = input.startAt ?? steps[0]?.id;
   return {
     name: input.name.trim(),
     agent: AGENT_ID_PATTERN.test((input.agent ?? "kody").trim().toLowerCase())
       ? (input.agent ?? "kody").trim().toLowerCase()
       : "kody",
-    capabilities: normalizeWorkflowCapabilities(input.capabilities),
+    capabilities,
     ...(input.inputSchema ? { inputSchema: input.inputSchema } : {}),
-    ...(input.startAt ? { startAt: input.startAt } : {}),
-    ...(input.steps && input.steps.length > 0 ? { steps: input.steps } : {}),
+    ...(startAt ? { startAt } : {}),
+    ...(steps.length > 0 ? { steps } : {}),
     ...(input.report ? { report: input.report } : {}),
     ...(input.runWithoutApproval === true ? { runWithoutApproval: true } : {}),
     createdAt: existing?.createdAt ?? now,

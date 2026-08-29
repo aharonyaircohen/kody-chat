@@ -12,7 +12,7 @@ interface RunWorkflowInput {
   input: Record<string, unknown>;
 }
 
-const workflowWriteSchema = z.object({
+const workflowWriteFields = {
   id: workflowIdSchema.optional(),
   name: z.string().trim().min(1).max(160).optional(),
   agent: z.string().trim().min(1).max(80).optional(),
@@ -22,7 +22,23 @@ const workflowWriteSchema = z.object({
   steps: z.array(workflowStepDefinitionSchema).min(1).optional(),
   report: z.record(z.string(), z.unknown()).optional(),
   runWithoutApproval: z.boolean().optional(),
+};
+
+const workflowCreateSchema = z.object({
+  ...workflowWriteFields,
+  name: z.string().trim().min(1).max(160),
+  capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
 });
+
+const workflowUpdateSchema = z.object({
+  ...workflowWriteFields,
+  id: workflowIdSchema,
+});
+
+const workflowWriteSchema = z.union([
+  workflowCreateSchema,
+  workflowUpdateSchema,
+]);
 
 type WorkflowWriteInput = z.infer<typeof workflowWriteSchema>;
 

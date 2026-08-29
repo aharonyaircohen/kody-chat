@@ -112,6 +112,20 @@ describe("workflow chat tools", () => {
     expect(ctx.removeWorkflow).toHaveBeenCalledWith("documentation-agency");
   });
 
+  it("requires a complete create input or an existing workflow id", () => {
+    const schema = createWorkflowTools(ctx).create_or_update_workflow
+      .inputSchema as { safeParse(input: unknown): { success: boolean } };
+
+    expect(schema.safeParse({}).success).toBe(false);
+    expect(
+      schema.safeParse({ name: "QA pass", capabilities: ["inspect"] }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({ id: "documentation-agency", report: { version: 2 } })
+        .success,
+    ).toBe(true);
+  });
+
   it("updates one workflow field without resending array fields", async () => {
     const tools = createWorkflowTools(ctx);
     const patch = {
