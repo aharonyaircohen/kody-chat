@@ -50,13 +50,12 @@ export const metadata: Metadata = {
   },
 };
 
-// IMPORTANT: Keep this layout synchronous. An async root layout that fetches
-// server-side (e.g. `await getKodyAuthToken()`) fails the production build
-// with `TypeError: fetch failed` when the upstream endpoint is unreachable
-// (CI, offline, or pre-deploy). All auth/identity work happens in
-// client-mounted providers (`KodyProviders` → `ConvexClientProvider` +
-// `AuthProvider`); this layout only owns static chrome.
-// CI run 33258141082 (PR #24) verified: root layout is synchronous.
+// IMPORTANT: Keep this layout synchronous. A root layout that fetches at
+// server-side fails the production build with `TypeError: fetch failed`
+// when the upstream endpoint is unreachable (CI, offline, or pre-deploy).
+// All auth/identity work happens in client-mounted providers
+// (`KodyProviders` → `ConvexClientProvider` + `AuthProvider`); this layout
+// only owns static chrome.
 export default function KodyLayout({
   children,
 }: {
