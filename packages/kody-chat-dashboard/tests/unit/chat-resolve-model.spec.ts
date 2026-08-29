@@ -282,6 +282,110 @@ describe("resolveChatModel", () => {
     expect(result.resolvedModel.id).toBe("automatic");
   });
 
+  it("skips unavailable Automatic candidates and keeps configured models in order", async () => {
+    vi.mocked(loadAutomaticModel).mockResolvedValue({
+      default: true,
+      engineDefault: false,
+    });
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "missing-model",
+        label: "Missing model",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://missing.test/v1",
+        modelName: "missing-model",
+        apiKeySecret: "MISSING_KEY",
+        enabled: true,
+        automatic: true,
+      },
+      {
+        id: "model-a",
+        label: "Model A",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://a.test/v1",
+        modelName: "model-a",
+        apiKeySecret: "MODEL_A_KEY",
+        enabled: true,
+        automatic: true,
+      },
+      {
+        id: "model-b",
+        label: "Model B",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://b.test/v1",
+        modelName: "model-b",
+        apiKeySecret: "MODEL_B_KEY",
+        enabled: true,
+        automatic: true,
+      },
+    ]);
+    vi.mocked(getSecret).mockImplementation(async (name) =>
+      name === "MISSING_KEY" ? null : `${name}-value`,
+    );
+
+    const result = await resolveChatModel(request());
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.resolvedModel.id).toBe("automatic");
+    expect(createOpenAICompatible).toHaveBeenCalledTimes(2);
+    expect(createOpenAICompatible).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ apiKey: "MODEL_A_KEY-value" }),
+    );
+    expect(createOpenAICompatible).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ apiKey: "MODEL_B_KEY-value" }),
+    );
+  });
+
+  it("rejects Automatic when only one selected candidate is runnable", async () => {
+    vi.mocked(loadAutomaticModel).mockResolvedValue({
+      default: true,
+      engineDefault: false,
+    });
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "missing-model",
+        label: "Missing model",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://missing.test/v1",
+        modelName: "missing-model",
+        apiKeySecret: "MISSING_KEY",
+        enabled: true,
+        automatic: true,
+      },
+      {
+        id: "model-a",
+        label: "Model A",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://a.test/v1",
+        modelName: "model-a",
+        apiKeySecret: "MODEL_A_KEY",
+        enabled: true,
+        automatic: true,
+      },
+    ]);
+    vi.mocked(getSecret).mockImplementation(async (name) =>
+      name === "MODEL_A_KEY" ? "model-a-key" : null,
+    );
+
+    const result = await resolveChatModel(request());
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error.status).toBe(409);
+    await expect(result.error.json()).resolves.toMatchObject({
+      error: "automatic_requires_configured_models",
+    });
+    expect(createOpenAICompatible).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps MiniMax M3 for ordinary text turns", async () => {
     vi.mocked(loadChatModels).mockResolvedValue([
       {

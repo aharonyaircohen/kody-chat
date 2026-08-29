@@ -254,6 +254,7 @@ export async function resolveChatModel(
     }
     const resolvedCandidates: Array<{ id: string; model: LanguageModelV3 }> =
       [];
+    let firstResolvedModel: ChatModel | null = null;
     for (const candidate of candidates) {
       const resolved = options.preferVision
         ? pickVisionModel(candidate, availableModels)
@@ -264,16 +265,7 @@ export async function resolveChatModel(
         requestSettingsProvider,
       );
       if (!apiKey) {
-        return {
-          error: NextResponse.json(
-            {
-              error: "model_api_key_missing",
-              fallback: "kody-live",
-              message: `${resolved.apiKeySecret} is not set. Automatic cannot use ${resolved.label || resolved.modelName}.`,
-            },
-            { status: 409 },
-          ),
-        };
+        continue;
       }
       const adapter = chatModelAdapter(resolved);
       if (adapter.requiresBaseURL && !chatModelAdapterBaseURL(resolved)) {
@@ -288,6 +280,7 @@ export async function resolveChatModel(
           ),
         };
       }
+      firstResolvedModel ??= resolved;
       resolvedCandidates.push({
         id: resolved.label || resolved.modelName,
         model: observeModel(
@@ -296,13 +289,25 @@ export async function resolveChatModel(
         ),
       });
     }
-    const first = candidates[0]!;
+    if (resolvedCandidates.length < 2 || !firstResolvedModel) {
+      return {
+        error: NextResponse.json(
+          {
+            error: "automatic_requires_configured_models",
+            fallback: "kody-live",
+            message:
+              "Automatic requires at least two selected models with configured credentials.",
+          },
+          { status: 409 },
+        ),
+      };
+    }
     return {
       model: createAutomaticLanguageModel(resolvedCandidates, {
         onFallback: options.onAutomaticFallback,
       }) as LanguageModel,
       resolvedModel: {
-        ...first,
+        ...firstResolvedModel,
         id: AUTOMATIC_MODEL_ID,
         label: "Automatic",
         default: false,

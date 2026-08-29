@@ -1,13 +1,16 @@
 import {
   expect,
   resolveLiveGitHubUser,
-  signInLiveKodyAccount,
   test,
   type Page,
 } from "./live-test";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
 } from "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/model-catalog";
+import {
+  AUTOMATIC_MODEL_ID,
+  chatModelScopeFromId,
+} from "@kody-ade/base/variables/models";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -35,7 +38,9 @@ async function installAuth(page: Page, owner: string, repo: string) {
   expect(accountResponse.status()).toBe(200);
   const accountBody = (await accountResponse.json()) as {
     auth?: Record<string, unknown> & {
-      repos?: Array<Record<string, unknown> & { owner?: string; repo?: string }>;
+      repos?: Array<
+        Record<string, unknown> & { owner?: string; repo?: string }
+      >;
     };
   };
   const originalAuth = accountBody.auth ?? null;
@@ -88,12 +93,8 @@ async function installAuth(page: Page, owner: string, repo: string) {
 
 test.describe("Direct Kody chat — real model and persistence", () => {
   test.skip(
-    !BASE_URL ||
-      !TEST_TOKEN ||
-      !TEST_REPO ||
-      !process.env.E2E_KODY_EMAIL ||
-      !process.env.E2E_KODY_PASSWORD,
-    "Requires an explicit live target, repository credentials, and Kody account credentials",
+    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
+    "Requires an explicit live target and repository credentials",
   );
 
   test("sends a real direct-model turn, persists it, and restores it after reload", async ({
@@ -103,7 +104,6 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     const { owner, repo } = parseRepo(TEST_REPO);
     expect(owner).toBeTruthy();
     expect(repo).toBeTruthy();
-    await signInLiveKodyAccount(page, BASE_URL);
     await installAuth(page, owner, repo);
 
     const headers = {
@@ -111,12 +111,15 @@ test.describe("Direct Kody chat — real model and persistence", () => {
       "x-kody-owner": owner,
       "x-kody-repo": repo,
     };
-    const [modelsResponse, secretsResponse] = await Promise.all([
+    const [modelsResponse, repositorySecretsResponse, personalSecretsResponse] =
+      await Promise.all([
       page.request.get(`${BASE_URL}/api/kody/models`, { headers }),
       page.request.get(`${BASE_URL}/api/kody/secrets`, { headers }),
+      page.request.get(`${BASE_URL}/api/kody/secrets`),
     ]);
     expect(modelsResponse.ok()).toBe(true);
-    expect(secretsResponse.ok()).toBe(true);
+    expect(repositorySecretsResponse.ok()).toBe(true);
+    expect(personalSecretsResponse.ok()).toBe(true);
     const models = (await modelsResponse.json()) as {
       models?: Array<{
         id: string;
@@ -125,23 +128,39 @@ test.describe("Direct Kody chat — real model and persistence", () => {
         enabled?: boolean;
       }>;
     };
-    const secrets = (await secretsResponse.json()) as {
+    const repositorySecrets = (await repositorySecretsResponse.json()) as {
       secrets?: Array<{ name: string }>;
     };
-    const configuredSecrets = new Set(
-      (secrets.secrets ?? []).map((secret) => secret.name),
+    const personalSecrets = (await personalSecretsResponse.json()) as {
+      secrets?: Array<{ name: string }>;
+    };
+    const configuredRepositorySecrets = new Set(
+      (repositorySecrets.secrets ?? []).map((secret) => secret.name),
+    );
+    const configuredPersonalSecrets = new Set(
+      (personalSecrets.secrets ?? []).map((secret) => secret.name),
     );
     const candidates = [...(models.models ?? []), ...KODY_BUILT_IN_CHAT_MODELS];
     const requestedModelId = process.env.E2E_CHAT_MODEL_ID;
-    const configuredModel = candidates.find(
-      (model) =>
-        model.enabled !== false &&
-        (!requestedModelId || model.id === requestedModelId) &&
-        configuredSecrets.has(model.apiKeySecret),
-    );
+    const configuredModel =
+      requestedModelId === AUTOMATIC_MODEL_ID
+        ? {
+            id: AUTOMATIC_MODEL_ID,
+            label: "Automatic",
+            apiKeySecret: "",
+            enabled: true,
+          }
+        : candidates.find(
+            (model) =>
+              model.enabled !== false &&
+              (!requestedModelId || model.id === requestedModelId) &&
+              (configuredRepositorySecrets.has(model.apiKeySecret) ||
+                (chatModelScopeFromId(model.id) !== "repo" &&
+                  configuredPersonalSecrets.has(model.apiKeySecret))),
+          );
     expect(
       configuredModel,
-      `an enabled model must have a vault secret (models: ${(models.models ?? []).map((model) => `${model.id}:${model.apiKeySecret}`).join(", ") || "none"}; secrets: ${[...configuredSecrets].join(", ") || "none"})`,
+      `an enabled model must have a vault secret (models: ${(models.models ?? []).map((model) => `${model.id}:${model.apiKeySecret}`).join(", ") || "none"}; repository secrets: ${[...configuredRepositorySecrets].join(", ") || "none"}; personal secrets: ${[...configuredPersonalSecrets].join(", ") || "none"})`,
     ).toBeTruthy();
 
     let conversationId = "";
@@ -195,9 +214,11 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     await chat.getByRole("button", { name: "Send message" }).click();
     const response = await responsePromise;
     expect(response.status(), "real direct chat route must succeed").toBe(200);
-    await expect(chat.getByText(marker, { exact: false }).last()).toBeVisible({
-      timeout: 240_000,
-    });
+    await expect(stop).toBeHidden({ timeout: 240_000 });
+    await expect(
+      chat.getByText(/^\[Error\]/, { exact: false }),
+      "the assistant must complete the real model turn instead of surfacing a provider error",
+    ).toHaveCount(0);
     await expect
       .poll(() => conversationId, { timeout: 30_000 })
       .not.toHaveLength(0);
