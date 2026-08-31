@@ -256,6 +256,14 @@ export async function POST(req: NextRequest) {
         authority.repo,
         authority.actorId,
       );
+      const previous = (await backend.query(
+        backendApi.browserSessions.getActive,
+        {
+          tenantId,
+          actorId: authority.actorId,
+          nowMs: Date.now(),
+        },
+      )) as StoredBrowserSession | null;
       const session = await provider.createSession({
         owner: authority.owner,
         repo: authority.repo,
@@ -266,6 +274,25 @@ export async function POST(req: NextRequest) {
         config: authority.config,
         verifyKey: deriveBrowserKey().toString("base64url"),
       } satisfies CreateFlyBrowserSessionInput);
+      if (previous && previous.appName !== session.appName) {
+        try {
+          await provider.closeSession({
+            providerId: "fly",
+            sessionId: previous.sessionId,
+            appName: previous.appName,
+            machineId: previous.machineId,
+            state: previous.state,
+            region: authority.config.defaultRegion,
+            endpoint: `https://${previous.appName}.fly.dev`,
+            config: authority.config,
+          });
+        } catch (error) {
+          logger.warn(
+            { err: error, appName: previous.appName },
+            "browser-session: previous transient app cleanup failed",
+          );
+        }
+      }
       const nowMs = Date.now();
       const stored: StoredBrowserSession = {
         sessionId,

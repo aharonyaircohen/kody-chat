@@ -40,4 +40,14 @@ describe("browser session View selection lifecycle", () => {
       source.indexOf("for (let attempt = 0; attempt < 3; attempt += 1)"),
     );
   });
+
+  it("retries a transient unavailable state without replacing the iframe fallback", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("const recoveryAttemptsRef = useRef(0)");
+    expect(source).toContain('mode.kind !== "iframe" && mode.kind !== "error"');
+    expect(source).toContain("recoveryAttemptsRef.current >= 3");
+    expect(source).toContain("recoveryAttemptsRef.current += 1");
+    expect(source).toContain("[connect, input.initialUrl]");
+  });
 });

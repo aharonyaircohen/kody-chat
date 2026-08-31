@@ -40,11 +40,12 @@ import {
   flyInfrastructureSelection,
 } from "@kody-ade/fly/plugin";
 import { flyDeploymentProvider } from "@kody-ade/fly/plugin/deployments";
-import { flyBrowserProvider } from "@kody-ade/fly/plugin/browsers";
-import { flyServerProvider } from "@kody-ade/fly/plugin/servers";
 import {
-  createInfrastructureRegistry,
-} from "@kody-ade/base/infrastructure/registry";
+  browserAppName,
+  flyBrowserProvider,
+} from "@kody-ade/fly/plugin/browsers";
+import { flyServerProvider } from "@kody-ade/fly/plugin/servers";
+import { createInfrastructureRegistry } from "@kody-ade/base/infrastructure/registry";
 import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
 import { chatExecutionRequest } from "@kody-ade/fly/runners/execution-request-builders";
 
@@ -160,6 +161,14 @@ describe("fly infrastructure providers", () => {
       machineId: "browser-machine-1",
       sessionId: "session-1",
     });
+  });
+
+  it("uses a fresh app hostname for each transient browser generation", () => {
+    const identity = { owner: "acme", repo: "widgets", actorId: "octocat" };
+
+    expect(browserAppName(identity, "first")).not.toBe(
+      browserAppName(identity, "second"),
+    );
   });
 
   it("runs compute through the existing Fly runner spawn", async () => {

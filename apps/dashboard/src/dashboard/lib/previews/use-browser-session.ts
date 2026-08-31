@@ -32,6 +32,7 @@ export function useBrowserSession(input: {
     input.enabled ? { kind: "checking" } : { kind: "disabled" },
   );
   const generationRef = useRef(0);
+  const recoveryAttemptsRef = useRef(0);
   const modeRef = useRef(mode);
   const initialUrlRef = useRef(input.initialUrl);
   modeRef.current = mode;
@@ -62,6 +63,7 @@ export function useBrowserSession(input: {
             ? await startBrowserSession(input.actorLogin, initialUrl)
             : status;
         if (generation !== generationRef.current) return;
+        recoveryAttemptsRef.current = 0;
         setMode({ kind: "remote", session });
 
         if (
@@ -115,6 +117,27 @@ export function useBrowserSession(input: {
       generationRef.current += 1;
     };
   }, [connect]);
+
+  useEffect(() => {
+    if (mode.kind !== "iframe" && mode.kind !== "error") return;
+    if (recoveryAttemptsRef.current >= 3) return;
+    const timer = window.setTimeout(() => {
+      recoveryAttemptsRef.current += 1;
+      void connect(false);
+    }, 1_500);
+    return () => window.clearTimeout(timer);
+  }, [connect, mode.kind]);
+
+  useEffect(() => {
+    if (
+      modeRef.current.kind === "remote" ||
+      modeRef.current.kind === "checking"
+    ) {
+      return;
+    }
+    recoveryAttemptsRef.current = 0;
+    void connect(false);
+  }, [connect, input.initialUrl]);
 
   const act = useCallback(
     async (action: RemoteBrowserAction): Promise<RemoteBrowserActionResult> => {

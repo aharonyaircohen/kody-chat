@@ -8,7 +8,11 @@ const auth = vi.hoisted(() => ({
   })),
 }));
 const context = vi.hoisted(() => ({
-  config: null as null | { token: string; orgSlug: string; defaultRegion: string },
+  config: null as null | {
+    token: string;
+    orgSlug: string;
+    defaultRegion: string;
+  },
   resolveServerProviderContext: vi.fn(async () => ({
     ok: true as const,
     context: { owner: "acme", repo: "app" },
@@ -104,5 +108,39 @@ describe("browser session route", () => {
       }),
     );
     expect(backend.mutation).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up the previous transient app after replacement succeeds", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "old-browser-app",
+      machineId: "old-machine",
+      state: "running",
+      currentUrl: "https://old.example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "start",
+          actorLogin: "octocat",
+          initialUrl: "https://example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(provider.closeSession).toHaveBeenCalledWith(
+      expect.objectContaining({ appName: "old-browser-app" }),
+    );
   });
 });

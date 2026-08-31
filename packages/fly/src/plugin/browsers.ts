@@ -7,7 +7,7 @@
  *   runner and deployment providers.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { BrowserProvider } from "@kody-ade/base/infrastructure/contracts";
 import {
@@ -92,17 +92,23 @@ function safeNamePart(value: string): string {
     .slice(0, 24);
 }
 
-export function browserAppName(input: {
-  owner: string;
-  repo: string;
-  actorId: string;
-}): string {
+export function browserAppName(
+  input: {
+    owner: string;
+    repo: string;
+    actorId: string;
+  },
+  instanceId = randomBytes(3).toString("hex"),
+): string {
   const readable = safeNamePart(`${input.owner}-${input.repo}`) || "repo";
   const hash = createHash("sha256")
     .update(`${input.owner}/${input.repo}:${input.actorId}`)
     .digest("hex")
     .slice(0, 10);
-  return `kody-browser-${readable}-${hash}`.slice(0, 63);
+  return `kody-browser-${readable}-${hash}-${safeNamePart(instanceId)}`.slice(
+    0,
+    63,
+  );
 }
 
 async function postBrowserAction(
