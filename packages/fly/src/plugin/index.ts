@@ -13,6 +13,7 @@ import type {
   ServerProvider,
 } from "@kody-ade/base/infrastructure/contracts";
 import { flyDeploymentProvider } from "./deployments";
+import { flyBrowserProvider } from "./browsers";
 import { flyServerProvider } from "./servers";
 
 export const flyInfrastructurePlugin: InfrastructurePlugin = {
@@ -26,10 +27,12 @@ export const flyInfrastructurePlugin: InfrastructurePlugin = {
       unknown
     >,
     deployments: flyDeploymentProvider,
+    browsers: flyBrowserProvider,
   },
 };
 
 export const flyInfrastructureSelection: InfrastructureProviderSelection = {
   servers: flyInfrastructurePlugin.id,
   deployments: flyInfrastructurePlugin.id,
+  browsers: flyInfrastructurePlugin.id,
 };

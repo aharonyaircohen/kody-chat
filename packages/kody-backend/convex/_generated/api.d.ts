@@ -20,6 +20,7 @@ import type * as auth from "../auth.js";
 import type * as betterAuth_auth from "../betterAuth/auth.js";
 import type * as betterAuth_trustedOrigins from "../betterAuth/trustedOrigins.js";
 import type * as blueprintInstallations from "../blueprintInstallations.js";
+import type * as browserSessions from "../browserSessions.js";
 import type * as capabilityState from "../capabilityState.js";
 import type * as catalog from "../catalog.js";
 import type * as channelsSeen from "../channelsSeen.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "betterAuth/auth": typeof betterAuth_auth;
   "betterAuth/trustedOrigins": typeof betterAuth_trustedOrigins;
   blueprintInstallations: typeof blueprintInstallations;
+  browserSessions: typeof browserSessions;
   capabilityState: typeof capabilityState;
   catalog: typeof catalog;
   channelsSeen: typeof channelsSeen;

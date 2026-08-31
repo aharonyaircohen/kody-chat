@@ -35,6 +35,9 @@ describe("fly inventory", () => {
     expect(classifyApp("kody-preview-builder")).toMatchObject({
       feature: "builder",
     });
+    expect(classifyApp("kody-browser-acme-widgets-1234567890")).toMatchObject({
+      feature: "browser",
+    });
     expect(classifyApp("kody-old-service")).toMatchObject({
       feature: "other",
     });

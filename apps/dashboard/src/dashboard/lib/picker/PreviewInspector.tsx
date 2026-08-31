@@ -37,6 +37,11 @@ import {
 import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
+import { useRemoteElementPicker } from "./useRemoteElementPicker";
+import type {
+  RemoteBrowserAction,
+  RemoteBrowserActionResult,
+} from "@dashboard/lib/previews/browser-session-client";
 import { extensionForMimeType, getDataUrlMimeType } from "./screenshot";
 import {
   formatLogs,
@@ -82,6 +87,9 @@ interface PreviewInspectorProps {
   /** Repo identity for per-repo storage (saved macros, etc.). */
   owner: string;
   repo: string;
+  remoteAct?: (
+    action: RemoteBrowserAction,
+  ) => Promise<RemoteBrowserActionResult>;
 }
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -102,6 +110,7 @@ export function PreviewInspector({
   onAttachment,
   owner,
   repo,
+  remoteAct,
 }: PreviewInspectorProps) {
   const [busy, setBusy] = useState<
     null | "logs" | "network" | "shot" | "perf" | "rec" | "edit"
@@ -152,8 +161,10 @@ export function PreviewInspector({
         setEditPanelStyle(null);
         return;
       }
-      const iframe = previewRef.current?.querySelector("iframe");
-      const iframeRect = iframe?.getBoundingClientRect();
+      const surface = previewRef.current?.querySelector(
+        "iframe,[data-remote-browser-surface]",
+      );
+      const iframeRect = surface?.getBoundingClientRect();
       if (!iframeRect) {
         setEditPanelStyle(null);
         return;
@@ -201,8 +212,8 @@ export function PreviewInspector({
     };
   }, [editElement, editPanelOpen, updateEditPanelPosition]);
 
-  const picker = useElementPicker({
-    onSelect: (el) => {
+  const pickerOptions = {
+    onSelect: (el: PickedElement) => {
       if (selectModeRef.current === "edit") {
         setEditElement(el);
         setEditChanges([]);
@@ -219,7 +230,14 @@ export function PreviewInspector({
       });
       toast.success(`Added ${formatPickedElementLabel(el)} to chat`);
     },
-  });
+  };
+  const extensionPicker = useElementPicker(pickerOptions);
+  const remotePicker = useRemoteElementPicker(
+    Boolean(remoteAct),
+    remoteAct ?? (async () => ({ ok: false })),
+    pickerOptions,
+  );
+  const picker = remoteAct ? remotePicker : extensionPicker;
   const isFirefox =
     typeof navigator !== "undefined" &&
     /(?:Firefox|FxiOS)\//.test(navigator.userAgent);

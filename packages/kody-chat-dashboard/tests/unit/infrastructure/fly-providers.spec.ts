@@ -10,6 +10,9 @@ const pool = vi.hoisted(() => ({
 
 const flyPreview = vi.hoisted(() => ({
   appExists: vi.fn(),
+  allocateSharedIps: vi.fn(),
+  createApp: vi.fn(),
+  createMachine: vi.fn(),
   flyHostname: vi.fn((appName: string) => `https://${appName}.fly.dev`),
   listMachines: vi.fn(),
   startMachine: vi.fn(),
@@ -37,6 +40,7 @@ import {
   flyInfrastructureSelection,
 } from "@kody-ade/fly/plugin";
 import { flyDeploymentProvider } from "@kody-ade/fly/plugin/deployments";
+import { flyBrowserProvider } from "@kody-ade/fly/plugin/browsers";
 import { flyServerProvider } from "@kody-ade/fly/plugin/servers";
 import {
   createInfrastructureRegistry,
@@ -100,17 +104,16 @@ describe("fly infrastructure providers", () => {
     expect(() => missing.getBrowserProvider()).toThrow(
       "Missing explicit infrastructure provider for browsers",
     );
-    expect(() =>
+    expect(
       createInfrastructureRegistry([flyInfrastructurePlugin], {
         browsers: flyInfrastructurePlugin.id,
       }).getBrowserProvider(),
-    ).toThrow(
-      "Infrastructure provider fly does not support browsers",
-    );
+    ).toBe(flyBrowserProvider);
 
     expect(installed.getInfrastructureProviders()).toMatchObject({
       servers: flyServerProvider,
       deployments: flyDeploymentProvider,
+      browsers: flyBrowserProvider,
     });
   });
 

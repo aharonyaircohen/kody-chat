@@ -44,7 +44,10 @@ import {
   stripPreviewAuthParams,
 } from "@dashboard/lib/preview-auth-url";
 import { shouldSyncPreviewBrowserUrl } from "@dashboard/lib/preview-browser-url";
-import { PICKER_EXT_SOURCE, type PickerExtMessage } from "@dashboard/lib/picker/protocol";
+import {
+  PICKER_EXT_SOURCE,
+  type PickerExtMessage,
+} from "@dashboard/lib/picker/protocol";
 import { useElementPicker } from "@dashboard/lib/picker/useElementPicker";
 import { cn, getPreviewBypassUrl } from "@dashboard/lib/utils";
 import {
@@ -53,6 +56,8 @@ import {
   type PreviewDevice,
 } from "@dashboard/features/previews/components/PreviewIframe";
 import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
+import { FlyRemoteBrowserSurface } from "@dashboard/features/previews/components/FlyRemoteBrowserSurface";
+import { useBrowserSession } from "@dashboard/lib/previews/use-browser-session";
 
 export interface PreviewBrowserProps {
   /** Resolved base URL for the active preview, or null when nothing can show. */
@@ -81,6 +86,9 @@ export interface PreviewBrowserProps {
   /** External key that forces the iframe to reload when it changes. */
   reloadKey?: string | number;
   iframeTitle?: string;
+  /** Use the installed real-browser provider when available. */
+  enableRemoteBrowser?: boolean;
+  browserActorLogin?: string;
   loadingTitle?: ReactNode;
   loadingDescription?: ReactNode;
   /** Shown when there is no baseUrl and nothing is resolving. */
@@ -208,6 +216,8 @@ export function PreviewBrowser({
   iframeSandbox,
   reloadKey = "",
   iframeTitle = "Preview deployment",
+  enableRemoteBrowser = false,
+  browserActorLogin,
   loadingTitle = "Loading preview...",
   loadingDescription = "Fetching preview. It'll appear here as soon as the build is ready.",
   emptyState,
@@ -232,6 +242,17 @@ export function PreviewBrowser({
     pageProbe;
 
   const previewUrl = useMemo(() => baseUrl, [baseUrl]);
+  const remoteBrowser = useBrowserSession({
+    enabled: enableRemoteBrowser,
+    actorLogin: browserActorLogin,
+    initialUrl: previewUrl,
+  });
+  const remoteBrowserMode = remoteBrowser.mode;
+  const remoteBrowserAct = remoteBrowser.act;
+  const reconnectRemoteBrowser = remoteBrowser.reconnect;
+  const remoteSession =
+    remoteBrowserMode.kind === "remote" ? remoteBrowserMode.session : null;
+  const previousRemoteBaseUrlRef = useRef<string | null>(baseUrl);
 
   const getPreviewAuthSourceUrl = useCallback((): string | null => {
     if (typeof window === "undefined") {
@@ -358,6 +379,39 @@ export function PreviewBrowser({
   );
 
   useEffect(() => {
+    if (!remoteSession?.currentUrl) return;
+    syncBrowserHistoryUrl(remoteSession.currentUrl);
+  }, [remoteSession?.currentUrl, syncBrowserHistoryUrl]);
+
+  useEffect(() => {
+    const previous = previousRemoteBaseUrlRef.current;
+    previousRemoteBaseUrlRef.current = baseUrl;
+    if (!remoteSession || !baseUrl || !previous || previous === baseUrl) return;
+    void remoteBrowserAct({ type: "navigate", url: baseUrl });
+  }, [baseUrl, remoteBrowserAct, remoteSession]);
+
+  useEffect(() => {
+    if (!remoteSession) return;
+    let cancelled = false;
+    let busy = false;
+    const syncRemotePage = async (): Promise<void> => {
+      if (busy) return;
+      busy = true;
+      try {
+        const result = await remoteBrowserAct({ type: "snapshot" });
+        if (!cancelled && result.url) syncBrowserHistoryUrl(result.url);
+      } finally {
+        busy = false;
+      }
+    };
+    const interval = window.setInterval(syncRemotePage, 1_500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [remoteBrowserAct, remoteSession, syncBrowserHistoryUrl]);
+
+  useEffect(() => {
     if (browserInputFocusedRef.current) return;
     setBrowserUrl(toBrowserAddress(activePreviewUrl));
   }, [activePreviewUrl]);
@@ -427,6 +481,12 @@ export function PreviewBrowser({
     browserHistory.index < browserHistory.entries.length - 1;
 
   const moveBrowserHistory = (direction: "back" | "forward"): void => {
+    if (remoteSession) {
+      void remoteBrowserAct({ type: direction }).then((result) => {
+        if (result.url) syncBrowserHistoryUrl(result.url);
+      });
+      return;
+    }
     const nextIndex =
       direction === "back"
         ? browserHistory.index - 1
@@ -475,6 +535,15 @@ export function PreviewBrowser({
             nextUrl,
             window.location.origin,
           ) ?? nextUrl);
+    if (remoteSession) {
+      void remoteBrowserAct({ type: "navigate", url: nextUrl }).then(
+        (result) => {
+          if (result.url) syncBrowserHistoryUrl(result.url);
+        },
+      );
+      setBrowserUrl(toBrowserAddress(nextUrl));
+      return;
+    }
     activePreviewUrlRef.current = authedNextUrl;
     setIframeSourceUrl(authedNextUrl);
     setBrowserUrl(toBrowserAddress(authedNextUrl));
@@ -482,6 +551,11 @@ export function PreviewBrowser({
   };
 
   const refreshPreview = async (): Promise<void> => {
+    if (remoteSession) {
+      const result = await remoteBrowserAct({ type: "reload" });
+      if (result.url) syncBrowserHistoryUrl(result.url);
+      return;
+    }
     const currentUrl = activePreviewUrlRef.current;
     let nextRefreshSourceUrl = currentUrl;
     if (onRefreshPreviewUrl && currentUrl) {
@@ -524,6 +598,18 @@ export function PreviewBrowser({
     PREVIEW_DEVICE_OPTIONS[2];
   const ActivePreviewDeviceIcon = activePreviewDevice.icon;
   const closeViewportMenu = useCallback(() => setViewportMenuOpen(false), []);
+
+  useEffect(() => {
+    if (!remoteSession) return;
+    const width = DEVICE_WIDTHS[previewDevice] ?? 1_280;
+    const height =
+      previewDevice === "mobile"
+        ? 844
+        : previewDevice === "tablet"
+          ? 1_024
+          : 720;
+    void remoteBrowserAct({ type: "viewport", width, height });
+  }, [previewDevice, remoteBrowserAct, remoteSession]);
 
   const previewControls = activePreviewUrl ? (
     <>
@@ -592,6 +678,7 @@ export function PreviewBrowser({
         onAttachment={onAttachmentInjection}
         owner={owner}
         repo={repo}
+        remoteAct={remoteSession ? remoteBrowserAct : undefined}
       />
     </>
   ) : null;
@@ -751,7 +838,30 @@ export function PreviewBrowser({
           activePreviewUrl ? "bg-white" : "bg-zinc-950",
         )}
       >
-        {activePreviewUrl ? (
+        {remoteSession ? (
+          <FlyRemoteBrowserSurface
+            streamUrl={remoteSession.streamUrl}
+            title={iframeTitle}
+            maxWidthPx={DEVICE_WIDTHS[previewDevice]}
+            onDisconnected={reconnectRemoteBrowser}
+          />
+        ) : remoteBrowserMode.kind === "checking" ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6 bg-zinc-950">
+            <Loader2 className="h-7 w-7 animate-spin text-zinc-500" />
+            <p className="text-body-sm text-zinc-300">Starting browser…</p>
+          </div>
+        ) : remoteBrowserMode.kind === "error" ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6 bg-zinc-950">
+            <p className="text-body-sm text-zinc-300">Browser unavailable</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void reconnectRemoteBrowser()}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : activePreviewUrl ? (
           <PreviewIframe
             src={iframeBypassedUrl ?? undefined}
             title={iframeTitle}

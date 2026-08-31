@@ -12,6 +12,7 @@ export type FlyFeature =
   | "preview-base"
   | "runner"
   | "brain"
+  | "browser"
   | "builder"
   | "other";
 
@@ -48,6 +49,7 @@ export const FLY_FEATURE_TITLE: Record<FlyFeature, string> = {
   preview: "Previews",
   runner: "Fly runners",
   brain: "Brain server",
+  browser: "Browsers",
   builder: "Builders",
   "preview-base": "Preview base images",
   other: "Other",

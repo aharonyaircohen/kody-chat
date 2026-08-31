@@ -33,7 +33,7 @@ import {
   type RecordingResult,
 } from "./recording";
 
-interface UseElementPickerOptions {
+export interface UseElementPickerOptions {
   /** Fired once per click, after the picker auto-disarms. */
   onSelect: (element: PickedElement) => void;
 }
@@ -45,7 +45,7 @@ export type ScreenshotResult = {
   error?: string;
 };
 
-interface ElementPicker {
+export interface ElementPicker {
   /** True once the extension's bridge answers (installed + on this page). */
   available: boolean;
   /** True while the picker is listening for a click in the preview. */

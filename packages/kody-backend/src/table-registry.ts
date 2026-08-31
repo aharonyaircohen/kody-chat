@@ -36,6 +36,12 @@ export const TABLES: readonly TableDef[] = [
     transient: true,
   },
   {
+    table: "browserSessions",
+    naturalKey: ["actorId", "sessionId"],
+    upsertIndex: "by_session",
+    transient: true,
+  },
+  {
     table: "workflowEventDeliveries",
     naturalKey: ["deliveryId", "triggerId"],
     upsertIndex: "by_key",

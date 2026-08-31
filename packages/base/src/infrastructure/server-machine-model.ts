@@ -8,7 +8,13 @@
  */
 
 export type ServerProviderFeature =
-  "preview" | "preview-base" | "builder" | "runner" | "brain" | "other";
+  | "preview"
+  | "preview-base"
+  | "builder"
+  | "runner"
+  | "brain"
+  | "browser"
+  | "other";
 
 export interface ServerProviderMachineServiceConfig {
   autostop?: boolean | "suspend";
@@ -66,6 +72,7 @@ export const SERVER_PROVIDER_FEATURE_TITLE: Record<
   preview: "Previews",
   runner: "Runners",
   brain: "Brain server",
+  browser: "Browsers",
   builder: "Builders",
   "preview-base": "Preview base images",
   other: "Other",

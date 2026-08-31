@@ -544,6 +544,8 @@ export function PreviewWorkspace({
         owner={owner}
         repo={repo}
         showBrowserChrome
+        enableRemoteBrowser
+        browserActorLogin={githubUser?.login}
         iframeSandbox={
           isRepoViewPdf ? null : repoViewId ? REPO_VIEW_SANDBOX : undefined
         }

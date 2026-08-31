@@ -8,6 +8,7 @@
     "./preview-token": "./src/preview-token.ts",
     "./preview-environments": "./src/preview-environments.ts",
     "./previews/*": "./src/previews/*.ts",
+    "./browsers/*": "./src/browsers/*.ts",
     "./runners/*": "./src/runners/*.ts",
     "./infrastructure/*": "./src/infrastructure/*.ts",
     "./plugin": "./src/plugin/index.ts",

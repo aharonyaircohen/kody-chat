@@ -51,4 +51,17 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toContain("setIframeSourceUrl(authedNextUrl)");
     expect(SOURCE).toContain("setIframeSourceUrl(nextRefreshSourceUrl)");
   });
+
+  it("keeps one browser shell and routes its existing controls to Fly", () => {
+    expect(SOURCE).toContain("useBrowserSession");
+    expect(SOURCE).toContain("remoteAct={remoteSession ? remoteBrowserAct : undefined}");
+    expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: direction/);
+    expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "navigate"/);
+    expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "reload"/);
+    expect(SOURCE).toContain("<FlyRemoteBrowserSurface");
+  });
+
+  it("retains the iframe renderer as the provider-free fallback", () => {
+    expect(SOURCE).toMatch(/remoteBrowserMode\.kind === "error"[\s\S]*: activePreviewUrl \? \([\s\S]*<PreviewIframe/);
+  });
 });

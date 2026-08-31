@@ -123,6 +123,29 @@ export default defineSchema({
     updatedAtMs: v.number(),
   }).index("by_run", ["tenantId", "workflowId", "runId"]),
 
+  browserSessions: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    sessionId: v.string(),
+    providerId: v.string(),
+    appName: v.string(),
+    machineId: v.string(),
+    state: v.union(
+      v.literal("starting"),
+      v.literal("running"),
+      v.literal("suspended"),
+      v.literal("failed"),
+    ),
+    currentUrl: v.string(),
+    viewport: v.object({ width: v.number(), height: v.number() }),
+    createdAtMs: v.number(),
+    lastActiveAtMs: v.number(),
+    expiresAtMs: v.number(),
+  })
+    .index("by_actor", ["tenantId", "actorId"])
+    .index("by_session", ["tenantId", "actorId", "sessionId"])
+    .index("by_expiry", ["expiresAtMs"]),
+
   workflowEventDeliveries: defineTable({
     tenantId: v.string(),
     deliveryId: v.string(),
