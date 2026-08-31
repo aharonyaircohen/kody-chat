@@ -11,10 +11,13 @@ const workspaceSource = readFileSync(
 );
 
 describe("localhost preview boundary", () => {
-  it("does not silently embed an external saved preview on localhost", () => {
-    expect(workspaceSource).toContain("isExternalPreviewOnLocalhost");
-    expect(workspaceSource).toContain("External preview blocked on localhost");
-    expect(workspaceSource).toContain("previewBaseUrl");
-    expect(workspaceSource).toContain("Open saved preview externally");
+  it("allows an external saved preview to load on localhost", () => {
+    expect(workspaceSource).not.toContain("isExternalPreviewOnLocalhost");
+    expect(workspaceSource).not.toContain(
+      "External preview blocked on localhost",
+    );
+    expect(workspaceSource).toMatch(
+      /<PreviewPane\s+[\s\S]*?baseUrl=\{baseUrl\}/,
+    );
   });
 });

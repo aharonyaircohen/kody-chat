@@ -78,6 +78,44 @@ test.describe("Route smoke", () => {
     await expect(chat.locator("textarea").first()).toBeVisible();
   });
 
+  test("Views loads a saved external website on localhost", async ({
+    page,
+  }) => {
+    const websiteUrl = "https://preview.example.test";
+    await page.unroute("**/api/kody/dashboard-config");
+    await page.route("**/api/kody/dashboard-config", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          config: {
+            version: 1,
+            namedPreviews: [
+              { id: "production", label: "Production", url: websiteUrl },
+            ],
+          },
+        }),
+      }),
+    );
+    await page.route(`${websiteUrl}/`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>External preview</title>",
+      }),
+    );
+
+    await page.goto(`${BASE_URL}/repo/test-owner/test-repo/preview/production`);
+
+    await expect(page.getByTitle("Preview deployment")).toHaveAttribute(
+      "src",
+      websiteUrl,
+    );
+    await expect(
+      page.getByText("External preview blocked on localhost"),
+    ).toHaveCount(0);
+  });
+
   test("a conversation route restores the same saved chat after refresh", async ({
     page,
   }) => {

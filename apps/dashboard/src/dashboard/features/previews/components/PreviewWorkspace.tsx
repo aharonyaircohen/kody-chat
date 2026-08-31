@@ -115,20 +115,6 @@ function labelFromPreviewUrl(url: string): string {
   }
 }
 
-function isExternalPreviewOnLocalhost(url: string | undefined): boolean {
-  if (typeof window === "undefined" || !url) return false;
-  if (!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
-    return false;
-  }
-  try {
-    return (
-      new URL(url, window.location.origin).origin !== window.location.origin
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function PreviewWorkspace({
   selectedId = null,
 }: {
@@ -294,10 +280,6 @@ export function PreviewWorkspace({
         ? tokenizeRepoViewUrl(selectedEnv.url, viewTicketQuery.data.token)
         : null
       : (selectedEnv?.url ?? null);
-  const localExternalPreviewBlocked = isExternalPreviewOnLocalhost(
-    selectedEnv?.url,
-  );
-  const previewBaseUrl = localExternalPreviewBlocked ? null : baseUrl;
   const branchPreviewIsResolving =
     !!selectedFlyBranchMatchesRepo &&
     !resolvedBranchPreview?.url &&
@@ -554,7 +536,7 @@ export function PreviewWorkspace({
   return (
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
-        baseUrl={previewBaseUrl}
+        baseUrl={baseUrl}
         isResolving={
           (!!repoViewId && viewTicketQuery.isLoading) ||
           branchPreviewIsResolving
@@ -590,30 +572,7 @@ export function PreviewWorkspace({
           ) : null
         }
         emptyState={
-          localExternalPreviewBlocked ? (
-            <div className="h-full flex items-center justify-center p-6">
-              <div className="w-full max-w-md flex flex-col items-center gap-3 text-center">
-                <MonitorPlay className="h-8 w-8 text-amber-300" />
-                <h2 className="text-sm font-semibold text-zinc-200">
-                  External preview blocked on localhost
-                </h2>
-                <p className="text-xs text-zinc-500">
-                  This environment points outside the local dashboard. Configure
-                  a local preview URL, or open the saved preview explicitly.
-                </p>
-                {selectedEnv?.url ? (
-                  <a
-                    href={selectedEnv.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-sky-300 underline underline-offset-2"
-                  >
-                    Open saved preview externally
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          ) : configQuery.isLoading ? (
+          configQuery.isLoading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
             </div>
