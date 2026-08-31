@@ -27,6 +27,7 @@ export function FlyRemoteBrowserSurface({
   onDisconnected,
 }: FlyRemoteBrowserSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const reconnectAttemptsRef = useRef(0);
   const [connected, setConnected] = useState(false);
   const [disconnected, setDisconnected] = useState(false);
 
@@ -44,13 +45,21 @@ export function FlyRemoteBrowserSurface({
       rfb.clipViewport = true;
       rfb.background = "#09090b";
       rfb.addEventListener("connect", () => {
+        reconnectAttemptsRef.current = 0;
         setConnected(true);
         setDisconnected(false);
         onConnected?.();
       });
       rfb.addEventListener("disconnect", () => {
+        if (disposed) return;
         setConnected(false);
         setDisconnected(true);
+        if (reconnectAttemptsRef.current < 5) {
+          reconnectAttemptsRef.current += 1;
+          window.setTimeout(() => {
+            if (!disposed) onDisconnected?.();
+          }, 2_000);
+        }
       });
       rfb.focus();
     });

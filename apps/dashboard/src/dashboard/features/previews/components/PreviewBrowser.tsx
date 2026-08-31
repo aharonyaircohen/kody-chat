@@ -252,6 +252,7 @@ export function PreviewBrowser({
   const reconnectRemoteBrowser = remoteBrowser.reconnect;
   const remoteSession =
     remoteBrowserMode.kind === "remote" ? remoteBrowserMode.session : null;
+  const remoteSessionId = remoteSession?.sessionId;
   const previousRemoteBaseUrlRef = useRef<string | null>(baseUrl);
 
   const getPreviewAuthSourceUrl = useCallback((): string | null => {
@@ -386,12 +387,13 @@ export function PreviewBrowser({
   useEffect(() => {
     const previous = previousRemoteBaseUrlRef.current;
     previousRemoteBaseUrlRef.current = baseUrl;
-    if (!remoteSession || !baseUrl || !previous || previous === baseUrl) return;
+    if (!remoteSessionId || !baseUrl || !previous || previous === baseUrl)
+      return;
     void remoteBrowserAct({ type: "navigate", url: baseUrl });
-  }, [baseUrl, remoteBrowserAct, remoteSession]);
+  }, [baseUrl, remoteBrowserAct, remoteSessionId]);
 
   useEffect(() => {
-    if (!remoteSession) return;
+    if (!remoteSessionId) return;
     let cancelled = false;
     let busy = false;
     const syncRemotePage = async (): Promise<void> => {
@@ -409,7 +411,7 @@ export function PreviewBrowser({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [remoteBrowserAct, remoteSession, syncBrowserHistoryUrl]);
+  }, [remoteBrowserAct, remoteSessionId, syncBrowserHistoryUrl]);
 
   useEffect(() => {
     if (browserInputFocusedRef.current) return;
@@ -600,7 +602,7 @@ export function PreviewBrowser({
   const closeViewportMenu = useCallback(() => setViewportMenuOpen(false), []);
 
   useEffect(() => {
-    if (!remoteSession) return;
+    if (!remoteSessionId) return;
     const width = DEVICE_WIDTHS[previewDevice] ?? 1_280;
     const height =
       previewDevice === "mobile"
@@ -609,7 +611,7 @@ export function PreviewBrowser({
           ? 1_024
           : 720;
     void remoteBrowserAct({ type: "viewport", width, height });
-  }, [previewDevice, remoteBrowserAct, remoteSession]);
+  }, [previewDevice, remoteBrowserAct, remoteSessionId]);
 
   const previewControls = activePreviewUrl ? (
     <>

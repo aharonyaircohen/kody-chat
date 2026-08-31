@@ -12,8 +12,13 @@ const PREVIEW_BROWSER_PATH = resolve(
   __dirname,
   "../../src/dashboard/features/previews/components/PreviewBrowser.tsx",
 );
+const REMOTE_SURFACE_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/features/previews/components/FlyRemoteBrowserSurface.tsx",
+);
 
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");
+const REMOTE_SURFACE_SOURCE = readFileSync(REMOTE_SURFACE_PATH, "utf8");
 
 describe("PreviewBrowser new-tab action", () => {
   it("renders an external-link icon that opens the iframe-ready preview URL", () => {
@@ -54,7 +59,9 @@ describe("PreviewBrowser new-tab action", () => {
 
   it("keeps one browser shell and routes its existing controls to Fly", () => {
     expect(SOURCE).toContain("useBrowserSession");
-    expect(SOURCE).toContain("remoteAct={remoteSession ? remoteBrowserAct : undefined}");
+    expect(SOURCE).toContain(
+      "remoteAct={remoteSession ? remoteBrowserAct : undefined}",
+    );
     expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: direction/);
     expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "navigate"/);
     expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "reload"/);
@@ -62,6 +69,16 @@ describe("PreviewBrowser new-tab action", () => {
   });
 
   it("retains the iframe renderer as the provider-free fallback", () => {
-    expect(SOURCE).toMatch(/remoteBrowserMode\.kind === "error"[\s\S]*: activePreviewUrl \? \([\s\S]*<PreviewIframe/);
+    expect(SOURCE).toMatch(
+      /remoteBrowserMode\.kind === "error"[\s\S]*: activePreviewUrl \? \([\s\S]*<PreviewIframe/,
+    );
+  });
+
+  it("retries transient stream disconnects while a Fly Machine starts", () => {
+    expect(REMOTE_SURFACE_SOURCE).toContain("reconnectAttemptsRef.current < 5");
+    expect(REMOTE_SURFACE_SOURCE).toMatch(
+      /setTimeout\([\s\S]*onDisconnected\?\.\(\)[\s\S]*2_000/,
+    );
+    expect(REMOTE_SURFACE_SOURCE).toContain("if (disposed) return");
   });
 });
