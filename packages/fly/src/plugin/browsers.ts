@@ -45,17 +45,51 @@ export interface FlyBrowserSession {
 }
 
 export type FlyBrowserAction =
-  | { type: "navigate"; url: string }
+  | {
+      type: "navigate";
+      url: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
   | { type: "back" }
   | { type: "forward" }
   | { type: "reload" }
   | { type: "viewport"; width: number; height: number }
   | { type: "screenshot" }
   | { type: "snapshot" }
-  | { type: "click"; selector: string }
-  | { type: "fill"; selector: string; value: string }
-  | { type: "scroll"; selector?: string; deltaY: number }
-  | { type: "wait"; ms: number }
+  | {
+      type: "click";
+      selector: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      type: "fill";
+      selector: string;
+      value: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      type: "upload";
+      selector: string;
+      uploadId: string;
+      allowedOrigins: string[];
+      capabilitySlug: string;
+    }
+  | {
+      type: "scroll";
+      selector?: string;
+      deltaY: number;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      type: "wait";
+      ms: number;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
   | { type: "pick" }
   | { type: "pickResult" }
   | { type: "cancelPick" }

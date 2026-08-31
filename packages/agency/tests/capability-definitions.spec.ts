@@ -580,4 +580,59 @@ describe("simple capability folders", () => {
       }),
     ).toThrow(/requires browser/i);
   });
+
+  it("validates user-session browser grants for interactive capabilities", () => {
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          requirements: {
+            browser: true,
+            browserSession: "user",
+            browserActions: ["navigate", "click", "fill", "upload", "wait"],
+            browserOrigins: ["https://www.facebook.com"],
+            browserFileRoots: ["content-studio"],
+          },
+          input: {},
+          output: {},
+        }),
+      }),
+    ).not.toThrow();
+
+    for (const requirements of [
+      { browserSession: "user" },
+      {
+        browser: true,
+        browserSession: "user",
+        browserActions: ["publish"],
+        browserOrigins: ["https://www.facebook.com"],
+      },
+      {
+        browser: true,
+        browserSession: "user",
+        browserActions: ["navigate"],
+        browserOrigins: ["http://www.facebook.com"],
+      },
+      {
+        browser: true,
+        browserSession: "user",
+        browserActions: ["upload"],
+        browserOrigins: ["https://www.facebook.com"],
+        browserFileRoots: ["../private"],
+      },
+    ]) {
+      expect(() =>
+        assertSimpleCapabilityFolder({
+          ...FILES,
+          "contract.json": JSON.stringify({
+            execution: "agent",
+            requirements,
+            input: {},
+            output: {},
+          }),
+        }),
+      ).toThrow();
+    }
+  });
 });

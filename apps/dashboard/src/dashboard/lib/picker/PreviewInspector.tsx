@@ -39,7 +39,7 @@ import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
 import { useRemoteElementPicker } from "./useRemoteElementPicker";
 import type {
-  RemoteBrowserAction,
+  BrowserSessionAction,
   RemoteBrowserActionResult,
 } from "@dashboard/lib/previews/browser-session-client";
 import { extensionForMimeType, getDataUrlMimeType } from "./screenshot";
@@ -88,7 +88,7 @@ interface PreviewInspectorProps {
   owner: string;
   repo: string;
   remoteAct?: (
-    action: RemoteBrowserAction,
+    action: BrowserSessionAction,
   ) => Promise<RemoteBrowserActionResult>;
 }
 

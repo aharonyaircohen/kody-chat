@@ -53,10 +53,16 @@ export interface SwitchAgentDirective {
 export interface PreviewActDirective {
   action: typeof PREVIEW_ACT_DIRECTIVE;
   /** Single-character op + selector + value, mirroring PreviewAction. */
-  op: "click" | "fill" | "navigate" | "scroll" | "wait";
+  op: "click" | "fill" | "navigate" | "upload" | "scroll" | "wait";
+  /** Present only for a repository Capability using the user's View browser. */
+  capabilitySlug?: string;
+  /** Exact HTTPS origins declared by that Capability. */
+  allowedOrigins?: string[];
   selector?: string;
   value?: string;
   url?: string;
+  /** Repository file paths resolved by the Dashboard host, never by Fly. */
+  paths?: string[];
   dy?: number;
   ms?: number;
   /** Short rationale shown to the user (e.g. "logging you in to verify"). */

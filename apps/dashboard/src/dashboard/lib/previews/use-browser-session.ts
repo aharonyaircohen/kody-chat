@@ -6,8 +6,10 @@ import {
   actInBrowserSession,
   fetchBrowserSession,
   startBrowserSession,
+  stageBrowserUpload,
+  type BrowserSessionAction,
+  type BrowserUploadFile,
   type BrowserSessionStatus,
-  type RemoteBrowserAction,
   type RemoteBrowserActionResult,
 } from "./browser-session-client";
 
@@ -27,6 +29,7 @@ export function useBrowserSession(input: {
   enabled: boolean;
   actorLogin?: string;
   initialUrl: string | null;
+  resolveUploadFiles?: (paths: string[]) => Promise<BrowserUploadFile[]>;
 }) {
   const [mode, setMode] = useState<BrowserSessionMode>(
     input.enabled ? { kind: "checking" } : { kind: "disabled" },
@@ -36,6 +39,7 @@ export function useBrowserSession(input: {
   const connectingRef = useRef(false);
   const modeRef = useRef(mode);
   const initialUrlRef = useRef(input.initialUrl);
+  const resolveUploadFiles = input.resolveUploadFiles;
   modeRef.current = mode;
   initialUrlRef.current = input.initialUrl;
 
@@ -145,10 +149,35 @@ export function useBrowserSession(input: {
   }, [connect, input.initialUrl]);
 
   const act = useCallback(
-    async (action: RemoteBrowserAction): Promise<RemoteBrowserActionResult> => {
+    async (
+      action: BrowserSessionAction,
+    ): Promise<RemoteBrowserActionResult> => {
       const currentMode = modeRef.current;
       if (currentMode.kind !== "remote" || !input.actorLogin) {
         return { ok: false, error: "browser_session_unavailable" };
+      }
+      if (action.type === "upload") {
+        if (!resolveUploadFiles) {
+          return { ok: false, error: "browser_upload_resolver_unavailable" };
+        }
+        const refreshed = await fetchBrowserSession(input.actorLogin);
+        if (refreshed.mode !== "remote" || refreshed.state === "idle") {
+          return { ok: false, error: "browser_session_unavailable" };
+        }
+        const files = await resolveUploadFiles(action.paths);
+        const uploadId = crypto.randomUUID();
+        await stageBrowserUpload({
+          uploadUrl: refreshed.uploadUrl,
+          uploadId,
+          files,
+        });
+        return actInBrowserSession(input.actorLogin, refreshed.sessionId, {
+          type: "upload",
+          selector: action.selector,
+          uploadId,
+          allowedOrigins: action.allowedOrigins,
+          capabilitySlug: action.capabilitySlug,
+        });
       }
       const result = await actInBrowserSession(
         input.actorLogin,
@@ -167,7 +196,7 @@ export function useBrowserSession(input: {
       }
       return result;
     },
-    [input.actorLogin],
+    [input.actorLogin, resolveUploadFiles],
   );
 
   const reconnect = useCallback(() => connect(true), [connect]);

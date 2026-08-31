@@ -70,6 +70,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     // ── Capability admin (actor-gated) ─────────────────────────────────────
     "list_capabilities",
     "read_capability",
+    "browser_capability_act",
     "delete_capability",
     "run_capability",
     "run_workflow_creator",

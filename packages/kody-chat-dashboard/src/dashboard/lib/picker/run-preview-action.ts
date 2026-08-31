@@ -46,24 +46,53 @@ export interface RunPreviewActionDeps {
 export function directiveToAction(
   directive: PreviewActDirective,
 ): PreviewAction | null {
+  const scope = {
+    ...(directive.allowedOrigins
+      ? { allowedOrigins: directive.allowedOrigins }
+      : {}),
+    ...(directive.capabilitySlug
+      ? { capabilitySlug: directive.capabilitySlug }
+      : {}),
+  };
   switch (directive.op) {
     case "click":
       if (!directive.selector) return null;
-      return { op: "click", selector: directive.selector };
+      return { op: "click", selector: directive.selector, ...scope };
     case "fill":
       if (!directive.selector) return null;
       return {
         op: "fill",
         selector: directive.selector,
         value: directive.value ?? "",
+        ...scope,
       };
     case "navigate":
       if (!directive.url) return null;
-      return { op: "navigate", url: directive.url };
+      return { op: "navigate", url: directive.url, ...scope };
+    case "upload":
+      if (
+        !directive.selector ||
+        !directive.paths?.length ||
+        !directive.capabilitySlug ||
+        !directive.allowedOrigins?.length
+      )
+        return null;
+      return {
+        op: "upload",
+        selector: directive.selector,
+        paths: directive.paths,
+        capabilitySlug: directive.capabilitySlug,
+        allowedOrigins: directive.allowedOrigins,
+      };
     case "scroll":
-      return { op: "scroll", selector: directive.selector, dy: directive.dy };
+      return {
+        op: "scroll",
+        selector: directive.selector,
+        dy: directive.dy,
+        ...scope,
+      };
     case "wait":
-      return { op: "wait", ms: directive.ms ?? 200 };
+      return { op: "wait", ms: directive.ms ?? 200, ...scope };
     default:
       return null;
   }

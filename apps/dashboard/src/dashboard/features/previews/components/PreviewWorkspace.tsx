@@ -11,7 +11,8 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Octokit } from "@octokit/rest";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -67,6 +68,11 @@ import {
   SessionExpiredError,
 } from "@dashboard/lib/api";
 import { REPO_VIEW_SANDBOX } from "@dashboard/lib/html-preview-security";
+import {
+  base64ToBytes,
+  readFile,
+} from "@dashboard/features/file-manager/lib/repo-files";
+import { browserUploadMimeType } from "@dashboard/lib/previews/browser-session-client";
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
@@ -145,6 +151,31 @@ export function PreviewWorkspace({
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
   const repoFullName = owner && repo ? `${owner}/${repo}` : "";
+  const resolveBrowserUploadFiles = useCallback(
+    async (paths: string[]) => {
+      const auth = getStoredAuth();
+      if (!auth?.token || !owner || !repo) {
+        throw new Error("browser_upload_repository_unavailable");
+      }
+      const octokit = new Octokit({ auth: auth.token });
+      return Promise.all(
+        paths.map(async (path) => {
+          const file = await readFile(octokit, owner, repo, path);
+          const name = path.split("/").pop() ?? "media";
+          const mimeType = browserUploadMimeType(name);
+          if (!file || !mimeType) {
+            throw new Error("browser_upload_file_not_supported");
+          }
+          return {
+            name,
+            mimeType,
+            bytes: base64ToBytes(file.base64Content),
+          };
+        }),
+      );
+    },
+    [owner, repo],
+  );
 
   const configQuery = useQuery({
     queryKey: ["kody-dashboard-config"],
@@ -562,6 +593,7 @@ export function PreviewWorkspace({
         showBrowserChrome
         enableRemoteBrowser
         browserActorLogin={githubUser?.login}
+        resolveBrowserUploadFiles={resolveBrowserUploadFiles}
         iframeSandbox={
           isRepoViewPdf ? null : repoViewId ? REPO_VIEW_SANDBOX : undefined
         }

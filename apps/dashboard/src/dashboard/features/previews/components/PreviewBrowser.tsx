@@ -58,6 +58,7 @@ import {
 import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
 import { FlyRemoteBrowserSurface } from "@dashboard/features/previews/components/FlyRemoteBrowserSurface";
 import { useBrowserSession } from "@dashboard/lib/previews/use-browser-session";
+import type { BrowserUploadFile } from "@dashboard/lib/previews/browser-session-client";
 
 export interface PreviewBrowserProps {
   /** Resolved base URL for the active preview, or null when nothing can show. */
@@ -89,6 +90,8 @@ export interface PreviewBrowserProps {
   /** Use the installed real-browser provider when available. */
   enableRemoteBrowser?: boolean;
   browserActorLogin?: string;
+  /** Resolve repository-owned files only when a Capability requests upload. */
+  resolveBrowserUploadFiles?: (paths: string[]) => Promise<BrowserUploadFile[]>;
   loadingTitle?: ReactNode;
   loadingDescription?: ReactNode;
   /** Shown when there is no baseUrl and nothing is resolving. */
@@ -218,6 +221,7 @@ export function PreviewBrowser({
   iframeTitle = "Preview deployment",
   enableRemoteBrowser = false,
   browserActorLogin,
+  resolveBrowserUploadFiles,
   loadingTitle = "Loading preview...",
   loadingDescription = "Fetching preview. It'll appear here as soon as the build is ready.",
   emptyState,
@@ -246,6 +250,7 @@ export function PreviewBrowser({
     enabled: enableRemoteBrowser,
     actorLogin: browserActorLogin,
     initialUrl: previewUrl,
+    resolveUploadFiles: resolveBrowserUploadFiles,
   });
   const remoteBrowserMode = remoteBrowser.mode;
   const remoteBrowserAct = remoteBrowser.act;

@@ -33,7 +33,7 @@ const provider = vi.hoisted(() => ({
   closeSession: vi.fn(),
 }));
 const backend = vi.hoisted(() => ({
-  query: vi.fn(async () => null),
+  query: vi.fn<() => Promise<unknown>>(async () => null),
   mutation: vi.fn(async () => null),
 }));
 
@@ -97,6 +97,9 @@ describe("browser session route", () => {
       mode: "remote",
       state: "running",
       streamUrl: expect.stringContaining("wss://kody-browser-acme-app.fly.dev"),
+      uploadUrl: expect.stringContaining(
+        "https://kody-browser-acme-app.fly.dev/upload",
+      ),
     });
     expect(provider.createSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -108,6 +111,55 @@ describe("browser session route", () => {
       }),
     );
     expect(backend.mutation).toHaveBeenCalledOnce();
+  });
+
+  it("accepts only staged user-browser uploads through the action route", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValue({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
+      state: "running",
+      currentUrl: "https://www.facebook.com/",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+    provider.act.mockResolvedValue({
+      ok: true,
+      url: "https://www.facebook.com/",
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "act",
+          actorLogin: "octocat",
+          sessionId: "browser-fixed",
+          action: {
+            type: "upload",
+            selector: "input[type=file]",
+            uploadId: "123e4567-e89b-42d3-a456-426614174000",
+            capabilitySlug: "draft-facebook-personal-post",
+            allowedOrigins: ["https://www.facebook.com"],
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(provider.act).toHaveBeenCalledWith(
+      expect.objectContaining({ accessTicket: "ticket-1" }),
+      expect.objectContaining({
+        type: "upload",
+        uploadId: "123e4567-e89b-42d3-a456-426614174000",
+      }),
+    );
   });
 
   it("cleans up the previous transient app after replacement succeeds", async () => {

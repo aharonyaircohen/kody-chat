@@ -69,11 +69,45 @@ export interface PerfResource {
 
 /** A chat-driven action the extension should perform inside the preview. */
 export type PreviewAction =
-  | { op: "click"; selector: string }
-  | { op: "fill"; selector: string; value: string }
-  | { op: "navigate"; url: string }
-  | { op: "scroll"; selector?: string; dy?: number }
-  | { op: "wait"; ms: number };
+  | {
+      op: "click";
+      selector: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      op: "fill";
+      selector: string;
+      value: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      op: "navigate";
+      url: string;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      op: "upload";
+      selector: string;
+      paths: string[];
+      allowedOrigins: string[];
+      capabilitySlug: string;
+    }
+  | {
+      op: "scroll";
+      selector?: string;
+      dy?: number;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    }
+  | {
+      op: "wait";
+      ms: number;
+      allowedOrigins?: string[];
+      capabilitySlug?: string;
+    };
 
 /** Result of executing a PreviewAction. `info` is a fresh post-action snapshot. */
 export interface PreviewActResult {
@@ -427,6 +461,8 @@ export function describePreviewAction(action: PreviewAction): string {
       return `Fill ${action.selector}`;
     case "navigate":
       return `Navigate to ${action.url}`;
+    case "upload":
+      return `Upload ${action.paths.length} file${action.paths.length === 1 ? "" : "s"}`;
     case "scroll":
       return action.selector
         ? `Scroll to ${action.selector}`

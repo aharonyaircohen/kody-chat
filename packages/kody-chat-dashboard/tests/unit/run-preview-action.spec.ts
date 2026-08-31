@@ -126,10 +126,34 @@ describe("directiveToAction", () => {
       ms: 200,
     });
   });
+  it("translates a capability-scoped repository upload", () => {
+    expect(
+      directiveToAction(
+        directive({
+          op: "upload",
+          selector: "input[type=file]",
+          paths: ["content-studio/post/01-cover.jpg"],
+          capabilitySlug: "draft-facebook-personal-post",
+          allowedOrigins: ["https://www.facebook.com"],
+        }),
+      ),
+    ).toEqual({
+      op: "upload",
+      selector: "input[type=file]",
+      paths: ["content-studio/post/01-cover.jpg"],
+      capabilitySlug: "draft-facebook-personal-post",
+      allowedOrigins: ["https://www.facebook.com"],
+    });
+  });
   it("returns null for missing required fields", () => {
     expect(directiveToAction(directive({ op: "click" }))).toBeNull();
     expect(directiveToAction(directive({ op: "fill" }))).toBeNull();
     expect(directiveToAction(directive({ op: "navigate" }))).toBeNull();
+    expect(
+      directiveToAction(
+        directive({ op: "upload", selector: "input[type=file]", paths: [] }),
+      ),
+    ).toBeNull();
   });
 });
 

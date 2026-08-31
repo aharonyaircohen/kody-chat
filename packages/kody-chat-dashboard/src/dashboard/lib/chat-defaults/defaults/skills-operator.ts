@@ -26,7 +26,9 @@ export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
 
 Sufficiency: folder name, clear instructions, one input, one output, needed tools, and optional skills. A direct Capability uses Kody; a Workflow chooses one Agent for all its steps. Show the folder contents, then call \`create_or_update_capability\` only after the user approves.
 
-Do not put an Agent identity, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in a Capability folder.`,
+Do not put an Agent identity, model, Workflow, schedule, lifecycle, runtime profile, or approval policy in a Capability folder.
+
+An interactive Capability that must use the user's visible Dashboard browser declares \`requirements.browser: true\`, \`browserSession: "user"\`, exact \`browserActions\`, exact HTTPS \`browserOrigins\`, and upload \`browserFileRoots\` when needed. Never dispatch such a Capability through \`run_capability\` or GitHub Actions. Read its instructions, then use only \`browser_capability_act\`; Dashboard owns the session and every action is checked against the declaration.`,
 };
 
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {

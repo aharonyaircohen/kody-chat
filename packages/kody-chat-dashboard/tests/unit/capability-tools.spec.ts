@@ -30,6 +30,86 @@ describe("capability chat tools", () => {
     ctx.runCapability.mockResolvedValue({ ok: true, capability: "greet" });
   });
 
+  it("limits user-browser capability actions to the declared grant", async () => {
+    ctx.readCapability.mockResolvedValue({
+      capability: {
+        slug: "draft-facebook-personal-post",
+        instructions: "Prepare the post and stop before publishing.",
+        contract: JSON.stringify({
+          execution: "agent",
+          requirements: {
+            browser: true,
+            browserSession: "user",
+            browserActions: ["navigate", "click", "fill", "upload", "wait"],
+            browserOrigins: ["https://www.facebook.com"],
+            browserFileRoots: ["content-studio"],
+          },
+          input: {},
+          output: {},
+        }),
+      },
+    });
+    const tools = createCapabilityTools(ctx as never);
+
+    await expect(
+      tools.browser_capability_act.execute!(
+        {
+          slug: "draft-facebook-personal-post",
+          op: "navigate",
+          url: "https://www.facebook.com/",
+          reason: "Open Facebook for the draft.",
+        },
+        {} as never,
+      ),
+    ).resolves.toMatchObject({
+      action: "preview_act",
+      capabilitySlug: "draft-facebook-personal-post",
+      op: "navigate",
+      allowedOrigins: ["https://www.facebook.com"],
+    });
+
+    await expect(
+      tools.browser_capability_act.execute!(
+        {
+          slug: "draft-facebook-personal-post",
+          op: "upload",
+          selector: "input[type=file]",
+          paths: ["content-studio/post/01-cover.jpg"],
+          reason: "Attach the post media.",
+        },
+        {} as never,
+      ),
+    ).resolves.toMatchObject({
+      op: "upload",
+      paths: ["content-studio/post/01-cover.jpg"],
+    });
+
+    await expect(
+      tools.browser_capability_act.execute!(
+        {
+          slug: "draft-facebook-personal-post",
+          op: "upload",
+          selector: "input[type=file]",
+          paths: ["secrets/private.jpg"],
+          reason: "Attach the post media.",
+        },
+        {} as never,
+      ),
+    ).resolves.toEqual({ error: "browser_file_not_allowed" });
+
+    await expect(
+      tools.browser_capability_act.execute!(
+        {
+          slug: "draft-facebook-personal-post",
+          op: "navigate",
+          url: "https://example.com/",
+          reason: "Navigate elsewhere.",
+        },
+        {} as never,
+      ),
+    ).resolves.toEqual({ error: "browser_origin_not_allowed" });
+  });
+
   it("lists and reads local or active Store capabilities through the Dashboard API", async () => {
     const tools = createCapabilityTools(ctx as never);
 

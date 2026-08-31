@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
-  RemoteBrowserAction,
+  BrowserSessionAction,
   RemoteBrowserActionResult,
 } from "@dashboard/lib/previews/browser-session-client";
 import type {
@@ -22,7 +22,7 @@ import type {
 } from "./protocol";
 
 type RemoteAct = (
-  action: RemoteBrowserAction,
+  action: BrowserSessionAction,
 ) => Promise<RemoteBrowserActionResult>;
 
 function pageInfo(result: RemoteBrowserActionResult): PageInfo | null {
@@ -129,14 +129,14 @@ export function useRemoteElementPicker(
     },
     collectPage: async () => pageInfo(await collectSnapshot()),
     act: async (action: PreviewAction) => {
-      const mapped: RemoteBrowserAction =
+      const mapped: BrowserSessionAction =
         action.op === "scroll"
           ? {
               type: "scroll",
               selector: action.selector,
               deltaY: action.dy ?? 600,
             }
-          : ({ type: action.op, ...action } as RemoteBrowserAction);
+          : ({ type: action.op, ...action } as BrowserSessionAction);
       const result = await remoteAct(mapped);
       return {
         ok: result.ok,

@@ -2,6 +2,14 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { readableResourceResult } from "./readable-resource-result";
+import {
+  readUserBrowserGrant,
+  USER_BROWSER_ACTIONS,
+} from "@kody-ade/agency/capabilities";
+import {
+  PREVIEW_ACT_DIRECTIVE,
+  type PreviewActDirective,
+} from "../../../../../src/dashboard/lib/chat-ui-actions";
 
 interface Ctx {
   octokit: Octokit;
@@ -30,9 +38,53 @@ function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
-const connectionIdSchema = z
-  .string()
-  .regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
+const connectionIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
+
+const userBrowserActionSchema = z.enum(USER_BROWSER_ACTIONS);
+const userBrowserRequirementsSchema = z.object({
+  browser: z.literal(true),
+  browserSession: z.literal("user"),
+  browserActions: z.array(userBrowserActionSchema).min(1),
+  browserOrigins: z.array(z.string().url()).min(1),
+  browserFileRoots: z.array(z.string().min(1)).optional(),
+});
+
+const browserCapabilityActionSchema = z.object({
+  slug: z.string().min(1).max(64),
+  op: userBrowserActionSchema,
+  selector: z.string().min(1).max(2_000).optional(),
+  value: z.string().max(20_000).optional(),
+  url: z.string().url().max(4_096).optional(),
+  paths: z.array(z.string().min(1).max(500)).min(1).max(10).optional(),
+  dy: z.number().int().optional(),
+  ms: z.number().int().min(0).max(5_000).optional(),
+  reason: z.string().min(1).max(200),
+});
+
+function capabilityDetail(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const candidate = record.capability ?? record;
+  return candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : null;
+}
+
+function normalizedRepoPath(path: string): string | null {
+  const normalized = path.replaceAll("\\", "/").replace(/^\/+/, "");
+  if (
+    !normalized ||
+    normalized.length > 500 ||
+    normalized.split("/").some((part) => !part || part === "." || part === "..")
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function pathWithinRoots(path: string, roots: readonly string[]): boolean {
+  return roots.some((root) => path === root || path.startsWith(`${root}/`));
+}
 
 export function createCapabilityTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
@@ -63,6 +115,70 @@ export function createCapabilityTools(ctx: Ctx) {
       },
     }),
 
+    browser_capability_act: tool({
+      description:
+        "Use one declared browser action from a Dashboard user-session Capability. " +
+        "Call only after the user asks to run that Capability and after read_capability confirms its instructions. " +
+        "The Dashboard owns the browser and returns a fresh page snapshot after each action. " +
+        "This tool cannot publish, submit, or click outside the Capability's declared action and origin allowlists.",
+      inputSchema: browserCapabilityActionSchema,
+      execute: async (
+        input,
+      ): Promise<PreviewActDirective | { error: string }> => {
+        if (!isValidSlug(input.slug))
+          return { error: "invalid_capability_slug" };
+        const detail = capabilityDetail(await ctx.readCapability(input.slug));
+        const contract =
+          typeof detail?.contract === "string" ? detail.contract : null;
+        let grant;
+        try {
+          grant = readUserBrowserGrant(contract);
+        } catch {
+          return { error: "invalid_browser_capability_contract" };
+        }
+        if (!grant) return { error: "user_browser_not_declared" };
+        if (!grant.actions.includes(input.op)) {
+          return { error: "browser_action_not_allowed" };
+        }
+        if (input.op === "navigate") {
+          if (!input.url) return { error: "browser_url_required" };
+          const origin = new URL(input.url).origin;
+          if (!grant.origins.includes(origin)) {
+            return { error: "browser_origin_not_allowed" };
+          }
+        }
+        if (["click", "fill", "upload"].includes(input.op) && !input.selector) {
+          return { error: "browser_selector_required" };
+        }
+        let paths: string[] | undefined;
+        if (input.op === "upload") {
+          if (!input.paths?.length) return { error: "browser_files_required" };
+          paths = input.paths
+            .map(normalizedRepoPath)
+            .filter((path): path is string => !!path);
+          if (
+            paths.length !== input.paths.length ||
+            paths.some((path) => !pathWithinRoots(path, grant.fileRoots))
+          ) {
+            return { error: "browser_file_not_allowed" };
+          }
+        }
+        return {
+          action: PREVIEW_ACT_DIRECTIVE,
+          capabilitySlug: input.slug,
+          allowedOrigins: grant.origins,
+          op: input.op,
+          selector: input.selector,
+          value: input.value,
+          url: input.url,
+          paths,
+          dy: input.dy,
+          ms: input.ms,
+          reason: input.reason,
+        };
+      },
+    }),
+
     create_or_update_capability: tool({
       description: `Create or replace one simple Capability folder in ${repoRef}.`,
       inputSchema: z.object({
@@ -71,6 +187,7 @@ export function createCapabilityTools(ctx: Ctx) {
         contract: z
           .object({
             execution: z.enum(["agent", "script"]).default("agent"),
+            requirements: userBrowserRequirementsSchema.optional(),
             connections: z.array(connectionIdSchema).optional(),
             secrets: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/)).optional(),
             timeoutMs: z.number().int().min(1_000).max(21_600_000).optional(),

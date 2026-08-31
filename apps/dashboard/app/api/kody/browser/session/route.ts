@@ -63,8 +63,17 @@ async function withBrowserStartLock<T>(
   }
 }
 
+const CapabilityBrowserScope = {
+  capabilitySlug: z.string().min(1).max(120).optional(),
+  allowedOrigins: z.array(z.string().url().max(2_048)).max(20).optional(),
+};
+
 const BrowserAction = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("navigate"), url: z.string().url().max(4_096) }),
+  z.object({
+    type: z.literal("navigate"),
+    url: z.string().url().max(4_096),
+    ...CapabilityBrowserScope,
+  }),
   z.object({ type: z.literal("back") }),
   z.object({ type: z.literal("forward") }),
   z.object({ type: z.literal("reload") }),
@@ -110,20 +119,31 @@ const BrowserAction = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("click"),
     selector: z.string().min(1).max(2_000),
+    ...CapabilityBrowserScope,
   }),
   z.object({
     type: z.literal("fill"),
     selector: z.string().min(1).max(2_000),
     value: z.string().max(20_000),
+    ...CapabilityBrowserScope,
+  }),
+  z.object({
+    type: z.literal("upload"),
+    selector: z.string().min(1).max(2_000),
+    uploadId: z.string().uuid(),
+    capabilitySlug: z.string().min(1).max(120),
+    allowedOrigins: z.array(z.string().url().max(2_048)).min(1).max(20),
   }),
   z.object({
     type: z.literal("scroll"),
     selector: z.string().max(2_000).optional(),
     deltaY: z.number().finite(),
+    ...CapabilityBrowserScope,
   }),
   z.object({
     type: z.literal("wait"),
     ms: z.number().int().min(0).max(10_000),
+    ...CapabilityBrowserScope,
   }),
 ]);
 
@@ -196,6 +216,7 @@ function clientSession(
     currentUrl: session.currentUrl,
     viewport: session.viewport,
     streamUrl: `wss://${session.appName}.fly.dev/stream?ticket=${encodeURIComponent(ticket)}`,
+    uploadUrl: `https://${session.appName}.fly.dev/upload?ticket=${encodeURIComponent(ticket)}`,
     ticketExpiresAt: expiresAt,
   };
 }
@@ -260,22 +281,25 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const authority = await requestAuthority(req, parsed.data.actorLogin);
+  const data = parsed.data;
+  const authority = await requestAuthority(req, data.actorLogin);
   if (authority instanceof NextResponse) return authority;
   if (!authority.config) {
     return NextResponse.json({ mode: "iframe", reason: "fly_not_configured" });
   }
+  const config = authority.config;
   const backend = createBackendClient();
   const tenantId = `${authority.owner}/${authority.repo}`;
   const provider = getBrowserProvider() as FlyBrowserProvider;
 
   try {
-    if (parsed.data.operation === "start") {
+    if (data.operation === "start") {
+      const startData = data;
       return await withBrowserStartLock(
         `${tenantId}:${authority.actorId}`,
         async () => {
           const initialUrl = await validatePublicBrowserUrl(
-            parsed.data.initialUrl,
+            startData.initialUrl,
           );
           const nowMs = Date.now();
           const previous = (await backend.query(
@@ -312,7 +336,7 @@ export async function POST(req: NextRequest) {
             sessionId,
             initialUrl,
             image: DEFAULT_BROWSER_IMAGE,
-            config: authority.config,
+            config,
             verifyKey: deriveBrowserKey().toString("base64url"),
           } satisfies CreateFlyBrowserSessionInput);
           if (previous && previous.appName !== session.appName) {
@@ -323,9 +347,9 @@ export async function POST(req: NextRequest) {
                 appName: previous.appName,
                 machineId: previous.machineId,
                 state: previous.state,
-                region: authority.config.defaultRegion,
+                region: config.defaultRegion,
                 endpoint: `https://${previous.appName}.fly.dev`,
-                config: authority.config,
+                config,
               });
             } catch (error) {
               logger.warn(
@@ -365,7 +389,7 @@ export async function POST(req: NextRequest) {
     const stored = (await backend.query(backendApi.browserSessions.get, {
       tenantId,
       actorId: authority.actorId,
-      sessionId: parsed.data.sessionId,
+      sessionId: data.sessionId,
     })) as StoredBrowserSession | null;
     if (!stored) {
       return NextResponse.json(
@@ -379,12 +403,12 @@ export async function POST(req: NextRequest) {
       appName: stored.appName,
       machineId: stored.machineId,
       state: stored.state,
-      region: authority.config.defaultRegion,
+      region: config.defaultRegion,
       endpoint: `https://${stored.appName}.fly.dev`,
-      config: authority.config,
+      config,
     };
 
-    if (parsed.data.operation === "close") {
+    if (data.operation === "close") {
       await provider.closeSession(providerSession);
       await backend.mutation(backendApi.browserSessions.close, {
         tenantId,
@@ -395,8 +419,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (parsed.data.action.type === "navigate") {
-      await validatePublicBrowserUrl(parsed.data.action.url);
+    if (data.action.type === "navigate") {
+      await validatePublicBrowserUrl(data.action.url);
     }
     const { ticket } = mintBrowserTicket(
       ticketIdentity(
@@ -409,7 +433,7 @@ export async function POST(req: NextRequest) {
     );
     const result = await provider.act(
       { ...providerSession, accessTicket: ticket },
-      parsed.data.action as FlyBrowserAction,
+      data.action as FlyBrowserAction,
     );
     const nowMs = Date.now();
     await backend.mutation(backendApi.browserSessions.touch, {
@@ -419,11 +443,11 @@ export async function POST(req: NextRequest) {
       nowMs,
       expiresAtMs: nowMs + SESSION_TTL_MS,
       ...(result.url ? { currentUrl: result.url } : {}),
-      ...(parsed.data.action.type === "viewport"
+      ...(data.action.type === "viewport"
         ? {
             viewport: {
-              width: parsed.data.action.width,
-              height: parsed.data.action.height,
+              width: data.action.width,
+              height: data.action.height,
             },
           }
         : {}),
@@ -431,7 +455,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: result.ok ? 200 : 502 });
   } catch (error) {
     logger.error(
-      { err: error, operation: parsed.data.operation },
+      { err: error, operation: data.operation },
       "browser-session: operation failed",
     );
     const code =
