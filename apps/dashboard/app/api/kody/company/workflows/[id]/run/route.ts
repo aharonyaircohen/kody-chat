@@ -170,7 +170,9 @@ export async function POST(
         };
       }
     }
-    const approvalInput = pendingStepApproval ?? options.input ?? {};
+    const approvalInput: Record<string, unknown> = pendingStepApproval
+      ? { ...pendingStepApproval }
+      : (options.input ?? {});
     const result = await startWorkflow(
       {
         workflowId: id,
@@ -204,9 +206,9 @@ export async function POST(
           });
         },
         validateInput: (schema, input) => validateWorkflowInput(input, schema),
-        requiresApproval: (workflowId, workflow) =>
+        requiresApproval: async (workflowId, workflow) =>
           pendingStepApproval !== null ||
-          workflowRequiresApproval(workflowId, workflow),
+          (await workflowRequiresApproval(workflowId, workflow)),
         actionFor: () => workflowRunAction(approvalInput),
         consumeApproval: async (approval) => {
           const consumed = await consumeStoredAgencyApproval({

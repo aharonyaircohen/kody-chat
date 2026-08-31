@@ -3,8 +3,9 @@ import { verifyFacebookPageConnection } from "@dashboard/lib/connections/faceboo
 
 describe("Facebook Connection verification", () => {
   it("uses bearer authentication and verifies the exact Page id", async () => {
-    const fetcher = vi.fn(async () =>
-      Response.json({ id: "123456789", name: "Yair Facebook Page" }),
+    const fetcher = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        Response.json({ id: "123456789", name: "Yair Facebook Page" }),
     );
     await expect(
       verifyFacebookPageConnection(
@@ -14,7 +15,7 @@ describe("Facebook Connection verification", () => {
     ).resolves.toEqual({ ok: true, externalName: "Yair Facebook Page" });
     const [url, init] = fetcher.mock.calls[0]!;
     expect(String(url)).not.toContain("secret-value");
-    expect(init.headers).toEqual({ Authorization: "Bearer secret-value" });
+    expect(init?.headers).toEqual({ Authorization: "Bearer secret-value" });
   });
 
   it("fails closed on mismatch or provider failure", async () => {
