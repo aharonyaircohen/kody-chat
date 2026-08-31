@@ -1,7 +1,12 @@
 import http from "node:http";
 import net from "node:net";
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 
 import { chromium, type BrowserContext, type Page } from "playwright-core";
@@ -16,6 +21,18 @@ import {
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_TEXT_BYTES = 50 * 1024;
+const MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 10;
+const UPLOAD_ROOT = "/tmp/kody-browser-uploads";
+const ALLOWED_UPLOAD_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
 const ACTIONS_PER_MINUTE = 120;
 const SESSION_ID = process.env.KODY_BROWSER_SESSION_ID ?? "";
 const REPOSITORY = process.env.KODY_BROWSER_REPOSITORY ?? "";
@@ -159,6 +176,104 @@ async function readJson(req: http.IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
+function normalizedAllowedOrigins(action: Record<string, unknown>): string[] {
+  if (!action.capabilitySlug) return [];
+  if (!Array.isArray(action.allowedOrigins) || !action.allowedOrigins.length) {
+    throw new Error("browser_capability_origins_missing");
+  }
+  return action.allowedOrigins.map((value) => {
+    const parsed = new URL(String(value));
+    if (parsed.protocol !== "https:") {
+      throw new Error("browser_capability_origin_invalid");
+    }
+    return parsed.origin;
+  });
+}
+
+function assertCapabilityOrigin(
+  action: Record<string, unknown>,
+  currentUrl: string,
+): void {
+  const allowedOrigins = normalizedAllowedOrigins(action);
+  if (!allowedOrigins.length) return;
+  const inspectedUrl =
+    action.type === "navigate" ? String(action.url ?? "") : currentUrl;
+  let origin: string;
+  try {
+    origin = new URL(inspectedUrl).origin;
+  } catch {
+    throw new Error("browser_capability_origin_invalid");
+  }
+  if (!allowedOrigins.includes(origin)) {
+    throw new Error("browser_capability_origin_blocked");
+  }
+}
+
+function uploadDirectory(uploadId: string): string {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      uploadId,
+    )
+  ) {
+    throw new Error("browser_upload_id_invalid");
+  }
+  return path.join(UPLOAD_ROOT, uploadId);
+}
+
+async function receiveUpload(
+  req: http.IncomingMessage,
+  requestUrl: URL,
+): Promise<void> {
+  const uploadId = requestUrl.searchParams.get("uploadId") ?? "";
+  const index = Number.parseInt(requestUrl.searchParams.get("index") ?? "", 10);
+  const name = requestUrl.searchParams.get("name") ?? "";
+  const mimeType = requestUrl.searchParams.get("mimeType") ?? "";
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= MAX_UPLOAD_FILES ||
+    !name ||
+    name !== path.basename(name) ||
+    !ALLOWED_UPLOAD_TYPES.has(mimeType)
+  ) {
+    throw new Error("browser_upload_invalid");
+  }
+  const declaredLength = Number(req.headers["content-length"] ?? 0);
+  if (declaredLength <= 0 || declaredLength > MAX_UPLOAD_FILE_BYTES) {
+    throw new Error("browser_upload_size_invalid");
+  }
+  const directory = uploadDirectory(uploadId);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const destination = path.join(
+    directory,
+    `${String(index).padStart(2, "0")}-${name}`,
+  );
+  let received = 0;
+  req.on("data", (chunk: Buffer) => {
+    received += chunk.length;
+    if (received > MAX_UPLOAD_FILE_BYTES) req.destroy();
+  });
+  await pipeline(
+    req,
+    createWriteStream(destination, { flags: "wx", mode: 0o600 }),
+  );
+  if (!received || received > MAX_UPLOAD_FILE_BYTES) {
+    await rm(destination, { force: true });
+    throw new Error("browser_upload_size_invalid");
+  }
+}
+
+async function stagedUploadPaths(uploadId: string): Promise<string[]> {
+  const directory = uploadDirectory(uploadId);
+  const directoryStat = await stat(directory);
+  if (!directoryStat.isDirectory()) throw new Error("browser_upload_not_found");
+  const entries = (await readdir(directory)).sort();
+  if (!entries.length || entries.length > MAX_UPLOAD_FILES) {
+    throw new Error("browser_upload_file_count_invalid");
+  }
+  return entries.map((entry) => path.join(directory, entry));
+}
+
 async function waitForChromium(): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
@@ -235,6 +350,7 @@ function requirePage(): Page {
 
 async function executeAction(action: Record<string, unknown>) {
   const page = requirePage();
+  assertCapabilityOrigin(action, page.url());
   switch (action.type) {
     case "navigate": {
       const url = await validatePublicBrowserUrl(String(action.url ?? ""));
@@ -297,6 +413,22 @@ async function executeAction(action: Record<string, unknown>) {
         .locator(String(action.selector ?? ""))
         .fill(String(action.value ?? ""), { timeout: 10_000 });
       break;
+    case "upload": {
+      const directory = uploadDirectory(String(action.uploadId ?? ""));
+      try {
+        await page
+          .locator(String(action.selector ?? ""))
+          .setInputFiles(
+            await stagedUploadPaths(String(action.uploadId ?? "")),
+            {
+              timeout: 10_000,
+            },
+          );
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+      break;
+    }
     case "scroll":
       if (action.selector)
         await page
@@ -577,6 +709,29 @@ async function executeAction(action: Record<string, unknown>) {
     }
     case "snapshot": {
       const snapshot = await page.evaluate((maxBytes) => {
+        const selectorFor = (element: Element): string => {
+          if (element.id) return `#${CSS.escape(element.id)}`;
+          const testId = element.getAttribute("data-testid");
+          if (testId) return `[data-testid="${CSS.escape(testId)}"]`;
+          const parts: string[] = [];
+          let current: Element | null = element;
+          while (
+            current &&
+            current !== document.documentElement &&
+            parts.length < 8
+          ) {
+            const siblings = current.parentElement
+              ? Array.from(current.parentElement.children).filter(
+                  (node) => node.tagName === current!.tagName,
+                )
+              : [];
+            parts.unshift(
+              `${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(current) + 1})` : ""}`,
+            );
+            current = current.parentElement;
+          }
+          return parts.join(" > ");
+        };
         const elements = Array.from(
           document.querySelectorAll<HTMLElement>(
             "a,button,input,textarea,select,[role],[contenteditable=true]",
@@ -587,6 +742,7 @@ async function executeAction(action: Record<string, unknown>) {
             const rect = element.getBoundingClientRect();
             return {
               ref: `e${index + 1}`,
+              selector: selectorFor(element),
               tag: element.tagName.toLowerCase(),
               role: element.getAttribute("role"),
               name:
@@ -618,15 +774,45 @@ async function executeAction(action: Record<string, unknown>) {
     default:
       throw new Error("unsupported_browser_action");
   }
+  if (action.capabilitySlug) {
+    return await executeAction({ type: "snapshot" });
+  }
   return { ok: true, url: page.url(), title: await page.title() };
 }
 
 const server = http.createServer(async (req, res) => {
-  if (req.method === "GET" && req.url === "/health") {
+  const requestUrl = new URL(req.url ?? "/", "http://browser.local");
+  if (req.method === "GET" && requestUrl.pathname === "/health") {
     json(res, activePage ? 200 : 503, { ok: !!activePage });
     return;
   }
-  if (req.method !== "POST" || req.url !== "/api/browser/action") {
+  if (req.method === "OPTIONS" && requestUrl.pathname === "/upload") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "300",
+    });
+    res.end();
+    return;
+  }
+  if (req.method === "POST" && requestUrl.pathname === "/upload") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!isAuthorized(req)) {
+      json(res, 401, { error: "unauthorized" });
+      return;
+    }
+    try {
+      await receiveUpload(req, requestUrl);
+      json(res, 201, { ok: true, upload: randomUUID() });
+    } catch (error) {
+      const code =
+        error instanceof Error ? error.message : "browser_upload_failed";
+      json(res, code.endsWith("_invalid") ? 400 : 500, { error: code });
+    }
+    return;
+  }
+  if (req.method !== "POST" || requestUrl.pathname !== "/api/browser/action") {
     json(res, 404, { error: "not_found" });
     return;
   }
@@ -677,5 +863,17 @@ websocketServer.on("connection", (websocket) => {
   websocket.on("error", () => vnc.destroy());
 });
 
-await connectBrowser();
-server.listen(PORT, "0.0.0.0");
+async function bootstrapBrowser(): Promise<void> {
+  while (!activePage) {
+    try {
+      await connectBrowser();
+    } catch (error) {
+      console.error("browser bootstrap failed; retrying", error);
+      await delay(1_000);
+    }
+  }
+}
+
+server.listen(PORT, "0.0.0.0", () => {
+  void bootstrapBrowser();
+});
