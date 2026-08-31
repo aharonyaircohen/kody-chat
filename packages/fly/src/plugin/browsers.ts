@@ -16,10 +16,44 @@ import {
   createMachine,
   destroyApp,
   flyHostname,
+  getMachineDiagnostic,
   listMachines,
   startMachine,
   type FlyPreviewConfig,
 } from "./previews/machines-client";
+
+export { getMachineDiagnostic as getBrowserMachineDiagnostic };
+
+const BROWSER_READY_TIMEOUT_MS = 60_000;
+
+export async function ensureBrowserSessionReady(
+  session: FlyBrowserSession,
+): Promise<void> {
+  const diagnostic = await getMachineDiagnostic(
+    session.appName,
+    session.machineId,
+    session.config,
+  );
+  if (!diagnostic) throw new Error("browser_machine_not_found");
+  if (diagnostic.state !== "started") {
+    await startMachine(session.appName, session.machineId, session.config);
+  }
+
+  const deadline = Date.now() + BROWSER_READY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${session.endpoint}/health`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (response.ok) return;
+    } catch {
+      // Fly proxy can reset connections while a suspended Machine is waking.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new Error("browser_machine_not_ready");
+}
 
 export interface CreateFlyBrowserSessionInput {
   owner: string;

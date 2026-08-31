@@ -75,6 +75,18 @@ export interface MachineInfo {
   config?: MachineConfig;
 }
 
+export interface MachineDiagnostic {
+  state: string;
+  checks: Record<string, unknown>;
+  events: Array<{
+    type: string;
+    status: string;
+    source: string;
+    timestamp: number;
+  }>;
+  imageDigest?: string;
+}
+
 export type MachineServiceConfig = Record<string, unknown> & {
   autostop?: boolean | "suspend";
   autostart?: boolean;
@@ -397,6 +409,43 @@ async function getMachine(
         }
       : undefined,
     config: data.config,
+  };
+}
+
+/** Return only non-secret Machine startup state for authenticated diagnostics. */
+export async function getMachineDiagnostic(
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+): Promise<MachineDiagnostic | null> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}`,
+    { method: "GET" },
+    cfg.token,
+  );
+  if (res.status === 404) return null;
+  await assertOk(res, "getMachineDiagnostic");
+  const data = (await res.json()) as {
+    state?: string;
+    checks?: Record<string, unknown>;
+    events?: Array<{
+      type?: string;
+      status?: string;
+      source?: string;
+      timestamp?: number;
+    }>;
+    image_ref?: { digest?: string };
+  };
+  return {
+    state: data.state ?? "unknown",
+    checks: data.checks ?? {},
+    events: (data.events ?? []).slice(0, 10).map((event) => ({
+      type: event.type ?? "unknown",
+      status: event.status ?? "unknown",
+      source: event.source ?? "unknown",
+      timestamp: event.timestamp ?? 0,
+    })),
+    imageDigest: data.image_ref?.digest,
   };
 }
 

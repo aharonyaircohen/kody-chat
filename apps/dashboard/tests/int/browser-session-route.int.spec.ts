@@ -36,11 +36,28 @@ const backend = vi.hoisted(() => ({
   query: vi.fn<() => Promise<unknown>>(async () => null),
   mutation: vi.fn(async () => null),
 }));
+const machineDiagnostic = vi.hoisted(() => ({
+  get: vi.fn(async () => ({
+    state: "started",
+    checks: {},
+    events: [
+      { type: "start", status: "started", source: "flyd", timestamp: 1 },
+    ],
+    imageDigest: "sha256:safe",
+  })),
+}));
+const browserReadiness = vi.hoisted(() => ({
+  ensure: vi.fn(async () => undefined),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@kody-ade/fly/infrastructure/server-context", () => context);
 vi.mock("@kody-ade/fly/infrastructure/browser", () => ({
   getBrowserProvider: () => provider,
+  ensureBrowserSessionReady: browserReadiness.ensure,
+}));
+vi.mock("@kody-ade/fly/plugin/browsers", () => ({
+  getBrowserMachineDiagnostic: machineDiagnostic.get,
 }));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => backend,
@@ -226,9 +243,84 @@ describe("browser session route", () => {
 
     expect(response.status).toBe(200);
     expect(provider.createSession).not.toHaveBeenCalled();
+    expect(browserReadiness.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appName: "fresh-browser-app",
+        machineId: "fresh-machine",
+      }),
+    );
     await expect(response.json()).resolves.toMatchObject({
       sessionId: "browser-fixed",
       state: "starting",
     });
+  });
+
+  it("returns only scoped Machine startup diagnostics", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
+      state: "starting",
+      currentUrl: "https://example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "diagnose",
+          actorLogin: "octocat",
+          sessionId: "browser-fixed",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(machineDiagnostic.get).toHaveBeenCalledWith(
+      "kody-browser-acme-app",
+      "machine-1",
+      context.config,
+    );
+    expect(JSON.stringify(await response.json())).not.toContain("fly-token");
+  });
+
+  it("diagnoses the authenticated active browser without exposing secrets", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
+      state: "starting",
+      currentUrl: "https://example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost/api/kody/browser/session?actorLogin=octocat&diagnose=1",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(machineDiagnostic.get).toHaveBeenCalledWith(
+      "kody-browser-acme-app",
+      "machine-1",
+      context.config,
+    );
+    expect(JSON.stringify(await response.json())).not.toContain("fly-token");
   });
 });

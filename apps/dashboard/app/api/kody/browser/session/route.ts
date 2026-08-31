@@ -21,7 +21,9 @@ import {
   type FlyBrowserProvider,
   type FlyBrowserSession,
   type CreateFlyBrowserSessionInput,
+  ensureBrowserSessionReady,
 } from "@kody-ade/fly/infrastructure/browser";
+import { getBrowserMachineDiagnostic } from "@kody-ade/fly/plugin/browsers";
 import {
   resolveServerProviderContext,
   serverProviderConfigFromContext,
@@ -164,6 +166,11 @@ const Body = z.discriminatedUnion("operation", [
     actorLogin: z.string().min(1).max(100).optional(),
     sessionId: z.string().min(1).max(160),
   }),
+  z.object({
+    operation: z.literal("diagnose"),
+    actorLogin: z.string().min(1).max(100).optional(),
+    sessionId: z.string().min(1).max(160),
+  }),
 ]);
 
 type StoredBrowserSession = {
@@ -260,6 +267,17 @@ export async function GET(req: NextRequest) {
     },
   )) as StoredBrowserSession | null;
   if (!session) return NextResponse.json({ mode: "remote", state: "idle" });
+  if (req.nextUrl.searchParams.get("diagnose") === "1") {
+    const diagnostic = await getBrowserMachineDiagnostic(
+      session.appName,
+      session.machineId,
+      authority.config,
+    );
+    return NextResponse.json(
+      diagnostic ?? { error: "browser_machine_not_found" },
+      { status: diagnostic ? 200 : 404 },
+    );
+  }
   return NextResponse.json(
     clientSession(authority.owner, authority.repo, authority.actorId, session),
   );
@@ -315,6 +333,16 @@ export async function POST(req: NextRequest) {
             nowMs - (previous.expiresAtMs - SESSION_TTL_MS) <
               BROWSER_START_REUSE_MS
           ) {
+            await ensureBrowserSessionReady({
+              providerId: "fly",
+              sessionId: previous.sessionId,
+              appName: previous.appName,
+              machineId: previous.machineId,
+              state: previous.state,
+              region: config.defaultRegion,
+              endpoint: `https://${previous.appName}.fly.dev`,
+              config,
+            });
             return NextResponse.json(
               clientSession(
                 authority.owner,
@@ -417,6 +445,18 @@ export async function POST(req: NextRequest) {
         nowMs: Date.now(),
       });
       return NextResponse.json({ ok: true });
+    }
+
+    if (data.operation === "diagnose") {
+      const diagnostic = await getBrowserMachineDiagnostic(
+        stored.appName,
+        stored.machineId,
+        config,
+      );
+      return NextResponse.json(
+        diagnostic ?? { error: "browser_machine_not_found" },
+        { status: diagnostic ? 200 : 404 },
+      );
     }
 
     if (data.action.type === "navigate") {
