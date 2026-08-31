@@ -17,6 +17,7 @@ chromium \
   --user-data-dir=/tmp/kody-browser-profile \
   --window-position=0,0 \
   --window-size=1280,720 \
-  --app=about:blank >/tmp/chromium.log 2>&1 &
+  --kiosk \
+  about:blank >/tmp/chromium.log 2>&1 &
 
 exec ./node_modules/.bin/tsx /app/server.ts

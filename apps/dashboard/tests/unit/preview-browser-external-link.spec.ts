@@ -20,10 +20,24 @@ const BROWSER_START_PATH = resolve(
   __dirname,
   "../../../../packages/fly/browser/start.sh",
 );
+const PREVIEW_WORKSPACE_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/features/previews/components/PreviewWorkspace.tsx",
+);
+const FLY_MACHINES_TABLE_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx",
+);
 
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");
 const REMOTE_SURFACE_SOURCE = readFileSync(REMOTE_SURFACE_PATH, "utf8");
 const BROWSER_START_SOURCE = readFileSync(BROWSER_START_PATH, "utf8");
+const PREVIEW_WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
+const FLY_MACHINES_TABLE_SOURCE = readFileSync(FLY_MACHINES_TABLE_PATH, "utf8");
+const BROWSER_SESSION_HOOK_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/previews/use-browser-session.ts"),
+  "utf8",
+);
 
 describe("PreviewBrowser new-tab action", () => {
   it("renders an external-link icon that opens the iframe-ready preview URL", () => {
@@ -73,6 +87,52 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toContain("<FlyRemoteBrowserSurface");
   });
 
+  it("synchronizes external Fly navigation into the Kody address bar", () => {
+    expect(SOURCE).toContain("options: { allowExternal?: boolean } = {}");
+    expect(SOURCE).toMatch(
+      /remoteSession\.currentUrl, \{ allowExternal: true \}/,
+    );
+    expect(SOURCE).toMatch(
+      /type: "snapshot"[\s\S]*syncBrowserHistoryUrl\(result\.url, \{ allowExternal: true \}\)/,
+    );
+  });
+
+  it("creates a distinct saved environment name when the derived name exists", () => {
+    expect(PREVIEW_WORKSPACE_SOURCE).toContain(
+      "function uniqueEnvironmentLabel",
+    );
+    expect(PREVIEW_WORKSPACE_SOURCE).toContain(
+      "makeEnvId(`${preferred} ${suffix}`)",
+    );
+    expect(PREVIEW_WORKSPACE_SOURCE).toMatch(
+      /const label = uniqueEnvironmentLabel\([\s\S]*addEnvironment\([\s\S]*label,[\s\S]*normalizedUrl/,
+    );
+  });
+
+  it("shows browser Machines and destroys their whole transient app", () => {
+    expect(FLY_MACHINES_TABLE_SOURCE).toMatch(
+      /const FEATURE_ORDER[\s\S]*"browser"/,
+    );
+    expect(FLY_MACHINES_TABLE_SOURCE).toMatch(
+      /function destroysWholeApp[\s\S]*feature === "browser"/,
+    );
+    expect(FLY_MACHINES_TABLE_SOURCE).toContain(
+      "It is recreated with the current image when a View reconnects.",
+    );
+  });
+
+  it("recreates a missing Fly browser app when the stream reconnects", () => {
+    expect(BROWSER_SESSION_HOOK_SOURCE).toMatch(
+      /const connect = useCallback\(\s*async \(forceStart = false\)/,
+    );
+    expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
+      'forceStart || status.state === "idle"',
+    );
+    expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
+      "const reconnect = useCallback(() => connect(true)",
+    );
+  });
+
   it("retains the iframe renderer as the provider-free fallback", () => {
     expect(SOURCE).toMatch(
       /remoteBrowserMode\.kind === "error"[\s\S]*: activePreviewUrl \? \([\s\S]*<PreviewIframe/,
@@ -90,7 +150,8 @@ describe("PreviewBrowser new-tab action", () => {
   it("shows only a sharp webpage surface instead of Chromium chrome", () => {
     expect(BROWSER_START_SOURCE).toContain("1280x720x24");
     expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
-    expect(BROWSER_START_SOURCE).toContain("--app=about:blank");
+    expect(BROWSER_START_SOURCE).toContain("--kiosk");
+    expect(BROWSER_START_SOURCE).toMatch(/--kiosk \\\s*about:blank/);
     expect(REMOTE_SURFACE_SOURCE).toContain("rfb.scaleViewport = true");
     expect(REMOTE_SURFACE_SOURCE).toContain("rfb.resizeSession = false");
     expect(REMOTE_SURFACE_SOURCE).not.toContain("[&_canvas]:h-full");

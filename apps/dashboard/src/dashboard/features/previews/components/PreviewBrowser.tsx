@@ -353,11 +353,15 @@ export function PreviewBrowser({
   );
 
   const syncBrowserHistoryUrl = useCallback(
-    (url: string | null | undefined): void => {
+    (
+      url: string | null | undefined,
+      options: { allowExternal?: boolean } = {},
+    ): void => {
       const nextUrl = toAbsolutePreviewUrl(url ?? null);
       if (!nextUrl) return;
       if (
         typeof window !== "undefined" &&
+        !options.allowExternal &&
         !shouldSyncPreviewBrowserUrl(
           nextUrl,
           activePreviewUrlRef.current ?? previewUrl,
@@ -381,7 +385,7 @@ export function PreviewBrowser({
 
   useEffect(() => {
     if (!remoteSession?.currentUrl) return;
-    syncBrowserHistoryUrl(remoteSession.currentUrl);
+    syncBrowserHistoryUrl(remoteSession.currentUrl, { allowExternal: true });
   }, [remoteSession?.currentUrl, syncBrowserHistoryUrl]);
 
   useEffect(() => {
@@ -401,7 +405,8 @@ export function PreviewBrowser({
       busy = true;
       try {
         const result = await remoteBrowserAct({ type: "snapshot" });
-        if (!cancelled && result.url) syncBrowserHistoryUrl(result.url);
+        if (!cancelled && result.url)
+          syncBrowserHistoryUrl(result.url, { allowExternal: true });
       } finally {
         busy = false;
       }
@@ -485,7 +490,8 @@ export function PreviewBrowser({
   const moveBrowserHistory = (direction: "back" | "forward"): void => {
     if (remoteSession) {
       void remoteBrowserAct({ type: direction }).then((result) => {
-        if (result.url) syncBrowserHistoryUrl(result.url);
+        if (result.url)
+          syncBrowserHistoryUrl(result.url, { allowExternal: true });
       });
       return;
     }
@@ -540,7 +546,8 @@ export function PreviewBrowser({
     if (remoteSession) {
       void remoteBrowserAct({ type: "navigate", url: nextUrl }).then(
         (result) => {
-          if (result.url) syncBrowserHistoryUrl(result.url);
+          if (result.url)
+            syncBrowserHistoryUrl(result.url, { allowExternal: true });
         },
       );
       setBrowserUrl(toBrowserAddress(nextUrl));
@@ -555,7 +562,8 @@ export function PreviewBrowser({
   const refreshPreview = async (): Promise<void> => {
     if (remoteSession) {
       const result = await remoteBrowserAct({ type: "reload" });
-      if (result.url) syncBrowserHistoryUrl(result.url);
+      if (result.url)
+        syncBrowserHistoryUrl(result.url, { allowExternal: true });
       return;
     }
     const currentUrl = activePreviewUrlRef.current;

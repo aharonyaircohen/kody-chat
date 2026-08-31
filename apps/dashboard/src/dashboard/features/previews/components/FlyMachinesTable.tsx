@@ -50,6 +50,7 @@ const FEATURE_ORDER: ServerProviderFeature[] = [
   "preview",
   "runner",
   "brain",
+  "browser",
   "builder",
   "preview-base",
   "other",
@@ -58,7 +59,9 @@ const FEATURE_ORDER: ServerProviderFeature[] = [
 // app (URL + IPs), not just one machine. Brain is also a whole-app lifecycle,
 // handled by its dedicated route. Other long-lived services keep the app.
 function destroysWholeApp(feature: ServerProviderFeature): boolean {
-  return feature === "preview" || feature === "preview-base";
+  return (
+    feature === "preview" || feature === "preview-base" || feature === "browser"
+  );
 }
 
 /** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
@@ -388,16 +391,20 @@ export function FlyMachinesTable({
         title={
           confirm?.feature === "brain"
             ? `Turn off Brain ${confirm.label}?`
-            : confirm && destroysWholeApp(confirm.feature)
-              ? `Destroy preview ${confirm.label}?`
-              : `Destroy ${confirm?.label ?? "machine"}?`
+            : confirm?.feature === "browser"
+              ? `Destroy browser ${confirm.label}?`
+              : confirm && destroysWholeApp(confirm.feature)
+                ? `Destroy preview ${confirm.label}?`
+                : `Destroy ${confirm?.label ?? "machine"}?`
         }
         description={
           confirm?.feature === "brain"
             ? "Turns off this Brain app completely: all machines and its Fly URL are removed. Its stored Kody record is also cleared when this is the active Brain."
-            : confirm && destroysWholeApp(confirm.feature)
-              ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
-              : "Destroys this machine. Long-lived apps re-provision on next use."
+            : confirm?.feature === "browser"
+              ? "Removes this transient browser app. It is recreated with the current image when a View reconnects."
+              : confirm && destroysWholeApp(confirm.feature)
+                ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
+                : "Destroys this machine. Long-lived apps re-provision on next use."
         }
         confirmLabel={confirm?.feature === "brain" ? "Turn off" : "Destroy"}
         variant="destructive"

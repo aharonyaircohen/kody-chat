@@ -31,6 +31,7 @@ import {
   addRepoViewEnvironment,
   expiredUploads,
   isFlyBranchEnvironment,
+  makeEnvId,
   normalizeBranchName,
   normalizeEnvUrl,
   repoViewIdFromPath,
@@ -113,6 +114,21 @@ function labelFromPreviewUrl(url: string): string {
   } catch {
     return "Saved URL";
   }
+}
+
+function uniqueEnvironmentLabel(
+  environments: PreviewEnvironment[],
+  preferred: string,
+): string {
+  const usedIds = new Set(environments.map((environment) => environment.id));
+  if (!usedIds.has(makeEnvId(preferred))) {
+    return preferred;
+  }
+  let suffix = 2;
+  while (usedIds.has(makeEnvId(`${preferred} ${suffix}`))) {
+    suffix += 1;
+  }
+  return `${preferred} ${suffix}`;
 }
 
 export function PreviewWorkspace({
@@ -411,11 +427,11 @@ export function PreviewWorkspace({
       toast.info(`"${existing.label}" is already saved`);
       return;
     }
-    const next = addEnvironment(
+    const label = uniqueEnvironmentLabel(
       environments,
       labelFromPreviewUrl(normalizedUrl),
-      normalizedUrl,
     );
+    const next = addEnvironment(environments, label, normalizedUrl);
     const created = next[next.length - 1];
     if (!created || created.url !== normalizedUrl) {
       toast.error("Couldn't save current URL");

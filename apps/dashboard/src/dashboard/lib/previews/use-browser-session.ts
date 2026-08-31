@@ -35,41 +35,45 @@ export function useBrowserSession(input: {
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
-  const connect = useCallback(async () => {
-    if (!input.enabled || !input.initialUrl) {
-      setMode({ kind: "disabled" });
-      return;
-    }
-    if (!input.actorLogin) {
-      setMode({ kind: "checking" });
-      return;
-    }
-    const generation = ++generationRef.current;
-    setMode({ kind: "checking" });
-    try {
-      const status = await fetchBrowserSession(input.actorLogin);
-      if (generation !== generationRef.current) return;
-      if (status.mode === "iframe") {
-        setMode({ kind: "iframe", reason: status.reason });
+  const connect = useCallback(
+    async (forceStart = false) => {
+      if (!input.enabled || !input.initialUrl) {
+        setMode({ kind: "disabled" });
         return;
       }
-      const session =
-        status.state === "idle"
-          ? await startBrowserSession(input.actorLogin, input.initialUrl)
-          : status;
-      if (generation !== generationRef.current) return;
-      setMode({ kind: "remote", session });
-    } catch (error) {
-      if (generation !== generationRef.current) return;
-      setMode({
-        kind: "error",
-        error: error instanceof Error ? error.message : "browser_session_failed",
-      });
-    }
-  }, [input.actorLogin, input.enabled, input.initialUrl]);
+      if (!input.actorLogin) {
+        setMode({ kind: "checking" });
+        return;
+      }
+      const generation = ++generationRef.current;
+      setMode({ kind: "checking" });
+      try {
+        const status = await fetchBrowserSession(input.actorLogin);
+        if (generation !== generationRef.current) return;
+        if (status.mode === "iframe") {
+          setMode({ kind: "iframe", reason: status.reason });
+          return;
+        }
+        const session =
+          forceStart || status.state === "idle"
+            ? await startBrowserSession(input.actorLogin, input.initialUrl)
+            : status;
+        if (generation !== generationRef.current) return;
+        setMode({ kind: "remote", session });
+      } catch (error) {
+        if (generation !== generationRef.current) return;
+        setMode({
+          kind: "error",
+          error:
+            error instanceof Error ? error.message : "browser_session_failed",
+        });
+      }
+    },
+    [input.actorLogin, input.enabled, input.initialUrl],
+  );
 
   useEffect(() => {
-    void connect();
+    void connect(false);
     return () => {
       generationRef.current += 1;
     };
@@ -101,5 +105,7 @@ export function useBrowserSession(input: {
     [input.actorLogin],
   );
 
-  return { mode, act, reconnect: connect };
+  const reconnect = useCallback(() => connect(true), [connect]);
+
+  return { mode, act, reconnect };
 }
