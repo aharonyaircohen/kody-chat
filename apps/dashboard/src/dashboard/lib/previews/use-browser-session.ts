@@ -57,27 +57,46 @@ export function useBrowserSession(input: {
           setMode({ kind: "iframe", reason: status.reason });
           return;
         }
-        let session =
+        const session =
           forceStart || status.state === "idle"
             ? await startBrowserSession(input.actorLogin, initialUrl)
             : status;
+        if (generation !== generationRef.current) return;
+        setMode({ kind: "remote", session });
+
         if (
           !forceStart &&
           status.state !== "idle" &&
           status.currentUrl !== initialUrl
         ) {
-          const navigation = await actInBrowserSession(
-            input.actorLogin,
-            status.sessionId,
-            { type: "navigate", url: initialUrl },
-          );
-          session = {
-            ...status,
-            currentUrl: navigation.url ?? initialUrl,
-          };
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              const desiredUrl = initialUrlRef.current;
+              if (!desiredUrl) return;
+              const navigation = await actInBrowserSession(
+                input.actorLogin,
+                status.sessionId,
+                { type: "navigate", url: desiredUrl },
+              );
+              if (generation !== generationRef.current) return;
+              if (initialUrlRef.current !== desiredUrl) continue;
+              setMode({
+                kind: "remote",
+                session: {
+                  ...status,
+                  currentUrl: navigation.url ?? desiredUrl,
+                },
+              });
+              return;
+            } catch {
+              if (attempt < 2) {
+                await new Promise((resolve) =>
+                  window.setTimeout(resolve, 1_500),
+                );
+              }
+            }
+          }
         }
-        if (generation !== generationRef.current) return;
-        setMode({ kind: "remote", session });
       } catch (error) {
         if (generation !== generationRef.current) return;
         setMode({

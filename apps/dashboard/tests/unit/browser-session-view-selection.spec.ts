@@ -26,8 +26,18 @@ describe("browser session View selection lifecycle", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("status.currentUrl !== initialUrl");
+    expect(source).toContain(
+      "for (let attempt = 0; attempt < 3; attempt += 1)",
+    );
+    expect(source).toContain("const desiredUrl = initialUrlRef.current");
     expect(source).toContain("const navigation = await actInBrowserSession(");
-    expect(source).toContain('{ type: "navigate", url: initialUrl }');
-    expect(source).toContain("currentUrl: navigation.url ?? initialUrl");
+    expect(source).toContain('{ type: "navigate", url: desiredUrl }');
+    expect(source).toContain("initialUrlRef.current !== desiredUrl");
+    expect(source).toContain("currentUrl: navigation.url ?? desiredUrl");
+    expect(
+      source.indexOf('setMode({ kind: "remote", session });'),
+    ).toBeLessThan(
+      source.indexOf("for (let attempt = 0; attempt < 3; attempt += 1)"),
+    );
   });
 });

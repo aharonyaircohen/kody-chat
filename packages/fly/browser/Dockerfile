@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       xcvt \
       ca-certificates \
       fonts-liberation \
+      fonts-noto-core \
       fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
