@@ -41,7 +41,7 @@ export function FlyRemoteBrowserSurface({
       if (disposed) return;
       rfb = new RFB(container, streamUrl, { shared: true });
       rfb.scaleViewport = true;
-      rfb.resizeSession = true;
+      rfb.resizeSession = false;
       rfb.clipViewport = true;
       rfb.background = "#09090b";
       rfb.addEventListener("connect", () => {
@@ -79,7 +79,7 @@ export function FlyRemoteBrowserSurface({
         role="application"
         aria-label={title}
         style={maxWidthPx ? { maxWidth: `${maxWidthPx}px` } : undefined}
-        className="h-full w-full overflow-hidden bg-white [&_canvas]:h-full [&_canvas]:w-full"
+        className="h-full w-full overflow-hidden bg-white"
       />
       {!connected && (
         <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">

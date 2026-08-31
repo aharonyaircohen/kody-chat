@@ -16,9 +16,14 @@ const REMOTE_SURFACE_PATH = resolve(
   __dirname,
   "../../src/dashboard/features/previews/components/FlyRemoteBrowserSurface.tsx",
 );
+const BROWSER_START_PATH = resolve(
+  __dirname,
+  "../../../../packages/fly/browser/start.sh",
+);
 
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");
 const REMOTE_SURFACE_SOURCE = readFileSync(REMOTE_SURFACE_PATH, "utf8");
+const BROWSER_START_SOURCE = readFileSync(BROWSER_START_PATH, "utf8");
 
 describe("PreviewBrowser new-tab action", () => {
   it("renders an external-link icon that opens the iframe-ready preview URL", () => {
@@ -80,5 +85,14 @@ describe("PreviewBrowser new-tab action", () => {
       /setTimeout\([\s\S]*onDisconnected\?\.\(\)[\s\S]*2_000/,
     );
     expect(REMOTE_SURFACE_SOURCE).toContain("if (disposed) return");
+  });
+
+  it("shows only a sharp webpage surface instead of Chromium chrome", () => {
+    expect(BROWSER_START_SOURCE).toContain("1280x720x24");
+    expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
+    expect(BROWSER_START_SOURCE).toContain("--app=about:blank");
+    expect(REMOTE_SURFACE_SOURCE).toContain("rfb.scaleViewport = true");
+    expect(REMOTE_SURFACE_SOURCE).toContain("rfb.resizeSession = false");
+    expect(REMOTE_SURFACE_SOURCE).not.toContain("[&_canvas]:h-full");
   });
 });
