@@ -73,6 +73,13 @@ function requestsParentExecution(userText: string): boolean {
   return /\b(?:do not|don't|dont)\s+(?:delegate|assign)\b/i.test(userText);
 }
 
+/** Explicit Capability invocation is executed by parent Kody, which owns UI tools. */
+function requestsDirectCapabilityExecution(userText: string): boolean {
+  return /\b(?:use|run|execute|invoke)\s+(?:the\s+)?(?:capability\s+)?(?:[a-z0-9]+[-_])(?:[a-z0-9_-]+)\b/i.test(
+    userText,
+  );
+}
+
 export function routeProjectAssessmentSubmission(
   userText: string,
   assignedAgents: readonly PublicDelegationAgent[],
@@ -464,6 +471,9 @@ export async function routePublicAgentTask({
     return { mode: "self" };
   }
   if (requestsParentExecution(userText)) {
+    return { mode: "self" };
+  }
+  if (requestsDirectCapabilityExecution(userText)) {
     return { mode: "self" };
   }
   const assessment = routeProjectAssessmentSubmission(userText, assignedAgents);

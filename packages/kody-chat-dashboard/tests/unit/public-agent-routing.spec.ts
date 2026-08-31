@@ -101,6 +101,20 @@ describe("public Agent routing", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
+  it("keeps an explicit Capability invocation with parent Kody", async () => {
+    const generate = vi.fn();
+    await expect(
+      routePublicAgentTask({
+        userText:
+          "Prepare the selected post for review. Use draft-facebook-personal-post. Do not click Post.",
+        assignedAgents,
+        model: {} as never,
+        generate: generate as never,
+      }),
+    ).resolves.toEqual({ mode: "self" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("keeps durable automation ownership requests with Kody intake", async () => {
     expect(
       isAgencyRequestIntakeRequest(
