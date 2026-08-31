@@ -33,11 +33,14 @@ export function useBrowserSession(input: {
   );
   const generationRef = useRef(0);
   const modeRef = useRef(mode);
+  const initialUrlRef = useRef(input.initialUrl);
   modeRef.current = mode;
+  initialUrlRef.current = input.initialUrl;
 
   const connect = useCallback(
     async (forceStart = false) => {
-      if (!input.enabled || !input.initialUrl) {
+      const initialUrl = initialUrlRef.current;
+      if (!input.enabled || !initialUrl) {
         setMode({ kind: "disabled" });
         return;
       }
@@ -54,10 +57,25 @@ export function useBrowserSession(input: {
           setMode({ kind: "iframe", reason: status.reason });
           return;
         }
-        const session =
+        let session =
           forceStart || status.state === "idle"
-            ? await startBrowserSession(input.actorLogin, input.initialUrl)
+            ? await startBrowserSession(input.actorLogin, initialUrl)
             : status;
+        if (
+          !forceStart &&
+          status.state !== "idle" &&
+          status.currentUrl !== initialUrl
+        ) {
+          const navigation = await actInBrowserSession(
+            input.actorLogin,
+            status.sessionId,
+            { type: "navigate", url: initialUrl },
+          );
+          session = {
+            ...status,
+            currentUrl: navigation.url ?? initialUrl,
+          };
+        }
         if (generation !== generationRef.current) return;
         setMode({ kind: "remote", session });
       } catch (error) {
@@ -69,7 +87,7 @@ export function useBrowserSession(input: {
         });
       }
     },
-    [input.actorLogin, input.enabled, input.initialUrl],
+    [input.actorLogin, input.enabled],
   );
 
   useEffect(() => {
