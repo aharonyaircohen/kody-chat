@@ -610,7 +610,7 @@ export function PreviewBrowser({
   const closeViewportMenu = useCallback(() => setViewportMenuOpen(false), []);
 
   useEffect(() => {
-    if (!remoteSessionId) return;
+    if (!remoteSessionId || previewDevice === "desktop") return;
     const width = DEVICE_WIDTHS[previewDevice] ?? 1_280;
     const height =
       previewDevice === "mobile"
@@ -620,6 +620,14 @@ export function PreviewBrowser({
           : 720;
     void remoteBrowserAct({ type: "viewport", width, height });
   }, [previewDevice, remoteBrowserAct, remoteSessionId]);
+
+  const resizeRemoteDesktop = useCallback(
+    (width: number, height: number) => {
+      if (!remoteSessionId || previewDevice !== "desktop") return;
+      void remoteBrowserAct({ type: "viewport", width, height });
+    },
+    [previewDevice, remoteBrowserAct, remoteSessionId],
+  );
 
   const previewControls = activePreviewUrl ? (
     <>
@@ -853,6 +861,9 @@ export function PreviewBrowser({
             streamUrl={remoteSession.streamUrl}
             title={iframeTitle}
             maxWidthPx={DEVICE_WIDTHS[previewDevice]}
+            onViewportResize={
+              previewDevice === "desktop" ? resizeRemoteDesktop : undefined
+            }
             onDisconnected={reconnectRemoteBrowser}
           />
         ) : remoteBrowserMode.kind === "checking" ? (

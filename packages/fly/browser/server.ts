@@ -1,6 +1,8 @@
 import http from "node:http";
 import net from "node:net";
+import { execFile } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import { WebSocketServer, WebSocket } from "ws";
@@ -36,6 +38,49 @@ let activePage: Page | null = null;
 let activeContext: BrowserContext | null = null;
 let actionWindowStartedAt = Date.now();
 let actionCount = 0;
+const execFileAsync = promisify(execFile);
+const installedDisplayModes = new Set<string>();
+
+async function resizeDisplay(rawWidth: number, rawHeight: number) {
+  const width = Math.max(320, Math.min(1920, Math.round(rawWidth / 2) * 2));
+  const height = Math.max(480, Math.min(1080, Math.round(rawHeight / 2) * 2));
+  const modeName = `${width}x${height}_60.00`;
+
+  if (!installedDisplayModes.has(modeName)) {
+    const { stdout } = await execFileAsync("cvt", [
+      String(width),
+      String(height),
+      "60",
+    ]);
+    const modeline = stdout.match(/^Modeline\s+"[^"]+"\s+(.+)$/m)?.[1];
+    if (!modeline) throw new Error("display_modeline_failed");
+    await execFileAsync("xrandr", [
+      "--display",
+      ":99",
+      "--newmode",
+      modeName,
+      ...modeline.trim().split(/\s+/),
+    ]);
+    await execFileAsync("xrandr", [
+      "--display",
+      ":99",
+      "--addmode",
+      "screen",
+      modeName,
+    ]);
+    installedDisplayModes.add(modeName);
+  }
+
+  await execFileAsync("xrandr", [
+    "--display",
+    ":99",
+    "--output",
+    "screen",
+    "--mode",
+    modeName,
+  ]);
+  return { width, height };
+}
 
 function acceptAction(): boolean {
   const now = Date.now();
@@ -164,6 +209,7 @@ async function connectBrowser(): Promise<void> {
   activeContext = browser.contexts()[0] ?? (await browser.newContext());
   await installNetworkGuard(activeContext);
   activePage = activeContext.pages()[0] ?? (await activeContext.newPage());
+  await resizeDisplay(1280, 720);
   attachPageEvents(activePage);
   activeContext.on("page", async (page) => {
     attachPageEvents(page);
@@ -201,12 +247,17 @@ async function executeAction(action: Record<string, unknown>) {
     case "reload":
       await page.reload({ waitUntil: "domcontentloaded", timeout: 30_000 });
       break;
-    case "viewport":
+    case "viewport": {
+      const viewport = await resizeDisplay(
+        Number(action.width),
+        Number(action.height),
+      );
       await page.setViewportSize({
-        width: Math.max(320, Math.min(1920, Number(action.width))),
-        height: Math.max(480, Math.min(1080, Number(action.height))),
+        width: viewport.width,
+        height: viewport.height,
       });
       break;
+    }
     case "pointer": {
       const x = Number(action.x);
       const y = Number(action.y);

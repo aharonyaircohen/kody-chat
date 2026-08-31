@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-Xvfb :99 -screen 0 1280x720x24 -ac +extension RANDR &
+Xvfb :99 -screen 0 1920x1080x24 -ac +extension RANDR &
 fluxbox >/tmp/fluxbox.log 2>&1 &
 x11vnc -display :99 -localhost -forever -shared -nopw -rfbport 5900 -xrandr resize >/tmp/x11vnc.log 2>&1 &
 

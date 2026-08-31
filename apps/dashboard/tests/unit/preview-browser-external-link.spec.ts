@@ -20,6 +20,10 @@ const BROWSER_START_PATH = resolve(
   __dirname,
   "../../../../packages/fly/browser/start.sh",
 );
+const BROWSER_SERVER_PATH = resolve(
+  __dirname,
+  "../../../../packages/fly/browser/server.ts",
+);
 const PREVIEW_WORKSPACE_PATH = resolve(
   __dirname,
   "../../src/dashboard/features/previews/components/PreviewWorkspace.tsx",
@@ -32,6 +36,7 @@ const FLY_MACHINES_TABLE_PATH = resolve(
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");
 const REMOTE_SURFACE_SOURCE = readFileSync(REMOTE_SURFACE_PATH, "utf8");
 const BROWSER_START_SOURCE = readFileSync(BROWSER_START_PATH, "utf8");
+const BROWSER_SERVER_SOURCE = readFileSync(BROWSER_SERVER_PATH, "utf8");
 const PREVIEW_WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
 const FLY_MACHINES_TABLE_SOURCE = readFileSync(FLY_MACHINES_TABLE_PATH, "utf8");
 const BROWSER_SESSION_HOOK_SOURCE = readFileSync(
@@ -95,6 +100,9 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toMatch(
       /type: "snapshot"[\s\S]*syncBrowserHistoryUrl\(result\.url, \{ allowExternal: true \}\)/,
     );
+    expect(SOURCE).toMatch(
+      /if \(!remoteSessionId\) return;[\s\S]*const syncRemotePage[\s\S]*setInterval\(syncRemotePage/,
+    );
   });
 
   it("creates a distinct saved environment name when the derived name exists", () => {
@@ -148,12 +156,26 @@ describe("PreviewBrowser new-tab action", () => {
   });
 
   it("shows only a sharp webpage surface instead of Chromium chrome", () => {
-    expect(BROWSER_START_SOURCE).toContain("1280x720x24");
+    expect(BROWSER_START_SOURCE).toContain("1920x1080x24");
     expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
     expect(BROWSER_START_SOURCE).toContain("--kiosk");
     expect(BROWSER_START_SOURCE).toMatch(/--kiosk \\\s*about:blank/);
     expect(REMOTE_SURFACE_SOURCE).toContain("rfb.scaleViewport = true");
     expect(REMOTE_SURFACE_SOURCE).toContain("rfb.resizeSession = false");
     expect(REMOTE_SURFACE_SOURCE).not.toContain("[&_canvas]:h-full");
+  });
+
+  it("fits the remote desktop to the available desktop panel", () => {
+    expect(REMOTE_SURFACE_SOURCE).toContain("new ResizeObserver");
+    expect(REMOTE_SURFACE_SOURCE).toContain("onViewportResize(width, height)");
+    expect(SOURCE).toContain('previewDevice !== "desktop"');
+    expect(SOURCE).toContain("resizeRemoteDesktop");
+    expect(SOURCE).toContain("onViewportResize={");
+    expect(BROWSER_SERVER_SOURCE).toContain("async function resizeDisplay");
+    expect(BROWSER_SERVER_SOURCE).toContain('execFileAsync("xrandr"');
+    expect(BROWSER_SERVER_SOURCE).not.toContain("exec(");
+    expect(BROWSER_SERVER_SOURCE).toMatch(
+      /Math\.max\(320, Math\.min\(1920,[\s\S]*Math\.max\(480, Math\.min\(1080,/,
+    );
   });
 });

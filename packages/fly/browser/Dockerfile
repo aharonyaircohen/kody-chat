@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fluxbox \
       x11vnc \
       xvfb \
+      x11-xserver-utils \
+      xcvt \
       ca-certificates \
       fonts-liberation \
       fonts-noto-color-emoji \

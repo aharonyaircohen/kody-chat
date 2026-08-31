@@ -15,6 +15,7 @@ interface FlyRemoteBrowserSurfaceProps {
   streamUrl: string;
   title: string;
   maxWidthPx?: number;
+  onViewportResize?: (width: number, height: number) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
 }
@@ -23,6 +24,7 @@ export function FlyRemoteBrowserSurface({
   streamUrl,
   title,
   maxWidthPx,
+  onViewportResize,
   onConnected,
   onDisconnected,
 }: FlyRemoteBrowserSurfaceProps) {
@@ -70,6 +72,28 @@ export function FlyRemoteBrowserSurface({
       container.replaceChildren();
     };
   }, [onConnected, onDisconnected, streamUrl]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onViewportResize) return;
+    let timeout: number | undefined;
+    let previous = "";
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const width = Math.max(320, Math.round(entry.contentRect.width));
+      const height = Math.max(480, Math.round(entry.contentRect.height));
+      const key = `${width}x${height}`;
+      if (key === previous) return;
+      previous = key;
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => onViewportResize(width, height), 200);
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
+  }, [onViewportResize]);
 
   return (
     <div className="relative flex h-full w-full justify-center bg-zinc-900">
