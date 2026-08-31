@@ -28,7 +28,7 @@ import {
 } from "@dashboard/lib/workflow-graph";
 import { WorkflowGraphCanvas } from "@dashboard/features/workflows/components/WorkflowGraphCanvas";
 import { capabilitiesApi } from "@dashboard/lib/api/capabilities";
-import { wireSingleCapabilityInputs } from "@dashboard/lib/workflow-capability-inputs";
+import { wireWorkflowEntryInputs } from "@dashboard/lib/workflow-capability-inputs";
 
 interface WorkflowEditorDialogProps {
   open: boolean;
@@ -117,12 +117,15 @@ export function WorkflowEditorDialog({
         inputSchema: initial.workflow.inputSchema,
       };
     }
-    if ((definition.steps ?? []).length === 1 && !definition.inputSchema) {
+    if ((definition.steps ?? []).length > 0 && !definition.inputSchema) {
       try {
+        const entry = definition.steps!.find(
+          (step) => step.id === definition.startAt,
+        ) ?? definition.steps![0]!;
         const capability = await capabilitiesApi.get(
-          definition.steps![0]!.capability,
+          entry.capability,
         );
-        definition = wireSingleCapabilityInputs(
+        definition = wireWorkflowEntryInputs(
           definition,
           capability.contract,
         );

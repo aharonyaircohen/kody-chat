@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { wireSingleCapabilityInputs } from "@dashboard/lib/workflow-capability-inputs";
+import { wireWorkflowEntryInputs } from "@dashboard/lib/workflow-capability-inputs";
 import type { WorkflowDefinition } from "@dashboard/lib/workflow-definitions";
 
 const workflow: WorkflowDefinition = {
@@ -13,9 +13,9 @@ const workflow: WorkflowDefinition = {
   updatedAt: "2026-08-22T00:00:00.000Z",
 };
 
-describe("single-capability workflow inputs", () => {
+describe("workflow entry inputs", () => {
   it("uses the capability contract as the workflow form and field mappings", () => {
-    const result = wireSingleCapabilityInputs(
+    const result = wireWorkflowEntryInputs(
       workflow,
       JSON.stringify({
         input: {
@@ -41,11 +41,12 @@ describe("single-capability workflow inputs", () => {
     });
   });
 
-  it("does not guess mappings for a multi-step workflow", () => {
-    const result = wireSingleCapabilityInputs(
+  it("maps only the stable entry step in a multi-step workflow", () => {
+    const result = wireWorkflowEntryInputs(
       {
         ...workflow,
         capabilities: ["inspect", "import-source"],
+        startAt: "inspect",
         steps: [
           { id: "inspect", capability: "inspect" },
           { id: "import-source", capability: "import-source" },
@@ -59,7 +60,10 @@ describe("single-capability workflow inputs", () => {
       }),
     );
 
-    expect(result.inputSchema).toBeUndefined();
+    expect(result.inputSchema).toMatchObject({ type: "object" });
+    expect(result.steps?.[0]?.inputs).toEqual({
+      sourceId: { from: "workflow.input.sourceId" },
+    });
     expect(result.steps?.[1]?.inputs).toBeUndefined();
   });
 });

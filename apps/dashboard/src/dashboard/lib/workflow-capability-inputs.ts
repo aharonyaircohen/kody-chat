@@ -9,17 +9,23 @@ function objectValue(value: unknown): JsonObject | null {
 }
 
 /**
- * A one-step workflow has no mapping decision to make: its public input is the
- * capability input. Keep multi-step and already-configured workflows explicit.
+ * A workflow's public input enters through its stable start step. When that
+ * step has no explicit mapping, its Capability contract is the unambiguous
+ * form and field mapping for the Workflow entry boundary.
  */
-export function wireSingleCapabilityInputs(
+export function wireWorkflowEntryInputs(
   workflow: WorkflowDefinition,
   contractJson: string | null,
 ): WorkflowDefinition {
   const steps = workflow.steps ?? [];
-  if (steps.length !== 1 || workflow.inputSchema) return workflow;
-  if (steps[0]?.inputs && Object.keys(steps[0].inputs).length > 0)
-    return workflow;
+  const entryIndex = steps.findIndex(
+    (step) => step.id === (workflow.startAt ?? steps[0]?.id),
+  );
+  if (entryIndex < 0 || workflow.inputSchema) return workflow;
+  if (
+    steps[entryIndex]?.inputs &&
+    Object.keys(steps[entryIndex]!.inputs!).length > 0
+  ) return workflow;
   if (!contractJson) return workflow;
 
   let contract: JsonObject | null = null;
@@ -40,13 +46,17 @@ export function wireSingleCapabilityInputs(
   return {
     ...workflow,
     inputSchema: input,
-    steps: [
-      {
-        ...steps[0]!,
-        inputs: Object.fromEntries(
-          fields.map((field) => [field, { from: `workflow.input.${field}` }]),
-        ),
-      },
-    ],
+    steps: steps.map((step, index) =>
+      index === entryIndex
+        ? {
+            ...step,
+            inputs: Object.fromEntries(
+              fields.map((field) => [field, { from: `workflow.input.${field}` }]),
+            ),
+          }
+        : step,
+    ),
   };
 }
+
+export const wireSingleCapabilityInputs = wireWorkflowEntryInputs;
