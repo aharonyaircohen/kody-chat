@@ -65,6 +65,29 @@ describe("normalizeWorkflowRunState", () => {
 });
 
 describe("workflow run state", () => {
+  it("preserves a pending step approval so Dashboard can resume it", () => {
+    expect(
+      normalizeWorkflowRunState({
+        status: "waiting-approval",
+        currentStepId: "publish",
+        approval: {
+          stepId: "publish",
+          action: "Publish Facebook post",
+          contextHash: "sha256-context",
+          status: "pending",
+        },
+      }),
+    ).toMatchObject({
+      status: "waiting-approval",
+      approval: {
+        stepId: "publish",
+        action: "Publish Facebook post",
+        contextHash: "sha256-context",
+        status: "pending",
+      },
+    });
+  });
+
   it("keeps durable progress and drops invalid values", () => {
     expect(
       normalizeWorkflowRunState({

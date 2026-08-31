@@ -68,6 +68,15 @@ describe("WorkflowsManager run button", () => {
     );
   });
 
+  it("turns a paused workflow step into an explicit publish approval", () => {
+    expect(SOURCE).toContain('mode: "resume"');
+    expect(SOURCE).toContain("run.approvalContext");
+    expect(SOURCE).toContain("Approve and publish");
+    expect(SOURCE).toMatch(
+      /approval\.mode === "resume"[\s\S]*?mode: "resume" as const/,
+    );
+  });
+
   it("gives the visual workflow editor enough dialog room", () => {
     expect(WORKFLOW_EDITOR_SOURCE).toContain('modalSize="wide"');
     expect(WORKFLOW_EDITOR_SOURCE).toContain('modalHeight="viewport"');

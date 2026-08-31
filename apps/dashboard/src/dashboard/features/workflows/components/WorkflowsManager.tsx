@@ -102,6 +102,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     workflow: WorkflowDefinitionRecord;
     input: Record<string, unknown>;
     token: string;
+    mode: "start" | "resume";
+    runId?: string;
   } | null>(null);
   const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
@@ -224,7 +226,17 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                   mode: "resume",
                   runId: currentRunId,
                 });
-                if (run.kind !== "accepted") return;
+                if (run.kind === "approval-required") {
+                  if (!run.approvalContext) return;
+                  setPendingApproval({
+                    workflow: selectedWorkflow,
+                    input: run.approvalContext,
+                    token: run.approvalToken,
+                    mode: "resume",
+                    runId: currentRunId,
+                  });
+                  return;
+                }
                 setActiveRunIds((current) => ({
                   ...current,
                   [selectedWorkflow.id]: run.runId,
@@ -322,6 +334,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               workflow,
               input,
               token: result.approvalToken,
+              mode: "start",
             });
             return;
           }
@@ -334,8 +347,16 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
       <ConfirmDialog
         open={!!pendingApproval}
         title={`Run ${pendingApproval?.workflow.workflow.name ?? "workflow"}?`}
-        description="This workflow requires your approval before Kody Engine can start it."
-        confirmLabel="Approve and run"
+        description={
+          pendingApproval?.mode === "resume"
+            ? "Kody is ready to publish. Approve this exact content and resume the run."
+            : "This workflow requires your approval before Kody Engine can start it."
+        }
+        confirmLabel={
+          pendingApproval?.mode === "resume"
+            ? "Approve and publish"
+            : "Approve and run"
+        }
         onClose={() => setPendingApproval(null)}
         onConfirm={() => {
           if (!pendingApproval) return;
@@ -350,7 +371,9 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               runWorkflow.mutateAsync({
                 id: approval.workflow.id,
                 approvalId,
-                input: approval.input,
+                ...(approval.mode === "resume"
+                  ? { mode: "resume" as const, runId: approval.runId }
+                  : { input: approval.input }),
               }),
             )
             .then((run) => {

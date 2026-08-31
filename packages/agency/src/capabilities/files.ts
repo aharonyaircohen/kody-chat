@@ -433,6 +433,7 @@ function parseCapabilityContract(raw: string): {
     qaAccountModelSettings?: Record<string, unknown>;
     browserOnly?: boolean;
   };
+  connections?: string[];
   secrets?: string[];
   timeoutMs?: number;
   requiredSubagents?: string[];
@@ -602,6 +603,25 @@ function parseCapabilityContract(raw: string): {
       'contract.json secrets are supported only when execution is "script"',
     );
   }
+  const connections =
+    value.connections === undefined
+      ? undefined
+      : Array.isArray(value.connections) &&
+          value.connections.length > 0 &&
+          value.connections.every(
+            (id) =>
+              typeof id === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id),
+          )
+        ? [...new Set(value.connections as string[])]
+        : null;
+  if (connections === null) {
+    throw new Error("contract.json connections must contain valid Connection ids");
+  }
+  if (connections && value.execution !== "script") {
+    throw new Error(
+      'contract.json connections are supported only when execution is "script"',
+    );
+  }
   const timeoutMs =
     value.timeoutMs === undefined
       ? undefined
@@ -665,6 +685,7 @@ function parseCapabilityContract(raw: string): {
       key !== "deliveryPathAllowlist" &&
       key !== "deliveryConfigAllowlist" &&
       key !== "requirements" &&
+      key !== "connections" &&
       key !== "secrets" &&
       key !== "timeoutMs" &&
       key !== "requiredSubagents" &&
@@ -686,6 +707,7 @@ function parseCapabilityContract(raw: string): {
     ...(requirements && Object.keys(requirements).length > 0
       ? { requirements }
       : {}),
+    ...(connections ? { connections } : {}),
     ...(secrets ? { secrets } : {}),
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     ...(requiredSubagents ? { requiredSubagents } : {}),

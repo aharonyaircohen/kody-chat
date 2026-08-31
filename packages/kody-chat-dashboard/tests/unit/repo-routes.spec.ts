@@ -44,6 +44,9 @@ describe("repo-scoped route contract", () => {
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan/ship-checklist",
     );
     expect(routes.repoSecrets(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/secrets");
+    expect(routes.repoConnections(repo)).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/connections",
+    );
     expect(routes.repoConfig(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/config");
   });
 

@@ -7,6 +7,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 import {
   getRequestAuth,
@@ -41,6 +43,12 @@ import { ENGINE_BUILT_IN_CAPABILITIES } from "@dashboard/lib/store-solutions";
 const RUN_ID = /^run-[a-zA-Z0-9_-]{1,123}$/;
 const APPROVAL_ID = /^approval-[a-zA-Z0-9_-]{1,123}$/;
 const MAX_INPUT_BYTES = 64_000;
+
+interface PendingStepApproval {
+  runId: string;
+  stepId: string;
+  contextHash: string;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -129,6 +137,40 @@ export async function POST(
     if (!options.ok) {
       return NextResponse.json({ error: "invalid_input" }, { status: 400 });
     }
+    let pendingStepApproval: PendingStepApproval | null = null;
+    if (options.resume && options.requestId) {
+      const run = (await createBackendClient().query(
+        backendApi.workflowRuns.get,
+        {
+          tenantId: `${auth.owner}/${auth.repo}`,
+          workflowId: id,
+          runId: options.requestId,
+        },
+      )) as {
+        state?: {
+          status?: string;
+          approval?: {
+            stepId?: string;
+            contextHash?: string;
+            status?: string;
+          };
+        };
+      } | null;
+      const approval = run?.state?.approval;
+      if (
+        run?.state?.status === "waiting-approval" &&
+        approval?.status === "pending" &&
+        typeof approval.stepId === "string" &&
+        typeof approval.contextHash === "string"
+      ) {
+        pendingStepApproval = {
+          runId: options.requestId,
+          stepId: approval.stepId,
+          contextHash: approval.contextHash,
+        };
+      }
+    }
+    const approvalInput = pendingStepApproval ?? options.input ?? {};
     const result = await startWorkflow(
       {
         workflowId: id,
@@ -162,10 +204,12 @@ export async function POST(
           });
         },
         validateInput: (schema, input) => validateWorkflowInput(input, schema),
-        requiresApproval: workflowRequiresApproval,
-        actionFor: workflowRunAction,
-        consumeApproval: (approval) =>
-          consumeStoredAgencyApproval({
+        requiresApproval: (workflowId, workflow) =>
+          pendingStepApproval !== null ||
+          workflowRequiresApproval(workflowId, workflow),
+        actionFor: () => workflowRunAction(approvalInput),
+        consumeApproval: async (approval) => {
+          const consumed = await consumeStoredAgencyApproval({
             owner: auth.owner,
             repo: auth.repo,
             approvalId: approval.approvalId,
@@ -175,7 +219,23 @@ export async function POST(
             approvedBy: approval.actor,
             dispatchKey: approval.dispatchKey,
             consumedAt: approval.consumedAt,
-          }),
+          });
+          if (consumed && pendingStepApproval) {
+            await createBackendClient().mutation(
+              backendApi.workflowRuns.approveStep,
+              {
+                tenantId: `${auth.owner}/${auth.repo}`,
+                workflowId: id,
+                runId: pendingStepApproval.runId,
+                stepId: pendingStepApproval.stepId,
+                contextHash: pendingStepApproval.contextHash,
+                approvedAt: new Date().toISOString(),
+                approvedBy: actor,
+              },
+            );
+          }
+          return consumed;
+        },
         dispatch: createGitHubActionsEngineGateway({
           octokit,
           owner: auth.owner,
@@ -206,7 +266,7 @@ export async function POST(
         repo: auth.repo,
         actor,
         workflowId: id,
-        input: options.input ?? {},
+        input: approvalInput,
         signingKey: getWorkflowApprovalSigningKey(),
       });
       return NextResponse.json(
@@ -215,6 +275,9 @@ export async function POST(
           message: "This workflow requires explicit approval before it runs.",
           approvalToken: challenge.token,
           approvalExpiresAt: challenge.expiresAt,
+          ...(pendingStepApproval
+            ? { approvalContext: pendingStepApproval }
+            : {}),
         },
         { status: 409 },
       );

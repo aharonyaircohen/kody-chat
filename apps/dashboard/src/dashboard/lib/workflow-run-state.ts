@@ -1,4 +1,18 @@
-export type WorkflowRunStatus = "running" | "blocked" | "failed" | "done";
+export type WorkflowRunStatus =
+  | "running"
+  | "waiting-approval"
+  | "blocked"
+  | "failed"
+  | "done";
+
+export interface WorkflowRunApproval {
+  stepId: string;
+  action: string;
+  contextHash: string;
+  status: "pending" | "approved" | "consumed";
+  approvedAt?: string;
+  approvedBy?: string;
+}
 
 export interface WorkflowRunStepState {
   capability?: string;
@@ -19,6 +33,7 @@ export interface WorkflowRunState {
   artifacts: Array<{ label: string; url?: string; path?: string }>;
   steps: Record<string, WorkflowRunStepState>;
   blocker?: string;
+  approval?: WorkflowRunApproval;
 }
 
 export interface WorkflowRunStateRecord {
@@ -48,6 +63,7 @@ export function normalizeWorkflowRunState(
   const value = raw as Record<string, unknown>;
   if (
     value.status !== "running" &&
+    value.status !== "waiting-approval" &&
     value.status !== "blocked" &&
     value.status !== "failed" &&
     value.status !== "done"
@@ -100,6 +116,7 @@ export function normalizeWorkflowRunState(
       )
     : [];
   const steps = normalizeWorkflowRunSteps(value.steps);
+  const approval = normalizeWorkflowRunApproval(value.approval);
 
   return {
     status: value.status,
@@ -113,6 +130,36 @@ export function normalizeWorkflowRunState(
     artifacts: artifacts.map((artifact) => ({ ...artifact })),
     steps,
     ...(typeof value.blocker === "string" ? { blocker: value.blocker } : {}),
+    ...(approval ? { approval } : {}),
+  };
+}
+
+function normalizeWorkflowRunApproval(raw: unknown): WorkflowRunApproval | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (
+    typeof value.stepId !== "string" ||
+    typeof value.action !== "string" ||
+    typeof value.contextHash !== "string" ||
+    (value.status !== "pending" &&
+      value.status !== "approved" &&
+      value.status !== "consumed") ||
+    (value.approvedAt !== undefined && typeof value.approvedAt !== "string") ||
+    (value.approvedBy !== undefined && typeof value.approvedBy !== "string")
+  ) {
+    return null;
+  }
+  return {
+    stepId: value.stepId,
+    action: value.action,
+    contextHash: value.contextHash,
+    status: value.status,
+    ...(typeof value.approvedAt === "string"
+      ? { approvedAt: value.approvedAt }
+      : {}),
+    ...(typeof value.approvedBy === "string"
+      ? { approvedBy: value.approvedBy }
+      : {}),
   };
 }
 

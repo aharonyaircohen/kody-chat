@@ -38,6 +38,10 @@ const capabilityResolution = vi.hoisted(() => ({
     > => [],
   ),
 }));
+const backend = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
@@ -53,6 +57,17 @@ vi.mock(
   "@dashboard/lib/capabilities/resolve-workflow",
   () => capabilityResolution,
 );
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: {
+    workflowRuns: {
+      get: Symbol("workflowRuns.get"),
+      approveStep: Symbol("workflowRuns.approveStep"),
+    },
+  },
+}));
 
 import { POST } from "../../app/api/kody/company/workflows/[id]/run/route";
 
@@ -134,6 +149,8 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     workflowFiles.readCompanyStoreWorkflowDefinitionFile.mockResolvedValue(
       validWorkflow,
     );
+    backend.query.mockResolvedValue(null);
+    backend.mutation.mockResolvedValue("run-doc");
   });
 
   it("dispatches every Workflow through the provider-neutral Engine request", async () => {
@@ -211,6 +228,81 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     expect(JSON.parse(dispatch.inputs.runRequest)).toMatchObject({
       requestId: "run-existing",
     });
+  });
+
+  it("requires a context-bound approval before resuming a paused step", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    backend.query.mockResolvedValue({
+      state: {
+        status: "waiting-approval",
+        approval: {
+          stepId: "publish",
+          action: "Publish Facebook post",
+          contextHash: "sha256-context",
+          status: "pending",
+        },
+      },
+    });
+
+    const response = await POST(
+      request("learn-from-runs", { mode: "resume", runId: "run-existing" }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "approval_required",
+      approvalContext: {
+        runId: "run-existing",
+        stepId: "publish",
+        contextHash: "sha256-context",
+      },
+    });
+    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it("approves the exact paused context before resuming the same run", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    backend.query.mockResolvedValue({
+      state: {
+        status: "waiting-approval",
+        approval: {
+          stepId: "publish",
+          action: "Publish Facebook post",
+          contextHash: "sha256-context",
+          status: "pending",
+        },
+      },
+    });
+
+    const response = await POST(
+      request("learn-from-runs", {
+        mode: "resume",
+        runId: "run-existing",
+        approvalId: "approval-one",
+        input: {
+          runId: "run-existing",
+          stepId: "publish",
+          contextHash: "sha256-context",
+        },
+      }),
+      params("learn-from-runs"),
+    );
+
+    expect(response.status).toBe(202);
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        workflowId: "learn-from-runs",
+        runId: "run-existing",
+        stepId: "publish",
+        contextHash: "sha256-context",
+        approvedBy: "github:42",
+      }),
+    );
   });
 
   it("rejects invalid workflows before dispatch", async () => {

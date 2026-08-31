@@ -57,6 +57,7 @@ describe("capability chat tools", () => {
         instructions: "say hello deterministically",
         contract: {
           execution: "script",
+          connections: ["facebook-main"],
           secrets: ["DEPLOY_TOKEN"],
           timeoutMs: 1_800_000,
           input: {},
@@ -75,6 +76,9 @@ describe("capability chat tools", () => {
       tools: [{ path: "run.sh", content: "#!/bin/sh\nprintf '{}'\n" }],
       skills: [],
     });
+    expect(ctx.saveCapability.mock.calls[0]![0].contract).toContain(
+      '"connections": [',
+    );
   });
 
   it("removes or runs a capability through the Dashboard API", async () => {

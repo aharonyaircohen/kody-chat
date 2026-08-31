@@ -1,5 +1,20 @@
 import { v } from "convex/values";
 
+export const connectionValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  provider: v.string(),
+  accountType: v.string(),
+  externalId: v.string(),
+  credentialRefs: v.object({ accessToken: v.string() }),
+  status: v.union(
+    v.literal("connected"),
+    v.literal("needs_attention"),
+    v.literal("disabled"),
+  ),
+  verifiedAt: v.union(v.string(), v.null()),
+});
+
 // Shared document validators — the DB-enforced contract for stable platform
 // shapes. Brand-defined / open payloads (user-state data, repo docs, view
 // renderer definitions, event payloads, chat meta) intentionally stay v.any().
@@ -23,6 +38,7 @@ export const workflowStepValidator = v.object({
   targetFact: v.optional(v.string()),
   reason: v.optional(v.string()),
   timeoutSeconds: v.optional(v.number()),
+  approval: v.optional(v.literal("required")),
   inputs: v.optional(v.record(v.string(), v.object({ from: v.string() }))),
   next: v.optional(v.array(workflowTransitionValidator)),
   runWhen: v.optional(v.record(v.string(), v.any())),
@@ -95,6 +111,7 @@ export const pipelineRunStepValidator = v.object({
 
 export const workflowRunStatusValidator = v.union(
   v.literal("running"),
+  v.literal("waiting-approval"),
   v.literal("blocked"),
   v.literal("failed"),
   v.literal("done"),
@@ -106,6 +123,20 @@ export const workflowRunStateValidator = v.object({
   definitionHash: v.optional(v.string()),
   currentStepId: v.optional(v.string()),
   completedStepIds: v.array(v.string()),
+  approval: v.optional(
+    v.object({
+      stepId: v.string(),
+      action: v.string(),
+      contextHash: v.string(),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("consumed"),
+      ),
+      approvedAt: v.optional(v.string()),
+      approvedBy: v.optional(v.string()),
+    }),
+  ),
   transitionCounts: v.optional(v.record(v.string(), v.number())),
   steps: v.optional(
     v.record(

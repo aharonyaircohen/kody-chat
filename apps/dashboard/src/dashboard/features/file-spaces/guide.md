@@ -1,7 +1,7 @@
 ---
 id: file-spaces
 title: Files and File Spaces
-summary: Browse and edit repository files through the built-in Files workspace or configured rooted Markdown spaces.
+summary: Browse and edit repository files through the built-in Files workspace or configured rooted spaces.
 routes:
   - /files
   - /files/**
@@ -22,7 +22,7 @@ Files exposes the connected repository through the shared File Manager. File Spa
 
 ## When to use it
 
-Use Files for unrestricted repository browsing and supported file operations. Use a File Space when users need a focused Markdown workspace rooted at one folder.
+Use Files for unrestricted repository browsing and supported file operations. Use a File Space when users need a focused workspace rooted at one folder.
 
 ## Available actions and options
 
@@ -39,12 +39,11 @@ Use Files for unrestricted repository browsing and supported file operations. Us
 - GitHub read permission is required for browsing; write permission is required for mutations.
 - File Space slugs must be valid and unique.
 - A custom root must be a repository-relative path.
-- Repository File Spaces show directories and Markdown files; uploads are Markdown-only and follow the shared size limit.
+- Repository File Spaces show and upload every repository file type within the shared size limit.
 
 ## What will not work
 
 - A File Space cannot access files outside its configured root.
-- Non-Markdown files do not appear in Markdown File Spaces.
 - Removing a File Space removes its Dashboard configuration, not the repository files inside its root.
 - Reordering spaces does not move repository folders.
 - File Spaces do not create a separate storage system; GitHub remains authoritative for repository content.
@@ -60,7 +59,7 @@ Use Files for unrestricted repository browsing and supported file operations. Us
 - **Space root not found:** correct the configured root or create the folder in the repository.
 - **Duplicate slug:** choose a different stable slug.
 - **Write rejected:** confirm repository permission and refresh to the latest file SHA.
-- **File hidden:** verify it is Markdown and inside the active space root.
+- **File hidden:** verify it is inside the active space root and refresh the workspace.
 
 ## Related tools and capabilities
 

@@ -23,6 +23,7 @@ export const TABLES: readonly TableDef[] = [
   },
   { table: "catalog", naturalKey: ["category", "slug"], upsertIndex: "by_key" },
   { table: "workflows", naturalKey: ["workflowId"], upsertIndex: "by_tenant" },
+  { table: "connections", naturalKey: ["connection.id"], upsertIndex: "by_tenant" },
   {
     table: "workflowRuns",
     naturalKey: ["workflowId", "runId"],

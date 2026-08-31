@@ -60,3 +60,47 @@ export const save = serviceMutation({
     return await ctx.db.insert("workflowRuns", args)
   },
 })
+
+export const approveStep = serviceMutation({
+  args: {
+    tenantId: v.string(),
+    workflowId: v.string(),
+    runId: v.string(),
+    stepId: v.string(),
+    contextHash: v.string(),
+    approvedAt: v.string(),
+    approvedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("workflowRuns")
+      .withIndex("by_run", (q) =>
+        q.eq("tenantId", args.tenantId).eq("workflowId", args.workflowId).eq("runId", args.runId),
+      )
+      .unique()
+    const approval = existing?.state.approval
+    if (
+      !existing ||
+      existing.state.status !== "waiting-approval" ||
+      approval?.status !== "pending" ||
+      approval.stepId !== args.stepId ||
+      approval.contextHash !== args.contextHash
+    ) {
+      throw new Error("Workflow approval context changed; request a fresh approval")
+    }
+    await ctx.db.patch(existing._id, {
+      state: {
+        ...existing.state,
+        status: "running",
+        approval: {
+          ...approval,
+          status: "approved",
+          approvedAt: args.approvedAt,
+          approvedBy: args.approvedBy,
+        },
+      },
+      updatedAt: args.approvedAt,
+    })
+    return existing._id
+  },
+})

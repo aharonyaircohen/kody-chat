@@ -34,6 +34,7 @@ import {
   Route,
   Scale,
   ScrollText,
+  Share2,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -198,6 +199,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Content",
     items: [
+      {
+        href: "/connections",
+        label: "Connections",
+        icon: Share2,
+        description: "Manage the external accounts Kody may use.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
       {
         href: "/content/entries",
         label: "Entries",

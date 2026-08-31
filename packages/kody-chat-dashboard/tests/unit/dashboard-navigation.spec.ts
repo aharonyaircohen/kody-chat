@@ -20,6 +20,11 @@ describe("dashboard navigation catalog", () => {
           label: "Chat Models",
         }),
         expect.objectContaining({
+          routeId: "connections",
+          href: "/connections",
+          label: "Connections",
+        }),
+        expect.objectContaining({
           routeId: "findings",
           href: "/findings",
           label: "Findings",
@@ -42,6 +47,7 @@ describe("dashboard navigation catalog", () => {
     const catalog = dashboardNavigationCatalogForPrompt();
 
     expect(catalog).toContain("secrets: Secrets -> /secrets");
+    expect(catalog).toContain("connections: Connections -> /connections");
     expect(catalog).toContain("Aliases: secret, secrets, vault");
     expect(catalog).toContain("task: Task detail -> /:issueNumber");
   });

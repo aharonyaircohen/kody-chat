@@ -30,6 +30,10 @@ function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
 }
 
+const connectionIdSchema = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
+
 export function createCapabilityTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
@@ -40,7 +44,7 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => ({
         guide:
-          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh and may declare the exact secret names granted to that trusted process.',
+          'A Capability is one folder containing instructions.md, contract.json, skills/, and tools/. The contract declares execution as "agent" or "script" plus one JSON input and output. Script execution requires tools/run.sh and may declare exact Connection ids and secret names granted to that trusted process.',
       }),
     }),
 
@@ -67,6 +71,7 @@ export function createCapabilityTools(ctx: Ctx) {
         contract: z
           .object({
             execution: z.enum(["agent", "script"]).default("agent"),
+            connections: z.array(connectionIdSchema).optional(),
             secrets: z.array(z.string().regex(/^[A-Z][A-Z0-9_]*$/)).optional(),
             timeoutMs: z.number().int().min(1_000).max(21_600_000).optional(),
             input: z.record(z.string(), z.unknown()),

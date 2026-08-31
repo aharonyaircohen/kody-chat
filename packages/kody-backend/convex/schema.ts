@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+  connectionValidator,
   companyIntentValidator,
   inboxEntryValidator,
   intentDecisionValidator,
@@ -97,6 +98,11 @@ export default defineSchema({
     source: v.union(v.literal("local"), v.literal("store")),
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "workflowId"]),
+
+  connections: defineTable({
+    tenantId: v.string(),
+    connection: connectionValidator,
+  }).index("by_tenant", ["tenantId", "connection.id"]),
 
   workflowRuns: defineTable({
     tenantId: v.string(),

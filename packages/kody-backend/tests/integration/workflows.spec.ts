@@ -72,6 +72,7 @@ describe("workflows", () => {
           delivery: "pull-request" as const,
           targetFact: "facts.issue_number",
           reason: "Implement and deliver the requested change.",
+          approval: "required" as const,
           runWhen: { "facts.ready": true },
           continueOn: ["completed"],
           saveReport: true,

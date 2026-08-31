@@ -63,6 +63,10 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["models", "chat model", "llm", "provider"],
     when: "Use when the user asks to configure chat models or providers.",
   },
+  "/connections": {
+    aliases: ["connection", "connections", "facebook", "facebook page", "social publishing"],
+    when: "Use when the user asks to manage an external account Kody may use.",
+  },
   "/instructions": {
     aliases: ["instructions", "tone", "behavior", "preferences"],
     when: "Use when the user asks to change Kody's standing chat behavior.",

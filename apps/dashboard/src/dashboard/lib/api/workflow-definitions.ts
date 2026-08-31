@@ -98,6 +98,11 @@ export const workflowDefinitionsApi = {
         kind: "approval-required";
         approvalToken: string;
         approvalExpiresAt: string;
+        approvalContext?: {
+          runId: string;
+          stepId: string;
+          contextHash: string;
+        };
       }
   > => {
     const res = await fetch(
@@ -115,10 +120,25 @@ export const workflowDefinitionsApi = {
         typeof payload.approvalToken === "string" &&
         typeof payload.approvalExpiresAt === "string"
       ) {
+        const context = payload.approvalContext as
+          | Record<string, unknown>
+          | undefined;
         return {
           kind: "approval-required",
           approvalToken: payload.approvalToken,
           approvalExpiresAt: payload.approvalExpiresAt,
+          ...(context &&
+          typeof context.runId === "string" &&
+          typeof context.stepId === "string" &&
+          typeof context.contextHash === "string"
+            ? {
+                approvalContext: {
+                  runId: context.runId,
+                  stepId: context.stepId,
+                  contextHash: context.contextHash,
+                },
+              }
+            : {}),
         };
       }
       throw new Error(

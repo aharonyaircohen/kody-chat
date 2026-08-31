@@ -91,6 +91,83 @@ describe("workflowRuns", () => {
     expect(run?.state.input).toEqual({ testId: "direct-kody-chat" })
     expect(run?.state.steps?.["quality-check"]?.status).toBe("running")
   })
+
+  it("persists a Workflow paused immediately before an approved step", async () => {
+    const t = setup()
+    await t.mutation(api.workflowRuns.save, {
+      tenantId: TENANT,
+      workflowId: "publish-facebook-content",
+      runId: "publish-1",
+      state: {
+        status: "waiting-approval",
+        currentStepId: "publish",
+        completedStepIds: ["validate"],
+        approval: {
+          stepId: "publish",
+          action: "workflow-step:publish",
+          contextHash: "sha256:approved-content",
+          status: "pending",
+        },
+      },
+      updatedAt: NOW,
+    })
+    const run = await t.query(api.workflowRuns.get, {
+      tenantId: TENANT,
+      workflowId: "publish-facebook-content",
+      runId: "publish-1",
+    })
+    expect(run?.state.status).toBe("waiting-approval")
+    expect(run?.state.approval?.stepId).toBe("publish")
+
+    await t.mutation(api.workflowRuns.approveStep, {
+      tenantId: TENANT,
+      workflowId: "publish-facebook-content",
+      runId: "publish-1",
+      stepId: "publish",
+      contextHash: "sha256:approved-content",
+      approvedAt: NOW,
+      approvedBy: "github:123",
+    })
+    const approved = await t.query(api.workflowRuns.get, {
+      tenantId: TENANT,
+      workflowId: "publish-facebook-content",
+      runId: "publish-1",
+    })
+    expect(approved?.state.status).toBe("running")
+    expect(approved?.state.approval?.status).toBe("approved")
+  })
+
+  it("refuses a stale Workflow step approval", async () => {
+    const t = setup()
+    await t.mutation(api.workflowRuns.save, {
+      tenantId: TENANT,
+      workflowId: "publish-facebook-content",
+      runId: "publish-1",
+      state: {
+        status: "waiting-approval",
+        currentStepId: "publish",
+        completedStepIds: ["validate"],
+        approval: {
+          stepId: "publish",
+          action: "workflow-step:publish",
+          contextHash: "sha256:current",
+          status: "pending",
+        },
+      },
+      updatedAt: NOW,
+    })
+    await expect(
+      t.mutation(api.workflowRuns.approveStep, {
+        tenantId: TENANT,
+        workflowId: "publish-facebook-content",
+        runId: "publish-1",
+        stepId: "publish",
+        contextHash: "sha256:stale",
+        approvedAt: NOW,
+        approvedBy: "github:123",
+      }),
+    ).rejects.toThrow(/approval context changed/i)
+  })
 })
 
 describe("workflowRuns schema enforcement", () => {

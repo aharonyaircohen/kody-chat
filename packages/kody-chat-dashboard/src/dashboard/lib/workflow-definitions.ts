@@ -71,6 +71,7 @@ export const workflowStepDefinitionSchema = z.object({
   targetFact: z.string().trim().min(1).optional(),
   reason: z.string().trim().min(1).optional(),
   timeoutSeconds: z.number().int().min(1).max(3600).optional(),
+  approval: z.literal("required").optional(),
   next: z.array(workflowTransitionDefinitionSchema).optional(),
   runWhen: z.record(z.string(), z.unknown()).optional(),
   continueOn: z.array(z.string().trim().min(1)).optional(),

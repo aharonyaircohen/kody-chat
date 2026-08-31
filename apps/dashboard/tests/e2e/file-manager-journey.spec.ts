@@ -1026,7 +1026,9 @@ test.describe("repository file manager", () => {
     expect(runtimeFailures).toEqual([]);
   });
 
-  test("uploads markdown inside a scoped file workspace", async ({ page }) => {
+  test("uploads any repository file type inside a scoped file workspace", async ({
+    page,
+  }) => {
     const runtimeFailures = collectRuntimeFailures(page);
     const { files, unhandledGitHubRequests } =
       await installFileManagerHarness(page);
@@ -1042,16 +1044,16 @@ test.describe("repository file manager", () => {
     await page
       .locator('input[type="file"][aria-label="Choose files to upload"]')
       .setInputFiles({
-        name: "uploaded.md",
-        mimeType: "text/markdown",
-        buffer: Buffer.from("# Uploaded\n"),
+        name: "cover.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("post media companion\n"),
       });
 
     await expect
-      .poll(() => files.get("docs/uploaded.md")?.content)
-      .toBe("# Uploaded\n");
+      .poll(() => files.get("docs/cover.txt")?.content)
+      .toBe("post media companion\n");
     await expect(
-      page.getByRole("treeitem", { name: "uploaded.md 11 B" }),
+      page.getByRole("treeitem", { name: "cover.txt 21 B" }),
     ).toBeVisible();
     expect(unhandledGitHubRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);

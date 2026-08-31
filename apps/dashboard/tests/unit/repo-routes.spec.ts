@@ -44,6 +44,9 @@ describe("repo-scoped route contract", () => {
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan/ship-checklist",
     );
     expect(routes.repoSecrets(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/secrets");
+    expect(routes.repoConnections(repo)).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/connections",
+    );
     expect(routes.repoConfig(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/config");
     expect(routes.repoBackend(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/backend");
   });
@@ -153,6 +156,9 @@ describe("repo-scoped route contract", () => {
     );
     expect(legacyRepoRedirectPath(repo, "/backend")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/backend",
+    );
+    expect(legacyRepoRedirectPath(repo, "/connections")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/connections",
     );
     expect(legacyRepoRedirectPath(repo, "/brain")).toBeNull();
     expect(legacyRepoRedirectPath(repo, "/pipelines/review-and-merge")).toBe(

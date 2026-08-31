@@ -29,6 +29,7 @@ import type * as clientLaunchRateLimits from "../clientLaunchRateLimits.js";
 import type * as conversationTurns from "../conversationTurns.js";
 import type * as conversationValidators from "../conversationValidators.js";
 import type * as conversations from "../conversations.js";
+import type * as connections from "../connections.js";
 import type * as crons from "../crons.js";
 import type * as dailyLogs from "../dailyLogs.js";
 import type * as definitionProposals from "../definitionProposals.js";
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   conversationTurns: typeof conversationTurns;
   conversationValidators: typeof conversationValidators;
   conversations: typeof conversations;
+  connections: typeof connections;
   crons: typeof crons;
   dailyLogs: typeof dailyLogs;
   definitionProposals: typeof definitionProposals;

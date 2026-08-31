@@ -246,6 +246,7 @@ describe("simple capability folders", () => {
         ...FILES,
         "contract.json": JSON.stringify({
           execution: "script",
+          connections: ["facebook-main"],
           secrets: ["VERCEL_ACCESS_TOKEN"],
           timeoutMs: 1_800_000,
           input: {},
@@ -254,6 +255,29 @@ describe("simple capability folders", () => {
         "tools/run.sh": "#!/bin/sh\nprintf '{}'\n",
       }),
     ).not.toThrow();
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "agent",
+          connections: ["facebook-main"],
+          input: {},
+          output: {},
+        }),
+      }),
+    ).toThrow(/connections.*script/i);
+    expect(() =>
+      assertSimpleCapabilityFolder({
+        ...FILES,
+        "contract.json": JSON.stringify({
+          execution: "script",
+          connections: ["Facebook Main"],
+          input: {},
+          output: {},
+        }),
+        "tools/run.sh": "#!/bin/sh\nprintf '{}\n'\n",
+      }),
+    ).toThrow(/connections/i);
     expect(() =>
       assertSimpleCapabilityFolder({
         ...FILES,

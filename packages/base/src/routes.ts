@@ -44,6 +44,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/context",
   "/constraints",
   "/docs",
+  "/connections",
   "/file-spaces",
   "/files",
   "/fly",
@@ -158,6 +159,7 @@ export const routes = {
   repoTodoItem: (ref: RepoRef, slug: string, itemId: string) =>
     repoSelectionPath(ref, "todos", slug, itemId),
   repoSecrets: (ref: RepoRef) => repoSelectionPath(ref, "secrets"),
+  repoConnections: (ref: RepoRef) => repoSelectionPath(ref, "connections"),
   repoConfig: (ref: RepoRef) => repoSelectionPath(ref, "config"),
   repoBackend: (ref: RepoRef) => repoSelectionPath(ref, "backend"),
   repoContext: (ref: RepoRef, slug?: string | null) =>
