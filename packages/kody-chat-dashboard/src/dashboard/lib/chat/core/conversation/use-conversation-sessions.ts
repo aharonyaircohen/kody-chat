@@ -193,6 +193,7 @@ export function useConversationSessions(
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const persistenceGenerationRef = useRef(0);
   const locallyCreatedSessionIdsRef = useRef(new Set<string>());
+  const hydratedScopeRef = useRef(scope);
   const preferredSessionIdRef = useRef(preferredSessionId);
   preferredSessionIdRef.current = preferredSessionId;
 
@@ -242,9 +243,18 @@ export function useConversationSessions(
 
   useEffect(() => {
     let cancelled = false;
-    locallyCreatedSessionIdsRef.current = new Set();
-    setActiveSessionId("");
-    setRecoveringSessionIds(new Set());
+    const scopeChanged = hydratedScopeRef.current !== scope;
+    hydratedScopeRef.current = scope;
+    // Repository/page navigation can replace the request headers while the
+    // global conversation and its stream are still active. Rehydrating the
+    // client must not clear that in-memory session: doing so makes minimizing
+    // /chat hide the reply that is still arriving. A real conversation-scope
+    // change (global <-> Vibe) still starts from a clean selection.
+    if (scopeChanged) {
+      locallyCreatedSessionIdsRef.current = new Set();
+      setActiveSessionId("");
+      setRecoveringSessionIds(new Set());
+    }
     if (!persistenceEnabled) {
       setSessions([]);
       setMessagesBySession({});
@@ -254,7 +264,7 @@ export function useConversationSessions(
         cancelled = true;
       };
     }
-    setHydrated(false);
+    if (scopeChanged) setHydrated(false);
     void conversationClient
       .list(scope)
       .then(async (records) => {

@@ -216,6 +216,67 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.getByText(/^Error:/)).toHaveCount(0);
   });
 
+  test("minimizing /chat keeps the in-flight reply running", async ({
+    page,
+  }) => {
+    let releaseReply!: () => void;
+    const replyReleased = new Promise<void>((resolve) => {
+      releaseReply = resolve;
+    });
+    let markRequestStarted!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve;
+    });
+
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      markRequestStarted();
+      await replyReleased;
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "text-delta", delta: "Reply survived " },
+          { type: "text-delta", delta: "minimizing chat." },
+        ]),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("keep thinking while I minimize");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await requestStarted;
+    await expect(chat.getByRole("button", { name: "Stop run" })).toBeVisible();
+    await chat.evaluate((element) =>
+      element.setAttribute("data-stream-mount", "original"),
+    );
+
+    await chat.getByRole("button", { name: "Restore chat width" }).click();
+    await expect(page).not.toHaveURL(/\/chat(?:\/|$)/);
+    const minimizedChat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(minimizedChat).toBeVisible();
+    await expect(minimizedChat).toHaveAttribute(
+      "data-stream-mount",
+      "original",
+    );
+    await expect(
+      minimizedChat.getByRole("button", { name: "Stop run" }),
+    ).toBeVisible();
+
+    releaseReply();
+    await expect(
+      page
+        .locator('[aria-label="Kody chat"]')
+        .first()
+        .getByText("Reply survived minimizing chat."),
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
   test("chat POST carries repo + dashboard-page context", async ({ page }) => {
     let capturedBody: Record<string, unknown> | null = null;
     let capturedHeaders: Record<string, string> | null = null;
