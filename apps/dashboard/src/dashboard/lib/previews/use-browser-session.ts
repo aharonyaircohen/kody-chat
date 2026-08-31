@@ -33,6 +33,7 @@ export function useBrowserSession(input: {
   );
   const generationRef = useRef(0);
   const recoveryAttemptsRef = useRef(0);
+  const connectingRef = useRef(false);
   const modeRef = useRef(mode);
   const initialUrlRef = useRef(input.initialUrl);
   modeRef.current = mode;
@@ -49,6 +50,8 @@ export function useBrowserSession(input: {
         setMode({ kind: "checking" });
         return;
       }
+      if (connectingRef.current) return;
+      connectingRef.current = true;
       const generation = ++generationRef.current;
       setMode({ kind: "checking" });
       try {
@@ -106,6 +109,8 @@ export function useBrowserSession(input: {
           error:
             error instanceof Error ? error.message : "browser_session_failed",
         });
+      } finally {
+        connectingRef.current = false;
       }
     },
     [input.actorLogin, input.enabled],

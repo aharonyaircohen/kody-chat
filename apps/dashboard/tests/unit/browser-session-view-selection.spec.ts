@@ -50,4 +50,13 @@ describe("browser session View selection lifecycle", () => {
     expect(source).toContain("recoveryAttemptsRef.current += 1");
     expect(source).toContain("[connect, input.initialUrl]");
   });
+
+  it("allows only one browser connection attempt at a time", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("const connectingRef = useRef(false)");
+    expect(source).toContain("if (connectingRef.current) return");
+    expect(source).toContain("connectingRef.current = true");
+    expect(source).toContain("connectingRef.current = false");
+  });
 });
