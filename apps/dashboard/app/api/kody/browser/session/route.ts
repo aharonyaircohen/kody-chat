@@ -43,7 +43,6 @@ const STREAM_TICKET_TTL_SECONDS = 5 * 60;
 const DEFAULT_BROWSER_IMAGE =
   process.env.FLY_BROWSER_IMAGE ??
   "ghcr.io/aharonyaircohen/kody-browser:latest";
-const BROWSER_START_REUSE_MS = 5 * 60 * 1_000;
 const browserStartLocks = new Map<string, Promise<void>>();
 
 async function withBrowserStartLock<T>(
@@ -328,11 +327,7 @@ export async function POST(req: NextRequest) {
               nowMs,
             },
           )) as StoredBrowserSession | null;
-          if (
-            previous &&
-            nowMs - (previous.expiresAtMs - SESSION_TTL_MS) <
-              BROWSER_START_REUSE_MS
-          ) {
+          if (previous) {
             await ensureBrowserSessionReady({
               providerId: "fly",
               sessionId: previous.sessionId,
@@ -367,25 +362,6 @@ export async function POST(req: NextRequest) {
             config,
             verifyKey: deriveBrowserKey().toString("base64url"),
           } satisfies CreateFlyBrowserSessionInput);
-          if (previous && previous.appName !== session.appName) {
-            try {
-              await provider.closeSession({
-                providerId: "fly",
-                sessionId: previous.sessionId,
-                appName: previous.appName,
-                machineId: previous.machineId,
-                state: previous.state,
-                region: config.defaultRegion,
-                endpoint: `https://${previous.appName}.fly.dev`,
-                config,
-              });
-            } catch (error) {
-              logger.warn(
-                { err: error, appName: previous.appName },
-                "browser-session: previous transient app cleanup failed",
-              );
-            }
-          }
           const stored: StoredBrowserSession = {
             sessionId,
             providerId: session.providerId,

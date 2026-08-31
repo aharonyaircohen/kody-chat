@@ -179,41 +179,7 @@ describe("browser session route", () => {
     );
   });
 
-  it("cleans up the previous transient app after replacement succeeds", async () => {
-    context.config = {
-      token: "fly-token",
-      orgSlug: "personal",
-      defaultRegion: "fra",
-    };
-    backend.query.mockResolvedValueOnce({
-      sessionId: "browser-fixed",
-      providerId: "fly",
-      appName: "old-browser-app",
-      machineId: "old-machine",
-      state: "running",
-      currentUrl: "https://old.example.com",
-      viewport: { width: 1280, height: 720 },
-      expiresAtMs: Date.now() + 60_000,
-    });
-
-    const response = await POST(
-      new NextRequest("http://localhost/api/kody/browser/session", {
-        method: "POST",
-        body: JSON.stringify({
-          operation: "start",
-          actorLogin: "octocat",
-          initialUrl: "https://example.com",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(provider.closeSession).toHaveBeenCalledWith(
-      expect.objectContaining({ appName: "old-browser-app" }),
-    );
-  });
-
-  it("reuses a browser that another tab just created", async () => {
+  it("wakes and reuses an existing browser regardless of its age", async () => {
     context.config = {
       token: "fly-token",
       orgSlug: "personal",
@@ -227,7 +193,7 @@ describe("browser session route", () => {
       state: "starting",
       currentUrl: "https://example.com",
       viewport: { width: 1280, height: 720 },
-      expiresAtMs: Date.now() + 4 * 60 * 60 * 1_000,
+      expiresAtMs: Date.now() + 60 * 60 * 1_000,
     });
 
     const response = await POST(
