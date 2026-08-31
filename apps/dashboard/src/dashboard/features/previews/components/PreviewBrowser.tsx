@@ -489,10 +489,24 @@ export function PreviewBrowser({
 
   const moveBrowserHistory = (direction: "back" | "forward"): void => {
     if (remoteSession) {
-      void remoteBrowserAct({ type: direction }).then((result) => {
-        if (result.url)
-          syncBrowserHistoryUrl(result.url, { allowExternal: true });
-      });
+      const nextIndex =
+        direction === "back"
+          ? browserHistory.index - 1
+          : browserHistory.index + 1;
+      const nextUrl = browserHistory.entries[nextIndex];
+      if (!nextUrl) return;
+      void remoteBrowserAct({ type: "navigate", url: nextUrl }).then(
+        (result) => {
+          if (!result.ok) return;
+          setBrowserHistory((state) => {
+            if (nextIndex < 0 || nextIndex >= state.entries.length)
+              return state;
+            const entries = [...state.entries];
+            if (result.url) entries[nextIndex] = result.url;
+            return { entries, index: nextIndex };
+          });
+        },
+      );
       return;
     }
     const nextIndex =

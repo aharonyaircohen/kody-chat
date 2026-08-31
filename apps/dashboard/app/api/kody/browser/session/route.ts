@@ -55,6 +55,7 @@ const BrowserAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("screenshot") }),
   z.object({ type: z.literal("snapshot") }),
   z.object({ type: z.literal("pick") }),
+  z.object({ type: z.literal("pickResult") }),
   z.object({ type: z.literal("cancelPick") }),
   z.object({ type: z.literal("perf") }),
   z.object({

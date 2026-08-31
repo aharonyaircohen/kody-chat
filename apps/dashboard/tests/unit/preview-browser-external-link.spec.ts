@@ -37,6 +37,13 @@ const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");
 const REMOTE_SURFACE_SOURCE = readFileSync(REMOTE_SURFACE_PATH, "utf8");
 const BROWSER_START_SOURCE = readFileSync(BROWSER_START_PATH, "utf8");
 const BROWSER_SERVER_SOURCE = readFileSync(BROWSER_SERVER_PATH, "utf8");
+const REMOTE_PICKER_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/picker/useRemoteElementPicker.ts",
+  ),
+  "utf8",
+);
 const PREVIEW_WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
 const FLY_MACHINES_TABLE_SOURCE = readFileSync(FLY_MACHINES_TABLE_PATH, "utf8");
 const BROWSER_SESSION_HOOK_SOURCE = readFileSync(
@@ -86,10 +93,19 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toContain(
       "remoteAct={remoteSession ? remoteBrowserAct : undefined}",
     );
-    expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: direction/);
+    expect(SOURCE).toMatch(
+      /if \(remoteSession\)[\s\S]*type: "navigate", url: nextUrl/,
+    );
     expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "navigate"/);
     expect(SOURCE).toMatch(/if \(remoteSession\)[\s\S]*type: "reload"/);
     expect(SOURCE).toContain("<FlyRemoteBrowserSurface");
+  });
+
+  it("uses Kody's URL history as the source for remote Back and Forward", () => {
+    expect(SOURCE).toMatch(
+      /direction === "back"[\s\S]*browserHistory\.index - 1[\s\S]*browserHistory\.entries\[nextIndex\][\s\S]*type: "navigate", url: nextUrl/,
+    );
+    expect(SOURCE).toContain("return { entries, index: nextIndex }");
   });
 
   it("synchronizes external Fly navigation into the Kody address bar", () => {
@@ -177,5 +193,20 @@ describe("PreviewBrowser new-tab action", () => {
     expect(BROWSER_SERVER_SOURCE).toMatch(
       /Math\.max\(320, Math\.min\(1920,[\s\S]*Math\.max\(480, Math\.min\(1080,/,
     );
+  });
+
+  it("arms the remote picker without holding one request open", () => {
+    expect(BROWSER_SERVER_SOURCE).toContain(
+      'content: "globalThis.__name = (target) => target;"',
+    );
+    expect(BROWSER_SERVER_SOURCE).toContain('case "pickResult"');
+    expect(BROWSER_SERVER_SOURCE).toContain(
+      'document.documentElement.style.cursor = "crosshair"',
+    );
+    expect(BROWSER_SERVER_SOURCE).toContain(
+      'target.style.outline = "2px solid #38bdf8"',
+    );
+    expect(REMOTE_PICKER_SOURCE).toContain('remoteAct({ type: "pickResult" })');
+    expect(REMOTE_PICKER_SOURCE).toContain("pickGenerationRef.current += 1");
   });
 });

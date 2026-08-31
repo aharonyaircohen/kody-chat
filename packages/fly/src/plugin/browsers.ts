@@ -57,6 +57,7 @@ export type FlyBrowserAction =
   | { type: "scroll"; selector?: string; deltaY: number }
   | { type: "wait"; ms: number }
   | { type: "pick" }
+  | { type: "pickResult" }
   | { type: "cancelPick" }
   | { type: "perf" }
   | { type: "edit"; command: unknown }

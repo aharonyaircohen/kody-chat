@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   RemoteBrowserAction,
@@ -45,22 +45,51 @@ export function useRemoteElementPicker(
   const [armed, setArmed] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recStepCount, setRecStepCount] = useState(0);
+  const pickGenerationRef = useRef(0);
 
   const arm = useCallback(() => {
+    const generation = ++pickGenerationRef.current;
     setArmed(true);
-    void remoteAct({ type: "pick" }).then((result) => {
-      setArmed(false);
-      const element = (
-        result.data as
-          { element?: Parameters<typeof opts.onSelect>[0] } | undefined
-      )?.element;
-      if (element) opts.onSelect(element);
-    });
+    void (async () => {
+      const armedResult = await remoteAct({ type: "pick" });
+      if (!armedResult.ok || generation !== pickGenerationRef.current) {
+        if (generation === pickGenerationRef.current) setArmed(false);
+        return;
+      }
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+        if (generation !== pickGenerationRef.current) return;
+        const result = await remoteAct({ type: "pickResult" });
+        if (!result.ok) break;
+        const element = (
+          result.data as
+            { element?: Parameters<typeof opts.onSelect>[0] } | undefined
+        )?.element;
+        if (element) {
+          pickGenerationRef.current += 1;
+          setArmed(false);
+          opts.onSelect(element);
+          return;
+        }
+      }
+      if (generation === pickGenerationRef.current) {
+        pickGenerationRef.current += 1;
+        setArmed(false);
+        void remoteAct({ type: "cancelPick" });
+      }
+    })();
   }, [opts, remoteAct]);
   const disarm = useCallback(() => {
+    pickGenerationRef.current += 1;
     setArmed(false);
     void remoteAct({ type: "cancelPick" });
   }, [remoteAct]);
+  useEffect(
+    () => () => {
+      pickGenerationRef.current += 1;
+    },
+    [],
+  );
   const collectSnapshot = useCallback(
     () => remoteAct({ type: "snapshot" }),
     [remoteAct],

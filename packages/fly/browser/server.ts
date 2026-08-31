@@ -207,6 +207,9 @@ async function connectBrowser(): Promise<void> {
   await waitForChromium();
   const browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
   activeContext = browser.contexts()[0] ?? (await browser.newContext());
+  await activeContext.addInitScript({
+    content: "globalThis.__name = (target) => target;",
+  });
   await installNetworkGuard(activeContext);
   activePage = activeContext.pages()[0] ?? (await activeContext.newPage());
   await resizeDisplay(1280, 720);
@@ -311,100 +314,135 @@ async function executeAction(action: Record<string, unknown>) {
       return { ok: true, url: page.url(), data: screenshot.toString("base64") };
     }
     case "pick": {
-      const element = await page.evaluate(
-        () =>
-          new Promise<Record<string, unknown>>((resolve) => {
-            const root = window as typeof window & {
-              __kodyCancelPick?: () => void;
-            };
-            const selectorFor = (element: Element): string => {
-              if (element.id) return `#${CSS.escape(element.id)}`;
-              const parts: string[] = [];
-              let current: Element | null = element;
-              while (
-                current &&
-                current !== document.documentElement &&
-                parts.length < 6
-              ) {
-                const siblings = current.parentElement
-                  ? Array.from(current.parentElement.children).filter(
-                      (node) => node.tagName === current!.tagName,
-                    )
-                  : [];
-                parts.unshift(
-                  `${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(current) + 1})` : ""}`,
-                );
-                current = current.parentElement;
-              }
-              return parts.join(" > ");
-            };
-            const cleanup = () =>
-              document.removeEventListener("click", handler, true);
-            const handler = (event: MouseEvent) => {
-              event.preventDefault();
-              event.stopPropagation();
-              cleanup();
-              const target = event.target as HTMLElement;
-              const rect = target.getBoundingClientRect();
-              const attributes = Object.fromEntries(
-                Array.from(target.attributes)
-                  .slice(0, 20)
-                  .map((a) => [a.name, a.value.slice(0, 500)]),
-              );
-              const styles = getComputedStyle(target);
-              resolve({
-                selector: selectorFor(target),
-                tagName: target.tagName.toLowerCase(),
-                id: target.id || null,
-                classes: Array.from(target.classList).slice(0, 20),
-                text: (target.innerText || "")
-                  .trim()
-                  .replace(/\s+/g, " ")
-                  .slice(0, 500),
-                attributes,
-                computedStyles: {
-                  color: styles.color,
-                  backgroundColor: styles.backgroundColor,
-                  fontSize: styles.fontSize,
-                  fontWeight: styles.fontWeight,
-                  padding: styles.padding,
-                  margin: styles.margin,
-                  gap: styles.gap,
-                  border: styles.border,
-                  borderRadius: styles.borderRadius,
-                  boxShadow: styles.boxShadow,
-                  width: styles.width,
-                  maxWidth: styles.maxWidth,
-                  display: styles.display,
-                },
-                rect: {
-                  x: rect.x,
-                  y: rect.y,
-                  width: rect.width,
-                  height: rect.height,
-                },
-                url: location.href,
-              });
-            };
-            root.__kodyCancelPick = () => {
-              cleanup();
-              resolve({});
-            };
-            document.addEventListener("click", handler, true);
-          }),
-      );
+      await page.evaluate(() => {
+        const root = window as typeof window & {
+          __kodyCancelPick?: () => void;
+          __kodyPickedElement?: Record<string, unknown>;
+        };
+        root.__kodyCancelPick?.();
+        root.__kodyPickedElement = undefined;
+        let highlighted: HTMLElement | null = null;
+        let previousOutline = "";
+        const previousCursor = document.documentElement.style.cursor;
+        const selectorFor = (element: Element): string => {
+          if (element.id) return `#${CSS.escape(element.id)}`;
+          const parts: string[] = [];
+          let current: Element | null = element;
+          while (
+            current &&
+            current !== document.documentElement &&
+            parts.length < 6
+          ) {
+            const siblings = current.parentElement
+              ? Array.from(current.parentElement.children).filter(
+                  (node) => node.tagName === current!.tagName,
+                )
+              : [];
+            parts.unshift(
+              `${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(current) + 1})` : ""}`,
+            );
+            current = current.parentElement;
+          }
+          return parts.join(" > ");
+        };
+        const clearHighlight = () => {
+          if (highlighted) highlighted.style.outline = previousOutline;
+          highlighted = null;
+          previousOutline = "";
+        };
+        const cleanup = () => {
+          clearHighlight();
+          document.documentElement.style.cursor = previousCursor;
+          document.removeEventListener("pointerover", highlight, true);
+          document.removeEventListener("click", handler, true);
+          root.__kodyCancelPick = undefined;
+        };
+        const highlight = (event: PointerEvent) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement) || target === highlighted)
+            return;
+          clearHighlight();
+          highlighted = target;
+          previousOutline = target.style.outline;
+          target.style.outline = "2px solid #38bdf8";
+        };
+        const handler = (event: MouseEvent) => {
+          event.preventDefault();
+          event.stopPropagation();
+          cleanup();
+          const target = event.target as HTMLElement;
+          const rect = target.getBoundingClientRect();
+          const attributes = Object.fromEntries(
+            Array.from(target.attributes)
+              .slice(0, 20)
+              .map((a) => [a.name, a.value.slice(0, 500)]),
+          );
+          const styles = getComputedStyle(target);
+          root.__kodyPickedElement = {
+            selector: selectorFor(target),
+            tagName: target.tagName.toLowerCase(),
+            id: target.id || null,
+            classes: Array.from(target.classList).slice(0, 20),
+            text: (target.innerText || "")
+              .trim()
+              .replace(/\s+/g, " ")
+              .slice(0, 500),
+            attributes,
+            computedStyles: {
+              color: styles.color,
+              backgroundColor: styles.backgroundColor,
+              fontSize: styles.fontSize,
+              fontWeight: styles.fontWeight,
+              padding: styles.padding,
+              margin: styles.margin,
+              gap: styles.gap,
+              border: styles.border,
+              borderRadius: styles.borderRadius,
+              boxShadow: styles.boxShadow,
+              width: styles.width,
+              maxWidth: styles.maxWidth,
+              display: styles.display,
+            },
+            rect: {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+            },
+            url: location.href,
+          };
+        };
+        root.__kodyCancelPick = cleanup;
+        document.documentElement.style.cursor = "crosshair";
+        document.addEventListener("pointerover", highlight, true);
+        document.addEventListener("click", handler, true);
+      });
       return {
         ok: true,
         url: page.url(),
-        data: { element: Object.keys(element).length ? element : undefined },
+        data: { armed: true },
       };
     }
+    case "pickResult": {
+      const element = await page.evaluate(() => {
+        const root = window as typeof window & {
+          __kodyPickedElement?: Record<string, unknown>;
+        };
+        const picked = root.__kodyPickedElement;
+        root.__kodyPickedElement = undefined;
+        return picked;
+      });
+      return { ok: true, url: page.url(), data: { element } };
+    }
     case "cancelPick":
-      await page.evaluate(() =>
-        (
-          window as typeof window & { __kodyCancelPick?: () => void }
-        ).__kodyCancelPick?.(),
-      );
+      await page.evaluate(() => {
+        const root = window as typeof window & {
+          __kodyCancelPick?: () => void;
+          __kodyPickedElement?: Record<string, unknown>;
+        };
+        root.__kodyCancelPick?.();
+        root.__kodyPickedElement = undefined;
+      });
       break;
     case "perf": {
       const data = await page.evaluate(() => {
