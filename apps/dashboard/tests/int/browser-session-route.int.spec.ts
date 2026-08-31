@@ -143,4 +143,40 @@ describe("browser session route", () => {
       expect.objectContaining({ appName: "old-browser-app" }),
     );
   });
+
+  it("reuses a browser that another tab just created", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "fresh-browser-app",
+      machineId: "fresh-machine",
+      state: "starting",
+      currentUrl: "https://example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 4 * 60 * 60 * 1_000,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "start",
+          actorLogin: "octocat",
+          initialUrl: "https://example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(provider.createSession).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      sessionId: "browser-fixed",
+      state: "starting",
+    });
+  });
 });

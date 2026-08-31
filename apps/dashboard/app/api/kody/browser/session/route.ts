@@ -41,6 +41,27 @@ const STREAM_TICKET_TTL_SECONDS = 5 * 60;
 const DEFAULT_BROWSER_IMAGE =
   process.env.FLY_BROWSER_IMAGE ??
   "ghcr.io/aharonyaircohen/kody-browser:latest";
+const BROWSER_START_REUSE_MS = 5 * 60 * 1_000;
+const browserStartLocks = new Map<string, Promise<void>>();
+
+async function withBrowserStartLock<T>(
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const predecessor = browserStartLocks.get(key);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  browserStartLocks.set(key, gate);
+  if (predecessor) await predecessor;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (browserStartLocks.get(key) === gate) browserStartLocks.delete(key);
+  }
+}
 
 const BrowserAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("navigate"), url: z.string().url().max(4_096) }),
@@ -250,73 +271,94 @@ export async function POST(req: NextRequest) {
 
   try {
     if (parsed.data.operation === "start") {
-      const initialUrl = await validatePublicBrowserUrl(parsed.data.initialUrl);
-      const sessionId = stableSessionId(
-        authority.owner,
-        authority.repo,
-        authority.actorId,
-      );
-      const previous = (await backend.query(
-        backendApi.browserSessions.getActive,
-        {
-          tenantId,
-          actorId: authority.actorId,
-          nowMs: Date.now(),
-        },
-      )) as StoredBrowserSession | null;
-      const session = await provider.createSession({
-        owner: authority.owner,
-        repo: authority.repo,
-        actorId: authority.actorId,
-        sessionId,
-        initialUrl,
-        image: DEFAULT_BROWSER_IMAGE,
-        config: authority.config,
-        verifyKey: deriveBrowserKey().toString("base64url"),
-      } satisfies CreateFlyBrowserSessionInput);
-      if (previous && previous.appName !== session.appName) {
-        try {
-          await provider.closeSession({
-            providerId: "fly",
-            sessionId: previous.sessionId,
-            appName: previous.appName,
-            machineId: previous.machineId,
-            state: previous.state,
-            region: authority.config.defaultRegion,
-            endpoint: `https://${previous.appName}.fly.dev`,
-            config: authority.config,
-          });
-        } catch (error) {
-          logger.warn(
-            { err: error, appName: previous.appName },
-            "browser-session: previous transient app cleanup failed",
+      return await withBrowserStartLock(
+        `${tenantId}:${authority.actorId}`,
+        async () => {
+          const initialUrl = await validatePublicBrowserUrl(
+            parsed.data.initialUrl,
           );
-        }
-      }
-      const nowMs = Date.now();
-      const stored: StoredBrowserSession = {
-        sessionId,
-        providerId: session.providerId,
-        appName: session.appName,
-        machineId: session.machineId,
-        state: session.state === "started" ? "running" : "starting",
-        currentUrl: initialUrl,
-        viewport: { width: 1_280, height: 720 },
-        expiresAtMs: nowMs + SESSION_TTL_MS,
-      };
-      await backend.mutation(backendApi.browserSessions.save, {
-        tenantId,
-        actorId: authority.actorId,
-        ...stored,
-        nowMs,
-      });
-      return NextResponse.json(
-        clientSession(
-          authority.owner,
-          authority.repo,
-          authority.actorId,
-          stored,
-        ),
+          const nowMs = Date.now();
+          const previous = (await backend.query(
+            backendApi.browserSessions.getActive,
+            {
+              tenantId,
+              actorId: authority.actorId,
+              nowMs,
+            },
+          )) as StoredBrowserSession | null;
+          if (
+            previous &&
+            nowMs - (previous.expiresAtMs - SESSION_TTL_MS) <
+              BROWSER_START_REUSE_MS
+          ) {
+            return NextResponse.json(
+              clientSession(
+                authority.owner,
+                authority.repo,
+                authority.actorId,
+                previous,
+              ),
+            );
+          }
+          const sessionId = stableSessionId(
+            authority.owner,
+            authority.repo,
+            authority.actorId,
+          );
+          const session = await provider.createSession({
+            owner: authority.owner,
+            repo: authority.repo,
+            actorId: authority.actorId,
+            sessionId,
+            initialUrl,
+            image: DEFAULT_BROWSER_IMAGE,
+            config: authority.config,
+            verifyKey: deriveBrowserKey().toString("base64url"),
+          } satisfies CreateFlyBrowserSessionInput);
+          if (previous && previous.appName !== session.appName) {
+            try {
+              await provider.closeSession({
+                providerId: "fly",
+                sessionId: previous.sessionId,
+                appName: previous.appName,
+                machineId: previous.machineId,
+                state: previous.state,
+                region: authority.config.defaultRegion,
+                endpoint: `https://${previous.appName}.fly.dev`,
+                config: authority.config,
+              });
+            } catch (error) {
+              logger.warn(
+                { err: error, appName: previous.appName },
+                "browser-session: previous transient app cleanup failed",
+              );
+            }
+          }
+          const stored: StoredBrowserSession = {
+            sessionId,
+            providerId: session.providerId,
+            appName: session.appName,
+            machineId: session.machineId,
+            state: session.state === "started" ? "running" : "starting",
+            currentUrl: initialUrl,
+            viewport: { width: 1_280, height: 720 },
+            expiresAtMs: nowMs + SESSION_TTL_MS,
+          };
+          await backend.mutation(backendApi.browserSessions.save, {
+            tenantId,
+            actorId: authority.actorId,
+            ...stored,
+            nowMs,
+          });
+          return NextResponse.json(
+            clientSession(
+              authority.owner,
+              authority.repo,
+              authority.actorId,
+              stored,
+            ),
+          );
+        },
       );
     }
 
