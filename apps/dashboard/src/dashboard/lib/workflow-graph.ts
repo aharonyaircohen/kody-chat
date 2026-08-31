@@ -13,6 +13,7 @@ export interface WorkflowGraphNode {
   question?: string;
   input?: unknown;
   inputs?: Record<string, WorkflowInputBinding>;
+  approval?: "required";
 }
 
 export interface WorkflowGraphEdge {
@@ -226,6 +227,7 @@ export function workflowDefinitionGraph(
         ? { input: step.input }
         : {}),
       ...(step.inputs ? { inputs: step.inputs } : {}),
+      ...(step.approval === "required" ? { approval: "required" as const } : {}),
     }));
     const usedIds = new Set(baseNodes.map((node) => node.id));
     const nodes: WorkflowGraphNode[] = [...baseNodes];
@@ -330,6 +332,7 @@ export function graphWorkflowDefinition(
         ? { input: node.input }
         : {}),
       ...(node.inputs ? { inputs: node.inputs } : {}),
+      ...(node.approval === "required" ? { approval: "required" as const } : {}),
       ...(outgoing.length > 0
         ? {
             next: outgoing.map((edge) => ({

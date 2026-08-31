@@ -9,6 +9,29 @@ import {
 } from "@dashboard/lib/workflow-graph";
 
 describe("workflow graph", () => {
+  it("round-trips a required approval on the exact workflow step", () => {
+    const graph = workflowDefinitionGraph({
+      name: "Publish",
+      agent: "kody",
+      capabilities: ["validate", "publish"],
+      startAt: "validate",
+      steps: [
+        { id: "validate", capability: "validate", next: [{ to: "publish" }] },
+        { id: "publish", capability: "publish", approval: "required" },
+      ],
+      createdAt: "2026-08-31T00:00:00Z",
+      updatedAt: "2026-08-31T00:00:00Z",
+    });
+
+    expect(graph.nodes.find((node) => node.id === "publish")?.approval).toBe(
+      "required",
+    );
+    expect(
+      graphWorkflowDefinition("Publish", graph.nodes, graph.edges, graph.startAt)
+        .steps?.find((step) => step.id === "publish")?.approval,
+    ).toBe("required");
+  });
+
   it("turns a legacy capability queue into a visual linear graph", () => {
     const graph = workflowDefinitionGraph({
       name: "Legacy",

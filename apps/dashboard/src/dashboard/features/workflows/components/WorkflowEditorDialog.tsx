@@ -81,6 +81,21 @@ export function WorkflowEditorDialog({
     setErrors([]);
   };
 
+  const setStepApproval = (stepId: string, required: boolean) => {
+    setGraph((current) => ({
+      ...current,
+      nodes: current.nodes.map((node) =>
+        node.id === stepId
+          ? {
+              ...node,
+              ...(required ? { approval: "required" as const } : {}),
+              ...(!required ? { approval: undefined } : {}),
+            }
+          : node,
+      ),
+    }));
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextName = name.trim();
@@ -252,6 +267,16 @@ export function WorkflowEditorDialog({
                             ? " · starts here"
                             : ` · step ${index + 1}`}
                         </div>
+                        <label className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={step.approval === "required"}
+                            onChange={(event) =>
+                              setStepApproval(step.id, event.target.checked)
+                            }
+                          />
+                          Require approval before this step
+                        </label>
                       </div>
                       <Button
                         type="button"

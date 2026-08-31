@@ -82,5 +82,8 @@ describe("WorkflowsManager run button", () => {
     expect(WORKFLOW_EDITOR_SOURCE).toContain('modalHeight="viewport"');
     expect(WORKFLOW_EDITOR_SOURCE).toContain("WorkflowGraphCanvas");
     expect(WORKFLOW_EDITOR_SOURCE).toContain("Add step");
+    expect(WORKFLOW_EDITOR_SOURCE).toContain(
+      "Require approval before this step",
+    );
   });
 });
