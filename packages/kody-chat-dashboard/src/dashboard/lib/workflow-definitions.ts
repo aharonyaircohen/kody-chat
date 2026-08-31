@@ -253,6 +253,7 @@ function normalizeWorkflowStepExecution(
     raw.timeoutSeconds <= 3600
       ? raw.timeoutSeconds
       : undefined;
+  const approval = raw.approval === "required" ? "required" : undefined;
   const runWhen =
     raw.runWhen &&
     typeof raw.runWhen === "object" &&
@@ -282,6 +283,7 @@ function normalizeWorkflowStepExecution(
     ...(targetFact ? { targetFact } : {}),
     ...(reason ? { reason } : {}),
     ...(timeoutSeconds ? { timeoutSeconds } : {}),
+    ...(approval ? { approval } : {}),
     ...(runWhen ? { runWhen } : {}),
     ...(continueOn.length > 0 ? { continueOn } : {}),
     ...(raw.saveReport === true ? { saveReport: true } : {}),

@@ -25,6 +25,21 @@ function workflow(
 }
 
 describe("validateWorkflowDefinition", () => {
+  it("preserves a required approval on its exact step", () => {
+    const normalized = normalizeWorkflowDefinition({
+      name: "Publish",
+      agent: "content-editor",
+      capabilities: ["validate", "publish"],
+      startAt: "validate",
+      steps: [
+        { id: "validate", capability: "validate", next: [{ to: "publish" }] },
+        { id: "publish", capability: "publish", approval: "required" },
+      ],
+    });
+
+    expect(normalized?.steps?.[1]?.approval).toBe("required");
+  });
+
   it("builds a runnable ordered workflow when simple creation omits steps", () => {
     const built = buildWorkflowDefinition({
       name: "QA pass",
