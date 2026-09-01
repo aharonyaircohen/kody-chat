@@ -32,6 +32,7 @@
     "./user-journeys/runner": "./src/dashboard/lib/user-journeys/runner.ts",
     "./guided-flows/builtins": "./src/dashboard/lib/guided-flows/builtins/index.ts",
     "./guided-flows/file-picker": "./src/dashboard/lib/guided-flows/file-picker.ts",
+    "./picker/views-preview-action-runner": "./src/dashboard/lib/picker/views-preview-action-runner.ts",
     "./guided-flows/*": "./src/dashboard/lib/guided-flows/*.ts",
     "./guided-flows/chat-controller": "./src/dashboard/lib/guided-flows/chat-controller.tsx",
     "./request-blueprints": "./src/dashboard/lib/request-blueprints/index.ts",

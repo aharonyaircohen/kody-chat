@@ -36,6 +36,7 @@ import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
 import { ensureViewsOwnedCapabilityAction } from "../picker/views-owned-preview-action";
+import { getViewsPreviewActionRunner } from "../picker/views-preview-action-runner";
 import { formatMacrosCatalog, type Macro } from "../macros";
 import { authHeaders, clearLiveSession } from "../kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
@@ -782,7 +783,10 @@ export function KodyChat({
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
       const currentPreviewActionRunner = () =>
-        getPreviewActionRunner?.() ?? previewActionRunnerRef.current ?? null;
+        getViewsPreviewActionRunner() ??
+        getPreviewActionRunner?.() ??
+        previewActionRunnerRef.current ??
+        null;
       await runPreviewAction(directive, {
         prepareSurface: (action) =>
           ensureViewsOwnedCapabilityAction({

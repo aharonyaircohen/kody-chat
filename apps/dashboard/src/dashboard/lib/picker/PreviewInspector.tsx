@@ -63,6 +63,7 @@ import {
 } from "./protocol";
 import { recordedStepToAction } from "../macros";
 import { PreviewMacrosMenu } from "@dashboard/features/previews/components/PreviewMacrosMenu";
+import { registerViewsPreviewActionRunner } from "@kody-ade/kody-chat-dashboard/picker/views-preview-action-runner";
 import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
 import { PreviewEditPanel } from "./PreviewEditPanel";
 
@@ -251,8 +252,12 @@ export function PreviewInspector({
       return;
     }
     const run = (action: PreviewAction) => pickerRef.current.act(action);
+    const unregister = registerViewsPreviewActionRunner(run);
     onActionRunnerChange?.(run);
-    return () => onActionRunnerChange?.(null);
+    return () => {
+      unregister();
+      onActionRunnerChange?.(null);
+    };
   }, [onActionRunnerChange, picker.available, remoteAct]);
   const isFirefox =
     typeof navigator !== "undefined" &&
