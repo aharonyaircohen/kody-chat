@@ -598,7 +598,9 @@ export function PreviewWorkspace({
         enableRemoteBrowser
         browserActorLogin={githubUser?.login}
         resolveBrowserUploadFiles={resolveBrowserUploadFiles}
-        onRemoteActionRunnerChange={setPreviewActionRunner}
+        onRemoteActionRunnerChange={
+          selectedId ? setPreviewActionRunner : undefined
+        }
         iframeSandbox={
           isRepoViewPdf ? null : repoViewId ? REPO_VIEW_SANDBOX : undefined
         }

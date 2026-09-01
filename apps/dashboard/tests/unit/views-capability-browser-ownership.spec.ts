@@ -25,7 +25,7 @@ describe("Views-owned Capability browser", () => {
 
     expect(workspace).toContain("setPreviewActionRunner");
     expect(workspace).toContain(
-      "onRemoteActionRunnerChange={setPreviewActionRunner}",
+      "onRemoteActionRunnerChange={\n          selectedId ? setPreviewActionRunner : undefined\n        }",
     );
     expect(browser).toContain(
       "onActionRunnerChange={onRemoteActionRunnerChange}",
