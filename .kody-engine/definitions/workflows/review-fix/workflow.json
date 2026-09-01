@@ -108,7 +108,7 @@
         {
           "to": "review",
           "default": true,
-          "maxIterations": 3
+          "maxIterations": 5
         }
       ]
     }
