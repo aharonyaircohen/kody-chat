@@ -160,6 +160,14 @@
     {
       "id": "fix",
       "capability": "fix",
+      "inputs": {
+        "pr": {
+          "from": "workflow.facts.pr"
+        },
+        "feedback": {
+          "from": "steps.review.result.feedback"
+        }
+      },
       "target": "pr",
       "delivery": "pull-request",
       "targetFact": "pr",
@@ -171,6 +179,12 @@
           "to": "stopped",
           "when": {
             "lastOutcome.type": "RUN_FAILED"
+          }
+        },
+        {
+          "to": "stopped",
+          "when": {
+            "result.status": "blocked"
           }
         },
         {
@@ -203,6 +217,6 @@
     }
   ],
   "runWithoutApproval": true,
-  "createdAt": "2026-09-01T04:14:17.017Z",
-  "updatedAt": "2026-09-01T04:14:17.017Z"
+  "createdAt": "2026-09-01T05:20:07.795Z",
+  "updatedAt": "2026-09-01T05:20:07.795Z"
 }
