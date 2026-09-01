@@ -36,7 +36,7 @@ describe("browser session View selection lifecycle", () => {
     expect(source).toContain("currentUrl: navigation.url ?? desiredUrl");
     expect(
       source.indexOf('setMode({ kind: "remote", session });'),
-    ).toBeLessThan(
+    ).toBeGreaterThan(
       source.indexOf("for (let attempt = 0; attempt < 3; attempt += 1)"),
     );
   });

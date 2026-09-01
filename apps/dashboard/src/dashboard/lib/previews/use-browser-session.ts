@@ -71,7 +71,6 @@ export function useBrowserSession(input: {
             : status;
         if (generation !== generationRef.current) return;
         recoveryAttemptsRef.current = 0;
-        setMode({ kind: "remote", session });
 
         if (
           !forceStart &&
@@ -106,6 +105,7 @@ export function useBrowserSession(input: {
             }
           }
         }
+        setMode({ kind: "remote", session });
       } catch (error) {
         if (generation !== generationRef.current) return;
         setMode({
