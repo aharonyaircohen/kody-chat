@@ -5,6 +5,7 @@ import {
 } from "ai";
 import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildRenderedViewDirective } from "../../../../../src/dashboard/lib/view-renderers/template";
+import { buildDecisionBody } from "./tool-action-approval";
 
 export interface AgencyRequestDecisionContext {
   /** Plain sentence describing what is currently true before the agency request runs. */
@@ -24,21 +25,11 @@ export function createAgencyRequestApproval(input: {
   const definition = getBuiltinViewRendererDefinition("approval-card");
   if (!definition) throw new Error("Approval card renderer is unavailable");
 
-  let body: string;
-  if (input.decisionContext) {
-    const { currentState, whyNow, recommendedAction, cancelChoice } = input.decisionContext;
-    const parts: string[] = [];
-    if (currentState) parts.push(`**Current:** ${currentState}`);
-    if (whyNow) parts.push(`**Why:** ${whyNow}`);
-    if (recommendedAction) parts.push(`**Approving will:** ${recommendedAction}`);
-    if (cancelChoice) parts.push(`**Cancelling will:** ${cancelChoice}`);
-    body = parts.length > 0
-      ? parts.join("\n\n")
-      : "Kody saved the verified plan and boundaries on the Agency request Todo. Approve to begin execution, or cancel to leave it waiting for approval.";
-  } else {
-    body =
-      "Kody saved the verified plan and boundaries on the Agency request Todo. Approve to begin execution, or cancel to leave it waiting for approval.";
-  }
+  const body = buildDecisionBody({
+    ...input.decisionContext,
+    legacyBody:
+      "Kody saved the verified plan and boundaries on the Agency request Todo. Approve to begin execution, or cancel to leave it waiting for approval.",
+  });
 
   return buildRenderedViewDirective({
     id: `agency-request-${input.todoSlug}`,

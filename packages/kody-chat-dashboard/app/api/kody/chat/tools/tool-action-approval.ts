@@ -117,24 +117,23 @@ function decodePayload(
   }
 }
 
-function buildDecisionBody(input: {
-  title: string;
-  decisionContext?: ToolActionDecisionContext;
-  legacyBody?: string;
+export function buildDecisionBody(input: {
+  currentState?: string;
+  whyNow?: string;
+  recommendedAction?: string;
+  cancelChoice?: string;
+  recommendation?: string;
+  tradeoff?: string;
+  legacyBody: string;
 }): string {
-  if (input.decisionContext) {
-    const { currentState, whyNow, recommendedAction, cancelChoice, recommendation, tradeoff } =
-      input.decisionContext;
-    const parts: string[] = [];
-    if (currentState) parts.push(`**Current:** ${currentState}`);
-    if (whyNow) parts.push(`**Why:** ${whyNow}`);
-    if (recommendedAction) parts.push(`**Approving will:** ${recommendedAction}`);
-    if (cancelChoice) parts.push(`**Cancelling will:** ${cancelChoice}`);
-    if (recommendation) parts.push(`**Recommendation:** ${recommendation}`);
-    if (tradeoff) parts.push(`**Tradeoff:** ${tradeoff}`);
-    return parts.join("\n\n");
-  }
-  return input.legacyBody ?? "Approve to run this exact saved action, or cancel to leave everything unchanged.";
+  const parts: string[] = [];
+  if (input.currentState) parts.push(`**Current:** ${input.currentState}`);
+  if (input.whyNow) parts.push(`**Why:** ${input.whyNow}`);
+  if (input.recommendedAction) parts.push(`**Approving will:** ${input.recommendedAction}`);
+  if (input.cancelChoice) parts.push(`**Cancelling will:** ${input.cancelChoice}`);
+  if (input.recommendation) parts.push(`**Recommendation:** ${input.recommendation}`);
+  if (input.tradeoff) parts.push(`**Tradeoff:** ${input.tradeoff}`);
+  return parts.length > 0 ? parts.join("\n\n") : input.legacyBody;
 }
 
 export function createToolActionApproval(input: {
@@ -162,7 +161,10 @@ export function createToolActionApproval(input: {
     definition,
     data: {
       title: input.title,
-      body: buildDecisionBody({ title: input.title, decisionContext: input.decisionContext, legacyBody: input.body }),
+      body: buildDecisionBody({
+        ...input.decisionContext,
+        legacyBody: input.body ?? "Approve to run this exact saved action, or cancel to leave everything unchanged.",
+      }),
     },
   });
 }

@@ -3,6 +3,7 @@ import { canonicalWorkflowInput } from "@kody-ade/agency/workflow-run-approval";
 import type { RenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
 import { getBuiltinViewRendererDefinition } from "../../../../../src/dashboard/lib/view-renderers/builtin";
 import { buildRenderedViewDirective } from "../../../../../src/dashboard/lib/view-renderers/template";
+import { buildDecisionBody } from "./tool-action-approval";
 
 export interface WorkflowRunDecisionContext {
   /** Plain sentence describing what is currently true before the workflow runs. */
@@ -26,20 +27,10 @@ export function createWorkflowRunApproval(input: {
   const definition = getBuiltinViewRendererDefinition("approval-card");
   if (!definition) throw new Error("Approval card renderer is unavailable");
 
-  let body: string;
-  if (input.decisionContext) {
-    const { currentState, whyNow, recommendedAction, cancelChoice } = input.decisionContext;
-    const parts: string[] = [];
-    if (currentState) parts.push(`**Current:** ${currentState}`);
-    if (whyNow) parts.push(`**Why:** ${whyNow}`);
-    if (recommendedAction) parts.push(`**Approving will:** ${recommendedAction}`);
-    if (cancelChoice) parts.push(`**Cancelling will:** ${cancelChoice}`);
-    body = parts.length > 0
-      ? parts.join("\n\n")
-      : `Repository: ${input.owner}/${input.repo}\nInput: ${canonicalWorkflowInput(input.workflowInput)}`;
-  } else {
-    body = `Repository: ${input.owner}/${input.repo}\nInput: ${canonicalWorkflowInput(input.workflowInput)}`;
-  }
+  const body = buildDecisionBody({
+    ...input.decisionContext,
+    legacyBody: `Repository: ${input.owner}/${input.repo}\nInput: ${canonicalWorkflowInput(input.workflowInput)}`,
+  });
 
   return buildRenderedViewDirective({
     id: input.approvalToken,
