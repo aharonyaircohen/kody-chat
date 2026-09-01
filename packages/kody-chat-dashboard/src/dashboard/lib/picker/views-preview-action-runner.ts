@@ -4,17 +4,26 @@ export type ViewsPreviewActionRunner = (
   action: PreviewAction,
 ) => Promise<PreviewActResult>;
 
-let currentRunner: ViewsPreviewActionRunner | null = null;
+const RUNNER_KEY = "__kodyViewsPreviewActionRunner__";
+
+type RunnerRegistryHost = typeof globalThis & {
+  [RUNNER_KEY]?: ViewsPreviewActionRunner | null;
+};
+
+function registryHost(): RunnerRegistryHost {
+  return globalThis as RunnerRegistryHost;
+}
 
 export function getViewsPreviewActionRunner(): ViewsPreviewActionRunner | null {
-  return currentRunner;
+  return registryHost()[RUNNER_KEY] ?? null;
 }
 
 export function registerViewsPreviewActionRunner(
   runner: ViewsPreviewActionRunner | null,
 ): () => void {
-  currentRunner = runner;
+  registryHost()[RUNNER_KEY] = runner;
   return () => {
-    if (currentRunner === runner) currentRunner = null;
+    const host = registryHost();
+    if (host[RUNNER_KEY] === runner) host[RUNNER_KEY] = null;
   };
 }

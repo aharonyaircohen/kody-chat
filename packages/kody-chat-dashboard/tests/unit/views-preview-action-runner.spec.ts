@@ -26,4 +26,17 @@ describe("Views preview action runner registry", () => {
 
     expect(getViewsPreviewActionRunner()).toBe(replacement);
   });
+
+  it("shares the mounted runner across separately bundled module instances", async () => {
+    const runner = vi.fn(async () => ({ ok: true }));
+
+    registerViewsPreviewActionRunner(runner);
+    vi.resetModules();
+    const separatelyLoadedRegistry = await import(
+      "../../src/dashboard/lib/picker/views-preview-action-runner"
+    );
+
+    expect(separatelyLoadedRegistry.getViewsPreviewActionRunner()).toBe(runner);
+    separatelyLoadedRegistry.registerViewsPreviewActionRunner(null);
+  });
 });
