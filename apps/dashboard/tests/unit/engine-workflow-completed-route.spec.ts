@@ -163,6 +163,35 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           journeyName: "Direct chat persistence",
           artifactPath:
             "apps/dashboard/test-results/live-ui-gate/run-quality-1",
+          usage: {
+            version: 1,
+            tokens: {
+              input: 709_564,
+              output: 2_091,
+              cacheRead: 1_536,
+              cacheCreate: 0,
+              total: 713_191,
+            },
+            costUsd: 2.1769996,
+            agentRuns: 1,
+            turns: 20,
+            measurement: "reported",
+            byModel: {
+              "minimax/MiniMax-M3": {
+                tokens: {
+                  input: 709_564,
+                  output: 2_091,
+                  cacheRead: 1_536,
+                  cacheCreate: 0,
+                  total: 713_191,
+                },
+                costUsd: 2.1605178,
+                agentRuns: 1,
+                turns: 20,
+                measurement: "reported",
+              },
+            },
+          },
           actionResults: [
             {
               actionSlug: "send-message",
@@ -223,6 +252,12 @@ describe("POST /api/kody/engine/workflow-completed", () => {
           passed: 1,
           failed: 0,
           blocked: 0,
+          usage: expect.objectContaining({
+            measurement: "reported",
+            tokens: expect.objectContaining({ total: 713_191 }),
+            costUsd: 2.1769996,
+            turns: 20,
+          }),
           journeyResults: [
             expect.objectContaining({
               journeySlug: "direct-chat-persistence",

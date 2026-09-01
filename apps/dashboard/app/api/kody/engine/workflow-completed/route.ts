@@ -20,6 +20,7 @@ import { deliverWorkflowInboxAlert } from "@dashboard/features/workflows/server/
 import { advancePipelineForWorkflowCompletion } from "@dashboard/features/pipelines/server/pipeline-orchestrator";
 import { verifyQualityResult } from "@dashboard/features/quality/server/quality-result";
 import { completeAgencyRequestsForWorkflow } from "@dashboard/features/agency/server/agency-request-completion";
+import { qualityRunUsageSchema } from "@kody-ade/kody-chat-dashboard/quality/contracts";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -199,6 +200,7 @@ export async function POST(request: Request) {
           ? `https://github.com/${identity.repository}/actions/runs/${identity.runId}`
           : null);
       const qualityStatus = verifiedResult?.status ?? "blocked";
+      const usage = qualityRunUsageSchema.safeParse(output.usage);
       await backend.mutation(backendApi.quality.updateRun, {
         tenantId: identity.repository,
         runId,
@@ -227,6 +229,7 @@ export async function POST(request: Request) {
             ? { artifactPath: output.artifactPath }
             : {}),
           ...(artifactUrl ? { artifactUrl } : {}),
+          ...(usage.success ? { usage: usage.data } : {}),
           ...(verifiedResult
             ? {
                 passed: verifiedResult.passed,

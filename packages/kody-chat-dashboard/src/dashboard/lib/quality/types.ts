@@ -2,6 +2,7 @@ import type {
   QualityAction,
   QualityJourney,
   QualityRunStatus,
+  QualityRunUsage,
   QualityScenario,
 } from "./contracts";
 
@@ -30,6 +31,7 @@ export type QualityRun = {
     passed?: number;
     failed?: number;
     blocked?: number;
+    usage?: QualityRunUsage;
     journeyResults?: Array<{
       journeySlug: string;
       journeyName: string;

@@ -35,6 +35,7 @@ import { selectionPath } from "../selection-routing";
 import type {
   QualityAction,
   QualityJourney,
+  QualityRunUsage,
   QualityScenario,
 } from "./contracts";
 import { qualityRunHealth, scenarioRecordSchema } from "./contracts";
@@ -235,6 +236,85 @@ function DetailValue({
         {value}
       </dd>
     </div>
+  );
+}
+
+function usageMeasurementLabel(
+  measurement: QualityRunUsage["measurement"],
+): string {
+  return measurement === "reported"
+    ? "Reported"
+    : measurement === "partial"
+      ? "Partial"
+      : "Unknown";
+}
+
+function usageTokens(
+  total: number,
+  measurement: QualityRunUsage["measurement"],
+): string {
+  if (measurement === "unknown") return "Unknown";
+  return `${total.toLocaleString("en-US")} ${measurement === "partial" ? "known tokens" : "tokens"}`;
+}
+
+function usageCost(
+  costUsd: number,
+  measurement: QualityRunUsage["measurement"],
+): string {
+  if (measurement === "unknown") return "Unknown";
+  return `$${costUsd.toFixed(4)}${measurement === "partial" ? " known" : ""}`;
+}
+
+function UsageReport({ usage }: { usage: QualityRunUsage }) {
+  const models = Object.entries(usage.byModel);
+  return (
+    <DetailCard title="Usage">
+      <dl className="grid gap-4 sm:grid-cols-4">
+        <DetailValue
+          label="Tokens"
+          value={usageTokens(usage.tokens.total, usage.measurement)}
+        />
+        <DetailValue
+          label="Provider cost"
+          value={usageCost(usage.costUsd, usage.measurement)}
+        />
+        <DetailValue
+          label="Agent work"
+          value={`${usage.turns.toLocaleString("en-US")} ${usage.turns === 1 ? "turn" : "turns"}`}
+        />
+        <DetailValue
+          label="Measurement"
+          value={usageMeasurementLabel(usage.measurement)}
+        />
+      </dl>
+      {models.length ? (
+        <details className="mt-4 border-t border-white/[0.07] pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-foreground">
+            By model
+          </summary>
+          <ul className="mt-3 grid gap-2">
+            {models.map(([model, modelUsage]) => (
+              <li
+                key={model}
+                className="flex flex-col gap-1 rounded-lg bg-black/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span className="break-all font-mono text-xs text-foreground">
+                  {model}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {usageTokens(
+                    modelUsage.tokens.total,
+                    modelUsage.measurement,
+                  )}
+                  <span className="mx-2">·</span>
+                  {usageCost(modelUsage.costUsd, modelUsage.measurement)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </DetailCard>
   );
 }
 
@@ -511,6 +591,8 @@ function RunReport({
           </p>
         )}
       </DetailCard>
+
+      {event?.usage ? <UsageReport usage={event.usage} /> : null}
 
       <DetailCard title="Run details">
         <dl className="grid gap-4 sm:grid-cols-2">

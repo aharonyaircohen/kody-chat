@@ -18,6 +18,32 @@ export const qualityRunStatusSchema = z.enum([
   "blocked",
   "cancelled",
 ]);
+export const qualityUsageMeasurementSchema = z.enum([
+  "reported",
+  "partial",
+  "unknown",
+]);
+
+const qualityTokenBreakdownSchema = z.object({
+  input: z.number().finite().nonnegative(),
+  output: z.number().finite().nonnegative(),
+  cacheRead: z.number().finite().nonnegative(),
+  cacheCreate: z.number().finite().nonnegative(),
+  total: z.number().finite().nonnegative(),
+});
+
+const qualityModelUsageSchema = z.object({
+  tokens: qualityTokenBreakdownSchema,
+  costUsd: z.number().finite().nonnegative(),
+  agentRuns: z.number().finite().nonnegative(),
+  turns: z.number().finite().nonnegative(),
+  measurement: qualityUsageMeasurementSchema,
+});
+
+export const qualityRunUsageSchema = qualityModelUsageSchema.extend({
+  version: z.literal(1),
+  byModel: z.record(z.string().min(1), qualityModelUsageSchema),
+});
 
 const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const timestampSchema = z.string().datetime();
@@ -104,6 +130,7 @@ export type QualityAction = z.infer<typeof actionSchema>;
 export type QualityJourney = z.infer<typeof journeySchema>;
 export type QualityScenario = z.infer<typeof scenarioSchema>;
 export type QualityRunStatus = z.infer<typeof qualityRunStatusSchema>;
+export type QualityRunUsage = z.infer<typeof qualityRunUsageSchema>;
 export type QualityHealth =
   | "uncovered"
   | "never_run"

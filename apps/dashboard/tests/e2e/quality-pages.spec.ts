@@ -1,4 +1,5 @@
 import { expect, test, type Route } from "@playwright/test";
+import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",
@@ -65,6 +66,35 @@ const qualityMap = {
         passed: 1,
         failed: 0,
         blocked: 0,
+        usage: {
+          version: 1,
+          tokens: {
+            input: 709_564,
+            output: 2_091,
+            cacheRead: 1_536,
+            cacheCreate: 0,
+            total: 713_191,
+          },
+          costUsd: 2.1769996,
+          agentRuns: 1,
+          turns: 20,
+          measurement: "reported",
+          byModel: {
+            "minimax/MiniMax-M3": {
+              tokens: {
+                input: 709_564,
+                output: 2_091,
+                cacheRead: 1_536,
+                cacheCreate: 0,
+                total: 713_191,
+              },
+              costUsd: 2.1605178,
+              agentRuns: 1,
+              turns: 20,
+              measurement: "reported",
+            },
+          },
+        },
         journeyResults: [
           {
             journeySlug: "direct-chat-persists",
@@ -104,6 +134,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript((value) => {
     window.localStorage.setItem("kody_auth", JSON.stringify(value));
   }, auth);
+  await mockDashboardShellRequests(page);
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
       authenticated: true,
@@ -478,6 +509,47 @@ test("shows the verified result for every Journey and Action in a Quality Run", 
   await expect(
     page.getByText("A fresh message remained visible after reload."),
   ).toBeVisible();
+});
+
+test("shows compact model usage in a Quality Run report", async ({ page }) => {
+  const qualityResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith("/api/kody/quality/runs"),
+  );
+  await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
+
+  const qualityPayload = (await (await qualityResponse).json()) as typeof qualityMap;
+  expect(qualityPayload.runs[0]?.latestEvent.usage?.tokens.total).toBe(713_191);
+
+  await expect(page.getByRole("heading", { name: "Usage" })).toBeVisible();
+  await expect(page.getByText("713,191 tokens", { exact: true })).toBeVisible();
+  await expect(page.getByText("$2.1770", { exact: true })).toBeVisible();
+  await expect(page.getByText("20 turns", { exact: true })).toBeVisible();
+  await expect(page.getByText("Reported", { exact: true })).toBeVisible();
+
+  await page.getByText("By model", { exact: true }).click();
+  await expect(
+    page.getByText("minimax/MiniMax-M3", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/\$2\.1605/)).toBeVisible();
+});
+
+test("hides usage when an older Quality Run has no usage evidence", async ({
+  page,
+}) => {
+  await page.unroute("**/api/kody/quality/**");
+  await page.route("**/api/kody/quality/**", (route) =>
+    json(route, {
+      ...qualityMap,
+      runs: qualityMap.runs.map((run) => ({
+        ...run,
+        latestEvent: { ...run.latestEvent, usage: undefined },
+      })),
+    }),
+  );
+
+  await page.goto("/repo/acme/widgets/quality/runs/reply-persists-20260809");
+
+  await expect(page.getByRole("heading", { name: "Usage" })).toHaveCount(0);
 });
 
 test("explains a failed Quality Run and links to the record that needs correction", async ({
