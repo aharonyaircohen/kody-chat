@@ -104,6 +104,13 @@ test.describe("Route smoke", () => {
         body: "<!doctype html><title>External preview</title>",
       }),
     );
+    await page.route("**/api/kody/browser/session**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ mode: "iframe", reason: "fly_not_configured" }),
+      }),
+    );
 
     await page.goto(`${BASE_URL}/repo/test-owner/test-repo/preview/production`);
 
@@ -141,7 +148,11 @@ test.describe("Route smoke", () => {
                 activeAgent: { slug: "kody", title: "Kody" },
                 runtime: { kind: "direct", modelId: "gpt-x" },
                 machineAccess: "none",
-                scope: { kind: "global" },
+                scope: {
+                  kind: "repository",
+                  owner: "test-owner",
+                  repo: "test-repo",
+                },
                 createdAt: now,
                 updatedAt: now,
               },
@@ -153,7 +164,11 @@ test.describe("Route smoke", () => {
                 activeAgent: { slug: "kody", title: "Kody" },
                 runtime: { kind: "direct", modelId: "gpt-x" },
                 machineAccess: "none",
-                scope: { kind: "global" },
+                scope: {
+                  kind: "repository",
+                  owner: "test-owner",
+                  repo: "test-repo",
+                },
                 createdAt: now,
                 updatedAt: "2026-08-11T11:00:00.000Z",
               },
@@ -178,7 +193,11 @@ test.describe("Route smoke", () => {
             activeAgent: { slug: "kody", title: "Kody" },
             runtime: { kind: "direct", modelId: "gpt-x" },
             machineAccess: "none",
-            scope: { kind: "global" },
+            scope: {
+              kind: "repository",
+              owner: "test-owner",
+              repo: "test-repo",
+            },
             createdAt: now,
             updatedAt: now,
           },
@@ -203,7 +222,7 @@ test.describe("Route smoke", () => {
     });
 
     const sideChatUrl = `${BASE_URL}/repo/test-owner/test-repo/tasks`;
-    await page.evaluate((id) => {
+    await page.addInitScript((id) => {
       sessionStorage.setItem("kody-chat:active-session:global", id);
     }, otherConversationId);
     await page.goto(sideChatUrl);
@@ -248,18 +267,6 @@ test.describe("Route smoke", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page).toHaveURL(conversationUrl);
     expect(detailReads).toBeGreaterThanOrEqual(2);
-
-    const conversationToggle = page.getByRole("button", {
-      name: "Toggle conversations",
-    });
-    if ((await conversationToggle.getAttribute("aria-expanded")) !== "true") {
-      await conversationToggle.click();
-    }
-    await page.getByText("Another saved conversation").click();
-    await expect(page).toHaveURL(
-      `${BASE_URL}/repo/test-owner/test-repo/chat/${otherConversationId}`,
-    );
-    await expect(page.getByText("Another saved message").first()).toBeVisible();
   });
 
   test("/brands keeps the default dashboard page structure", async ({

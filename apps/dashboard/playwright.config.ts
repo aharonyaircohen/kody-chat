@@ -32,7 +32,8 @@ export default defineConfig({
      deployed-URL runs remain the backstop mode — no local server started. */
   webServer: process.env.PW_LOCAL
     ? {
-        command: "pnpm dev",
+        command:
+          process.env.PW_PRODUCTION === "1" ? "pnpm start" : "pnpm dev",
         url: "http://127.0.0.1:3333",
         reuseExistingServer: true,
         timeout: 120_000,

@@ -317,6 +317,20 @@ test.describe("Admin Kody chat regression", () => {
   test("Stop aborts an in-flight stream and returns to idle", async ({
     page,
   }) => {
+    const conversationCommands: Array<Record<string, unknown>> = [];
+    await page.route(
+      "**/api/kody/chat/conversations/**/commands",
+      async (route) => {
+        conversationCommands.push(
+          route.request().postDataJSON() as Record<string, unknown>,
+        );
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      },
+    );
     // Never fulfill promptly — the fetch stays pending so the assistant
     // bubble stays in the loading state until Stop aborts it.
     await page.route("**/api/kody/chat/kody", async (route) => {
@@ -351,6 +365,15 @@ test.describe("Admin Kody chat regression", () => {
     await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(0);
     await expect(chat.locator("textarea").first()).toBeEditable();
     await expect(chat.getByText(/^Error:/)).toHaveCount(0);
+    await expect
+      .poll(() =>
+        conversationCommands.some(
+          (command) =>
+            command.kind === "update-message" &&
+            command.status === "committed",
+        ),
+      )
+      .toBe(true);
   });
 
   test("AI/Terminal mode toggle renders with AI chat pressed", async ({
@@ -517,10 +540,7 @@ test.describe("Admin Kody chat regression", () => {
     );
     expect(createdRuntimes).toEqual([]);
 
-    await chat
-      .getByTestId("chat-header-controls")
-      .getByRole("button", { name: "New conversation" })
-      .click();
+    await sidebar.getByRole("button", { name: "New conversation" }).click();
 
     await expect
       .poll(() => createdRuntimes)
@@ -879,9 +899,7 @@ test.describe("Admin Kody chat regression", () => {
       }),
     );
 
-    await page.goto(`${BASE_URL}/repo/test-owner/test-repo/todos/inject-list`);
-
-    await page.getByRole("button", { name: /Inject list/ }).click();
+    await page.goto(`${BASE_URL}/todos/inject-list`);
 
     const askKody = page.getByRole("button", {
       name: "Ask Kody about Wire the header",

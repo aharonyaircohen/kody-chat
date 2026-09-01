@@ -4,12 +4,12 @@
  * @domain terminal
  */
 import { expect, test, type Page } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 
 async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     localStorage.setItem(
       "kody_auth",
       JSON.stringify({
@@ -28,6 +28,10 @@ async function seedAuth(page: Page): Promise<void> {
 test("shows setup and credential recovery instead of a blank Brain terminal", async ({
   page,
 }) => {
+  await mockKodyAccountSession(page, {
+    id: "terminal-e2e",
+    name: "Terminal E2E",
+  });
   await page.route("**/api/kody/chat/conversations**", (route) =>
     route.fulfill({
       status: route.request().method() === "POST" ? 201 : 200,

@@ -32,11 +32,17 @@ test("executes a journey scenario against the real Dashboard DOM", async ({
       }),
     }),
   );
-  await page.route("**/api/kody/user-journeys", (route) =>
+  await page.route("**/api/kody/quality/journeys**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ journeys: [] }),
+      body: JSON.stringify({
+        actions: [],
+        journeys: [],
+        scenarios: [],
+        runs: [],
+        currentSourceCommit: null,
+      }),
     }),
   );
 
@@ -47,11 +53,14 @@ test("executes a journey scenario against the real Dashboard DOM", async ({
     steps: [
       {
         id: "open",
-        action: { type: "navigate", url: "/repo/acme/widgets/user-journeys" },
+        action: {
+          type: "navigate",
+          url: "/repo/acme/widgets/quality/journeys",
+        },
         assertions: [
           {
             type: "visible",
-            locator: { by: "role", role: "heading", name: "User Journeys" },
+            locator: { by: "role", role: "heading", name: "Journeys" },
           },
         ],
       },
@@ -59,7 +68,7 @@ test("executes a journey scenario against the real Dashboard DOM", async ({
         id: "new",
         action: {
           type: "click",
-          locator: { by: "role", role: "button", name: "New journey" },
+          locator: { by: "label", label: "New journey" },
         },
         assertions: [
           {
@@ -67,7 +76,7 @@ test("executes a journey scenario against the real Dashboard DOM", async ({
             locator: {
               by: "role",
               role: "heading",
-              name: "Add a User Journey",
+              name: "New journey",
             },
           },
         ],
@@ -82,5 +91,5 @@ test("executes a journey scenario against the real Dashboard DOM", async ({
 
   expect(result.status).toBe("passed");
   expect(result.steps).toHaveLength(2);
-  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/user-journeys$/);
+  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/quality\/journeys$/);
 });

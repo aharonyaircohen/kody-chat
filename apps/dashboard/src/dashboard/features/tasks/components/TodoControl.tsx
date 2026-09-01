@@ -73,6 +73,7 @@ import {
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { useAuth } from "@dashboard/lib/auth-context";
 import type { TodoEntry, TodoItem } from "@dashboard/lib/api";
 import type { GitHubCollaborator } from "@kody-ade/base/types";
 import { useCollaborators } from "@dashboard/lib/hooks";
@@ -309,6 +310,7 @@ export function TodoControlInner({
   selectedItemId = null,
 }: TodoControlProps = {}) {
   const router = useRouter();
+  const { auth } = useAuth();
   const scopedHref = useRepoScopedHref();
   const {
     data: todoLists = [],
@@ -382,16 +384,16 @@ export function TodoControlInner({
     : `${aggregate.activeItems} open items · ${todoLists.length} lists`;
 
   useEffect(() => {
-    if (isLoading) return;
+    if (!auth || isLoading) return;
     const redirect = todoListSelectionRedirect(
       selectedSlug,
       todoLists.map((list) => list.slug),
     );
     if (redirect) router.replace(scopedHref(redirect));
-  }, [isLoading, router, scopedHref, selectedSlug, todoLists]);
+  }, [auth, isLoading, router, scopedHref, selectedSlug, todoLists]);
 
   useEffect(() => {
-    if (isLoading || !selectedSlug || !selectedList) return;
+    if (!auth || isLoading || !selectedSlug || !selectedList) return;
     const listPath = selectionPath("/todos", selectedSlug);
     const redirect = todoItemSelectionRedirect(
       selectedItemId,
@@ -400,6 +402,7 @@ export function TodoControlInner({
     );
     if (redirect) router.replace(scopedHref(redirect));
   }, [
+    auth,
     isLoading,
     router,
     scopedHref,

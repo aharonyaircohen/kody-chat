@@ -8,6 +8,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.PW_LOCAL
@@ -19,8 +20,7 @@ const PNG_BASE64 =
 const PNG_BUFFER = Buffer.from(PNG_BASE64, "base64");
 
 async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     localStorage.clear();
     localStorage.setItem(
       "kody_auth",
@@ -47,6 +47,10 @@ async function seedAuth(page: Page): Promise<void> {
 test("stores attachment with the conversation and restores it after reload", async ({
   page,
 }) => {
+  await mockKodyAccountSession(page, {
+    id: "attachment-e2e",
+    name: "Attachment E2E",
+  });
   const now = new Date().toISOString();
   const state = {
     conversationId: "",

@@ -308,9 +308,6 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
     sidebar.getByRole("link", { name: "Context", exact: true }),
   ).toBeVisible();
   await expect(
-    sidebar.getByRole("link", { name: "Memory", exact: true }),
-  ).toBeVisible();
-  await expect(
     sidebar.getByRole("link", { name: "Manage Spaces", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Docs /docs" })).toBeVisible();

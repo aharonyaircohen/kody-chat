@@ -11,16 +11,22 @@ const auth = {
 };
 
 const journey = {
-  journeyId: "create-workflow",
+  slug: "create-workflow",
   name: "Create a workflow",
   goal: "A user can create and review a workflow.",
   status: "active",
   priority: "critical",
-  currentVersion: 2,
+  actionSlugs: [],
   updatedAt: new Date().toISOString(),
-  health: "passed",
-  latestRun: { runId: "run-1", status: "passed", environment: "preview" },
 };
+
+const qualityMap = (journeys: unknown[]) => ({
+  actions: [],
+  journeys,
+  scenarios: [],
+  runs: [],
+  currentSourceCommit: null,
+});
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({
@@ -43,61 +49,57 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("shows journey health and queues a run without navigating", async ({
+test("shows a repository journey in the Quality workspace", async ({
   page,
 }) => {
   const methods: string[] = [];
-  await page.route("**/api/kody/user-journeys", async (route) => {
+  await page.route("**/api/kody/quality/journeys**", async (route) => {
     methods.push(route.request().method());
-    if (route.request().method() === "GET") {
-      await json(route, { journeys: [journey] });
-      return;
-    }
-    await json(route, { runId: "run-2", status: "queued" }, 201);
+    await json(route, qualityMap([journey]));
   });
 
-  await page.goto("/repo/acme/widgets/user-journeys", {
+  await page.goto("/repo/acme/widgets/quality/journeys", {
     waitUntil: "domcontentloaded",
   });
-  await expect(
-    page.getByRole("heading", { name: "User Journeys" }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Journeys" })).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(
     page.getByText("Create a workflow", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Passing", { exact: true })).toBeVisible();
-
-  const urlBefore = page.url();
-  await page.getByRole("button", { name: "Run locally" }).click();
-  await expect(page).toHaveURL(urlBefore);
-  expect(methods).toContain("POST");
+  await expect(page.getByText("critical", { exact: true })).toBeVisible();
+  expect(methods).toEqual(["GET"]);
 });
 
 test("creates a journey from the page", async ({ page }) => {
   let saved = false;
-  await page.route("**/api/kody/user-journeys", async (route) => {
+  let savedJourney: unknown = null;
+  await page.route("**/api/kody/quality/journeys**", async (route) => {
     if (route.request().method() === "GET") {
-      await json(route, { journeys: saved ? [journey] : [] });
+      await json(route, qualityMap(saved ? [savedJourney] : []));
       return;
     }
     saved = true;
-    await json(route, { result: { version: 1 } }, 201);
+    savedJourney = route.request().postDataJSON();
+    await json(route, { ok: true }, 201);
   });
 
-  await page.goto("/repo/acme/widgets/user-journeys", {
+  await page.goto("/repo/acme/widgets/quality/journeys", {
     waitUntil: "domcontentloaded",
   });
-  await expect(
-    page.getByRole("heading", { name: "User Journeys" }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Journeys" })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: "New journey" }).click();
   await page.getByLabel("Name").fill("Review a workflow");
   await page
     .getByRole("textbox", { name: "Goal" })
     .fill("A user can review a workflow.");
-  await page.getByRole("button", { name: "Save journey" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
-    page.getByText("Create a workflow", { exact: true }),
+    page.getByRole("heading", { name: "Review a workflow" }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/repo\/acme\/widgets\/user-journeys$/);
+  await expect(page).toHaveURL(
+    /\/repo\/acme\/widgets\/quality\/journeys\/review-a-workflow$/,
+  );
 });

@@ -3,7 +3,9 @@ import type { Page, Route } from "@playwright/test";
 type ShellResponse = Readonly<Record<string, unknown>>;
 
 const SHELL_RESPONSES: Readonly<Record<string, ShellResponse>> = {
+  "/api/kody/agents": { agent: [] },
   "/api/kody/brain/models": { models: [] },
+  "/api/kody/commands": { commands: [] },
   "/api/kody/dashboard-config": { config: {} },
   "/api/kody/engine/status": {
     status: "ready",
@@ -11,6 +13,7 @@ const SHELL_RESPONSES: Readonly<Record<string, ShellResponse>> = {
   },
   "/api/kody/file-spaces": { spaces: [] },
   "/api/kody/navigation-favorites": { favoriteHrefs: [] },
+  "/api/kody/models": { models: [] },
   "/api/kody/secrets": { secrets: [] },
   "/api/webhooks/register": { ok: true },
 };
@@ -25,9 +28,15 @@ function fulfillJson(route: Route, body: ShellResponse) {
 
 export async function mockKodyAccountSession(
   page: Page,
-  user: { id?: string; name?: string; email?: string } = {},
+  user: {
+    id?: string;
+    name?: string;
+    email?: string;
+    githubLogin?: string;
+  } = {},
 ): Promise<void> {
   const id = user.id ?? "kody-e2e-user";
+  const githubLogin = user.githubLogin ?? "test-owner";
   await page.addInitScript(() => {
     window.setTimeout(() => {
       try {
@@ -58,13 +67,23 @@ export async function mockKodyAccountSession(
   await page.route("**/api/auth/convex/token", (route) =>
     fulfillJson(route, { token: null }),
   );
+  await page.route("**/api/kody/auth/me", (route) =>
+    fulfillJson(route, {
+      authenticated: true,
+      user: { login: githubLogin, avatar_url: "", githubId: 1 },
+      owner: "test-owner",
+      repo: "test-repo",
+    }),
+  );
   await page.route("**/api/kody/account/repositories", async (route) => {
     if (route.request().method() !== "GET") {
       return fulfillJson(route, { ok: true });
     }
     const auth = await page
       .evaluate(() => {
-        const stored = localStorage.getItem("kody_e2e_account_auth");
+        const stored =
+          localStorage.getItem("kody_e2e_account_auth") ??
+          localStorage.getItem("kody_auth");
         return stored ? (JSON.parse(stored) as unknown) : null;
       })
       .catch(() => null);
@@ -87,4 +106,26 @@ export async function mockDashboardShellRequests(page: Page): Promise<void> {
   await page.route("**/api/kody/chat/machines**", (route) =>
     fulfillJson(route, { local: false }),
   );
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isCollection = pathname.endsWith("/conversations");
+    if (request.method() === "GET" && isCollection) {
+      return fulfillJson(route, { conversations: [] });
+    }
+    if (request.method() === "GET") {
+      return fulfillJson(route, {
+        conversation: null,
+        entries: [],
+        checkpoints: [],
+        runtimeBindings: [],
+        attachments: [],
+      });
+    }
+    return route.fulfill({
+      status: request.method() === "POST" && isCollection ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
 }

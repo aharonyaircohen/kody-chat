@@ -7,6 +7,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 import { openChatSetupSection } from "./support/chat-setup";
 
 const BASE_URL = process.env.PW_LOCAL
@@ -22,9 +23,7 @@ function sseBody(events: unknown[]): string {
 }
 
 async function seedAuth(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     const auth = {
       repoUrl: "https://github.com/test-owner/test-repo",
       owner: "test-owner",
@@ -47,6 +46,10 @@ async function seedAuth(page: Page): Promise<void> {
 
 test.describe("Chat picker backend boundary", () => {
   test.beforeEach(async ({ page }) => {
+    await mockKodyAccountSession(page, {
+      id: "chat-picker-e2e",
+      name: "Chat Picker E2E",
+    });
     await page.route("**/api/kody/agents", (route) =>
       route.fulfill({
         status: 200,

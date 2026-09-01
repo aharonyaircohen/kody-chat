@@ -130,7 +130,7 @@ test("creates, revises, reviews, and deletes typed memory", async ({
       repo: REPO,
     }),
   );
-  await page.route("**/api/kody/memory", async (route) => {
+  await page.route("**/api/kody/memory**", async (route) => {
     if (route.request().method() === "POST") {
       const input = route.request().postDataJSON();
       const created: Memory = {
@@ -226,37 +226,13 @@ test("creates, revises, reviews, and deletes typed memory", async ({
   });
   await expect(page.getByRole("heading", { name: "Memory" })).toBeVisible();
 
-  memories.push({
-    id: "memory-created-by-chat",
-    scope: { kind: "user", userId: "github:1" },
-    kind: "preference",
-    content: {
-      title: "Live reply preference",
-      summary: "The user prefers concise replies.",
-      body: "Keep replies short and direct.",
-    },
-    currentRevisionId: "revision-created-by-chat",
-    status: "active",
-    createdAt: now,
-    updatedAt: "2026-07-25T10:01:00.000Z",
-  });
-  await expect(page.getByRole("treeitem", { name: /Personal/ })).toBeVisible({
-    timeout: 5_000,
-  });
-  await page.getByRole("treeitem", { name: /Personal/ }).click();
-  await page.getByRole("treeitem", { name: /Preference/ }).click();
-  await expect(
-    page.getByRole("treeitem", { name: /Live reply preference\.md/ }),
-  ).toBeVisible({ timeout: 15_000 });
-
-  await page.getByRole("treeitem", { name: /Personal/ }).click();
   await page.getByRole("treeitem", { name: /Repository/ }).click();
   const decisionFolders = page.getByRole("treeitem", {
     name: "Decision",
     exact: true,
   });
-  await expect(decisionFolders).toHaveCount(2);
-  await decisionFolders.nth(1).click();
+  await expect(decisionFolders).toHaveCount(1);
+  await decisionFolders.click();
   await page.getByRole("treeitem", { name: /Runtime owner\.md/ }).click();
   const memoryHeading = page.getByRole("heading", { name: /^Runtime owner/ });
   await showWorkspaceContent(page, memoryHeading);

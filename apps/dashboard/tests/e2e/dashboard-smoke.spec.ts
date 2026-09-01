@@ -8,6 +8,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
+import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 
@@ -33,7 +34,7 @@ function parseRepo(url: string): { owner: string; repo: string } {
  */
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
-  await page.evaluate(
+  await page.addInitScript(
     (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
     {
       repoUrl: TEST_REPO,
@@ -51,6 +52,10 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function loadDashboardAuthenticated(page: Page): Promise<void> {
+  await mockKodyAccountSession(page, {
+    id: "dashboard-smoke-e2e",
+    name: "Dashboard Smoke E2E",
+  });
   await page.route("**/api/kody/chat/conversations**", (route) => {
     const request = route.request();
     const isCollection = new URL(request.url()).pathname.endsWith(
@@ -66,8 +71,6 @@ async function loadDashboardAuthenticated(page: Page): Promise<void> {
       ),
     });
   });
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
   if (!TEST_TOKEN) {
     test.skip(true, "E2E_GITHUB_TOKEN not set");
     return;

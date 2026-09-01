@@ -33,7 +33,7 @@ async function injectAuth(
   options: { defaultChatEntry?: string | null } = {},
 ): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
-  await page.evaluate(
+  await page.addInitScript(
     ({ auth, owner, repo, defaultChatEntry }) => {
       const repoKey = `${owner.toLowerCase()}/${repo.toLowerCase()}`;
       localStorage.setItem("kody_auth", JSON.stringify(auth));
@@ -530,10 +530,8 @@ async function openChat(
   page: Page,
   options: { defaultChatEntry?: string | null } = {},
 ): Promise<void> {
-  await page.goto(`${LOCAL_BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
   await injectAuth(page, options);
-  await page.goto(LOCAL_BASE_URL);
+  await page.goto(`${LOCAL_BASE_URL}/repo/test-owner/test-repo`);
   await page.waitForLoadState("domcontentloaded");
 
   const viewport = await page.viewportSize();
@@ -676,7 +674,6 @@ test.describe("Kody chat renderer output", () => {
       });
     });
     await openChat(page);
-
     await expect(page.getByText("Hi! I can help you with:")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Run project assessment" }),
