@@ -33,8 +33,11 @@ describe("Views-owned Capability browser", () => {
     expect(browser).toContain(
       "onActionRunnerChange={onRemoteActionRunnerChange}",
     );
-    expect(inspector).toContain("if (!remoteAct || !picker.available)");
+    expect(inspector).toContain(
+      "if (!remoteAct || !picker.available || !onActionRunnerChange)",
+    );
     expect(inspector).toContain("registerViewsPreviewActionRunner(run)");
+    expect(inspector).toContain("!onActionRunnerChange");
     expect(rail).toContain(
       "setPreviewActionRunnerState(() => normalizedRunner)",
     );

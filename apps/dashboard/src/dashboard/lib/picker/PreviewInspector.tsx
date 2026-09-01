@@ -247,7 +247,7 @@ export function PreviewInspector({
   const pickerRef = useRef(picker);
   pickerRef.current = picker;
   useEffect(() => {
-    if (!remoteAct || !picker.available) {
+    if (!remoteAct || !picker.available || !onActionRunnerChange) {
       onActionRunnerChange?.(null);
       return;
     }
