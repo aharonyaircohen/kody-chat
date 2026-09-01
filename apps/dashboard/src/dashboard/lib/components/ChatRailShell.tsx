@@ -299,6 +299,14 @@ interface ChatRailApi {
 
 const ChatRailContext = createContext<ChatRailApi | null>(null);
 
+type ViewsPreviewActionRunner = NonNullable<
+  ComponentProps<typeof KodyChat>["previewActionRunner"]
+> | null;
+let registeredViewsPreviewActionRunner: ViewsPreviewActionRunner = null;
+function getRegisteredViewsPreviewActionRunner(): ViewsPreviewActionRunner {
+  return registeredViewsPreviewActionRunner;
+}
+
 /**
  * Read & control the persistent chat. Returns a no-op API when called
  * outside the rail (e.g. before auth loads or while the RepoManager
@@ -563,12 +571,14 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
   } | null>(null);
   const [previewContext, setPreviewContext] = useState<string | null>(null);
   const [previewActionRunner, setPreviewActionRunnerState] =
-    useState<ComponentProps<typeof KodyChat>["previewActionRunner"]>(null);
+    useState<ViewsPreviewActionRunner>(null);
   const setPreviewActionRunner = useCallback(
     (runner: ComponentProps<typeof KodyChat>["previewActionRunner"]) => {
       // React treats a bare function passed to a state setter as an updater.
       // Wrap the runner so Views stores the function itself.
-      setPreviewActionRunnerState(() => runner);
+      const normalizedRunner = runner ?? null;
+      registeredViewsPreviewActionRunner = normalizedRunner;
+      setPreviewActionRunnerState(() => normalizedRunner);
     },
     [],
   );
@@ -686,6 +696,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
         attachmentInjection={attachmentInjection}
         previewContext={previewContext}
         previewActionRunner={previewActionRunner}
+        getPreviewActionRunner={getRegisteredViewsPreviewActionRunner}
         plugins={repositoryActive ? ADMIN_CHAT_PLUGINS : PERSONAL_CHAT_PLUGINS}
         // Expand = navigate to the /chat page; restore = back to the previous
         // page. On /chat the button reads as "restore" (railFullscreen).
@@ -782,6 +793,9 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                         attachmentInjection={attachmentInjection}
                         previewContext={previewContext}
                         previewActionRunner={previewActionRunner}
+                        getPreviewActionRunner={
+                          getRegisteredViewsPreviewActionRunner
+                        }
                         plugins={
                           repositoryActive
                             ? ADMIN_CHAT_PLUGINS

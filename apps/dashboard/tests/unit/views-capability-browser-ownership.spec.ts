@@ -22,6 +22,9 @@ describe("Views-owned Capability browser", () => {
       "../../src/dashboard/lib/picker/PreviewInspector.tsx",
     );
     const rail = source("../../src/dashboard/lib/components/ChatRailShell.tsx");
+    const chat = source(
+      "../../../../packages/kody-chat-dashboard/src/dashboard/lib/components/KodyChat.tsx",
+    );
 
     expect(workspace).toContain("setPreviewActionRunner");
     expect(workspace).toContain(
@@ -31,7 +34,18 @@ describe("Views-owned Capability browser", () => {
       "onActionRunnerChange={onRemoteActionRunnerChange}",
     );
     expect(inspector).toContain("if (!remoteAct || !picker.available)");
-    expect(rail).toContain("setPreviewActionRunnerState(() => runner)");
+    expect(rail).toContain(
+      "setPreviewActionRunnerState(() => normalizedRunner)",
+    );
+    expect(rail).toContain(
+      "registeredViewsPreviewActionRunner = normalizedRunner",
+    );
+    expect(
+      rail.match(
+        /getPreviewActionRunner=\{\s*getRegisteredViewsPreviewActionRunner\s*\}/g,
+      ),
+    ).toHaveLength(2);
+    expect(chat).toContain("getPreviewActionRunner?.()");
     expect(
       rail.match(/previewActionRunner=\{previewActionRunner\}/g),
     ).toHaveLength(2);

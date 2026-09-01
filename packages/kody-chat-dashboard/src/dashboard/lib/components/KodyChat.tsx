@@ -192,6 +192,7 @@ export function KodyChat({
   attachmentInjection,
   previewContext,
   previewActionRunner,
+  getPreviewActionRunner,
   presentation = "rail",
   hideTerminalMode,
   plugins,
@@ -780,6 +781,8 @@ export function KodyChat({
   // Initialized lazily below — `sendText` is declared further down.
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
+      const currentPreviewActionRunner = () =>
+        getPreviewActionRunner?.() ?? previewActionRunnerRef.current ?? null;
       await runPreviewAction(directive, {
         prepareSurface: (action) =>
           ensureViewsOwnedCapabilityAction({
@@ -787,14 +790,13 @@ export function KodyChat({
             pathname: pathnameRef.current,
             openViews: () =>
               router.push(auth ? repoScopedHref(auth, "/preview") : "/preview"),
-            remoteBrowserAvailable: () =>
-              previewActionRunnerRef.current != null,
+            remoteBrowserAvailable: () => currentPreviewActionRunner() != null,
           }),
         pickerAvailable: () =>
-          previewActionRunnerRef.current != null ||
+          currentPreviewActionRunner() != null ||
           previewPickerRef.current.available,
         act: (action) => {
-          const remoteRunner = previewActionRunnerRef.current;
+          const remoteRunner = currentPreviewActionRunner();
           return remoteRunner
             ? remoteRunner(action)
             : previewPickerRef.current.act(action);
@@ -813,7 +815,7 @@ export function KodyChat({
         maxAutoActions: MAX_PREVIEW_ACT_CHAIN,
       });
     },
-    [auth, router],
+    [auth, getPreviewActionRunner, router],
   );
   const runDashboardNavigateFromDirective = useCallback(
     (directive: DashboardNavigateDirective) => {

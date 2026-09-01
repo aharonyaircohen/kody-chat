@@ -253,6 +253,8 @@ export interface KodyChatProps {
   previewContext?: string | null;
   /** Views-owned remote browser action runner; absent outside Views. */
   previewActionRunner?: PreviewActionRunner | null;
+  /** Reads the tab-owned runner across route-level Chat remounts. */
+  getPreviewActionRunner?: () => PreviewActionRunner | null;
   /** Where the chat is mounted. `standalone` keeps the client route borderless. */
   presentation?: "rail" | "standalone";
   /**
