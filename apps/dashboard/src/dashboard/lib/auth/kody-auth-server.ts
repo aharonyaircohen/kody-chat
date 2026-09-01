@@ -42,11 +42,21 @@ export async function getCurrentKodySessionUser(): Promise<{
     requestHeaders.get("host") ??
     "localhost";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  const response = await kodyAuthHandler.GET(
-    new Request(`${protocol}://${host}/api/auth/get-session`, {
-      headers: requestHeaders,
-    }),
-  );
+  // Convex is optional. When the auth backend is unreachable (local
+  // preview without a Convex deployment, transient network failure, etc.)
+  // the handler's internal fetch throws. Treat the unreachable backend the
+  // same as an unauthenticated request — null — so route handlers can
+  // return 401 instead of 500.
+  let response: Response;
+  try {
+    response = await kodyAuthHandler.GET(
+      new Request(`${protocol}://${host}/api/auth/get-session`, {
+        headers: requestHeaders,
+      }),
+    );
+  } catch {
+    return null;
+  }
   if (!response.ok) return null;
   const payload = (await response.json().catch(() => null)) as {
     user?: { id?: unknown; name?: unknown; email?: unknown };
