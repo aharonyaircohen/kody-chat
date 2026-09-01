@@ -29,7 +29,14 @@ export function createWorkflowRunApproval(input: {
   let body: string;
   if (input.decisionContext) {
     const { currentState, whyNow, recommendedAction, cancelChoice } = input.decisionContext;
-    body = `**Current:** ${currentState}\n\n**Why:** ${whyNow}\n\n**Approving will:** ${recommendedAction}\n\n**Cancelling will:** ${cancelChoice}`;
+    const parts: string[] = [];
+    if (currentState) parts.push(`**Current:** ${currentState}`);
+    if (whyNow) parts.push(`**Why:** ${whyNow}`);
+    if (recommendedAction) parts.push(`**Approving will:** ${recommendedAction}`);
+    if (cancelChoice) parts.push(`**Cancelling will:** ${cancelChoice}`);
+    body = parts.length > 0
+      ? parts.join("\n\n")
+      : `Repository: ${input.owner}/${input.repo}\nInput: ${canonicalWorkflowInput(input.workflowInput)}`;
   } else {
     body = `Repository: ${input.owner}/${input.repo}\nInput: ${canonicalWorkflowInput(input.workflowInput)}`;
   }
