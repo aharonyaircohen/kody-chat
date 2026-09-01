@@ -35,6 +35,7 @@ import {
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
+import { ensureViewsOwnedCapabilityAction } from "../picker/views-owned-preview-action";
 import { formatMacrosCatalog, type Macro } from "../macros";
 import { authHeaders, clearLiveSession } from "../kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
@@ -190,6 +191,7 @@ export function KodyChat({
   composerInjection,
   attachmentInjection,
   previewContext,
+  previewActionRunner,
   presentation = "rail",
   hideTerminalMode,
   plugins,
@@ -211,6 +213,8 @@ export function KodyChat({
   // render), so a ref always reflects the page the user is on right now.
   const currentPageRef = useRef<string | null>(currentPage);
   currentPageRef.current = currentPage;
+  const pathnameRef = useRef<string | null>(pathname);
+  pathnameRef.current = pathname;
   // Context-kind derivations.
   const selectedOrg = context?.kind === "org" ? context : null;
   const selectedTask: KodyTask | null =
@@ -703,6 +707,8 @@ export function KodyChat({
   const previewPicker = useElementPicker({ onSelect: () => {} });
   const previewPickerRef = useRef(previewPicker);
   previewPickerRef.current = previewPicker;
+  const previewActionRunnerRef = useRef(previewActionRunner);
+  previewActionRunnerRef.current = previewActionRunner;
   const previewContextRef = useRef<string | null>(null);
   previewContextRef.current = previewContext?.trim() || null;
   const AUTO_CONTEXT_KEY = "kody:preview-auto-context";
@@ -775,8 +781,24 @@ export function KodyChat({
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
       await runPreviewAction(directive, {
-        pickerAvailable: () => previewPickerRef.current.available,
-        act: (action) => previewPickerRef.current.act(action),
+        prepareSurface: (action) =>
+          ensureViewsOwnedCapabilityAction({
+            action,
+            pathname: pathnameRef.current,
+            openViews: () =>
+              router.push(auth ? repoScopedHref(auth, "/preview") : "/preview"),
+            remoteBrowserAvailable: () =>
+              previewActionRunnerRef.current != null,
+          }),
+        pickerAvailable: () =>
+          previewActionRunnerRef.current != null ||
+          previewPickerRef.current.available,
+        act: (action) => {
+          const remoteRunner = previewActionRunnerRef.current;
+          return remoteRunner
+            ? remoteRunner(action)
+            : previewPickerRef.current.act(action);
+        },
         sendText: async (content, _atts, opts) => {
           const send = sendTextRef.current;
           if (!send) return null;
@@ -791,7 +813,7 @@ export function KodyChat({
         maxAutoActions: MAX_PREVIEW_ACT_CHAIN,
       });
     },
-    [],
+    [auth, router],
   );
   const runDashboardNavigateFromDirective = useCallback(
     (directive: DashboardNavigateDirective) => {

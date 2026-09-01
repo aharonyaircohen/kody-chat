@@ -22,6 +22,8 @@ import {
 } from "./protocol";
 
 export interface RunPreviewActionDeps {
+  /** Prepare the action's required visible surface before dispatch. */
+  prepareSurface?: (action: PreviewAction) => Promise<boolean>;
   /** Whether the inspector extension is reachable in this tab. */
   pickerAvailable: () => boolean;
   /** Picker's act() — runs the action in the preview frame. */
@@ -111,6 +113,12 @@ export async function runPreviewAction(
   const action = directiveToAction(directive);
   if (!action) {
     deps.toastError("Preview action: malformed directive");
+    return;
+  }
+  if (deps.prepareSurface && !(await deps.prepareSurface(action))) {
+    deps.toastError(
+      "Browser action failed — open Views and wait for its browser to connect.",
+    );
     return;
   }
   if (!deps.pickerAvailable()) {

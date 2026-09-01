@@ -229,6 +229,7 @@ export function isPreviewActDirective(
     v.op === "click" ||
     v.op === "fill" ||
     v.op === "navigate" ||
+    v.op === "upload" ||
     v.op === "scroll" ||
     v.op === "wait";
   return okOp && typeof v.reason === "string";

@@ -10,6 +10,7 @@ import {
   RENDER_VIEW_DIRECTIVE,
   getRenderedViewUi,
   isDashboardNavigateDirective,
+  isPreviewActDirective,
   isRenderedViewDirective,
 } from "../../src/dashboard/lib/chat-ui-actions";
 
@@ -36,6 +37,21 @@ describe("isDashboardNavigateDirective", () => {
         reason: "Nope.",
       }),
     ).toBe(false);
+  });
+});
+
+describe("isPreviewActDirective", () => {
+  it("accepts a repository media upload emitted by a Capability", () => {
+    expect(
+      isPreviewActDirective({
+        action: "preview_act",
+        op: "upload",
+        selector: 'input[type="file"]',
+        paths: ["content-studio/post/01-cover.jpg"],
+        capabilitySlug: "prepare-facebook-personal-post",
+        reason: "Attach the selected post media",
+      }),
+    ).toBe(true);
   });
 });
 

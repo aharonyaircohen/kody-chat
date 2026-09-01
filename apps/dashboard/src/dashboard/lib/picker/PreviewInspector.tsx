@@ -59,6 +59,7 @@ import {
   type PreviewEditChange,
   type PreviewEditMutation,
   type PreviewAction,
+  type PreviewActResult,
 } from "./protocol";
 import { recordedStepToAction } from "../macros";
 import { PreviewMacrosMenu } from "@dashboard/features/previews/components/PreviewMacrosMenu";
@@ -90,6 +91,9 @@ interface PreviewInspectorProps {
   remoteAct?: (
     action: BrowserSessionAction,
   ) => Promise<RemoteBrowserActionResult>;
+  onActionRunnerChange?: (
+    runner: ((action: PreviewAction) => Promise<PreviewActResult>) | null,
+  ) => void;
 }
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -111,6 +115,7 @@ export function PreviewInspector({
   owner,
   repo,
   remoteAct,
+  onActionRunnerChange,
 }: PreviewInspectorProps) {
   const [busy, setBusy] = useState<
     null | "logs" | "network" | "shot" | "perf" | "rec" | "edit"
@@ -238,6 +243,17 @@ export function PreviewInspector({
     pickerOptions,
   );
   const picker = remoteAct ? remotePicker : extensionPicker;
+  const pickerRef = useRef(picker);
+  pickerRef.current = picker;
+  useEffect(() => {
+    if (!remoteAct || !picker.available) {
+      onActionRunnerChange?.(null);
+      return;
+    }
+    const run = (action: PreviewAction) => pickerRef.current.act(action);
+    onActionRunnerChange?.(run);
+    return () => onActionRunnerChange?.(null);
+  }, [onActionRunnerChange, picker.available, remoteAct]);
   const isFirefox =
     typeof navigator !== "undefined" &&
     /(?:Firefox|FxiOS)\//.test(navigator.userAgent);

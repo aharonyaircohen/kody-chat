@@ -13,6 +13,11 @@ import type { AgentId } from "../agents";
 import type { ChatViewDirective, RenderedViewAction } from "../chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
+import type { PreviewAction, PreviewActResult } from "../picker/protocol";
+
+export type PreviewActionRunner = (
+  action: PreviewAction,
+) => Promise<PreviewActResult>;
 
 export interface Message {
   id?: string;
@@ -246,6 +251,8 @@ export interface KodyChatProps {
    * before the inspector extension can return a live DOM snapshot.
    */
   previewContext?: string | null;
+  /** Views-owned remote browser action runner; absent outside Views. */
+  previewActionRunner?: PreviewActionRunner | null;
   /** Where the chat is mounted. `standalone` keeps the client route borderless. */
   presentation?: "rail" | "standalone";
   /**

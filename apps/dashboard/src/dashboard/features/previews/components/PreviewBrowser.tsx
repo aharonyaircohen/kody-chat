@@ -47,6 +47,8 @@ import { shouldSyncPreviewBrowserUrl } from "@dashboard/lib/preview-browser-url"
 import {
   PICKER_EXT_SOURCE,
   type PickerExtMessage,
+  type PreviewAction,
+  type PreviewActResult,
 } from "@dashboard/lib/picker/protocol";
 import { useElementPicker } from "@dashboard/lib/picker/useElementPicker";
 import { cn, getPreviewBypassUrl } from "@dashboard/lib/utils";
@@ -92,6 +94,10 @@ export interface PreviewBrowserProps {
   browserActorLogin?: string;
   /** Resolve repository-owned files only when a Capability requests upload. */
   resolveBrowserUploadFiles?: (paths: string[]) => Promise<BrowserUploadFile[]>;
+  /** Exposes only the browser visibly mounted by Views to persistent Chat. */
+  onRemoteActionRunnerChange?: (
+    runner: ((action: PreviewAction) => Promise<PreviewActResult>) | null,
+  ) => void;
   loadingTitle?: ReactNode;
   loadingDescription?: ReactNode;
   /** Shown when there is no baseUrl and nothing is resolving. */
@@ -222,6 +228,7 @@ export function PreviewBrowser({
   enableRemoteBrowser = false,
   browserActorLogin,
   resolveBrowserUploadFiles,
+  onRemoteActionRunnerChange,
   loadingTitle = "Loading preview...",
   loadingDescription = "Fetching preview. It'll appear here as soon as the build is ready.",
   emptyState,
@@ -716,6 +723,7 @@ export function PreviewBrowser({
         owner={owner}
         repo={repo}
         remoteAct={remoteSession ? remoteBrowserAct : undefined}
+        onActionRunnerChange={onRemoteActionRunnerChange}
       />
     </>
   ) : null;

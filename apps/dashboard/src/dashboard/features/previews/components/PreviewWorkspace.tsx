@@ -146,8 +146,12 @@ export function PreviewWorkspace({
   const scopedHref = useRepoScopedHref();
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
-    useChatScope();
+  const {
+    setComposerInjection,
+    setAttachmentInjection,
+    setPreviewContext,
+    setPreviewActionRunner,
+  } = useChatScope();
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
   const repoFullName = owner && repo ? `${owner}/${repo}` : "";
@@ -594,6 +598,7 @@ export function PreviewWorkspace({
         enableRemoteBrowser
         browserActorLogin={githubUser?.login}
         resolveBrowserUploadFiles={resolveBrowserUploadFiles}
+        onRemoteActionRunnerChange={setPreviewActionRunner}
         iframeSandbox={
           isRepoViewPdf ? null : repoViewId ? REPO_VIEW_SANDBOX : undefined
         }

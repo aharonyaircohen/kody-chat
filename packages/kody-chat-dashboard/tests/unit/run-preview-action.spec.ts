@@ -211,6 +211,24 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
     expect(deps.spies.toastError).toHaveBeenCalledOnce();
   });
 
+  it("aborts before dispatch when the required browser surface is unavailable", async () => {
+    const deps = makeDeps({ prepareSurface: async () => false });
+    await runPreviewAction(
+      directive({
+        op: "navigate",
+        url: "https://www.facebook.com/",
+        capabilitySlug: "draft-facebook-personal-post",
+        allowedOrigins: ["https://www.facebook.com"],
+      }),
+      deps,
+    );
+    expect(deps.spies.act).not.toHaveBeenCalled();
+    expect(deps.spies.sendText).not.toHaveBeenCalled();
+    expect(deps.spies.toastError).toHaveBeenCalledWith(
+      "Browser action failed — open Views and wait for its browser to connect.",
+    );
+  });
+
   it("aborts on a malformed directive (e.g. click with no selector)", async () => {
     const deps = makeDeps();
     await runPreviewAction(directive({ op: "click" }), deps);

@@ -289,6 +289,10 @@ interface ChatRailApi {
    * appends this invisibly on send; pages clear it on unmount.
    */
   setPreviewContext: (context: string | null) => void;
+  /** Register the remote browser runner owned by the mounted Views page. */
+  setPreviewActionRunner: (
+    runner: ComponentProps<typeof KodyChat>["previewActionRunner"],
+  ) => void;
   /** Page-level escape hatch for views that render their own top header. */
   setPageOwnsHeader: (ownsHeader: boolean) => void;
 }
@@ -312,6 +316,7 @@ const NOOP_API: ChatRailApi = {
   setComposerInjection: () => {},
   setAttachmentInjection: () => {},
   setPreviewContext: () => {},
+  setPreviewActionRunner: () => {},
   setPageOwnsHeader: () => {},
 };
 
@@ -557,6 +562,8 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     mimeType: string;
   } | null>(null);
   const [previewContext, setPreviewContext] = useState<string | null>(null);
+  const [previewActionRunner, setPreviewActionRunner] =
+    useState<ComponentProps<typeof KodyChat>["previewActionRunner"]>(null);
   const [pageHeaderOwnedByChild, setPageOwnsHeader] = useState(false);
 
   const api = useMemo<ChatRailApi>(
@@ -568,6 +575,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       setComposerInjection,
       setAttachmentInjection,
       setPreviewContext,
+      setPreviewActionRunner,
       setPageOwnsHeader,
     }),
     [scope, openMobileChat, setOnIssueCreated],
@@ -669,6 +677,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
         composerInjection={composerInjection}
         attachmentInjection={attachmentInjection}
         previewContext={previewContext}
+        previewActionRunner={previewActionRunner}
         plugins={repositoryActive ? ADMIN_CHAT_PLUGINS : PERSONAL_CHAT_PLUGINS}
         // Expand = navigate to the /chat page; restore = back to the previous
         // page. On /chat the button reads as "restore" (railFullscreen).
@@ -764,6 +773,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
                         composerInjection={composerInjection}
                         attachmentInjection={attachmentInjection}
                         previewContext={previewContext}
+                        previewActionRunner={previewActionRunner}
                         plugins={
                           repositoryActive
                             ? ADMIN_CHAT_PLUGINS
