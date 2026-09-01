@@ -1,0 +1,148 @@
+{
+  "name": "Bug Flow",
+  "agent": "kody",
+  "capabilities": [
+    "claim-next-backlog-issue",
+    "reproduce",
+    "plan",
+    "run",
+    "review",
+    "fix"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "requiredLabels": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "maxItems": 20,
+        "default": [
+          "bug"
+        ]
+      }
+    },
+    "additionalProperties": false
+  },
+  "startAt": "claim",
+  "steps": [
+    {
+      "id": "claim",
+      "capability": "claim-next-backlog-issue",
+      "inputs": {
+        "requiredLabels": {
+          "from": "workflow.input.requiredLabels"
+        }
+      },
+      "next": [
+        {
+          "to": "reproduce",
+          "when": {
+            "result.status": "claimed"
+          }
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "reproduce",
+      "capability": "reproduce",
+      "target": "issue",
+      "targetFact": "issue",
+      "continueOn": [
+        "RUN_FAILED"
+      ],
+      "next": [
+        {
+          "to": "$end",
+          "when": {
+            "lastOutcome.type": "RUN_FAILED"
+          }
+        },
+        {
+          "to": "plan",
+          "when": {
+            "result.status": "reproduced"
+          }
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "capability": "plan",
+      "target": "issue",
+      "targetFact": "issue",
+      "next": [
+        {
+          "to": "run",
+          "when": {
+            "result.status": "planned"
+          }
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "capability": "run",
+      "target": "issue",
+      "delivery": "pull-request",
+      "targetFact": "issue",
+      "reason": "Fix the reproduced bug, run the required tests and local UI verification when the repository policy requires it, and create the pull request.",
+      "next": [
+        {
+          "to": "review"
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "capability": "review",
+      "target": "pr",
+      "targetFact": "pr",
+      "next": [
+        {
+          "to": "fix",
+          "when": {
+            "result.verdict": "fix"
+          },
+          "maxIterations": 3
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "fix",
+      "capability": "fix",
+      "target": "pr",
+      "delivery": "pull-request",
+      "targetFact": "pr",
+      "next": [
+        {
+          "to": "review",
+          "default": true,
+          "maxIterations": 3
+        }
+      ]
+    }
+  ],
+  "runWithoutApproval": true,
+  "createdAt": "2026-09-01T03:05:36.128Z",
+  "updatedAt": "2026-09-01T03:05:36.128Z"
+}
