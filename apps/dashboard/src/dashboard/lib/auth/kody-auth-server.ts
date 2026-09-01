@@ -22,6 +22,15 @@ export const {
   convexSiteUrl: convexSiteUrl(),
 });
 
+export async function getKodyAuthTokenOrNull(): Promise<string | null> {
+  try {
+    const token = await getKodyAuthToken();
+    return token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCurrentKodySessionUser(): Promise<{
   id: string;
   name?: string | null;
