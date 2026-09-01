@@ -17,7 +17,7 @@
     ]
   },
   "agent": {
-    "model": "automatic",
+    "model": "minimax/MiniMax-M3",
     "automaticModels": [
       {
         "spec": "openrouter/free",
@@ -26,14 +26,6 @@
         "baseURL": "https://openrouter.ai/api/v1",
         "modelName": "openrouter/free",
         "apiKeyEnvVar": "OPENROUTER_API_KEY"
-      },
-      {
-        "spec": "openai/ox-alpha",
-        "provider": "custom",
-        "protocol": "openai",
-        "baseURL": "https://oxalpha.run/api/v1",
-        "modelName": "ox-alpha",
-        "apiKeyEnvVar": "OXALPHA_API_KEY"
       },
       {
         "spec": "xkiro/deepseek/deepseek-v4-flash",
@@ -51,7 +43,15 @@
         "modelName": "deepseek/deepseek-v4-flash-0731",
         "apiKeyEnvVar": "OPENROUTER_API_KEY"
       }
-    ]
+    ],
+    "modelConfig": {
+      "spec": "minimax/MiniMax-M3",
+      "provider": "minimax",
+      "protocol": "openai",
+      "baseURL": "https://api.minimax.io/v1",
+      "modelName": "MiniMax-M3",
+      "apiKeyEnvVar": "MINIMAX_API_KEY"
+    }
   },
   "company": {
     "activeAgents": [
