@@ -18,7 +18,7 @@ export async function ensureViewsOwnedCapabilityAction(input: {
 
   const wait =
     input.wait ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const maxAttempts = input.maxAttempts ?? 80;
+  const maxAttempts = input.maxAttempts ?? 240;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (input.remoteBrowserAvailable()) return true;
     await wait(250);

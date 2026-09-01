@@ -58,6 +58,22 @@ describe("Views-owned Capability browser actions", () => {
     expect(openViews).not.toHaveBeenCalled();
   });
 
+  it("allows a normal Fly cold start before reporting the browser unavailable", async () => {
+    let waits = 0;
+
+    await expect(
+      ensureViewsOwnedCapabilityAction({
+        action: capabilityAction,
+        pathname: "/repo/acme/project/preview",
+        openViews: vi.fn(),
+        remoteBrowserAvailable: () => waits === 120,
+        wait: async () => {
+          waits += 1;
+        },
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("leaves ordinary preview actions on their existing surface", async () => {
     const openViews = vi.fn();
 
