@@ -562,8 +562,16 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
     mimeType: string;
   } | null>(null);
   const [previewContext, setPreviewContext] = useState<string | null>(null);
-  const [previewActionRunner, setPreviewActionRunner] =
+  const [previewActionRunner, setPreviewActionRunnerState] =
     useState<ComponentProps<typeof KodyChat>["previewActionRunner"]>(null);
+  const setPreviewActionRunner = useCallback(
+    (runner: ComponentProps<typeof KodyChat>["previewActionRunner"]) => {
+      // React treats a bare function passed to a state setter as an updater.
+      // Wrap the runner so Views stores the function itself.
+      setPreviewActionRunnerState(() => runner);
+    },
+    [],
+  );
   const [pageHeaderOwnedByChild, setPageOwnsHeader] = useState(false);
 
   const api = useMemo<ChatRailApi>(
@@ -578,7 +586,7 @@ function ChatRailShellInner({ children }: { children: ReactNode }) {
       setPreviewActionRunner,
       setPageOwnsHeader,
     }),
-    [scope, openMobileChat, setOnIssueCreated],
+    [scope, openMobileChat, setOnIssueCreated, setPreviewActionRunner],
   );
 
   // Chat is app-level, so the shell remains available before repository

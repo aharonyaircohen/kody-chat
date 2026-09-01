@@ -31,6 +31,7 @@ describe("Views-owned Capability browser", () => {
       "onActionRunnerChange={onRemoteActionRunnerChange}",
     );
     expect(inspector).toContain("if (!remoteAct || !picker.available)");
+    expect(rail).toContain("setPreviewActionRunnerState(() => runner)");
     expect(
       rail.match(/previewActionRunner=\{previewActionRunner\}/g),
     ).toHaveLength(2);
