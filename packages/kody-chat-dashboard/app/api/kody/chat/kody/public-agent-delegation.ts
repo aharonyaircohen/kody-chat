@@ -847,8 +847,11 @@ export interface RunIsolatedPublicAgentTaskOptions {
   model: Parameters<typeof generateText>[0]["model"];
   tools: ToolSet;
   maxSteps?: number;
+  abortSignal?: AbortSignal;
   sessionId?: string;
   stream?: typeof streamText;
+  generate?: typeof generateText;
+  executionMode?: "stream" | "generate";
   onReasoningDelta?: (delta: string) => void;
   requireToolEvidence?: boolean;
   providerCapabilities?: {
@@ -866,8 +869,11 @@ export async function runIsolatedPublicAgentTask({
   model,
   tools,
   maxSteps = PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+  abortSignal,
   sessionId = randomUUID(),
   stream = streamText,
+  generate = generateText,
+  executionMode = "stream",
   onReasoningDelta,
   requireToolEvidence = false,
   providerCapabilities = { supportsRequiredToolChoice: true },
@@ -898,9 +904,14 @@ export async function runIsolatedPublicAgentTask({
       : []),
   ].join("\n\n");
   try {
-    const response = stream({
+    const request = {
       model,
-      abortSignal: AbortSignal.timeout(PUBLIC_AGENT_TASK_TIMEOUT_MS),
+      abortSignal: abortSignal
+        ? AbortSignal.any([
+            abortSignal,
+            AbortSignal.timeout(PUBLIC_AGENT_TASK_TIMEOUT_MS),
+          ])
+        : AbortSignal.timeout(PUBLIC_AGENT_TASK_TIMEOUT_MS),
       system,
       messages: [{ role: "user", content: focusedTask }],
       tools,
@@ -916,31 +927,42 @@ export async function runIsolatedPublicAgentTask({
         : {}),
       stopWhen: stepCountIs(maxSteps),
       maxOutputTokens: 2_000,
-    });
+    } satisfies Parameters<typeof generateText>[0];
     let streamedReasoning = "";
-    let pendingReasoning = "";
+    let text: string;
+    let reasoningText: string;
+    let steps: Awaited<ReturnType<typeof generateText>>["steps"];
     const emitReasoning = (delta: string) => {
       if (!delta) return;
       streamedReasoning += delta;
       onReasoningDelta?.(delta);
     };
-    for await (const part of response.fullStream) {
-      if (part.type === "reasoning-delta") {
-        pendingReasoning += part.text;
-        if (!couldBeProviderReasoningMetadata(pendingReasoning)) {
-          emitReasoning(stripProviderReasoningMetadata(pendingReasoning));
-          pendingReasoning = "";
+    if (executionMode === "generate") {
+      const response = await generate(request);
+      text = response.text;
+      reasoningText = response.reasoningText ?? "";
+      steps = response.steps;
+    } else {
+      const response = stream(request);
+      let pendingReasoning = "";
+      for await (const part of response.fullStream) {
+        if (part.type === "reasoning-delta") {
+          pendingReasoning += part.text;
+          if (!couldBeProviderReasoningMetadata(pendingReasoning)) {
+            emitReasoning(stripProviderReasoningMetadata(pendingReasoning));
+            pendingReasoning = "";
+          }
+        } else if (part.type === "error") {
+          throw part.error;
         }
-      } else if (part.type === "error") {
-        throw part.error;
       }
+      emitReasoning(stripProviderReasoningMetadata(pendingReasoning));
+      [text, reasoningText, steps] = await Promise.all([
+        response.text,
+        response.reasoningText.then((value) => value ?? ""),
+        response.steps,
+      ]);
     }
-    emitReasoning(stripProviderReasoningMetadata(pendingReasoning));
-    const [text, reasoningText, steps] = await Promise.all([
-      response.text,
-      response.reasoningText,
-      response.steps,
-    ]);
     const rawResult = stripProviderReasoningMetadata(text).trim();
     const parsedResult = parseAssistantContent(rawResult);
     const result = containsToolCallMarkup(rawResult)

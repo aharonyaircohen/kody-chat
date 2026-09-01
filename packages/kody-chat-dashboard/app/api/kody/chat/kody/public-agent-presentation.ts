@@ -24,6 +24,7 @@ import {
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentAssignment } from "./public-agent-routing";
 import type { PublicAgentResponseWriter } from "./public-agent-response";
+import { APPROVAL_REQUIRED_TOOL_NAMES } from "../tools/tool-action-approval";
 
 const PUBLIC_AGENT_PRESENTATION_TIMEOUT_MS = 25_000;
 const INTERACTIVE_PRESENTATION_TEXT = "Interactive response presented.";
@@ -156,16 +157,21 @@ export async function presentPublicAgentResponse({
   const presentationTools = Object.fromEntries(
     Object.entries(tools).filter(
       ([name]) =>
-        OUTPUT_TOOL_NAMES.has(name) &&
-        (!requireViewOutput || name === SHOW_VIEW_TOOL),
+        APPROVAL_REQUIRED_TOOL_NAMES.has(name) ||
+        (OUTPUT_TOOL_NAMES.has(name) &&
+          (!requireViewOutput || name === SHOW_VIEW_TOOL)),
     ),
   ) as ToolSet;
   if (Object.keys(presentationTools).length === 0) {
     throw new Error("Parent presentation tools are unavailable");
   }
+  const hasApprovalProtectedAction = Object.keys(presentationTools).some(
+    (name) => APPROVAL_REQUIRED_TOOL_NAMES.has(name),
+  );
 
   if (
     requireViewOutput &&
+    !hasApprovalProtectedAction &&
     !providerCapabilities.supportsRequiredToolChoice &&
     providerCapabilities.supportsNamedToolChoice !== true &&
     (await renderCreationFallback({ userText, presentationTools, writer }))
@@ -183,6 +189,7 @@ export async function presentPublicAgentResponse({
         "Finish through the available parent presentation tools.",
         "Use show_view whenever the response needs missing information, confirmation, choice, or editable values from the user.",
         "When a creation request is missing required values, render the smallest suitable editable form with a clear submit action instead of asking for those values in plain text.",
+        "When the user explicitly asks to perform a prepared action and the specialist evidence provides the required values, call the matching approval-protected action. Do not ask for approval in prose; the action opens the bound approval card.",
         "Use final_answer only when the response is complete and needs no user interaction.",
         "Never expose configured action names, tool names, routing, or delegation to the user.",
       ].join("\n"),
@@ -234,6 +241,7 @@ export async function presentPublicAgentResponse({
   } catch (error) {
     if (
       requireViewOutput &&
+      !hasApprovalProtectedAction &&
       (await renderCreationFallback({ userText, presentationTools, writer }))
     ) {
       return INTERACTIVE_PRESENTATION_TEXT;
@@ -255,7 +263,8 @@ export async function presentPublicAgentResponse({
     .filter(
       (result) =>
         (result.toolName === FINAL_ANSWER_TOOL ||
-          result.toolName === SHOW_VIEW_TOOL) &&
+          result.toolName === SHOW_VIEW_TOOL ||
+          APPROVAL_REQUIRED_TOOL_NAMES.has(result.toolName)) &&
         !isToolErrorOutput(result.output),
     );
   const presentedResults = successfulResults.flatMap((result) => {
@@ -288,6 +297,7 @@ export async function presentPublicAgentResponse({
 
   if (
     requireViewOutput &&
+    !hasApprovalProtectedAction &&
     (await renderCreationFallback({ userText, presentationTools, writer }))
   ) {
     return INTERACTIVE_PRESENTATION_TEXT;

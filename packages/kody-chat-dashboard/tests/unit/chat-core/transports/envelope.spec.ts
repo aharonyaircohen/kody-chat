@@ -107,6 +107,19 @@ describe("parseKodyDirectChunk", () => {
     expect(parsed?.output).toBeNull();
   });
 
+  it("preserves the AI SDK preliminary tool-result marker", () => {
+    const parsed = parseKodyDirectChunk(
+      JSON.stringify({
+        type: "tool-output-available",
+        toolCallId: "specialist-1",
+        output: { status: "running" },
+        preliminary: true,
+      }),
+    );
+
+    expect(parsed?.preliminary).toBe(true);
+  });
+
   it("preserves incremental tool input text for committed output streaming", () => {
     expect(
       parseKodyDirectChunk(

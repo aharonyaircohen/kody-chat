@@ -981,6 +981,49 @@ describe("public Agent delegation", () => {
     );
   });
 
+  it("uses a terminal generation for nested specialist evidence", async () => {
+    const stream = vi.fn(() => {
+      throw new Error(
+        "nested specialist evidence must not open another stream",
+      );
+    });
+    const generate = vi.fn(async () => ({
+      text: "Preview history stores the selected URL.",
+      reasoningText: "",
+      steps: [
+        {
+          toolResults: [
+            {
+              toolName: "inspect_repository",
+              output: { path: "preview-history.ts" },
+            },
+          ],
+        },
+      ],
+    }));
+
+    await expect(
+      runIsolatedPublicAgentTask({
+        agent: roster[1]!,
+        task: "Inspect preview history",
+        system: "Repository Scout isolated system prompt",
+        model: {} as never,
+        tools: { inspect_repository: {} as never },
+        stream: stream as never,
+        generate: generate as never,
+        executionMode: "generate",
+      } as never),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        status: "completed",
+        result: "Preview history stores the selected URL.",
+        evidence: expect.stringContaining("preview-history.ts"),
+      }),
+    );
+    expect(stream).not.toHaveBeenCalled();
+    expect(generate).toHaveBeenCalledOnce();
+  });
+
   it("keeps evidence-required turns compatible with providers that reject required tool choice", async () => {
     const stream = vi.fn(() => ({
       fullStream: (async function* () {})(),
@@ -1412,9 +1455,12 @@ describe("public Agent delegation", () => {
         ),
       )
       .mockReturnValueOnce(
-        response("Verified workflow fields: name, capabilities, steps, agent.", {
-          fields: ["name", "capabilities", "steps", "agent"],
-        }),
+        response(
+          "Verified workflow fields: name, capabilities, steps, agent.",
+          {
+            fields: ["name", "capabilities", "steps", "agent"],
+          },
+        ),
       );
 
     await expect(
@@ -1423,7 +1469,10 @@ describe("public Agent delegation", () => {
         task: "Find the workflow definition fields",
         system: "Repository Specialist isolated system prompt",
         model: {} as never,
-        tools: { github_search_code: {} as never, github_list_tree: {} as never },
+        tools: {
+          github_search_code: {} as never,
+          github_list_tree: {} as never,
+        },
         requireToolEvidence: true,
         sessionId: "search-fallback-session",
         stream: stream as never,
@@ -1475,7 +1524,10 @@ describe("public Agent delegation", () => {
         task: "Find executable capability slugs",
         system: "Repository Specialist isolated system prompt",
         model: {} as never,
-        tools: { list_capabilities: {} as never, github_list_tree: {} as never },
+        tools: {
+          list_capabilities: {} as never,
+          github_list_tree: {} as never,
+        },
         requireToolEvidence: true,
         sessionId: "capability-fallback-session",
         stream: stream as never,

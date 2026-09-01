@@ -98,6 +98,28 @@ describe("Store agent repository activation", () => {
     expect(store.listSlugs).not.toHaveBeenCalled();
   });
 
+  it("keeps local and built-in Agents available when optional Store discovery fails", async () => {
+    store.listSlugs.mockRejectedValueOnce(
+      new Error("Stream closed with error code NGHTTP2_REFUSED_STREAM"),
+    );
+
+    const agents = await listResolvedAgentFiles({ storeFailure: "omit" });
+
+    expect(agents).toHaveLength(8);
+    expect(agents.find(({ slug }) => slug === "kody")?.source).toBe("builtin");
+    expect(
+      agents.find(({ slug }) => slug === "repository-analyst")?.source,
+    ).toBe("builtin");
+  });
+
+  it("still reports Store discovery failures to strict consumers", async () => {
+    store.listSlugs.mockRejectedValueOnce(new Error("Store unavailable"));
+
+    await expect(listResolvedAgentFiles()).rejects.toThrow(
+      "Store unavailable",
+    );
+  });
+
   it("treats a persisted Store row as Store data, not a local override", async () => {
     store.query.mockResolvedValue([
       {

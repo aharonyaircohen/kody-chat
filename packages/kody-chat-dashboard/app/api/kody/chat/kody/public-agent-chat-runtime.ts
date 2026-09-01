@@ -21,7 +21,10 @@ import {
   orchestratePublicAgentTurn,
   type PublicAgentCapability,
 } from "./public-agent-orchestrator";
-import { routePublicAgentTask } from "./public-agent-routing";
+import {
+  routePublicAgentTask,
+  type PublicAgentRouteDecision,
+} from "./public-agent-routing";
 import type { DurableTurn } from "../durable-turn";
 import type { ProjectAssessmentSynthesisRecovery } from "../durable-turn";
 import {
@@ -65,11 +68,87 @@ interface HandleConfiguredPublicAgentChatOptions {
     supportsNamedToolChoice?: boolean;
   };
   requireViewOutput: boolean;
+  routeDecision?: PublicAgentRouteDecision;
   startDurableTurn?: () => Pick<
     DurableTurn,
     "recordProgress" | "saveRecovery" | "complete" | "fail"
   >;
   telemetry: PublicAgentTelemetry;
+}
+
+type ConfiguredPublicAgentExecutionOptions = Pick<
+  HandleConfiguredPublicAgentChatOptions,
+  | "assignedAgents"
+  | "model"
+  | "availableTools"
+  | "specialistTools"
+  | "loadCapabilities"
+  | "repository"
+  | "maxSteps"
+  | "providerCapabilities"
+> & {
+  createToolExecutionScope(): (name: string, candidate: unknown) => unknown;
+};
+
+export async function runConfiguredPublicAgentAssignments({
+  assignments,
+  sharedContext,
+  abortSignal,
+  ...options
+}: ConfiguredPublicAgentExecutionOptions & {
+  assignments: Extract<
+    PublicAgentRouteDecision,
+    { mode: "delegate" }
+  >["assignments"];
+  sharedContext?: string;
+  abortSignal?: AbortSignal;
+}) {
+  const { results } = await orchestratePublicAgentTurn({
+    userText: sharedContext ?? "",
+    assignedAgents: options.assignedAgents,
+    availableTools: options.availableTools,
+    specialistTools: options.specialistTools,
+    outputToolNames: [],
+    loadCapabilities: options.loadCapabilities,
+    route: async () => ({ mode: "delegate", assignments }),
+    invoke: async ({ agent, task, capabilities, tools }) => {
+      const wrapTool = options.createToolExecutionScope();
+      const wrappedTools = Object.fromEntries(
+        Object.entries(tools).map(([name, candidate]) => [
+          name,
+          wrapTool(name, candidate),
+        ]),
+      );
+      const capabilityInstructions = capabilities.map(
+        (capability) => capability.instructions,
+      );
+      return runIsolatedPublicAgentTaskWithRetry({
+        agent,
+        task,
+        ...(sharedContext ? { sharedContext } : {}),
+        reference: buildPublicAgentReference({
+          agent,
+          capabilityInstructions,
+          capabilityToolNames: capabilities.flatMap((capability) =>
+            capability.capabilityTools.map((tool) => tool.name),
+          ),
+        }),
+        system: buildPublicAgentChildSystem({
+          agent,
+          capabilityInstructions,
+          repository: options.repository,
+        }),
+        model: options.model,
+        tools: wrappedTools as ToolSet,
+        maxSteps: options.maxSteps,
+        abortSignal,
+        executionMode: "generate",
+        requireToolEvidence: requiresPublicAgentToolEvidence(task),
+        providerCapabilities: options.providerCapabilities,
+      });
+    },
+  });
+  return results;
 }
 
 interface PublishTool {
@@ -150,6 +229,7 @@ export async function handleConfiguredPublicAgentChat({
   maxSteps,
   providerCapabilities,
   requireViewOutput,
+  routeDecision,
   startDurableTurn,
   telemetry,
 }: HandleConfiguredPublicAgentChatOptions): Promise<PublicAgentChatResult> {
@@ -158,12 +238,14 @@ export async function handleConfiguredPublicAgentChat({
     traceId,
     assignedAgents,
     route: () =>
-      routePublicAgentTask({
-        userText,
-        conversationContext,
-        assignedAgents,
-        model,
-      }),
+      routeDecision
+        ? Promise.resolve(routeDecision)
+        : routePublicAgentTask({
+            userText,
+            conversationContext,
+            assignedAgents,
+            model,
+          }),
     orchestrate: (decision, onReasoningDelta) =>
       orchestratePublicAgentTurn({
         userText,

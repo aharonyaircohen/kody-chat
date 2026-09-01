@@ -406,6 +406,13 @@ export async function sendKodyDirectTurn(
       chunk.output !== undefined
     ) {
       const name = toolNameById.get(chunk.toolCallId);
+      if (chunk.preliminary) {
+        // AI SDK async-generator tools use preliminary results for progress.
+        // Count them as transport activity while leaving the visible tool in
+        // its running state; only the final result completes the tool.
+        ctx.emit({ type: "reasoning", text: "\u200b" });
+        return;
+      }
       if (name === FINAL_ANSWER_TOOL) {
         // The final answer supersedes whatever streamed before it.
         if (isFinalAnswerOutput(chunk.output)) {

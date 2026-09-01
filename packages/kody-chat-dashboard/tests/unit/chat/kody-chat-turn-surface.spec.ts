@@ -3,6 +3,7 @@ import {
   completeActiveAssistant,
   removeActiveAssistant,
   replaceActiveAssistantWithError,
+  settleActiveAssistants,
   updateActiveAssistant,
 } from "../../../src/dashboard/lib/components/kody-chat-turn-surface";
 
@@ -39,5 +40,21 @@ describe("chat turn surface", () => {
         isError: true,
       },
     ]);
+  });
+
+  it("returns the stopped assistant messages that must be settled in persistence", () => {
+    const result = settleActiveAssistants([
+      { role: "user", content: "question", isLoading: false },
+      {
+        id: "assistant-1",
+        turnId: "turn-1",
+        role: "assistant",
+        content: "partial answer",
+        isLoading: true,
+      },
+    ]);
+
+    expect(result.messages[1]).toMatchObject({ isLoading: false });
+    expect(result.settled).toEqual([result.messages[1]]);
   });
 });

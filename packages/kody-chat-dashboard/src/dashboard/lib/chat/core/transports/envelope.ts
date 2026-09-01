@@ -17,6 +17,7 @@ import { z } from "zod";
 
 const lenientString = z.string().optional().catch(undefined);
 const lenientNumber = z.number().optional().catch(undefined);
+const lenientBoolean = z.boolean().optional().catch(undefined);
 const lenientRecord = z
   .record(z.string(), z.unknown())
   .optional()
@@ -75,6 +76,7 @@ export const kodyDirectChunkSchema = z.object({
   inputTextDelta: lenientString,
   input: z.unknown().optional(),
   output: z.unknown().optional(),
+  preliminary: lenientBoolean,
 });
 
 export type KodyDirectChunk = z.infer<typeof kodyDirectChunkSchema>;

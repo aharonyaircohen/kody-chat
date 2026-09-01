@@ -105,6 +105,7 @@ import type {
   RenderedViewDirective,
   PreviewActDirective,
 } from "../chat-ui-actions";
+import { settleActiveAssistants } from "./kody-chat-turn-surface";
 import { isRenderedViewDirective } from "../chat-ui-actions";
 import { useGuidedFlowCommandCompletion } from "../guided-flows/use-command-completion";
 import type { GuidedFlowOpenRequest } from "../guided-flows/chat-controller";
@@ -2237,12 +2238,22 @@ export function KodyChat({
       kodyAbortRef.current?.abort();
       brainAbortRef.current?.abort();
     }
+    const stoppedTurn = settleActiveAssistants(messages);
     setLoading(false);
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.isLoading ? { ...message, isLoading: false } : message,
-      ),
-    );
+    setMessages(stoppedTurn.messages);
+    if (activeSessionId) {
+      for (const message of stoppedTurn.settled) {
+        if (!message.id) continue;
+        const stored = messageToChat(message);
+        void sessionHook
+          .settlePendingAssistantMessage(activeSessionId, {
+            ...stored,
+            id: message.id,
+            role: "assistant",
+          })
+          .catch(() => undefined);
+      }
+    }
   };
 
   // Composer key/slash/mention handlers (phase 1.6d) — extracted to the

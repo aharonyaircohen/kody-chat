@@ -22,7 +22,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../src/dashboard/lib/view-renderers/builtin";
 import type { ViewRendererDefinition } from "../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
 const verifyActorLoginMock = vi.hoisted(() =>
@@ -159,7 +158,9 @@ let nextSpecialistStream: SpecialistStreamFixture | null = null;
 let nextSpecialistStreams: SpecialistStreamFixture[] = [];
 const generateTextMock = vi.hoisted(() =>
   vi.fn(
-    async (): Promise<{
+    async (
+      _options?: Record<string, unknown>,
+    ): Promise<{
       text: string;
       reasoningText?: string;
       steps?: Array<Record<string, unknown>>;
@@ -212,7 +213,10 @@ import { setChatRequestContextProvider } from "../../app/api/kody/chat/request-c
 import { getChatServerToolRegistry } from "../../src/dashboard/lib/chat/platform/server-tools";
 import type { ChatToolServerContext } from "../../src/dashboard/lib/chat/platform";
 
-function makeRequest(userText = "Inspect repository status"): NextRequest {
+function makeRequest(
+  userText = "Inspect repository status",
+  extraBody: Record<string, unknown> = {},
+): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {
     method: "POST",
     headers: {
@@ -221,7 +225,10 @@ function makeRequest(userText = "Inspect repository status"): NextRequest {
       "x-kody-owner": "owner",
       "x-kody-repo": "repo",
     },
-    body: JSON.stringify({ messages: [{ role: "user", content: userText }] }),
+    body: JSON.stringify({
+      messages: [{ role: "user", content: userText }],
+      ...extraBody,
+    }),
   });
 }
 
@@ -249,15 +256,6 @@ async function postAndCaptureToolNames(userText?: string): Promise<{
     tools,
     response: res,
   };
-}
-
-function queueAgencyRoute(task: string): void {
-  generateTextMock.mockResolvedValueOnce({
-    text: JSON.stringify({
-      mode: "delegate",
-      assignments: [{ agent: "agency-specialist", task }],
-    }),
-  });
 }
 
 beforeAll(() => {
@@ -337,6 +335,101 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     );
   });
 
+  it("mounts specialist evidence inside Kody's normal model turn", async () => {
+    listResolvedAgentFilesMock.mockResolvedValueOnce([
+      {
+        slug: "kody",
+        title: "Kody",
+        body: "Coordinates assigned specialists.",
+        subagents: ["ui-vibe-specialist"],
+        updatedAt: "",
+        htmlUrl: "",
+      },
+      {
+        slug: "ui-vibe-specialist",
+        title: "UI/Vibe Specialist",
+        body: "Investigates focused product questions.",
+        capabilities: ["builtin-agent-ui-vibe-specialist"],
+        updatedAt: "",
+        htmlUrl: "",
+      },
+    ]);
+
+    const before = streamTextCalls.length;
+    const response = await kodyChatPOST(makeRequest("Investigate this issue"));
+    const call = streamTextCalls[before];
+
+    expect(response.status).toBe(200);
+    expect(listResolvedAgentFilesMock).toHaveBeenLastCalledWith({
+      storeFailure: "omit",
+    });
+    expect(call?.tools).toHaveProperty("request_specialist_evidence");
+    expect(call?.tools).toHaveProperty("final_answer");
+    expect(call?.system).toContain("You own this complete turn");
+
+    generateTextMock.mockImplementationOnce(async (options) => {
+      const featureTool = (
+        options as {
+          tools: Record<string, { execute(input: unknown): Promise<unknown> }>;
+        }
+      ).tools.list_dashboard_features;
+      const output = await featureTool.execute({});
+      return {
+        text: "The specialist found grounded evidence.",
+        reasoningText: "",
+        steps: [
+          {
+            toolResults: [{ toolName: "list_dashboard_features", output }],
+          },
+        ],
+      };
+    });
+    const evidenceTool = (
+      call?.tools as Record<
+        string,
+        {
+          execute?: (
+            input: unknown,
+            options: unknown,
+          ) => AsyncIterable<Record<string, unknown>>;
+        }
+      >
+    ).request_specialist_evidence;
+    const evidenceExecution = evidenceTool.execute?.(
+      {
+        assignments: [
+          { agent: "ui-vibe-specialist", task: "Investigate the issue" },
+        ],
+      },
+      {},
+    );
+    const evidencePromise = (async () => {
+      let final: unknown;
+      for await (const output of evidenceExecution ?? []) {
+        final = output;
+      }
+      return final;
+    })();
+    const evidence = await Promise.race([
+      evidencePromise,
+      new Promise<"deadlocked">((resolve) =>
+        setTimeout(() => resolve("deadlocked"), 500),
+      ),
+    ]);
+
+    expect(evidence).not.toBe("deadlocked");
+    expect(evidence).toMatchObject({
+      status: "completed",
+      findings: [
+        {
+          status: "completed",
+          agent: "ui-vibe-specialist",
+          result: "The specialist found grounded evidence.",
+        },
+      ],
+    });
+  });
+
   it("keeps issue comments readable when Kody answers a self-routed follow-up", async () => {
     listResolvedAgentFilesMock.mockResolvedValueOnce([
       {
@@ -363,278 +456,6 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
 
     expect(status).toBe(200);
     expect(tools).toHaveProperty("github_get_issue");
-  });
-
-  it("routes to and executes Kody's assigned public Agent before the parent turn", async () => {
-    loadViewRendererContextForPromptMock.mockResolvedValueOnce({
-      rules: "Use the Agency renderer for Agency requests.",
-      definitions: [
-        {
-          slug: "agency-summary",
-          name: "Agency Summary",
-          purpose: "agency",
-          rule: "Use for Agency structure.",
-          type: "layout" as const,
-          ui: { type: "text" as const, value: "Agency" },
-        },
-      ],
-    });
-    listResolvedAgentFilesMock.mockResolvedValueOnce([
-      {
-        slug: "kody",
-        title: "Kody",
-        body: "Coordinates assigned specialists.",
-        subagents: ["agency-specialist"],
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "agency-specialist",
-        title: "Agency Specialist",
-        body: "Manages Agents, Workflows, Capabilities, and Todos.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "repo-scout",
-        title: "Repository Scout",
-        body: "Maps repository structure.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-    ]);
-    nextSpecialistStream = {
-      parts: [
-        { type: "reasoning-delta", text: "I compared the configured " },
-        { type: "reasoning-delta", text: "Agency models." },
-      ],
-      text: "Agency structure explained.",
-      reasoningText: "I compared the configured Agency models.",
-    };
-    queueAgencyRoute("Explain AI Agency structure.");
-    generateTextMock.mockResolvedValueOnce({
-      text: "Kody's synthesized Agency explanation.",
-    });
-
-    const streamTextCallCountBefore = streamTextCalls.length;
-    const { status, tools, response } = await postAndCaptureToolNames(
-      "Explain AI Agency structure.",
-    );
-    expect(status).toBe(200);
-    const responseBody = await response.text();
-    expect(tools).not.toHaveProperty("delegate_to_agent");
-    expect(streamTextCalls.at(streamTextCallCountBefore)).toEqual(
-      expect.objectContaining({
-        messages: [
-          expect.objectContaining({
-            role: "user",
-            content: expect.stringContaining("Explain AI Agency structure."),
-          }),
-        ],
-        tools: {},
-      }),
-    );
-    expect(
-      (
-        streamTextCalls.at(streamTextCallCountBefore)?.messages as Array<{
-          content: string;
-        }>
-      )[0]?.content,
-    ).toContain("## Agent definition");
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tools: expect.objectContaining({
-          final_answer: expect.any(Object),
-          show_view: expect.any(Object),
-        }),
-        messages: [
-          expect.objectContaining({
-            content: expect.stringContaining(
-              "Source status: authoritative source available",
-            ),
-          }),
-        ],
-      }),
-    );
-    expect(responseBody).toContain("Kody's synthesized Agency explanation.");
-    expect(responseBody).toContain("data-subagent-activity");
-    expect(responseBody).toContain("Agency Specialist");
-    expect(responseBody).toContain('"phase":"reasoning"');
-    expect(responseBody).toContain("I compared the configured ");
-    expect(responseBody).toContain("Agency models.");
-    expect(responseBody).not.toContain("Kody delegated this request");
-    expect(streamTextCalls).toHaveLength(streamTextCallCountBefore + 1);
-  });
-
-  it("filters provider safety metadata and falls back to the grounded specialist answer", async () => {
-    listResolvedAgentFilesMock.mockResolvedValueOnce([
-      {
-        slug: "kody",
-        title: "Kody",
-        body: "Coordinates assigned specialists.",
-        subagents: ["agency-specialist"],
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "agency-specialist",
-        title: "Agency Specialist",
-        body: "Manages Agents, Workflows, Capabilities, and Todos.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-    ]);
-    nextSpecialistStream = {
-      parts: [
-        { type: "reasoning-delta", text: "User " },
-        { type: "reasoning-delta", text: "Safety: safe" },
-      ],
-      text: "Agency connects Agents to focused Capabilities and Workflows.",
-      reasoningText: "User Safety: safe",
-    };
-    queueAgencyRoute("Explain AI Agency structure.");
-    generateTextMock.mockResolvedValueOnce({ text: "User Safety: safe" });
-
-    const { status, response } = await postAndCaptureToolNames(
-      "Explain AI Agency structure.",
-    );
-    const responseBody = await response.text();
-
-    expect(status).toBe(200);
-    expect(responseBody).toContain(
-      "Agency connects Agents to focused Capabilities and Workflows.",
-    );
-    expect(responseBody).not.toContain("User Safety");
-  });
-
-  it("hands a delegated Todo request back to Kody's form renderer", async () => {
-    loadViewRendererContextForPromptMock.mockResolvedValueOnce({
-      rules: "Use an interactive form for Todo creation.",
-      definitions: [
-        ...BUILTIN_VIEW_RENDERER_DEFINITIONS,
-        {
-          slug: "todo-form",
-          name: "Todo form",
-          purpose: "todo",
-          rule: "Use for Todo creation.",
-          type: "layout" as const,
-          data: { title: { type: "text" as const } },
-          ui: { type: "text" as const, value: "$title" },
-        },
-      ],
-    });
-    listResolvedAgentFilesMock.mockResolvedValueOnce([
-      {
-        slug: "kody",
-        title: "Kody",
-        body: "Coordinates assigned specialists.",
-        subagents: ["agency-specialist"],
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "agency-specialist",
-        title: "Agency Specialist",
-        body: "Manages Agents, Workflows, Capabilities, and Todos.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-    ]);
-    nextSpecialistStream = {
-      text: "A Todo list requires a name before creation.",
-    };
-    queueAgencyRoute("can u create new todo");
-
-    const { status, response } = await postAndCaptureToolNames(
-      "can u create new todo",
-    );
-    const responseBody = await response.text();
-
-    expect(status).toBe(200);
-    expect(responseBody).toContain('"toolName":"show_view"');
-    expect(responseBody).toContain('"action":"render_view"');
-    expect(responseBody).toContain("Create Todo");
-    expect(responseBody).not.toContain("create or update todo list");
-  });
-
-  it("lets Kody answer from the authoritative Agent definition when the specialist returns no text", async () => {
-    listResolvedAgentFilesMock.mockResolvedValueOnce([
-      {
-        slug: "kody",
-        title: "Kody",
-        body: "Coordinates assigned specialists.",
-        subagents: ["agency-specialist"],
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "agency-specialist",
-        title: "Agency Specialist",
-        body: "Manages Agents, Workflows, Capabilities, and Todos.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-    ]);
-    nextSpecialistStream = { text: "" };
-    queueAgencyRoute("Explain AI Agency structure.");
-    generateTextMock.mockResolvedValueOnce({
-      text: "Agency connects Agents, Workflows, Capabilities, and Todos.",
-    });
-
-    const { status, response } = await postAndCaptureToolNames(
-      "Explain AI Agency structure.",
-    );
-    const responseBody = await response.text();
-
-    expect(status).toBe(200);
-    expect(responseBody).toContain(
-      "Agency connects Agents, Workflows, Capabilities, and Todos.",
-    );
-    expect(responseBody).not.toContain(
-      "Agency Specialist failed: The specialist returned no answer",
-    );
-  });
-
-  it("stops without synthesis when the only specialist times out", async () => {
-    listResolvedAgentFilesMock.mockResolvedValueOnce([
-      {
-        slug: "kody",
-        title: "Kody",
-        body: "Coordinates assigned specialists.",
-        subagents: ["agency-specialist"],
-        updatedAt: "",
-        htmlUrl: "",
-      },
-      {
-        slug: "agency-specialist",
-        title: "Agency Specialist",
-        body: "Manages Agents, Workflows, Capabilities, and Todos.",
-        updatedAt: "",
-        htmlUrl: "",
-      },
-    ]);
-    const generateCallCountBefore = generateTextMock.mock.calls.length;
-    nextSpecialistStream = {
-      error: new Error(
-        "The operation was aborted because the request timed out",
-      ),
-    };
-    queueAgencyRoute("Explain AI Agency structure.");
-    const streamTextCallCountBefore = streamTextCalls.length;
-    const { status, response } = await postAndCaptureToolNames(
-      "Explain AI Agency structure.",
-    );
-    const responseBody = await response.text();
-
-    expect(status).toBe(200);
-    expect(responseBody).toContain(
-      "Agency Specialist failed: The specialist timed out. Retry or choose another model.",
-    );
-    expect(responseBody).toContain("data-subagent-activity");
-    expect(responseBody).toContain("errorText");
-    expect(responseBody).not.toContain("Kody delegated this request");
-    expect(generateTextMock).toHaveBeenCalledTimes(generateCallCountBefore + 1);
-    expect(streamTextCalls).toHaveLength(streamTextCallCountBefore + 1);
   });
 
   it("continues the chat when optional CMS tools cannot be loaded", async () => {

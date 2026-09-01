@@ -170,7 +170,7 @@ import {
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
-import { createToolExecutionCoordinator } from "./tool-execution-order";
+import { createToolExecutionScope } from "./tool-execution-order";
 import { createInstructionsTools } from "../tools/instructions-tools";
 import { createPersonalChatTools } from "../tools/personal-tools";
 import { createVariableTools } from "../tools/variables-tools";
@@ -241,13 +241,13 @@ import {
 } from "../../../../../src/dashboard/lib/guided-flows/builtins";
 import { CREATE_BLUEPRINT_MODEL_GUIDE } from "../../../../../src/dashboard/lib/request-blueprints/create-blueprint";
 import {
-  handleConfiguredPublicAgentChat,
   publishProjectAssessmentReport,
   PROJECT_ASSESSMENT_SYNTHESIS_FAILURE_PREFIX,
+  runConfiguredPublicAgentAssignments,
   retryProjectAssessmentSynthesis,
 } from "./public-agent-chat-runtime";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
-import { shouldRoutePublicAgentChat } from "./public-agent-routing";
+import { createPublicAgentEvidenceTool } from "./public-agent-evidence-tool";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -628,38 +628,6 @@ function getLatestUserText(messages: ModelMessage[]): string | null {
     if (text.length > 0) return text;
   }
   return null;
-}
-
-function specialistRoutingContext(
-  messages: ModelMessage[],
-): string | undefined {
-  const latestUserIndex = messages.findLastIndex(
-    (message) => message.role === "user",
-  );
-  if (latestUserIndex <= 0) return undefined;
-  const context = messages
-    .slice(Math.max(0, latestUserIndex - 6), latestUserIndex)
-    .filter(
-      (message) => message.role === "user" || message.role === "assistant",
-    )
-    .map((message) => {
-      const content =
-        typeof message.content === "string"
-          ? message.content
-          : Array.isArray(message.content)
-            ? message.content
-                .map((part) => (part.type === "text" ? part.text : ""))
-                .filter(Boolean)
-                .join("\n")
-            : "";
-      return content.trim()
-        ? `${message.role === "user" ? "User" : "Assistant"}: ${content.trim()}`
-        : "";
-    })
-    .filter(Boolean)
-    .join("\n")
-    .slice(-4000);
-  return context || undefined;
 }
 
 function requestWithAuth(req: NextRequest, auth: RequestAuth): NextRequest {
@@ -1315,7 +1283,9 @@ async function handleKodyDirectPost(
   let resolvedAgentRoster: ResolvedAgentMember[] = [];
   if (repo && (agentSlug || !clientSurface)) {
     try {
-      resolvedAgentRoster = await listResolvedAgentFiles();
+      resolvedAgentRoster = await listResolvedAgentFiles({
+        storeFailure: "omit",
+      });
     } catch (err) {
       // A missing optional public Kody definition must not break ordinary
       // chat, but an explicitly addressed public Agent still must resolve.
@@ -1974,35 +1944,17 @@ async function handleKodyDirectPost(
       }),
     );
   }
-  const wrappedToolMarker = Symbol("kody-tool-execution-wrapped");
-  const toolExecutionCoordinator = createToolExecutionCoordinator();
-  const wrapToolExecution = (name: string, candidate: unknown): unknown => {
-    if (!candidate || typeof candidate !== "object") return candidate;
-    const executable = candidate as {
-      execute?: (input: unknown) => Promise<unknown>;
-      [wrappedToolMarker]?: boolean;
-    };
-    if (!executable.execute) return candidate;
-    if (executable[wrappedToolMarker]) return candidate;
-    const execute = toolExecutionCoordinator.wrap(name, executable.execute);
-    return {
-      ...executable,
-      [wrappedToolMarker]: true,
-      execute: async (input: unknown) => {
-        try {
-          return await execute(input);
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          traceError(
-            { traceId, tool: name, err: message },
-            "kody-direct: tool execution failed",
-          );
-          return { error: message || "Tool execution failed" };
-        }
+  const createRequestToolExecutionScope = () =>
+    createToolExecutionScope({
+      onError: (name, error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        traceError(
+          { traceId, tool: name, err: message },
+          "kody-direct: tool execution failed",
+        );
       },
-    };
-  };
+    }).wrap;
+  const wrapToolExecution = createRequestToolExecutionScope();
 
   if (body.retryAssessmentTurnId) {
     if (!durableIdentity || !repo) {
@@ -2097,60 +2049,48 @@ async function handleKodyDirectPost(
   const assignedSubagentRoster = resolvedAgentRoster.filter((candidate) =>
     assignedSubagentSlugs.includes(candidate.slug),
   );
-  if (
-    shouldRoutePublicAgentChat({
-      userText: latestUserText ?? "",
-      clientSurface: Boolean(clientSurface),
-      assignedSubagentCount: assignedSubagentRoster.length,
-    })
-  ) {
-    const specialistChat = await handleConfiguredPublicAgentChat({
-      userText: latestUserText ?? "",
-      conversationContext: specialistRoutingContext(messages),
-      assignedAgents: assignedSubagentRoster,
-      model,
-      availableTools: allowlistedTools,
-      specialistTools: mergedTools,
-      outputToolNames: CHAT_OUTPUT_TOOL_NAMES,
-      loadCapabilities: async (agent) =>
-        (
-          await Promise.all(
-            (agent.capabilities ?? []).map(async (slug) => {
-              const capability =
-                readBuiltinAgentCapability(slug) ??
-                (await readResolvedCapabilityFile(slug).catch(() => null));
-              return capability ? { slug, ...capability } : null;
-            }),
-          )
-        ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),
-      wrapTool: wrapToolExecution,
-      repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
-      maxSteps: Math.min(
-        resolvedModel.maxSteps ?? PUBLIC_AGENT_DEFAULT_MAX_STEPS,
-        PUBLIC_AGENT_DEFAULT_MAX_STEPS,
-      ),
-      providerCapabilities,
-      requireViewOutput: requireViewOutputForTurn,
-      ...(startRequestDurableTurn
-        ? { startDurableTurn: startRequestDurableTurn }
-        : {}),
-      telemetry: {
-        traceId,
-        startedAt: reqStartedAt,
-        formatError: formatProviderError,
-        clearContext: clearGitHubContext,
-        log: traceLog,
-        warn: traceWarn,
-        error: traceError,
-      },
-    });
-    if (specialistChat.mode === "delegated") {
-      return specialistChat.response;
-    }
-    for (const name of Object.keys(allowlistedTools)) {
-      delete allowlistedTools[name];
-    }
-    Object.assign(allowlistedTools, specialistChat.parentTools);
+  const specialistUserText =
+    typeof body.previewContext === "string" && body.previewContext.trim()
+      ? `${latestUserText ?? ""}\n\n${body.previewContext.trim()}`
+      : (latestUserText ?? "");
+  if (!clientSurface && assignedSubagentRoster.length > 0) {
+    allowlistedTools.request_specialist_evidence =
+      createPublicAgentEvidenceTool({
+        agents: assignedSubagentRoster,
+        run: (assignments, abortSignal) =>
+          runConfiguredPublicAgentAssignments({
+            assignments,
+            abortSignal,
+            sharedContext: specialistUserText,
+            assignedAgents: assignedSubagentRoster,
+            model,
+            availableTools: allowlistedTools,
+            specialistTools: mergedTools,
+            loadCapabilities: async (agent) =>
+              (
+                await Promise.all(
+                  (agent.capabilities ?? []).map(async (slug) => {
+                    const capability =
+                      readBuiltinAgentCapability(slug) ??
+                      (await readResolvedCapabilityFile(slug).catch(
+                        () => null,
+                      ));
+                    return capability ? { slug, ...capability } : null;
+                  }),
+                )
+              ).filter((cap): cap is NonNullable<typeof cap> => cap !== null),
+            createToolExecutionScope: createRequestToolExecutionScope,
+            repository: repo ? { owner: repo.owner, repo: repo.repo } : null,
+            maxSteps: Math.min(
+              resolvedModel.maxSteps ?? PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+              PUBLIC_AGENT_DEFAULT_MAX_STEPS,
+            ),
+            providerCapabilities,
+          }),
+      });
+    turnSystemInstructions.push(
+      "You own this complete turn. Answer from authoritative current context or use your own tools for Kody-owned work. Call request_specialist_evidence only when assigned specialist expertise or independent evidence is genuinely needed, then continue this same turn and make the final decision yourself. Never expose specialist routing mechanics.",
+    );
   }
   const clearlyConversationalTurn = isClearlyConversationalTurn(
     latestUserText ?? "",

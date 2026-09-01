@@ -208,6 +208,52 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("treats preliminary tool results as activity without completing the tool", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "tool-input-available",
+            toolCallId: "specialist-1",
+            toolName: "request_specialist_evidence",
+            input: { assignments: [] },
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "specialist-1",
+            output: { status: "running" },
+            preliminary: true,
+          }),
+          chunk({
+            type: "tool-output-available",
+            toolCallId: "specialist-1",
+            output: { status: "completed", findings: [] },
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      expect.objectContaining({
+        type: "tool-call",
+        id: "specialist-1",
+        status: "running",
+      }),
+      { type: "reasoning", text: "\u200b" },
+      {
+        type: "tool-result",
+        id: "specialist-1",
+        toolName: "request_specialist_evidence",
+        output: { status: "completed", findings: [] },
+      },
+      { type: "done" },
+    ]);
+  });
+
   it("maps subagent activity into a visible running and completed Thought item", async () => {
     const { restore } = installScriptedFetch([
       () =>

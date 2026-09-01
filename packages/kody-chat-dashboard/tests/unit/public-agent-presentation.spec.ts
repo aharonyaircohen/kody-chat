@@ -25,6 +25,99 @@ const results = [
 ];
 
 describe("public Agent parent presentation", () => {
+  it("keeps approval-protected actions available after specialist research", async () => {
+    const events: unknown[] = [];
+    const fallbackView = vi.fn(async () => ({ action: "render_view" }));
+    const approval = {
+      action: "render_view",
+      rendererSlug: "approval-card",
+      id: "signed-create-chore",
+    };
+    const generate = vi.fn(async () => ({
+      text: "",
+      steps: [
+        {
+          toolCalls: [
+            {
+              toolCallId: "call-create-chore",
+              toolName: "create_chore",
+              input: { title: "Document the QA flow" },
+            },
+          ],
+          toolResults: [
+            {
+              toolCallId: "call-create-chore",
+              toolName: "create_chore",
+              output: approval,
+            },
+          ],
+        },
+      ],
+    }));
+
+    await expect(
+      presentPublicAgentResponse({
+        userText: "Create the exact chore from the research now.",
+        assignments: [assignment],
+        assignedAgents,
+        results,
+        model: {} as never,
+        tools: {
+          final_answer: { description: "plain text" },
+          show_view: {
+            description: "render an interaction",
+            execute: fallbackView,
+          },
+          create_chore: { description: "stage a chore for approval" },
+          github_get_file: { description: "read a repository file" },
+        },
+        writer: { write: (event) => events.push(event) },
+        providerCapabilities: {
+          supportsRequiredToolChoice: false,
+          supportsNamedToolChoice: false,
+        },
+        requireViewOutput: true,
+        generate: generate as never,
+      }),
+    ).resolves.toBe("Interactive response presented.");
+
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: {
+          show_view: expect.any(Object),
+          create_chore: expect.any(Object),
+        },
+        system: expect.stringContaining(
+          "call the matching approval-protected action",
+        ),
+      }),
+    );
+    const generatedOptions = (
+      generate.mock.calls as unknown as Array<
+        [{ tools?: Record<string, unknown> }]
+      >
+    )[0]?.[0];
+    expect(generatedOptions?.tools).not.toHaveProperty("github_get_file");
+    expect(fallbackView).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      {
+        type: "data-chat-output-contract",
+        data: { mode: "exclusive-tool" },
+      },
+      {
+        type: "tool-input-available",
+        toolCallId: "call-create-chore",
+        toolName: "create_chore",
+        input: { title: "Document the QA flow" },
+      },
+      {
+        type: "tool-output-available",
+        toolCallId: "call-create-chore",
+        output: approval,
+      },
+    ]);
+  });
+
   it("uses Kody's show_view tool for missing Todo details", async () => {
     const events: unknown[] = [];
     const input = {

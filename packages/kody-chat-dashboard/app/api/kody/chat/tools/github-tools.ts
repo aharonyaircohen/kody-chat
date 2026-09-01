@@ -53,6 +53,90 @@ function clip(s: string | null | undefined, n: number): string {
 export function createGitHubTools(ctx: Ctx) {
   const { octokit, owner, repo } = ctx;
   const waitForRetry = ctx.wait ?? wait;
+  let defaultBranchPromise: Promise<string> | undefined;
+  const repositoryTreeByRef = new Map<
+    string,
+    Promise<Array<{ path?: string; type?: string }>>
+  >();
+  const resolveRef = (ref?: string) => {
+    const requested = ref?.trim();
+    if (requested && requested.toLowerCase() !== "default") {
+      return Promise.resolve(requested);
+    }
+    defaultBranchPromise ??= octokit.rest.repos
+      .get({ owner, repo })
+      .then(({ data }) => data.default_branch);
+    return defaultBranchPromise;
+  };
+  const loadRepositoryTree = (ref: string) => {
+    let pending = repositoryTreeByRef.get(ref);
+    if (!pending) {
+      pending = octokit.rest.repos
+        .getCommit({ owner, repo, ref })
+        .then(({ data }) =>
+          octokit.rest.git
+            .getTree({
+              owner,
+              repo,
+              tree_sha: data.commit.tree.sha,
+              recursive: "true",
+            })
+            .then(({ data: tree }) => tree.tree),
+        );
+      repositoryTreeByRef.set(ref, pending);
+    }
+    return pending;
+  };
+  const suggestRepositoryPaths = async (path: string, ref?: string) => {
+    try {
+      const resolvedRef = await resolveRef(ref);
+      const requested = path
+        .trim()
+        .replace(/^\/+|\/+$/g, "")
+        .toLowerCase();
+      if (!requested) return [];
+      const requestedParts = requested.split("/").filter(Boolean);
+      const requestedName = requestedParts.at(-1) ?? requested;
+      const tree = await loadRepositoryTree(resolvedRef);
+      return tree
+        .flatMap((entry) => {
+          if (!entry.path) return [];
+          const candidate = entry.path.toLowerCase();
+          const candidateParts = candidate.split("/");
+          const candidateName = candidateParts.at(-1) ?? candidate;
+          let sharedSuffix = 0;
+          while (
+            sharedSuffix < requestedParts.length &&
+            sharedSuffix < candidateParts.length &&
+            requestedParts[requestedParts.length - 1 - sharedSuffix] ===
+              candidateParts[candidateParts.length - 1 - sharedSuffix]
+          ) {
+            sharedSuffix += 1;
+          }
+          const sharedParts = requestedParts.filter((part) =>
+            candidateParts.includes(part),
+          ).length;
+          const score =
+            (candidate === requested ? 2_000 : 0) +
+            (candidate.endsWith(`/${requested}`) ? 1_000 : 0) +
+            (candidateName === requestedName ? 600 : 0) +
+            (candidate.includes(requested) ? 400 : 0) +
+            sharedSuffix * 100 +
+            sharedParts * 20;
+          return score > 0 ? [{ path: entry.path, score }] : [];
+        })
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            a.path.length - b.path.length ||
+            a.path.localeCompare(b.path),
+        )
+        .slice(0, 5)
+        .map(({ path: candidate }) => candidate);
+    } catch {
+      return [];
+    }
+  };
 
   return {
     github_get_issue: tool({
@@ -247,13 +331,14 @@ export function createGitHubTools(ctx: Ctx) {
           // one round trip, returns size/type per entry. For recursive ones
           // we resolve the ref's tree SHA and walk the git tree.
           const prefix = path?.trim().replace(/^\/+|\/+$/g, "") ?? "";
+          const resolvedRef = await resolveRef(ref);
 
           if (!recursive) {
             const res = await octokit.rest.repos.getContent({
               owner,
               repo,
               path: prefix,
-              ...(ref ? { ref } : {}),
+              ref: resolvedRef,
             });
             if (!Array.isArray(res.data)) {
               return {
@@ -262,7 +347,7 @@ export function createGitHubTools(ctx: Ctx) {
             }
             return {
               path: prefix || "/",
-              ref: ref ?? "default",
+              ref: resolvedRef,
               recursive: false,
               totalEntries: res.data.length,
               entries: res.data.map((e) => ({
@@ -273,24 +358,12 @@ export function createGitHubTools(ctx: Ctx) {
             };
           }
 
-          let treeSha: string;
-          if (ref) {
-            const refData = await octokit.rest.repos.getCommit({
-              owner,
-              repo,
-              ref,
-            });
-            treeSha = refData.data.commit.tree.sha;
-          } else {
-            const repoData = await octokit.rest.repos.get({ owner, repo });
-            const branch = repoData.data.default_branch;
-            const branchData = await octokit.rest.repos.getBranch({
-              owner,
-              repo,
-              branch,
-            });
-            treeSha = branchData.data.commit.commit.tree.sha;
-          }
+          const refData = await octokit.rest.repos.getCommit({
+            owner,
+            repo,
+            ref: resolvedRef,
+          });
+          const treeSha = refData.data.commit.tree.sha;
           const tree = await octokit.rest.git.getTree({
             owner,
             repo,
@@ -306,7 +379,7 @@ export function createGitHubTools(ctx: Ctx) {
           const capped = filtered.slice(0, 1000);
           return {
             path: prefix || "/",
-            ref: ref ?? "default",
+            ref: resolvedRef,
             recursive: true,
             truncated:
               Boolean(tree.data.truncated) || filtered.length > capped.length,
@@ -322,8 +395,13 @@ export function createGitHubTools(ctx: Ctx) {
             { err, owner, repo, path, recursive, ref },
             "github_list_tree failed",
           );
+          const suggestedPaths =
+            (err as { status?: unknown })?.status === 404 && path
+              ? await suggestRepositoryPaths(path, ref)
+              : [];
           return {
             error: err instanceof Error ? err.message : "Failed to list tree",
+            ...(suggestedPaths.length ? { suggestedPaths } : {}),
           };
         }
       },
@@ -345,11 +423,12 @@ export function createGitHubTools(ctx: Ctx) {
       }),
       execute: async ({ path, ref }) => {
         try {
+          const resolvedRef = await resolveRef(ref);
           const res = await octokit.rest.repos.getContent({
             owner,
             repo,
             path,
-            ref,
+            ref: resolvedRef,
           });
           if (Array.isArray(res.data)) {
             return {
@@ -372,9 +451,9 @@ export function createGitHubTools(ctx: Ctx) {
           return {
             kind: "file" as const,
             path: res.data.path,
-            sha: res.data.sha,
+            blobSha: res.data.sha,
             size: res.data.size,
-            ref: ref ?? "default",
+            ref: resolvedRef,
             content: clip(content, MAX_FILE_CHARS),
           };
         } catch (err) {
@@ -382,8 +461,13 @@ export function createGitHubTools(ctx: Ctx) {
             { err, owner, repo, path, ref },
             "github_get_file failed",
           );
+          const suggestedPaths =
+            (err as { status?: unknown })?.status === 404
+              ? await suggestRepositoryPaths(path, ref)
+              : [];
           return {
             error: err instanceof Error ? err.message : "Failed to fetch file",
+            ...(suggestedPaths.length ? { suggestedPaths } : {}),
           };
         }
       },
@@ -510,6 +594,7 @@ export function createGitHubTools(ctx: Ctx) {
       }),
       execute: async ({ path, ref, startLine, endLine }) => {
         try {
+          const resolvedRef = await resolveRef(ref);
           // GraphQL blame: ref → target → blame(path) → ranges[].commit.
           // One round-trip, returns one entry per contiguous run of lines
           // sharing the same commit, which is exactly what the model wants.
@@ -552,7 +637,7 @@ export function createGitHubTools(ctx: Ctx) {
           const result = (await octokit.graphql(query, {
             owner,
             repo,
-            ref: ref ?? "HEAD",
+            ref: resolvedRef,
             path,
           })) as {
             repository: {
@@ -570,7 +655,7 @@ export function createGitHubTools(ctx: Ctx) {
               : ranges;
           return {
             path,
-            ref: ref ?? "default",
+            ref: resolvedRef,
             ranges: filtered.map((r) => ({
               startLine: r.startingLine,
               endLine: r.endingLine,
@@ -607,11 +692,12 @@ export function createGitHubTools(ctx: Ctx) {
       }),
       execute: async ({ path, ref, perPage }) => {
         try {
+          const resolvedRef = await resolveRef(ref);
           const res = await octokit.rest.repos.listCommits({
             owner,
             repo,
             path,
-            sha: ref,
+            sha: resolvedRef,
             per_page: perPage,
           });
           return {

@@ -191,7 +191,10 @@ export async function deleteAgentFile(slug: string): Promise<void> {
 }
 
 export async function listResolvedAgentFiles(
-  options: { activeStoreSlugs?: Set<string> } = {},
+  options: {
+    activeStoreSlugs?: Set<string>;
+    storeFailure?: "throw" | "omit";
+  } = {},
 ): Promise<AgentFile[]> {
   const persisted = await listAgentFiles();
   const local = persisted.filter((agent) => agent.source !== "store");
@@ -221,11 +224,17 @@ export async function listResolvedAgentFiles(
     });
   }
   const octokit = getOctokit();
-  const store = await listStoreAgentFiles(
-    octokit,
-    shadowedSlugs,
-    activeStoreSlugs,
-  );
+  let store: AgentFile[];
+  try {
+    store = await listStoreAgentFiles(
+      octokit,
+      shadowedSlugs,
+      activeStoreSlugs,
+    );
+  } catch (error) {
+    if (options.storeFailure !== "omit") throw error;
+    store = [];
+  }
   return mergeResolvedAgentFiles({
     local,
     builtin,
