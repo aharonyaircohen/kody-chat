@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     });
     // Models sometimes wrap the title in quotes or add a period despite
     // the instruction — normalize defensively.
-    const cleaned = text
+    const cleaned = stripReasoning(text)
       .trim()
       .replace(/^["'`]+|["'`]+$/g, "")
       .replace(/[.\s]+$/, "")

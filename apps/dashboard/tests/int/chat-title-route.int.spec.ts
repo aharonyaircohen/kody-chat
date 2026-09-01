@@ -138,6 +138,21 @@ describe("POST /api/kody/chat/title", () => {
     await expect(res.json()).resolves.toEqual({ title: null });
   });
 
+  it("removes model reasoning from a generated title", async () => {
+    generateTextMock.mockResolvedValue({
+      text: "<think>User said hi.</think> Greeting and introduction",
+    });
+
+    const res = await POST(
+      makeReq({ messages: [{ role: "user", content: "hi" }] }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      title: "Greeting and introduction",
+    });
+  });
+
   it("falls back cleanly when title generation throws", async () => {
     generateTextMock.mockRejectedValue(new Error("provider down"));
 
