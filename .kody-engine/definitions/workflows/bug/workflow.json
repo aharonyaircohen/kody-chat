@@ -7,7 +7,9 @@
     "plan",
     "run",
     "review",
-    "fix"
+    "fix",
+    "comment-reviewed-issue-pull-request",
+    "comment-stopped-issue-resolution"
   ],
   "inputSchema": {
     "type": "object",
@@ -60,7 +62,7 @@
       ],
       "next": [
         {
-          "to": "$end",
+          "to": "stopped",
           "when": {
             "lastOutcome.type": "RUN_FAILED"
           }
@@ -72,7 +74,7 @@
           }
         },
         {
-          "to": "$end",
+          "to": "stopped",
           "default": true
         }
       ]
@@ -82,7 +84,16 @@
       "capability": "plan",
       "target": "issue",
       "targetFact": "issue",
+      "continueOn": [
+        "RUN_FAILED"
+      ],
       "next": [
+        {
+          "to": "stopped",
+          "when": {
+            "lastOutcome.type": "RUN_FAILED"
+          }
+        },
         {
           "to": "run",
           "when": {
@@ -90,7 +101,7 @@
           }
         },
         {
-          "to": "$end",
+          "to": "stopped",
           "default": true
         }
       ]
@@ -102,9 +113,19 @@
       "delivery": "pull-request",
       "targetFact": "issue",
       "reason": "Fix the reproduced bug, run the required tests and local UI verification when the repository policy requires it, and create the pull request.",
+      "continueOn": [
+        "RUN_FAILED"
+      ],
       "next": [
         {
-          "to": "review"
+          "to": "stopped",
+          "when": {
+            "lastOutcome.type": "RUN_FAILED"
+          }
+        },
+        {
+          "to": "review",
+          "default": true
         }
       ]
     },
@@ -113,7 +134,16 @@
       "capability": "review",
       "target": "pr",
       "targetFact": "pr",
+      "continueOn": [
+        "RUN_FAILED"
+      ],
       "next": [
+        {
+          "to": "stopped",
+          "when": {
+            "lastOutcome.type": "RUN_FAILED"
+          }
+        },
         {
           "to": "fix",
           "when": {
@@ -122,7 +152,7 @@
           "maxIterations": 3
         },
         {
-          "to": "$end",
+          "to": "reviewed",
           "default": true
         }
       ]
@@ -133,16 +163,46 @@
       "target": "pr",
       "delivery": "pull-request",
       "targetFact": "pr",
+      "continueOn": [
+        "RUN_FAILED"
+      ],
       "next": [
+        {
+          "to": "stopped",
+          "when": {
+            "lastOutcome.type": "RUN_FAILED"
+          }
+        },
         {
           "to": "review",
           "default": true,
           "maxIterations": 3
         }
       ]
+    },
+    {
+      "id": "reviewed",
+      "capability": "comment-reviewed-issue-pull-request",
+      "inputs": {
+        "issue": {
+          "from": "workflow.facts.issue"
+        },
+        "pr": {
+          "from": "workflow.facts.pr"
+        }
+      }
+    },
+    {
+      "id": "stopped",
+      "capability": "comment-stopped-issue-resolution",
+      "inputs": {
+        "issue": {
+          "from": "workflow.facts.issue"
+        }
+      }
     }
   ],
   "runWithoutApproval": true,
-  "createdAt": "2026-09-01T03:05:36.128Z",
-  "updatedAt": "2026-09-01T03:05:36.128Z"
+  "createdAt": "2026-09-01T04:14:17.017Z",
+  "updatedAt": "2026-09-01T04:14:17.017Z"
 }
