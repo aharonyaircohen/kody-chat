@@ -79,6 +79,21 @@ describe("workflowRuns", () => {
         facts: {},
         evidence: {},
         artifacts: [],
+        usage: {
+          version: 1,
+          tokens: {
+            input: 100,
+            output: 20,
+            cacheRead: 30,
+            cacheCreate: 0,
+            total: 150,
+          },
+          costUsd: 0.5,
+          agentRuns: 1,
+          turns: 4,
+          measurement: "reported",
+          byModel: {},
+        },
       },
       updatedAt: NOW,
     })
@@ -90,6 +105,7 @@ describe("workflowRuns", () => {
     })
     expect(run?.state.input).toEqual({ testId: "direct-kody-chat" })
     expect(run?.state.steps?.["quality-check"]?.status).toBe("running")
+    expect(run?.state.usage?.tokens.total).toBe(150)
   })
 
   it("persists a Workflow paused immediately before an approved step", async () => {

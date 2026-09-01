@@ -117,6 +117,38 @@ export const workflowRunStatusValidator = v.union(
   v.literal("done"),
 );
 
+const tokenBreakdownValidator = v.object({
+  input: v.number(),
+  output: v.number(),
+  cacheRead: v.number(),
+  cacheCreate: v.number(),
+  total: v.number(),
+});
+
+const usageMeasurementValidator = v.union(
+  v.literal("reported"),
+  v.literal("partial"),
+  v.literal("unknown"),
+);
+
+const modelRunUsageValidator = v.object({
+  tokens: tokenBreakdownValidator,
+  costUsd: v.number(),
+  agentRuns: v.number(),
+  turns: v.number(),
+  measurement: usageMeasurementValidator,
+});
+
+const runUsageValidator = v.object({
+  version: v.literal(1),
+  tokens: tokenBreakdownValidator,
+  costUsd: v.number(),
+  agentRuns: v.number(),
+  turns: v.number(),
+  measurement: usageMeasurementValidator,
+  byModel: v.record(v.string(), modelRunUsageValidator),
+});
+
 export const workflowRunStateValidator = v.object({
   status: workflowRunStatusValidator,
   input: v.optional(v.record(v.string(), v.any())),
@@ -167,6 +199,7 @@ export const workflowRunStateValidator = v.object({
       }),
     ),
   ),
+  usage: v.optional(runUsageValidator),
   blocker: v.optional(v.string()),
 });
 
