@@ -1,0 +1,15 @@
+{
+  "id": "bug-resolution",
+  "trigger": {
+    "type": "schedule",
+    "every": "1h"
+  },
+  "target": {
+    "kind": "workflow",
+    "id": "bug"
+  },
+  "input": {
+    "requiredLabels": ["bug"]
+  },
+  "enabled": true
+}

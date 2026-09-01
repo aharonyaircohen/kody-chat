@@ -54,6 +54,9 @@ describe("kody-chat company activation", () => {
       "qa-issue-sync",
       "observe-repo-ci",
       "verify-strategy-application",
+      "claim-next-backlog-issue",
+      "reproduce",
+      "plan",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
@@ -67,6 +70,7 @@ describe("kody-chat company activation", () => {
       "qa-issue-sync",
       "qa-fix",
       "director-ci-monitor",
+      "bug",
     ]);
     expect(config.defaultImplementation).toBe("run");
     expect(config.defaultPrImplementation).toBe("fix");
@@ -104,5 +108,19 @@ describe("kody-chat company activation", () => {
       mode: "read-only",
       url: expect.stringContaining("kody-dashboard-khaki.vercel.app"),
     });
+  });
+
+  it("runs Bug Flow once per hour without merge ownership", () => {
+    const loop = JSON.parse(
+      readFileSync(
+        resolve(repoRoot, ".kody-engine/definitions/loops/bug-resolution/loop.json"),
+        "utf8",
+      ),
+    );
+
+    expect(loop.trigger).toEqual({ type: "schedule", every: "1h" });
+    expect(loop.target).toEqual({ kind: "workflow", id: "bug" });
+    expect(loop.input).toEqual({ requiredLabels: ["bug"] });
+    expect(loop.enabled).toBe(true);
   });
 });

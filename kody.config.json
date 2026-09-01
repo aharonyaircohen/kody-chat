@@ -84,7 +84,10 @@
       "qa-engineer",
       "qa-issue-sync",
       "observe-repo-ci",
-      "verify-strategy-application"
+      "verify-strategy-application",
+      "claim-next-backlog-issue",
+      "reproduce",
+      "plan"
     ],
     "activeWorkflows": [
       "ci-repair",
@@ -97,7 +100,8 @@
       "qa-scan",
       "qa-issue-sync",
       "qa-fix",
-      "director-ci-monitor"
+      "director-ci-monitor",
+      "bug"
     ],
     "activePipelines": [
       "review-and-merge",
