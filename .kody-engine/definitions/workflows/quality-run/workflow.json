@@ -1,0 +1,19 @@
+{
+  "name": "Quality Run",
+  "agent": "qa",
+  "capabilities": [
+    "quality-check"
+  ],
+  "startAt": "check",
+  "steps": [
+    {
+      "id": "check",
+      "capability": "quality-check",
+      "evidence": "qualityTestPassed",
+      "timeoutSeconds": 1200
+    }
+  ],
+  "runWithoutApproval": true,
+  "createdAt": "2026-09-01T16:26:21.034Z",
+  "updatedAt": "2026-09-01T16:26:21.034Z"
+}
