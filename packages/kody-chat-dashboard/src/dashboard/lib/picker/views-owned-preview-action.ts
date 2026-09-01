@@ -56,6 +56,10 @@ export function isViewsPath(pathname: string | null): boolean {
   return /(?:^|\/)preview(?:\/|$)/.test(pathname ?? "");
 }
 
+export function isSelectedViewPath(pathname: string | null): boolean {
+  return /(?:^|\/)preview\/[^/]+(?:\/|$)/.test(pathname ?? "");
+}
+
 export async function ensureViewsOwnedCapabilityAction(input: {
   action: PreviewAction;
   pathname: string | null;

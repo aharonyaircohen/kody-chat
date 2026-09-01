@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   consumePendingViewsCapabilityAction,
   ensureViewsOwnedCapabilityAction,
+  isSelectedViewPath,
   isViewsPath,
   stagePendingViewsCapabilityAction,
 } from "../../src/dashboard/lib/picker/views-owned-preview-action";
@@ -66,6 +67,13 @@ describe("Views-owned Capability browser actions", () => {
     expect(isViewsPath("/repo/acme/project/preview/facebook")).toBe(true);
     expect(isViewsPath("/repo/acme/project/file-spaces/content-studio")).toBe(
       false,
+    );
+  });
+
+  it("distinguishes the Views chooser from an active saved View", () => {
+    expect(isSelectedViewPath("/repo/acme/project/preview")).toBe(false);
+    expect(isSelectedViewPath("/repo/acme/project/preview/facebook")).toBe(
+      true,
     );
   });
 

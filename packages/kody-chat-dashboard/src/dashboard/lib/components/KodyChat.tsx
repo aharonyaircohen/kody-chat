@@ -38,6 +38,7 @@ import { runPreviewAction } from "../picker/run-preview-action";
 import {
   consumePendingViewsCapabilityAction,
   ensureViewsOwnedCapabilityAction,
+  isSelectedViewPath,
   isViewsPath,
   stagePendingViewsCapabilityAction,
 } from "../picker/views-owned-preview-action";
@@ -836,7 +837,7 @@ export function KodyChat({
     [auth, getPreviewActionRunner, router],
   );
   useEffect(() => {
-    if (!isViewsPath(pathname)) return;
+    if (!isSelectedViewPath(pathname)) return;
     let cancelled = false;
     void (async () => {
       for (let attempt = 0; attempt < 240; attempt += 1) {
