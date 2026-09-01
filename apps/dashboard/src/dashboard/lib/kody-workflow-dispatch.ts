@@ -201,12 +201,18 @@ function buildInputsForNames(
   const inputs: Record<string, string> = {};
 
   if (request.executionRequest) {
-    if (!supportsInput(inputNames, "runRequest")) {
+    const serializedRequest = JSON.stringify(request.executionRequest);
+    if (supportsInput(inputNames, "runRequestBase64")) {
+      inputs.runRequestBase64 = Buffer.from(serializedRequest, "utf8").toString(
+        "base64",
+      );
+    } else if (supportsInput(inputNames, "runRequest")) {
+      inputs.runRequest = serializedRequest;
+    } else {
       throw new Error(
-        "kody.yml workflow_dispatch must declare the runRequest input.",
+        "kody.yml workflow_dispatch must declare runRequestBase64 or runRequest.",
       );
     }
-    inputs.runRequest = JSON.stringify(request.executionRequest);
   }
 
   if (request.action && !request.executionRequest) {

@@ -129,6 +129,46 @@ on:
     });
   });
 
+  it("uses the transport-safe request input when the workflow declares it", async () => {
+    const octokit = octokitWithWorkflow(`
+on:
+  workflow_dispatch:
+    inputs:
+      requestId:
+        type: string
+      runRequestBase64:
+        type: string
+`);
+    const executionRequest = {
+      requestId: "run-quality-1",
+      target: { type: "workflow" as const, id: "quality-run" },
+      intent: "run" as const,
+      source: "dashboard" as const,
+      input: {
+        journeys: [{ slug: "chat", actions: [{ slug: "send" }] }],
+      },
+    };
+
+    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+      owner: "test-owner",
+      repo: "test-repo",
+      ref: "main",
+      requestId: executionRequest.requestId,
+      executionRequest,
+    });
+
+    expect(inputs).toEqual({
+      requestId: "run-quality-1",
+      runRequestBase64: Buffer.from(
+        JSON.stringify(executionRequest),
+        "utf8",
+      ).toString("base64"),
+    });
+    expect(JSON.parse(Buffer.from(inputs.runRequestBase64!, "base64").toString("utf8"))).toEqual(
+      executionRequest,
+    );
+  });
+
   it("shares cached workflow input reads for repeated dispatches", async () => {
     const octokit = octokitWithWorkflow(executableWorkflow);
 
