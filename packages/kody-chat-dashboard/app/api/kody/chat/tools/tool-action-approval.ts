@@ -14,6 +14,21 @@ export interface ToolActionApprovalContext {
   actorId: string;
 }
 
+export interface ToolActionDecisionContext {
+  /** Plain sentence describing what is currently true before the action runs. */
+  currentState: string;
+  /** Plain sentence explaining why a decision is needed now. */
+  whyNow: string;
+  /** Plain sentence describing what will happen if approved. */
+  recommendedAction: string;
+  /** Plain sentence describing what will happen if cancelled. */
+  cancelChoice: string;
+  /** Kody's recommendation (optional). */
+  recommendation?: string;
+  /** Tradeoff of the recommendation (optional). */
+  tradeoff?: string;
+}
+
 interface ToolActionPayload extends ToolActionApprovalContext {
   toolName: string;
   input: unknown;
@@ -102,6 +117,26 @@ function decodePayload(
   }
 }
 
+function buildDecisionBody(input: {
+  title: string;
+  decisionContext?: ToolActionDecisionContext;
+  legacyBody?: string;
+}): string {
+  if (input.decisionContext) {
+    const { currentState, whyNow, recommendedAction, cancelChoice, recommendation, tradeoff } =
+      input.decisionContext;
+    const parts: string[] = [];
+    if (currentState) parts.push(`**Current:** ${currentState}`);
+    if (whyNow) parts.push(`**Why:** ${whyNow}`);
+    if (recommendedAction) parts.push(`**Approving will:** ${recommendedAction}`);
+    if (cancelChoice) parts.push(`**Cancelling will:** ${cancelChoice}`);
+    if (recommendation) parts.push(`**Recommendation:** ${recommendation}`);
+    if (tradeoff) parts.push(`**Tradeoff:** ${tradeoff}`);
+    return parts.join("\n\n");
+  }
+  return input.legacyBody ?? "Approve to run this exact saved action, or cancel to leave everything unchanged.";
+}
+
 export function createToolActionApproval(input: {
   secret: string;
   context: ToolActionApprovalContext;
@@ -109,6 +144,7 @@ export function createToolActionApproval(input: {
   input: unknown;
   title: string;
   body?: string;
+  decisionContext?: ToolActionDecisionContext;
   now?: number;
 }): RenderedViewDirective {
   const definition = getBuiltinViewRendererDefinition("approval-card");
@@ -126,7 +162,7 @@ export function createToolActionApproval(input: {
     definition,
     data: {
       title: input.title,
-      ...(input.body ? { body: input.body } : {}),
+      body: buildDecisionBody({ title: input.title, decisionContext: input.decisionContext, legacyBody: input.body }),
     },
   });
 }

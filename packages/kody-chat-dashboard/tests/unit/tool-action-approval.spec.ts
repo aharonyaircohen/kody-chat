@@ -189,4 +189,64 @@ describe("tool action approval", () => {
       "Configuration applied and verified. First run run-ci-1 succeeded: CI is green.",
     );
   });
+
+  it("builds a decision-context approval that explains state, why, effect, and cancel", () => {
+    const directive = createToolActionApproval({
+      secret: "github-token",
+      context,
+      toolName: "configure_kody",
+      input: { slug: "ci-watch" },
+      title: "Rerun issue #23 to fix the missing branch-write capability?",
+      decisionContext: {
+        currentState:
+          "PR #24 has one failing check: the branch cannot be written to because the token lacks the contents:write scope.",
+        whyNow:
+          "Without a rerun, PR #24 stays red and you will be asked again on the next turn.",
+        recommendedAction:
+          "Rerunning will re-run the existing issue on the same PR branch; it will not create a new pull request.",
+        cancelChoice:
+          "Cancelling will stop the current flow and leave PR #24 in its failing state until you start a new turn.",
+        recommendation: "Rerun on the same branch.",
+        tradeoff:
+          "A new PR would lose the prior review history, so the cheaper path is to rerun in place.",
+      },
+      now: 1_000,
+    });
+
+    const body = String(
+      (directive.data as { body?: string }).body ?? "",
+    );
+    expect(body).toContain(
+      "**Current:** PR #24 has one failing check: the branch cannot be written to because the token lacks the contents:write scope.",
+    );
+    expect(body).toContain(
+      "**Why:** Without a rerun, PR #24 stays red and you will be asked again on the next turn.",
+    );
+    expect(body).toContain(
+      "**Approving will:** Rerunning will re-run the existing issue on the same PR branch; it will not create a new pull request.",
+    );
+    expect(body).toContain(
+      "**Cancelling will:** Cancelling will stop the current flow and leave PR #24 in its failing state until you start a new turn.",
+    );
+    expect(body).toContain("**Recommendation:** Rerun on the same branch.");
+    expect(body).toContain("**Tradeoff:**");
+    expect(directive.data.title).not.toMatch(/kody_run_issue|configure_kody/);
+  });
+
+  it("keeps the legacy short body when no decision context is supplied", () => {
+    const directive = createToolActionApproval({
+      secret: "github-token",
+      context,
+      toolName: "create_chore",
+      input: { title: "Refresh dependencies" },
+      title: "Create task Refresh dependencies?",
+      now: 1_000,
+    });
+
+    const body = String(
+      (directive.data as { body?: string }).body ?? "",
+    );
+    expect(body.length).toBeLessThan(200);
+    expect(body).toContain("Approve");
+  });
 });

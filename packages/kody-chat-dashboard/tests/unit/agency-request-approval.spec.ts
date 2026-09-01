@@ -67,4 +67,25 @@ describe("Agency request approval view", () => {
     expect(body).toContain("agency-request-keep-ci-passing");
     expect(body).toContain("approval-card");
   });
+
+  it("builds a decision-context approval with current state, why, action, and cancel", () => {
+    const directive = createAgencyRequestApproval({
+      todoSlug: "fix-auth-bug",
+      decisionContext: {
+        currentState: "Auth tokens are stored without expiry validation, allowing stale sessions to persist.",
+        whyNow: "The security review flagged this before the release cut-off on Friday.",
+        recommendedAction: "Apply the patched auth boundary and re-verify the token refresh flow.",
+        cancelChoice: "Leave the auth boundary unchanged and flag the Friday deadline risk.",
+      },
+    });
+
+    const body = String(
+      (directive.data as { body?: string }).body ?? "",
+    );
+    expect(body).toContain("**Current:** Auth tokens are stored without expiry validation");
+    expect(body).toContain("**Why:** The security review flagged this before the release cut-off");
+    expect(body).toContain("**Approving will:** Apply the patched auth boundary");
+    expect(body).toContain("**Cancelling will:** Leave the auth boundary unchanged");
+    expect(directive.data.title).toBe("Approve this Agency plan?");
+  });
 });
