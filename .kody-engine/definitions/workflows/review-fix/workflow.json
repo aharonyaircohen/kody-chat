@@ -1,0 +1,106 @@
+{
+  "name": "Review and Fix",
+  "agent": "kody",
+  "capabilities": [
+    "review",
+    "ui-review",
+    "fix"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pr": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "pr"
+    ],
+    "additionalProperties": false
+  },
+  "startAt": "review",
+  "steps": [
+    {
+      "id": "review",
+      "capability": "review",
+      "target": "pr",
+      "next": [
+        {
+          "to": "ui-review",
+          "when": {
+            "result.verdict": "pass"
+          }
+        },
+        {
+          "to": "fix",
+          "when": {
+            "result.verdict": "fix"
+          }
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "ui-review",
+      "capability": "ui-review",
+      "target": "pr",
+      "next": [
+        {
+          "to": "$end",
+          "when": {
+            "result.status": "pass"
+          }
+        },
+        {
+          "to": "fix",
+          "when": {
+            "result.status": "fix"
+          }
+        },
+        {
+          "to": "$end",
+          "when": {
+            "result.status": "blocked"
+          }
+        },
+        {
+          "to": "$end",
+          "default": true
+        }
+      ]
+    },
+    {
+      "id": "fix",
+      "capability": "fix",
+      "inputs": {
+        "pr": {
+          "from": "workflow.input.pr"
+        },
+        "feedback": {
+          "from": "steps.review.result.feedback"
+        }
+      },
+      "target": "pr",
+      "delivery": "pull-request",
+      "next": [
+        {
+          "to": "$end",
+          "when": {
+            "result.status": "blocked"
+          }
+        },
+        {
+          "to": "review",
+          "default": true,
+          "maxIterations": 3
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-08-08T00:00:00Z",
+  "updatedAt": "2026-08-11T00:00:00Z"
+}
