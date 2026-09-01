@@ -87,7 +87,9 @@
       "verify-strategy-application",
       "claim-next-backlog-issue",
       "reproduce",
-      "plan"
+      "plan",
+      "comment-reviewed-issue-pull-request",
+      "comment-stopped-issue-resolution"
     ],
     "activeWorkflows": [
       "ci-repair",
