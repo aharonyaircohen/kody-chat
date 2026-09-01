@@ -35,7 +35,12 @@ import {
 import { useElementPicker } from "../picker/useElementPicker";
 import { formatPageInfo } from "../picker/protocol";
 import { runPreviewAction } from "../picker/run-preview-action";
-import { ensureViewsOwnedCapabilityAction } from "../picker/views-owned-preview-action";
+import {
+  consumePendingViewsCapabilityAction,
+  ensureViewsOwnedCapabilityAction,
+  isViewsPath,
+  stagePendingViewsCapabilityAction,
+} from "../picker/views-owned-preview-action";
 import { getViewsPreviewActionRunner } from "../picker/views-preview-action-runner";
 import { formatMacrosCatalog, type Macro } from "../macros";
 import { authHeaders, clearLiveSession } from "../kody-chat-live-session";
@@ -782,6 +787,15 @@ export function KodyChat({
   // Initialized lazily below — `sendText` is declared further down.
   const runPreviewActionFromDirective = useCallback(
     async (directive: PreviewActDirective) => {
+      if (directive.capabilitySlug && !isViewsPath(pathnameRef.current)) {
+        try {
+          stagePendingViewsCapabilityAction(directive, window.sessionStorage);
+          router.push(auth ? repoScopedHref(auth, "/preview") : "/preview");
+          return;
+        } catch {
+          // Continue with the in-memory handoff when session storage is blocked.
+        }
+      }
       const currentPreviewActionRunner = () =>
         getViewsPreviewActionRunner() ??
         getPreviewActionRunner?.() ??
@@ -821,6 +835,31 @@ export function KodyChat({
     },
     [auth, getPreviewActionRunner, router],
   );
+  useEffect(() => {
+    if (!isViewsPath(pathname)) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 240; attempt += 1) {
+        if (cancelled) return;
+        const runner =
+          getViewsPreviewActionRunner() ??
+          getPreviewActionRunner?.() ??
+          previewActionRunnerRef.current ??
+          null;
+        if (runner) {
+          const directive = consumePendingViewsCapabilityAction(
+            window.sessionStorage,
+          );
+          if (directive) await runPreviewActionFromDirective(directive);
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getPreviewActionRunner, pathname, runPreviewActionFromDirective]);
   const runDashboardNavigateFromDirective = useCallback(
     (directive: DashboardNavigateDirective) => {
       const targetHref = addGuidedFlowFilePickerReturnHref(

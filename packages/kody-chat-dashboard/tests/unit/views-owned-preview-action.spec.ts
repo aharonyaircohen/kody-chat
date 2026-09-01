@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  consumePendingViewsCapabilityAction,
   ensureViewsOwnedCapabilityAction,
   isViewsPath,
+  stagePendingViewsCapabilityAction,
 } from "../../src/dashboard/lib/picker/views-owned-preview-action";
+import type { PreviewActDirective } from "../../src/dashboard/lib/chat-ui-actions";
 import type { PreviewAction } from "../../src/dashboard/lib/picker/protocol";
 
 const capabilityAction: PreviewAction = {
@@ -14,6 +17,50 @@ const capabilityAction: PreviewAction = {
 };
 
 describe("Views-owned Capability browser actions", () => {
+  it("carries a Capability action across a full route reload exactly once", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    const directive: PreviewActDirective = {
+      action: "preview_act",
+      op: "navigate",
+      url: "https://www.facebook.com/",
+      capabilitySlug: "draft-facebook-personal-post",
+      allowedOrigins: ["https://www.facebook.com"],
+      reason: "Open Facebook",
+    };
+
+    stagePendingViewsCapabilityAction(directive, storage, 1_000);
+
+    expect(consumePendingViewsCapabilityAction(storage, 1_500)).toEqual(
+      directive,
+    );
+    expect(consumePendingViewsCapabilityAction(storage, 1_500)).toBeNull();
+  });
+
+  it("drops stale persisted browser actions instead of replaying them", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    const directive: PreviewActDirective = {
+      action: "preview_act",
+      op: "wait",
+      ms: 100,
+      capabilitySlug: "draft-facebook-personal-post",
+      reason: "Wait",
+    };
+
+    stagePendingViewsCapabilityAction(directive, storage, 1_000);
+
+    expect(consumePendingViewsCapabilityAction(storage, 122_001)).toBeNull();
+  });
+
   it("recognizes canonical repository-scoped Views routes", () => {
     expect(isViewsPath("/repo/acme/project/preview")).toBe(true);
     expect(isViewsPath("/repo/acme/project/preview/facebook")).toBe(true);
