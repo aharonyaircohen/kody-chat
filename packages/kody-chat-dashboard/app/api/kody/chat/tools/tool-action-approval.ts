@@ -14,6 +14,21 @@ export interface ToolActionApprovalContext {
   actorId: string;
 }
 
+export interface ToolActionDecisionContext {
+  /** Plain sentence describing what is currently true before the action runs. */
+  currentState: string;
+  /** Plain sentence explaining why a decision is needed now. */
+  whyNow: string;
+  /** Plain sentence describing what will happen if approved. */
+  recommendedAction: string;
+  /** Plain sentence describing what will happen if cancelled. */
+  cancelChoice: string;
+  /** Kody's recommendation (optional). */
+  recommendation?: string;
+  /** Tradeoff of the recommendation (optional). */
+  tradeoff?: string;
+}
+
 interface ToolActionPayload extends ToolActionApprovalContext {
   toolName: string;
   input: unknown;
@@ -102,6 +117,25 @@ function decodePayload(
   }
 }
 
+export function buildDecisionBody(input: {
+  currentState?: string;
+  whyNow?: string;
+  recommendedAction?: string;
+  cancelChoice?: string;
+  recommendation?: string;
+  tradeoff?: string;
+  legacyBody: string;
+}): string {
+  const parts: string[] = [];
+  if (input.currentState) parts.push(`**Current:** ${input.currentState}`);
+  if (input.whyNow) parts.push(`**Why:** ${input.whyNow}`);
+  if (input.recommendedAction) parts.push(`**Approving will:** ${input.recommendedAction}`);
+  if (input.cancelChoice) parts.push(`**Cancelling will:** ${input.cancelChoice}`);
+  if (input.recommendation) parts.push(`**Recommendation:** ${input.recommendation}`);
+  if (input.tradeoff) parts.push(`**Tradeoff:** ${input.tradeoff}`);
+  return parts.length > 0 ? parts.join("\n\n") : input.legacyBody;
+}
+
 export function createToolActionApproval(input: {
   secret: string;
   context: ToolActionApprovalContext;
@@ -109,6 +143,7 @@ export function createToolActionApproval(input: {
   input: unknown;
   title: string;
   body?: string;
+  decisionContext?: ToolActionDecisionContext;
   now?: number;
 }): RenderedViewDirective {
   const definition = getBuiltinViewRendererDefinition("approval-card");
@@ -126,7 +161,10 @@ export function createToolActionApproval(input: {
     definition,
     data: {
       title: input.title,
-      ...(input.body ? { body: input.body } : {}),
+      body: buildDecisionBody({
+        ...input.decisionContext,
+        legacyBody: input.body ?? "Approve to run this exact saved action, or cancel to leave everything unchanged.",
+      }),
     },
   });
 }

@@ -19,7 +19,7 @@ import {
   themeLocalStorageKey,
 } from "@dashboard/providers/Theme/shared";
 import "@dashboard/globals.css";
-import { getKodyAuthToken } from "@dashboard/lib/auth/kody-auth-server";
+import { getKodyAuthTokenOrNull } from "@dashboard/lib/auth/kody-auth-server";
 
 const assistant = Assistant({
   subsets: ["latin", "hebrew"],
@@ -56,7 +56,7 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  const initialAuthToken = await getKodyAuthTokenOrNull();
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
