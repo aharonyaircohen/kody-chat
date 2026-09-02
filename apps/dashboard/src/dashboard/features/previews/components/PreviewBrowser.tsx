@@ -12,6 +12,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type ReactNode,
@@ -60,7 +61,15 @@ import {
 import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
 import { FlyRemoteBrowserSurface } from "@dashboard/features/previews/components/FlyRemoteBrowserSurface";
 import { useBrowserSession } from "@dashboard/lib/previews/use-browser-session";
-import type { BrowserUploadFile } from "@dashboard/lib/previews/browser-session-client";
+import {
+  browserControllerReducer,
+  initialBrowserControllerState,
+  type BrowserPageState,
+} from "@dashboard/lib/previews/browser-controller-state";
+import type {
+  BrowserUploadFile,
+  RemoteBrowserActionResult,
+} from "@dashboard/lib/previews/browser-session-client";
 
 export interface PreviewBrowserProps {
   /** Resolved base URL for the active preview, or null when nothing can show. */
@@ -92,6 +101,8 @@ export interface PreviewBrowserProps {
   /** Use the installed real-browser provider when available. */
   enableRemoteBrowser?: boolean;
   browserActorLogin?: string;
+  environmentId?: string | null;
+  onRemoteEnvironmentCommit?: (environmentId: string | null) => void;
   /** Resolve repository-owned files only when a Capability requests upload. */
   resolveBrowserUploadFiles?: (paths: string[]) => Promise<BrowserUploadFile[]>;
   /** Exposes only the browser visibly mounted by Views to persistent Chat. */
@@ -227,6 +238,8 @@ export function PreviewBrowser({
   iframeTitle = "Preview deployment",
   enableRemoteBrowser = false,
   browserActorLogin,
+  environmentId = null,
+  onRemoteEnvironmentCommit,
   resolveBrowserUploadFiles,
   onRemoteActionRunnerChange,
   loadingTitle = "Loading preview...",
@@ -264,8 +277,19 @@ export function PreviewBrowser({
   const reconnectRemoteBrowser = remoteBrowser.reconnect;
   const remoteSession =
     remoteBrowserMode.kind === "remote" ? remoteBrowserMode.session : null;
+  const remoteIframeReason =
+    remoteBrowserMode.kind === "iframe" ? remoteBrowserMode.reason : null;
+  const remoteModeError =
+    remoteBrowserMode.kind === "error" ? remoteBrowserMode.error : null;
   const remoteSessionId = remoteSession?.sessionId;
-  const previousRemoteBaseUrlRef = useRef<string | null>(baseUrl);
+  const [remoteController, dispatchRemote] = useReducer(
+    browserControllerReducer,
+    initialBrowserControllerState,
+  );
+  const remotePage = remoteController.page.url ? remoteController.page : null;
+  const remotePageReadySessionRef = useRef<string | null>(null);
+  const remoteNavigationRequestRef = useRef(0);
+  const remoteTargetRef = useRef<string | null>(null);
 
   const getPreviewAuthSourceUrl = useCallback((): string | null => {
     if (typeof window === "undefined") {
@@ -330,8 +354,9 @@ export function PreviewBrowser({
     previousBaseUrlRef.current = baseUrl;
   }, [baseUrl, previewUrl, showBrowserChrome]);
 
-  const rawActivePreviewUrl =
-    browserHistory.entries[browserHistory.index] ?? previewUrl;
+  const rawActivePreviewUrl = remoteSession
+    ? (remotePage?.url ?? remoteSession.currentUrl ?? previewUrl)
+    : (browserHistory.entries[browserHistory.index] ?? previewUrl);
   const activePreviewUrl = useMemo(() => {
     if (!rawActivePreviewUrl || typeof window === "undefined") {
       return rawActivePreviewUrl;
@@ -396,39 +421,130 @@ export function PreviewBrowser({
   );
 
   useEffect(() => {
-    if (!remoteSession?.currentUrl) return;
-    syncBrowserHistoryUrl(remoteSession.currentUrl, { allowExternal: true });
-  }, [remoteSession?.currentUrl, syncBrowserHistoryUrl]);
-
-  useEffect(() => {
-    const previous = previousRemoteBaseUrlRef.current;
-    previousRemoteBaseUrlRef.current = baseUrl;
-    if (!remoteSessionId || !baseUrl || !previous || previous === baseUrl)
+    if (remoteBrowserMode.kind === "checking") {
+      dispatchRemote({ type: "sessionStarting" });
       return;
-    void remoteBrowserAct({ type: "navigate", url: baseUrl });
-  }, [baseUrl, remoteBrowserAct, remoteSessionId]);
+    }
+    if (remoteBrowserMode.kind === "iframe") {
+      dispatchRemote({
+        type: "iframeAvailable",
+        reason: remoteIframeReason ?? "fly_not_configured",
+      });
+      return;
+    }
+    if (remoteBrowserMode.kind === "error") {
+      dispatchRemote({
+        type: "disconnected",
+        error: remoteModeError ?? "browser_session_failed",
+      });
+      return;
+    }
+    if (remoteBrowserMode.kind === "disabled") {
+      dispatchRemote({ type: "disabled" });
+      return;
+    }
+    remotePageReadySessionRef.current = null;
+    remoteTargetRef.current = null;
+    dispatchRemote({ type: "sessionStarting" });
+  }, [
+    remoteBrowserMode.kind,
+    remoteIframeReason,
+    remoteModeError,
+    remoteSessionId,
+  ]);
 
   useEffect(() => {
-    if (!remoteSessionId) return;
-    let cancelled = false;
-    let busy = false;
-    const syncRemotePage = async (): Promise<void> => {
-      if (busy) return;
-      busy = true;
-      try {
-        const result = await remoteBrowserAct({ type: "snapshot" });
-        if (!cancelled && result.url)
-          syncBrowserHistoryUrl(result.url, { allowExternal: true });
-      } finally {
-        busy = false;
+    if (remoteBrowserMode.kind === "iframe") {
+      onRemoteEnvironmentCommit?.(environmentId);
+    }
+  }, [environmentId, onRemoteEnvironmentCommit, remoteBrowserMode.kind]);
+
+  const handleRemotePageState = useCallback(
+    (page: BrowserPageState): void => {
+      dispatchRemote({ type: "pageChanged", page });
+      if (
+        remoteSessionId &&
+        remotePageReadySessionRef.current !== remoteSessionId
+      ) {
+        remotePageReadySessionRef.current = remoteSessionId;
+        dispatchRemote({
+          type: "sessionReady",
+          page,
+          environmentId: sameBrowserAddress(page.url, baseUrl)
+            ? environmentId
+            : null,
+        });
       }
-    };
-    const interval = window.setInterval(syncRemotePage, 1_500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [remoteBrowserAct, remoteSessionId, syncBrowserHistoryUrl]);
+    },
+    [baseUrl, environmentId, remoteSessionId],
+  );
+
+  useEffect(() => {
+    if (
+      !remoteSessionId ||
+      remotePageReadySessionRef.current !== remoteSessionId ||
+      !baseUrl
+    ) {
+      return;
+    }
+    const targetKey = `${remoteSessionId}:${environmentId ?? ""}:${baseUrl}`;
+    if (remoteTargetRef.current === targetKey) return;
+    remoteTargetRef.current = targetKey;
+    if (sameBrowserAddress(remotePage?.url, baseUrl)) {
+      if (remotePage) {
+        dispatchRemote({
+          type: "sessionReady",
+          page: remotePage,
+          environmentId,
+        });
+      }
+      return;
+    }
+    const requestId = ++remoteNavigationRequestRef.current;
+    dispatchRemote({
+      type: "navigationRequested",
+      requestId,
+      environmentId,
+      url: baseUrl,
+    });
+    void remoteBrowserAct({ type: "navigate", url: baseUrl })
+      .then((result) => {
+        if (!result.ok)
+          throw new Error(result.error ?? "browser_navigation_failed");
+        const page =
+          result.page ??
+          ({
+            url: result.url ?? baseUrl,
+            title: result.title ?? "",
+            loading: false,
+            canGoBack: remotePage?.canGoBack ?? false,
+            canGoForward: remotePage?.canGoForward ?? false,
+            revision: (remotePage?.revision ?? 0) + 1,
+          } satisfies BrowserPageState);
+        dispatchRemote({ type: "navigationCommitted", requestId, page });
+      })
+      .catch((error) => {
+        dispatchRemote({
+          type: "navigationFailed",
+          requestId,
+          error:
+            error instanceof Error
+              ? error.message
+              : "browser_navigation_failed",
+        });
+      });
+  }, [baseUrl, environmentId, remoteBrowserAct, remotePage, remoteSessionId]);
+
+  useEffect(() => {
+    if (remoteSessionId && remoteController.phase === "ready") {
+      onRemoteEnvironmentCommit?.(remoteController.activeEnvironmentId);
+    }
+  }, [
+    onRemoteEnvironmentCommit,
+    remoteController.activeEnvironmentId,
+    remoteController.phase,
+    remoteSessionId,
+  ]);
 
   useEffect(() => {
     if (browserInputFocusedRef.current) return;
@@ -494,31 +610,20 @@ export function PreviewBrowser({
     syncBrowserHistoryUrl,
   ]);
 
-  const canGoBack = browserHistory.index > 0;
-  const canGoForward =
-    browserHistory.index >= 0 &&
-    browserHistory.index < browserHistory.entries.length - 1;
+  const canGoBack = remoteSession
+    ? (remotePage?.canGoBack ?? false)
+    : browserHistory.index > 0;
+  const canGoForward = remoteSession
+    ? (remotePage?.canGoForward ?? false)
+    : browserHistory.index >= 0 &&
+      browserHistory.index < browserHistory.entries.length - 1;
 
   const moveBrowserHistory = (direction: "back" | "forward"): void => {
     if (remoteSession) {
-      const nextIndex =
-        direction === "back"
-          ? browserHistory.index - 1
-          : browserHistory.index + 1;
-      const nextUrl = browserHistory.entries[nextIndex];
-      if (!nextUrl) return;
-      void remoteBrowserAct({ type: "navigate", url: nextUrl }).then(
-        (result) => {
-          if (!result.ok) return;
-          setBrowserHistory((state) => {
-            if (nextIndex < 0 || nextIndex >= state.entries.length)
-              return state;
-            const entries = [...state.entries];
-            if (result.url) entries[nextIndex] = result.url;
-            return { entries, index: nextIndex };
-          });
-        },
-      );
+      void remoteBrowserAct({ type: direction }).then((result) => {
+        if (result.page)
+          dispatchRemote({ type: "pageChanged", page: result.page });
+      });
       return;
     }
     const nextIndex =
@@ -570,13 +675,34 @@ export function PreviewBrowser({
             window.location.origin,
           ) ?? nextUrl);
     if (remoteSession) {
-      void remoteBrowserAct({ type: "navigate", url: nextUrl }).then(
-        (result) => {
-          if (result.url)
-            syncBrowserHistoryUrl(result.url, { allowExternal: true });
-        },
-      );
-      setBrowserUrl(toBrowserAddress(nextUrl));
+      const requestId = ++remoteNavigationRequestRef.current;
+      dispatchRemote({
+        type: "navigationRequested",
+        requestId,
+        environmentId: null,
+        url: nextUrl,
+      });
+      void remoteBrowserAct({ type: "navigate", url: nextUrl })
+        .then((result) => {
+          if (!result.ok || !result.page) {
+            throw new Error(result.error ?? "browser_navigation_failed");
+          }
+          dispatchRemote({
+            type: "navigationCommitted",
+            requestId,
+            page: result.page,
+          });
+        })
+        .catch((error) => {
+          dispatchRemote({
+            type: "navigationFailed",
+            requestId,
+            error:
+              error instanceof Error
+                ? error.message
+                : "browser_navigation_failed",
+          });
+        });
       return;
     }
     activePreviewUrlRef.current = authedNextUrl;
@@ -588,8 +714,8 @@ export function PreviewBrowser({
   const refreshPreview = async (): Promise<void> => {
     if (remoteSession) {
       const result = await remoteBrowserAct({ type: "reload" });
-      if (result.url)
-        syncBrowserHistoryUrl(result.url, { allowExternal: true });
+      if (result.page)
+        dispatchRemote({ type: "pageChanged", page: result.page });
       return;
     }
     const currentUrl = activePreviewUrlRef.current;
@@ -891,6 +1017,7 @@ export function PreviewBrowser({
             onViewportResize={
               previewDevice === "desktop" ? resizeRemoteDesktop : undefined
             }
+            onPageState={handleRemotePageState}
             onDisconnected={reconnectRemoteBrowser}
           />
         ) : remoteBrowserMode.kind === "checking" ? (

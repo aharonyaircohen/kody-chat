@@ -6,6 +6,7 @@ import {
 } from "@kody-ade/fly/browsers/security";
 import {
   mintBrowserTicket,
+  readBrowserTicket,
   verifyBrowserTicket,
 } from "@kody-ade/fly/browsers/ticket";
 
@@ -62,5 +63,12 @@ describe("browser stream tickets", () => {
       ),
     ).toBe(false);
     expect(verifyBrowserTicket(ticket, identity, key, 1_061)).toBe(false);
+  });
+
+  it("authenticates the ticket before exposing its exact Machine route", () => {
+    const { ticket } = mintBrowserTicket(identity, 60, key, 1_000);
+    expect(readBrowserTicket(ticket, key, 1_030)).toMatchObject(identity);
+    expect(readBrowserTicket(`${ticket}x`, key, 1_030)).toBeNull();
+    expect(readBrowserTicket(ticket, key, 1_061)).toBeNull();
   });
 });

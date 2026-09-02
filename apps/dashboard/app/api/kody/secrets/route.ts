@@ -35,8 +35,6 @@ function unavailable() {
 }
 
 export async function GET(req: NextRequest) {
-  const resolved = await resolveKodyRequestScope(req);
-  if (resolved instanceof NextResponse) return resolved;
   const repository = getRequestAuth(req);
   if (repository) {
     const authError = await requireKodyAuth(req);
@@ -51,6 +49,8 @@ export async function GET(req: NextRequest) {
       { headers: NO_STORE_HEADERS },
     );
   }
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
   if (!isVaultConfigured()) return unavailable();
   const secrets = await getConvexClient().query(
     backendApi.userCredentials.list,
@@ -69,8 +69,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const resolved = await resolveKodyRequestScope(req);
-  if (resolved instanceof NextResponse) return resolved;
   const repository = getRequestAuth(req);
   if (repository) {
     const authError = await requireKodyAuth(req);
@@ -94,6 +92,8 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, secrets: result.secrets });
   }
+  const resolved = await resolveKodyRequestScope(req);
+  if (resolved instanceof NextResponse) return resolved;
   if (!isVaultConfigured()) return unavailable();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

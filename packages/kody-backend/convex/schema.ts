@@ -146,6 +146,13 @@ export default defineSchema({
     .index("by_session", ["tenantId", "actorId", "sessionId"])
     .index("by_expiry", ["expiresAtMs"]),
 
+  browserSessionStartLeases: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    ownerId: v.string(),
+    leaseUntilMs: v.number(),
+  }).index("by_actor", ["tenantId", "actorId"]),
+
   workflowEventDeliveries: defineTable({
     tenantId: v.string(),
     deliveryId: v.string(),

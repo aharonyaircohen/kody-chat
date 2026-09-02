@@ -1,22 +1,25 @@
 import http from "node:http";
-import net from "node:net";
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pipeline } from "node:stream/promises";
-import { promisify } from "node:util";
 
-import { chromium, type BrowserContext, type Page } from "playwright-core";
+import {
+  chromium,
+  type BrowserContext,
+  type CDPSession,
+  type Page,
+} from "playwright-core";
 import { WebSocketServer, WebSocket } from "ws";
 
-import { validatePublicBrowserUrl } from "./src/browsers/security.ts";
 import {
-  verifyBrowserTicket,
-  type BrowserTicketIdentity,
-} from "./src/browsers/ticket.ts";
+  browserActionForStreamMessage,
+  parseBrowserStreamMessage,
+} from "./src/browsers/stream-protocol.ts";
+import { validatePublicBrowserUrl } from "./src/browsers/security.ts";
+import { readBrowserTicket } from "./src/browsers/ticket.ts";
 
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
 const MAX_BODY_BYTES = 64 * 1024;
@@ -34,6 +37,7 @@ const ALLOWED_UPLOAD_TYPES = new Set([
   "video/webm",
 ]);
 const ACTIONS_PER_MINUTE = 120;
+const STREAM_INPUTS_PER_MINUTE = 6_000;
 const SESSION_ID = process.env.KODY_BROWSER_SESSION_ID ?? "";
 const REPOSITORY = process.env.KODY_BROWSER_REPOSITORY ?? "";
 const ACTOR_ID = process.env.KODY_BROWSER_ACTOR_ID ?? "";
@@ -42,60 +46,27 @@ const VERIFY_KEY = decodeVerifyKey(process.env.KODY_BROWSER_VERIFY_KEY ?? "");
 const INITIAL_URL =
   process.env.KODY_BROWSER_INITIAL_URL ?? "https://example.com";
 
-const expectedIdentity: BrowserTicketIdentity = {
-  repository: REPOSITORY,
-  actorId: ACTOR_ID,
-  sessionId: SESSION_ID,
-  machineId: MACHINE_ID,
-};
-
 const consoleEntries: Array<{ type: string; text: string }> = [];
 const failedRequests: Array<{ url: string; error: string }> = [];
 let activePage: Page | null = null;
 let activeContext: BrowserContext | null = null;
+let activeCdp: CDPSession | null = null;
+let browserReady = false;
+let pageLoading = true;
+let pageRevision = 0;
+let screencastRunning = false;
+let frameSequence = 0;
+let latestFrame: string | null = null;
+const streamClients = new Set<WebSocket>();
 let actionWindowStartedAt = Date.now();
 let actionCount = 0;
-const execFileAsync = promisify(execFile);
-const installedDisplayModes = new Set<string>();
+let streamInputWindowStartedAt = Date.now();
+let streamInputCount = 0;
 
-async function resizeDisplay(rawWidth: number, rawHeight: number) {
+async function resizePage(rawWidth: number, rawHeight: number) {
   const width = Math.max(320, Math.min(1920, Math.round(rawWidth / 2) * 2));
-  const height = Math.max(480, Math.min(1080, Math.round(rawHeight / 2) * 2));
-  const modeName = `${width}x${height}_60.00`;
-
-  if (!installedDisplayModes.has(modeName)) {
-    const { stdout } = await execFileAsync("cvt", [
-      String(width),
-      String(height),
-      "60",
-    ]);
-    const modeline = stdout.match(/^Modeline\s+"[^"]+"\s+(.+)$/m)?.[1];
-    if (!modeline) throw new Error("display_modeline_failed");
-    await execFileAsync("xrandr", [
-      "--display",
-      ":99",
-      "--newmode",
-      modeName,
-      ...modeline.trim().split(/\s+/),
-    ]);
-    await execFileAsync("xrandr", [
-      "--display",
-      ":99",
-      "--addmode",
-      "screen",
-      modeName,
-    ]);
-    installedDisplayModes.add(modeName);
-  }
-
-  await execFileAsync("xrandr", [
-    "--display",
-    ":99",
-    "--output",
-    "screen",
-    "--mode",
-    modeName,
-  ]);
+  const height = Math.max(480, Math.min(1800, Math.round(rawHeight / 2) * 2));
+  await requirePage().setViewportSize({ width, height });
   return { width, height };
 }
 
@@ -107,6 +78,16 @@ function acceptAction(): boolean {
   }
   actionCount += 1;
   return actionCount <= ACTIONS_PER_MINUTE;
+}
+
+function acceptStreamInput(): boolean {
+  const now = Date.now();
+  if (now - streamInputWindowStartedAt >= 60_000) {
+    streamInputWindowStartedAt = now;
+    streamInputCount = 0;
+  }
+  streamInputCount += 1;
+  return streamInputCount <= STREAM_INPUTS_PER_MINUTE;
 }
 
 function decodeVerifyKey(raw: string): Buffer {
@@ -139,15 +120,53 @@ function ticketFromRequest(req: http.IncomingMessage): string | null {
   }
 }
 
-function isAuthorized(req: http.IncomingMessage): boolean {
+function requestAuthorization(
+  req: http.IncomingMessage,
+):
+  | { kind: "authorized" }
+  | { kind: "replay"; machineId: string }
+  | { kind: "denied" } {
   if (
     VERIFY_KEY.length !== 32 ||
-    Object.values(expectedIdentity).some((v) => !v)
+    !REPOSITORY ||
+    !ACTOR_ID ||
+    !SESSION_ID ||
+    !MACHINE_ID
   ) {
-    return false;
+    return { kind: "denied" };
   }
   const ticket = ticketFromRequest(req);
-  return !!ticket && verifyBrowserTicket(ticket, expectedIdentity, VERIFY_KEY);
+  if (!ticket) return { kind: "denied" };
+  const identity = readBrowserTicket(ticket, VERIFY_KEY);
+  if (
+    !identity ||
+    identity.repository !== REPOSITORY ||
+    identity.actorId !== ACTOR_ID ||
+    identity.sessionId !== SESSION_ID
+  ) {
+    return { kind: "denied" };
+  }
+  return identity.machineId === MACHINE_ID
+    ? { kind: "authorized" }
+    : { kind: "replay", machineId: identity.machineId };
+}
+
+function authorizeHttpRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): boolean {
+  const authorization = requestAuthorization(req);
+  if (authorization.kind === "authorized") return true;
+  if (authorization.kind === "replay") {
+    res.writeHead(307, {
+      "fly-replay": `instance=${authorization.machineId}`,
+      "Cache-Control": "no-store",
+    });
+    res.end();
+    return false;
+  }
+  json(res, 401, { error: "unauthorized" });
+  return false;
 }
 
 function json(
@@ -299,6 +318,133 @@ function attachPageEvents(page: Page): void {
     });
     if (failedRequests.length > 100) failedRequests.shift();
   });
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+      pageLoading = true;
+      void broadcastPageState();
+    }
+  });
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) {
+      pageRevision += 1;
+      void broadcastPageState();
+    }
+  });
+  page.on("load", () => {
+    pageLoading = false;
+    void broadcastPageState();
+  });
+  page.on("popup", async (popup) => {
+    try {
+      await popup.waitForLoadState("domcontentloaded", { timeout: 10_000 });
+    } catch {
+      // The popup URL can still be available when its load does not settle.
+    }
+    const popupUrl = popup.url();
+    await popup.close().catch(() => undefined);
+    if (!popupUrl || popupUrl === "about:blank") return;
+    try {
+      await page.goto(await validatePublicBrowserUrl(popupUrl), {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000,
+      });
+    } catch {
+      // A blocked or failed popup navigation leaves the current page intact.
+    }
+  });
+}
+
+async function currentPageState() {
+  const page = requirePage();
+  const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+  const history = activeCdp
+    ? await activeCdp
+        .send("Page.getNavigationHistory")
+        .catch(() => ({ currentIndex: 0, entries: [] }))
+    : { currentIndex: 0, entries: [] };
+  return {
+    url: page.url(),
+    title: await page.title().catch(() => ""),
+    loading: pageLoading,
+    canGoBack: history.currentIndex > 0,
+    canGoForward: history.currentIndex < history.entries.length - 1,
+    revision: pageRevision,
+    viewport,
+  };
+}
+
+function sendStreamMessage(
+  websocket: WebSocket,
+  message: Record<string, unknown>,
+): void {
+  if (websocket.readyState === WebSocket.OPEN) {
+    websocket.send(JSON.stringify(message));
+  }
+}
+
+async function broadcastPageState(): Promise<void> {
+  if (!activePage || !streamClients.size) return;
+  const page = await currentPageState();
+  for (const websocket of streamClients) {
+    sendStreamMessage(websocket, { type: "state", page });
+  }
+}
+
+async function startPageScreencast(): Promise<void> {
+  if (!activeCdp || screencastRunning || !streamClients.size) return;
+  screencastRunning = true;
+  try {
+    await activeCdp.send("Page.startScreencast", {
+      format: "jpeg",
+      quality: 82,
+      maxWidth: 1920,
+      maxHeight: 1800,
+      everyNthFrame: 1,
+    });
+  } catch (error) {
+    screencastRunning = false;
+    throw error;
+  }
+}
+
+async function stopPageScreencast(): Promise<void> {
+  if (!activeCdp || !screencastRunning || streamClients.size) return;
+  screencastRunning = false;
+  await activeCdp.send("Page.stopScreencast").catch(() => undefined);
+}
+
+async function attachCdp(page: Page): Promise<void> {
+  activeCdp = await page.context().newCDPSession(page);
+  await activeCdp.send("Page.enable");
+  activeCdp.on(
+    "Page.screencastFrame",
+    (event: {
+      data: string;
+      metadata: Record<string, unknown>;
+      sessionId: number;
+    }) => {
+      const frameId = ++frameSequence;
+      const frame = JSON.stringify({
+        type: "frame",
+        frameId,
+        data: event.data,
+        metadata: event.metadata,
+      });
+      latestFrame = frame;
+      for (const websocket of streamClients) {
+        if (
+          websocket.readyState === WebSocket.OPEN &&
+          websocket.bufferedAmount < 2 * 1024 * 1024
+        ) {
+          websocket.send(frame);
+        }
+      }
+      void activeCdp
+        ?.send("Page.screencastFrameAck", { sessionId: event.sessionId })
+        .catch(() => undefined);
+    },
+  );
+  if (streamClients.size) await startPageScreencast();
 }
 
 async function installNetworkGuard(context: BrowserContext): Promise<void> {
@@ -327,12 +473,9 @@ async function connectBrowser(): Promise<void> {
   });
   await installNetworkGuard(activeContext);
   activePage = activeContext.pages()[0] ?? (await activeContext.newPage());
-  await resizeDisplay(1280, 720);
+  await resizePage(1280, 720);
   attachPageEvents(activePage);
-  activeContext.on("page", async (page) => {
-    attachPageEvents(page);
-    activePage = page;
-  });
+  await attachCdp(activePage);
   try {
     await activePage.goto(await validatePublicBrowserUrl(INITIAL_URL), {
       waitUntil: "domcontentloaded",
@@ -340,6 +483,10 @@ async function connectBrowser(): Promise<void> {
     });
   } catch {
     // The session stays usable at about:blank when the initial URL fails.
+  } finally {
+    pageLoading = false;
+    browserReady = true;
+    await broadcastPageState();
   }
 }
 
@@ -348,33 +495,40 @@ function requirePage(): Page {
   return activePage;
 }
 
+async function settleNavigation(
+  navigate: () => Promise<unknown>,
+): Promise<void> {
+  await navigate();
+}
+
 async function executeAction(action: Record<string, unknown>) {
   const page = requirePage();
   assertCapabilityOrigin(action, page.url());
   switch (action.type) {
     case "navigate": {
       const url = await validatePublicBrowserUrl(String(action.url ?? ""));
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await settleNavigation(
+        () => page.goto(url, { waitUntil: "commit", timeout: 30_000 }),
+      );
       break;
     }
     case "back":
-      await page.goBack({ waitUntil: "domcontentloaded", timeout: 30_000 });
+      await settleNavigation(
+        () => page.goBack({ waitUntil: "commit", timeout: 30_000 }),
+      );
       break;
     case "forward":
-      await page.goForward({ waitUntil: "domcontentloaded", timeout: 30_000 });
+      await settleNavigation(
+        () => page.goForward({ waitUntil: "commit", timeout: 30_000 }),
+      );
       break;
     case "reload":
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 30_000 });
+      await settleNavigation(
+        () => page.reload({ waitUntil: "commit", timeout: 30_000 }),
+      );
       break;
     case "viewport": {
-      const viewport = await resizeDisplay(
-        Number(action.width),
-        Number(action.height),
-      );
-      await page.setViewportSize({
-        width: viewport.width,
-        height: viewport.height,
-      });
+      await resizePage(Number(action.width), Number(action.height));
       break;
     }
     case "pointer": {
@@ -443,7 +597,12 @@ async function executeAction(action: Record<string, unknown>) {
       break;
     case "screenshot": {
       const screenshot = await page.screenshot({ type: "jpeg", quality: 80 });
-      return { ok: true, url: page.url(), data: screenshot.toString("base64") };
+      return {
+        ok: true,
+        url: page.url(),
+        data: screenshot.toString("base64"),
+        page: await currentPageState(),
+      };
     }
     case "pick": {
       await page.evaluate(() => {
@@ -553,6 +712,7 @@ async function executeAction(action: Record<string, unknown>) {
         ok: true,
         url: page.url(),
         data: { armed: true },
+        page: await currentPageState(),
       };
     }
     case "pickResult": {
@@ -564,7 +724,12 @@ async function executeAction(action: Record<string, unknown>) {
         root.__kodyPickedElement = undefined;
         return picked;
       });
-      return { ok: true, url: page.url(), data: { element } };
+      return {
+        ok: true,
+        url: page.url(),
+        data: { element },
+        page: await currentPageState(),
+      };
     }
     case "cancelPick":
       await page.evaluate(() => {
@@ -608,7 +773,12 @@ async function executeAction(action: Record<string, unknown>) {
             })),
         };
       });
-      return { ok: true, url: page.url(), data };
+      return {
+        ok: true,
+        url: page.url(),
+        data,
+        page: await currentPageState(),
+      };
     }
     case "edit": {
       const command = action.command as {
@@ -705,9 +875,17 @@ async function executeAction(action: Record<string, unknown>) {
         root.__kodyRecordCleanup?.();
         return { steps: root.__kodyRecording ?? [], url: location.href };
       });
-      return { ok: true, url: page.url(), data };
+      return {
+        ok: true,
+        url: page.url(),
+        data,
+        page: await currentPageState(),
+      };
     }
     case "snapshot": {
+      await page
+        .waitForLoadState("domcontentloaded", { timeout: 10_000 })
+        .catch(() => undefined);
       const snapshot = await page.evaluate((maxBytes) => {
         const selectorFor = (element: Element): string => {
           if (element.id) return `#${CSS.escape(element.id)}`;
@@ -769,6 +947,7 @@ async function executeAction(action: Record<string, unknown>) {
         url: page.url(),
         title: await page.title(),
         data: { snapshot, console: consoleEntries, failedRequests },
+        page: await currentPageState(),
       };
     }
     default:
@@ -777,13 +956,18 @@ async function executeAction(action: Record<string, unknown>) {
   if (action.capabilitySlug) {
     return await executeAction({ type: "snapshot" });
   }
-  return { ok: true, url: page.url(), title: await page.title() };
+  return {
+    ok: true,
+    url: page.url(),
+    title: await page.title(),
+    page: await currentPageState(),
+  };
 }
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url ?? "/", "http://browser.local");
   if (req.method === "GET" && requestUrl.pathname === "/health") {
-    json(res, activePage ? 200 : 503, { ok: !!activePage });
+    json(res, browserReady ? 200 : 503, { ok: browserReady });
     return;
   }
   if (req.method === "OPTIONS" && requestUrl.pathname === "/upload") {
@@ -798,10 +982,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === "POST" && requestUrl.pathname === "/upload") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    if (!isAuthorized(req)) {
-      json(res, 401, { error: "unauthorized" });
-      return;
-    }
+    if (!authorizeHttpRequest(req, res)) return;
     try {
       await receiveUpload(req, requestUrl);
       json(res, 201, { ok: true, upload: randomUUID() });
@@ -816,10 +997,7 @@ const server = http.createServer(async (req, res) => {
     json(res, 404, { error: "not_found" });
     return;
   }
-  if (!isAuthorized(req)) {
-    json(res, 401, { error: "unauthorized" });
-    return;
-  }
+  if (!authorizeHttpRequest(req, res)) return;
   if (!acceptAction()) {
     json(res, 429, { error: "rate_limited" });
     return;
@@ -836,13 +1014,20 @@ const server = http.createServer(async (req, res) => {
 
 const websocketServer = new WebSocketServer({
   noServer: true,
-  handleProtocols: (protocols) => (protocols.has("binary") ? "binary" : false),
 });
 
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", "http://browser.local");
-  if (url.pathname !== "/stream" || !isAuthorized(req)) {
+  const authorization = requestAuthorization(req);
+  if (url.pathname !== "/stream" || authorization.kind === "denied") {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  if (authorization.kind === "replay") {
+    socket.write(
+      `HTTP/1.1 307 Temporary Redirect\r\nfly-replay: instance=${authorization.machineId}\r\nConnection: close\r\n\r\n`,
+    );
     socket.destroy();
     return;
   }
@@ -852,22 +1037,62 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 websocketServer.on("connection", (websocket) => {
-  const vnc = net.connect(5900, "127.0.0.1");
-  vnc.on("data", (chunk) => {
-    if (websocket.readyState === WebSocket.OPEN) websocket.send(chunk);
+  streamClients.add(websocket);
+  sendStreamMessage(websocket, { type: "ready" });
+  if (latestFrame) websocket.send(latestFrame);
+  void broadcastPageState();
+  void startPageScreencast().catch(() =>
+    websocket.close(1011, "screencast_unavailable"),
+  );
+
+  websocket.on("message", async (data) => {
+    try {
+      const message = parseBrowserStreamMessage(data.toString());
+      if (message.type === "requestState") {
+        sendStreamMessage(websocket, {
+          type: "state",
+          page: await currentPageState(),
+        });
+        return;
+      }
+      if (message.type === "frameAck") return;
+      if (!acceptStreamInput()) {
+        sendStreamMessage(websocket, {
+          type: "error",
+          error: "rate_limited",
+        });
+        return;
+      }
+      const action = browserActionForStreamMessage(message);
+      if (action) {
+        await executeAction(action);
+        if (action.type === "viewport") await broadcastPageState();
+      }
+    } catch (error) {
+      sendStreamMessage(websocket, {
+        type: "error",
+        error: error instanceof Error ? error.message : "browser_stream_failed",
+      });
+    }
   });
-  vnc.on("error", () => websocket.close(1011, "vnc_unavailable"));
-  vnc.on("close", () => websocket.close());
-  websocket.on("message", (data) => vnc.write(Buffer.from(data as Buffer)));
-  websocket.on("close", () => vnc.destroy());
-  websocket.on("error", () => vnc.destroy());
+  websocket.on("close", () => {
+    streamClients.delete(websocket);
+    void stopPageScreencast();
+  });
+  websocket.on("error", () => {
+    streamClients.delete(websocket);
+    void stopPageScreencast();
+  });
 });
 
 async function bootstrapBrowser(): Promise<void> {
-  while (!activePage) {
+  while (!browserReady) {
     try {
       await connectBrowser();
     } catch (error) {
+      browserReady = false;
+      activePage = null;
+      activeCdp = null;
       console.error("browser bootstrap failed; retrying", error);
       await delay(1_000);
     }

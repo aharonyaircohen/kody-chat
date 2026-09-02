@@ -15,21 +15,16 @@ interface BrowserTicketPayload extends BrowserTicketIdentity {
   signature: string;
 }
 
-export function deriveBrowserKey(masterRaw = process.env.KODY_MASTER_KEY): Buffer {
+export function deriveBrowserKey(
+  masterRaw = process.env.KODY_MASTER_KEY,
+): Buffer {
   const raw = masterRaw?.trim();
   if (!raw) throw new Error("KODY_MASTER_KEY is not configured");
-  const master =
-    /^[0-9a-fA-F]{64}$/.test(raw)
-      ? Buffer.from(raw, "hex")
-      : Buffer.from(raw.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  const master = /^[0-9a-fA-F]{64}$/.test(raw)
+    ? Buffer.from(raw, "hex")
+    : Buffer.from(raw.replace(/-/g, "+").replace(/_/g, "/"), "base64");
   return Buffer.from(
-    crypto.hkdfSync(
-      "sha256",
-      master,
-      Buffer.alloc(0),
-      BROWSER_KEY_INFO,
-      32,
-    ),
+    crypto.hkdfSync("sha256", master, Buffer.alloc(0), BROWSER_KEY_INFO, 32),
   );
 }
 
@@ -84,14 +79,32 @@ function decodeBrowserTicket(ticket: string): BrowserTicketPayload | null {
   }
 }
 
+export function readBrowserTicket(
+  ticket: string,
+  key: Buffer,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): BrowserTicketPayload | null {
+  const payload = decodeBrowserTicket(ticket);
+  if (!payload || payload.expiresAt <= nowSeconds) return null;
+  const expectedSignature = crypto
+    .createHmac("sha256", key)
+    .update(subject(payload, payload.expiresAt))
+    .digest("hex")
+    .slice(0, HMAC_BYTES * 2);
+  const actualBuffer = Buffer.from(payload.signature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+  if (actualBuffer.length !== expectedBuffer.length) return null;
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer) ? payload : null;
+}
+
 export function verifyBrowserTicket(
   ticket: string,
   expected: BrowserTicketIdentity,
   key: Buffer,
   nowSeconds = Math.floor(Date.now() / 1000),
 ): boolean {
-  const payload = decodeBrowserTicket(ticket);
-  if (!payload || payload.expiresAt <= nowSeconds) return false;
+  const payload = readBrowserTicket(ticket, key, nowSeconds);
+  if (!payload) return false;
   if (
     payload.repository !== expected.repository ||
     payload.actorId !== expected.actorId ||
@@ -100,13 +113,5 @@ export function verifyBrowserTicket(
   ) {
     return false;
   }
-  const expectedSignature = crypto
-    .createHmac("sha256", key)
-    .update(subject(expected, payload.expiresAt))
-    .digest("hex")
-    .slice(0, HMAC_BYTES * 2);
-  const actualBuffer = Buffer.from(payload.signature, "hex");
-  const expectedBuffer = Buffer.from(expectedSignature, "hex");
-  if (actualBuffer.length !== expectedBuffer.length) return false;
-  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  return true;
 }

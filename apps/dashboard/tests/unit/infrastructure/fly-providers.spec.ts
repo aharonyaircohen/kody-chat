@@ -16,6 +16,7 @@ const flyPreview = vi.hoisted(() => ({
   flyHostname: vi.fn((appName: string) => `https://${appName}.fly.dev`),
   listMachines: vi.fn(),
   startMachine: vi.fn(),
+  updateMachineDefinition: vi.fn(),
   waitForMachineStarted: vi.fn(),
 }));
 
@@ -163,12 +164,137 @@ describe("fly infrastructure providers", () => {
     });
   });
 
-  it("uses a fresh app hostname for each transient browser generation", () => {
-    const identity = { owner: "acme", repo: "widgets", actorId: "octocat" };
-
-    expect(browserAppName(identity, "first")).not.toBe(
-      browserAppName(identity, "second"),
+  it("uses one stable browser app per repository", () => {
+    expect(
+      browserAppName({ owner: "acme", repo: "widgets", actorId: "octocat" }),
+    ).toBe(
+      browserAppName({ owner: "acme", repo: "widgets", actorId: "hubot" }),
     );
+    expect(
+      browserAppName({ owner: "acme", repo: "widgets", actorId: "octocat" }),
+    ).not.toBe(
+      browserAppName({ owner: "acme", repo: "other", actorId: "octocat" }),
+    );
+  });
+
+  it("finishes provisioning a pre-created stable app before its first Machine", async () => {
+    flyPreview.appExists.mockResolvedValue(true);
+    flyPreview.listMachines.mockResolvedValue([]);
+    flyPreview.createMachine.mockResolvedValue({
+      id: "browser-machine-1",
+      state: "started",
+      region: "fra",
+    });
+
+    await flyBrowserProvider.createSession({
+      owner: "acme",
+      repo: "widgets",
+      actorId: "octocat",
+      sessionId: "session-1",
+      initialUrl: "https://example.com",
+      image: "registry.example/kody-browser:test",
+      config: { token: "fly-token", orgSlug: "personal", defaultRegion: "fra" },
+      verifyKey: "verify-key-1",
+    });
+
+    expect(flyPreview.createApp).not.toHaveBeenCalled();
+    expect(flyPreview.allocateSharedIps).toHaveBeenCalledOnce();
+  });
+
+  it("updates a reused browser Machine when its pinned image changes", async () => {
+    flyPreview.appExists.mockResolvedValue(true);
+    flyPreview.listMachines.mockResolvedValue([
+      {
+        id: "browser-machine-1",
+        state: "started",
+        region: "fra",
+        config: {
+          image: "registry.example/kody-browser:old",
+          env: { KODY_BROWSER_ACTOR_ID: "octocat" },
+        },
+      },
+    ]);
+
+    await flyBrowserProvider.createSession({
+      owner: "acme",
+      repo: "widgets",
+      actorId: "octocat",
+      sessionId: "session-1",
+      initialUrl: "https://example.com",
+      image: "registry.example/kody-browser:sha-123",
+      config: { token: "fly-token", orgSlug: "personal", defaultRegion: "fra" },
+      verifyKey: "verify-key-1",
+    });
+
+    expect(flyPreview.updateMachineDefinition).toHaveBeenCalledWith(
+      expect.any(String),
+      "browser-machine-1",
+      expect.objectContaining({
+        image: "registry.example/kody-browser:sha-123",
+        env: expect.objectContaining({
+          KODY_BROWSER_VERIFY_KEY: "verify-key-1",
+        }),
+      }),
+      expect.objectContaining({ token: "fly-token" }),
+    );
+    expect(flyPreview.createMachine).not.toHaveBeenCalled();
+    expect(flyPreview.waitForMachineStarted).toHaveBeenCalledWith(
+      expect.any(String),
+      "browser-machine-1",
+      expect.objectContaining({ token: "fly-token" }),
+    );
+  });
+
+  it("waits for an in-flight browser Machine replacement before reconciling it", async () => {
+    flyPreview.appExists.mockResolvedValue(true);
+    flyPreview.listMachines
+      .mockResolvedValueOnce([
+        {
+          id: "browser-machine-1",
+          state: "replacing",
+          region: "fra",
+          config: {
+            image: "registry.example/kody-browser:old",
+            env: { KODY_BROWSER_ACTOR_ID: "octocat" },
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "browser-machine-1",
+          state: "started",
+          region: "fra",
+          config: {
+            image: "registry.example/kody-browser:sha-123",
+            env: {
+              KODY_BROWSER_ACTOR_ID: "octocat",
+              KODY_BROWSER_SESSION_ID: "session-1",
+              KODY_BROWSER_REPOSITORY: "acme/widgets",
+              KODY_BROWSER_VERIFY_KEY: "verify-key-1",
+            },
+          },
+        },
+      ]);
+
+    await flyBrowserProvider.createSession({
+      owner: "acme",
+      repo: "widgets",
+      actorId: "octocat",
+      sessionId: "session-1",
+      initialUrl: "https://example.com",
+      image: "registry.example/kody-browser:sha-123",
+      config: { token: "fly-token", orgSlug: "personal", defaultRegion: "fra" },
+      verifyKey: "verify-key-1",
+    });
+
+    expect(flyPreview.waitForMachineStarted).toHaveBeenCalledWith(
+      expect.any(String),
+      "browser-machine-1",
+      expect.objectContaining({ token: "fly-token" }),
+    );
+    expect(flyPreview.listMachines).toHaveBeenCalledTimes(2);
+    expect(flyPreview.updateMachineDefinition).not.toHaveBeenCalled();
+    expect(flyPreview.startMachine).not.toHaveBeenCalled();
   });
 
   it("runs compute through the existing Fly runner spawn", async () => {

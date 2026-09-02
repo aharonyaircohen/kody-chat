@@ -28,6 +28,10 @@ const PREVIEW_WORKSPACE_PATH = resolve(
   __dirname,
   "../../src/dashboard/features/previews/components/PreviewWorkspace.tsx",
 );
+const PREVIEW_ENV_SWITCHER_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/features/previews/components/PreviewEnvSwitcher.tsx",
+);
 const FLY_MACHINES_TABLE_PATH = resolve(
   __dirname,
   "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx",
@@ -45,6 +49,10 @@ const REMOTE_PICKER_SOURCE = readFileSync(
   "utf8",
 );
 const PREVIEW_WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
+const PREVIEW_ENV_SWITCHER_SOURCE = readFileSync(
+  PREVIEW_ENV_SWITCHER_PATH,
+  "utf8",
+);
 const FLY_MACHINES_TABLE_SOURCE = readFileSync(FLY_MACHINES_TABLE_PATH, "utf8");
 const BROWSER_SESSION_HOOK_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/previews/use-browser-session.ts"),
@@ -101,23 +109,20 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toContain("<FlyRemoteBrowserSurface");
   });
 
-  it("uses Kody's URL history as the source for remote Back and Forward", () => {
+  it("uses Chromium as the source for remote Back and Forward", () => {
     expect(SOURCE).toMatch(
-      /direction === "back"[\s\S]*browserHistory\.index - 1[\s\S]*browserHistory\.entries\[nextIndex\][\s\S]*type: "navigate", url: nextUrl/,
+      /if \(remoteSession\)[\s\S]*remoteBrowserAct\(\{ type: direction \}\)/,
     );
-    expect(SOURCE).toContain("return { entries, index: nextIndex }");
+    expect(SOURCE).toContain("remotePage?.canGoBack");
+    expect(SOURCE).toContain("remotePage?.canGoForward");
   });
 
-  it("synchronizes external Fly navigation into the Kody address bar", () => {
-    expect(SOURCE).toContain("options: { allowExternal?: boolean } = {}");
-    expect(SOURCE).toMatch(
-      /remoteSession\.currentUrl, \{ allowExternal: true \}/,
-    );
-    expect(SOURCE).toMatch(
-      /type: "snapshot"[\s\S]*syncBrowserHistoryUrl\(result\.url, \{ allowExternal: true \}\)/,
-    );
-    expect(SOURCE).toMatch(
-      /if \(!remoteSessionId\) return;[\s\S]*const syncRemotePage[\s\S]*setInterval\(syncRemotePage/,
+  it("uses stream events for the Fly URL without snapshot polling", () => {
+    expect(SOURCE).toContain("onPageState={handleRemotePageState}");
+    expect(SOURCE).toContain("remotePage?.url");
+    expect(SOURCE).not.toMatch(/setInterval\(syncRemotePage/);
+    expect(PREVIEW_ENV_SWITCHER_SOURCE).toMatch(
+      /const active = selectedId[\s\S]*: null/,
     );
   });
 
@@ -125,33 +130,35 @@ describe("PreviewBrowser new-tab action", () => {
     expect(PREVIEW_WORKSPACE_SOURCE).toContain(
       "function uniqueEnvironmentLabel",
     );
+    expect(PREVIEW_WORKSPACE_SOURCE).toContain("const usedLabels = new Set(");
     expect(PREVIEW_WORKSPACE_SOURCE).toContain(
-      "makeEnvId(`${preferred} ${suffix}`)",
+      "usedLabels.has(label.trim().toLowerCase())",
     );
     expect(PREVIEW_WORKSPACE_SOURCE).toMatch(
       /const label = uniqueEnvironmentLabel\([\s\S]*addEnvironment\([\s\S]*label,[\s\S]*normalizedUrl/,
     );
   });
 
-  it("shows browser Machines and destroys their whole transient app", () => {
+  it("shows browser Machines while preserving the stable repository app", () => {
     expect(FLY_MACHINES_TABLE_SOURCE).toMatch(
       /const FEATURE_ORDER[\s\S]*"browser"/,
     );
-    expect(FLY_MACHINES_TABLE_SOURCE).toMatch(
-      /function destroysWholeApp[\s\S]*feature === "browser"/,
+    expect(FLY_MACHINES_TABLE_SOURCE).toContain(
+      'return feature === "preview" || feature === "preview-base";',
     );
     expect(FLY_MACHINES_TABLE_SOURCE).toContain(
-      "It is recreated with the current image when a View reconnects.",
+      "The stable repository browser app remains available",
     );
   });
 
-  it("recreates a missing Fly browser app when the stream reconnects", () => {
+  it("reuses the stable Fly browser session when the stream reconnects", () => {
     expect(BROWSER_SESSION_HOOK_SOURCE).toMatch(
-      /const connect = useCallback\(\s*async \(forceStart = false\)/,
+      /const connect = useCallback\(\s*async \(forceStart = false\) =>/,
     );
     expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
-      'forceStart || status.state === "idle"',
+      "await fetchBrowserSession(input.actorLogin)",
     );
+    expect(BROWSER_SESSION_HOOK_SOURCE).toContain("await startBrowserSession(");
     expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
       "const reconnect = useCallback(() => connect(true)",
     );
@@ -163,22 +170,22 @@ describe("PreviewBrowser new-tab action", () => {
     );
   });
 
-  it("retries transient stream disconnects while a Fly Machine starts", () => {
-    expect(REMOTE_SURFACE_SOURCE).toContain("reconnectAttemptsRef.current < 5");
+  it("retries transient page-stream disconnects with a bounded backoff", () => {
+    expect(REMOTE_SURFACE_SOURCE).toContain("reconnectAttempts < 3");
     expect(REMOTE_SURFACE_SOURCE).toMatch(
-      /setTimeout\([\s\S]*onDisconnected\?\.\(\)[\s\S]*2_000/,
+      /const connect = \(\): void =>[\s\S]*new WebSocket\(streamUrl\)[\s\S]*setTimeout/,
     );
+    expect(REMOTE_SURFACE_SOURCE).toContain("setDisconnected(true)");
     expect(REMOTE_SURFACE_SOURCE).toContain("if (disposed) return");
   });
 
   it("shows only a sharp webpage surface instead of Chromium chrome", () => {
-    expect(BROWSER_START_SOURCE).toContain("1920x1080x24");
+    expect(BROWSER_START_SOURCE).toContain("--headless=new");
     expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
-    expect(BROWSER_START_SOURCE).toContain("--kiosk");
-    expect(BROWSER_START_SOURCE).toMatch(/--kiosk \\\s*about:blank/);
-    expect(REMOTE_SURFACE_SOURCE).toContain("rfb.scaleViewport = true");
-    expect(REMOTE_SURFACE_SOURCE).toContain("rfb.resizeSession = false");
-    expect(REMOTE_SURFACE_SOURCE).not.toContain("[&_canvas]:h-full");
+    expect(BROWSER_START_SOURCE).not.toMatch(/Xvfb|fluxbox|x11vnc|--kiosk/);
+    expect(BROWSER_SERVER_SOURCE).toContain("Page.startScreencast");
+    expect(REMOTE_SURFACE_SOURCE).toContain("<canvas");
+    expect(REMOTE_SURFACE_SOURCE).not.toContain("@novnc/novnc");
   });
 
   it("fits the remote desktop to the available desktop panel", () => {
@@ -187,11 +194,11 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toContain('previewDevice !== "desktop"');
     expect(SOURCE).toContain("resizeRemoteDesktop");
     expect(SOURCE).toContain("onViewportResize={");
-    expect(BROWSER_SERVER_SOURCE).toContain("async function resizeDisplay");
-    expect(BROWSER_SERVER_SOURCE).toContain('execFileAsync("xrandr"');
-    expect(BROWSER_SERVER_SOURCE).not.toContain("exec(");
+    expect(BROWSER_SERVER_SOURCE).toContain("async function resizePage");
+    expect(BROWSER_SERVER_SOURCE).toContain("setViewportSize");
+    expect(BROWSER_SERVER_SOURCE).not.toContain("xrandr");
     expect(BROWSER_SERVER_SOURCE).toMatch(
-      /Math\.max\(320, Math\.min\(1920,[\s\S]*Math\.max\(480, Math\.min\(1080,/,
+      /Math\.max\(320, Math\.min\(1920,[\s\S]*Math\.max\(480, Math\.min\(1800,/,
     );
   });
 

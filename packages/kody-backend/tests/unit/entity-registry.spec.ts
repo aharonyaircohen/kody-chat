@@ -53,10 +53,11 @@ describe("entity registry drift", () => {
       };
       const schemaFields = Object.keys(table.export().documentType.value);
       for (const field of entity.naturalKey) {
+        const rootField = field.split(".", 1)[0];
         expect(
           schemaFields,
           `${entity.table}.naturalKey field "${field}" missing from schema`,
-        ).toContain(field);
+        ).toContain(rootField);
       }
       expect(
         entity.naturalKey,

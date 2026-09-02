@@ -18,6 +18,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Globe2, Loader2, MonitorPlay, Upload } from "lucide-react";
 
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { useChatScope } from "@dashboard/lib/components/ChatRailShell";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
 import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
@@ -72,7 +74,10 @@ import {
   base64ToBytes,
   readFile,
 } from "@dashboard/features/file-manager/lib/repo-files";
-import { browserUploadMimeType } from "@dashboard/lib/previews/browser-session-client";
+import {
+  browserUploadMimeType,
+  type RemoteBrowserActionResult,
+} from "@dashboard/lib/previews/browser-session-client";
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
@@ -127,11 +132,16 @@ function uniqueEnvironmentLabel(
   preferred: string,
 ): string {
   const usedIds = new Set(environments.map((environment) => environment.id));
-  if (!usedIds.has(makeEnvId(preferred))) {
+  const usedLabels = new Set(
+    environments.map((environment) => environment.label.trim().toLowerCase()),
+  );
+  const isUsed = (label: string): boolean =>
+    usedIds.has(makeEnvId(label)) || usedLabels.has(label.trim().toLowerCase());
+  if (!isUsed(preferred)) {
     return preferred;
   }
   let suffix = 2;
-  while (usedIds.has(makeEnvId(`${preferred} ${suffix}`))) {
+  while (isUsed(`${preferred} ${suffix}`)) {
     suffix += 1;
   }
   return `${preferred} ${suffix}`;
@@ -288,6 +298,9 @@ export function PreviewWorkspace({
 
   const selectedEnv =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
+  const [remoteActiveEnvironmentId, setRemoteActiveEnvironmentId] = useState<
+    string | null | undefined
+  >(undefined);
   const selectedFlyBranch = isFlyBranchEnvironment(selectedEnv)
     ? selectedEnv.flyBranch
     : null;
@@ -341,9 +354,18 @@ export function PreviewWorkspace({
       resolvedBranchPreview?.state === "starting");
 
   useEffect(() => {
-    setPreviewContext(previewChatContextBlock(selectedEnv));
+    const contextEnvironment =
+      remoteActiveEnvironmentId === undefined
+        ? selectedEnv
+        : remoteActiveEnvironmentId
+          ? (environments.find(
+              (environment) => environment.id === remoteActiveEnvironmentId,
+            ) ?? null)
+          : null;
+    const savedContext = previewChatContextBlock(contextEnvironment);
+    setPreviewContext(savedContext);
     return () => setPreviewContext(null);
-  }, [selectedEnv, setPreviewContext]);
+  }, [environments, remoteActiveEnvironmentId, selectedEnv, setPreviewContext]);
 
   useEffect(() => {
     if (viewTicketQuery.error) {
@@ -597,6 +619,8 @@ export function PreviewWorkspace({
         showBrowserChrome
         enableRemoteBrowser
         browserActorLogin={githubUser?.login}
+        environmentId={selectedEnv?.id ?? null}
+        onRemoteEnvironmentCommit={setRemoteActiveEnvironmentId}
         resolveBrowserUploadFiles={resolveBrowserUploadFiles}
         onRemoteActionRunnerChange={
           selectedId ? setPreviewActionRunner : undefined
@@ -614,7 +638,11 @@ export function PreviewWorkspace({
               environments={environments}
               folders={previewFolders}
               repoFullName={repoFullName}
-              selectedId={selectedEnv?.id ?? null}
+              selectedId={
+                remoteActiveEnvironmentId === undefined
+                  ? (selectedEnv?.id ?? null)
+                  : remoteActiveEnvironmentId
+              }
               onSelect={selectEnv}
               onSave={persist}
               onSaveFolders={persistFolders}
@@ -656,7 +684,7 @@ export function PreviewWorkspace({
                 >
                   <label className="flex flex-col gap-1 text-xs text-zinc-300">
                     Website name
-                    <input
+                    <Input
                       aria-label="Website name"
                       value={websiteName}
                       onChange={(event) => setWebsiteName(event.target.value)}
@@ -666,7 +694,7 @@ export function PreviewWorkspace({
                   </label>
                   <label className="flex flex-col gap-1 text-xs text-zinc-300">
                     Website URL
-                    <input
+                    <Input
                       aria-label="Website URL"
                       type="url"
                       required
@@ -676,14 +704,14 @@ export function PreviewWorkspace({
                       className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 outline-none focus:border-sky-500"
                     />
                   </label>
-                  <button
+                  <Button
                     type="submit"
                     disabled={saveMutation.isPending || !websiteUrl.trim()}
                     className="inline-flex items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Globe2 className="h-3.5 w-3.5" />
                     Add website
-                  </button>
+                  </Button>
                 </form>
                 <PreviewBranchEnvForm
                   repoFullName={repoFullName}

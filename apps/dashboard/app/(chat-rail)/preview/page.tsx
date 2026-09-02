@@ -8,7 +8,6 @@
  *   task. AuthGuard comes from the (chat-rail) group; the shared header sits
  *   above via the shell.
  */
-import { PreviewWorkspace } from "@dashboard/features/previews/components/PreviewWorkspace";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
@@ -23,5 +22,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function PreviewPage() {
-  return <PreviewWorkspace />;
+  return null;
 }

@@ -7,18 +7,21 @@
  *   runner and deployment providers.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import type { BrowserProvider } from "@kody-ade/base/infrastructure/contracts";
 import {
   allocateSharedIps,
+  appExists,
   createApp,
   createMachine,
-  destroyApp,
+  destroyMachine,
   flyHostname,
   getMachineDiagnostic,
   listMachines,
   startMachine,
+  updateMachineDefinition,
+  waitForMachineStarted,
   type FlyPreviewConfig,
 } from "./previews/machines-client";
 
@@ -148,6 +151,14 @@ export interface FlyBrowserActionResult {
   ok: boolean;
   url?: string;
   title?: string;
+  page?: {
+    url: string;
+    title: string;
+    loading: boolean;
+    canGoBack: boolean;
+    canGoForward: boolean;
+    revision: number;
+  };
   data?: unknown;
   error?: string;
 }
@@ -160,23 +171,31 @@ function safeNamePart(value: string): string {
     .slice(0, 24);
 }
 
-export function browserAppName(
-  input: {
-    owner: string;
-    repo: string;
-    actorId: string;
-  },
-  instanceId = randomBytes(3).toString("hex"),
-): string {
+export function browserAppName(input: {
+  owner: string;
+  repo: string;
+  actorId: string;
+}): string {
   const readable = safeNamePart(`${input.owner}-${input.repo}`) || "repo";
   const hash = createHash("sha256")
-    .update(`${input.owner}/${input.repo}:${input.actorId}`)
+    .update(`${input.owner}/${input.repo}`)
     .digest("hex")
     .slice(0, 10);
-  return `kody-browser-${readable}-${hash}-${safeNamePart(instanceId)}`.slice(
-    0,
-    63,
-  );
+  return `kody-browser-${readable}-${hash}`.slice(0, 63);
+}
+
+function browserMachineEnv(session: {
+  config?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const env = session.config?.env;
+  return env && typeof env === "object" ? (env as Record<string, unknown>) : {};
+}
+
+function browserMachineActor(session: {
+  config?: Record<string, unknown>;
+}): string | null {
+  const actorId = browserMachineEnv(session).KODY_BROWSER_ACTOR_ID;
+  return typeof actorId === "string" ? actorId : null;
 }
 
 async function postBrowserAction(
@@ -220,10 +239,29 @@ export const flyBrowserProvider: FlyBrowserProvider = {
   ]),
   async createSession(input) {
     const appName = browserAppName(input);
-    await createApp(appName, input.config);
-    await allocateSharedIps(appName, input.config);
+    const appAlreadyExists = await appExists(appName, input.config);
+    if (!appAlreadyExists) {
+      await createApp(appName, input.config);
+    }
 
-    const existing = (await listMachines(appName, input.config))[0];
+    let machines = await listMachines(appName, input.config);
+    if (!appAlreadyExists || machines.length === 0) {
+      await allocateSharedIps(appName, input.config);
+    }
+    let existing = machines.find(
+      (machine) => browserMachineActor(machine) === input.actorId,
+    );
+    if (
+      existing &&
+      (existing.state === "replacing" || existing.state === "starting")
+    ) {
+      await waitForMachineStarted(appName, existing.id, input.config);
+      machines = await listMachines(appName, input.config);
+      existing = machines.find(
+        (machine) => browserMachineActor(machine) === input.actorId,
+      );
+      if (!existing) throw new Error("browser_machine_not_found");
+    }
     const machine = existing
       ? existing
       : await createMachine(
@@ -245,8 +283,34 @@ export const flyBrowserProvider: FlyBrowserProvider = {
           input.config,
         );
 
+    const existingEnv = existing ? browserMachineEnv(existing) : {};
+    if (
+      existing &&
+      (existing.config?.image !== input.image ||
+        existingEnv.KODY_BROWSER_VERIFY_KEY !== input.verifyKey ||
+        existingEnv.KODY_BROWSER_SESSION_ID !== input.sessionId ||
+        existingEnv.KODY_BROWSER_REPOSITORY !== `${input.owner}/${input.repo}`)
+    ) {
+      await updateMachineDefinition(
+        appName,
+        existing.id,
+        {
+          image: input.image,
+          env: {
+            KODY_BROWSER_SESSION_ID: input.sessionId,
+            KODY_BROWSER_REPOSITORY: `${input.owner}/${input.repo}`,
+            KODY_BROWSER_ACTOR_ID: input.actorId,
+            KODY_BROWSER_VERIFY_KEY: input.verifyKey,
+          },
+        },
+        input.config,
+      );
+      await waitForMachineStarted(appName, existing.id, input.config);
+    }
+
     if (existing && existing.state !== "started") {
       await startMachine(appName, existing.id, input.config);
+      await waitForMachineStarted(appName, existing.id, input.config);
     }
 
     return {
@@ -264,6 +328,6 @@ export const flyBrowserProvider: FlyBrowserProvider = {
     return postBrowserAction(session, action);
   },
   async closeSession(session) {
-    await destroyApp(session.appName, session.config);
+    await destroyMachine(session.appName, session.machineId, session.config);
   },
 };

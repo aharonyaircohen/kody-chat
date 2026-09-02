@@ -50,6 +50,59 @@ export const getActive = query({
   },
 });
 
+export const acquireStartLease = mutation({
+  args: {
+    tenantId: v.string(),
+    actorId: v.string(),
+    ownerId: v.string(),
+    nowMs: v.number(),
+    leaseUntilMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("browserSessionStartLeases")
+      .withIndex("by_actor", (q) =>
+        q.eq("tenantId", args.tenantId).eq("actorId", args.actorId),
+      )
+      .unique();
+    if (
+      existing &&
+      existing.ownerId !== args.ownerId &&
+      existing.leaseUntilMs > args.nowMs
+    ) {
+      return false;
+    }
+    const value = {
+      tenantId: args.tenantId,
+      actorId: args.actorId,
+      ownerId: args.ownerId,
+      leaseUntilMs: args.leaseUntilMs,
+    };
+    if (existing) await ctx.db.patch(existing._id, value);
+    else await ctx.db.insert("browserSessionStartLeases", value);
+    return true;
+  },
+});
+
+export const releaseStartLease = mutation({
+  args: {
+    tenantId: v.string(),
+    actorId: v.string(),
+    ownerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("browserSessionStartLeases")
+      .withIndex("by_actor", (q) =>
+        q.eq("tenantId", args.tenantId).eq("actorId", args.actorId),
+      )
+      .unique();
+    if (!existing || existing.ownerId !== args.ownerId) return false;
+    await ctx.db.delete(existing._id);
+    return true;
+  },
+});
+
 export const save = mutation({
   args: {
     ...identityArgs,

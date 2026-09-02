@@ -57,6 +57,8 @@ export interface CreatePreviewMachineInput {
    * Mirrors the builder's `fly.previews.healthCheck` config flag.
    */
   healthCheck?: boolean;
+  /** Keep a replacement out of Fly Proxy until health verification passes. */
+  skipServiceRegistration?: boolean;
 }
 
 export interface MachineInfo {
@@ -95,6 +97,7 @@ export type MachineServiceConfig = Record<string, unknown> & {
 
 export interface MachineConfig {
   image?: string;
+  env?: Record<string, string>;
   checks?: unknown;
   guest?: { cpu_kind?: string; cpus?: number; memory_mb?: number };
   services?: MachineServiceConfig[];
@@ -233,6 +236,9 @@ export async function createMachine(
   const internalPort = input.internalPort ?? 8080;
   const body = {
     region: input.region,
+    ...(input.skipServiceRegistration
+      ? { skip_service_registration: true }
+      : {}),
     config: {
       image: input.image,
       env: input.env ?? {},
@@ -320,6 +326,32 @@ export async function createMachine(
   }
   throw lastErr ?? new Error("createMachine failed (unknown)");
 }
+
+async function routeMachine(
+  appName: string,
+  machineId: string,
+  action: "cordon" | "uncordon",
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const res = await flyFetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/${action}`,
+    { method: "POST" },
+    cfg.token,
+  );
+  if (res.status === 404) throw new Error("APP_MACHINE_NOT_FOUND");
+  await assertOk(res, action);
+}
+
+export const cordonMachine = (
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+) => routeMachine(appName, machineId, "cordon", cfg);
+export const uncordonMachine = (
+  appName: string,
+  machineId: string,
+  cfg: FlyPreviewConfig,
+) => routeMachine(appName, machineId, "uncordon", cfg);
 
 export async function waitForMachineStarted(
   appName: string,
@@ -462,6 +494,50 @@ async function updateMachineConfig(
   );
   if (res.status === 404) return;
   await assertOk(res, "updateMachineConfig");
+}
+
+export async function updateMachineEnv(
+  appName: string,
+  machineId: string,
+  env: Record<string, string>,
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const machine = await getMachine(appName, machineId, cfg);
+  if (!machine?.config) throw new Error("APP_MACHINE_NOT_FOUND");
+  const currentEnv =
+    machine.config.env && typeof machine.config.env === "object"
+      ? (machine.config.env as Record<string, string>)
+      : {};
+  await updateMachineConfig(
+    appName,
+    machineId,
+    { ...machine.config, env: { ...currentEnv, ...env } },
+    cfg,
+  );
+}
+
+export async function updateMachineDefinition(
+  appName: string,
+  machineId: string,
+  update: { image: string; env: Record<string, string> },
+  cfg: FlyPreviewConfig,
+): Promise<void> {
+  const machine = await getMachine(appName, machineId, cfg);
+  if (!machine?.config) throw new Error("APP_MACHINE_NOT_FOUND");
+  const currentEnv =
+    machine.config.env && typeof machine.config.env === "object"
+      ? (machine.config.env as Record<string, string>)
+      : {};
+  await updateMachineConfig(
+    appName,
+    machineId,
+    {
+      ...machine.config,
+      image: update.image,
+      env: { ...currentEnv, ...update.env },
+    },
+    cfg,
+  );
 }
 
 export interface AlignPreviewMachineSleepOptions {

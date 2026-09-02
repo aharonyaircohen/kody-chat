@@ -85,6 +85,18 @@ beforeEach(() => {
 });
 
 describe("repository secrets API", () => {
+  it("does not require a personal Kody session for authenticated repository reads", async () => {
+    state.auth.mockResolvedValue(
+      NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    );
+
+    const response = await GET(repositoryRequest());
+
+    expect(response.status).toBe(200);
+    expect(state.auth).not.toHaveBeenCalled();
+    expect(state.readVault).toHaveBeenCalledWith({}, "acme", "app");
+  });
+
   it("keeps repository reads in the repository vault", async () => {
     const response = await GET(repositoryRequest());
 

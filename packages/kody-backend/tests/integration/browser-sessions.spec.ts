@@ -9,6 +9,44 @@ const base = {
 };
 
 describe("browser sessions", () => {
+  it("allows only one distributed browser starter per actor", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.browserSessions.acquireStartLease, {
+        tenantId: base.tenantId,
+        actorId: base.actorId,
+        ownerId: "request-a",
+        nowMs: 1_000,
+        leaseUntilMs: 31_000,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      t.mutation(api.browserSessions.acquireStartLease, {
+        tenantId: base.tenantId,
+        actorId: base.actorId,
+        ownerId: "request-b",
+        nowMs: 2_000,
+        leaseUntilMs: 32_000,
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      t.mutation(api.browserSessions.releaseStartLease, {
+        tenantId: base.tenantId,
+        actorId: base.actorId,
+        ownerId: "request-b",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      t.mutation(api.browserSessions.acquireStartLease, {
+        tenantId: base.tenantId,
+        actorId: base.actorId,
+        ownerId: "request-b",
+        nowMs: 31_001,
+        leaseUntilMs: 61_001,
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("allows only the owning actor to read, touch, and close a session", async () => {
     const t = setup();
     await t.mutation(api.browserSessions.save, {
@@ -23,9 +61,9 @@ describe("browser sessions", () => {
       expiresAtMs: 61_000,
     });
 
-    await expect(
-      t.query(api.browserSessions.get, base),
-    ).resolves.toMatchObject({ machineId: "machine-1", state: "running" });
+    await expect(t.query(api.browserSessions.get, base)).resolves.toMatchObject(
+      { machineId: "machine-1", state: "running" },
+    );
     await expect(
       t.query(api.browserSessions.get, { ...base, actorId: "intruder" }),
     ).resolves.toBeNull();

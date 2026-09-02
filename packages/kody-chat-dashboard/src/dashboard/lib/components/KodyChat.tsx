@@ -738,6 +738,19 @@ export function KodyChat({
     if (!enabled) return null;
     const parts: string[] = [];
     if (previewContextRef.current) parts.push(previewContextRef.current);
+    const liveRunner =
+      getViewsPreviewActionRunner() ??
+      getPreviewActionRunner?.() ??
+      previewActionRunnerRef.current ??
+      null;
+    if (liveRunner) {
+      try {
+        const livePage = await liveRunner({ op: "wait", ms: 0 });
+        if (livePage.info) parts.push(formatPageInfo(livePage.info));
+      } catch {
+        // Saved View context remains usable when the live browser disconnects.
+      }
+    }
     if (!previewPickerRef.current.available) {
       return parts.length > 0 ? parts.join("\n\n") : null;
     }

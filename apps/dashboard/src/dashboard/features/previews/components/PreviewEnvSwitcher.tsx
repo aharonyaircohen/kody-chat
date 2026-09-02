@@ -118,8 +118,10 @@ export function PreviewEnvSwitcher({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
 
-  const active =
-    environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
+  const active = selectedId
+    ? (environments.find((environment) => environment.id === selectedId) ??
+      null)
+    : null;
 
   const closeMenu = (): void => {
     setMenuOpen(false);

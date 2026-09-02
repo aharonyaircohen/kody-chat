@@ -1,5 +1,6 @@
 import { buildHeaders } from "@dashboard/lib/api";
 import type { PreviewEditCommand } from "@dashboard/lib/picker/protocol";
+import type { BrowserPageState } from "./browser-controller-state";
 
 export type BrowserViewport = { width: number; height: number };
 
@@ -138,6 +139,7 @@ export interface RemoteBrowserActionResult {
   ok: boolean;
   url?: string;
   title?: string;
+  page?: BrowserPageState;
   data?: unknown;
   error?: string;
 }
@@ -162,9 +164,7 @@ export async function fetchBrowserSession(
 export async function startBrowserSession(
   actorLogin: string,
   initialUrl: string,
-): Promise<
-  Extract<BrowserSessionStatus, { mode: "remote"; sessionId: string }>
-> {
+): Promise<BrowserSessionStatus> {
   const response = await fetch("/api/kody/browser/session", {
     method: "POST",
     headers: buildHeaders(),

@@ -65,16 +65,44 @@ export function useBrowserSession(input: {
           setMode({ kind: "iframe", reason: status.reason });
           return;
         }
-        const session =
-          forceStart || status.state === "idle"
-            ? await startBrowserSession(input.actorLogin, initialUrl)
-            : status;
+
+        let session: BrowserSessionStatus = status;
+        if (
+          forceStart ||
+          status.state === "idle" ||
+          status.state === "failed"
+        ) {
+          session = { mode: "remote", state: "idle" };
+          for (let attempt = 0; attempt < 75; attempt += 1) {
+            try {
+              session = await startBrowserSession(input.actorLogin, initialUrl);
+              break;
+            } catch (error) {
+              if (
+                !(error instanceof Error) ||
+                error.message !== "browser_start_in_progress" ||
+                attempt === 74
+              ) {
+                throw error;
+              }
+              await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+            }
+          }
+        }
         if (generation !== generationRef.current) return;
+        if (session.mode === "iframe") {
+          setMode({ kind: "iframe", reason: session.reason });
+          return;
+        }
+        if (session.state === "idle" || session.state === "failed") {
+          throw new Error("browser_session_failed");
+        }
         recoveryAttemptsRef.current = 0;
 
         if (
           !forceStart &&
           status.state !== "idle" &&
+          status.state !== "failed" &&
           status.currentUrl !== initialUrl
         ) {
           for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -128,7 +156,7 @@ export function useBrowserSession(input: {
   }, [connect]);
 
   useEffect(() => {
-    if (mode.kind !== "iframe" && mode.kind !== "error") return;
+    if (mode.kind !== "error") return;
     if (recoveryAttemptsRef.current >= 3) return;
     const timer = window.setTimeout(() => {
       recoveryAttemptsRef.current += 1;

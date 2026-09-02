@@ -34,7 +34,7 @@ const provider = vi.hoisted(() => ({
 }));
 const backend = vi.hoisted(() => ({
   query: vi.fn<() => Promise<unknown>>(async () => null),
-  mutation: vi.fn(async () => null),
+  mutation: vi.fn(async () => true),
 }));
 const machineDiagnostic = vi.hoisted(() => ({
   get: vi.fn(async () => ({
@@ -57,6 +57,7 @@ vi.mock("@kody-ade/fly/infrastructure/browser", () => ({
   ensureBrowserSessionReady: browserReadiness.ensure,
 }));
 vi.mock("@kody-ade/fly/plugin/browsers", () => ({
+  browserAppName: () => "kody-browser-acme-app",
   getBrowserMachineDiagnostic: machineDiagnostic.get,
 }));
 vi.mock("@kody-ade/backend/client", () => ({
@@ -127,7 +128,40 @@ describe("browser session route", () => {
         config: context.config,
       }),
     );
-    expect(backend.mutation).toHaveBeenCalledOnce();
+    expect(browserReadiness.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appName: "kody-browser-acme-app",
+        machineId: "machine-1",
+      }),
+    );
+    expect(backend.mutation).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not create a duplicate Machine when another server owns startup", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.mutation.mockResolvedValueOnce(false);
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "start",
+          actorLogin: "octocat",
+          initialUrl: "https://example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "browser_start_in_progress",
+      retryAfterMs: 1_000,
+    });
+    expect(provider.createSession).not.toHaveBeenCalled();
   });
 
   it("accepts only staged user-browser uploads through the action route", async () => {
@@ -179,21 +213,37 @@ describe("browser session route", () => {
     );
   });
 
-  it("wakes and reuses an existing browser regardless of its age", async () => {
+  it("reconciles the current image before waking an existing stable browser", async () => {
     context.config = {
       token: "fly-token",
       orgSlug: "personal",
       defaultRegion: "fra",
     };
     backend.query.mockResolvedValueOnce({
+      _id: "browser-session-row",
+      _creationTime: Date.now() - 60_000,
       sessionId: "browser-fixed",
       providerId: "fly",
-      appName: "fresh-browser-app",
-      machineId: "fresh-machine",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
       state: "starting",
-      currentUrl: "https://example.com",
+      currentUrl: "https://www.iana.org/help/example-domains",
       viewport: { width: 1280, height: 720 },
       expiresAtMs: Date.now() + 60 * 60 * 1_000,
+      createdAtMs: Date.now() - 60_000,
+      lastActiveAtMs: Date.now() - 30_000,
+    });
+    provider.act.mockResolvedValueOnce({
+      ok: true,
+      url: "https://example.com/",
+      page: {
+        url: "https://example.com/",
+        title: "Example Domain",
+        loading: false,
+        canGoBack: true,
+        canGoForward: false,
+        revision: 2,
+      },
     });
 
     const response = await POST(
@@ -208,17 +258,116 @@ describe("browser session route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(provider.createSession).not.toHaveBeenCalled();
+    expect(provider.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "browser-fixed",
+        initialUrl: "https://example.com",
+      }),
+    );
     expect(browserReadiness.ensure).toHaveBeenCalledWith(
       expect.objectContaining({
-        appName: "fresh-browser-app",
-        machineId: "fresh-machine",
+        appName: "kody-browser-acme-app",
+        machineId: "machine-1",
       }),
+    );
+    expect(provider.act).toHaveBeenCalledWith(
+      expect.objectContaining({ accessTicket: "ticket-1" }),
+      { type: "navigate", url: "https://example.com" },
     );
     await expect(response.json()).resolves.toMatchObject({
       sessionId: "browser-fixed",
-      state: "starting",
+      state: "running",
+      currentUrl: "https://example.com/",
     });
+    const mutationCalls = backend.mutation.mock.calls as unknown as Array<
+      [unknown, Record<string, unknown>]
+    >;
+    const saveCall = mutationCalls.find(
+      ([, input]) =>
+        input.sessionId === "browser-fixed" && input.state === "running",
+    );
+    expect(saveCall?.[1]).not.toHaveProperty("_id");
+    expect(saveCall?.[1]).not.toHaveProperty("_creationTime");
+    expect(saveCall?.[1]).not.toHaveProperty("createdAtMs");
+    expect(saveCall?.[1]).not.toHaveProperty("lastActiveAtMs");
+  });
+
+  it("migrates an obsolete random app session to the stable repository app", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "obsolete-random-browser-app",
+      machineId: "old-machine",
+      state: "running",
+      currentUrl: "https://example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "start",
+          actorLogin: "octocat",
+          initialUrl: "https://example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(provider.closeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appName: "obsolete-random-browser-app",
+        machineId: "old-machine",
+      }),
+    );
+    expect(provider.createSession).toHaveBeenCalledOnce();
+    await expect(response.json()).resolves.toMatchObject({
+      state: "running",
+      streamUrl: expect.stringContaining("kody-browser-acme-app.fly.dev"),
+    });
+  });
+
+  it("replaces stale Convex state when its Fly Machine was destroyed", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValueOnce({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "missing-machine",
+      state: "running",
+      currentUrl: "https://example.com",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+    browserReadiness.ensure
+      .mockRejectedValueOnce(new Error("browser_machine_not_found"))
+      .mockResolvedValueOnce(undefined);
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "start",
+          actorLogin: "octocat",
+          initialUrl: "https://example.com",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(provider.createSession).toHaveBeenCalledTimes(2);
+    expect(browserReadiness.ensure).toHaveBeenCalledTimes(2);
   });
 
   it("returns only scoped Machine startup diagnostics", async () => {

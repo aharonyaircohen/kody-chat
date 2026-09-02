@@ -5,7 +5,6 @@
  * @ai-summary Selected Preview environment route. Keeps environment selection
  * addressable at `/preview/<id>`.
  */
-import { PreviewWorkspace } from "@dashboard/features/previews/components/PreviewWorkspace";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +15,6 @@ export const metadata = buildKodyMetadata({
   path: "/preview",
 });
 
-export default async function SelectedPreviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <PreviewWorkspace selectedId={id} />;
+export default function SelectedPreviewPage() {
+  return null;
 }

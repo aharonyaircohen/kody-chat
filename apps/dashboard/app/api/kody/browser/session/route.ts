@@ -6,7 +6,7 @@
  *   browser provider, Convex runtime state, and the repository's Fly vault.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,7 +23,10 @@ import {
   type CreateFlyBrowserSessionInput,
   ensureBrowserSessionReady,
 } from "@kody-ade/fly/infrastructure/browser";
-import { getBrowserMachineDiagnostic } from "@kody-ade/fly/plugin/browsers";
+import {
+  browserAppName,
+  getBrowserMachineDiagnostic,
+} from "@kody-ade/fly/plugin/browsers";
 import {
   resolveServerProviderContext,
   serverProviderConfigFromContext,
@@ -43,26 +46,7 @@ const STREAM_TICKET_TTL_SECONDS = 5 * 60;
 const DEFAULT_BROWSER_IMAGE =
   process.env.FLY_BROWSER_IMAGE ??
   "ghcr.io/aharonyaircohen/kody-browser:latest";
-const browserStartLocks = new Map<string, Promise<void>>();
-
-async function withBrowserStartLock<T>(
-  key: string,
-  task: () => Promise<T>,
-): Promise<T> {
-  const predecessor = browserStartLocks.get(key);
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  browserStartLocks.set(key, gate);
-  if (predecessor) await predecessor;
-  try {
-    return await task();
-  } finally {
-    release();
-    if (browserStartLocks.get(key) === gate) browserStartLocks.delete(key);
-  }
-}
+const START_LEASE_MS = 75_000;
 
 const CapabilityBrowserScope = {
   capabilitySlug: z.string().min(1).max(120).optional(),
@@ -81,7 +65,7 @@ const BrowserAction = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("viewport"),
     width: z.number().int().min(320).max(1_920),
-    height: z.number().int().min(480).max(1_080),
+    height: z.number().int().min(480).max(1_800),
   }),
   z.object({ type: z.literal("screenshot") }),
   z.object({ type: z.literal("snapshot") }),
@@ -312,23 +296,43 @@ export async function POST(req: NextRequest) {
   try {
     if (data.operation === "start") {
       const startData = data;
-      return await withBrowserStartLock(
-        `${tenantId}:${authority.actorId}`,
-        async () => {
-          const initialUrl = await validatePublicBrowserUrl(
-            startData.initialUrl,
-          );
-          const nowMs = Date.now();
-          const previous = (await backend.query(
-            backendApi.browserSessions.getActive,
-            {
-              tenantId,
-              actorId: authority.actorId,
-              nowMs,
-            },
-          )) as StoredBrowserSession | null;
-          if (previous) {
-            await ensureBrowserSessionReady({
+      const leaseOwnerId = randomUUID();
+      const leaseNowMs = Date.now();
+      const acquired = await backend.mutation(
+        backendApi.browserSessions.acquireStartLease,
+        {
+          tenantId,
+          actorId: authority.actorId,
+          ownerId: leaseOwnerId,
+          nowMs: leaseNowMs,
+          leaseUntilMs: leaseNowMs + START_LEASE_MS,
+        },
+      );
+      if (!acquired) {
+        return NextResponse.json(
+          { error: "browser_start_in_progress", retryAfterMs: 1_000 },
+          { status: 409 },
+        );
+      }
+      try {
+        const initialUrl = await validatePublicBrowserUrl(startData.initialUrl);
+        const nowMs = Date.now();
+        let previous = (await backend.query(
+          backendApi.browserSessions.getActive,
+          {
+            tenantId,
+            actorId: authority.actorId,
+            nowMs,
+          },
+        )) as StoredBrowserSession | null;
+        const expectedAppName = browserAppName({
+          owner: authority.owner,
+          repo: authority.repo,
+          actorId: authority.actorId,
+        });
+        if (previous && previous.appName !== expectedAppName) {
+          try {
+            await provider.closeSession({
               providerId: "fly",
               sessionId: previous.sessionId,
               appName: previous.appName,
@@ -338,56 +342,144 @@ export async function POST(req: NextRequest) {
               endpoint: `https://${previous.appName}.fly.dev`,
               config,
             });
+          } catch (error) {
+            logger.warn(
+              { err: error, appName: previous.appName },
+              "browser-session: obsolete Machine cleanup failed",
+            );
+          }
+          await backend.mutation(backendApi.browserSessions.close, {
+            tenantId,
+            actorId: authority.actorId,
+            sessionId: previous.sessionId,
+            nowMs,
+          });
+          previous = null;
+        }
+        if (previous) {
+          try {
+            const reconciled = await provider.createSession({
+              owner: authority.owner,
+              repo: authority.repo,
+              actorId: authority.actorId,
+              sessionId: previous.sessionId,
+              initialUrl,
+              image: DEFAULT_BROWSER_IMAGE,
+              config,
+              verifyKey: deriveBrowserKey().toString("base64url"),
+            } satisfies CreateFlyBrowserSessionInput);
+            await ensureBrowserSessionReady(reconciled);
+            let currentUrl = previous.currentUrl;
+            if (currentUrl !== initialUrl) {
+              const { ticket } = mintBrowserTicket(
+                ticketIdentity(
+                  authority.owner,
+                  authority.repo,
+                  authority.actorId,
+                  reconciled,
+                ),
+                STREAM_TICKET_TTL_SECONDS,
+              );
+              const navigation = await provider.act(
+                { ...reconciled, accessTicket: ticket },
+                { type: "navigate", url: initialUrl },
+              );
+              if (!navigation.ok) throw new Error("browser_navigation_failed");
+              currentUrl = navigation.url ?? initialUrl;
+            }
+            const readySession: StoredBrowserSession = {
+              sessionId: previous.sessionId,
+              providerId: reconciled.providerId,
+              appName: reconciled.appName,
+              machineId: reconciled.machineId,
+              state: "running",
+              currentUrl,
+              viewport: previous.viewport,
+              expiresAtMs: nowMs + SESSION_TTL_MS,
+            };
+            await backend.mutation(backendApi.browserSessions.save, {
+              tenantId,
+              actorId: authority.actorId,
+              ...readySession,
+              nowMs,
+            });
             return NextResponse.json(
               clientSession(
                 authority.owner,
                 authority.repo,
                 authority.actorId,
-                previous,
+                readySession,
               ),
             );
+          } catch (error) {
+            if (
+              !(error instanceof Error) ||
+              error.message !== "browser_machine_not_found"
+            ) {
+              throw error;
+            }
+            await backend.mutation(backendApi.browserSessions.close, {
+              tenantId,
+              actorId: authority.actorId,
+              sessionId: previous.sessionId,
+              nowMs,
+            });
           }
-          const sessionId = stableSessionId(
+        }
+        const sessionId = stableSessionId(
+          authority.owner,
+          authority.repo,
+          authority.actorId,
+        );
+        const session = await provider.createSession({
+          owner: authority.owner,
+          repo: authority.repo,
+          actorId: authority.actorId,
+          sessionId,
+          initialUrl,
+          image: DEFAULT_BROWSER_IMAGE,
+          config,
+          verifyKey: deriveBrowserKey().toString("base64url"),
+        } satisfies CreateFlyBrowserSessionInput);
+        await ensureBrowserSessionReady(session);
+        const stored: StoredBrowserSession = {
+          sessionId,
+          providerId: session.providerId,
+          appName: session.appName,
+          machineId: session.machineId,
+          state: "running",
+          currentUrl: initialUrl,
+          viewport: { width: 1_280, height: 720 },
+          expiresAtMs: nowMs + SESSION_TTL_MS,
+        };
+        await backend.mutation(backendApi.browserSessions.save, {
+          tenantId,
+          actorId: authority.actorId,
+          ...stored,
+          nowMs,
+        });
+        return NextResponse.json(
+          clientSession(
             authority.owner,
             authority.repo,
             authority.actorId,
-          );
-          const session = await provider.createSession({
-            owner: authority.owner,
-            repo: authority.repo,
-            actorId: authority.actorId,
-            sessionId,
-            initialUrl,
-            image: DEFAULT_BROWSER_IMAGE,
-            config,
-            verifyKey: deriveBrowserKey().toString("base64url"),
-          } satisfies CreateFlyBrowserSessionInput);
-          const stored: StoredBrowserSession = {
-            sessionId,
-            providerId: session.providerId,
-            appName: session.appName,
-            machineId: session.machineId,
-            state: session.state === "started" ? "running" : "starting",
-            currentUrl: initialUrl,
-            viewport: { width: 1_280, height: 720 },
-            expiresAtMs: nowMs + SESSION_TTL_MS,
-          };
-          await backend.mutation(backendApi.browserSessions.save, {
+            stored,
+          ),
+        );
+      } finally {
+        await backend
+          .mutation(backendApi.browserSessions.releaseStartLease, {
             tenantId,
             actorId: authority.actorId,
-            ...stored,
-            nowMs,
-          });
-          return NextResponse.json(
-            clientSession(
-              authority.owner,
-              authority.repo,
-              authority.actorId,
-              stored,
+            ownerId: leaseOwnerId,
+          })
+          .catch((error) =>
+            logger.warn(
+              { err: error },
+              "browser-session: start lease will expire naturally",
             ),
           );
-        },
-      );
+      }
     }
 
     const stored = (await backend.query(backendApi.browserSessions.get, {
