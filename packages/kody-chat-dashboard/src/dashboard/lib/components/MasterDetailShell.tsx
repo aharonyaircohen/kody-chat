@@ -35,6 +35,7 @@ export function MasterDetailShell({
   listWidth = "md:w-80",
   hasSelection,
   detail,
+  embedded = false,
 }: {
   title: string;
   icon: LucideIcon;
@@ -57,16 +58,20 @@ export function MasterDetailShell({
   hasSelection: boolean;
   /** The detail pane (selected item or its empty state). */
   detail: ReactNode;
+  /** Omit the page header when the shell is embedded inside an existing page tab. */
+  embedded?: boolean;
 }) {
   return (
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
-      <PageHeader
-        title={title}
-        icon={icon}
-        iconClassName={iconClassName}
-        subtitle={subtitle}
-        actions={actions}
-      />
+      {!embedded ? (
+        <PageHeader
+          title={title}
+          icon={icon}
+          iconClassName={iconClassName}
+          subtitle={subtitle}
+          actions={actions}
+        />
+      ) : null}
 
       {error ? (
         <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">

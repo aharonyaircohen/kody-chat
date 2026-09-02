@@ -18,7 +18,12 @@ const mocks = vi.hoisted(() => ({
   mapRunIssueNumbers: vi.fn(() => new Map()),
   readFeedEntries: vi.fn(async () => [] as unknown[]),
   buildFeedSnapshot: vi.fn(() => ({ feed: true })),
+  backendQuery: vi.fn(async () => ({ runs: [], computedAt: "now" })),
   handleKodyApiError: vi.fn(),
+}));
+
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({ query: mocks.backendQuery }),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -62,8 +67,9 @@ vi.mock("@dashboard/lib/github-error-handler", async () => {
   };
 });
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { GET as getActivity } from "../../app/api/kody/activity/route";
+import { GET as getAgentActivity } from "../../app/api/kody/activity/agents/route";
 import { GET as getFeed } from "../../app/api/kody/activity/feed/route";
 
 const req = {} as Parameters<typeof getActivity>[0];
@@ -163,5 +169,40 @@ describe("GET /api/kody/activity/feed", () => {
     const res = await getFeed(req);
     expect(res.status).toBe(500);
     expect(mocks.handleKodyApiError).toHaveBeenCalledWith(err, "activity-feed");
+  });
+});
+
+describe("GET /api/kody/activity/agents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getRequestAuth.mockReturnValue({
+      owner: "owner",
+      repo: "repo",
+      token: "tok",
+    });
+    mocks.backendQuery.mockResolvedValue({ runs: [], computedAt: "now" });
+  });
+
+  it("returns only the active repository's inspectable agent runs", async () => {
+    const res = await getAgentActivity(
+      new NextRequest("https://dash.test/api/kody/activity/agents?limit=25"),
+    );
+    expect(res.status).toBe(200);
+    expect(mocks.backendQuery).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "owner/repo",
+      limit: 25,
+      now: expect.any(String),
+    });
+  });
+
+  it("requires repository authentication", async () => {
+    mocks.requireKodyAuth.mockResolvedValueOnce(
+      NextResponse.json({ message: "nope" }, { status: 401 }),
+    );
+    const res = await getAgentActivity(
+      new NextRequest("https://dash.test/api/kody/activity/agents"),
+    );
+    expect(res.status).toBe(401);
+    expect(mocks.backendQuery).not.toHaveBeenCalled();
   });
 });

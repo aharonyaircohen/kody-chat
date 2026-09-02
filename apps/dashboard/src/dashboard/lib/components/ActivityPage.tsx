@@ -55,9 +55,11 @@ import type {
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { WorkflowEventsView } from "./WorkflowEvents";
+import { AgentRunsView } from "./AgentRunsView";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed" | "events";
+type ActivityTab =
+  "agents" | "log" | "auto" | "runs" | "runLogs" | "feed" | "events";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -1038,12 +1040,18 @@ function LogView({ active }: { active: boolean }) {
   );
 }
 
-export function ActivityPage() {
+export function ActivityPage({
+  initialTab = "agents",
+  initialAgentRunId,
+}: {
+  initialTab?: ActivityTab;
+  initialAgentRunId?: string;
+} = {}) {
   const { auth } = useAuth();
   const scopedHref = (href: string) =>
     auth ? repoScopedHref(auth, href) : href;
   const { data, isLoading, error, refetch, isFetching } = useActivity();
-  const [tab, setTab] = useState<ActivityTab>("log");
+  const [tab, setTab] = useState<ActivityTab>(initialTab);
   const [filter, setFilter] = useState<RunFilter>("all");
   const [query, setQuery] = useState("");
   const [trigger, setTrigger] = useState<string>("all");
@@ -1125,7 +1133,15 @@ export function ActivityPage() {
 
       <div className="mb-4 flex items-center gap-1">
         {(
-          ["log", "auto", "runs", "runLogs", "feed", "events"] as ActivityTab[]
+          [
+            "agents",
+            "log",
+            "auto",
+            "runs",
+            "runLogs",
+            "feed",
+            "events",
+          ] as ActivityTab[]
         ).map((t) => (
           <Button
             key={t}
@@ -1140,7 +1156,9 @@ export function ActivityPage() {
                 : "text-white/50 hover:text-white hover:bg-white/[0.04]",
             )}
           >
-            {t === "runs" ? (
+            {t === "agents" ? (
+              <Bot className="w-3.5 h-3.5" />
+            ) : t === "runs" ? (
               <ActivityIcon className="w-3.5 h-3.5" />
             ) : t === "auto" ? (
               <Bot className="w-3.5 h-3.5" />
@@ -1151,20 +1169,26 @@ export function ActivityPage() {
             ) : (
               <ScrollText className="w-3.5 h-3.5" />
             )}
-            {t === "log"
-              ? "Log"
-              : t === "auto"
-                ? "Auto"
-                : t === "runs"
-                  ? "Runs"
-                  : t === "runLogs"
-                    ? "Run Logs"
-                    : t === "events"
-                      ? "Events"
-                      : "Feed"}
+            {t === "agents"
+              ? "Agents"
+              : t === "log"
+                ? "Log"
+                : t === "auto"
+                  ? "Auto"
+                  : t === "runs"
+                    ? "Runs"
+                    : t === "runLogs"
+                      ? "Run Logs"
+                      : t === "events"
+                        ? "Events"
+                        : "Feed"}
           </Button>
         ))}
       </div>
+
+      {tab === "agents" && (
+        <AgentRunsView active initialRunId={initialAgentRunId} />
+      )}
 
       {tab === "log" && <LogView active={tab === "log"} />}
 

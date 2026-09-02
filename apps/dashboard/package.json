@@ -31,6 +31,7 @@
     "test:gate": "pnpm test:unit && pnpm test:int && pnpm test:e2e:gate",
     "test:live:brain": "node scripts/verify-brain-live-flow.mjs",
     "test:live:terminal-ui": "playwright test tests/e2e/chat-terminal-live-ui.spec.ts --project=chromium",
+    "test:live:mcp": "node scripts/verify-public-mcp.mjs",
     "vault:init": "node scripts/generate-vault-key.mjs",
     "builder:publish": "node scripts/publish-preview-builder.mjs",
     "cms:generate-schema": "node scripts/generate-cms-schema.mjs",

@@ -21,6 +21,16 @@ export interface WorkflowEventDelivery {
 
 /** Engine run health for the connected repo (read-only). */
 export const activityApi = {
+  agentRuns: async (
+    limit = 50,
+  ): Promise<import("../activity/agent-runs").AgentRunsPayload> => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const res = await fetch(`${API_BASE}/activity/agents?${params}`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    return handleResponse(res);
+  },
   workflowEvents: async (
     limit = 20,
   ): Promise<{

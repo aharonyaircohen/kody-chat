@@ -1,0 +1,16 @@
+{
+  "transport": "streamable-http",
+  "endpointPath": "/api/kody/mcp",
+  "authentication": {
+    "header": "Authorization",
+    "scheme": "Bearer",
+    "environmentVariable": "KODY_MCP_TOKEN"
+  },
+  "protocolVersion": "2025-11-25",
+  "clients": [
+    { "id": "claude-code", "mode": "remote-http", "status": "compatible" },
+    { "id": "codex", "mode": "remote-http", "status": "compatible" },
+    { "id": "opencode", "mode": "remote-http", "status": "compatible" },
+    { "id": "hermes-agent", "mode": "remote-http", "status": "compatible" }
+  ]
+}

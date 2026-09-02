@@ -23,7 +23,11 @@ export const TABLES: readonly TableDef[] = [
   },
   { table: "catalog", naturalKey: ["category", "slug"], upsertIndex: "by_key" },
   { table: "workflows", naturalKey: ["workflowId"], upsertIndex: "by_tenant" },
-  { table: "connections", naturalKey: ["connection.id"], upsertIndex: "by_tenant" },
+  {
+    table: "connections",
+    naturalKey: ["connection.id"],
+    upsertIndex: "by_tenant",
+  },
   {
     table: "workflowRuns",
     naturalKey: ["workflowId", "runId"],
@@ -263,6 +267,40 @@ export const TABLES: readonly TableDef[] = [
     table: "taskState",
     naturalKey: ["taskKey", "kind"],
     upsertIndex: "by_task",
+  },
+  {
+    table: "sharedWorkEvents",
+    naturalKey: ["recordId", "seq"],
+    upsertIndex: "by_work",
+  },
+  {
+    table: "mcpApprovalRequests",
+    naturalKey: ["requestId"],
+    upsertIndex: "by_request",
+    transient: true,
+  },
+  {
+    table: "mcpAccessTokens",
+    naturalKey: ["tokenId"],
+    upsertIndex: "by_token",
+    transient: true,
+  },
+  {
+    table: "mcpRateLimits",
+    naturalKey: ["key"],
+    upsertIndex: "by_key",
+    global: true,
+    transient: true,
+  },
+  {
+    table: "mcpAuditEvents",
+    naturalKey: ["eventId"],
+    upsertIndex: "by_event",
+  },
+  {
+    table: "agentRuns",
+    naturalKey: ["runId"],
+    upsertIndex: "by_run",
   },
   { table: "capabilityState", naturalKey: ["slug"], upsertIndex: "by_tenant" },
   { table: "agentStates", naturalKey: ["agent"], upsertIndex: "by_agent" },

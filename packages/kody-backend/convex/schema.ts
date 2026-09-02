@@ -815,6 +815,71 @@ export default defineSchema({
     .index("by_user", ["userKey"])
     .index("by_user_name", ["userKey", "name"]),
 
+  mcpAccessTokens: defineTable({
+    tokenId: v.string(),
+    tokenHash: v.string(),
+    name: v.string(),
+    tenantId: v.string(),
+    actorLogin: v.string(),
+    actorGithubId: v.number(),
+    scopes: v.array(v.string()),
+    createdAt: v.string(),
+    expiresAt: v.string(),
+    revokedAt: v.optional(v.string()),
+  })
+    .index("by_hash", ["tokenHash"])
+    .index("by_token", ["tenantId", "tokenId"])
+    .index("by_actor", ["tenantId", "actorLogin", "createdAt"]),
+
+  mcpRateLimits: defineTable({
+    key: v.string(),
+    windowStartedAt: v.number(),
+    count: v.number(),
+  }).index("by_key", ["key"]),
+
+  mcpAuditEvents: defineTable({
+    eventId: v.string(),
+    tenantId: v.string(),
+    runId: v.optional(v.string()),
+    tokenId: v.string(),
+    actorLogin: v.string(),
+    method: v.string(),
+    toolName: v.optional(v.string()),
+    actionId: v.optional(v.string()),
+    outcome: v.union(
+      v.literal("success"),
+      v.literal("rejected"),
+      v.literal("error"),
+    ),
+    occurredAt: v.string(),
+  })
+    .index("by_event", ["eventId"])
+    .index("by_tenant", ["tenantId", "occurredAt"])
+    .index("by_run", ["tenantId", "runId", "occurredAt"]),
+
+  agentRuns: defineTable({
+    runId: v.string(),
+    tenantId: v.string(),
+    tokenId: v.string(),
+    agentName: v.string(),
+    clientName: v.optional(v.string()),
+    workRecordId: v.optional(v.string()),
+    status: v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    callCount: v.number(),
+    lastOutcome: v.optional(
+      v.union(v.literal("success"), v.literal("rejected"), v.literal("error")),
+    ),
+    startedAt: v.string(),
+    lastActivityAt: v.string(),
+    endedAt: v.optional(v.string()),
+  })
+    .index("by_run", ["tenantId", "runId"])
+    .index("by_tenant", ["tenantId", "startedAt"]),
+
   notificationPrefs: defineTable({
     tenantId: v.string(),
     login: v.string(),
@@ -873,7 +938,73 @@ export default defineSchema({
     kind: v.string(), // "context" | "state" | …
     doc: v.any(),
     updatedAt: v.string(),
-  }).index("by_task", ["tenantId", "taskKey", "kind"]),
+  })
+    .index("by_task", ["tenantId", "taskKey", "kind"])
+    .index("by_kind", ["tenantId", "kind", "updatedAt"]),
+
+  sharedWorkEvents: defineTable({
+    tenantId: v.string(),
+    recordId: v.string(),
+    seq: v.number(),
+    type: v.string(),
+    payload: v.any(),
+    actor: v.object({
+      tokenId: v.string(),
+      name: v.string(),
+      actorLogin: v.string(),
+    }),
+    actionId: v.string(),
+    idempotencyKey: v.string(),
+    requestHash: v.string(),
+    result: v.any(),
+    occurredAt: v.string(),
+  })
+    .index("by_work", ["tenantId", "recordId", "seq"])
+    .index("by_idempotency", ["tenantId", "actor.tokenId", "idempotencyKey"]),
+
+  mcpApprovalRequests: defineTable({
+    tenantId: v.string(),
+    requestId: v.string(),
+    workRecordId: v.string(),
+    targetKind: v.union(
+      v.literal("workflow"),
+      v.literal("capability"),
+      v.literal("automation"),
+    ),
+    workflowId: v.string(),
+    runId: v.string(),
+    mode: v.union(v.literal("start"), v.literal("resume")),
+    input: v.any(),
+    action: v.string(),
+    approvalId: v.string(),
+    approvalToken: v.string(),
+    actor: v.object({
+      tokenId: v.string(),
+      name: v.string(),
+      actorLogin: v.string(),
+      actorGithubId: v.number(),
+    }),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approving"),
+      v.literal("rejected"),
+      v.literal("dispatched"),
+      v.literal("failed"),
+      v.literal("expired"),
+    ),
+    idempotencyKey: v.string(),
+    requestHash: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    expiresAt: v.string(),
+    decidedBy: v.optional(v.string()),
+    decidedAt: v.optional(v.string()),
+    result: v.optional(v.any()),
+  })
+    .index("by_request", ["tenantId", "requestId"])
+    .index("by_tenant", ["tenantId", "createdAt"])
+    .index("by_work", ["tenantId", "workRecordId", "createdAt"])
+    .index("by_idempotency", ["tenantId", "actor.tokenId", "idempotencyKey"]),
 
   capabilityState: defineTable({
     tenantId: v.string(),
