@@ -59,7 +59,9 @@ export const recordCall = mutation({
   handler: async (ctx, args) => {
     const duplicate = await ctx.db
       .query("mcpAuditEvents")
-      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .withIndex("by_event", (q) =>
+        q.eq("tenantId", args.tenantId).eq("eventId", args.eventId),
+      )
       .unique();
     if (duplicate) return args.runId;
 

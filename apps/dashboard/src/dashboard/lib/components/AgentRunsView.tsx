@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  Clock,
+  GitBranch,
+  Loader2,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@kody-ade/base/ui/badge";
 import { Button } from "@kody-ade/base/ui/button";
 import { useMemo, useState } from "react";
@@ -24,6 +32,17 @@ function RunStatus({ status }: { status: AgentRun["status"] }) {
   if (status === "failed") return <XCircle className="h-4 w-4 text-rose-300" />;
   return <CheckCircle2 className="h-4 w-4 text-emerald-300" />;
 }
+
+type AgentRunHistoryItem = {
+  id: string;
+  kind: "call" | "approval" | "execution";
+  title: string;
+  detail?: string;
+  status: string;
+  occurredAt: string;
+  href?: string;
+  linkLabel?: string;
+};
 
 export function AgentRunsView({
   active,
@@ -124,6 +143,87 @@ export function AgentRunsView({
 
 function AgentRunDetail({ run }: { run: AgentRun }) {
   const [owner = "", repo = ""] = run.repository.split("/", 2);
+  const history: AgentRunHistoryItem[] = [
+    ...run.calls.map((call) => ({
+      id: `call:${call.eventId}`,
+      kind: "call" as const,
+      title: call.actionId ?? call.toolName ?? call.method,
+      status: call.outcome,
+      occurredAt: call.occurredAt,
+    })),
+    ...(run.approvals ?? []).flatMap((approval) => {
+      const approvalHref = `/repo/${owner}/${repo}/shared-work/${approval.workRecordId}#approval-${approval.requestId}`;
+      const executionHref =
+        approval.targetKind === "workflow"
+          ? `/repo/${owner}/${repo}/workflows/${approval.workflowId}`
+          : approval.targetKind === "capability"
+            ? `/repo/${owner}/${repo}/capabilities/${approval.workflowId}`
+            : undefined;
+      const items: AgentRunHistoryItem[] = [
+        {
+          id: `approval-requested:${approval.requestId}`,
+          kind: "approval" as const,
+          title: "Approval requested",
+          detail: `${approval.mode === "resume" ? "Resume" : "Run"} ${approval.targetKind} ${approval.workflowId}`,
+          status: "pending",
+          occurredAt: approval.createdAt,
+          href: approvalHref,
+          linkLabel: "Open approval",
+        },
+      ];
+      if (approval.decidedAt) {
+        items.push({
+          id: `approval-decided:${approval.requestId}`,
+          kind: "approval",
+          title:
+            approval.status === "rejected"
+              ? "Approval rejected"
+              : `Approved by ${approval.decidedBy ?? "user"}`,
+          detail: approval.workflowId,
+          status: approval.status === "rejected" ? "rejected" : "approved",
+          occurredAt: approval.decidedAt,
+        });
+      }
+      if (
+        approval.execution ||
+        approval.status === "dispatched" ||
+        approval.status === "failed"
+      ) {
+        const status = approval.execution?.status ?? approval.status;
+        const target =
+          approval.targetKind === "workflow"
+            ? "Workflow"
+            : approval.targetKind === "capability"
+              ? "Capability"
+              : "Automation";
+        const result =
+          status === "done"
+            ? "completed"
+            : status === "waiting-approval"
+              ? "waiting for approval"
+              : status;
+        items.push({
+          id: `execution:${approval.requestId}`,
+          kind: "execution",
+          title: `${target} ${result}`,
+          detail: `${approval.workflowId} · ${approval.executionRunId}`,
+          status,
+          occurredAt: approval.execution?.updatedAt ?? approval.updatedAt,
+          href: approval.execution?.url ?? executionHref,
+          linkLabel: approval.execution?.url
+            ? "Open workflow run"
+            : approval.targetKind === "workflow"
+              ? "Open workflow"
+              : approval.targetKind === "capability"
+                ? "Open capability"
+                : undefined,
+        });
+      }
+      return items;
+    }),
+  ].sort(
+    (left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt),
+  );
   return (
     <article className="space-y-6 p-5 md:p-7">
       <header>
@@ -167,27 +267,49 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
       </header>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold">MCP calls</h3>
+        <h3 className="mb-2 text-sm font-semibold">Run history</h3>
         <ul className="space-y-2">
-          {run.calls.map((call) => (
+          {history.map((item) => (
             <li
-              key={call.eventId}
+              key={item.id}
               className="flex items-start gap-3 rounded-md border border-white/[0.08] px-3 py-2"
             >
-              {call.outcome === "success" ? (
+              {item.kind === "approval" ? (
+                <ShieldCheck className="mt-0.5 h-4 w-4 text-amber-300" />
+              ) : item.kind === "execution" ? (
+                <GitBranch className="mt-0.5 h-4 w-4 text-sky-300" />
+              ) : item.status === "success" ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
-              ) : call.outcome === "error" ? (
+              ) : item.status === "error" ? (
                 <XCircle className="mt-0.5 h-4 w-4 text-rose-300" />
               ) : (
                 <Clock className="mt-0.5 h-4 w-4 text-amber-300" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="break-all font-mono text-xs">
-                  {call.actionId ?? call.toolName ?? call.method}
+                <p
+                  className={cn(
+                    "break-all text-xs",
+                    item.kind === "call" && "font-mono",
+                  )}
+                >
+                  {item.title}
                 </p>
+                {item.detail ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.detail}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {call.outcome} · {when(call.occurredAt)}
+                  {item.status} · {when(item.occurredAt)}
                 </p>
+                {item.href && item.linkLabel ? (
+                  <Link
+                    className="mt-1 inline-flex text-xs text-primary underline underline-offset-2"
+                    href={item.href}
+                  >
+                    {item.linkLabel}
+                  </Link>
+                ) : null}
               </div>
             </li>
           ))}

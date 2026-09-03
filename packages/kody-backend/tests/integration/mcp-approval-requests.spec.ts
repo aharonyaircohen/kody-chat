@@ -137,6 +137,35 @@ describe("MCP workflow approval requests", () => {
       status: "dispatched",
       result: { runId: "run-3", execution: "kody-engine" },
     });
+
+    await t.mutation(api.mcpApprovalRequests.recordExecution, {
+      tenantId: TENANT,
+      workflowId: "quality-run",
+      runId: "run-3",
+      status: "success",
+      summary: "Quality checks passed",
+      githubRunId: "42",
+      githubRunUrl: "https://github.com/acme/widgets/actions/runs/42",
+      completedAt: "2026-09-02T08:09:00.000Z",
+    });
+    const completed = await t.query(api.mcpApprovalRequests.getPublic, {
+      tenantId: TENANT,
+      requestId: "approval-request-3",
+    });
+    expect(completed).toMatchObject({
+      status: "dispatched",
+      result: {
+        runId: "run-3",
+        execution: {
+          kind: "kody-engine",
+          status: "success",
+          summary: "Quality checks passed",
+          githubRunId: "42",
+          githubRunUrl: "https://github.com/acme/widgets/actions/runs/42",
+          completedAt: "2026-09-02T08:09:00.000Z",
+        },
+      },
+    });
   });
 
   it("keeps approval requests repository scoped", async () => {

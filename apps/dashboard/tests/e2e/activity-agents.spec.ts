@@ -39,7 +39,7 @@ test("Activity Agents shows inspectable runs with nested MCP calls", async ({
       }),
     );
   });
-  await page.route("**/api/kody/activity/agents?**", (route) =>
+  await page.route(/\/api\/kody\/activity\/agents(?:\?.*)?$/, (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -74,6 +74,26 @@ test("Activity Agents shows inspectable runs with nested MCP calls", async ({
               nextSteps: ["Review Activity"],
               recordedAt: "2026-09-02T12:04:00.000Z",
             },
+            approvals: [
+              {
+                requestId: "approval-request-1",
+                workRecordId: "shared-activity-1",
+                targetKind: "workflow",
+                workflowId: "quality-run",
+                executionRunId: "workflow-run-1",
+                mode: "start",
+                status: "dispatched",
+                createdAt: "2026-09-02T12:01:00.000Z",
+                decidedAt: "2026-09-02T12:02:00.000Z",
+                decidedBy: "octocat",
+                updatedAt: "2026-09-02T12:03:00.000Z",
+                execution: {
+                  status: "done",
+                  updatedAt: "2026-09-02T12:04:00.000Z",
+                  url: "https://github.com/test-owner/test-repo/actions/runs/42",
+                },
+              },
+            ],
             calls: [
               {
                 eventId: "call-1",
@@ -134,6 +154,27 @@ test("Activity Agents shows inspectable runs with nested MCP calls", async ({
   await expect(
     page.getByText("work.handoff.create", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText("Approval requested", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Approved by octocat", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Workflow completed", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open approval" }),
+  ).toHaveAttribute(
+    "href",
+    "/repo/test-owner/test-repo/shared-work/shared-activity-1#approval-approval-request-1",
+  );
+  await expect(
+    page.getByRole("link", { name: "Open workflow run" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/test-owner/test-repo/actions/runs/42",
+  );
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Handoff" })).toBeVisible();
   await expect(

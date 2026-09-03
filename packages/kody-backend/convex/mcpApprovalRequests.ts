@@ -217,6 +217,63 @@ export const finish = mutation({
   },
 });
 
+export const recordExecution = mutation({
+  args: {
+    tenantId: v.string(),
+    workflowId: v.string(),
+    runId: v.string(),
+    status: v.union(
+      v.literal("success"),
+      v.literal("failed"),
+      v.literal("blocked"),
+    ),
+    summary: v.optional(v.string()),
+    githubRunId: v.optional(v.string()),
+    githubRunUrl: v.optional(v.string()),
+    completedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const matches = await ctx.db
+      .query("mcpApprovalRequests")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("targetKind"), "workflow"),
+          q.eq(q.field("workflowId"), args.workflowId),
+          q.eq(q.field("runId"), args.runId),
+        ),
+      )
+      .take(2);
+    if (matches.length === 0) return false;
+    if (matches.length > 1)
+      throw new Error("Multiple approval requests reference one workflow run");
+    const row = matches[0];
+    const previousResult =
+      row.result && typeof row.result === "object" && !Array.isArray(row.result)
+        ? (row.result as Record<string, unknown>)
+        : {};
+    const kind =
+      typeof previousResult.execution === "string"
+        ? previousResult.execution
+        : "kody-engine";
+    await ctx.db.patch(row._id, {
+      result: {
+        ...previousResult,
+        execution: {
+          kind,
+          status: args.status,
+          ...(args.summary ? { summary: args.summary } : {}),
+          ...(args.githubRunId ? { githubRunId: args.githubRunId } : {}),
+          ...(args.githubRunUrl ? { githubRunUrl: args.githubRunUrl } : {}),
+          completedAt: args.completedAt,
+        },
+      },
+      updatedAt: args.completedAt,
+    });
+    return true;
+  },
+});
+
 export const remove = mutation({
   args: { tenantId: v.string(), requestId: v.string() },
   handler: async (ctx, args) => {

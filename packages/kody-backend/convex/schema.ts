@@ -853,7 +853,7 @@ export default defineSchema({
     ),
     occurredAt: v.string(),
   })
-    .index("by_event", ["eventId"])
+    .index("by_event", ["tenantId", "eventId"])
     .index("by_tenant", ["tenantId", "occurredAt"])
     .index("by_run", ["tenantId", "runId", "occurredAt"]),
 

@@ -128,11 +128,27 @@ export async function POST(request: Request) {
   };
 
   setGitHubContext(owner, repo, background.token);
+  let completionStage = "record_execution";
   try {
     const octokit = createUserOctokit(background.token);
+    const backend = createBackendClient();
+    const completedAt = new Date().toISOString();
+    await backend.mutation(backendApi.mcpApprovalRequests.recordExecution, {
+      tenantId: identity.repository,
+      workflowId,
+      runId,
+      status,
+      ...(summary ? { summary } : {}),
+      ...(identity.runId ? { githubRunId: identity.runId } : {}),
+      ...(identity.runId && /^\d+$/.test(identity.runId)
+        ? {
+            githubRunUrl: `https://github.com/${identity.repository}/actions/runs/${identity.runId}`,
+          }
+        : {}),
+      completedAt,
+    });
+    completionStage = "quality_result";
     if (workflowId === "quality-run") {
-      const backend = createBackendClient();
-      const completedAt = new Date().toISOString();
       const [runRecord, map] = (await Promise.all([
         backend.query(backendApi.quality.getRun, {
           tenantId: identity.repository,
@@ -243,6 +259,7 @@ export async function POST(request: Request) {
         },
       });
     }
+    completionStage = "pipeline";
     await advancePipelineForWorkflowCompletion({
       octokit,
       owner,
@@ -251,6 +268,7 @@ export async function POST(request: Request) {
       status,
       output,
     });
+    completionStage = "agency_requests";
     await completeAgencyRequestsForWorkflow({
       octokit,
       owner,
@@ -262,6 +280,7 @@ export async function POST(request: Request) {
       ...(summary ? { summary } : {}),
       output,
     });
+    completionStage = "workflow_triggers";
     await dispatchWorkflowTriggers({
       event,
       deliveryId,
@@ -293,6 +312,20 @@ export async function POST(request: Request) {
         );
       }
     }
+  } catch (error) {
+    logger.error(
+      {
+        event: "workflow_completion_stage_failed",
+        workflowId,
+        runId,
+        completionStage,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Workflow completion stage failed",
+    );
+    throw new Error(`Workflow completion failed during ${completionStage}`, {
+      cause: error,
+    });
   } finally {
     clearGitHubContext();
   }

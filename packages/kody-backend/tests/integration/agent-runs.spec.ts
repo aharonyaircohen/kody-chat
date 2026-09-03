@@ -61,6 +61,24 @@ describe("inspectable agent runs", () => {
     expect(JSON.stringify(result)).not.toMatch(
       /transcript|prompt|arguments|structuredContent|token-codex/,
     );
+
+    await t.mutation(api.agentRuns.recordCall, {
+      tenantId: "other/repository",
+      runId: "agent-run-1",
+      tokenId: actor.tokenId,
+      agentName: actor.name,
+      eventId: "call-1",
+      method: "tools/call",
+      actionId: "repository.scope.get",
+      outcome: "success",
+      occurredAt: "2026-09-02T08:02:00.000Z",
+    });
+    const other = await t.query(api.agentRuns.listDetailed, {
+      tenantId: "other/repository",
+      limit: 20,
+      now: "2026-09-02T08:03:00.000Z",
+    });
+    expect(other.runs[0].callCount).toBe(1);
   });
 
   it("links a run to inspectable Shared Work outcomes", async () => {

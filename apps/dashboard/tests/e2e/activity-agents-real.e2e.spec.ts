@@ -12,6 +12,7 @@ const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 const CONVEX_URL = process.env.CONVEX_URL ?? "";
+const CLEANUP_CONVEX_URL = process.env.E2E_CONVEX_URL ?? CONVEX_URL;
 const SERVICE_KEY = process.env.KODY_SERVICE_KEY ?? "";
 
 function parseRepo(value: string) {
@@ -23,7 +24,7 @@ function parseRepo(value: string) {
 test("shows a real MCP agent run and its inspectable calls", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(420_000);
   test.skip(
     !BASE_URL || !TEST_TOKEN || !TEST_REPO || !CONVEX_URL || !SERVICE_KEY,
     "Requires live Dashboard, repository, and Convex credentials",
@@ -43,6 +44,7 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       page.request,
       BASE_URL,
       await loadLiveKodyAccountCredentials(process.env),
+      process.env.E2E_AUTH_ORIGIN,
     );
   }
   const user = await resolveLiveGitHubUser(page, BASE_URL, dashboardHeaders);
@@ -65,7 +67,8 @@ test("shows a real MCP agent run and its inspectable calls", async ({
   const recordId = `activity-ui-${randomUUID()}`;
   let tokenId = "";
   let runId = "";
-  const backend = createBackendClient(CONVEX_URL);
+  let approvalRequestId = "";
+  const backend = createBackendClient(CLEANUP_CONVEX_URL);
 
   try {
     const issued = await page.request.post(`${BASE_URL}/api/kody/mcp/tokens`, {
@@ -121,6 +124,7 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       expect(response.status()).toBe(200);
       const body = await response.json();
       expect(body.result.isError).toBe(false);
+      return body.result.structuredContent;
     };
 
     await call(
@@ -156,6 +160,30 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       },
       `handoff-${recordId}`,
     );
+    const workflows = (await call(
+      "workflow.list",
+      {},
+      `workflows-${recordId}`,
+    )) as Array<{ id?: string }>;
+    const workflowId =
+      process.env.E2E_ACTIVITY_WORKFLOW_ID?.trim() || "quality-run";
+    expect(workflows.some((workflow) => workflow.id === workflowId)).toBe(true);
+    const approval = await call(
+      "workflow.run.request",
+      { workRecordId: recordId, workflowId, input: {} },
+      `request-workflow-${recordId}`,
+    );
+    approvalRequestId = approval.requestId;
+    expect(approval.status).toBe("pending");
+    const approved = await page.request.post(
+      `${BASE_URL}/api/kody/mcp/approvals/${encodeURIComponent(approvalRequestId)}`,
+      { headers: dashboardHeaders, data: { decision: "approved" } },
+    );
+    expect(approved.status()).toBe(202);
+    await expect(approved.json()).resolves.toMatchObject({
+      status: "dispatched",
+      execution: "kody-engine",
+    });
     const closed = await page.request.delete(`${BASE_URL}/api/kody/mcp`, {
       headers: {
         authorization: `Bearer ${accessToken}`,
@@ -188,10 +216,59 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       page.getByText("Continue from this verified Kody run"),
     ).toBeVisible();
     await expect(
+      page.getByText("Approval requested", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/Approved by /, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Workflow dispatched", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open approval" }),
+    ).toHaveAttribute(
+      "href",
+      `/repo/${owner}/${repo}/shared-work/${recordId}#approval-${approvalRequestId}`,
+    );
+    await expect(
+      page.getByRole("link", { name: "Open workflow" }),
+    ).toHaveAttribute("href", `/repo/${owner}/${repo}/workflows/${workflowId}`);
+    if (!/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::|\/)/.test(BASE_URL)) {
+      await expect
+        .poll(
+          async () => {
+            await page.reload({ waitUntil: "domcontentloaded" });
+            const workflowRunLink = page.getByRole("link", {
+              name: "Open workflow run",
+            });
+            try {
+              await workflowRunLink.waitFor({
+                state: "visible",
+                timeout: 8_000,
+              });
+              return await workflowRunLink.count();
+            } catch {
+              return 0;
+            }
+          },
+          { timeout: 300_000, intervals: [10_000, 15_000] },
+        )
+        .toBe(1);
+      await expect(
+        page.getByRole("link", { name: "Open workflow run" }),
+      ).toHaveAttribute(
+        "href",
+        new RegExp(`^https://github\\.com/${owner}/${repo}/actions/runs/\\d+$`),
+      );
+    }
+    await expect(
       page.getByRole("link", { name: "Open Shared Work" }),
     ).toHaveAttribute("href", `/repo/${owner}/${repo}/shared-work/${recordId}`);
     await expect(page.getByText(/transcript/i)).toHaveCount(0);
   } finally {
+    if (approvalRequestId)
+      await backend.mutation(backendApi.mcpApprovalRequests.remove, {
+        tenantId: repository,
+        requestId: approvalRequestId,
+      });
     if (runId)
       await backend.mutation(backendApi.agentRuns.remove, {
         tenantId: repository,

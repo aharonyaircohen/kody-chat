@@ -9,6 +9,26 @@ export type AgentMcpCall = {
   occurredAt: string;
 };
 
+export type AgentApproval = {
+  requestId: string;
+  workRecordId: string;
+  targetKind: "workflow" | "capability" | "automation";
+  workflowId: string;
+  executionRunId: string;
+  mode: "start" | "resume";
+  status:
+    "pending" | "approving" | "rejected" | "dispatched" | "failed" | "expired";
+  createdAt: string;
+  updatedAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  execution?: {
+    status: "running" | "waiting-approval" | "blocked" | "failed" | "done";
+    updatedAt: string;
+    url?: string;
+  };
+};
+
 export type AgentRun = {
   runId: string;
   agentName: string;
@@ -35,6 +55,7 @@ export type AgentRun = {
     nextSteps: string[];
     recordedAt: string;
   };
+  approvals: AgentApproval[];
   calls: AgentMcpCall[];
 };
 

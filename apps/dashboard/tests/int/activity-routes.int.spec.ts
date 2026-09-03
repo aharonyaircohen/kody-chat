@@ -195,6 +195,76 @@ describe("GET /api/kody/activity/agents", () => {
     });
   });
 
+  it("adds safe approval and workflow links to the related agent run", async () => {
+    mocks.backendQuery
+      .mockResolvedValueOnce({
+        runs: [
+          {
+            runId: "agent-run-1",
+            workRecordId: "work-1",
+            calls: [],
+          },
+        ],
+        computedAt: "now",
+      } as never)
+      .mockResolvedValueOnce([
+        {
+          requestId: "request-1",
+          workRecordId: "work-1",
+          targetKind: "workflow",
+          workflowId: "quality-run",
+          runId: "workflow-run-1",
+          mode: "start",
+          status: "dispatched",
+          input: { privatePrompt: "hidden" },
+          approvalToken: "hidden-token",
+          result: {
+            secret: "hidden-result",
+            execution: {
+              status: "success",
+              githubRunId: "42",
+              completedAt: "2026-09-02T10:04:00.000Z",
+            },
+          },
+          actor: { tokenId: "hidden-actor-token" },
+          createdAt: "2026-09-02T10:01:00.000Z",
+          decidedAt: "2026-09-02T10:02:00.000Z",
+          decidedBy: "octocat",
+          updatedAt: "2026-09-02T10:03:00.000Z",
+        },
+      ] as never);
+
+    const res = await getAgentActivity(
+      new NextRequest("https://dash.test/api/kody/activity/agents"),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.runs[0].approvals).toEqual([
+      {
+        requestId: "request-1",
+        workRecordId: "work-1",
+        targetKind: "workflow",
+        workflowId: "quality-run",
+        executionRunId: "workflow-run-1",
+        mode: "start",
+        status: "dispatched",
+        createdAt: "2026-09-02T10:01:00.000Z",
+        decidedAt: "2026-09-02T10:02:00.000Z",
+        decidedBy: "octocat",
+        updatedAt: "2026-09-02T10:03:00.000Z",
+        execution: {
+          status: "done",
+          updatedAt: "2026-09-02T10:04:00.000Z",
+          url: "https://github.com/owner/repo/actions/runs/42",
+        },
+      },
+    ]);
+    expect(JSON.stringify(json)).not.toMatch(
+      /privatePrompt|hidden-token|hidden-result|hidden-actor-token/,
+    );
+  });
+
   it("requires repository authentication", async () => {
     mocks.requireKodyAuth.mockResolvedValueOnce(
       NextResponse.json({ message: "nope" }, { status: 401 }),

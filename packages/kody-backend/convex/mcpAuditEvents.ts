@@ -22,7 +22,9 @@ export const append = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("mcpAuditEvents")
-      .withIndex("by_event", (q) => q.eq("eventId", args.eventId))
+      .withIndex("by_event", (q) =>
+        q.eq("tenantId", args.tenantId).eq("eventId", args.eventId),
+      )
       .unique();
     if (existing) return existing._id;
     return await ctx.db.insert("mcpAuditEvents", args);

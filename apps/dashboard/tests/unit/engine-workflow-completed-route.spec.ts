@@ -32,6 +32,9 @@ vi.mock("@kody-ade/backend/api", () => ({
       updateRun: "quality.updateRun",
       appendRunEvent: "quality.appendRunEvent",
     },
+    mcpApprovalRequests: {
+      recordExecution: "mcpApprovalRequests.recordExecution",
+    },
   },
 }));
 vi.mock("@kody-ade/backend/client", () => ({
@@ -150,6 +153,17 @@ describe("POST /api/kody/engine/workflow-completed", () => {
 
     expect(response.status).toBe(204);
     expect(h.deliverWorkflowInboxAlert).not.toHaveBeenCalled();
+    expect(h.qualityMutation).toHaveBeenCalledWith(
+      "mcpApprovalRequests.recordExecution",
+      expect.objectContaining({
+        tenantId: "acme/shop",
+        workflowId: "review-fix",
+        runId: "workflow-run-9",
+        status: "success",
+        githubRunId: "42",
+        githubRunUrl: "https://github.com/acme/shop/actions/runs/42",
+      }),
+    );
   });
 
   it("records Quality Run completion and evidence in Convex", async () => {

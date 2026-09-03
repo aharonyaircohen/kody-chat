@@ -13,6 +13,14 @@ export interface GitHubWorkflowIdentity {
   runId: string | null;
 }
 
+function optionalNumericClaim(value: unknown): string | null {
+  if (typeof value === "string" && /^\d+$/.test(value.trim()))
+    return value.trim();
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+    return String(value);
+  return null;
+}
+
 type VerifyJwt = typeof jwtVerify;
 
 function requiredClaim(payload: Record<string, unknown>, name: string): string {
@@ -43,7 +51,7 @@ export async function verifyGitHubWorkflowIdentity(
     repository,
     workflowRef,
     actor: typeof payload.actor === "string" ? payload.actor : null,
-    runId: typeof payload.run_id === "string" ? payload.run_id : null,
+    runId: optionalNumericClaim(payload.run_id),
   };
 }
 

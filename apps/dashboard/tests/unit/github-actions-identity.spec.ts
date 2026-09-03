@@ -50,6 +50,21 @@ describe("GitHub Actions workflow identity", () => {
     ).rejects.toThrow("not issued for the Kody workflow");
   });
 
+  it("normalizes a numeric GitHub workflow run id", async () => {
+    const verify = vi.fn().mockResolvedValue({
+      payload: {
+        repository: "A-Guy-educ/A-Guy-Web",
+        workflow_ref:
+          "A-Guy-educ/A-Guy-Web/.github/workflows/kody.yml@refs/heads/dev",
+        run_id: 33720188688,
+      },
+    });
+
+    await expect(
+      verifyGitHubWorkflowIdentity("signed", verify as never),
+    ).resolves.toMatchObject({ runId: "33720188688" });
+  });
+
   it("reads only a bearer authorization header", () => {
     expect(
       bearerToken(
