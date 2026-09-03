@@ -45,7 +45,6 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       page.request,
       BASE_URL,
       await loadLiveKodyAccountCredentials(process.env),
-      process.env.E2E_AUTH_ORIGIN,
     );
   }
   const user = await resolveLiveGitHubUser(page, BASE_URL, dashboardHeaders);
