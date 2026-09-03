@@ -4,10 +4,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   browserActionForStreamMessage,
+  encodeBrowserFrame,
   parseBrowserStreamMessage,
 } from "../../src/browsers/stream-protocol";
 
 describe("browser stream protocol", () => {
+  it("encodes rendered frames without JSON or base64 overhead", () => {
+    const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]);
+    const encoded = encodeBrowserFrame(42, jpeg);
+
+    expect(new TextDecoder().decode(encoded.slice(0, 4))).toBe("KBF1");
+    expect(new DataView(encoded.buffer).getUint32(4)).toBe(42);
+    expect(encoded.slice(8)).toEqual(jpeg);
+  });
+
   it("packages a headless page stream without an X desktop or VNC server", () => {
     const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
     const startScript = readFileSync(`${packageRoot}/browser/start.sh`, "utf8");
@@ -16,6 +26,10 @@ describe("browser stream protocol", () => {
       "utf8",
     );
     const server = readFileSync(`${packageRoot}/browser/server.ts`, "utf8");
+    const smokeTest = readFileSync(
+      `${packageRoot}/browser/smoke-test.mjs`,
+      "utf8",
+    );
 
     expect(startScript).toContain("--headless=new");
     expect(startScript).not.toMatch(/Xvfb|fluxbox|x11vnc/);
@@ -23,10 +37,12 @@ describe("browser stream protocol", () => {
       /fluxbox|x11vnc|xvfb|x11-xserver-utils|xcvt/,
     );
     expect(server).toContain("Page.startScreencast");
-    expect(server).toContain("createLatestFrameBuffer<string>()");
+    expect(server).toContain("quality: 72");
+    expect(server).toContain("createLatestFrameBuffer<Uint8Array>()");
     expect(server).toContain("frameBuffer.acknowledge()");
     expect(server).toContain("const heartbeat = setInterval");
     expect(server).toContain("websocket.ping()");
+    expect(smokeTest).toContain('packet.toString("ascii", 0, 4) !== "KBF1"');
     expect(server).toContain("clearInterval(heartbeat)");
     expect(server).not.toContain("net.connect(5900");
     expect(server).toContain(

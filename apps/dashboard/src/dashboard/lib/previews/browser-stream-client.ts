@@ -16,6 +16,24 @@ export interface BrowserViewport {
   height: number;
 }
 
+export type BrowserBinaryFrame = {
+  type: "frame";
+  frameId: number;
+  data: Uint8Array;
+};
+
+export function parseBrowserBinaryFrame(raw: ArrayBuffer): BrowserBinaryFrame {
+  const bytes = new Uint8Array(raw);
+  if (
+    bytes.byteLength <= 8 ||
+    new TextDecoder().decode(bytes.slice(0, 4)) !== "KBF1"
+  ) {
+    return invalid();
+  }
+  const frameId = new DataView(raw).getUint32(4);
+  return { type: "frame", frameId, data: bytes.slice(8) };
+}
+
 export type BrowserKeyboardMessage =
   | {
       type: "keyboard";

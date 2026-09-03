@@ -16,6 +16,15 @@ import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 const FRAME =
   "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/ED//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/ED//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/ED//2Q==";
 
+function binaryFrame(frameId: number): Buffer {
+  const jpeg = Buffer.from(FRAME, "base64");
+  const packet = Buffer.alloc(8 + jpeg.byteLength);
+  packet.write("KBF1", 0, "ascii");
+  packet.writeUInt32BE(frameId, 4);
+  jpeg.copy(packet, 8);
+  return packet;
+}
+
 const auth = {
   repoUrl: "https://github.com/test-owner/test-repo",
   owner: "test-owner",
@@ -112,14 +121,7 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
     setTimeout(() => {
       socket.send(JSON.stringify({ type: "ready" }));
       sendState();
-      socket.send(
-        JSON.stringify({
-          type: "frame",
-          frameId: 1,
-          data: FRAME,
-          metadata: { deviceWidth: 1280, deviceHeight: 720 },
-        }),
-      );
+      socket.send(binaryFrame(1));
     }, 20);
   });
 

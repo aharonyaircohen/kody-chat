@@ -87,8 +87,17 @@ streamUrl.searchParams.set("ticket", ticket);
 const socket = new WebSocket(streamUrl);
 const messages = [];
 let heartbeatPings = 0;
-socket.on("message", (data) => {
-  const message = JSON.parse(data.toString());
+function parseStreamMessage(data, isBinary) {
+  if (!isBinary) return JSON.parse(data.toString());
+  const packet = Buffer.from(data);
+  if (packet.length <= 8 || packet.toString("ascii", 0, 4) !== "KBF1") {
+    throw new Error("invalid binary browser frame");
+  }
+  return { type: "frame", frameId: packet.readUInt32BE(4) };
+}
+
+socket.on("message", (data, isBinary) => {
+  const message = parseStreamMessage(data, isBinary);
   messages.push(message);
   if (message.type === "frame") {
     socket.send(JSON.stringify({ type: "frameAck", frameId: message.frameId }));
@@ -157,6 +166,40 @@ await waitFor(
   "post-scroll frame",
 );
 
+const frameBeforeScrollBurst = Math.max(
+  ...messages
+    .filter((message) => message.type === "frame")
+    .map((message) => message.frameId),
+);
+for (let index = 0; index < 30; index += 1) {
+  socket.send(
+    JSON.stringify({
+      type: "pointer",
+      action: "wheel",
+      x: 450,
+      y: 500,
+      deltaX: 0,
+      deltaY: index % 2 === 0 ? 120 : -120,
+    }),
+  );
+}
+const responsivenessStartedAt = Date.now();
+const responsiveSnapshot = await action({ type: "snapshot" });
+const responsivenessMs = Date.now() - responsivenessStartedAt;
+if (responsivenessMs > 3_000 || socket.readyState !== WebSocket.OPEN) {
+  throw new Error(
+    `browser became unresponsive during scrolling: ${responsivenessMs}ms`,
+  );
+}
+await waitFor(
+  (message) =>
+    message.type === "frame" && message.frameId > frameBeforeScrollBurst,
+  "scroll burst frame",
+);
+if (!responsiveSnapshot.data?.snapshot?.text) {
+  throw new Error("browser snapshot was empty after scrolling");
+}
+
 const navigationStartedAt = Date.now();
 const second = await action({
   type: "navigate",
@@ -217,8 +260,8 @@ const reconnectFrame = await new Promise((resolve, reject) => {
     reconnect.close();
     reject(new Error("reconnected viewer did not receive a cached frame"));
   }, 2_000);
-  reconnect.on("message", (data) => {
-    const message = JSON.parse(data.toString());
+  reconnect.on("message", (data, isBinary) => {
+    const message = parseStreamMessage(data, isBinary);
     if (message.type !== "frame") return;
     clearTimeout(timeout);
     reconnect.close();
@@ -235,6 +278,7 @@ process.stdout.write(
     zoom: true,
     viewport: "900x1000",
     heartbeatPings,
+    responsivenessMs,
     reconnectFrame: reconnectFrame.frameId,
   }),
 );

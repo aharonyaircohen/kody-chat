@@ -16,6 +16,7 @@ import { WebSocketServer, WebSocket } from "ws";
 
 import {
   browserActionForStreamMessage,
+  encodeBrowserFrame,
   parseBrowserStreamMessage,
 } from "./src/browsers/stream-protocol.ts";
 import { createLatestFrameBuffer } from "./src/browsers/frame-flow.ts";
@@ -59,11 +60,11 @@ let pageLoading = true;
 let pageRevision = 0;
 let screencastRunning = false;
 let frameSequence = 0;
-let latestFrame: string | null = null;
+let latestFrame: Uint8Array | null = null;
 const streamClients = new Set<WebSocket>();
 const streamFrameBuffers = new Map<
   WebSocket,
-  ReturnType<typeof createLatestFrameBuffer<string>>
+  ReturnType<typeof createLatestFrameBuffer<Uint8Array>>
 >();
 let actionWindowStartedAt = Date.now();
 let actionCount = 0;
@@ -403,7 +404,9 @@ async function startPageScreencast(): Promise<void> {
   try {
     await activeCdp.send("Page.startScreencast", {
       format: "jpeg",
-      quality: 82,
+      // Browser content favors responsiveness over screenshot-level fidelity.
+      // The viewport still controls the exact rendered resolution.
+      quality: 72,
       maxWidth: 1920,
       maxHeight: 1800,
       everyNthFrame: 1,
@@ -431,12 +434,10 @@ async function attachCdp(page: Page): Promise<void> {
       sessionId: number;
     }) => {
       const frameId = ++frameSequence;
-      const frame = JSON.stringify({
-        type: "frame",
+      const frame = encodeBrowserFrame(
         frameId,
-        data: event.data,
-        metadata: event.metadata,
-      });
+        Buffer.from(event.data, "base64"),
+      );
       latestFrame = frame;
       for (const websocket of streamClients) {
         const next = streamFrameBuffers.get(websocket)?.push(frame);
@@ -1053,7 +1054,7 @@ server.on("upgrade", (req, socket, head) => {
 
 websocketServer.on("connection", (websocket) => {
   streamClients.add(websocket);
-  const frameBuffer = createLatestFrameBuffer<string>();
+  const frameBuffer = createLatestFrameBuffer<Uint8Array>();
   streamFrameBuffers.set(websocket, frameBuffer);
   // A still page may produce no screencast frames. Keep the authenticated
   // socket alive through proxy idle windows without adding application data.

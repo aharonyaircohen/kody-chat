@@ -23,6 +23,23 @@ export type BrowserStreamAction = Exclude<
   { type: "frameAck" | "requestState" }
 > | null;
 
+const BROWSER_FRAME_MAGIC = new TextEncoder().encode("KBF1");
+
+/** Compact wire packet: four-byte magic, uint32 frame id, then raw JPEG. */
+export function encodeBrowserFrame(
+  frameId: number,
+  jpeg: Uint8Array,
+): Uint8Array {
+  if (!Number.isSafeInteger(frameId) || frameId < 0 || frameId > 0xffff_ffff) {
+    invalid();
+  }
+  const packet = new Uint8Array(8 + jpeg.byteLength);
+  packet.set(BROWSER_FRAME_MAGIC, 0);
+  new DataView(packet.buffer).setUint32(4, frameId);
+  packet.set(jpeg, 8);
+  return packet;
+}
+
 function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }

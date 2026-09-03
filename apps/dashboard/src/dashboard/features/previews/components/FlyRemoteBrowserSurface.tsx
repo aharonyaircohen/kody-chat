@@ -15,6 +15,7 @@ import type { BrowserPageState } from "@dashboard/lib/previews/browser-controlle
 import {
   browserPointerCoordinates,
   keyboardStreamMessages,
+  parseBrowserBinaryFrame,
   parseBrowserStreamServerMessage,
   type BrowserViewport,
 } from "@dashboard/lib/previews/browser-stream-client";
@@ -57,7 +58,7 @@ export function FlyRemoteBrowserSurface({
     let websocket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
     let reconnectAttempts = 0;
-    let latestFrame: { frameId: number; data: string } | null = null;
+    let latestFrame: { frameId: number; data: Uint8Array } | null = null;
     let drawing = false;
     let pointerFrame: number | undefined;
     let pendingPointer: { x: number; y: number } | null = null;
@@ -75,28 +76,28 @@ export function FlyRemoteBrowserSurface({
         while (latestFrame && !disposed) {
           const frame = latestFrame;
           latestFrame = null;
-          const image = new Image();
-          image.src = `data:image/jpeg;base64,${frame.data}`;
+          let image: ImageBitmap;
           try {
-            await image.decode();
+            image = await createImageBitmap(
+              new Blob([frame.data as BlobPart], { type: "image/jpeg" }),
+            );
           } catch {
             continue;
           }
           const newerFrame = latestFrame as {
             frameId: number;
-            data: string;
+            data: Uint8Array;
           } | null;
           if (disposed || (newerFrame && newerFrame.frameId > frame.frameId)) {
+            image.close();
             continue;
           }
-          if (
-            canvas.width !== image.naturalWidth ||
-            canvas.height !== image.naturalHeight
-          ) {
-            canvas.width = image.naturalWidth;
-            canvas.height = image.naturalHeight;
+          if (canvas.width !== image.width || canvas.height !== image.height) {
+            canvas.width = image.width;
+            canvas.height = image.height;
           }
           canvas.getContext("2d")?.drawImage(image, 0, 0);
+          image.close();
           send({ type: "frameAck", frameId: frame.frameId });
         }
       } finally {
@@ -109,9 +110,16 @@ export function FlyRemoteBrowserSurface({
       if (disposed) return;
       setConnected(false);
       websocket = new WebSocket(streamUrl);
+      websocket.binaryType = "arraybuffer";
       websocket.addEventListener("message", (event) => {
-        if (typeof event.data !== "string") return;
         try {
+          if (event.data instanceof ArrayBuffer) {
+            const frame = parseBrowserBinaryFrame(event.data);
+            latestFrame = { frameId: frame.frameId, data: frame.data };
+            void drawLatestFrame();
+            return;
+          }
+          if (typeof event.data !== "string") return;
           const message = parseBrowserStreamServerMessage(event.data);
           if (message.type === "ready") {
             reconnectAttempts = 0;
@@ -123,7 +131,11 @@ export function FlyRemoteBrowserSurface({
             viewportRef.current = message.page.viewport;
             callbacksRef.current.onPageState?.(message.page);
           } else if (message.type === "frame") {
-            latestFrame = { frameId: message.frameId, data: message.data };
+            // Compatibility with browser images deployed before binary frames.
+            const binary = Uint8Array.from(atob(message.data), (character) =>
+              character.charCodeAt(0),
+            );
+            latestFrame = { frameId: message.frameId, data: binary };
             void drawLatestFrame();
           }
         } catch {

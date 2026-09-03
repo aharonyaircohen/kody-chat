@@ -3,10 +3,33 @@ import { describe, expect, it } from "vitest";
 import {
   browserPointerCoordinates,
   keyboardStreamMessages,
+  parseBrowserBinaryFrame,
   parseBrowserStreamServerMessage,
 } from "@dashboard/lib/previews/browser-stream-client";
 
 describe("browser stream client protocol", () => {
+  it("parses compact binary JPEG frames", () => {
+    const encoded = new Uint8Array(12);
+    encoded.set(new TextEncoder().encode("KBF1"));
+    new DataView(encoded.buffer).setUint32(4, 42);
+    encoded.set([0xff, 0xd8, 0xff, 0xd9], 8);
+
+    expect(parseBrowserBinaryFrame(encoded.buffer)).toEqual({
+      type: "frame",
+      frameId: 42,
+      data: Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]),
+    });
+  });
+
+  it("rejects malformed binary frames", () => {
+    expect(() => parseBrowserBinaryFrame(new ArrayBuffer(8))).toThrow(
+      "browser_stream_response_invalid",
+    );
+    expect(() =>
+      parseBrowserBinaryFrame(new TextEncoder().encode("NOPEpayload").buffer),
+    ).toThrow("browser_stream_response_invalid");
+  });
+
   it("parses authoritative page state and rendered frames", () => {
     expect(
       parseBrowserStreamServerMessage(
