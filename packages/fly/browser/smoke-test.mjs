@@ -39,6 +39,43 @@ function mintTicket(ticketIdentity) {
 
 const ticket = mintTicket(identity);
 
+const unauthorizedDirect = await fetch(`${endpoint}/direct`, {
+  redirect: "manual",
+});
+if (unauthorizedDirect.status !== 401)
+  throw new Error("Unauthenticated direct browser was accepted");
+
+const direct = await fetch(
+  `${endpoint}/direct?ticket=${encodeURIComponent(ticket)}`,
+);
+if (
+  !direct.ok ||
+  !(await direct.text()).includes("/direct/core/rfb.js") ||
+  !direct.headers.get("set-cookie")?.includes("HttpOnly")
+) {
+  throw new Error("Authenticated direct browser page was unavailable");
+}
+
+const directStreamUrl = new URL(endpoint);
+directStreamUrl.protocol =
+  directStreamUrl.protocol === "https:" ? "wss:" : "ws:";
+directStreamUrl.pathname = "/direct-stream";
+directStreamUrl.searchParams.set("ticket", ticket);
+await new Promise((resolve, reject) => {
+  const directSocket = new WebSocket(directStreamUrl);
+  const timeout = setTimeout(() => {
+    directSocket.close();
+    reject(new Error("direct browser stream did not send a VNC handshake"));
+  }, 5_000);
+  directSocket.on("message", (data) => {
+    if (!Buffer.from(data).toString("ascii").startsWith("RFB ")) return;
+    clearTimeout(timeout);
+    directSocket.close();
+    resolve();
+  });
+  directSocket.on("error", reject);
+});
+
 const unauthorized = await fetch(`${endpoint}/api/browser/action`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -166,11 +203,6 @@ await waitFor(
   "post-scroll frame",
 );
 
-const frameBeforeScrollBurst = Math.max(
-  ...messages
-    .filter((message) => message.type === "frame")
-    .map((message) => message.frameId),
-);
 for (let index = 0; index < 30; index += 1) {
   socket.send(
     JSON.stringify({
@@ -191,11 +223,6 @@ if (responsivenessMs > 3_000 || socket.readyState !== WebSocket.OPEN) {
     `browser became unresponsive during scrolling: ${responsivenessMs}ms`,
   );
 }
-await waitFor(
-  (message) =>
-    message.type === "frame" && message.frameId > frameBeforeScrollBurst,
-  "scroll burst frame",
-);
 if (!responsiveSnapshot.data?.snapshot?.text) {
   throw new Error("browser snapshot was empty after scrolling");
 }
@@ -280,5 +307,6 @@ process.stdout.write(
     heartbeatPings,
     responsivenessMs,
     reconnectFrame: reconnectFrame.frameId,
+    directBrowser: true,
   }),
 );

@@ -1,7 +1,8 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pipeline } from "node:stream/promises";
@@ -29,6 +30,8 @@ const MAX_TEXT_BYTES = 50 * 1024;
 const MAX_UPLOAD_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 10;
 const UPLOAD_ROOT = "/tmp/kody-browser-uploads";
+const NOVNC_ROOT = "/app/node_modules/@novnc/novnc";
+const DIRECT_COOKIE = "kody_browser_direct";
 const ALLOWED_UPLOAD_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -120,12 +123,92 @@ function ticketFromRequest(req: http.IncomingMessage): string | null {
   const authorization = req.headers.authorization;
   if (authorization?.startsWith("Bearer ")) return authorization.slice(7);
   try {
-    return new URL(req.url ?? "/", "http://browser.local").searchParams.get(
-      "ticket",
-    );
+    const queryTicket = new URL(
+      req.url ?? "/",
+      "http://browser.local",
+    ).searchParams.get("ticket");
+    if (queryTicket) return queryTicket;
+    const cookie = req.headers.cookie
+      ?.split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${DIRECT_COOKIE}=`));
+    return cookie
+      ? decodeURIComponent(cookie.slice(DIRECT_COOKIE.length + 1))
+      : null;
   } catch {
     return null;
   }
+}
+
+function directLoginHtml(): string {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kody direct browser login</title><style>html,body{width:100%;height:100%;margin:0;background:#111}#screen{width:100%;height:100%}</style></head>
+<body><div id="screen"></div><script type="module">
+import RFB from "/direct/core/rfb.js";
+history.replaceState(null, "", "/direct");
+const rfb = new RFB(document.getElementById("screen"), "wss://" + location.host + "/direct-stream");
+rfb.scaleViewport = true; rfb.resizeSession = true; rfb.showDotCursor = true;
+</script></body></html>`;
+}
+
+function directContentType(filePath: string): string {
+  if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".svg")) return "image/svg+xml";
+  if (filePath.endsWith(".png")) return "image/png";
+  return "application/octet-stream";
+}
+
+async function serveDirectAsset(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  pathname: string,
+): Promise<void> {
+  if (!authorizeHttpRequest(req, res)) return;
+  if (pathname === "/direct" || pathname === "/direct/") {
+    const html = directLoginHtml();
+    const queryTicket = new URL(
+      req.url ?? "/",
+      "http://browser.local",
+    ).searchParams.get("ticket");
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": Buffer.byteLength(html),
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "Content-Security-Policy":
+        "default-src 'self'; connect-src 'self' wss:; style-src 'unsafe-inline'",
+      ...(queryTicket
+        ? {
+            "Set-Cookie": `${DIRECT_COOKIE}=${encodeURIComponent(queryTicket)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=300`,
+          }
+        : {}),
+    });
+    res.end(html);
+    return;
+  }
+  const relative = pathname.slice("/direct/".length);
+  if (
+    !relative ||
+    !/^[a-zA-Z0-9_./-]+$/.test(relative) ||
+    relative.includes("..")
+  ) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  const filePath = path.join(NOVNC_ROOT, relative);
+  const details = await stat(filePath).catch(() => null);
+  if (!details?.isFile()) {
+    json(res, 404, { error: "not_found" });
+    return;
+  }
+  res.writeHead(200, {
+    "Content-Type": directContentType(filePath),
+    "Content-Length": details.size,
+    "Cache-Control": "private, max-age=300",
+  });
+  createReadStream(filePath).pipe(res);
 }
 
 function requestAuthorization(
@@ -986,6 +1069,16 @@ const server = http.createServer(async (req, res) => {
     json(res, browserReady ? 200 : 503, { ok: browserReady });
     return;
   }
+  if (
+    req.method === "GET" &&
+    (requestUrl.pathname === "/direct" ||
+      requestUrl.pathname.startsWith("/direct/"))
+  ) {
+    await serveDirectAsset(req, res, requestUrl.pathname).catch(() =>
+      json(res, 500, { error: "direct_browser_unavailable" }),
+    );
+    return;
+  }
   if (req.method === "OPTIONS" && requestUrl.pathname === "/upload") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -1031,11 +1124,15 @@ const server = http.createServer(async (req, res) => {
 const websocketServer = new WebSocketServer({
   noServer: true,
 });
+const directWebsocketServer = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", "http://browser.local");
   const authorization = requestAuthorization(req);
-  if (url.pathname !== "/stream" || authorization.kind === "denied") {
+  if (
+    (url.pathname !== "/stream" && url.pathname !== "/direct-stream") ||
+    authorization.kind === "denied"
+  ) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
     return;
@@ -1047,9 +1144,24 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
-  websocketServer.handleUpgrade(req, socket, head, (websocket) => {
-    websocketServer.emit("connection", websocket, req);
+  const target =
+    url.pathname === "/direct-stream" ? directWebsocketServer : websocketServer;
+  target.handleUpgrade(req, socket, head, (websocket) => {
+    target.emit("connection", websocket, req);
   });
+});
+
+directWebsocketServer.on("connection", (websocket) => {
+  const vnc = net.connect({ host: "127.0.0.1", port: 5900 });
+  vnc.on("data", (data) => {
+    if (websocket.readyState === WebSocket.OPEN)
+      websocket.send(data, { binary: true });
+  });
+  vnc.on("error", () => websocket.close(1011, "direct_browser_unavailable"));
+  vnc.on("close", () => websocket.close());
+  websocket.on("message", (data) => vnc.write(data));
+  websocket.on("close", () => vnc.destroy());
+  websocket.on("error", () => vnc.destroy());
 });
 
 websocketServer.on("connection", (websocket) => {

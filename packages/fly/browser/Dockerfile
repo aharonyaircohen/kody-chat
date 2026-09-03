@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-liberation \
       fonts-noto-core \
       fonts-noto-color-emoji \
+      fluxbox \
+      x11vnc \
+      xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -21,6 +24,7 @@ COPY packages/fly/src/browsers ./src/browsers
 
 RUN chmod +x /app/start.sh \
     && useradd --create-home --uid 10001 browser \
+    && mkdir -p /home/browser/profile \
     && chown -R browser:browser /app /home/browser
 
 USER browser

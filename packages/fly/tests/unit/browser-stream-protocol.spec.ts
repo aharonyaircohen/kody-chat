@@ -18,7 +18,7 @@ describe("browser stream protocol", () => {
     expect(encoded.slice(8)).toEqual(jpeg);
   });
 
-  it("packages a headless page stream without an X desktop or VNC server", () => {
+  it("keeps the page stream and adds an authenticated direct desktop", () => {
     const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
     const startScript = readFileSync(`${packageRoot}/browser/start.sh`, "utf8");
     const dockerfile = readFileSync(
@@ -31,11 +31,9 @@ describe("browser stream protocol", () => {
       "utf8",
     );
 
-    expect(startScript).toContain("--headless=new");
-    expect(startScript).not.toMatch(/Xvfb|fluxbox|x11vnc/);
-    expect(dockerfile).not.toMatch(
-      /fluxbox|x11vnc|xvfb|x11-xserver-utils|xcvt/,
-    );
+    expect(startScript).not.toContain("--headless=new");
+    expect(startScript).toMatch(/Xvfb|fluxbox|x11vnc/);
+    expect(dockerfile).toMatch(/novnc|x11vnc|xvfb/);
     expect(server).toContain("Page.startScreencast");
     expect(server).toContain("quality: 72");
     expect(server).toContain("createLatestFrameBuffer<Uint8Array>()");
@@ -44,6 +42,9 @@ describe("browser stream protocol", () => {
     expect(server).toContain("websocket.ping()");
     expect(smokeTest).toContain('packet.toString("ascii", 0, 4) !== "KBF1"');
     expect(server).toContain("clearInterval(heartbeat)");
+    expect(server).toContain('requestUrl.pathname === "/direct"');
+    expect(server).toContain('url.pathname === "/direct-stream"');
+    expect(server).toContain('net.connect({ host: "127.0.0.1", port: 5900 })');
     expect(server).not.toContain("net.connect(5900");
     expect(server).toContain(
       '"fly-replay": `instance=${authorization.machineId}`',
