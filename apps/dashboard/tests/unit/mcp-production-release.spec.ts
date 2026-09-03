@@ -3,6 +3,7 @@ import { runMcpProductionRelease } from "../../scripts/release-mcp-production-co
 
 const requiredEnv = {
   VERCEL_TOKEN: "vercel-test-token",
+  VERCEL_SCOPE: "aguy",
   KODY_MCP_TEST_CONVEX_URL: "https://example.convex.cloud",
   E2E_GITHUB_TOKEN: "github-test-token",
   E2E_GITHUB_REPO: "owner/repo",
@@ -30,6 +31,10 @@ describe("MCP production release gate", () => {
     expect(run.mock.calls[3]?.[0].args).toContain(
       "https://kody-dashboard-candidate.vercel.app",
     );
+    for (const index of [0, 3]) {
+      expect(run.mock.calls[index]?.[0].args).toContain("--scope");
+      expect(run.mock.calls[index]?.[0].args).toContain("aguy");
+    }
     expect(run.mock.calls.every(([command]) => command.cwd === "/repo")).toBe(
       true,
     );

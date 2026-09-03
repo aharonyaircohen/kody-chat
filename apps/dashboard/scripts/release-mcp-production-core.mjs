@@ -1,6 +1,7 @@
 const stableBaseUrl = "https://kody-dashboard-khaki.vercel.app";
 const requiredEnvironment = [
   "VERCEL_TOKEN",
+  "VERCEL_SCOPE",
   "KODY_MCP_TEST_CONVEX_URL",
   "E2E_GITHUB_TOKEN",
   "E2E_GITHUB_REPO",
@@ -38,6 +39,8 @@ export async function runMcpProductionRelease({ env, run, repoRoot }) {
         "--prod",
         "--skip-domain",
         "--yes",
+        "--scope",
+        env.VERCEL_SCOPE,
         tokenArg,
       ],
       sharedEnv,
@@ -96,6 +99,8 @@ export async function runMcpProductionRelease({ env, run, repoRoot }) {
         "promote",
         deploymentUrl,
         "--yes",
+        "--scope",
+        env.VERCEL_SCOPE,
         tokenArg,
       ],
       sharedEnv,

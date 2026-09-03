@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 45
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_SCOPE: aguy
       VERCEL_ORG_ID: team_I5OEeDKS7oRaELnZp5bdJWpL
       VERCEL_PROJECT_ID: prj_VUAH5HAYNBkZb4AWC9gYhOYRhKTA
       KODY_MCP_TEST_CONVEX_URL: ${{ secrets.CONVEX_URL }}
