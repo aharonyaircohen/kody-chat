@@ -8,7 +8,8 @@ import {
 
 const requiredEnv = {
   VERCEL_TOKEN: "vercel-test-token",
-  VERCEL_SCOPE: "aguy",
+  VERCEL_ORG_ID: "team_test",
+  VERCEL_PROJECT_ID: "project_test",
   KODY_MCP_TEST_CONVEX_URL: "https://example.convex.cloud",
   E2E_GITHUB_TOKEN: "github-test-token",
   E2E_GITHUB_REPO: "owner/repo",
@@ -36,10 +37,13 @@ describe("MCP production release gate", () => {
     expect(run.mock.calls[3]?.[0].args).toContain(
       "https://kody-dashboard-candidate.vercel.app",
     );
-    for (const index of [0, 3]) {
-      expect(run.mock.calls[index]?.[0].args).toContain("--scope");
-      expect(run.mock.calls[index]?.[0].args).toContain("aguy");
-    }
+    expect(
+      run.mock.calls.every(([command]) => !command.args.includes("--scope")),
+    ).toBe(true);
+    expect(run.mock.calls[0]?.[0].env).toMatchObject({
+      VERCEL_ORG_ID: "team_test",
+      VERCEL_PROJECT_ID: "project_test",
+    });
     expect(run.mock.calls.every(([command]) => command.cwd === "/repo")).toBe(
       true,
     );
