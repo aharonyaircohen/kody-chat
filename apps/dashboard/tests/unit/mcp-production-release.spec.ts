@@ -57,9 +57,7 @@ describe("MCP production release gate", () => {
     ).rejects.toThrow("MCP gate failed");
 
     expect(
-      run.mock.calls.some(([command]) =>
-        command.args.includes("promote"),
-      ),
+      run.mock.calls.some(([command]) => command.args.includes("promote")),
     ).toBe(false);
   });
 
@@ -111,12 +109,15 @@ describe("MCP production release gate", () => {
   });
 
   it("returns a safe Kody failure without exposing the underlying error", () => {
-    const result = kodyCapabilityFailure(
-      new Error("failed with private-vercel-token"),
-    );
+    const error = new Error("failed with private-vercel-token");
+    Object.assign(error, { releaseStage: "stage production candidate" });
+    const result = kodyCapabilityFailure(error);
 
     expect(result.status).toBe("fail");
     expect(JSON.stringify(result)).not.toContain("private-vercel-token");
+    expect(result.facts).toEqual({
+      failedStage: "stage production candidate",
+    });
     expect(result.evidence).toEqual({});
     expect(result.missingEvidence).toEqual(["productionDeployed"]);
   });

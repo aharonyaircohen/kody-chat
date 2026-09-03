@@ -33,7 +33,11 @@ export function runCommand(spec, { forwardOutput = true } = {}) {
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolvePromise({ stdout, stderr });
-      else reject(new Error(`${spec.label} failed with exit code ${code}`));
+      else {
+        const error = new Error(`${spec.label} failed with exit code ${code}`);
+        error.releaseStage = spec.label;
+        reject(error);
+      }
     });
   });
 }
@@ -54,18 +58,22 @@ export function kodyCapabilitySuccess({ deploymentUrl, endpoint }) {
   };
 }
 
-export function kodyCapabilityFailure(_error) {
+export function kodyCapabilityFailure(error) {
   const summary =
     "Dashboard release checks failed; the stable deployment was not changed.";
+  const failedStage =
+    error && typeof error === "object" && "releaseStage" in error
+      ? String(error.releaseStage)
+      : "release setup";
   return {
     version: 1,
     status: "fail",
     summary,
     evidence: {},
-    facts: {},
+    facts: { failedStage },
     artifacts: [],
     missingEvidence: ["productionDeployed"],
-    blockers: [summary],
+    blockers: [`${summary} Failed stage: ${failedStage}.`],
   };
 }
 
