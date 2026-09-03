@@ -213,7 +213,52 @@ describe("browser session route", () => {
     );
   });
 
-  it("reconciles the current image before waking an existing stable browser", async () => {
+  it("wakes the existing browser before sending an action", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    backend.query.mockResolvedValue({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
+      state: "running",
+      currentUrl: "https://example.com/",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: Date.now() + 60_000,
+    });
+    provider.act.mockResolvedValue({
+      ok: true,
+      url: "https://example.com/",
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "act",
+          actorLogin: "octocat",
+          sessionId: "browser-fixed",
+          action: { type: "scroll", deltaY: 420 },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(browserReadiness.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appName: "kody-browser-acme-app",
+        machineId: "machine-1",
+      }),
+    );
+    expect(browserReadiness.ensure.mock.invocationCallOrder[0]).toBeLessThan(
+      provider.act.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("aligns a reused browser even when its stored URL already matches", async () => {
     context.config = {
       token: "fly-token",
       orgSlug: "personal",
@@ -227,7 +272,7 @@ describe("browser session route", () => {
       appName: "kody-browser-acme-app",
       machineId: "machine-1",
       state: "starting",
-      currentUrl: "https://www.iana.org/help/example-domains",
+      currentUrl: "https://example.com",
       viewport: { width: 1280, height: 720 },
       expiresAtMs: Date.now() + 60 * 60 * 1_000,
       createdAtMs: Date.now() - 60_000,

@@ -369,24 +369,21 @@ export async function POST(req: NextRequest) {
               verifyKey: deriveBrowserKey().toString("base64url"),
             } satisfies CreateFlyBrowserSessionInput);
             await ensureBrowserSessionReady(reconciled);
-            let currentUrl = previous.currentUrl;
-            if (currentUrl !== initialUrl) {
-              const { ticket } = mintBrowserTicket(
-                ticketIdentity(
-                  authority.owner,
-                  authority.repo,
-                  authority.actorId,
-                  reconciled,
-                ),
-                STREAM_TICKET_TTL_SECONDS,
-              );
-              const navigation = await provider.act(
-                { ...reconciled, accessTicket: ticket },
-                { type: "navigate", url: initialUrl },
-              );
-              if (!navigation.ok) throw new Error("browser_navigation_failed");
-              currentUrl = navigation.url ?? initialUrl;
-            }
+            const { ticket } = mintBrowserTicket(
+              ticketIdentity(
+                authority.owner,
+                authority.repo,
+                authority.actorId,
+                reconciled,
+              ),
+              STREAM_TICKET_TTL_SECONDS,
+            );
+            const navigation = await provider.act(
+              { ...reconciled, accessTicket: ticket },
+              { type: "navigate", url: initialUrl },
+            );
+            if (!navigation.ok) throw new Error("browser_navigation_failed");
+            const currentUrl = navigation.url ?? initialUrl;
             const readySession: StoredBrowserSession = {
               sessionId: previous.sessionId,
               providerId: reconciled.providerId,
@@ -530,6 +527,7 @@ export async function POST(req: NextRequest) {
     if (data.action.type === "navigate") {
       await validatePublicBrowserUrl(data.action.url);
     }
+    await ensureBrowserSessionReady(providerSession);
     const { ticket } = mintBrowserTicket(
       ticketIdentity(
         authority.owner,
