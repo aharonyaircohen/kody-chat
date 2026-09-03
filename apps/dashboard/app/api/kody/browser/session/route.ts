@@ -206,6 +206,7 @@ function clientSession(
     currentUrl: session.currentUrl,
     viewport: session.viewport,
     streamUrl: `wss://${session.appName}.fly.dev/stream?ticket=${encodeURIComponent(ticket)}`,
+    directUrl: `https://${session.appName}.fly.dev/direct?ticket=${encodeURIComponent(ticket)}`,
     uploadUrl: `https://${session.appName}.fly.dev/upload?ticket=${encodeURIComponent(ticket)}`,
     ticketExpiresAt: expiresAt,
   };

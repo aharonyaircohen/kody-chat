@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Loader2,
   Monitor,
+  MonitorUp,
   RefreshCw,
   Smartphone,
   Tablet,
@@ -987,6 +988,19 @@ export function PreviewBrowser({
               }}
               className="h-11 min-w-56 flex-1 rounded-lg border-0 bg-black/55 px-4 font-mono text-code-sm text-zinc-200 outline-none ring-0 selection:bg-sky-500/30"
             />
+            {remoteSession && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="clear"
+                onClick={() => void remoteBrowser.openDirectLogin()}
+                title="Open direct login"
+                aria-label="Open direct login"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-white"
+              >
+                <MonitorUp className="h-4 w-4" />
+              </Button>
+            )}
             {activePreviewUrl && (
               <a
                 href={externalPreviewUrl ?? activePreviewUrl}

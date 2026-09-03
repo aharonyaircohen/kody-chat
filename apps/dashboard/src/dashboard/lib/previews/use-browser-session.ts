@@ -229,5 +229,28 @@ export function useBrowserSession(input: {
 
   const reconnect = useCallback(() => connect(true), [connect]);
 
-  return { mode, act, reconnect };
+  const openDirectLogin = useCallback(async (): Promise<boolean> => {
+    if (!input.actorLogin || modeRef.current.kind !== "remote") return false;
+    const directWindow = window.open("about:blank", "_blank");
+    if (!directWindow) return false;
+    directWindow.opener = null;
+    directWindow.document.title = "Opening browser…";
+    try {
+      const refreshed = await fetchBrowserSession(input.actorLogin);
+      if (
+        refreshed.mode !== "remote" ||
+        refreshed.state === "idle" ||
+        !refreshed.directUrl
+      ) {
+        throw new Error("browser_session_unavailable");
+      }
+      directWindow.location.replace(refreshed.directUrl);
+      return true;
+    } catch {
+      directWindow.close();
+      return false;
+    }
+  }, [input.actorLogin]);
+
+  return { mode, act, reconnect, openDirectLogin };
 }

@@ -168,6 +168,9 @@ describe("PreviewBrowser new-tab action", () => {
     expect(SOURCE).toMatch(
       /remoteBrowserMode\.kind === "error"[\s\S]*: activePreviewUrl \? \([\s\S]*<PreviewIframe/,
     );
+    expect(SOURCE).toMatch(
+      /\{remoteSession && \([\s\S]*aria-label="Open direct login"/,
+    );
   });
 
   it("retries transient page-stream disconnects with a bounded backoff", () => {
@@ -179,11 +182,12 @@ describe("PreviewBrowser new-tab action", () => {
     expect(REMOTE_SURFACE_SOURCE).toContain("if (disposed) return");
   });
 
-  it("shows only a sharp webpage surface instead of Chromium chrome", () => {
-    expect(BROWSER_START_SOURCE).toContain("--headless=new");
+  it("keeps the sharp webpage stream separate from direct desktop login", () => {
+    expect(BROWSER_START_SOURCE).not.toContain("--headless=new");
     expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
-    expect(BROWSER_START_SOURCE).not.toMatch(/Xvfb|fluxbox|x11vnc|--kiosk/);
+    expect(BROWSER_START_SOURCE).toMatch(/Xvfb|fluxbox|x11vnc/);
     expect(BROWSER_SERVER_SOURCE).toContain("Page.startScreencast");
+    expect(BROWSER_SERVER_SOURCE).toContain('"/direct-stream"');
     expect(REMOTE_SURFACE_SOURCE).toContain("<canvas");
     expect(REMOTE_SURFACE_SOURCE).not.toContain("@novnc/novnc");
   });

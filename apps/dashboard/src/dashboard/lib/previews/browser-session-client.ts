@@ -14,6 +14,7 @@ export type BrowserSessionStatus =
       currentUrl: string;
       viewport: BrowserViewport;
       streamUrl: string;
+      directUrl: string;
       uploadUrl: string;
       ticketExpiresAt: number;
     };

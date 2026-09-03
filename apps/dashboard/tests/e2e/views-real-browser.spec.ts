@@ -63,6 +63,7 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   let revision = 1;
   let stream: WebSocketRoute | null = null;
   let sessionStarts = 0;
+  let sessionReads = 0;
   let sessionExists = false;
   const actions: Array<Record<string, unknown>> = [];
   const streamInputs: Array<Record<string, unknown>> = [];
@@ -128,6 +129,7 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   await page.route("**/api/kody/browser/session**", async (route) => {
     const request = route.request();
     const body = request.method() === "POST" ? request.postDataJSON() : null;
+    if (!body) sessionReads += 1;
     if (!body && !sessionExists) {
       return json(route, { mode: "remote", state: "idle" });
     }
@@ -143,6 +145,7 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
         currentUrl: pageState().url,
         viewport: pageState().viewport,
         streamUrl: "wss://browser.example.test/stream?ticket=test",
+        directUrl: "https://browser.example.test/direct?ticket=test",
         uploadUrl: "https://browser.example.test/upload?ticket=test",
         ticketExpiresAt: Math.floor(Date.now() / 1000) + 300,
       });
@@ -174,10 +177,31 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
         : {}),
     });
   });
+  await page.context().route(
+    "https://browser.example.test/direct**",
+    async (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>Direct browser</title>",
+      }),
+  );
 
   await page.goto("/repo/test-owner/test-repo/preview/kody");
   const address = page.getByLabel("Current preview URL");
   await expect(page.locator("[data-remote-browser-surface]")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open direct login" }),
+  ).toBeVisible();
+  const readsBeforeDirectLogin = sessionReads;
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Open direct login" }).click();
+  const directLoginPopup = await popupPromise;
+  await expect.poll(() => sessionReads).toBeGreaterThan(readsBeforeDirectLogin);
+  await expect
+    .poll(() => directLoginPopup.url())
+    .toBe("https://browser.example.test/direct?ticket=test");
+  await directLoginPopup.close();
   await expect(address).toHaveValue("https://kody.example/app");
 
   await page.getByTitle(/Switch preview environment/).click();
