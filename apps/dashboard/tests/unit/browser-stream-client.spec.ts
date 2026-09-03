@@ -68,6 +68,57 @@ describe("browser stream client protocol", () => {
     ).toEqual([{ type: "keyboard", action: "up", key: "Enter" }]);
   });
 
+  it("maps macOS Command shortcuts to the remote Linux Control key", () => {
+    expect(
+      keyboardStreamMessages(
+        { key: "Meta", ctrlKey: false, metaKey: true, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "keyboard", action: "down", key: "Control" }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "a", ctrlKey: false, metaKey: true, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "keyboard", action: "down", key: "a" }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "Meta", ctrlKey: false, metaKey: false, altKey: false },
+        "up",
+      ),
+    ).toEqual([{ type: "keyboard", action: "up", key: "Control" }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "+", ctrlKey: false, metaKey: true, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "zoom", delta: 1 }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "-", ctrlKey: true, metaKey: false, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "zoom", delta: -1 }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "0", ctrlKey: true, metaKey: false, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "zoom", delta: 0 }]);
+    expect(
+      keyboardStreamMessages(
+        { key: "+", ctrlKey: false, metaKey: true, altKey: false },
+        "up",
+      ),
+    ).toEqual([]);
+    expect(
+      keyboardStreamMessages(
+        { key: "Control", ctrlKey: true, metaKey: false, altKey: false },
+        "down",
+      ),
+    ).toEqual([{ type: "keyboard", action: "down", key: "Control" }]);
+  });
+
   it("rejects malformed remote messages", () => {
     expect(() => parseBrowserStreamServerMessage("not-json")).toThrow(
       "browser_stream_response_invalid",

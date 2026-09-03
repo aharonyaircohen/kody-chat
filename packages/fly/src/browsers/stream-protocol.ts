@@ -13,6 +13,7 @@ export type BrowserStreamMessage =
       action: "down" | "up" | "insertText";
       key: string;
     }
+  | { type: "zoom"; delta: -1 | 0 | 1 }
   | { type: "viewport"; width: number; height: number }
   | { type: "frameAck"; frameId: number }
   | { type: "requestState" };
@@ -74,6 +75,10 @@ export function parseBrowserStreamMessage(raw: string): BrowserStreamMessage {
       action: input.action as "down" | "up" | "insertText",
       key: input.key,
     };
+  }
+  if (input.type === "zoom") {
+    if (![-1, 0, 1].includes(Number(input.delta))) invalid();
+    return { type: "zoom", delta: Number(input.delta) as -1 | 0 | 1 };
   }
   if (input.type === "pointer") {
     if (

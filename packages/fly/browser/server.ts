@@ -52,6 +52,7 @@ const failedRequests: Array<{ url: string; error: string }> = [];
 let activePage: Page | null = null;
 let activeContext: BrowserContext | null = null;
 let activeCdp: CDPSession | null = null;
+let pageScaleFactor = 1;
 let browserReady = false;
 let pageLoading = true;
 let pageRevision = 0;
@@ -558,6 +559,17 @@ async function executeAction(action: Record<string, unknown>) {
         await page.keyboard.down(String(action.key ?? ""));
       else await page.keyboard.up(String(action.key ?? ""));
       break;
+    case "zoom": {
+      const delta = Number(action.delta);
+      pageScaleFactor =
+        delta === 0
+          ? 1
+          : Math.max(0.5, Math.min(2, pageScaleFactor + delta * 0.1));
+      await activeCdp?.send("Emulation.setPageScaleFactor", {
+        pageScaleFactor,
+      });
+      break;
+    }
     case "click":
       await page
         .locator(String(action.selector ?? ""))

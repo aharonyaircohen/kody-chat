@@ -16,11 +16,13 @@ export interface BrowserViewport {
   height: number;
 }
 
-export type BrowserKeyboardMessage = {
-  type: "keyboard";
-  action: "down" | "up" | "insertText";
-  key: string;
-};
+export type BrowserKeyboardMessage =
+  | {
+      type: "keyboard";
+      action: "down" | "up" | "insertText";
+      key: string;
+    }
+  | { type: "zoom"; delta: -1 | 0 | 1 };
 
 function invalid(): never {
   throw new Error("browser_stream_response_invalid");
@@ -105,23 +107,37 @@ export function keyboardStreamMessages(
   },
   phase: "down" | "up",
 ): BrowserKeyboardMessage[] {
+  // The remote browser runs on Linux, where page shortcuts use Control.
+  // Preserve the user's platform convention by translating macOS Command.
+  const key = input.key === "Meta" ? "Control" : input.key;
+  const shortcutModifier = input.ctrlKey || input.metaKey;
+  const zoomDelta = ["+", "="].includes(key)
+    ? 1
+    : key === "-"
+      ? -1
+      : key === "0"
+        ? 0
+        : null;
+  if (shortcutModifier && zoomDelta !== null) {
+    return phase === "down" ? [{ type: "zoom", delta: zoomDelta }] : [];
+  }
   if (
-    input.key.length === 1 &&
+    key.length === 1 &&
     !input.ctrlKey &&
     !input.metaKey &&
     !input.altKey &&
     phase === "down"
   ) {
-    return [{ type: "keyboard", action: "insertText", key: input.key }];
+    return [{ type: "keyboard", action: "insertText", key }];
   }
   if (
     phase === "up" &&
-    input.key.length === 1 &&
+    key.length === 1 &&
     !input.ctrlKey &&
     !input.metaKey &&
     !input.altKey
   ) {
     return [];
   }
-  return [{ type: "keyboard", action: phase, key: input.key }];
+  return [{ type: "keyboard", action: phase, key }];
 }

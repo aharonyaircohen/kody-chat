@@ -175,6 +175,14 @@ if (!snapshot.data?.snapshot?.text || snapshot.url !== forward.url) {
   throw new Error("Fresh page snapshot did not match the visible page");
 }
 
+const beforeZoom = await action({ type: "screenshot" });
+socket.send(JSON.stringify({ type: "zoom", delta: 1 }));
+await new Promise((resolve) => setTimeout(resolve, 250));
+const afterZoom = await action({ type: "screenshot" });
+if (beforeZoom.data === afterZoom.data) {
+  throw new Error("Browser zoom shortcut did not change the rendered page");
+}
+
 if (process.env.BROWSER_TEST_HEARTBEAT === "1") {
   const heartbeatDeadline = Date.now() + 85_000;
   while (heartbeatPings < 3 && Date.now() < heartbeatDeadline) {
@@ -218,6 +226,7 @@ process.stdout.write(
     firstFrameId: firstFrame.frameId,
     finalUrl: snapshot.url,
     unicodeInput: true,
+    zoom: true,
     viewport: "900x1000",
     heartbeatPings,
     reconnectFrame: reconnectFrame.frameId,
