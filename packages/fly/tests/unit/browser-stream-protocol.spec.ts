@@ -23,7 +23,8 @@ describe("browser stream protocol", () => {
       /fluxbox|x11vnc|xvfb|x11-xserver-utils|xcvt/,
     );
     expect(server).toContain("Page.startScreencast");
-    expect(server).toContain("if (latestFrame) websocket.send(latestFrame);");
+    expect(server).toContain("createLatestFrameBuffer<string>()");
+    expect(server).toContain("frameBuffer.acknowledge()");
     expect(server).toContain("const heartbeat = setInterval");
     expect(server).toContain("websocket.ping()");
     expect(server).toContain("clearInterval(heartbeat)");
@@ -62,6 +63,9 @@ describe("browser stream protocol", () => {
       ),
     ).toEqual({ type: "keyboard", action: "down", key: "Enter" });
     expect(
+      parseBrowserStreamMessage(JSON.stringify({ type: "zoom", delta: 1 })),
+    ).toEqual({ type: "zoom", delta: 1 });
+    expect(
       parseBrowserStreamMessage(
         JSON.stringify({ type: "viewport", width: 1600, height: 1500 }),
       ),
@@ -97,5 +101,8 @@ describe("browser stream protocol", () => {
     expect(() => parseBrowserStreamMessage('{"type":"unknown"}')).toThrow(
       "browser_stream_message_invalid",
     );
+    expect(() =>
+      parseBrowserStreamMessage('{"type":"zoom","delta":2}'),
+    ).toThrow("browser_stream_message_invalid");
   });
 });

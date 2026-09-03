@@ -87,7 +87,13 @@ streamUrl.searchParams.set("ticket", ticket);
 const socket = new WebSocket(streamUrl);
 const messages = [];
 let heartbeatPings = 0;
-socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+socket.on("message", (data) => {
+  const message = JSON.parse(data.toString());
+  messages.push(message);
+  if (message.type === "frame") {
+    socket.send(JSON.stringify({ type: "frameAck", frameId: message.frameId }));
+  }
+});
 socket.on("ping", () => {
   heartbeatPings += 1;
 });

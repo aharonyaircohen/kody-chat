@@ -18,6 +18,7 @@ import {
   browserActionForStreamMessage,
   parseBrowserStreamMessage,
 } from "./src/browsers/stream-protocol.ts";
+import { createLatestFrameBuffer } from "./src/browsers/frame-flow.ts";
 import { validatePublicBrowserUrl } from "./src/browsers/security.ts";
 import { readBrowserTicket } from "./src/browsers/ticket.ts";
 
@@ -60,6 +61,10 @@ let screencastRunning = false;
 let frameSequence = 0;
 let latestFrame: string | null = null;
 const streamClients = new Set<WebSocket>();
+const streamFrameBuffers = new Map<
+  WebSocket,
+  ReturnType<typeof createLatestFrameBuffer<string>>
+>();
 let actionWindowStartedAt = Date.now();
 let actionCount = 0;
 let streamInputWindowStartedAt = Date.now();
@@ -434,12 +439,9 @@ async function attachCdp(page: Page): Promise<void> {
       });
       latestFrame = frame;
       for (const websocket of streamClients) {
-        if (
-          websocket.readyState === WebSocket.OPEN &&
-          websocket.bufferedAmount < 2 * 1024 * 1024
-        ) {
-          websocket.send(frame);
-        }
+        const next = streamFrameBuffers.get(websocket)?.push(frame);
+        if (next && websocket.readyState === WebSocket.OPEN)
+          websocket.send(next);
       }
       void activeCdp
         ?.send("Page.screencastFrameAck", { sessionId: event.sessionId })
@@ -509,24 +511,24 @@ async function executeAction(action: Record<string, unknown>) {
   switch (action.type) {
     case "navigate": {
       const url = await validatePublicBrowserUrl(String(action.url ?? ""));
-      await settleNavigation(
-        () => page.goto(url, { waitUntil: "commit", timeout: 30_000 }),
+      await settleNavigation(() =>
+        page.goto(url, { waitUntil: "commit", timeout: 30_000 }),
       );
       break;
     }
     case "back":
-      await settleNavigation(
-        () => page.goBack({ waitUntil: "commit", timeout: 30_000 }),
+      await settleNavigation(() =>
+        page.goBack({ waitUntil: "commit", timeout: 30_000 }),
       );
       break;
     case "forward":
-      await settleNavigation(
-        () => page.goForward({ waitUntil: "commit", timeout: 30_000 }),
+      await settleNavigation(() =>
+        page.goForward({ waitUntil: "commit", timeout: 30_000 }),
       );
       break;
     case "reload":
-      await settleNavigation(
-        () => page.reload({ waitUntil: "commit", timeout: 30_000 }),
+      await settleNavigation(() =>
+        page.reload({ waitUntil: "commit", timeout: 30_000 }),
       );
       break;
     case "viewport": {
@@ -1051,6 +1053,8 @@ server.on("upgrade", (req, socket, head) => {
 
 websocketServer.on("connection", (websocket) => {
   streamClients.add(websocket);
+  const frameBuffer = createLatestFrameBuffer<string>();
+  streamFrameBuffers.set(websocket, frameBuffer);
   // A still page may produce no screencast frames. Keep the authenticated
   // socket alive through proxy idle windows without adding application data.
   const heartbeat = setInterval(() => {
@@ -1058,7 +1062,10 @@ websocketServer.on("connection", (websocket) => {
   }, STREAM_HEARTBEAT_MS);
   heartbeat.unref?.();
   sendStreamMessage(websocket, { type: "ready" });
-  if (latestFrame) websocket.send(latestFrame);
+  if (latestFrame) {
+    const first = frameBuffer.push(latestFrame);
+    if (first) websocket.send(first);
+  }
   void broadcastPageState();
   void startPageScreencast().catch(() =>
     websocket.close(1011, "screencast_unavailable"),
@@ -1074,7 +1081,12 @@ websocketServer.on("connection", (websocket) => {
         });
         return;
       }
-      if (message.type === "frameAck") return;
+      if (message.type === "frameAck") {
+        const next = frameBuffer.acknowledge();
+        if (next && websocket.readyState === WebSocket.OPEN)
+          websocket.send(next);
+        return;
+      }
       if (!acceptStreamInput()) {
         sendStreamMessage(websocket, {
           type: "error",
@@ -1097,10 +1109,12 @@ websocketServer.on("connection", (websocket) => {
   websocket.on("close", () => {
     clearInterval(heartbeat);
     streamClients.delete(websocket);
+    streamFrameBuffers.delete(websocket);
     void stopPageScreencast();
   });
   websocket.on("error", () => {
     streamClients.delete(websocket);
+    streamFrameBuffers.delete(websocket);
     void stopPageScreencast();
   });
 });
