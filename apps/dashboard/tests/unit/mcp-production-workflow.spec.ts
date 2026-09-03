@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -13,17 +13,40 @@ describe("MCP production workflow", () => {
     expect(config.git?.deploymentEnabled).toBe(false);
   });
 
-  it("releases only after successful CI through the gated command", () => {
-    const workflow = readFileSync(
-      resolve(repoRoot, ".github/workflows/deploy-dashboard.yml"),
+  it("uses a Kody workflow instead of a parallel deployment workflow", () => {
+    expect(
+      existsSync(resolve(repoRoot, ".github/workflows/deploy-dashboard.yml")),
+    ).toBe(false);
+
+    expect(
+      existsSync(
+        resolve(
+          repoRoot,
+          ".kody-engine/definitions/workflows/dashboard-production-release/workflow.json",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      existsSync(
+        resolve(
+          repoRoot,
+          ".kody-engine/definitions/capabilities/dashboard-production-release/contract.json",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the generic MCP workflow action as the public deployment entrypoint", () => {
+    const catalog = readFileSync(
+      resolve(
+        repoRoot,
+        "packages/kody-chat-dashboard/src/dashboard/lib/mcp/catalog.ts",
+      ),
       "utf8",
     );
 
-    expect(workflow).toContain("workflow_run:");
-    expect(workflow).toContain('workflows: ["CI"]');
-    expect(workflow).toContain("conclusion == 'success'");
-    expect(workflow).toContain("pnpm release:mcp:production");
-    expect(workflow).not.toContain("vercel --prod");
-    expect(workflow).not.toContain("vercel alias set");
+    expect(catalog).toContain('id: "workflow.run.request"');
+    expect(catalog).not.toContain('id: "deployment.run.request"');
   });
+
 });
