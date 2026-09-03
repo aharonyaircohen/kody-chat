@@ -13,7 +13,10 @@ import { join } from "node:path";
 import { config } from "dotenv";
 import { ConvexHttpClient } from "convex/browser";
 import { api as backendApi } from "@kody-ade/backend/api";
-import { mapWithConcurrency } from "./verify-public-mcp-helpers.mjs";
+import {
+  mapWithConcurrency,
+  retryServerFailure,
+} from "./verify-public-mcp-helpers.mjs";
 
 config({ path: new URL("../.env", import.meta.url), quiet: true });
 
@@ -476,11 +479,13 @@ async function verifyPhaseTwoGates(principal) {
       Array.from({ length: 130 }, (_, index) => index),
       10,
       (index) =>
-        mcpRequest(rateLimited.accessToken, {
-          jsonrpc: "2.0",
-          id: `rate-${index}`,
-          method: "ping",
-        }),
+        retryServerFailure(() =>
+          mcpRequest(rateLimited.accessToken, {
+            jsonrpc: "2.0",
+            id: `rate-${index}`,
+            method: "ping",
+          }),
+        ),
     );
     const acceptedCount = attempts.filter(
       (attempt) => attempt.response.status === 200,

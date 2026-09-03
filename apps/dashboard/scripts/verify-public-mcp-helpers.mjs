@@ -14,3 +14,19 @@ export async function mapWithConcurrency(items, concurrency, task) {
   await Promise.all(workers);
   return results;
 }
+
+export async function retryServerFailure(
+  task,
+  {
+    attempts = 3,
+    wait = () => new Promise((resolve) => setTimeout(resolve, 250)),
+  } = {},
+) {
+  let result;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    result = await task();
+    if (result.response.status < 500 || attempt === attempts) return result;
+    await wait();
+  }
+  return result;
+}
