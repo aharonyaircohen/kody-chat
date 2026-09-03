@@ -118,6 +118,7 @@ describe("MCP production release gate", () => {
     expect(result.facts).toEqual({
       failedStage: "stage production candidate",
     });
+    expect(result.summary).toContain("stage production candidate");
     expect(result.evidence).toEqual({});
     expect(result.missingEvidence).toEqual(["productionDeployed"]);
   });

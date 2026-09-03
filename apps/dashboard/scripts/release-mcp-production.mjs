@@ -59,12 +59,11 @@ export function kodyCapabilitySuccess({ deploymentUrl, endpoint }) {
 }
 
 export function kodyCapabilityFailure(error) {
-  const summary =
-    "Dashboard release checks failed; the stable deployment was not changed.";
   const failedStage =
     error && typeof error === "object" && "releaseStage" in error
       ? String(error.releaseStage)
       : "release setup";
+  const summary = `Dashboard release failed at ${failedStage}; the stable deployment was not changed.`;
   return {
     version: 1,
     status: "fail",
@@ -73,7 +72,7 @@ export function kodyCapabilityFailure(error) {
     facts: { failedStage },
     artifacts: [],
     missingEvidence: ["productionDeployed"],
-    blockers: [`${summary} Failed stage: ${failedStage}.`],
+    blockers: [summary],
   };
 }
 
