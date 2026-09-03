@@ -41,7 +41,6 @@ test("runs Fly actions, switches saved views, and opens a Dashboard task", async
     page.request,
     BASE_URL,
     credentials,
-    process.env.E2E_AUTH_ORIGIN,
   );
 
   const headers = {

@@ -102,6 +102,8 @@ export interface PreviewBrowserProps {
   enableRemoteBrowser?: boolean;
   browserActorLogin?: string;
   environmentId?: string | null;
+  /** Changes whenever the user explicitly chooses the active saved view. */
+  environmentSelectionRevision?: number;
   onRemoteEnvironmentCommit?: (environmentId: string | null) => void;
   /** Resolve repository-owned files only when a Capability requests upload. */
   resolveBrowserUploadFiles?: (paths: string[]) => Promise<BrowserUploadFile[]>;
@@ -239,6 +241,7 @@ export function PreviewBrowser({
   enableRemoteBrowser = false,
   browserActorLogin,
   environmentId = null,
+  environmentSelectionRevision = 0,
   onRemoteEnvironmentCommit,
   resolveBrowserUploadFiles,
   onRemoteActionRunnerChange,
@@ -487,7 +490,7 @@ export function PreviewBrowser({
     ) {
       return;
     }
-    const targetKey = `${remoteSessionId}:${environmentId ?? ""}:${baseUrl}`;
+    const targetKey = `${remoteSessionId}:${environmentId ?? ""}:${baseUrl}:${environmentSelectionRevision}`;
     if (remoteTargetRef.current === targetKey) return;
     remoteTargetRef.current = targetKey;
     if (sameBrowserAddress(remotePage?.url, baseUrl)) {
@@ -533,7 +536,14 @@ export function PreviewBrowser({
               : "browser_navigation_failed",
         });
       });
-  }, [baseUrl, environmentId, remoteBrowserAct, remotePage, remoteSessionId]);
+  }, [
+    baseUrl,
+    environmentId,
+    environmentSelectionRevision,
+    remoteBrowserAct,
+    remotePage,
+    remoteSessionId,
+  ]);
 
   useEffect(() => {
     if (remoteSessionId && remoteController.phase === "ready") {

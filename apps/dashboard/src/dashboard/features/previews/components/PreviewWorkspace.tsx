@@ -219,6 +219,10 @@ export function PreviewWorkspace({
   const [websiteName, setWebsiteName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const pendingSelectionRef = useRef<string | null>(null);
+  const [environmentSelection, setEnvironmentSelection] = useState<{
+    id: string;
+    revision: number;
+  } | null>(null);
   useEffect(() => {
     if (!owner || !repo) return;
     try {
@@ -293,6 +297,10 @@ export function PreviewWorkspace({
     } catch {
       /* ignore */
     }
+    setEnvironmentSelection((current) => ({
+      id: env.id,
+      revision: (current?.revision ?? 0) + 1,
+    }));
     router.push(scopedHref(selectionPath("/preview", env.id)));
   };
 
@@ -620,6 +628,11 @@ export function PreviewWorkspace({
         enableRemoteBrowser
         browserActorLogin={githubUser?.login}
         environmentId={selectedEnv?.id ?? null}
+        environmentSelectionRevision={
+          environmentSelection && environmentSelection.id === selectedEnv?.id
+            ? environmentSelection.revision
+            : 0
+        }
         onRemoteEnvironmentCommit={setRemoteActiveEnvironmentId}
         resolveBrowserUploadFiles={resolveBrowserUploadFiles}
         onRemoteActionRunnerChange={
