@@ -3,6 +3,7 @@ import { runMcpProductionRelease } from "../../scripts/release-mcp-production-co
 import {
   kodyCapabilityFailure,
   kodyCapabilitySuccess,
+  runCommand,
 } from "../../scripts/release-mcp-production.mjs";
 
 const requiredEnv = {
@@ -121,5 +122,31 @@ describe("MCP production release gate", () => {
     expect(result.summary).toContain("stage production candidate");
     expect(result.evidence).toEqual({});
     expect(result.missingEvidence).toEqual(["productionDeployed"]);
+  });
+
+  it("keeps a useful failed-command detail while redacting release secrets", async () => {
+    const secret = "private-vercel-token";
+    let failure;
+    try {
+      await runCommand(
+        {
+          label: "stage production candidate",
+          bin: process.execPath,
+          args: [
+            "-e",
+            `process.stderr.write("Error: Project lookup failed for ${secret}\\n"); process.exit(1)`,
+          ],
+          cwd: process.cwd(),
+          env: { ...process.env, VERCEL_TOKEN: secret },
+        },
+        { forwardOutput: false },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    const result = kodyCapabilityFailure(failure);
+    expect(result.summary).toContain("Project lookup failed");
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 });

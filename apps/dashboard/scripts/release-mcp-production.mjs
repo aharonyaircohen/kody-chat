@@ -36,6 +36,7 @@ export function runCommand(spec, { forwardOutput = true } = {}) {
       else {
         const error = new Error(`${spec.label} failed with exit code ${code}`);
         error.releaseStage = spec.label;
+        error.releaseDetail = safeFailureDetail(spec, stdout, stderr, code);
         reject(error);
       }
     });
@@ -63,7 +64,11 @@ export function kodyCapabilityFailure(error) {
     error && typeof error === "object" && "releaseStage" in error
       ? String(error.releaseStage)
       : "release setup";
-  const summary = `Dashboard release failed at ${failedStage}; the stable deployment was not changed.`;
+  const failedDetail =
+    error && typeof error === "object" && "releaseDetail" in error
+      ? String(error.releaseDetail)
+      : "command failed";
+  const summary = `Dashboard release failed at ${failedStage}: ${failedDetail}. The stable deployment was not changed.`;
   return {
     version: 1,
     status: "fail",
@@ -74,6 +79,27 @@ export function kodyCapabilityFailure(error) {
     missingEvidence: ["productionDeployed"],
     blockers: [summary],
   };
+}
+
+function safeFailureDetail(spec, stdout, stderr, code) {
+  let output = `${stderr}\n${stdout}`.replace(/\u001b\[[0-9;]*m/g, "");
+  for (const [name, value] of Object.entries(spec.env ?? {})) {
+    if (!/(?:TOKEN|KEY|SECRET|PASSWORD)/i.test(name)) continue;
+    if (typeof value === "string" && value.length >= 6) {
+      output = output.replaceAll(value, "[redacted]");
+    }
+  }
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const detail =
+    [...lines]
+      .reverse()
+      .find((line) =>
+        /(?:error|failed|invalid|unauthorized|not found|unknown)/i.test(line),
+      ) ?? `command exited with code ${code}`;
+  return detail.replace(/--token=\S+/gi, "--token=[redacted]").slice(0, 240);
 }
 
 function writeCapabilityResult(result) {
