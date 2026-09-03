@@ -10,6 +10,7 @@
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
     "build": "pnpm -r build",
+    "release:mcp:production": "node apps/dashboard/scripts/release-mcp-production.mjs",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "packageManager": "pnpm@9.0.0",
