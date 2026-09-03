@@ -86,7 +86,11 @@ streamUrl.pathname = "/stream";
 streamUrl.searchParams.set("ticket", ticket);
 const socket = new WebSocket(streamUrl);
 const messages = [];
+let heartbeatPings = 0;
 socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+socket.on("ping", () => {
+  heartbeatPings += 1;
+});
 
 async function waitFor(predicate, label, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -171,6 +175,24 @@ if (!snapshot.data?.snapshot?.text || snapshot.url !== forward.url) {
   throw new Error("Fresh page snapshot did not match the visible page");
 }
 
+if (process.env.BROWSER_TEST_HEARTBEAT === "1") {
+  const heartbeatDeadline = Date.now() + 85_000;
+  while (heartbeatPings < 3 && Date.now() < heartbeatDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (heartbeatPings < 3 || socket.readyState !== WebSocket.OPEN) {
+    throw new Error(
+      `stream did not remain healthy for three heartbeats: ${heartbeatPings}`,
+    );
+  }
+  const afterHeartbeat = await action({ type: "snapshot" });
+  if (afterHeartbeat.url !== snapshot.url) {
+    throw new Error(
+      "Browser state changed during the heartbeat endurance test",
+    );
+  }
+}
+
 await new Promise((resolve) => {
   socket.once("close", resolve);
   socket.close();
@@ -197,6 +219,7 @@ process.stdout.write(
     finalUrl: snapshot.url,
     unicodeInput: true,
     viewport: "900x1000",
+    heartbeatPings,
     reconnectFrame: reconnectFrame.frameId,
   }),
 );

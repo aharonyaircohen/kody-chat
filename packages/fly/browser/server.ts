@@ -38,6 +38,7 @@ const ALLOWED_UPLOAD_TYPES = new Set([
 ]);
 const ACTIONS_PER_MINUTE = 120;
 const STREAM_INPUTS_PER_MINUTE = 6_000;
+const STREAM_HEARTBEAT_MS = 25_000;
 const SESSION_ID = process.env.KODY_BROWSER_SESSION_ID ?? "";
 const REPOSITORY = process.env.KODY_BROWSER_REPOSITORY ?? "";
 const ACTOR_ID = process.env.KODY_BROWSER_ACTOR_ID ?? "";
@@ -1038,6 +1039,12 @@ server.on("upgrade", (req, socket, head) => {
 
 websocketServer.on("connection", (websocket) => {
   streamClients.add(websocket);
+  // A still page may produce no screencast frames. Keep the authenticated
+  // socket alive through proxy idle windows without adding application data.
+  const heartbeat = setInterval(() => {
+    if (websocket.readyState === WebSocket.OPEN) websocket.ping();
+  }, STREAM_HEARTBEAT_MS);
+  heartbeat.unref?.();
   sendStreamMessage(websocket, { type: "ready" });
   if (latestFrame) websocket.send(latestFrame);
   void broadcastPageState();
@@ -1076,6 +1083,7 @@ websocketServer.on("connection", (websocket) => {
     }
   });
   websocket.on("close", () => {
+    clearInterval(heartbeat);
     streamClients.delete(websocket);
     void stopPageScreencast();
   });

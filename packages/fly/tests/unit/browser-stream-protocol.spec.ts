@@ -24,6 +24,9 @@ describe("browser stream protocol", () => {
     );
     expect(server).toContain("Page.startScreencast");
     expect(server).toContain("if (latestFrame) websocket.send(latestFrame);");
+    expect(server).toContain("const heartbeat = setInterval");
+    expect(server).toContain("websocket.ping()");
+    expect(server).toContain("clearInterval(heartbeat)");
     expect(server).not.toContain("net.connect(5900");
     expect(server).toContain(
       '"fly-replay": `instance=${authorization.machineId}`',
