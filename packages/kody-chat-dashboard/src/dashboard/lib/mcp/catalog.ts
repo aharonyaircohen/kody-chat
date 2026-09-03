@@ -1,10 +1,8 @@
-import crypto from "node:crypto";
 import { z } from "zod";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
   KODY_MCP_CONTRACT_VERSION,
-  sharedWorkRecordSchema,
   toJsonSchema,
   type JsonSchema,
   type McpPrincipal,
@@ -37,6 +35,26 @@ type InternalAction = KodyAction & {
 };
 
 export interface KodyMcpActionServices {
+  listWork(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  getWork(recordId: string, principal: McpPrincipal): Promise<unknown>;
+  createWork(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  appendWork(
+    type:
+      | "update"
+      | "checkpoint"
+      | "evidence"
+      | "decision"
+      | "handoff"
+      | "artifact",
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
   listPolicies(principal: McpPrincipal): Promise<unknown>;
   getPolicy(slug: string, principal: McpPrincipal): Promise<unknown>;
   getInstructions(principal: McpPrincipal): Promise<unknown>;
@@ -114,8 +132,8 @@ const recordId = z
   .string()
   .trim()
   .min(1)
-  .max(120)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/);
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/);
 const shortText = z.string().trim().min(1).max(500);
 const longText = z.string().trim().min(1).max(5_000);
 const status = z.enum([
@@ -306,21 +324,6 @@ const notificationRuleCreateInput = z
 
 const workOutputSchema: JsonSchema = { type: "object" };
 
-function actorFor(principal: McpPrincipal) {
-  return {
-    tokenId: principal.tokenId,
-    name: principal.name,
-    actorLogin: principal.actorLogin,
-  };
-}
-
-function requestHash(actionId: string, input: Record<string, unknown>): string {
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify({ actionId, input }))
-    .digest("hex");
-}
-
 function requireIdempotency(context: ActionExecutionContext): string {
   if (!context.idempotencyKey)
     throw new KodyActionError(
@@ -435,19 +438,14 @@ function appendWorkAction(
     inputSchema: toJsonSchema(input),
     examples: [],
     execute: async (parsed, principal, context) => {
-      const { recordId, expectedRevision, ...payload } = parsed;
-      return await createBackendClient().mutation(
-        backendApi.sharedWork.append,
+      return await requireServices(context).appendWork(
+        type,
         {
-          tenantId: principal.tenantId,
-          recordId: String(recordId),
-          expectedRevision: Number(expectedRevision),
-          type,
-          payload,
-          actor: actorFor(principal),
+          ...parsed,
           idempotencyKey: requireIdempotency(context),
-          requestHash: requestHash(id, parsed),
+          actionId: id,
         },
+        principal,
       );
     },
   });
@@ -482,9 +480,9 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
   },
   {
     id: "mcp.contract.get",
-    title: "Get shared-work contract",
+    title: "Get MCP work contract",
     summary:
-      "Return the versioned contract agents will use for shared work, evidence, and handoffs.",
+      "Return the versioned contract agents use for Todo work, evidence, and handoffs.",
     category: "mcp",
     permission: "read",
     sideEffects: false,
@@ -495,21 +493,22 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
       type: "object",
       properties: {
         contractVersion: { type: "string" },
-        sharedWorkRecordSchema: { type: "object" },
+        workSystem: { type: "string" },
+        workRoute: { type: "string" },
       },
-      required: ["contractVersion", "sharedWorkRecordSchema"],
+      required: ["contractVersion", "workSystem", "workRoute"],
     },
     examples: [{ input: {}, description: "Inspect Kody's handoff record." }],
     execute: () => ({
       contractVersion: KODY_MCP_CONTRACT_VERSION,
-      sharedWorkRecordSchema: toJsonSchema(sharedWorkRecordSchema),
+      workSystem: "todos",
+      workRoute: "/repo/{owner}/{repo}/todos/{recordId}",
     }),
   },
   {
     id: "dashboard.features.list",
     title: "List Kody feature families",
-    summary:
-      "List the Kody feature families planned for progressive MCP exposure.",
+    summary: "List the Kody feature families currently exposed through MCP.",
     category: "dashboard",
     permission: "read",
     sideEffects: false,
@@ -524,20 +523,20 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
     examples: [{ input: {}, description: "See Kody's extension surface." }],
     execute: () => ({
       families: [
-        "work and evidence",
-        "context and memory",
-        "policies and instructions",
-        "capabilities and workflows",
+        "todos",
+        "context",
+        "policies",
+        "capabilities",
+        "workflows",
         "approvals",
-        "online automation",
-        "quality and reports",
-        "files and documentation",
+        "automation",
+        "activity",
       ],
     }),
   },
   {
     id: "work.list",
-    title: "List shared work",
+    title: "List Todo work",
     summary: "List current agent work for this repository.",
     category: "work",
     permission: "read",
@@ -552,16 +551,12 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
         description: "See work another agent can continue.",
       },
     ],
-    execute: async (input, principal) =>
-      await createBackendClient().query(backendApi.sharedWork.list, {
-        tenantId: principal.tenantId,
-        ...(input.status ? { status: input.status as never } : {}),
-        limit: Number(input.limit),
-      }),
+    execute: async (input, principal, context) =>
+      await requireServices(context).listWork(input, principal),
   },
   {
     id: "work.get",
-    title: "Get shared work",
+    title: "Get Todo work",
     summary: "Read one work record and its attributed activity.",
     category: "work",
     permission: "read",
@@ -576,23 +571,13 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
         description: "Continue existing work without its raw transcript.",
       },
     ],
-    execute: async (input, principal) => {
-      const result = await createBackendClient().query(
-        backendApi.sharedWork.get,
-        { tenantId: principal.tenantId, recordId: String(input.recordId) },
-      );
-      if (!result)
-        throw new KodyActionError(
-          "work_not_found",
-          "Shared work was not found.",
-        );
-      return result;
-    },
+    execute: async (input, principal, context) =>
+      await requireServices(context).getWork(String(input.recordId), principal),
   },
   workAction({
     id: "work.create",
-    title: "Create shared work",
-    summary: "Create a durable repository work record for agent collaboration.",
+    title: "Create Todo work",
+    summary: "Create a durable Todo for agent collaboration.",
     input: createWorkInput,
     inputSchema: toJsonSchema(createWorkInput),
     examples: [
@@ -602,21 +587,22 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
           title: "Phase 3",
           objective: "Share work",
         },
-        description: "Start shared work.",
+        description: "Start Todo work.",
       },
     ],
     execute: async (input, principal, context) =>
-      await createBackendClient().mutation(backendApi.sharedWork.create, {
-        ...input,
-        tenantId: principal.tenantId,
-        actor: actorFor(principal),
-        idempotencyKey: requireIdempotency(context),
-        requestHash: requestHash("work.create", input),
-      } as never),
+      await requireServices(context).createWork(
+        {
+          ...input,
+          idempotencyKey: requireIdempotency(context),
+          actionId: "work.create",
+        },
+        principal,
+      ),
   }),
   appendWorkAction(
     "work.update",
-    "Update shared work",
+    "Update Todo work",
     "Update status, summary, goals, tasks, or blockers with revision protection.",
     updateWorkInput,
     "update",

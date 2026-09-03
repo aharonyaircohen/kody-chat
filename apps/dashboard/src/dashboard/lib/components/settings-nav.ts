@@ -378,13 +378,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
-        href: "/shared-work",
-        label: "Shared Work",
-        icon: Share2,
-        description: "Agent progress, evidence, artifacts, and handoffs.",
-        tint: "text-violet-300 bg-violet-500/10",
-      },
-      {
         href: "/agents",
         label: "Agents",
         icon: Users,

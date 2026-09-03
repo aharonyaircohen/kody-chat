@@ -8,6 +8,10 @@ import type { McpPrincipal } from "../../src/dashboard/lib/mcp/contracts";
 
 const backend = { query: vi.fn(), mutation: vi.fn() };
 const services = {
+  listWork: vi.fn(),
+  getWork: vi.fn(),
+  createWork: vi.fn(),
+  appendWork: vi.fn(),
   listPolicies: vi.fn(),
   getPolicy: vi.fn(),
   getInstructions: vi.fn(),
@@ -109,23 +113,20 @@ describe("public MCP action catalog", () => {
   });
 
   it("persists attributed work with durable idempotency context", async () => {
-    backend.mutation.mockResolvedValue({ recordId: "phase-3", revision: 1 });
+    services.createWork.mockResolvedValue({ recordId: "phase-3", revision: 1 });
     await expect(
       executeKodyAction(
         "work.create",
         { recordId: "phase-3", title: "Phase 3", objective: "Share work" },
         principal,
-        { idempotencyKey: "create-phase-3" },
+        { idempotencyKey: "create-phase-3", services },
       ),
     ).resolves.toEqual({ recordId: "phase-3", revision: 1 });
-    expect(backend.mutation).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(services.createWork).toHaveBeenCalledWith(
       expect.objectContaining({
-        tenantId: "acme/widgets",
-        actor: { tokenId: "token-1", name: "Test", actorLogin: "octocat" },
         idempotencyKey: "create-phase-3",
-        requestHash: expect.any(String),
       }),
+      principal,
     );
   });
 
@@ -162,16 +163,21 @@ describe("public MCP action catalog", () => {
     await expect(
       executeKodyAction("mcp.contract.get", {}, principal),
     ).resolves.toMatchObject({
-      contractVersion: "2026-09-03.7",
-      sharedWorkRecordSchema: { type: "object" },
+      contractVersion: "2026-09-03.8",
+      workSystem: "todos",
     });
     await expect(
       executeKodyAction("dashboard.features.list", {}, principal),
     ).resolves.toMatchObject({
-      families: expect.arrayContaining([
-        "work and evidence",
-        "online automation",
-      ]),
+      families: expect.arrayContaining(["todos", "automation"]),
+    });
+    const features = await executeKodyAction(
+      "dashboard.features.list",
+      {},
+      principal,
+    );
+    expect(features).not.toMatchObject({
+      families: expect.arrayContaining(["files", "reports"]),
     });
   });
 

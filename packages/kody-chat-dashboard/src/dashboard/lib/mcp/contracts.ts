@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const KODY_MCP_PROTOCOL_VERSION = "2025-11-25";
-export const KODY_MCP_CONTRACT_VERSION = "2026-09-03.7";
+export const KODY_MCP_CONTRACT_VERSION = "2026-09-03.8";
 export const KODY_MCP_SERVER_VERSION = "0.5.0";
 
 export const permissionClassSchema = z.enum([
@@ -42,60 +42,6 @@ export function scopeForPrincipal(principal: McpPrincipal) {
     repository: { owner, name, tenantId: principal.tenantId },
   });
 }
-
-export const sharedWorkRecordSchema = z.object({
-  recordId: z.string(),
-  repository: z.string(),
-  title: z.string(),
-  objective: z.string(),
-  status: z.enum(["planned", "active", "blocked", "completed", "cancelled"]),
-  revision: z.number().int().positive(),
-  summary: z.string(),
-  goal: z.string().optional(),
-  tasks: z.array(z.string()),
-  updatedBy: z.object({
-    tokenId: z.string(),
-    name: z.string(),
-    actorLogin: z.string(),
-  }),
-  decisions: z.array(
-    z.object({
-      summary: z.string(),
-      rationale: z.string().optional(),
-      recordedAt: z.string(),
-    }),
-  ),
-  checkpoints: z.array(
-    z.object({ summary: z.string(), recordedAt: z.string() }),
-  ),
-  evidence: z.array(
-    z.object({
-      kind: z.string(),
-      reference: z.string(),
-      summary: z.string(),
-      recordedAt: z.string(),
-    }),
-  ),
-  artifacts: z.array(
-    z.object({
-      kind: z.string(),
-      reference: z.string(),
-      summary: z.string(),
-      recordedAt: z.string(),
-    }),
-  ),
-  handoff: z
-    .object({
-      toAgent: z.string(),
-      summary: z.string(),
-      nextSteps: z.array(z.string()),
-      recordedAt: z.string(),
-    })
-    .optional(),
-  blockers: z.array(z.string()),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
 
 export type JsonSchema = Record<string, unknown>;
 

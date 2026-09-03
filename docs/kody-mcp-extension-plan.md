@@ -30,7 +30,7 @@ Kody owns:
 
 - authenticated user, organization, and repository scope;
 - reusable policies, instructions, workflows, context, and memory;
-- shared work records, progress, evidence, approvals, and handoffs;
+- Todo work, progress, evidence, approvals, and handoffs;
 - online automation and Dashboard visibility;
 - tool discovery, authorization, execution, auditing, and stable contracts.
 
@@ -64,7 +64,7 @@ Every request is restricted to its authenticated repository scope. Writes are
 audited; destructive or externally visible actions require the approval policy
 declared by the underlying Kody service.
 
-## Shared work record
+## Todo work record
 
 Agents exchange durable work through one Kody-owned record rather than copying
 their entire chats. The record can contain:
@@ -83,11 +83,12 @@ are outside this record.
 ## Inspectable agent activity
 
 Kody does not retain agent activity that the user cannot inspect. **Activity**
-is the complete operational history, while **Shared Work** is the focused view
-of meaningful progress, evidence, decisions, artifacts, and handoffs.
+is the complete operational history, while existing **Todos** are the focused
+work view. Meaningful progress, evidence, decisions, artifacts, and handoffs
+are visible Todo items instead of a parallel work system.
 
 In **Activity → Agents**, an agent run is the main object and its MCP calls are
-nested beneath it. A run contains the agent, repository, linked Shared Work,
+nested beneath it. A run contains the agent, repository, linked Todo,
 start and end time, status, summary, result, evidence, and handoff. Each nested
 call contains only the tool/action, outcome, and time; Kody does not store the
 private raw transcript, prompt, hidden reasoning, arguments, or tool output.
@@ -102,7 +103,7 @@ than becoming separate hidden histories.
   structured error contract.
 - Define tool metadata and the read/write/approval/admin permission model.
 - Define authenticated user, organization, and repository scope.
-- Define the shared work, progress, evidence, and handoff record.
+- Define the Todo-backed work, progress, evidence, and handoff record.
 - Define redaction, retention, audit, and secret-handling rules.
 - Add contract tests before implementation.
 
@@ -125,13 +126,13 @@ actions.
 Exit condition: at least two independent MCP clients can authenticate to the
 same deployed endpoint and receive the same scoped catalog and durable results.
 
-### Phase 3 — Shared work and context
+### Phase 3 — Todo work and context
 
 - Expose goals, tasks, checkpoints, evidence, decisions, and handoffs.
 - Add repository-scoped context and memory retrieval with provenance.
 - Add agent attribution and conflict-safe updates.
-- Show formal agent runs, nested MCP calls, and linked artifacts in
-  **Activity → Agents** while keeping **Shared Work** focused on the work itself.
+- Show formal agent runs, nested MCP calls, approvals, and linked artifacts in
+  **Activity → Agents**, with focused work stored in existing **Todos**.
 
 Exit condition: one agent can create or update work and a different agent can
 continue it from Kody without receiving the first agent's raw transcript.
@@ -160,16 +161,16 @@ join, inspect, contribute, and hand off through the same durable system.
 
 ## Implementation ROI
 
-| Capability | User value | Cost | Risk | Delivery priority |
-| --- | --- | --- | --- | --- |
-| Four-tool discovery facade | High: every agent gets Kody without context overload | Low | Low | First |
-| Scoped access tokens | Critical: safe remote access | Medium | Medium | First |
-| Shared work/evidence records | Very high: real cross-agent continuity and visibility | Medium | Medium | Next |
-| Context and memory retrieval | High: reuse accumulated knowledge | Medium | Medium | Next |
-| Policies and workflows | High: consistent behavior across agents | Medium | Medium | After shared work |
-| Approvals and resumable runs | High for governed writes | Medium-high | Medium | After workflows |
-| Online triggers and schedules | High for automation | Medium | Medium-high | Later |
-| Local connector or agent launcher | Low for this architecture | High | High | Excluded |
+| Capability                        | User value                                            | Cost        | Risk        | Delivery priority |
+| --------------------------------- | ----------------------------------------------------- | ----------- | ----------- | ----------------- |
+| Four-tool discovery facade        | High: every agent gets Kody without context overload  | Low         | Low         | First             |
+| Scoped access tokens              | Critical: safe remote access                          | Medium      | Medium      | First             |
+| Todo work/evidence records        | Very high: real cross-agent continuity and visibility | Medium      | Medium      | Next              |
+| Context and memory retrieval      | High: reuse accumulated knowledge                     | Medium      | Medium      | Next              |
+| Policies and workflows            | High: consistent behavior across agents               | Medium      | Medium      | After Todo work   |
+| Approvals and resumable runs      | High for governed writes                              | Medium-high | Medium      | After workflows   |
+| Online triggers and schedules     | High for automation                                   | Medium      | Medium-high | Later             |
+| Local connector or agent launcher | Low for this architecture                             | High        | High        | Excluded          |
 
 ## Non-goals for Phases 1–2
 

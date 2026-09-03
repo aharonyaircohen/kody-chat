@@ -8,7 +8,6 @@ const outcomeValidator = v.union(
   v.literal("error"),
 );
 const IDLE_RUN_MS = 15 * 60 * 1_000;
-const WORK_KIND = "shared-work";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -152,25 +151,40 @@ export const listDetailed = query({
           .collect();
         const work = run.workRecordId
           ? await ctx.db
-              .query("taskState")
-              .withIndex("by_task", (q) =>
+              .query("repoDocs")
+              .withIndex("by_kind", (q) =>
                 q
                   .eq("tenantId", args.tenantId)
-                  .eq("taskKey", `shared-work/${run.workRecordId}`)
-                  .eq("kind", WORK_KIND),
+                  .eq("kind", `todo:${run.workRecordId}`),
               )
               .unique()
           : null;
         const record = work?.doc as
           | {
               title?: string;
-              objective?: string;
-              summary?: string;
-              status?: string;
-              evidence?: unknown[];
-              handoff?: unknown;
+              description?: string;
+              mcpWork?: { summary?: string; status?: string };
+              items?: Array<{
+                meta?: {
+                  mcpWorkEvent?: {
+                    type?: string;
+                    payload?: Record<string, unknown>;
+                    recordedAt?: string;
+                  };
+                };
+              }>;
             }
           | undefined;
+        const workEvents = (record?.items ?? []).flatMap((item) => {
+          const event = item.meta?.mcpWorkEvent;
+          return event?.payload && event.recordedAt ? [event] : [];
+        });
+        const evidence = workEvents
+          .filter((event) => event.type === "evidence")
+          .map((event) => ({ ...event.payload, recordedAt: event.recordedAt }));
+        const handoff = workEvents
+          .filter((event) => event.type === "handoff")
+          .at(-1);
         const stale =
           run.status === "running" &&
           Date.parse(args.now) - Date.parse(run.lastActivityAt) >= IDLE_RUN_MS;
@@ -189,16 +203,20 @@ export const listDetailed = query({
             : {}),
           status,
           summary:
-            record?.summary ||
-            record?.objective ||
+            record?.mcpWork?.summary ||
+            record?.description ||
             `${run.callCount} MCP ${run.callCount === 1 ? "call" : "calls"}`,
           result:
             status === "running"
-              ? (record?.status ?? run.lastOutcome ?? "running")
+              ? (record?.mcpWork?.status ?? run.lastOutcome ?? "running")
               : status,
           callCount: run.callCount,
-          evidence: Array.isArray(record?.evidence) ? record.evidence : [],
-          ...(record?.handoff ? { handoff: record.handoff } : {}),
+          evidence,
+          ...(handoff
+            ? {
+                handoff: { ...handoff.payload, recordedAt: handoff.recordedAt },
+              }
+            : {}),
           calls: calls.map(
             ({ _id, _creationTime, tokenId, tenantId, runId, ...call }) => call,
           ),

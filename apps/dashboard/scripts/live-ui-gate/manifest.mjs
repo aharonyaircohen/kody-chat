@@ -1,5 +1,10 @@
 export const LIVE_UI_JOURNEYS = Object.freeze([
   {
+    id: "activity-agents-real",
+    file: "tests/e2e/activity-agents-real.e2e.spec.ts",
+    title: "shows inspectable MCP runs, calls, work, approvals, and execution",
+  },
+  {
     id: "memory-real-lifecycle",
     file: "tests/e2e/memory-real.e2e.spec.ts",
     title:

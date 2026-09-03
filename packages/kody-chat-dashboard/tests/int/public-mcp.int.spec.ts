@@ -44,6 +44,10 @@ const activeToken = {
   expiresAt: "2026-10-02T08:00:00.000Z",
 };
 const phaseFourServices = {
+  listWork: vi.fn(),
+  getWork: vi.fn(),
+  createWork: vi.fn(),
+  appendWork: vi.fn(),
   listPolicies: vi.fn(),
   getPolicy: vi.fn(),
   getInstructions: vi.fn(),

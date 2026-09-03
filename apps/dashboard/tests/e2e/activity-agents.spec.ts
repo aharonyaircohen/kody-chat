@@ -164,10 +164,10 @@ test("Activity Agents shows inspectable runs with nested MCP calls", async ({
     page.getByText("Workflow completed", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Open approval" }),
+    page.getByRole("link", { name: "Open Todo" }).first(),
   ).toHaveAttribute(
     "href",
-    "/repo/test-owner/test-repo/shared-work/shared-activity-1#approval-approval-request-1",
+    "/repo/test-owner/test-repo/todos/shared-activity-1",
   );
   await expect(
     page.getByRole("link", { name: "Open workflow run" }),
@@ -178,10 +178,10 @@ test("Activity Agents shows inspectable runs with nested MCP calls", async ({
   await expect(page.getByRole("heading", { name: "Evidence" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Handoff" })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Open Shared Work" }),
+    page.getByRole("link", { name: "Open Todo" }).last(),
   ).toHaveAttribute(
     "href",
-    "/repo/test-owner/test-repo/shared-work/shared-activity-1",
+    "/repo/test-owner/test-repo/todos/shared-activity-1",
   );
   await expect(page.getByText(/transcript/i)).toHaveCount(0);
   expect(pageErrors).toEqual([]);

@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import type { AgentRun } from "../activity/agent-runs";
 import { useAgentRuns } from "../hooks/useAgentRuns";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
+import { buildAuthHeaders, useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -42,6 +43,7 @@ type AgentRunHistoryItem = {
   occurredAt: string;
   href?: string;
   linkLabel?: string;
+  approvalRequestId?: string;
 };
 
 export function AgentRunsView({
@@ -53,7 +55,8 @@ export function AgentRunsView({
 }) {
   const router = useRouter();
   const scopedHref = useRepoScopedHref();
-  const { data, isLoading, error } = useAgentRuns(active);
+  const { data, isLoading, error, refetch } = useAgentRuns(active);
+  const { auth } = useAuth();
   const [search, setSearch] = useState("");
   const runs = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -81,7 +84,13 @@ export function AgentRunsView({
         error={error instanceof Error ? error.message : undefined}
         detail={
           selected ? (
-            <AgentRunDetail run={selected} />
+            <AgentRunDetail
+              run={selected}
+              onApprovalDecided={async () => {
+                await refetch();
+              }}
+              authHeaders={buildAuthHeaders(auth ?? null)}
+            />
           ) : (
             <EmptyState
               icon={<Bot />}
@@ -141,7 +150,17 @@ export function AgentRunsView({
   );
 }
 
-function AgentRunDetail({ run }: { run: AgentRun }) {
+function AgentRunDetail({
+  run,
+  onApprovalDecided,
+  authHeaders,
+}: {
+  run: AgentRun;
+  onApprovalDecided: () => Promise<void>;
+  authHeaders: Record<string, string>;
+}) {
+  const [deciding, setDeciding] = useState<string>();
+  const [decisionError, setDecisionError] = useState<string>();
   const [owner = "", repo = ""] = run.repository.split("/", 2);
   const history: AgentRunHistoryItem[] = [
     ...run.calls.map((call) => ({
@@ -152,7 +171,7 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
       occurredAt: call.occurredAt,
     })),
     ...(run.approvals ?? []).flatMap((approval) => {
-      const approvalHref = `/repo/${owner}/${repo}/shared-work/${approval.workRecordId}#approval-${approval.requestId}`;
+      const approvalHref = `/repo/${owner}/${repo}/todos/${approval.workRecordId}`;
       const executionHref =
         approval.targetKind === "workflow"
           ? `/repo/${owner}/${repo}/workflows/${approval.workflowId}`
@@ -168,7 +187,10 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
           status: "pending",
           occurredAt: approval.createdAt,
           href: approvalHref,
-          linkLabel: "Open approval",
+          linkLabel: "Open Todo",
+          ...(approval.status === "pending"
+            ? { approvalRequestId: approval.requestId }
+            : {}),
         },
       ];
       if (approval.decidedAt) {
@@ -224,6 +246,35 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
   ].sort(
     (left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt),
   );
+  const decideApproval = async (
+    requestId: string,
+    decision: "approved" | "rejected",
+  ) => {
+    setDeciding(requestId);
+    setDecisionError(undefined);
+    try {
+      const response = await fetch(
+        `/api/kody/mcp/approvals/${encodeURIComponent(requestId)}`,
+        {
+          method: "POST",
+          headers: { ...authHeaders, "content-type": "application/json" },
+          body: JSON.stringify({ decision }),
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(
+          body.message || body.error || `HTTP ${response.status}`,
+        );
+      await onApprovalDecided();
+    } catch (error) {
+      setDecisionError(
+        error instanceof Error ? error.message : "Approval decision failed",
+      );
+    } finally {
+      setDeciding(undefined);
+    }
+  };
   return (
     <article className="space-y-6 p-5 md:p-7">
       <header>
@@ -259,9 +310,9 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
         {run.workRecordId ? (
           <Link
             className="mt-4 inline-flex text-sm text-primary underline underline-offset-2"
-            href={`/repo/${owner}/${repo}/shared-work/${run.workRecordId}`}
+            href={`/repo/${owner}/${repo}/todos/${run.workRecordId}`}
           >
-            Open Shared Work
+            Open Todo
           </Link>
         ) : null}
       </header>
@@ -310,11 +361,38 @@ function AgentRunDetail({ run }: { run: AgentRun }) {
                     {item.linkLabel}
                   </Link>
                 ) : null}
+                {item.approvalRequestId ? (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={deciding === item.approvalRequestId}
+                      onClick={() =>
+                        void decideApproval(item.approvalRequestId!, "approved")
+                      }
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={deciding === item.approvalRequestId}
+                      onClick={() =>
+                        void decideApproval(item.approvalRequestId!, "rejected")
+                      }
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </li>
           ))}
         </ul>
       </section>
+
+      {decisionError ? (
+        <p className="text-sm text-destructive">{decisionError}</p>
+      ) : null}
 
       {run.evidence.length > 0 ? (
         <section>

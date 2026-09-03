@@ -274,9 +274,7 @@ export async function readTodoFile(
       description: parsed.description,
       items: parsed.items,
       createdAt: parsed.createdAt,
-      ...(parsed.agencyRequest
-        ? { agencyRequest: parsed.agencyRequest }
-        : {}),
+      ...(parsed.agencyRequest ? { agencyRequest: parsed.agencyRequest } : {}),
       frontmatter: parsed.frontmatter,
       sha: "",
       updatedAt,
@@ -317,6 +315,7 @@ interface WriteTodoOptions {
   agencyRequest?: AgencyRequestState;
   frontmatter?: Record<string, unknown>;
   sha?: string;
+  expectedUpdatedAt?: string | null;
   message?: string;
 }
 
@@ -346,6 +345,9 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
     kind: `${TODO_KIND_PREFIX}${opts.slug}`,
     doc: JSON.parse(normalizedContent),
     updatedAt: new Date().toISOString(),
+    ...(opts.expectedUpdatedAt !== undefined
+      ? { expectedUpdatedAt: opts.expectedUpdatedAt }
+      : {}),
   });
 
   const updatedAt = new Date().toISOString();

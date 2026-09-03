@@ -12,6 +12,12 @@ import {
   readResolvedCapabilityFile,
 } from "@kody-ade/agency/capabilities";
 import { splitContextFrontmatter } from "@kody-ade/workspace/context/frontmatter";
+import {
+  listTodoFiles,
+  readTodoFile,
+  writeTodoFile,
+  type TodoFile,
+} from "@kody-ade/workspace/todos/files";
 import type { KodyMcpActionServices } from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/catalog";
 import { KodyActionError } from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/catalog";
 import {
@@ -53,6 +59,14 @@ import {
   NotificationCreateRuleInputSchema,
   slugifyRuleName,
 } from "@dashboard/lib/notifications";
+import {
+  appendTodoWork,
+  createTodoWork,
+  readTodoWork,
+  TodoWorkError,
+  updateTodoWork,
+  workRequestState,
+} from "@dashboard/lib/mcp/todo-work";
 
 type WorkflowRecord = Awaited<
   ReturnType<typeof listWorkflowDefinitionFiles>
@@ -78,16 +92,40 @@ function approvalActor(principal: McpPrincipal) {
   };
 }
 
-async function requireSharedWork(principal: McpPrincipal, recordId: string) {
-  const work = await createBackendClient().query(backendApi.sharedWork.get, {
-    tenantId: principal.tenantId,
-    recordId,
-  });
-  if (!work)
+function workActor(principal: McpPrincipal) {
+  return {
+    tokenId: principal.tokenId,
+    name: principal.name,
+    actorLogin: principal.actorLogin,
+  };
+}
+
+function workError(error: unknown): never {
+  if (error instanceof TodoWorkError) {
     throw new KodyActionError(
-      "work_not_found",
-      "Create shared work before requesting execution.",
+      error.code === "conflict" ? "work_conflict" : "invalid_work",
+      error.message,
     );
+  }
+  throw error;
+}
+
+function writeWorkTodo(
+  todo: TodoFile,
+  octokit: Octokit,
+  expectedUpdatedAt: string | null,
+) {
+  return writeTodoFile({
+    octokit,
+    slug: todo.slug,
+    title: todo.title,
+    description: todo.description,
+    items: todo.items,
+    createdAt: todo.createdAt,
+    frontmatter: todo.frontmatter,
+    expectedUpdatedAt,
+    message: `chore(todos): update MCP work ${todo.slug}`,
+  });
 }
 
 async function withRepository<T>(
@@ -112,6 +150,22 @@ async function withRepository<T>(
   } finally {
     clearGitHubContext();
   }
+}
+
+async function requireWorkTodo(principal: McpPrincipal, recordId: string) {
+  await withRepository(principal, async ({ octokit }) => {
+    const todo = await readTodoFile(recordId, octokit);
+    if (!todo)
+      throw new KodyActionError(
+        "work_not_found",
+        "Create MCP work in Todos before requesting execution.",
+      );
+    try {
+      readTodoWork(todo, principal.tenantId);
+    } catch (error) {
+      workError(error);
+    }
+  });
 }
 
 async function listWorkflowRecords(principal: McpPrincipal): Promise<
@@ -161,7 +215,7 @@ async function createApprovalRequest(
     idempotencyKey: string;
   },
 ) {
-  await requireSharedWork(principal, input.workRecordId);
+  await requireWorkTodo(principal, input.workRecordId);
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
   const requestId = `request-${randomUUID()}`;
@@ -194,7 +248,7 @@ async function createApprovalRequest(
   );
   return {
     ...stored,
-    approvalUrl: `/repo/${repository(principal).owner}/${repository(principal).repo}/shared-work/${input.workRecordId}`,
+    approvalUrl: `/repo/${repository(principal).owner}/${repository(principal).repo}/todos/${input.workRecordId}`,
   };
 }
 
@@ -204,6 +258,124 @@ export function createKodyMcpActionServices({
   origin: string;
 }): KodyMcpActionServices {
   return {
+    async listWork(input, principal) {
+      return await withRepository(principal, async () => {
+        const rows = await listTodoFiles();
+        return rows
+          .flatMap((todo) => {
+            try {
+              return [readTodoWork(todo, principal.tenantId).record];
+            } catch (error) {
+              if (
+                error instanceof TodoWorkError &&
+                error.code === "invalid_work"
+              )
+                return [];
+              throw error;
+            }
+          })
+          .filter((work) => !input.status || work.status === input.status)
+          .slice(0, Number(input.limit));
+      });
+    },
+    async getWork(recordId, principal) {
+      return await withRepository(principal, async ({ octokit }) => {
+        const todo = await readTodoFile(recordId, octokit);
+        if (!todo)
+          throw new KodyActionError(
+            "work_not_found",
+            "MCP work was not found.",
+          );
+        try {
+          return readTodoWork(todo, principal.tenantId);
+        } catch (error) {
+          workError(error);
+        }
+      });
+    },
+    async createWork(input, principal) {
+      return await withRepository(principal, async ({ octokit }) => {
+        const { idempotencyKey, actionId, ...payload } = input;
+        const request = {
+          key: String(idempotencyKey),
+          hash: hashRequest({ actionId, input: payload }),
+        };
+        const recordId = String(payload.recordId);
+        const existing = await readTodoFile(recordId, octokit);
+        if (existing) {
+          try {
+            if (workRequestState(existing, request) === "replay")
+              return readTodoWork(existing, principal.tenantId).record;
+          } catch (error) {
+            workError(error);
+          }
+          throw new KodyActionError(
+            "work_conflict",
+            "A Todo with this work ID already exists.",
+          );
+        }
+        const now = new Date().toISOString();
+        const todo = createTodoWork(
+          payload,
+          workActor(principal),
+          request,
+          now,
+        );
+        const saved = await writeWorkTodo(todo, octokit, null);
+        return readTodoWork(saved, principal.tenantId).record;
+      });
+    },
+    async appendWork(type, input, principal) {
+      return await withRepository(principal, async ({ octokit }) => {
+        const {
+          recordId,
+          expectedRevision,
+          idempotencyKey,
+          actionId,
+          ...payload
+        } = input;
+        const existing = await readTodoFile(String(recordId), octokit);
+        if (!existing)
+          throw new KodyActionError(
+            "work_not_found",
+            "MCP work was not found.",
+          );
+        const request = {
+          key: String(idempotencyKey),
+          hash: hashRequest({
+            actionId,
+            input: { recordId, expectedRevision, ...payload },
+          }),
+        };
+        try {
+          const now = new Date().toISOString();
+          const next =
+            type === "update"
+              ? updateTodoWork(
+                  existing,
+                  { ...payload, expectedRevision },
+                  workActor(principal),
+                  request,
+                  now,
+                )
+              : appendTodoWork(
+                  existing,
+                  type,
+                  payload,
+                  Number(expectedRevision),
+                  workActor(principal),
+                  request,
+                  now,
+                );
+          if (next === existing)
+            return readTodoWork(existing, principal.tenantId).record;
+          const saved = await writeWorkTodo(next, octokit, existing.updatedAt);
+          return readTodoWork(saved, principal.tenantId).record;
+        } catch (error) {
+          workError(error);
+        }
+      });
+    },
     async listPolicies(principal) {
       const rows = (await createBackendClient().query(
         backendApi.repoDocs.listByPrefix,

@@ -81,45 +81,54 @@ describe("inspectable agent runs", () => {
     expect(other.runs[0].callCount).toBe(1);
   });
 
-  it("links a run to inspectable Shared Work outcomes", async () => {
+  it("links a run to inspectable Todo work outcomes", async () => {
     const t = setup();
-    await t.mutation(api.sharedWork.create, {
+    await t.mutation(api.repoDocs.save, {
       tenantId,
-      recordId: "shared-1",
-      title: "Ship agent activity",
-      objective: "Make every stored agent action visible",
-      summary: "The Activity Agents view is ready.",
-      actor,
-      idempotencyKey: "create-shared-1",
-      requestHash: "hash-create",
-    });
-    await t.mutation(api.sharedWork.append, {
-      tenantId,
-      recordId: "shared-1",
-      expectedRevision: 1,
-      type: "evidence",
-      payload: {
-        kind: "test",
-        reference: "live:activity-agents",
-        summary: "The real browser journey passed",
+      kind: "todo:shared-1",
+      updatedAt: "2026-09-02T08:59:00.000Z",
+      doc: {
+        title: "Ship agent activity",
+        description: "Make every stored agent action visible",
+        createdAt: "2026-09-02T08:58:00.000Z",
+        mcpWork: {
+          version: 1,
+          status: "completed",
+          revision: 3,
+          summary: "The Activity Agents view is ready.",
+          blockers: [],
+          updatedBy: actor,
+          requests: [],
+        },
+        items: [
+          {
+            meta: {
+              mcpWorkEvent: {
+                type: "evidence",
+                payload: {
+                  kind: "test",
+                  reference: "live:activity-agents",
+                  summary: "The real browser journey passed",
+                },
+                recordedAt: "2026-09-02T08:59:00.000Z",
+              },
+            },
+          },
+          {
+            meta: {
+              mcpWorkEvent: {
+                type: "handoff",
+                payload: {
+                  toAgent: "Claude Code",
+                  summary: "Continue from the verified implementation",
+                  nextSteps: ["Review the deployment"],
+                },
+                recordedAt: "2026-09-02T08:59:30.000Z",
+              },
+            },
+          },
+        ],
       },
-      actor,
-      idempotencyKey: "evidence-shared-1",
-      requestHash: "hash-evidence",
-    });
-    await t.mutation(api.sharedWork.append, {
-      tenantId,
-      recordId: "shared-1",
-      expectedRevision: 2,
-      type: "handoff",
-      payload: {
-        toAgent: "Claude Code",
-        summary: "Continue from the verified implementation",
-        nextSteps: ["Review the deployment"],
-      },
-      actor,
-      idempotencyKey: "handoff-shared-1",
-      requestHash: "hash-handoff",
     });
     await t.mutation(api.agentRuns.recordCall, {
       tenantId,

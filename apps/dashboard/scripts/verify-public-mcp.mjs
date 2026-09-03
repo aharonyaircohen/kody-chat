@@ -274,12 +274,9 @@ async function verifyPhaseTwoGates(principal) {
   );
   assert.equal(
     contract.body.result.structuredContent.contractVersion,
-    "2026-09-03.7",
+    "2026-09-03.8",
   );
-  assert.equal(
-    contract.body.result.structuredContent.sharedWorkRecordSchema.type,
-    "object",
-  );
+  assert.equal(contract.body.result.structuredContent.workSystem, "todos");
 
   const features = await callTool(
     principal.accessToken,
@@ -287,15 +284,9 @@ async function verifyPhaseTwoGates(principal) {
     "kody_execute_tool",
     { actionId: "dashboard.features.list", input: {} },
   );
+  assert.ok(features.body.result.structuredContent.families.includes("todos"));
   assert.ok(
-    features.body.result.structuredContent.families.includes(
-      "work and evidence",
-    ),
-  );
-  assert.ok(
-    features.body.result.structuredContent.families.includes(
-      "online automation",
-    ),
+    features.body.result.structuredContent.families.includes("automation"),
   );
 
   const notification = await mcpRequest(principal.accessToken, {
@@ -590,10 +581,10 @@ async function verifyPhaseThreeGates(principal) {
       "Codex Phase 3 verification",
     );
     assert.ok(
-      await backend.query(backendApi.sharedWork.get, {
+      await backend.query(backendApi.repoDocs.get, {
         serviceKey,
         tenantId: repository,
-        recordId,
+        kind: `todo:${recordId}`,
       }),
       "the MCP endpoint and Phase 3 test were connected to different Convex deployments",
     );
@@ -648,7 +639,7 @@ async function verifyPhaseThreeGates(principal) {
         "work.artifact.add",
         {
           kind: "report",
-          reference: `/shared-work/${recordId}`,
+          reference: `/todos/${recordId}`,
           summary: "Dashboard work detail",
         },
       ],
@@ -674,16 +665,20 @@ async function verifyPhaseThreeGates(principal) {
         expectedRevision: revision,
       });
       revision += 1;
-      const afterHermes = await backend.query(backendApi.sharedWork.get, {
-        serviceKey,
-        tenantId: repository,
-        recordId,
-      });
+      const afterHermes = await callTool(
+        codex.accessToken,
+        "phase3-after-hermes",
+        "kody_execute_tool",
+        { actionId: "work.get", input: { recordId } },
+      );
       assert.equal(
-        afterHermes.record.updatedBy.name,
+        afterHermes.body.result.structuredContent.record.updatedBy.name,
         "Hermes MCP verification",
       );
-      assert.equal(afterHermes.record.handoff.toAgent, "OpenCode");
+      assert.equal(
+        afterHermes.body.result.structuredContent.record.handoff.toAgent,
+        "OpenCode",
+      );
     }
     const stale = await callTool(
       openCode.accessToken,
@@ -840,10 +835,10 @@ async function verifyPhaseThreeGates(principal) {
         tenantId: repository,
         memoryId,
       });
-    await backend.mutation(backendApi.sharedWork.remove, {
+    await backend.mutation(backendApi.repoDocs.remove, {
       serviceKey,
       tenantId: repository,
-      recordId,
+      kind: `todo:${recordId}`,
     });
     for (const tokenId of createdTokenIds)
       await backend.mutation(backendApi.mcpAccessTokens.revoke, {
@@ -994,10 +989,10 @@ async function verifyPhaseFourGates(principal) {
         tenantId: repository,
         requestId,
       });
-    await backend.mutation(backendApi.sharedWork.remove, {
+    await backend.mutation(backendApi.repoDocs.remove, {
       serviceKey,
       tenantId: repository,
-      recordId,
+      kind: `todo:${recordId}`,
     });
   }
 }
@@ -1225,10 +1220,10 @@ async function verifyPhaseFiveGates(principal) {
         tenantId: repository,
         requestId,
       });
-    await backend.mutation(backendApi.sharedWork.remove, {
+    await backend.mutation(backendApi.repoDocs.remove, {
       serviceKey,
       tenantId: repository,
-      recordId,
+      kind: `todo:${recordId}`,
     });
   }
 }
@@ -1659,7 +1654,7 @@ async function callTool(token, id, name, args, allowToolError = false) {
     method: "tools/call",
     params: { name, arguments: args },
   });
-  assert.equal(result.response.status, 200);
+  assert.equal(result.response.status, 200, JSON.stringify(result.body));
   if (!allowToolError)
     assert.equal(
       result.body.result.isError,

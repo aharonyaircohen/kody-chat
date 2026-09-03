@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { expect, test } from "@playwright/test";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import { expect, resolveLiveGitHubUser, test } from "./live-test";
+import { resolveLiveGitHubUser } from "./live-test";
 import {
   establishLiveKodyAccountSession,
   loadLiveKodyAccountCredentials,
@@ -175,15 +176,6 @@ test("shows a real MCP agent run and its inspectable calls", async ({
     );
     approvalRequestId = approval.requestId;
     expect(approval.status).toBe("pending");
-    const approved = await page.request.post(
-      `${BASE_URL}/api/kody/mcp/approvals/${encodeURIComponent(approvalRequestId)}`,
-      { headers: dashboardHeaders, data: { decision: "approved" } },
-    );
-    expect(approved.status()).toBe(202);
-    await expect(approved.json()).resolves.toMatchObject({
-      status: "dispatched",
-      execution: "kody-engine",
-    });
     const closed = await page.request.delete(`${BASE_URL}/api/kody/mcp`, {
       headers: {
         authorization: `Bearer ${accessToken}`,
@@ -218,16 +210,18 @@ test("shows a real MCP agent run and its inspectable calls", async ({
     await expect(
       page.getByText("Approval requested", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(/Approved by /, { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reject" })).toBeVisible();
+    await page.getByRole("button", { name: "Approve" }).click();
+    await expect(page.getByText(/Approved by /, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       page.getByText("Workflow dispatched", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Open approval" }),
-    ).toHaveAttribute(
-      "href",
-      `/repo/${owner}/${repo}/shared-work/${recordId}#approval-${approvalRequestId}`,
-    );
+      page.getByRole("link", { name: "Open Todo" }).first(),
+    ).toHaveAttribute("href", `/repo/${owner}/${repo}/todos/${recordId}`);
     await expect(
       page.getByRole("link", { name: "Open workflow" }),
     ).toHaveAttribute("href", `/repo/${owner}/${repo}/workflows/${workflowId}`);
@@ -260,8 +254,8 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       );
     }
     await expect(
-      page.getByRole("link", { name: "Open Shared Work" }),
-    ).toHaveAttribute("href", `/repo/${owner}/${repo}/shared-work/${recordId}`);
+      page.getByRole("link", { name: "Open Todo" }).last(),
+    ).toHaveAttribute("href", `/repo/${owner}/${repo}/todos/${recordId}`);
     await expect(page.getByText(/transcript/i)).toHaveCount(0);
   } finally {
     if (approvalRequestId)
@@ -274,9 +268,9 @@ test("shows a real MCP agent run and its inspectable calls", async ({
         tenantId: repository,
         runId,
       });
-    await backend.mutation(backendApi.sharedWork.remove, {
+    await backend.mutation(backendApi.repoDocs.remove, {
       tenantId: repository,
-      recordId,
+      kind: `todo:${recordId}`,
     });
     if (tokenId)
       await page.request.delete(`${BASE_URL}/api/kody/mcp/tokens`, {

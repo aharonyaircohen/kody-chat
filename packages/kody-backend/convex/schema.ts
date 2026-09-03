@@ -942,26 +942,6 @@ export default defineSchema({
     .index("by_task", ["tenantId", "taskKey", "kind"])
     .index("by_kind", ["tenantId", "kind", "updatedAt"]),
 
-  sharedWorkEvents: defineTable({
-    tenantId: v.string(),
-    recordId: v.string(),
-    seq: v.number(),
-    type: v.string(),
-    payload: v.any(),
-    actor: v.object({
-      tokenId: v.string(),
-      name: v.string(),
-      actorLogin: v.string(),
-    }),
-    actionId: v.string(),
-    idempotencyKey: v.string(),
-    requestHash: v.string(),
-    result: v.any(),
-    occurredAt: v.string(),
-  })
-    .index("by_work", ["tenantId", "recordId", "seq"])
-    .index("by_idempotency", ["tenantId", "actor.tokenId", "idempotencyKey"]),
-
   mcpApprovalRequests: defineTable({
     tenantId: v.string(),
     requestId: v.string(),

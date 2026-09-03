@@ -269,11 +269,6 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_task",
   },
   {
-    table: "sharedWorkEvents",
-    naturalKey: ["recordId", "seq"],
-    upsertIndex: "by_work",
-  },
-  {
     table: "mcpApprovalRequests",
     naturalKey: ["requestId"],
     upsertIndex: "by_request",

@@ -30,7 +30,6 @@
     "./routes/kody/mcp-tokens": "./app/api/kody/mcp/tokens/route.ts",
     "./quality/contracts": "./src/dashboard/lib/quality/contracts.ts",
     "./pages/user-journeys": "./src/dashboard/lib/pages/user-journeys.tsx",
-    "./pages/shared-work": "./src/dashboard/lib/pages/shared-work.tsx",
     "./user-journeys/contracts": "./src/dashboard/lib/user-journeys/contracts.ts",
     "./user-journeys/runner": "./src/dashboard/lib/user-journeys/runner.ts",
     "./guided-flows/builtins": "./src/dashboard/lib/guided-flows/builtins/index.ts",
