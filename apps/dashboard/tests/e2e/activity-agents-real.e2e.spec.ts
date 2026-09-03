@@ -167,7 +167,7 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       `workflows-${recordId}`,
     )) as Array<{ id?: string }>;
     const workflowId =
-      process.env.E2E_ACTIVITY_WORKFLOW_ID?.trim() || "quality-run";
+      process.env.E2E_ACTIVITY_WORKFLOW_ID?.trim() || "director-ci-monitor";
     expect(workflows.some((workflow) => workflow.id === workflowId)).toBe(true);
     const approval = await call(
       "workflow.run.request",
@@ -257,6 +257,33 @@ test("shows a real MCP agent run and its inspectable calls", async ({
       page.getByRole("link", { name: "Open Todo" }).last(),
     ).toHaveAttribute("href", `/repo/${owner}/${repo}/todos/${recordId}`);
     await expect(page.getByText(/transcript/i)).toHaveCount(0);
+
+    await page.goto(
+      `${BASE_URL}/repo/${owner}/${repo}/todos/${recordId}`,
+      { waitUntil: "domcontentloaded" },
+    );
+    await expect(
+      page.getByRole("heading", { name: "Live agent activity" }),
+    ).toBeVisible({ timeout: 30_000 });
+    const todoArticle = page.getByRole("article");
+    const recordCalls = todoArticle.getByRole("heading", {
+      name: "Record calls",
+      exact: true,
+    });
+    await recordCalls.scrollIntoViewIfNeeded();
+    await expect(recordCalls).toBeVisible();
+    const evidenceItem = todoArticle.getByRole("heading", {
+      name: "Evidence: The real MCP call was recorded and rendered",
+      exact: true,
+    });
+    await evidenceItem.scrollIntoViewIfNeeded();
+    await expect(evidenceItem).toBeVisible();
+    const handoffItem = todoArticle.getByRole("heading", {
+      name: "Handoff to OpenCode: Continue from this verified Kody run",
+      exact: true,
+    });
+    await handoffItem.scrollIntoViewIfNeeded();
+    await expect(handoffItem).toBeVisible();
   } finally {
     if (approvalRequestId)
       await backend.mutation(backendApi.mcpApprovalRequests.remove, {

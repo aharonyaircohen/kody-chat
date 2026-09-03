@@ -1483,7 +1483,7 @@ function TodoItemCard({
   );
 
   const titleBlock = (
-    <div className="min-w-0 flex-1">
+    <div className="min-w-0 flex-[1_1_10rem]">
       <h2
         {...itemTitleDirectionProps}
         className={cn(
@@ -1548,7 +1548,7 @@ function TodoItemCard({
           </div>
         </div>
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
             {titleBlock}
             <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
               {renderItemActions()}

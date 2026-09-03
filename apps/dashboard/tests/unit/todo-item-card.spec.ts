@@ -8,6 +8,15 @@ const TODO_CONTROL_SOURCE = readFileSync(
 );
 
 describe("todo item cards", () => {
+  it("keeps titles visible when the Todo pane is narrow", () => {
+    expect(TODO_CONTROL_SOURCE).toContain(
+      'className="min-w-0 flex-[1_1_10rem]"',
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      'className="flex flex-wrap items-start justify-between gap-2 sm:gap-3"',
+    );
+  });
+
   it("starts todo item bodies collapsed by default", () => {
     expect(TODO_CONTROL_SOURCE).toContain(
       "const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(",
