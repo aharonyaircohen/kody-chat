@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { runMcpProductionRelease } from "../../scripts/release-mcp-production-core.mjs";
+import {
+  kodyCapabilityFailure,
+  kodyCapabilitySuccess,
+} from "../../scripts/release-mcp-production.mjs";
 
 const requiredEnv = {
   VERCEL_TOKEN: "vercel-test-token",
@@ -78,5 +82,42 @@ describe("MCP production release gate", () => {
       runMcpProductionRelease({ env: requiredEnv, run, repoRoot: "/repo" }),
     ).rejects.toThrow("Vercel did not return a candidate URL");
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns inspectable Kody evidence without raw command output", () => {
+    expect(
+      kodyCapabilitySuccess({
+        deploymentUrl: "https://candidate.vercel.app",
+        endpoint: "https://stable.example/api/kody/mcp",
+      }),
+    ).toEqual({
+      version: 1,
+      status: "pass",
+      summary: "Dashboard candidate passed every gate and was promoted.",
+      evidence: { productionDeployed: true },
+      facts: {
+        productionDeploymentUrl: "https://candidate.vercel.app",
+        mcpEndpoint: "https://stable.example/api/kody/mcp",
+      },
+      artifacts: [
+        {
+          label: "Vercel deployment",
+          url: "https://candidate.vercel.app",
+        },
+      ],
+      missingEvidence: [],
+      blockers: [],
+    });
+  });
+
+  it("returns a safe Kody failure without exposing the underlying error", () => {
+    const result = kodyCapabilityFailure(
+      new Error("failed with private-vercel-token"),
+    );
+
+    expect(result.status).toBe("fail");
+    expect(JSON.stringify(result)).not.toContain("private-vercel-token");
+    expect(result.evidence).toEqual({});
+    expect(result.missingEvidence).toEqual(["productionDeployed"]);
   });
 });

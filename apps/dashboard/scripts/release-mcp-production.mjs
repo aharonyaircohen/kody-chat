@@ -12,9 +12,9 @@ export async function runMcpProductionRelease({
   return runRelease({ env, run, repoRoot });
 }
 
-export function runCommand(spec) {
+export function runCommand(spec, { forwardOutput = true } = {}) {
   return new Promise((resolvePromise, reject) => {
-    process.stdout.write(`\n[release] ${spec.label}\n`);
+    if (forwardOutput) process.stdout.write(`\n[release] ${spec.label}\n`);
     const child = spawn(spec.bin, spec.args, {
       cwd: spec.cwd,
       env: spec.env,
@@ -24,11 +24,11 @@ export function runCommand(spec) {
     let stderr = "";
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
-      process.stdout.write(chunk);
+      if (forwardOutput) process.stdout.write(chunk);
     });
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
-      process.stderr.write(chunk);
+      if (forwardOutput) process.stderr.write(chunk);
     });
     child.on("error", reject);
     child.on("close", (code) => {
@@ -38,17 +38,67 @@ export function runCommand(spec) {
   });
 }
 
+export function kodyCapabilitySuccess({ deploymentUrl, endpoint }) {
+  return {
+    version: 1,
+    status: "pass",
+    summary: "Dashboard candidate passed every gate and was promoted.",
+    evidence: { productionDeployed: true },
+    facts: {
+      productionDeploymentUrl: deploymentUrl,
+      mcpEndpoint: endpoint,
+    },
+    artifacts: [{ label: "Vercel deployment", url: deploymentUrl }],
+    missingEvidence: [],
+    blockers: [],
+  };
+}
+
+export function kodyCapabilityFailure(_error) {
+  const summary =
+    "Dashboard release checks failed; the stable deployment was not changed.";
+  return {
+    version: 1,
+    status: "fail",
+    summary,
+    evidence: {},
+    facts: {},
+    artifacts: [],
+    missingEvidence: ["productionDeployed"],
+    blockers: [summary],
+  };
+}
+
+function writeCapabilityResult(result) {
+  process.stdout.write(`KODY_CAPABILITY_RESULT=${JSON.stringify(result)}\n`);
+}
+
 const invokedPath = process.argv[1]
   ? pathToFileURL(resolve(process.argv[1])).href
   : "";
 if (invokedPath === import.meta.url) {
-  runMcpProductionRelease()
+  const capabilityRun = process.env.KODY_CAPABILITY_RUN === "1";
+  runMcpProductionRelease({
+    run: capabilityRun
+      ? (spec) => runCommand(spec, { forwardOutput: false })
+      : runCommand,
+  })
     .then(({ deploymentUrl, endpoint }) => {
+      if (capabilityRun) {
+        writeCapabilityResult(
+          kodyCapabilitySuccess({ deploymentUrl, endpoint }),
+        );
+        return;
+      }
       process.stdout.write(
         `\n[release] promoted ${deploymentUrl}\n[release] MCP ${endpoint}\n`,
       );
     })
     .catch((error) => {
+      if (capabilityRun) {
+        writeCapabilityResult(kodyCapabilityFailure(error));
+        return;
+      }
       process.stderr.write(
         `[release] stopped: ${error instanceof Error ? error.message : String(error)}\n`,
       );
