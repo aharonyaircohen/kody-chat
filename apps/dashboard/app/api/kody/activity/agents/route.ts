@@ -6,6 +6,7 @@ import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 function executionCompletion(
   value: unknown,
   repository: string,
+  updatedAt: string,
 ): {
   status: "done" | "failed" | "blocked";
   updatedAt: string;
@@ -14,6 +15,14 @@ function executionCompletion(
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const result = value as Record<string, unknown>;
   const execution = result.execution;
+  if (
+    execution === "kody-online" &&
+    typeof result.automationId === "string" &&
+    typeof result.automationKind === "string" &&
+    typeof result.operation === "string"
+  ) {
+    return { status: "done", updatedAt };
+  }
   if (!execution || typeof execution !== "object" || Array.isArray(execution))
     return null;
   const record = execution as Record<string, unknown>;
@@ -74,6 +83,7 @@ export async function GET(req: NextRequest) {
               const completedExecution = executionCompletion(
                 approval.result,
                 `${auth.owner}/${auth.repo}`,
+                approval.updatedAt,
               );
               const storedExecution =
                 approval.targetKind === "workflow" && !completedExecution

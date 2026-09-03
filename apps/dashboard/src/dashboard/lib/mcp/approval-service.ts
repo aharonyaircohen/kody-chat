@@ -36,6 +36,14 @@ import {
 import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
 import { mutateTriggers, triggerConfigSchema } from "@kody-ade/base/triggers";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
+import { mutateNotificationsManifest } from "@dashboard/lib/notifications-server";
+import {
+  type NotificationChannel,
+  type NotificationRule,
+  NotificationCreateRuleInputSchema,
+  slugifyRuleName,
+  uniqueRuleId,
+} from "@dashboard/lib/notifications";
 
 export type ClaimedMcpApproval = {
   tenantId: string;
@@ -426,6 +434,60 @@ export function createApprovalDecisionDependencies({
             automationId: "github-webhook",
             automationKind: "webhook",
             operation: result.created ? "created" : "updated",
+            execution: "kody-online",
+          };
+        }
+        if (request.action === "notification.rule.create") {
+          const input = NotificationCreateRuleInputSchema.parse(
+            request.input.rule,
+          );
+          const outcome = await mutateNotificationsManifest<NotificationRule>(
+            (manifest) => {
+              const id = uniqueRuleId(
+                slugifyRuleName(input.name),
+                manifest.rules,
+              );
+              const rule: NotificationRule = {
+                id,
+                name: input.name,
+                enabled: input.enabled,
+                event: input.event,
+                channel: input.channel as NotificationChannel,
+                template: input.template,
+                createdAt: new Date().toISOString(),
+              };
+              return {
+                next: { ...manifest, rules: [...manifest.rules, rule] },
+                result: rule,
+              };
+            },
+          );
+          if ("kind" in outcome)
+            throw new Error("Notification rule creation failed");
+          return {
+            automationId: outcome.result.id,
+            automationKind: "notification-rule",
+            operation: "created",
+            execution: "kody-online",
+          };
+        }
+        if (request.action === "notification.rule.delete") {
+          let found = false;
+          await mutateNotificationsManifest((manifest) => {
+            const rules = manifest.rules.filter(
+              (rule) => rule.id !== request.workflowId,
+            );
+            found = rules.length !== manifest.rules.length;
+            return {
+              next: { ...manifest, rules },
+              result: found,
+            };
+          });
+          if (!found) throw new Error("Notification rule was not found");
+          return {
+            automationId: request.workflowId,
+            automationKind: "notification-rule",
+            operation: "deleted",
             execution: "kody-online",
           };
         }

@@ -13,6 +13,73 @@ const terminalStatusValidator = v.union(
   v.literal("failed"),
 );
 
+function object(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function approvalDetails(
+  action: unknown,
+  input: unknown,
+): Record<string, string | boolean> | null {
+  if (typeof action !== "string") return null;
+  const value = object(input);
+  if (!value) return null;
+  if (action.endsWith(".delete") && typeof value.id === "string")
+    return { id: value.id };
+  if (action === "schedule.save") {
+    const schedule = object(value.schedule);
+    const target = object(schedule?.target);
+    const trigger = object(schedule?.trigger);
+    if (!schedule || typeof schedule.id !== "string") return null;
+    const every =
+      typeof schedule.every === "string"
+        ? schedule.every
+        : typeof trigger?.every === "string"
+          ? trigger.every
+          : null;
+    return {
+      id: schedule.id,
+      ...(every ? { every } : {}),
+      ...(typeof schedule.enabled === "boolean"
+        ? { enabled: schedule.enabled }
+        : {}),
+      ...(typeof target?.kind === "string" ? { targetType: target.kind } : {}),
+      ...(typeof target?.id === "string" ? { targetId: target.id } : {}),
+    };
+  }
+  if (action === "trigger.save") {
+    const trigger = object(value.trigger);
+    const triggerAction = object(trigger?.action);
+    if (!trigger || typeof trigger.id !== "string") return null;
+    return {
+      id: trigger.id,
+      ...(typeof trigger.event === "string" ? { event: trigger.event } : {}),
+      ...(typeof trigger.enabled === "boolean"
+        ? { enabled: trigger.enabled }
+        : {}),
+      ...(typeof triggerAction?.type === "string"
+        ? { actionType: triggerAction.type }
+        : {}),
+    };
+  }
+  if (action === "notification.rule.create") {
+    const rule = object(value.rule);
+    const channel = object(rule?.channel);
+    if (!rule || typeof rule.name !== "string") return null;
+    return {
+      name: rule.name,
+      ...(typeof rule.event === "string" ? { event: rule.event } : {}),
+      ...(typeof rule.enabled === "boolean" ? { enabled: rule.enabled } : {}),
+      ...(typeof channel?.type === "string"
+        ? { channelType: channel.type }
+        : {}),
+    };
+  }
+  return null;
+}
+
 function publicRequest<T extends Record<string, unknown>>(row: T) {
   const {
     _id,
@@ -20,9 +87,11 @@ function publicRequest<T extends Record<string, unknown>>(row: T) {
     approvalToken,
     idempotencyKey,
     requestHash,
+    input: _input,
     ...safe
   } = row;
-  return safe;
+  const details = approvalDetails(row.action, _input);
+  return { ...safe, ...(details ? { details } : {}) };
 }
 
 export const create = mutation({

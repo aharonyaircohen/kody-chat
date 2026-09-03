@@ -14,7 +14,10 @@ import {
 import { splitContextFrontmatter } from "@kody-ade/workspace/context/frontmatter";
 import type { KodyMcpActionServices } from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/catalog";
 import { KodyActionError } from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/catalog";
-import type { McpPrincipal } from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/contracts";
+import {
+  KODY_MCP_CONTRACT_VERSION,
+  type McpPrincipal,
+} from "@kody-ade/kody-chat-dashboard/integration-ts/lib/mcp/contracts";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -46,6 +49,10 @@ import {
 } from "@dashboard/lib/repository-loops";
 import { probeWebhookHealth } from "@dashboard/lib/health/webhook-health";
 import { readNotificationsManifestFresh } from "@dashboard/lib/notifications-server";
+import {
+  NotificationCreateRuleInputSchema,
+  slugifyRuleName,
+} from "@dashboard/lib/notifications";
 
 type WorkflowRecord = Awaited<
   ReturnType<typeof listWorkflowDefinitionFiles>
@@ -565,7 +572,7 @@ export function createKodyMcpActionServices({
         byOutcome,
         byAction,
         reliabilityObjective: { availability: 0.995, window: "30d" },
-        contractVersion: "2026-09-02.6",
+        contractVersion: KODY_MCP_CONTRACT_VERSION,
         migrationPolicy: "additive-with-versioned-deprecation",
         minimumDeprecationDays: 90,
       };
@@ -709,6 +716,44 @@ export function createKodyMcpActionServices({
         approvalToken: randomBytes(32).toString("base64url"),
         action: "webhook.reconcile",
         approvalInput: {},
+        idempotencyKey: String(input.idempotencyKey),
+      });
+    },
+    async requestNotificationRuleCreate(input, principal) {
+      const rule = NotificationCreateRuleInputSchema.parse(input.rule);
+      return await createApprovalRequest(principal, {
+        workRecordId: String(input.workRecordId),
+        targetKind: "automation",
+        targetId: slugifyRuleName(rule.name),
+        runId: `run-${randomUUID()}`,
+        mode: "start",
+        approvalId: `approval-${randomUUID()}`,
+        approvalToken: randomBytes(32).toString("base64url"),
+        action: "notification.rule.create",
+        approvalInput: { rule },
+        idempotencyKey: String(input.idempotencyKey),
+      });
+    },
+    async requestNotificationRuleDelete(input, principal) {
+      const id = String(input.id);
+      const rules = (await this.listNotificationRules(principal)) as Array<{
+        id: string;
+      }>;
+      if (!rules.some((rule) => rule.id === id))
+        throw new KodyActionError(
+          "notification_rule_not_found",
+          "Notification rule was not found.",
+        );
+      return await createApprovalRequest(principal, {
+        workRecordId: String(input.workRecordId),
+        targetKind: "automation",
+        targetId: id,
+        runId: `run-${randomUUID()}`,
+        mode: "start",
+        approvalId: `approval-${randomUUID()}`,
+        approvalToken: randomBytes(32).toString("base64url"),
+        action: "notification.rule.delete",
+        approvalInput: { id },
         idempotencyKey: String(input.idempotencyKey),
       });
     },

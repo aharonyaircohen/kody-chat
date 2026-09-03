@@ -265,6 +265,51 @@ describe("GET /api/kody/activity/agents", () => {
     );
   });
 
+  it("shows synchronous online automation as completed", async () => {
+    mocks.backendQuery
+      .mockResolvedValueOnce({
+        runs: [
+          {
+            runId: "agent-run-automation",
+            workRecordId: "work-automation",
+            calls: [],
+          },
+        ],
+        computedAt: "now",
+      } as never)
+      .mockResolvedValueOnce([
+        {
+          requestId: "request-automation",
+          workRecordId: "work-automation",
+          targetKind: "automation",
+          workflowId: "release-alerts",
+          runId: "automation-run-1",
+          mode: "start",
+          status: "dispatched",
+          result: {
+            execution: "kody-online",
+            automationId: "release-alerts",
+            automationKind: "notification-rule",
+            operation: "created",
+          },
+          createdAt: "2026-09-02T10:01:00.000Z",
+          decidedAt: "2026-09-02T10:02:00.000Z",
+          decidedBy: "octocat",
+          updatedAt: "2026-09-02T10:03:00.000Z",
+        },
+      ] as never);
+
+    const res = await getAgentActivity(
+      new NextRequest("https://dash.test/api/kody/activity/agents"),
+    );
+    const json = await res.json();
+
+    expect(json.runs[0].approvals[0].execution).toEqual({
+      status: "done",
+      updatedAt: "2026-09-02T10:03:00.000Z",
+    });
+  });
+
   it("requires repository authentication", async () => {
     mocks.requireKodyAuth.mockResolvedValueOnce(
       NextResponse.json({ message: "nope" }, { status: 401 }),

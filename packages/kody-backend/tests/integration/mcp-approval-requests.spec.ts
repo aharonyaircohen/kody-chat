@@ -45,6 +45,55 @@ describe("MCP workflow approval requests", () => {
       }),
     ]);
     expect(JSON.stringify(listed)).not.toContain("signed-secret-token");
+    expect(JSON.stringify(listed)).not.toContain("main");
+    expect(listed[0]).not.toHaveProperty("input");
+  });
+
+  it("exposes safe notification approval details without channel credentials", async () => {
+    const t = setup();
+    await t.mutation(api.mcpApprovalRequests.create, {
+      tenantId: TENANT,
+      requestId: "approval-notification",
+      workRecordId: "phase-5",
+      targetKind: "automation",
+      workflowId: "release-alerts",
+      runId: "run-notification",
+      mode: "start",
+      input: {
+        rule: {
+          name: "Release alerts",
+          enabled: true,
+          event: "release_failed",
+          channel: {
+            type: "generic-webhook",
+            url: "https://example.com/private-secret",
+          },
+        },
+      },
+      action: "notification.rule.create",
+      approvalId: "approval-5",
+      approvalToken: "signed-token",
+      actor: ACTOR,
+      idempotencyKey: "notification-create",
+      requestHash: "notification-hash",
+      createdAt: "2026-09-02T08:00:00.000Z",
+      expiresAt: "2026-09-02T08:15:00.000Z",
+    });
+
+    const request = await t.query(api.mcpApprovalRequests.getPublic, {
+      tenantId: TENANT,
+      requestId: "approval-notification",
+    });
+    expect(request).toMatchObject({
+      details: {
+        name: "Release alerts",
+        enabled: true,
+        event: "release_failed",
+        channelType: "generic-webhook",
+      },
+    });
+    expect(JSON.stringify(request)).not.toMatch(/private-secret|signed-token/);
+    expect(request).not.toHaveProperty("input");
   });
 
   it("deduplicates retries and rejects an idempotency key with different input", async () => {

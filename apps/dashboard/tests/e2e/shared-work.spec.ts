@@ -142,21 +142,30 @@ test("a user can inspect agent work and approve its Kody action on the repositor
             },
             createdAt: "2026-09-02T10:05:00.000Z",
             expiresAt: "2026-09-02T10:20:00.000Z",
+            details: {
+              id: "daily-health",
+              every: "24h",
+              enabled: false,
+              targetType: "capability",
+            },
           },
         ],
       }),
     }),
   );
-  await page.route("**/api/kody/mcp/approvals/request-phase-4", async (route) => {
-    expect(route.request().method()).toBe("POST");
-    expect(route.request().postDataJSON()).toEqual({ decision: "approved" });
-    approvalStatus = "dispatched";
-    await route.fulfill({
-      status: 202,
-      contentType: "application/json",
-      body: JSON.stringify({ status: "dispatched", runId: "run-phase-4" }),
-    });
-  });
+  await page.route(
+    "**/api/kody/mcp/approvals/request-phase-4",
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({ decision: "approved" });
+      approvalStatus = "dispatched";
+      await route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "dispatched", runId: "run-phase-4" }),
+      });
+    },
+  );
 
   await page.goto("/repo/test-owner/test-repo/shared-work/phase-3");
   await expect(
@@ -172,6 +181,11 @@ test("a user can inspect agent work and approve its Kody action on the repositor
   await expect(page.getByRole("heading", { name: "Artifacts" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "id: daily-health · every: 24h · enabled: false · targetType: capability",
+    ),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Approve and run" }).click();
   await expect(page.getByText("dispatched", { exact: true })).toBeVisible();
   expect(pageErrors).toEqual([]);

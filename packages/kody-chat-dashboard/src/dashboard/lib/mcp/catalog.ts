@@ -10,6 +10,7 @@ import {
   type McpPrincipal,
   type PermissionClass,
 } from "./contracts";
+import { NotificationCreateRuleInputSchema } from "../notifications";
 
 type ApprovalPolicy = "none" | "required";
 
@@ -90,6 +91,14 @@ export interface KodyMcpActionServices {
     principal: McpPrincipal,
   ): Promise<unknown>;
   requestWebhookReconcile(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  requestNotificationRuleCreate(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  requestNotificationRuleDelete(
     input: Record<string, unknown>,
     principal: McpPrincipal,
   ): Promise<unknown>;
@@ -288,6 +297,12 @@ const triggerSaveInput = z
   })
   .strict();
 const webhookReconcileInput = z.object({ workRecordId: recordId }).strict();
+const notificationRuleCreateInput = z
+  .object({
+    workRecordId: recordId,
+    rule: NotificationCreateRuleInputSchema,
+  })
+  .strict();
 
 const workOutputSchema: JsonSchema = { type: "object" };
 
@@ -906,6 +921,23 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
     schema: webhookReconcileInput,
     execute: (input, services, principal) =>
       services.requestWebhookReconcile(input, principal),
+  }),
+  approvalRequestAction({
+    id: "notification.rule.create.request",
+    title: "Request notification rule creation",
+    summary:
+      "Ask the user to approve creating an online notification rule. Secret channel values stay private.",
+    schema: notificationRuleCreateInput,
+    execute: (input, services, principal) =>
+      services.requestNotificationRuleCreate(input, principal),
+  }),
+  approvalRequestAction({
+    id: "notification.rule.delete.request",
+    title: "Request notification rule deletion",
+    summary: "Ask the user to approve deleting an online notification rule.",
+    schema: automationDeleteInput,
+    execute: (input, services, principal) =>
+      services.requestNotificationRuleDelete(input, principal),
   }),
 ];
 

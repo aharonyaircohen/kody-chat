@@ -35,6 +35,8 @@ const services = {
   requestTriggerSave: vi.fn(),
   requestTriggerDelete: vi.fn(),
   requestWebhookReconcile: vi.fn(),
+  requestNotificationRuleCreate: vi.fn(),
+  requestNotificationRuleDelete: vi.fn(),
 };
 
 vi.mock("@kody-ade/backend/client", () => ({
@@ -98,6 +100,8 @@ describe("public MCP action catalog", () => {
       "trigger.save.request",
       "trigger.delete.request",
       "webhook.reconcile.request",
+      "notification.rule.create.request",
+      "notification.rule.delete.request",
     ]);
     expect(actions[0]).not.toHaveProperty("execute");
     expect(actions[0]).not.toHaveProperty("input");
@@ -158,7 +162,7 @@ describe("public MCP action catalog", () => {
     await expect(
       executeKodyAction("mcp.contract.get", {}, principal),
     ).resolves.toMatchObject({
-      contractVersion: "2026-09-02.6",
+      contractVersion: "2026-09-03.7",
       sharedWorkRecordSchema: { type: "object" },
     });
     await expect(
@@ -289,5 +293,49 @@ describe("public MCP action catalog", () => {
       permission: "approval",
       approval: "required",
     });
+  });
+
+  it("requires approval for notification changes and validates secret channels", async () => {
+    services.requestNotificationRuleCreate.mockResolvedValue({
+      requestId: "request-notification",
+      status: "pending",
+    });
+    await expect(
+      executeKodyAction(
+        "notification.rule.create.request",
+        {
+          workRecordId: "phase-5",
+          rule: {
+            name: "Release alerts",
+            event: "release_failed",
+            channel: { type: "web-push" },
+          },
+        },
+        principal,
+        { idempotencyKey: "notification-create", services },
+      ),
+    ).resolves.toMatchObject({ status: "pending" });
+    expect(services.requestNotificationRuleCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workRecordId: "phase-5",
+        idempotencyKey: "notification-create",
+      }),
+      principal,
+    );
+    await expect(
+      executeKodyAction(
+        "notification.rule.create.request",
+        {
+          workRecordId: "phase-5",
+          rule: {
+            name: "Unsafe webhook",
+            event: "release_failed",
+            channel: { type: "generic-webhook", url: "http://example.test" },
+          },
+        },
+        principal,
+        { idempotencyKey: "notification-invalid", services },
+      ),
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });

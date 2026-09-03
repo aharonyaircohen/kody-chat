@@ -71,6 +71,8 @@ const phaseFourServices = {
   requestTriggerSave: vi.fn(),
   requestTriggerDelete: vi.fn(),
   requestWebhookReconcile: vi.fn(),
+  requestNotificationRuleCreate: vi.fn(),
+  requestNotificationRuleDelete: vi.fn(),
 } satisfies KodyMcpActionServices;
 
 function request(

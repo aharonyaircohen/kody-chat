@@ -57,6 +57,7 @@ type ApprovalRequest = {
   actor: Agent;
   createdAt: string;
   expiresAt: string;
+  details?: Record<string, string | boolean>;
   result?: Record<string, unknown>;
 };
 type WorkDetail = {
@@ -318,6 +319,13 @@ function WorkDetailView({
                 <p className="text-xs">
                   Requested by {request.actor.name} · {when(request.createdAt)}
                 </p>
+                {request.details ? (
+                  <p className="text-xs">
+                    {Object.entries(request.details)
+                      .map(([key, value]) => `${key}: ${String(value)}`)
+                      .join(" · ")}
+                  </p>
+                ) : null}
                 {request.status === "pending" && (
                   <div className="flex gap-2">
                     <Button

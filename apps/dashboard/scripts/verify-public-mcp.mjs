@@ -262,6 +262,8 @@ async function verifyPhaseTwoGates(principal) {
     "trigger.save.request",
     "trigger.delete.request",
     "webhook.reconcile.request",
+    "notification.rule.create.request",
+    "notification.rule.delete.request",
   ]);
 
   const contract = await callTool(
@@ -272,7 +274,7 @@ async function verifyPhaseTwoGates(principal) {
   );
   assert.equal(
     contract.body.result.structuredContent.contractVersion,
-    "2026-09-02.6",
+    "2026-09-03.7",
   );
   assert.equal(
     contract.body.result.structuredContent.sharedWorkRecordSchema.type,
@@ -1009,9 +1011,12 @@ async function verifyPhaseFiveGates(principal) {
   const recordId = `mcp-automation-live-${suffix}`;
   const scheduleId = `mcp-schedule-${suffix}`;
   const triggerId = `mcp-trigger-${suffix}`;
+  const notificationId = `mcp-notification-${suffix}`;
+  const notificationSecret = `https://example.com/private-${suffix}`;
   const approvalRequestIds = [];
   let scheduleCreated = false;
   let triggerCreated = false;
+  let notificationCreated = false;
   const readAction = async (actionId, input = {}, allowError = false) => {
     const result = await callTool(
       principal.accessToken,
@@ -1124,6 +1129,45 @@ async function verifyPhaseFiveGates(principal) {
     assert.equal(trigger.id, triggerId);
     assert.equal(trigger.enabled, false);
 
+    const savedNotification = await requestAndDecide(
+      "notification.rule.create.request",
+      {
+        rule: {
+          name: notificationId,
+          event: "release_failed",
+          channel: {
+            type: "generic-webhook",
+            url: notificationSecret,
+          },
+        },
+      },
+    );
+    assert.equal(savedNotification.execution, "kody-online");
+    assert.doesNotMatch(JSON.stringify(savedNotification), /private-/);
+    notificationCreated = true;
+    const notificationRules = await readAction("notification.rule.list");
+    const notification = notificationRules.find(
+      (item) => item.id === notificationId,
+    );
+    assert.deepEqual(notification.channel, { type: "generic-webhook" });
+    assert.doesNotMatch(JSON.stringify(notificationRules), /private-/);
+
+    const publicApproval = await readAction("approval.get", {
+      requestId: savedNotification.requestId,
+    });
+    assert.equal(publicApproval.input, undefined);
+    assert.doesNotMatch(JSON.stringify(publicApproval), /private-/);
+
+    const activity = await jsonRequest(
+      `${baseUrl}/api/kody/activity/agents?limit=100`,
+      { headers: dashboardHeaders },
+    );
+    assert.equal(activity.response.status, 200, JSON.stringify(activity.body));
+    const automationApproval = activity.body.runs
+      .flatMap((run) => run.approvals ?? [])
+      .find((approval) => approval.requestId === savedNotification.requestId);
+    assert.equal(automationApproval.execution.status, "done");
+
     const productionWebhook = new URL(baseUrl).protocol === "https:";
     const webhook = await requestAndDecide(
       "webhook.reconcile.request",
@@ -1136,6 +1180,10 @@ async function verifyPhaseFiveGates(principal) {
     triggerCreated = false;
     await requestAndDecide("schedule.delete.request", { id: scheduleId });
     scheduleCreated = false;
+    await requestAndDecide("notification.rule.delete.request", {
+      id: notificationId,
+    });
+    notificationCreated = false;
 
     const schedulesAfter = await readAction("schedule.list");
     const triggersAfter = await readAction("trigger.list");
@@ -1149,7 +1197,8 @@ async function verifyPhaseFiveGates(principal) {
       webhookReconciliation: productionWebhook
         ? "passed"
         : "rejected-locally-as-designed",
-      notificationRules: "passed",
+      notificationRulesReadWriteDelete: "passed",
+      automationActivityCompletion: "passed",
       remoteRunMonitoring: "passed",
       usageAnalyticsAndQuota: "passed",
       compatibilityPolicy: "passed",
@@ -1162,6 +1211,11 @@ async function verifyPhaseFiveGates(principal) {
       });
     if (scheduleCreated)
       await jsonRequest(`${baseUrl}/api/kody/loops/${scheduleId}`, {
+        method: "DELETE",
+        headers: dashboardHeaders,
+      });
+    if (notificationCreated)
+      await jsonRequest(`${baseUrl}/api/kody/notifications/${notificationId}`, {
         method: "DELETE",
         headers: dashboardHeaders,
       });
