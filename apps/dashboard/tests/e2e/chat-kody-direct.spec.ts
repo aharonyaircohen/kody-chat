@@ -351,6 +351,128 @@ test.describe("Kody direct agent", () => {
     expect(turn).toBe(2);
   });
 
+  test("shows an explicit cross-repository copy approval and verified completion", async ({
+    page,
+  }) => {
+    let turn = 0;
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      turn += 1;
+      const output =
+        turn === 1
+          ? {
+              action: "render_view",
+              view: "renderer",
+              id: "copy-capability.bound-plan.signature",
+              rendererSlug: "approval-card",
+              rendererName: "Approval card",
+              resultTarget: "chat",
+              ui: {
+                type: "stack",
+                children: [
+                  {
+                    type: "text",
+                    value:
+                      "Copy prepare-facebook-post from acme/source to acme/target?",
+                    variant: "title",
+                  },
+                  {
+                    type: "markdown",
+                    value:
+                      "Kody will copy the complete Capability and verify the saved target.",
+                  },
+                  {
+                    type: "row",
+                    children: [
+                      {
+                        type: "button",
+                        label: "Approve",
+                        action: {
+                          id: "approve",
+                          label: "Approve",
+                          response: "approve",
+                          variant: "primary",
+                        },
+                      },
+                      {
+                        type: "button",
+                        label: "Cancel",
+                        action: {
+                          id: "cancel",
+                          label: "Cancel",
+                          response: "cancel",
+                          variant: "secondary",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              data: {},
+            }
+          : {
+              content:
+                "Copied prepare-facebook-post from acme/source to acme/target and verified the saved target.",
+            };
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body:
+          `data: ${JSON.stringify({
+            type: "tool-input-available",
+            toolCallId: `copy-capability-${turn}`,
+            toolName: turn === 1 ? "copy_capability" : "final_answer",
+            input:
+              turn === 1
+                ? {
+                    source: { owner: "acme", repo: "source" },
+                    target: { owner: "acme", repo: "target" },
+                    slug: "prepare-facebook-post",
+                    overwrite: false,
+                  }
+                : output,
+          })}\n\n` +
+          `data: ${JSON.stringify({
+            type: "tool-output-available",
+            toolCallId: `copy-capability-${turn}`,
+            output,
+          })}\n\n` +
+          'data: {"type":"finish"}\n\n' +
+          "data: [DONE]\n\n",
+      });
+    });
+
+    await page.goto(chatUrl());
+    await page.waitForLoadState("domcontentloaded");
+    const viewport = await page.viewportSize();
+    if ((viewport?.width ?? 1280) < 768)
+      test.skip(true, "chat hidden on mobile");
+    await selectKodyAgent(page);
+
+    const chat = page.locator('[aria-label="Kody chat"]');
+    await chat
+      .locator("textarea")
+      .first()
+      .fill(
+        "Copy prepare-facebook-post from acme/source to acme/target exactly.",
+      );
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByText(
+        "Copy prepare-facebook-post from acme/source to acme/target?",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await chat.getByRole("button", { name: "Approve" }).click();
+    await expect(
+      chat.getByText(
+        "Copied prepare-facebook-post from acme/source to acme/target and verified the saved target.",
+        { exact: true },
+      ),
+    ).toBeVisible({ timeout: 15_000 });
+    expect(turn).toBe(2);
+  });
+
   test("shows a clear warning when the selected model cannot use operation tools", async ({
     page,
   }) => {

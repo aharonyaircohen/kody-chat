@@ -138,6 +138,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
       "app/api/kody/chat/tools/capability-tools.ts",
+      "app/api/kody/chat/tools/cross-repository-capability-tools.ts",
       "app/api/kody/chat/tools/workflow-tools.ts",
       "app/api/kody/chat/tools/self-configuration-tools.ts",
       "app/api/kody/chat/tools/blueprint-tools.ts",
@@ -218,6 +219,19 @@ describe("chat-defaults bundle", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("final_answer");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("guided_flow_create");
+  });
+
+  it("allows Kody to inspect and copy capabilities across connected repositories", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toEqual(
+      expect.arrayContaining([
+        "list_connected_repositories",
+        "read_connected_capability",
+        "copy_capability",
+      ]),
+    );
+    expect(DEFAULT_IDENTITY_MD).toContain(
+      "copy a Capability between connected repositories",
+    );
   });
 
   it("discovers and runs workflows without hardcoded workflow routing", () => {
@@ -514,6 +528,22 @@ describe("composeChatPrompt", () => {
     });
     expect(prompt).toContain("## Remembered context");
     expect(prompt).toContain("- foo: bar");
+  });
+
+  it("names every connected repository without including credentials", async () => {
+    const bundle = await loadChatDefaults();
+    const prompt = composeChatPrompt(bundle, {
+      repo: { owner: "acme", repo: "target" },
+      connectedRepositories: [
+        { owner: "acme", repo: "source" },
+        { owner: "acme", repo: "target" },
+      ],
+    });
+
+    expect(prompt).toContain("## Connected repositories");
+    expect(prompt).toContain("acme/source");
+    expect(prompt).toContain("acme/target (current)");
+    expect(prompt).not.toContain("secret-source-token");
   });
 });
 

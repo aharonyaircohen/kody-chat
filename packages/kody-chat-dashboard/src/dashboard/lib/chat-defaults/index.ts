@@ -199,6 +199,8 @@ export function composeChatPrompt(
     context?: string | null;
     /** Memory index from Convex `memory/INDEX.md`. */
     memoryContext?: string | null;
+    /** Names only; credentials never enter the model prompt. */
+    connectedRepositories?: Array<{ owner: string; repo: string }>;
   },
 ): string {
   const parts: string[] = [composeBasePrompt(bundle)];
@@ -207,6 +209,23 @@ export function composeChatPrompt(
   if (sections.repo) {
     parts.push(
       `## Connected repository\n\nYou are helping the user with the repository **${sections.repo.owner}/${sections.repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
+    );
+  }
+
+  if (sections.connectedRepositories?.length) {
+    parts.push(
+      `## Connected repositories\n\nThese repositories are connected to the signed-in account. The current repository remains the default, but explicit source and target names must be preserved for cross-repository work.\n\n${sections.connectedRepositories
+        .map(
+          (repository) =>
+            `- ${repository.owner}/${repository.repo}${
+              sections.repo?.owner.toLowerCase() ===
+                repository.owner.toLowerCase() &&
+              sections.repo.repo.toLowerCase() === repository.repo.toLowerCase()
+                ? " (current)"
+                : ""
+            }`,
+        )
+        .join("\n")}`,
     );
   }
 

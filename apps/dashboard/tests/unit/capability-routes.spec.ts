@@ -284,6 +284,29 @@ describe("POST /api/kody/capabilities", () => {
       }),
     );
   });
+
+  it("preserves an explicitly absent capability contract", async () => {
+    const res = await POST(
+      request("https://dash.test/api/kody/capabilities", {
+        method: "POST",
+        body: JSON.stringify({
+          slug: "ship-feature",
+          instructions: "# Ship feature",
+          contract: null,
+          skills: [],
+          tools: [],
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith({
+      slug: "ship-feature",
+      files: {
+        "instructions.md": "# Ship feature\n",
+      },
+    });
+  });
 });
 
 describe("GET /api/kody/capabilities/[slug]", () => {

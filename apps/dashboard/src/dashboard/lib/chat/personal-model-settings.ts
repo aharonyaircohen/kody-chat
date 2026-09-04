@@ -18,6 +18,10 @@ import {
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import type { NextRequest } from "next/server";
+import {
+  ACCOUNT_REPOSITORY_CREDENTIAL_NAME,
+  parseAccountRepositoryCredentials,
+} from "@dashboard/lib/auth/account-repository-connections";
 
 const MODELS_NAMESPACE = "chat-models";
 
@@ -130,6 +134,17 @@ setChatRequestContextProvider({
     const actor = await requireKodyUser();
     if (actor instanceof NextResponse) return null;
     return { id: actor.id, label: actor.label };
+  },
+  async resolveRepositories() {
+    const stored = await readPersonalCredential(
+      ACCOUNT_REPOSITORY_CREDENTIAL_NAME,
+    );
+    if (!stored) return [];
+    try {
+      return parseAccountRepositoryCredentials(JSON.parse(stored));
+    } catch {
+      return [];
+    }
   },
 });
 

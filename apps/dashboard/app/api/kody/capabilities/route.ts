@@ -152,14 +152,16 @@ export async function POST(req: NextRequest) {
       );
     const files: Record<string, string> = {
       "instructions.md": `${input.instructions.trim()}\n`,
-      "contract.json":
-        input.contract ??
-        `${JSON.stringify(
-          { execution: "agent", input: {}, output: {} },
-          null,
-          2,
-        )}\n`,
     };
+    if (input.contract === undefined) {
+      files["contract.json"] = `${JSON.stringify(
+        { execution: "agent", input: {}, output: {} },
+        null,
+        2,
+      )}\n`;
+    } else if (input.contract !== null) {
+      files["contract.json"] = input.contract;
+    }
     for (const skill of input.skills) {
       files[`skills/${skill.path}`] = skill.content;
     }

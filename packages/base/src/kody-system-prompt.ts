@@ -85,6 +85,8 @@ export function buildSystemPrompt(
     capability?: CapabilityContext;
     report?: ReportContext;
     org?: OrgContext;
+    /** Connected repository names only. Credentials must never enter prompts. */
+    connectedRepositories?: Array<{ owner: string; repo: string }>;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
      * (e.g. "the Variables page (/variables)"). Lets the agent answer "what
@@ -147,6 +149,23 @@ export function buildSystemPrompt(
     sections.push(
       `## Repo file write safety — hard rule\n\nBefore any tool call that writes, replaces, creates, updates, or deletes repo-backed dashboard state, explicitly call matching read/list tool in same turn and inspect result. Mandatory even for quick edits.\n\nRequired pairs:\n- Before \`create_or_update_context\` or \`delete_context\`, call \`list_context\` to confirm candidates, then \`read_context\` for exact active slug when it exists.\n- Before \`set_instructions\` or \`delete_instructions\`, call \`read_instructions\`.\n- Before \`set_variable\` or \`delete_variable\`, call \`list_variables\`.\n- Before any other overwrite-style tool, use closest matching read/list/get tool first.\n\nIf multiple files, slugs, or variables could match user's request, do not guess. State active target found and ask user confirm before writing. When writing whole-file content, preserve existing content unless user clearly asked replace it.`,
     );
+  }
+  if (opts?.connectedRepositories?.length) {
+    sections.push(`## Connected repositories
+
+These repositories are connected to the signed-in account. The current repository is the default for ordinary work. When the user explicitly names a source and target, preserve both names and use the cross-repository tools instead of asking them to switch repositories.
+
+${opts.connectedRepositories
+  .map(
+    (repository) =>
+      `- ${repository.owner}/${repository.repo}${
+        repo?.owner.toLowerCase() === repository.owner.toLowerCase() &&
+        repo.repo.toLowerCase() === repository.repo.toLowerCase()
+          ? " (current)"
+          : ""
+      }`,
+  )
+  .join("\n")}`);
   }
   if (opts?.currentPage && opts.currentPage.trim().length > 0) {
     sections.push(

@@ -52,8 +52,11 @@ import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overla
 import {
   requireUserAuth,
   getRequestAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   type RequestAuth,
 } from "@kody-ade/base/auth";
+import type { KodyRepositoryCredential } from "@kody-ade/base/auth/request-user-provider";
 import { verifyOperatorActor } from "../../../../../src/dashboard/lib/auth/operator-actor";
 import { getChatRequestContextProvider } from "@kody-ade/kody-chat-dashboard/chat/request-context-provider";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
@@ -97,6 +100,7 @@ import { createTaskTools } from "../tools/task-tools";
 import { createAgentTools } from "../tools/agent-tools";
 import { createMemoryTools } from "../tools/memory-tools";
 import { createCapabilityTools } from "../tools/capability-tools";
+import { createCrossRepositoryCapabilityTools } from "../tools/cross-repository-capability-tools";
 import { createWorkflowTools } from "../tools/workflow-tools";
 import { createSelfConfigurationTools } from "../tools/self-configuration-tools";
 import { createBlueprintTools } from "../tools/blueprint-tools";
@@ -677,9 +681,10 @@ async function handleKodyDirectPost(
   // restricted client scope (agent forced, tools filtered below). Neither →
   // today's 401 via requireKodyAuth, unchanged.
   const surfaceScope = resolveSurfaceScope(req.headers);
+  const requestContextProvider = getChatRequestContextProvider();
   const hostUser =
     surfaceScope.kind !== "client"
-      ? ((await getChatRequestContextProvider()?.resolveUser(req)) ?? null)
+      ? ((await requestContextProvider?.resolveUser(req)) ?? null)
       : null;
   if (surfaceScope.kind !== "client" && !hostUser) {
     const authError = await requireUserAuth(req);
@@ -687,6 +692,15 @@ async function handleKodyDirectPost(
   }
   await ensureKodyRuntimeInitialized();
   const clientSurface = surfaceScope.kind === "client";
+  let storedRepositoryCredentials: readonly KodyRepositoryCredential[] = [];
+  if (hostUser && requestContextProvider?.resolveRepositories) {
+    try {
+      storedRepositoryCredentials =
+        await requestContextProvider.resolveRepositories(req);
+    } catch {
+      storedRepositoryCredentials = [];
+    }
+  }
 
   // Key resolution is per-model: each LLM_MODELS entry names which secret
   // to read at request time. We defer the actual lookup until after we
@@ -893,6 +907,9 @@ async function handleKodyDirectPost(
   let verifiedActorGithubId: number | null = null;
   let verifiedUserId: string | null = hostUser?.id ?? null;
   const repo = getRequestAuth(repoScopedReq);
+  let connectedRepositories: Array<{ owner: string; repo: string }> = repo
+    ? [{ owner: repo.owner, repo: repo.repo }]
+    : [];
   if (!clientSurface) {
     if (repo) {
       const actorResult = await verifyOperatorActor(repoScopedReq);
@@ -1431,6 +1448,56 @@ async function handleKodyDirectPost(
       request: repoScopedReq,
       actorLogin: verifiedActorLogin,
     });
+    const repositoryCredentials = new Map<string, KodyRepositoryCredential>();
+    for (const credential of storedRepositoryCredentials) {
+      repositoryCredentials.set(
+        `${credential.owner}/${credential.repo}`.toLowerCase(),
+        credential,
+      );
+    }
+    repositoryCredentials.set(`${repo.owner}/${repo.repo}`.toLowerCase(), {
+      owner: repo.owner,
+      repo: repo.repo,
+      token: repo.token,
+      actorGithubId: verifiedActorGithubId,
+    });
+    connectedRepositories = [...repositoryCredentials.values()].map(
+      ({ owner, repo: repository }) => ({ owner, repo: repository }),
+    );
+    const resolveCrossRepository = async (
+      repository: { owner: string; repo: string },
+      permission: "read" | "write",
+    ) => {
+      const credential = repositoryCredentials.get(
+        `${repository.owner}/${repository.repo}`.toLowerCase(),
+      );
+      if (!credential) return null;
+      const scopedRequest = requestWithAuth(repoScopedReq, {
+        owner: credential.owner,
+        repo: credential.repo,
+        token: credential.token,
+        userLogin: verifiedActorLogin ?? undefined,
+        storeRepoUrl: repo.storeRepoUrl,
+        storeRef: repo.storeRef,
+      });
+      const access =
+        permission === "write"
+          ? await verifyRepoWriteAccess(scopedRequest)
+          : await verifyRepoReadAccess(scopedRequest);
+      if (access instanceof NextResponse) return null;
+      const client = createAgencyApiClient({
+        request: scopedRequest,
+        actorLogin: access.actorLogin,
+      });
+      return {
+        owner: access.auth.owner,
+        repo: access.auth.repo,
+        actorGithubId: access.actorGithubId,
+        readCapability: (slug: string) => client.readCapability(slug),
+        saveCapability: (input: Parameters<typeof client.saveCapability>[0]) =>
+          client.saveCapability(input),
+      };
+    };
     const validateAgencyExecution = async (
       execution: NonNullable<AgencyRequestState["execution"]>,
     ) => {
@@ -1590,6 +1657,11 @@ async function handleKodyDirectPost(
         saveCapability: (input) => agencyApi.saveCapability(input),
         removeCapability: (slug) => agencyApi.removeCapability(slug),
         runCapability: (slug) => agencyApi.runCapability(slug),
+      }),
+      ...createCrossRepositoryCapabilityTools({
+        repositories: connectedRepositories,
+        actorGithubId: verifiedActorGithubId,
+        resolveRepository: resolveCrossRepository,
       }),
       ...createWorkflowTools({
         owner: repo.owner,
@@ -2195,6 +2267,7 @@ async function handleKodyDirectPost(
     {
       capability: body.capability,
       report: body.report,
+      connectedRepositories,
       org: body.org,
       currentPage: body.currentPage,
       previewContext:

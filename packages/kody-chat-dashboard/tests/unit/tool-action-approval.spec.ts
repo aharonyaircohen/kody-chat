@@ -37,6 +37,7 @@ describe("tool action approval", () => {
 
   it.each([
     "create_or_update_capability",
+    "copy_capability",
     "configure_kody",
     "guided_flow_create",
   ])(
@@ -187,6 +188,40 @@ describe("tool action approval", () => {
       }),
     ).toBe(
       "Configuration applied and verified. First run run-ci-1 succeeded: CI is green.",
+    );
+  });
+
+  it("describes a completed cross-repository capability copy", () => {
+    expect(
+      approvedToolActionContent({
+        toolName: "copy_capability",
+        output: {
+          copied: true,
+          slug: "prepare-facebook-post",
+          source: "acme/source",
+          target: "acme/target",
+        },
+      }),
+    ).toBe(
+      "Copied prepare-facebook-post from acme/source to acme/target and verified the saved target.",
+    );
+  });
+
+  it("makes an overwrite explicit in the cross-repository approval", async () => {
+    const tools = stageToolsForApproval(
+      { copy_capability: { execute: vi.fn() } },
+      { secret: "github-token", context },
+    ) as Record<string, { execute(input: unknown): Promise<unknown> }>;
+
+    const result = await tools.copy_capability.execute({
+      source: { owner: "acme", repo: "source" },
+      target: { owner: "acme", repo: "target" },
+      slug: "prepare-facebook-post",
+      overwrite: true,
+    });
+
+    expect(JSON.stringify(result)).toContain(
+      "Replace prepare-facebook-post from acme/source to acme/target?",
     );
   });
 });

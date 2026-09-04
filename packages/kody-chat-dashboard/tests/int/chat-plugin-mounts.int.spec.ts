@@ -542,6 +542,47 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(verifyActorLoginMock.mock.calls.at(-1)?.[1]).toBeUndefined();
   });
 
+  it("exposes connected repositories and the cross-repository capability tools", async () => {
+    setChatRequestContextProvider({
+      resolveUser: vi.fn(async () => ({ id: "user-1", label: "Alice" })),
+      resolveRepositories: vi.fn(async () => [
+        {
+          owner: "owner",
+          repo: "source",
+          token: "source-token",
+          actorGithubId: 1,
+        },
+        {
+          owner: "owner",
+          repo: "repo",
+          token: "target-token",
+          actorGithubId: 1,
+        },
+      ]),
+    });
+
+    const before = streamTextCalls.length;
+    const response = await kodyChatPOST(
+      makeRequest("Copy prepare-facebook-post from owner/source to owner/repo"),
+    );
+    const call = streamTextCalls[before] ?? {};
+    const tools = (call.tools ?? {}) as Record<string, unknown>;
+
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(tools).toEqual(
+      expect.objectContaining({
+        list_connected_repositories: expect.any(Object),
+        read_connected_capability: expect.any(Object),
+        copy_capability: expect.any(Object),
+      }),
+    );
+    expect(call.system).toContain("## Connected repositories");
+    expect(call.system).toContain("owner/source");
+    expect(call.system).toContain("owner/repo (current)");
+    expect(call.system).not.toContain("source-token");
+    expect(call.system).not.toContain("target-token");
+  });
+
   it("fixture plugin tool is exposed additively and zod-validated with the request server context", async () => {
     const executions: Array<{ input: unknown; ctx: ChatToolServerContext }> =
       [];

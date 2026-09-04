@@ -44,6 +44,7 @@ export const APPROVAL_REQUIRED_TOOL_NAMES = new Set([
   "create_chore",
   "report_bug",
   "create_or_update_capability",
+  "copy_capability",
   "create_kody_agent",
   "create_or_update_workflow",
   "configure_kody",
@@ -219,6 +220,15 @@ export function approvedToolActionContent(result: {
     return `Created task #${output.number}.`;
   if (result.toolName === "create_kody_agent") return "Agent created.";
   if (result.toolName === "create_or_update_workflow") return "Workflow saved.";
+  if (
+    result.toolName === "copy_capability" &&
+    output.copied === true &&
+    typeof output.slug === "string" &&
+    typeof output.source === "string" &&
+    typeof output.target === "string"
+  ) {
+    return `Copied ${output.slug} from ${output.source} to ${output.target} and verified the saved target.`;
+  }
   if (result.toolName === "guided_flow_create") return "GuidedFlow saved.";
   if (result.toolName === "configure_kody" && verification) {
     const status = String(verification.status ?? "unverified");
@@ -252,8 +262,24 @@ function actionTitle(toolName: string, input: unknown): string {
   if (toolName === "create_kody_agent") return `Create Agent ${name}?`;
   if (toolName === "configure_kody") return `Apply ${name}?`;
   if (toolName === "create_or_update_workflow") return `Save Workflow ${name}?`;
+  if (toolName === "copy_capability") {
+    const source = record.source ? recordKey(record.source) : null;
+    const target = record.target ? recordKey(record.target) : null;
+    const verb = record.overwrite === true ? "Replace" : "Copy";
+    return source && target
+      ? `${verb} ${name} from ${source} to ${target}?`
+      : `${verb} ${name}?`;
+  }
   if (toolName === "guided_flow_create") return `Save GuidedFlow ${name}?`;
   return `Create task ${name}?`;
+}
+
+function recordKey(value: unknown): string | null {
+  const repository = record(value);
+  return typeof repository?.owner === "string" &&
+    typeof repository.repo === "string"
+    ? `${repository.owner}/${repository.repo}`
+    : null;
 }
 
 export function stageToolsForApproval(
