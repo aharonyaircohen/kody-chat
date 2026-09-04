@@ -102,7 +102,7 @@ function KodySignIn() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="QA email"
+                placeholder="you@example.com"
                 required
               />
               <Input
@@ -111,7 +111,7 @@ function KodySignIn() {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="QA password"
+                placeholder="Your password"
                 minLength={8}
                 required
               />
