@@ -152,12 +152,18 @@ test("real Kody copies and verifies a capability across connected repositories",
     await chat.getByRole("button", { name: "New conversation" }).click();
     const setup = chat.getByLabel("Chat setup").first();
     await setup.click();
-    const models = await openChatSetupSection(chat, "Model");
-    const automaticModel = models
-      .locator('button[role="option"]')
-      .filter({ hasText: "Automatic" });
-    if ((await automaticModel.count()) > 0) {
-      await automaticModel.click();
+    await openChatSetupSection(chat, "Model");
+    const requestedModelLabel = process.env.E2E_CHAT_MODEL_LABEL?.trim();
+    const preferredModel = page
+      .getByText(requestedModelLabel || "Automatic", { exact: true })
+      .first();
+    if ((await preferredModel.count()) > 0) {
+      await preferredModel.click();
+    } else if (requestedModelLabel) {
+      expect(
+        await preferredModel.count(),
+        `configured model ${requestedModelLabel}`,
+      ).toBeGreaterThan(0);
     } else {
       // Production may expose only explicitly configured models. Keep the
       // current selection and close setup instead of coupling this journey to
