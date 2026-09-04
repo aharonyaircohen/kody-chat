@@ -56,7 +56,7 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  const initialAuthToken = await getKodyAuthToken().catch(() => null);
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
