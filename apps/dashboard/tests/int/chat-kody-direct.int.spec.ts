@@ -273,14 +273,16 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).toContain("my read:");
   });
 
-  it("base kody prompt gives direction when useful and bans sycophantic openers", async () => {
+  it("base kody prompt gives self-contained direction and bans sycophantic openers", async () => {
     // Regression: model used to close replies with no follow-up and start
     // with "Great question!" / "Sure!". The prompt now asks for direction
     // on non-trivial replies while still banning sycophantic openers.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/End prose with direction/i);
+    expect(prompt).toMatch(/self-contained follow-up question/i);
+    expect(prompt).toMatch(/name the subject and current result/i);
+    expect(prompt).toMatch(/exact next decision or action/i);
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
       "Great question",
@@ -317,7 +319,10 @@ describe("POST /api/kody/chat/kody", () => {
 
     expect(CRITICAL_REMINDERS_MD).toMatch(/Start with the answer/i);
     expect(CRITICAL_REMINDERS_MD).toMatch(/Verify before claiming/i);
-    expect(CRITICAL_REMINDERS_MD).toMatch(/End prose with a question/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/Contextual follow-up/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(
+      /name the subject and current result/i,
+    );
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Re-state last thing you read/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });

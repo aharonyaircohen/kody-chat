@@ -86,6 +86,33 @@ describe("dashboard feature guides", () => {
     expect(guide?.id).toBe("workflows");
   });
 
+  it("routes explicit browser work to Views even from Connections", async () => {
+    const guide = await provider.resolveForTurn({
+      currentPage: "the Connections page (/connections)",
+      userText: "i want to use browser to post",
+    });
+
+    expect(guide?.id).toBe("previews");
+    expect(guide?.body).toContain(
+      "Connections does not create or authorize a browser session",
+    );
+    expect(guide?.body).toContain(
+      "Never invent a browser connection option or claim an action completed",
+    );
+  });
+
+  it("documents Connections separately from approved publishing Workflows", async () => {
+    const guide = await provider.resolveForTurn({
+      currentPage: "the Connections page (/connections)",
+      userText: "How do I configure a Facebook Page API connection?",
+    });
+
+    expect(guide?.id).toBe("admin");
+    expect(guide?.body).toContain("Instagram Creator and Business publishing");
+    expect(guide?.body).toContain("after explicit approval");
+    expect(guide?.body).toContain("Connections do not create browser sessions");
+  });
+
   it("recognizes every guide by its stable id", async () => {
     for (const id of EXPECTED_GUIDE_IDS) {
       const guide = await provider.resolveForTurn({

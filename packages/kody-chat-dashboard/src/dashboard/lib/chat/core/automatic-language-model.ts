@@ -176,6 +176,7 @@ export function createAutomaticLanguageModel(
   candidates: readonly AutomaticLanguageModelCandidate[],
   options: {
     onFallback?: (event: AutomaticFallbackEvent) => void;
+    candidateTimeoutMs?: number;
   } = {},
 ): LanguageModelV3 {
   if (candidates.length < 2) {
@@ -192,7 +193,43 @@ export function createAutomaticLanguageModel(
         const candidate = candidates[index];
         const nextCandidate = candidates[index + 1];
         try {
-          return await candidate.model.doGenerate(callOptions);
+          if (!options.candidateTimeoutMs || !nextCandidate) {
+            return await candidate.model.doGenerate(callOptions);
+          }
+          const candidateController = new AbortController();
+          const signals = [candidateController.signal];
+          if (callOptions.abortSignal) signals.push(callOptions.abortSignal);
+          const timeoutError = Object.assign(
+            new Error("Automatic model candidate timed out"),
+            { code: "ETIMEDOUT" },
+          );
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            try {
+              return await Promise.race([
+                candidate.model.doGenerate({
+                  ...callOptions,
+                  abortSignal: AbortSignal.any(signals),
+                }),
+                new Promise<never>((_, reject) => {
+                  timeout = setTimeout(() => {
+                    candidateController.abort();
+                    reject(timeoutError);
+                  }, options.candidateTimeoutMs);
+                }),
+              ]);
+            } catch (error) {
+              if (
+                candidateController.signal.aborted &&
+                !callOptions.abortSignal?.aborted
+              ) {
+                throw timeoutError;
+              }
+              throw error;
+            }
+          } finally {
+            if (timeout) clearTimeout(timeout);
+          }
         } catch (error) {
           lastError = error;
           const reason = getTemporaryFailureReason(error);

@@ -28,6 +28,8 @@ import {
 export { getMachineDiagnostic as getBrowserMachineDiagnostic };
 
 const BROWSER_READY_TIMEOUT_MS = 60_000;
+const BROWSER_MACHINE_CPUS = 2;
+const BROWSER_MACHINE_MEMORY_MB = 2_048;
 
 export async function ensureBrowserSessionReady(
   session: FlyBrowserSession,
@@ -270,8 +272,8 @@ export const flyBrowserProvider: FlyBrowserProvider = {
             region: input.config.defaultRegion,
             image: input.image,
             internalPort: 8080,
-            memoryMb: 1024,
-            cpus: 1,
+            memoryMb: BROWSER_MACHINE_MEMORY_MB,
+            cpus: BROWSER_MACHINE_CPUS,
             env: {
               KODY_BROWSER_SESSION_ID: input.sessionId,
               KODY_BROWSER_REPOSITORY: `${input.owner}/${input.repo}`,
@@ -289,27 +291,42 @@ export const flyBrowserProvider: FlyBrowserProvider = {
       (existing.config?.image !== input.image ||
         existingEnv.KODY_BROWSER_VERIFY_KEY !== input.verifyKey ||
         existingEnv.KODY_BROWSER_SESSION_ID !== input.sessionId ||
-        existingEnv.KODY_BROWSER_REPOSITORY !== `${input.owner}/${input.repo}`)
+        existingEnv.KODY_BROWSER_REPOSITORY !==
+          `${input.owner}/${input.repo}` ||
+        existing.config?.guest?.cpus !== BROWSER_MACHINE_CPUS ||
+        existing.config?.guest?.memory_mb !== BROWSER_MACHINE_MEMORY_MB)
     ) {
       await updateMachineDefinition(
         appName,
         existing.id,
         {
           image: input.image,
+          guest: {
+            cpu_kind: "shared",
+            cpus: BROWSER_MACHINE_CPUS,
+            memory_mb: BROWSER_MACHINE_MEMORY_MB,
+          },
           env: {
             KODY_BROWSER_SESSION_ID: input.sessionId,
             KODY_BROWSER_REPOSITORY: `${input.owner}/${input.repo}`,
             KODY_BROWSER_ACTOR_ID: input.actorId,
             KODY_BROWSER_VERIFY_KEY: input.verifyKey,
+            KODY_BROWSER_INITIAL_URL: input.initialUrl,
           },
         },
         input.config,
       );
-      await waitForMachineStarted(appName, existing.id, input.config);
+      machines = await listMachines(appName, input.config);
+      existing = machines.find(
+        (candidate) => browserMachineActor(candidate) === input.actorId,
+      );
+      if (!existing) throw new Error("browser_machine_not_found");
     }
 
     if (existing && existing.state !== "started") {
-      await startMachine(appName, existing.id, input.config);
+      if (existing.state !== "starting" && existing.state !== "replacing") {
+        await startMachine(appName, existing.id, input.config);
+      }
       await waitForMachineStarted(appName, existing.id, input.config);
     }
 

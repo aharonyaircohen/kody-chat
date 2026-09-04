@@ -77,6 +77,25 @@ try {
     assert.equal(initialized.body.result.protocolVersion, "2025-11-25");
   }
 
+  const currentClient = await currentMcpRequest(accessToken, {
+    jsonrpc: "2.0",
+    id: "standards-client-tools",
+    method: "tools/list",
+    params: {
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          name: "generic-standards-client",
+          version: "live-test",
+        },
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
+    },
+  });
+  assert.equal(currentClient.response.status, 200);
+  assert.equal(currentClient.body.result.resultType, "complete");
+  assert.equal(currentClient.body.result.cacheScope, "private");
+
   const listed = await mcpRequest(accessToken, {
     jsonrpc: "2.0",
     id: "tools-list",
@@ -278,7 +297,7 @@ async function verifyPhaseTwoGates(principal) {
   );
   assert.equal(
     contract.body.result.structuredContent.contractVersion,
-    "2026-09-03.8",
+    "2026-09-04.1",
   );
   assert.equal(contract.body.result.structuredContent.workSystem, "todos");
 
@@ -451,11 +470,26 @@ async function verifyPhaseTwoGates(principal) {
       name: "Read-only MCP verification",
     });
     createdTokenIds.push(readOnly.tokenId);
-    const deniedExecution = await callTool(
+    const allowedRead = await callTool(
       readOnly.accessToken,
-      "read-only-execute",
+      "read-only-read",
       "kody_execute_tool",
       { actionId: "repository.scope.get", input: {} },
+    );
+    assert.equal(allowedRead.body.result.isError, false);
+    const deniedExecution = await callTool(
+      readOnly.accessToken,
+      "read-only-write",
+      "kody_execute_tool",
+      {
+        actionId: "work.create",
+        idempotencyKey: "read-only-write",
+        input: {
+          recordId: "read-only-write",
+          title: "Read-only permission test",
+          objective: "This write must be rejected",
+        },
+      },
       true,
     );
     assert.equal(deniedExecution.body.result.isError, true);
@@ -1679,6 +1713,22 @@ async function mcpRequest(token, body) {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
       "mcp-protocol-version": "2025-11-25",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+async function currentMcpRequest(token, body) {
+  const name = body.method === "tools/call" ? body.params?.name : undefined;
+  return await jsonRequest(`${baseUrl}/api/kody/mcp`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2026-07-28",
+      "mcp-method": body.method,
+      ...(name ? { "mcp-name": name } : {}),
     },
     body: JSON.stringify(body),
   });

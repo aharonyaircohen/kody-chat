@@ -13,6 +13,7 @@ import {
   SHOW_VIEW_TOOL,
   selectChatOutputToolChoice,
 } from "../../../../../src/dashboard/lib/chat-output-tools";
+import { FOLLOW_UP_QUESTION_CONTRACT } from "../../../../../src/dashboard/lib/chat-defaults/defaults";
 import {
   buildPublicAgentSynthesisInput,
   appendPublicAgentInternalLinks,
@@ -216,7 +217,7 @@ export async function presentPublicAgentResponse({
             ),
             system: [
               system,
-              "Your final_answer was rejected because it had no follow-up question. Retry final_answer with one short, relevant, non-blocking question at the end. Do not call show_view for this correction.",
+              `Your final_answer was rejected because it had no follow-up question. ${FOLLOW_UP_QUESTION_CONTRACT} Do not call show_view for this correction.`,
             ].join("\n"),
           };
         }

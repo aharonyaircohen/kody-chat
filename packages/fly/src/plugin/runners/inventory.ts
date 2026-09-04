@@ -37,6 +37,7 @@ export function classifyApp(app: string): {
 } {
   if (app === "kody-preview-builder" || app.startsWith("fly-builder-"))
     return { feature: "builder", label: app };
+  if (app.startsWith("kody-app-")) return { feature: "app", label: app };
   if (app.startsWith("kody-brain")) return { feature: "brain", label: app };
   if (app.startsWith("kody-browser-"))
     return { feature: "browser", label: app };

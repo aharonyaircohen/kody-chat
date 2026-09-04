@@ -78,8 +78,9 @@ export async function establishLiveKodyAccountSession(
   request: LiveAccountRequest,
   baseUrl: string,
   credentials: LiveAccountCredentials,
+  trustedOrigin = baseUrl,
 ): Promise<void> {
-  const origin = new URL(baseUrl).origin;
+  const origin = new URL(trustedOrigin).origin;
   const signIn = await request.post(`${baseUrl}/api/auth/sign-in/email`, {
     data: {
       email: credentials.email,

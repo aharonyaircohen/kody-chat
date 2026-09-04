@@ -13,6 +13,7 @@ import {
   formatPlaywrightTest,
   formatPreviewActResult,
   formatPreviewEditRequest,
+  readPreviewCapabilityContinuation,
   type PickedElement,
   type PerfReport,
   type PreviewEditChange,
@@ -166,6 +167,22 @@ describe("formatPreviewActResult", () => {
     expect(out).toContain("Preview observation after that action");
     expect(out).toContain("it is not a new user request");
     expect(out).toContain("Button \"Save\"");
+  });
+
+  it("carries user-browser capability continuity across hidden action turns", () => {
+    const out = formatPreviewActResult(
+      {
+        op: "fill",
+        selector: '[role="textbox"]',
+        value: "Exact draft",
+        capabilitySlug: "prepare-facebook-post",
+      },
+      { ok: true },
+    );
+
+    expect(readPreviewCapabilityContinuation(out)).toBe(
+      "prepare-facebook-post",
+    );
   });
 });
 

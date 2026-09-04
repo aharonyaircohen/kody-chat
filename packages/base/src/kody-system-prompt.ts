@@ -41,6 +41,25 @@ export interface OrgContext {
   repositories?: Array<{ owner: string; repo: string }>;
 }
 
+export interface AppContext {
+  slug: string;
+  repository: string;
+  name: string;
+  status: string;
+  branch: string;
+  rootDirectory: string;
+  exposure: "private" | "public";
+  currentDeploymentId?: string;
+  secretNames: string[];
+  domains: Array<{ hostname: string; status: string }>;
+  storage: Array<{
+    volumeId: string;
+    name: string;
+    mountPath: string;
+    sizeGb: number;
+  }>;
+}
+
 /**
  * Cap on how many lines of the memory INDEX we inject into the system prompt.
  * Each line is ~150 chars (one bullet per memory), so 300 lines ≈ 45KB of
@@ -84,6 +103,7 @@ export function buildSystemPrompt(
   opts?: {
     capability?: CapabilityContext;
     report?: ReportContext;
+    app?: AppContext;
     org?: OrgContext;
     /** Connected repository names only. Credentials must never enter prompts. */
     connectedRepositories?: Array<{ owner: string; repo: string }>;
@@ -177,6 +197,8 @@ The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. W
   if (opts?.previewContext && opts.previewContext.trim().length > 0) {
     sections.push(
       `## Current preview reference
+
+The dashboard current page is only the container. The preview reference is the page the user sees. When the user asks what page, content, selection, or element they are viewing, answer from this preview reference and do not identify the dashboard container instead.
 
 The user is looking at the preview reference below. When they say "make this page", "build this page", "create this page", "copy this page", "turn this into a page", or similar, treat it as a request to create a GitHub issue for the connected repo using the create-issue workflow. Do not answer with a fresh design direction, marketing copy, or implementation plan as the final artifact.
 
@@ -325,6 +347,21 @@ When the user asks what to do with this report, recommend one of three paths and
 2. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
 
 Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
+    sections.push(lines.join("\n"));
+  }
+  if (opts?.app) {
+    const app = opts.app;
+    const lines = [
+      "## Current App",
+      `The user selected **${app.name}** (slug \`${app.slug}\`) on the Apps page.`,
+      `- Status: ${app.status}`,
+      `- Source: ${app.repository}@${app.branch}:${app.rootDirectory}`,
+      `- Access: ${app.exposure}`,
+      `- Runtime secret names: ${app.secretNames.join(", ") || "none"}`,
+      `- Domains: ${app.domains.map((item) => `${item.hostname} (${item.status})`).join(", ") || "none"}`,
+      `- Storage: ${app.storage.map((item) => `${item.name} at ${item.mountPath}`).join(", ") || "none"}`,
+      "Use the Apps tools for current state and actions. Never claim to know secret values or consumer tokens from this context.",
+    ];
     sections.push(lines.join("\n"));
   }
   if (task) {

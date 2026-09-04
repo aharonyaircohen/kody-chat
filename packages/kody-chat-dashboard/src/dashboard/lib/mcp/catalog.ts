@@ -133,46 +133,88 @@ const recordId = z
   .trim()
   .min(1)
   .max(64)
-  .regex(/^[a-z0-9][a-z0-9_-]*$/);
-const shortText = z.string().trim().min(1).max(500);
-const longText = z.string().trim().min(1).max(5_000);
-const status = z.enum([
-  "planned",
-  "active",
-  "blocked",
-  "completed",
-  "cancelled",
-]);
-const reference = z.string().trim().min(1).max(2_000);
+  .regex(/^[a-z0-9][a-z0-9_-]*$/)
+  .describe(
+    "Stable lowercase Todo work ID using letters, numbers, hyphens, or underscores.",
+  );
+const shortText = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .describe("Short human-readable text.");
+const longText = z
+  .string()
+  .trim()
+  .min(1)
+  .max(5_000)
+  .describe("Detailed human-readable text.");
+const status = z
+  .enum(["planned", "active", "blocked", "completed", "cancelled"])
+  .describe("Current lifecycle state of the Todo work.");
+const reference = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2_000)
+  .describe("URL, path, commit, deployment, or other durable reference.");
+const expectedRevision = z
+  .number()
+  .int()
+  .positive()
+  .describe("Revision returned by the latest work.get or write result.");
 const createWorkInput = z
   .object({
     recordId,
     title: shortText,
     objective: longText,
     status: status.optional(),
-    summary: z.string().trim().max(5_000).optional(),
+    summary: z
+      .string()
+      .trim()
+      .max(5_000)
+      .describe("Current concise summary for another agent.")
+      .optional(),
     goal: shortText.optional(),
-    tasks: z.array(shortText).max(100).optional(),
+    tasks: z
+      .array(shortText)
+      .max(100)
+      .describe("Concrete tasks required to complete the objective.")
+      .optional(),
   })
   .strict();
 const listWorkInput = z
   .object({
     status: status.optional(),
-    limit: z.number().int().min(1).max(100).default(20),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum work records to return."),
   })
   .strict();
 const getWorkInput = z.object({ recordId }).strict();
 const updateWorkInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     title: shortText.optional(),
     objective: longText.optional(),
     status: status.optional(),
     summary: longText.optional(),
     goal: shortText.optional(),
-    tasks: z.array(shortText).max(100).optional(),
-    blockers: z.array(shortText).max(100).optional(),
+    tasks: z
+      .array(shortText)
+      .max(100)
+      .describe("Replacement list of concrete remaining tasks.")
+      .optional(),
+    blockers: z
+      .array(shortText)
+      .max(100)
+      .describe("Current conditions preventing progress.")
+      .optional(),
   })
   .strict()
   .refine(
@@ -182,14 +224,14 @@ const updateWorkInput = z
 const checkpointInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     summary: longText,
   })
   .strict();
 const evidenceInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     kind: shortText,
     reference,
     summary: longText,
@@ -198,7 +240,7 @@ const evidenceInput = z
 const decisionInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     summary: longText,
     rationale: longText.optional(),
   })
@@ -206,16 +248,20 @@ const decisionInput = z
 const handoffInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     toAgent: shortText,
     summary: longText,
-    nextSteps: z.array(shortText).min(1).max(50),
+    nextSteps: z
+      .array(shortText)
+      .min(1)
+      .max(50)
+      .describe("Concrete steps for the next agent."),
   })
   .strict();
 const artifactInput = z
   .object({
     recordId,
-    expectedRevision: z.number().int().positive(),
+    expectedRevision,
     kind: shortText,
     reference,
     summary: longText,
@@ -223,8 +269,19 @@ const artifactInput = z
   .strict();
 const contextSearchInput = z
   .object({
-    query: z.string().trim().min(1).max(500),
-    limit: z.number().int().min(1).max(20).default(10),
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .describe("Words or topic to find in repository memory."),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .default(10)
+      .describe("Maximum matching memories to return."),
   })
   .strict();
 const definitionId = z
@@ -232,7 +289,8 @@ const definitionId = z
   .trim()
   .min(1)
   .max(160)
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/);
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+  .describe("Stable Kody resource ID from the corresponding list action.");
 const getDefinitionInput = z.object({ id: definitionId }).strict();
 const approvalListInput = z
   .object({
@@ -245,9 +303,16 @@ const approvalListInput = z
         "failed",
         "expired",
       ])
+      .describe("Approval state to filter by.")
       .optional(),
     workRecordId: recordId.optional(),
-    limit: z.number().int().min(1).max(100).default(20),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum approval requests to return."),
   })
   .strict();
 const approvalGetInput = z.object({ requestId: definitionId }).strict();
@@ -255,7 +320,10 @@ const workflowRunInput = z
   .object({
     workflowId: definitionId,
     workRecordId: recordId,
-    input: z.record(z.string(), z.unknown()).default({}),
+    input: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .describe("Input passed to the selected workflow."),
   })
   .strict();
 const workflowResumeInput = z
@@ -265,45 +333,92 @@ const workflowResumeInput = z
     runId: z
       .string()
       .trim()
-      .regex(/^run-[a-zA-Z0-9_-]{1,123}$/),
+      .regex(/^run-[a-zA-Z0-9_-]{1,123}$/)
+      .describe("Paused run ID returned by Kody."),
   })
   .strict();
 const capabilityRunInput = z
   .object({
     capabilityId: definitionId,
     workRecordId: recordId,
-    input: z.record(z.string(), z.unknown()).default({}),
+    input: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .describe("Input passed to the selected capability."),
   })
   .strict();
 const runListInput = z
-  .object({ limit: z.number().int().min(1).max(100).default(20) })
+  .object({
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum remote runs to return."),
+  })
   .strict();
 const runGetInput = z
-  .object({ runId: z.string().trim().min(1).max(240) })
+  .object({
+    runId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .describe("Run ID returned by run.list or an execution request."),
+  })
   .strict();
 const scheduleDefinition = z
   .object({
     id: definitionId,
-    every: z.string().trim().min(1).max(100),
+    every: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .describe("Schedule interval accepted by Kody, such as 1h or 1d."),
     at: z
       .object({
-        time: z.string().trim().min(1).max(20),
-        timezone: z.string().trim().min(1).max(100),
+        time: z
+          .string()
+          .trim()
+          .min(1)
+          .max(20)
+          .describe("Local time in HH:mm format."),
+        timezone: z
+          .string()
+          .trim()
+          .min(1)
+          .max(100)
+          .describe("IANA timezone, such as Europe/London."),
       })
       .strict()
       .optional(),
     target: z
       .object({
-        kind: z.enum(["workflow", "capability", "pipeline", "agent"]),
+        kind: z
+          .enum(["workflow", "capability", "pipeline", "agent"])
+          .describe("Type of Kody resource the schedule starts."),
         id: definitionId,
       })
       .strict(),
-    input: z.record(z.string(), z.unknown()).default({}),
-    enabled: z.boolean().default(true),
+    input: z
+      .record(z.string(), z.unknown())
+      .default({})
+      .describe("Input passed to the scheduled target."),
+    enabled: z
+      .boolean()
+      .default(true)
+      .describe("Whether this schedule may run."),
   })
   .strict();
 const scheduleSaveInput = z
-  .object({ workRecordId: recordId, schedule: scheduleDefinition })
+  .object({
+    workRecordId: recordId,
+    schedule: scheduleDefinition.describe(
+      "Complete schedule to create or replace.",
+    ),
+  })
   .strict();
 const automationDeleteInput = z
   .object({ workRecordId: recordId, id: definitionId })
@@ -311,14 +426,18 @@ const automationDeleteInput = z
 const triggerSaveInput = z
   .object({
     workRecordId: recordId,
-    trigger: z.record(z.string(), z.unknown()),
+    trigger: z
+      .record(z.string(), z.unknown())
+      .describe("Complete trigger definition accepted by Kody."),
   })
   .strict();
 const webhookReconcileInput = z.object({ workRecordId: recordId }).strict();
 const notificationRuleCreateInput = z
   .object({
     workRecordId: recordId,
-    rule: NotificationCreateRuleInputSchema,
+    rule: NotificationCreateRuleInputSchema.describe(
+      "Notification rule to create after user approval.",
+    ),
   })
   .strict();
 
@@ -927,9 +1046,127 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
   }),
 ];
 
+const ACTION_EXAMPLE_INPUTS: Readonly<Record<string, Record<string, unknown>>> =
+  {
+    "work.update": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      status: "active",
+      summary: "Implementation is in progress.",
+    },
+    "work.checkpoint.add": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      summary: "The API contract is implemented.",
+    },
+    "work.evidence.add": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      kind: "test",
+      reference: "https://ci.example.test/runs/123",
+      summary: "The integration tests passed.",
+    },
+    "work.decision.add": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      summary: "Use the existing repository service.",
+    },
+    "work.handoff.create": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      toAgent: "next-agent",
+      summary: "The implementation is ready for verification.",
+      nextSteps: ["Run the repository verification command."],
+    },
+    "work.artifact.add": {
+      recordId: "shared-work",
+      expectedRevision: 1,
+      kind: "commit",
+      reference: "abc123",
+      summary: "Implementation commit.",
+    },
+    "policy.list": {},
+    "policy.get": { id: "safe-changes" },
+    "instruction.get": {},
+    "capability.list": {},
+    "capability.get": { id: "code-review" },
+    "workflow.list": {},
+    "workflow.get": { id: "quality-run" },
+    "quality.gates.get": {},
+    "approval.list": { status: "pending", limit: 20 },
+    "approval.get": { requestId: "approval-123" },
+    "workflow.run.request": {
+      workflowId: "quality-run",
+      workRecordId: "shared-work",
+      input: {},
+    },
+    "workflow.resume.request": {
+      workflowId: "quality-run",
+      workRecordId: "shared-work",
+      runId: "run-123",
+    },
+    "capability.run.request": {
+      capabilityId: "code-review",
+      workRecordId: "shared-work",
+      input: {},
+    },
+    "schedule.list": {},
+    "schedule.get": { id: "daily-quality" },
+    "trigger.list": {},
+    "trigger.get": { id: "pull-request-opened" },
+    "webhook.status": {},
+    "notification.rule.list": {},
+    "run.list": { limit: 20 },
+    "run.get": { runId: "run-123" },
+    "mcp.usage.get": {},
+    "schedule.save.request": {
+      workRecordId: "shared-work",
+      schedule: {
+        id: "daily-quality",
+        every: "1d",
+        at: { time: "09:00", timezone: "Europe/London" },
+        target: { kind: "workflow", id: "quality-run" },
+        input: {},
+        enabled: true,
+      },
+    },
+    "schedule.delete.request": {
+      workRecordId: "shared-work",
+      id: "daily-quality",
+    },
+    "trigger.save.request": {
+      workRecordId: "shared-work",
+      trigger: { id: "pull-request-opened", event: "pull_request" },
+    },
+    "trigger.delete.request": {
+      workRecordId: "shared-work",
+      id: "pull-request-opened",
+    },
+    "webhook.reconcile.request": { workRecordId: "shared-work" },
+    "notification.rule.create.request": {
+      workRecordId: "shared-work",
+      rule: {
+        name: "Release failures",
+        event: "release_failed",
+        channel: { type: "web-push" },
+      },
+    },
+    "notification.rule.delete.request": {
+      workRecordId: "shared-work",
+      id: "release-failures",
+    },
+  };
+
 function publicAction(action: InternalAction): KodyAction {
   const { input: _input, execute: _execute, ...visible } = action;
-  return visible;
+  if (visible.examples.length > 0) return visible;
+  const example = ACTION_EXAMPLE_INPUTS[action.id];
+  return {
+    ...visible,
+    examples: example
+      ? [{ input: example, description: `Example: ${action.summary}` }]
+      : [],
+  };
 }
 
 export function listKodyActions(): KodyAction[] {
@@ -949,6 +1186,11 @@ export async function executeKodyAction(
 ): Promise<unknown> {
   const action = INTERNAL_ACTIONS.find((candidate) => candidate.id === id);
   if (!action) throw new KodyActionError("action_not_found", "Unknown action.");
+  if (action.permission === "read" && !principal.scopes.includes("mcp:read"))
+    throw new KodyActionError(
+      "insufficient_scope",
+      "The access token cannot read Kody data.",
+    );
   if (action.permission !== "read" && !principal.scopes.includes("mcp:execute"))
     throw new KodyActionError(
       "insufficient_scope",
@@ -956,7 +1198,15 @@ export async function executeKodyAction(
     );
   const parsed = action.input.safeParse(input ?? {});
   if (!parsed.success)
-    throw new KodyActionError("invalid_input", "Action input is invalid.");
+    throw new KodyActionError(
+      "invalid_input",
+      "Action input is invalid.",
+      parsed.error.issues.slice(0, 20).map((issue) => ({
+        path: issue.path.join("."),
+        code: issue.code,
+        message: issue.message,
+      })),
+    );
   return await action.execute(
     parsed.data as Record<string, unknown>,
     principal,
@@ -968,6 +1218,11 @@ export class KodyActionError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    readonly details?: Array<{
+      path: string;
+      code: string;
+      message: string;
+    }>,
   ) {
     super(message);
   }

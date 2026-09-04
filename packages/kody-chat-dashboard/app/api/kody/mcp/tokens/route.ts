@@ -18,6 +18,7 @@ const createSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
     expiresInDays: z.number().int().min(1).max(365).default(90),
+    access: z.enum(["read", "execute"]).default("execute"),
   })
   .strict();
 const revokeSchema = z.object({ tokenId: z.string().uuid() }).strict();
@@ -25,10 +26,13 @@ const revokeSchema = z.object({ tokenId: z.string().uuid() }).strict();
 export async function GET(req: NextRequest) {
   const access = await verifyRepoWriteAccess(req);
   if (access instanceof NextResponse) return access;
-  const tokens = await createBackendClient().query(backendApi.mcpAccessTokens.list, {
-    tenantId: `${access.auth.owner}/${access.auth.repo}`,
-    actorLogin: access.actorLogin,
-  });
+  const tokens = await createBackendClient().query(
+    backendApi.mcpAccessTokens.list,
+    {
+      tenantId: `${access.auth.owner}/${access.auth.repo}`,
+      actorLogin: access.actorLogin,
+    },
+  );
   return NextResponse.json({ tokens }, { headers: NO_STORE_HEADERS });
 }
 
@@ -55,7 +59,10 @@ export async function POST(req: NextRequest) {
       tenantId: `${access.auth.owner}/${access.auth.repo}`,
       actorLogin: access.actorLogin,
       actorGithubId: access.actorGithubId,
-      scopes: ["mcp:read", "mcp:execute"],
+      scopes:
+        input.data.access === "read"
+          ? ["mcp:read"]
+          : ["mcp:read", "mcp:execute"],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
     },

@@ -11,7 +11,8 @@ import {
   readConnection,
   writeConnection,
 } from "@dashboard/lib/connections/store";
-import { verifyFacebookPageConnection } from "@dashboard/lib/connections/facebook-verification";
+import { verifyConnection } from "@dashboard/lib/connections/verification";
+import { connectionProvider } from "@dashboard/lib/connections/providers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,7 +39,7 @@ export async function POST(
     if (connection.status === "disabled") {
       return NextResponse.json({ error: "connection_disabled" }, { status: 409 });
     }
-    if (connection.provider !== "facebook" || connection.accountType !== "page") {
+    if (!connectionProvider(connection.provider, connection.accountType)) {
       return NextResponse.json({ error: "unsupported_connection" }, { status: 400 });
     }
     const accessToken = await getSecret(connection.credentialRefs.accessToken, {
@@ -53,10 +54,7 @@ export async function POST(
         { status: 409, headers: NO_STORE_HEADERS },
       );
     }
-    const result = await verifyFacebookPageConnection({
-      externalId: connection.externalId,
-      accessToken,
-    });
+    const result = await verifyConnection(connection, accessToken);
     const updated = connectionAfterVerification(
       connection,
       result.ok

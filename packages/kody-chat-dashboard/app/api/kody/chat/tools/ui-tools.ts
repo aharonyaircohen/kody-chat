@@ -31,6 +31,7 @@ import {
   buildChatViewCatalog,
   buildShowViewInputJsonSchema,
 } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
+import { FOLLOW_UP_QUESTION_CONTRACT } from "../../../../../src/dashboard/lib/chat-defaults/defaults";
 import { validateChatViewSpec } from "../../../../../src/dashboard/lib/view-renderers/spec/validate";
 import { buildChatViewDirective } from "../../../../../src/dashboard/lib/view-renderers/spec/expand";
 import { buildShowViewGuidance } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
@@ -132,118 +133,182 @@ export const switchAgentTool = tool({
   },
 });
 
-export const previewActTool = tool({
-  description:
-    "Drive the preview iframe: click, fill, navigate, scroll, or wait. " +
-    "Use ONLY when the user asks you to interact with or verify something in " +
-    'the preview (e.g. "log in", "click the Save button", "scroll to the footer"). ' +
-    "The action runs in the user's browser via the Kody Preview Inspector " +
-    "extension; if the extension isn't installed the call surfaces an error and you " +
-    "should tell the user. Each successful call returns a fresh DOM snapshot " +
-    "as a follow-up user turn so you can chain steps (e.g. fill email -> fill " +
-    "password -> click submit -> read the next page).",
-  inputSchema: z.object({
-    op: z
-      .enum(["click", "fill", "navigate", "scroll", "wait"])
-      .describe("Which kind of action to run."),
-    selector: z
-      .string()
-      .optional()
-      .describe(
-        "CSS selector identifying the target element. Required for click/fill. " +
-          "Optional for scroll when scrolling to an element rather than by dy.",
-      ),
-    value: z
-      .string()
-      .optional()
-      .describe("Value to set on a fill op. Ignored for other ops."),
-    url: z
-      .string()
-      .optional()
-      .describe(
-        "Same-origin URL to navigate to. Cross-origin navigation is blocked.",
-      ),
-    dy: z
-      .number()
-      .int()
-      .optional()
-      .describe("Pixels to scroll by, used when selector is not provided."),
-    ms: z
-      .number()
-      .int()
-      .min(0)
-      .max(5000)
-      .optional()
-      .describe("Milliseconds to wait. Used by op=wait. Max 5000."),
-    reason: z
-      .string()
-      .min(1)
-      .max(200)
-      .describe(
-        "One short sentence explaining why you're running this action. " +
-          "Shown to the user as confirmation.",
-      ),
-  }),
-  execute: async (input): Promise<PreviewActDirective> => {
-    return {
-      action: PREVIEW_ACT_DIRECTIVE,
-      op: input.op,
-      selector: input.selector,
-      value: input.value,
-      url: input.url,
-      dy: input.dy,
-      ms: input.ms,
-      reason: input.reason,
-    };
-  },
-});
+function navigationUrlWasRequested(
+  userText: string | undefined,
+  requestedUrl: string,
+): boolean {
+  const text = userText?.trim();
+  const url = requestedUrl.trim();
+  if (!text || !url) return false;
+  if (text.includes(url)) return true;
+  if (!/^https?:\/\//i.test(url)) return false;
+  let normalizedRequested: string;
+  try {
+    normalizedRequested = new URL(url).href;
+  } catch {
+    return false;
+  }
+  const mentionedUrls = text.match(/https?:\/\/[^\s<>"'`]+/gi) ?? [];
+  return mentionedUrls.some((candidate) => {
+    try {
+      return (
+        new URL(candidate.replace(/[),.;!?]+$/, "")).href ===
+        normalizedRequested
+      );
+    } catch {
+      return false;
+    }
+  });
+}
 
-export const dashboardNavigateTool = tool({
-  description:
-    "Navigate the user's Dashboard shell to a known internal page. " +
-    "Call ONLY when the user clearly asks to go to, open, show, or take them to a dashboard place. " +
-    'For informational questions like "where is X?" or "what page handles X?", answer with final_answer instead of moving the user. ' +
-    "Never call during unrelated answers, never use external URLs, and never invent routes. " +
-    "If the user asks for a specific task or issue number, use routeId=task and set issueNumber. " +
-    "Allowed dashboard routes:\n" +
-    dashboardNavigationCatalogForPrompt(),
-  inputSchema: z.object({
-    routeId: z
-      .string()
-      .min(1)
-      .describe("Known route id from the allowed dashboard routes list."),
-    issueNumber: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe("Required only when routeId is task."),
-    reason: z
-      .string()
-      .min(1)
-      .max(200)
-      .describe("One short sentence explaining why this page is being opened."),
-  }),
-  execute: async ({
-    routeId,
-    issueNumber,
-    reason,
-  }): Promise<DashboardNavigateDirective | { error: string }> => {
-    const resolved = resolveDashboardNavigationTarget({
+function createPreviewActTool(userText?: string) {
+  return tool({
+    description:
+      "Drive the current browser view: click, fill, navigate, scroll, or wait. " +
+      "Use ONLY when the user asks you to interact with or verify something in " +
+      'the preview (e.g. "log in", "click the Save button", "scroll to the footer"). ' +
+      "For in-page navigation, click a link from the page snapshot; never invent a URL. " +
+      "Use navigate only when the user supplied that exact URL. " +
+      "The action runs in the user's active Fly browser or iframe fallback; if neither is available the call surfaces an error and you " +
+      "should tell the user. Each successful call returns a fresh DOM snapshot " +
+      "as a follow-up user turn so you can chain steps (e.g. fill email -> fill " +
+      "password -> click submit -> read the next page).",
+    inputSchema: z.object({
+      op: z
+        .enum(["click", "fill", "navigate", "scroll", "wait"])
+        .describe("Which kind of action to run."),
+      selector: z
+        .string()
+        .optional()
+        .describe(
+          "CSS selector identifying the target element. Required for click/fill. " +
+            "Optional for scroll when scrolling to an element rather than by dy.",
+        ),
+      value: z
+        .string()
+        .optional()
+        .describe("Value to set on a fill op. Ignored for other ops."),
+      url: z
+        .string()
+        .optional()
+        .describe(
+          "Same-origin URL to navigate to. Cross-origin navigation is blocked.",
+        ),
+      dy: z
+        .number()
+        .int()
+        .optional()
+        .describe("Pixels to scroll by, used when selector is not provided."),
+      ms: z
+        .number()
+        .int()
+        .min(0)
+        .max(5000)
+        .optional()
+        .describe("Milliseconds to wait. Used by op=wait. Max 5000."),
+      reason: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe(
+          "One short sentence explaining why you're running this action. " +
+            "Shown to the user as confirmation.",
+        ),
+    }),
+    execute: async (
+      input,
+    ): Promise<PreviewActDirective | { error: string }> => {
+      if (
+        input.op === "navigate" &&
+        (!input.url || !navigationUrlWasRequested(userText, input.url))
+      ) {
+        return { error: "browser_navigation_url_not_requested" };
+      }
+      return {
+        action: PREVIEW_ACT_DIRECTIVE,
+        op: input.op,
+        selector: input.selector,
+        value: input.value,
+        url: input.url,
+        dy: input.dy,
+        ms: input.ms,
+        reason: input.reason,
+      };
+    },
+  });
+}
+
+export function dashboardNavigationWasRequested(
+  userText: string | undefined,
+): boolean {
+  const text = userText?.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!text) return true;
+  if (/\bshow\s+(?:me\s+)?how\b/.test(text)) return false;
+  return (
+    /\b(?:open|visit)\b/.test(text) ||
+    /\b(?:go|navigate|switch)\s+to\b/.test(text) ||
+    /\btake\s+me\s+to\b/.test(text) ||
+    /\bshow\s+(?:me\s+)?(?:the\s+)?[^.!?]{0,80}\b(?:page|screen|view|dashboard)\b/.test(
+      text,
+    )
+  );
+}
+
+export function createDashboardNavigateTool(userText?: string) {
+  return tool({
+    description:
+      "Navigate the user's Dashboard shell to a known internal page. " +
+      "Call ONLY when the user clearly asks to go to, open, show, or take them to a dashboard place. " +
+      'For informational questions like "where is X?" or "what page handles X?", answer with final_answer instead of moving the user. ' +
+      "Never call during unrelated answers, never use external URLs, and never invent routes. External website work belongs to the browser in Views, not Connections. " +
+      "If the user asks for a specific task or issue number, use routeId=task and set issueNumber. " +
+      "Allowed dashboard routes:\n" +
+      dashboardNavigationCatalogForPrompt(),
+    inputSchema: z.object({
+      routeId: z
+        .string()
+        .min(1)
+        .describe("Known route id from the allowed dashboard routes list."),
+      issueNumber: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Required only when routeId is task."),
+      reason: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe(
+          "One short sentence explaining why this page is being opened.",
+        ),
+    }),
+    execute: async ({
       routeId,
       issueNumber,
       reason,
-    });
-    if ("error" in resolved) return resolved;
-    return {
-      action: DASHBOARD_NAVIGATE_DIRECTIVE,
-      routeId: resolved.routeId,
-      href: resolved.href,
-      label: resolved.label,
-      reason: resolved.reason,
-    };
-  },
-});
+    }): Promise<DashboardNavigateDirective | { error: string }> => {
+      if (!dashboardNavigationWasRequested(userText)) {
+        return { error: "dashboard_navigation_not_requested" };
+      }
+      const resolved = resolveDashboardNavigationTarget({
+        routeId,
+        issueNumber,
+        reason,
+      });
+      if ("error" in resolved) return resolved;
+      return {
+        action: DASHBOARD_NAVIGATE_DIRECTIVE,
+        routeId: resolved.routeId,
+        href: resolved.href,
+        label: resolved.label,
+        reason: resolved.reason,
+      };
+    },
+  });
+}
+
+export const dashboardNavigateTool = createDashboardNavigateTool();
 
 export function createUiTools(ctx: UiToolsCtx = {}) {
   const definitions =
@@ -269,7 +334,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
         "Use this for ordinary answers, summaries, and status updates. " +
         (ctx.requireFollowUpQuestion === false
           ? "Follow the user's exact output shape; do not add a follow-up question. "
-          : "Every prose answer must end with one short, relevant follow-up question. ") +
+          : `${FOLLOW_UP_QUESTION_CONTRACT} `) +
         "Do not use this for questions that ask the user to choose, approve, confirm, continue, cancel, or pick an action; use show_view instead.",
       inputSchema: z.object({
         content: z
@@ -294,8 +359,8 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
       },
     }),
     switch_agent: switchAgentTool,
-    dashboard_navigate: dashboardNavigateTool,
-    preview_act: previewActTool,
+    dashboard_navigate: createDashboardNavigateTool(ctx.userText),
+    preview_act: createPreviewActTool(ctx.userText),
     [SHOW_VIEW_TOOL]: tool({
       description:
         "Render an interactive UI card in the chat from a JSON spec. " +

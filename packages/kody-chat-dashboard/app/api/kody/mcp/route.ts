@@ -6,6 +6,7 @@ import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
 import {
   KODY_MCP_CONTRACT_VERSION,
+  KODY_MCP_LEGACY_PROTOCOL_VERSION,
   KODY_MCP_PROTOCOL_VERSION,
   KODY_MCP_SERVER_VERSION,
   mcpPrincipalSchema,
@@ -35,8 +36,15 @@ const RATE_LIMIT_PER_MINUTE = 120;
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([
   "2025-03-26",
   "2025-06-18",
+  KODY_MCP_LEGACY_PROTOCOL_VERSION,
   KODY_MCP_PROTOCOL_VERSION,
 ]);
+const CURRENT_PROTOCOL_VERSION = KODY_MCP_PROTOCOL_VERSION;
+const SERVER_INSTRUCTIONS =
+  "Kody is repository-scoped and client-agnostic. Check kody_status first. " +
+  "Use kody_search_tools to find an action, kody_get_tool_details to inspect " +
+  "its exact schema and permissions, then kody_execute_tool. Read actions are " +
+  "safe. Write and approval actions require an idempotencyKey.";
 const FACADE_TOOL_NAMES = [
   "kody_status",
   "kody_search_tools",
@@ -78,6 +86,7 @@ const facadeTools = [
     description:
       "Get Kody MCP version, authenticated scope, and safe health data.",
     inputSchema: { type: "object", additionalProperties: false },
+    outputSchema: { type: "object" },
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
@@ -86,6 +95,7 @@ const facadeTools = [
     description:
       "Search the scoped Kody action catalog without loading every action schema.",
     inputSchema: toJsonSchema(searchInput),
+    outputSchema: { type: "object" },
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
@@ -94,15 +104,21 @@ const facadeTools = [
     description:
       "Get the full schema, permissions, side effects, approval policy, and examples for one action.",
     inputSchema: toJsonSchema(detailsInput),
+    outputSchema: { type: "object" },
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
     name: "kody_execute_tool",
     title: "Execute a Kody action",
     description:
-      "Execute one discovered Kody action under the token's repository scope and permissions.",
+      "Execute one discovered Kody action. Read actions are safe; write and approval actions follow the permission and approval metadata returned by kody_get_tool_details.",
     inputSchema: toJsonSchema(executeInput),
-    annotations: { readOnlyHint: false, destructiveHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
 ];
 
@@ -126,7 +142,23 @@ function originAllowed(req: NextRequest): boolean {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  return origin === req.nextUrl.origin || configured.includes(origin);
+  if (origin === req.nextUrl.origin || configured.includes(origin)) return true;
+  try {
+    const protocol =
+      req.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim() ||
+      req.nextUrl.protocol.replace(/:$/, "");
+    const requestHosts = [
+      req.headers.get("host"),
+      req.headers.get("x-forwarded-host"),
+    ]
+      .filter((host): host is string => Boolean(host))
+      .map((host) => host.toLowerCase());
+    return requestHosts.some(
+      (host) => origin.toLowerCase() === `${protocol}://${host}`,
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function authenticate(
@@ -205,7 +237,7 @@ export async function DELETE(req: NextRequest) {
   const principal = await authenticate(req);
   if (principal instanceof NextResponse) return principal;
   const runId = validatedRunId(req.headers.get("mcp-session-id"));
-  if (!runId)
+  if (!runId || !runBelongsToPrincipal(runId, principal))
     return NextResponse.json(
       { error: "invalid_session" },
       { status: 400, headers: NO_STORE_HEADERS },
@@ -234,8 +266,23 @@ export async function handleKodyMcpPost(
     );
   const principal = await authenticate(req);
   if (principal instanceof NextResponse) return principal;
+  const suppliedRunId = req.headers.get("mcp-session-id");
+  if (
+    suppliedRunId &&
+    (!validatedRunId(suppliedRunId) ||
+      !runBelongsToPrincipal(suppliedRunId, principal))
+  )
+    return NextResponse.json(
+      { error: "invalid_session" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
 
-  if (!(req.headers.get("content-type") ?? "").includes("application/json"))
+  if (
+    (req.headers.get("content-type") ?? "")
+      .split(";", 1)[0]
+      .trim()
+      .toLowerCase() !== "application/json"
+  )
     return NextResponse.json(
       { error: "unsupported_media_type" },
       { status: 415, headers: NO_STORE_HEADERS },
@@ -273,36 +320,67 @@ export async function handleKodyMcpPost(
   if (body.jsonrpc !== "2.0")
     return jsonRpcError(body.id ?? null, -32600, "Invalid Request");
 
+  const currentProtocol = requestedProtocol === CURRENT_PROTOCOL_VERSION;
+  if (currentProtocol) {
+    const protocolError = validateCurrentProtocolRequest(req, body);
+    if (protocolError) return protocolError;
+  }
+
   if (body.method === "initialize") {
-    const runId = `run-${crypto.randomUUID()}`;
-    const clientName = z
+    const initialization = z
       .object({
-        clientInfo: z.object({ name: z.string().trim().min(1).max(120) }),
+        protocolVersion: z.string(),
+        capabilities: z.record(z.string(), z.unknown()),
+        clientInfo: z.object({
+          name: z.string().trim().min(1).max(120),
+          version: z.string().trim().min(1).max(120),
+        }),
       })
       .passthrough()
       .safeParse(body.params);
-    await beginAgentRun(
-      principal,
-      runId,
-      clientName.success ? clientName.data.clientInfo.name : undefined,
-    );
+    if (!initialization.success)
+      return jsonRpcError(
+        body.id ?? null,
+        -32602,
+        "Invalid initialize parameters",
+      );
+    const negotiatedVersion = SUPPORTED_PROTOCOL_VERSIONS.has(
+      initialization.data.protocolVersion,
+    )
+      ? initialization.data.protocolVersion
+      : KODY_MCP_LEGACY_PROTOCOL_VERSION;
+    const runId = `run-${principal.tokenId}-${crypto.randomUUID()}`;
+    await beginAgentRun(principal, runId, initialization.data.clientInfo.name);
     return jsonRpcResult(
       body.id ?? null,
       {
-        protocolVersion: KODY_MCP_PROTOCOL_VERSION,
+        protocolVersion: negotiatedVersion,
         serverInfo: {
           name: "kody",
           version: KODY_MCP_SERVER_VERSION,
           description: "Shared Kody extensions for coding agents",
         },
         capabilities: { tools: { listChanged: false } },
+        instructions: SERVER_INSTRUCTIONS,
       },
       { "Mcp-Session-Id": runId },
     );
   }
+  if (body.method === "server/discover")
+    return jsonRpcResult(body.id ?? null, {
+      protocolVersion: CURRENT_PROTOCOL_VERSION,
+      serverInfo: serverInfo(),
+      capabilities: { tools: { listChanged: false } },
+      instructions: SERVER_INSTRUCTIONS,
+    });
   if (body.method === "ping") return jsonRpcResult(body.id ?? null, {});
   if (body.method === "tools/list")
-    return jsonRpcResult(body.id ?? null, { tools: facadeTools });
+    return jsonRpcResult(body.id ?? null, {
+      ...(currentProtocol
+        ? { resultType: "complete", ttlMs: 300_000, cacheScope: "private" }
+        : {}),
+      tools: facadeTools,
+    });
   if (body.method === "tools/call")
     return await callFacadeTool(
       body.id ?? null,
@@ -310,6 +388,7 @@ export async function handleKodyMcpPost(
       principal,
       requestRunId(req, principal),
       options.services,
+      currentProtocol,
     );
   return jsonRpcError(body.id ?? null, -32601, "Method not found");
 }
@@ -320,6 +399,7 @@ async function callFacadeTool(
   principal: McpPrincipal,
   runId: string,
   services?: KodyMcpActionServices,
+  currentProtocol = false,
 ): Promise<NextResponse> {
   const payload = z
     .object({
@@ -389,11 +469,6 @@ async function callFacadeTool(
         break;
       }
       case "kody_execute_tool": {
-        if (!principal.scopes.includes("mcp:execute"))
-          throw new KodyActionError(
-            "insufficient_scope",
-            "The access token cannot execute actions.",
-          );
         const parsed = executeInput.parse(args);
         actionId = parsed.actionId;
         workRecordId = linkedWorkRecordId(parsed.input);
@@ -410,7 +485,7 @@ async function callFacadeTool(
         break;
       }
     }
-    await audit(
+    const audited = await audit(
       principal,
       runId,
       payload.data.name,
@@ -418,7 +493,16 @@ async function callFacadeTool(
       outcome,
       workRecordId,
     );
-    return toolResult(id, result);
+    const action = actionId ? getKodyAction(actionId) : null;
+    if (action && action.permission !== "read" && !audited)
+      return toolError(
+        id,
+        "audit_unavailable",
+        "The action completed, but Kody could not record its audit event. Retry with the same idempotency key.",
+        undefined,
+        currentProtocol,
+      );
+    return toolResult(id, result, currentProtocol);
   } catch (error) {
     outcome =
       error instanceof KodyActionError || error instanceof z.ZodError
@@ -433,14 +517,28 @@ async function callFacadeTool(
       workRecordId,
     );
     if (error instanceof KodyActionError)
-      return toolError(id, error.code, error.message);
+      return toolError(
+        id,
+        error.code,
+        error.message,
+        error.details,
+        currentProtocol,
+      );
     if (error instanceof z.ZodError)
-      return toolError(id, "invalid_input", "Tool input is invalid.");
+      return toolError(
+        id,
+        "invalid_input",
+        "Tool input is invalid.",
+        safeValidationIssues(error),
+        currentProtocol,
+      );
     logger.error({ err: error }, "public mcp tool call failed");
     return toolError(
       id,
       "internal_error",
       "Kody could not complete the action.",
+      undefined,
+      currentProtocol,
     );
   }
 }
@@ -452,7 +550,7 @@ async function audit(
   actionId: string | undefined,
   outcome: "success" | "rejected" | "error",
   workRecordId?: string,
-) {
+): Promise<boolean> {
   try {
     await createBackendClient().mutation(backendApi.agentRuns.recordCall, {
       eventId: crypto.randomUUID(),
@@ -467,9 +565,83 @@ async function audit(
       outcome,
       occurredAt: new Date().toISOString(),
     });
+    return true;
   } catch (error) {
     logger.error({ err: error }, "public mcp audit failed");
+    return false;
   }
+}
+
+function serverInfo() {
+  return {
+    name: "kody",
+    version: KODY_MCP_SERVER_VERSION,
+    description: "Shared Kody extensions for any MCP coding agent",
+  };
+}
+
+function validateCurrentProtocolRequest(
+  req: NextRequest,
+  body: JsonRpcRequest,
+): NextResponse | null {
+  const meta = z
+    .object({
+      "io.modelcontextprotocol/protocolVersion": z.literal(
+        CURRENT_PROTOCOL_VERSION,
+      ),
+      "io.modelcontextprotocol/clientInfo": z.object({
+        name: z.string().trim().min(1).max(120),
+        version: z.string().trim().min(1).max(120),
+      }),
+      "io.modelcontextprotocol/clientCapabilities": z.record(
+        z.string(),
+        z.unknown(),
+      ),
+    })
+    .passthrough()
+    .safeParse(
+      body.params && typeof body.params === "object"
+        ? (body.params as Record<string, unknown>)._meta
+        : undefined,
+    );
+  if (!meta.success)
+    return jsonRpcError(
+      body.id ?? null,
+      -32602,
+      "Current protocol metadata is required",
+      400,
+    );
+  if (req.headers.get("mcp-method") !== body.method)
+    return jsonRpcError(
+      body.id ?? null,
+      -32020,
+      "MCP routing headers do not match the request",
+      400,
+    );
+  const routedName = req.headers.get("mcp-name");
+  const bodyName =
+    body.method === "tools/call" &&
+    body.params &&
+    typeof body.params === "object" &&
+    typeof (body.params as Record<string, unknown>).name === "string"
+      ? String((body.params as Record<string, unknown>).name)
+      : null;
+  if (bodyName && routedName !== bodyName)
+    return jsonRpcError(
+      body.id ?? null,
+      -32020,
+      "MCP routing headers do not match the request",
+      400,
+    );
+  return null;
+}
+
+function safeValidationIssues(error: z.ZodError) {
+  return error.issues.slice(0, 20).map((issue) => ({
+    path: issue.path.join("."),
+    code: issue.code,
+    message: issue.message,
+  }));
 }
 
 async function beginAgentRun(
@@ -505,7 +677,7 @@ function validatedRunId(value: string | null): string | undefined {
 
 function requestRunId(req: NextRequest, principal: McpPrincipal): string {
   const session = validatedRunId(req.headers.get("mcp-session-id"));
-  if (session) return session;
+  if (session && runBelongsToPrincipal(session, principal)) return session;
   const bucket = Math.floor(Date.now() / (30 * 60 * 1_000));
   const digest = crypto
     .createHash("sha256")
@@ -513,6 +685,13 @@ function requestRunId(req: NextRequest, principal: McpPrincipal): string {
     .digest("hex")
     .slice(0, 24);
   return `run-rolling-${digest}`;
+}
+
+function runBelongsToPrincipal(
+  runId: string,
+  principal: McpPrincipal,
+): boolean {
+  return runId.startsWith(`run-${principal.tokenId}-`);
 }
 
 function encodeCursor(offset: number): string {
@@ -530,17 +709,29 @@ function decodeCursor(cursor?: string): number {
   return value;
 }
 
-function toolResult(id: JsonRpcId, value: unknown): NextResponse {
+function toolResult(
+  id: JsonRpcId,
+  value: unknown,
+  currentProtocol = false,
+): NextResponse {
   return jsonRpcResult(id, {
+    ...(currentProtocol ? { resultType: "complete" } : {}),
     content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
     structuredContent: value,
     isError: false,
   });
 }
 
-function toolError(id: JsonRpcId, code: string, message: string): NextResponse {
-  const value = { error: { code, message } };
+function toolError(
+  id: JsonRpcId,
+  code: string,
+  message: string,
+  issues?: Array<{ path: string; code: string; message: string }>,
+  currentProtocol = false,
+): NextResponse {
+  const value = { error: { code, message, ...(issues ? { issues } : {}) } };
   return jsonRpcResult(id, {
+    ...(currentProtocol ? { resultType: "complete" } : {}),
     content: [{ type: "text", text: JSON.stringify(value) }],
     structuredContent: value,
     isError: true,
@@ -562,9 +753,10 @@ function jsonRpcError(
   id: JsonRpcId,
   code: number,
   message: string,
+  status = 200,
 ): NextResponse {
   return NextResponse.json(
     { jsonrpc: "2.0", id, error: { code, message } },
-    { headers: NO_STORE_HEADERS },
+    { status, headers: NO_STORE_HEADERS },
   );
 }

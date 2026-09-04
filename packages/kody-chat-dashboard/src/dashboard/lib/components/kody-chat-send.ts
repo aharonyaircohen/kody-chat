@@ -395,6 +395,7 @@ export interface SendTextDeps {
     Extract<ChatContext, { kind: "capability" }>["capability"] | null;
   selectedOrg: Extract<ChatContext, { kind: "org" }> | null;
   selectedReport: Extract<ChatContext, { kind: "report" }>["report"] | null;
+  selectedApp: Extract<ChatContext, { kind: "app" }>["app"] | null;
   onIssueCreated: KodyChatProps["onIssueCreated"];
   onRenderedViewInvalidate?: never;
   vibeMode: KodyChatProps["vibeMode"];
@@ -496,6 +497,7 @@ async function runSendTextInner(
     selectedCapability,
     selectedOrg,
     selectedReport,
+    selectedApp,
     onIssueCreated,
     vibeMode,
     context,
@@ -1269,6 +1271,7 @@ async function runSendTextInner(
                 },
               }
             : {}),
+          ...(selectedApp ? { app: selectedApp } : {}),
           ...(options.retryAssessmentTurnId
             ? { retryAssessmentTurnId: options.retryAssessmentTurnId }
             : {}),

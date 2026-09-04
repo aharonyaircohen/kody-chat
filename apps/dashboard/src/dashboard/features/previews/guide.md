@@ -12,6 +12,9 @@ aliases:
   - views
   - preview
   - previews
+  - browser
+  - browser automation
+  - website interaction
   - preview environment
   - element picker
   - fly preview
@@ -21,16 +24,17 @@ aliases:
 
 ## What this feature does
 
-Views provides a browser-like workspace for Production, Staging, Development, Fly branch previews, and task Pull Request previews. It owns saved environment navigation, paths, viewport sizes, iframe history, refresh, element inspection, macros, and preview-to-chat context. Related Fly surfaces show live preview apps, machines, and retained activity.
+Views provides one browser workspace for Production, Staging, Development, external websites, Fly branch previews, and task Pull Request previews. It owns saved environment navigation, paths, viewport sizes, history, refresh, element inspection, macros, and preview-to-chat context. It prefers the Dashboard-owned Fly browser when available and retains the iframe path as a fallback. Related Fly surfaces show live preview apps, machines, and retained activity.
 
 ## When to use it
 
-Use Views to inspect or discuss a running web surface. Use task preview actions when reviewing a Pull Request. Use Fly preview inventory for live app status and machine management.
+Use Views to inspect, discuss, or interact with a running website. For a requested website task, use a matching user-browser Capability and its declared actions; use task preview actions when reviewing a Pull Request. Use Fly preview inventory for live app status and machine management. Connections configures API-backed external accounts and does not create a browser session.
 
 ## Available actions and options
 
 - Add, edit, remove, reorder, group, and switch named URL or branch environments stored per repository.
 - Navigate paths and browser history, edit the address, refresh, and change desktop/mobile viewport sizes.
+- Let Kody use a matching user-browser Capability to navigate, click, fill, upload, scroll, or wait within its declared origins and file roots.
 - Inspect a visible element and send its URL, title, selection, DOM evidence, or screenshot context to Chat.
 - Record, save, replay, and send inspector macros to Chat.
 - Upload supported files through preview controls where the active environment enables it.
@@ -42,12 +46,15 @@ Use Views to inspect or discuss a running web surface. Use task preview actions 
 - The target must have a reachable preview URL or a resolvable Fly branch preview.
 - Repository-shared environments require authenticated repository configuration access.
 - Fly previews and machine actions require the repository's `FLY_API_TOKEN` and sufficient Fly permission.
+- A user must sign in to an external website inside the visible browser; Connections credentials do not create or authorize that browser session.
 - Element inspection requires the preview to be embeddable and the inspector/extension bridge to access the rendered page.
 - Destructive task or machine actions require explicit confirmation and the corresponding live API permission.
 
 ## What will not work
 
 - A site that blocks iframe embedding cannot be inspected inside Views.
+- Connections does not create or authorize a browser session, and it has no browser-based connection option.
+- Never invent a browser connection option or claim an action completed without a matching Capability and a successful live browser result.
 - Cross-origin iframe security prevents direct DOM access without the inspector bridge.
 - Saving an environment stores identity/configuration, not proof that its URL is currently healthy.
 - A branch preview does not automatically disappear without the relevant lifecycle cleanup; PR-less previews need manual visibility and destruction.

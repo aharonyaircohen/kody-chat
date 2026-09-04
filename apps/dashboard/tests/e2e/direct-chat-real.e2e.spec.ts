@@ -1,12 +1,5 @@
-import {
-  expect,
-  resolveLiveGitHubUser,
-  test,
-  type Page,
-} from "./live-test";
-import {
-  KODY_BUILT_IN_CHAT_MODELS,
-} from "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/model-catalog";
+import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
+import { KODY_BUILT_IN_CHAT_MODELS } from "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat/model-catalog";
 import {
   AUTOMATIC_MODEL_ID,
   chatModelScopeFromId,
@@ -113,10 +106,10 @@ test.describe("Direct Kody chat — real model and persistence", () => {
     };
     const [modelsResponse, repositorySecretsResponse, personalSecretsResponse] =
       await Promise.all([
-      page.request.get(`${BASE_URL}/api/kody/models`, { headers }),
-      page.request.get(`${BASE_URL}/api/kody/secrets`, { headers }),
-      page.request.get(`${BASE_URL}/api/kody/secrets`),
-    ]);
+        page.request.get(`${BASE_URL}/api/kody/models`, { headers }),
+        page.request.get(`${BASE_URL}/api/kody/secrets`, { headers }),
+        page.request.get(`${BASE_URL}/api/kody/secrets`),
+      ]);
     expect(modelsResponse.ok()).toBe(true);
     expect(repositorySecretsResponse.ok()).toBe(true);
     expect(personalSecretsResponse.ok()).toBe(true);
@@ -280,6 +273,81 @@ test.describe("Direct Kody chat — real model and persistence", () => {
           .getByText(marker, { exact: false })
           .last(),
       ).toBeVisible({ timeout: 30_000 });
+
+      await page.goto(`${BASE_URL}/repo/${owner}/${repo}/connections`, {
+        waitUntil: "domcontentloaded",
+      });
+      const browserGuidanceChat = page.locator('[aria-label="Kody chat"]');
+      const browserGuidanceInput = browserGuidanceChat
+        .locator("textarea")
+        .first();
+      await expect(browserGuidanceInput).toBeEnabled({ timeout: 15_000 });
+      const seenAssistantReplies = new Set([marker]);
+      for (const request of [
+        "i want to post text to fb, guide me how",
+        "i want to use browser to post",
+      ]) {
+        await browserGuidanceInput.fill(request);
+        const browserGuidanceResponse = page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            response.url().endsWith("/api/kody/chat/kody"),
+        );
+        await browserGuidanceChat
+          .getByRole("button", { name: "Send message" })
+          .click();
+        expect((await browserGuidanceResponse).status()).toBe(200);
+        await expect(stop).toBeHidden({ timeout: 240_000 });
+        await expect(page).toHaveURL(
+          `${BASE_URL}/repo/${owner}/${repo}/connections`,
+        );
+
+        let browserGuidance = "";
+        await expect
+          .poll(
+            async () => {
+              const persistedResponse = await page.request.get(
+                `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+                { headers },
+              );
+              if (!persistedResponse.ok()) return "";
+              const persisted = (await persistedResponse.json()) as {
+                entries?: Array<{
+                  entry?: {
+                    kind?: string;
+                    role?: string;
+                    content?: string;
+                    status?: string;
+                  };
+                }>;
+              };
+              browserGuidance =
+                [...(persisted.entries ?? [])]
+                  .reverse()
+                  .find(
+                    ({ entry }) =>
+                      entry?.kind === "message" &&
+                      entry.role === "assistant" &&
+                      entry.status === "committed" &&
+                      entry.content &&
+                      ![...seenAssistantReplies].some((seen) =>
+                        entry.content!.includes(seen),
+                      ),
+                  )?.entry?.content ?? "";
+              return browserGuidance;
+            },
+            { timeout: 30_000, intervals: [250, 500, 1000] },
+          )
+          .toMatch(/views|browser/i);
+        seenAssistantReplies.add(browserGuidance);
+        expect(browserGuidance).not.toMatch(/click\s+connect/i);
+        expect(browserGuidance).not.toMatch(
+          /\b(?:there\s+is\s+(?:a\s+)?|(?:pick|choose|select|use|offers?|provides?|supports?|includes?)\s+(?:the|a)\s+)browser[- ]based\s+(?:connection|option)\b/i,
+        );
+        expect(browserGuidance).not.toMatch(
+          /publish(?:es|ed|ing)?\s+.*on your behalf/i,
+        );
+      }
     } finally {
       if (conversationId) {
         const cleanup = await page.request.delete(

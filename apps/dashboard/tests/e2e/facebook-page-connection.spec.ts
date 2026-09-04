@@ -18,7 +18,7 @@ async function seedAuth(page: Page): Promise<void> {
   });
 }
 
-test("configures and verifies a Facebook Connection without accepting its token", async ({ page }) => {
+test("configures Facebook and Instagram Connections without accepting token values", async ({ page }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -34,15 +34,15 @@ test("configures and verifies a Facebook Connection without accepting its token"
     json(route, { login: "connections-e2e", avatar_url: "", id: 1 }),
   );
   await page.route("**/api/kody/secrets", (route) =>
-    json(route, { secrets: [{ name: "FACEBOOK_PAGE_ACCESS_TOKEN" }] }),
+    json(route, { secrets: [{ name: "FACEBOOK_PAGE_ACCESS_TOKEN" }, { name: "INSTAGRAM_ACCESS_TOKEN" }] }),
   );
 
-  let connection: Record<string, unknown> | null = null;
-  let savedBody: Record<string, unknown> | null = null;
+  const connections = new Map<string, Record<string, unknown>>();
+  const savedBodies: Record<string, Record<string, unknown>> = {};
   await page.route("**/api/kody/connections", async (route) => {
     if (route.request().method() === "PUT") {
-      savedBody = route.request().postDataJSON() as Record<string, unknown>;
-      connection = {
+      const savedBody = route.request().postDataJSON() as Record<string, unknown>;
+      const connection = {
         id: savedBody.id,
         name: savedBody.name,
         provider: savedBody.provider,
@@ -52,12 +52,20 @@ test("configures and verifies a Facebook Connection without accepting its token"
         status: "needs_attention",
         verifiedAt: null,
       };
+      connections.set(String(savedBody.id), connection);
+      savedBodies[String(savedBody.id)] = savedBody;
       return json(route, { ok: true, connection });
     }
-    return json(route, { connections: connection ? [connection] : [] });
+    return json(route, { connections: [...connections.values()] });
   });
   await page.route("**/api/kody/connections/facebook-main/verify", (route) => {
-    connection = { ...connection, status: "connected", verifiedAt: "2026-08-31T12:00:00.000Z" };
+    const connection = { ...connections.get("facebook-main"), status: "connected", verifiedAt: "2026-08-31T12:00:00.000Z" };
+    connections.set("facebook-main", connection);
+    return json(route, { ok: true, connection });
+  });
+  await page.route("**/api/kody/connections/instagram-main/verify", (route) => {
+    const connection = { ...connections.get("instagram-main"), status: "connected", verifiedAt: "2026-08-31T12:00:00.000Z" };
+    connections.set("instagram-main", connection);
     return json(route, { ok: true, connection });
   });
 
@@ -70,12 +78,14 @@ test("configures and verifies a Facebook Connection without accepting its token"
   );
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await expect(page.getByText("FACEBOOK_PAGE_ACCESS_TOKEN")).toBeVisible();
+  await expect(page.getByText("INSTAGRAM_ACCESS_TOKEN")).toBeVisible();
 
-  await page.getByRole("textbox", { name: "Name" }).fill("Simulated Reality");
-  await page.getByRole("textbox", { name: "Facebook Page ID" }).fill("123456789");
-  await page.getByRole("button", { name: "Save Connection" }).click();
-  await expect(page.getByText("Connection saved", { exact: true })).toBeVisible();
-  expect(savedBody).toEqual({
+  const facebookCard = page.locator('[aria-label="Facebook Page connection"]');
+  await facebookCard.getByRole("textbox", { name: "Name" }).fill("Simulated Reality");
+  await facebookCard.getByRole("textbox", { name: "Facebook Page ID" }).fill("123456789");
+  await facebookCard.getByRole("button", { name: "Save Connection" }).click();
+  await expect(page.getByText("Facebook Page connection saved", { exact: true })).toBeVisible();
+  expect(savedBodies["facebook-main"]).toEqual({
     id: "facebook-main",
     name: "Simulated Reality",
     provider: "facebook",
@@ -84,9 +94,25 @@ test("configures and verifies a Facebook Connection without accepting its token"
     credentialRefs: { accessToken: "FACEBOOK_PAGE_ACCESS_TOKEN" },
     actorLogin: "connections-e2e",
   });
-  expect(savedBody).not.toHaveProperty("accessToken");
-  await page.getByRole("button", { name: "Verify Connection" }).click();
-  await expect(page.getByText("Connected", { exact: true })).toBeVisible();
+  expect(savedBodies["facebook-main"]).not.toHaveProperty("accessToken");
+  await facebookCard.getByRole("button", { name: "Verify Connection" }).click();
+
+  const instagramCard = page.locator('[aria-label="Instagram connection"]');
+  await instagramCard.getByRole("textbox", { name: "Name" }).fill("Kody Creator");
+  await instagramCard.getByRole("textbox", { name: "Instagram account ID" }).fill("17841400000000000");
+  await instagramCard.getByRole("button", { name: "Save Connection" }).click();
+  await expect(page.getByText("Instagram connection saved", { exact: true })).toBeVisible();
+  expect(savedBodies["instagram-main"]).toEqual({
+    id: "instagram-main",
+    name: "Kody Creator",
+    provider: "instagram",
+    accountType: "professional",
+    externalId: "17841400000000000",
+    credentialRefs: { accessToken: "INSTAGRAM_ACCESS_TOKEN" },
+    actorLogin: "connections-e2e",
+  });
+  await instagramCard.getByRole("button", { name: "Verify Connection" }).click();
+  await expect(page.getByText("Connected", { exact: true })).toHaveCount(2);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

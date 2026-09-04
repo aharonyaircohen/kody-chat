@@ -11,6 +11,17 @@ export interface TableDef {
 }
 
 export const TABLES: readonly TableDef[] = [
+  { table: "apps", naturalKey: ["appId"], upsertIndex: "by_app" },
+  {
+    table: "appDeployments",
+    naturalKey: ["appId", "deploymentId"],
+    upsertIndex: "by_deployment",
+  },
+  {
+    table: "appEvents",
+    naturalKey: ["appId", "eventId"],
+    upsertIndex: "by_event",
+  },
   {
     table: "definitionHeads",
     naturalKey: ["kind", "slug"],

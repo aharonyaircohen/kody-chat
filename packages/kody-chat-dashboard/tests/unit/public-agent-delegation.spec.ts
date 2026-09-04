@@ -24,6 +24,7 @@ import {
 } from "../../app/api/kody/chat/kody/public-agent-delegation";
 import { publicAgentPurpose } from "../../app/api/kody/chat/kody/public-agent-definition";
 import { COMPLETE_PROJECT_ASSESSMENT } from "../fixtures/project-assessment-report";
+import { FOLLOW_UP_QUESTION_CONTRACT } from "../../src/dashboard/lib/chat-defaults/defaults";
 
 const roster = [
   {
@@ -63,9 +64,7 @@ it("requires delegated prose to end with a relevant follow-up question", () => {
     ],
   });
 
-  expect(input.system).toContain(
-    "Every prose final reply must end with one short, relevant follow-up question",
-  );
+  expect(input.system).toContain(FOLLOW_UP_QUESTION_CONTRACT);
   expect(input.system).toContain(
     "Never claim data is in a card, table, or view unless rendered-view evidence is present",
   );
@@ -290,6 +289,11 @@ describe("public Agent delegation", () => {
         system: expect.stringContaining(
           "copied character-for-character from actual tool evidence",
         ),
+      }),
+    );
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining(FOLLOW_UP_QUESTION_CONTRACT),
       }),
     );
     expect(generate).toHaveBeenCalledWith(

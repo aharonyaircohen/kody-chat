@@ -96,10 +96,41 @@ export async function allocateSharedIps(
   }
 }
 
+export async function allocatePrivateIp(
+  appName: string,
+  token: string,
+): Promise<void> {
+  const mutation = `
+    mutation AllocatePrivateIp($appId: ID!) {
+      allocateIpAddress(input: { appId: $appId, type: private_v6 }) { ipAddress { address } }
+    }
+  `;
+  const res = await fetch(FLY_GRAPHQL, {
+    method: "POST",
+    headers: authHeader(token),
+    body: JSON.stringify({ query: mutation, variables: { appId: appName } }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  await expectOk(res, "allocatePrivateIp");
+  const data = (await res.json()) as { errors?: Array<{ message: string }> };
+  if (data.errors?.length) {
+    const messages = data.errors.map((error) => error.message).join("; ");
+    if (!/already|exists/i.test(messages))
+      throw new Error(`allocatePrivateIp: ${messages}`);
+  }
+}
+
 export async function listMachines(
   appName: string,
   token: string,
-): Promise<Array<{ id: string; state: string }>> {
+): Promise<
+  Array<{
+    id: string;
+    state: string;
+    region?: string;
+    config?: { image?: string; env?: Record<string, string> };
+  }>
+> {
   const res = await fetch(
     `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines`,
     {
@@ -109,8 +140,18 @@ export async function listMachines(
   );
   if (res.status === 404) return [];
   await expectOk(res, "listMachines");
-  const data = (await res.json()) as Array<{ id: string; state: string }>;
-  return data.map((m) => ({ id: m.id, state: m.state }));
+  const data = (await res.json()) as Array<{
+    id: string;
+    state: string;
+    region?: string;
+    config?: { image?: string; env?: Record<string, string> };
+  }>;
+  return data.map((m) => ({
+    id: m.id,
+    state: m.state,
+    region: m.region,
+    config: m.config,
+  }));
 }
 
 export async function destroyMachine(
@@ -159,6 +200,7 @@ export interface CreatePreviewMachineInput {
   region: string;
   image: string;
   internalPort?: number;
+  additionalPorts?: number[];
   /** Runtime env (vault secrets) — needed for SSR pages that read
    *  DATABASE_URL, BLOB_READ_WRITE_TOKEN, etc. on each request. */
   env?: Record<string, string>;
@@ -171,6 +213,10 @@ export interface CreatePreviewMachineInput {
   /** Re-enable a periodic HTTP health check. OFF by default — a check pings
    *  the machine forever, defeating `autostop: "suspend"`. */
   healthCheck?: boolean;
+  skipServiceRegistration?: boolean;
+  publicServices?: boolean;
+  mounts?: Array<{ volumeId: string; path: string }>;
+  processGroup?: string;
 }
 
 function autostopForPreview(
@@ -198,29 +244,55 @@ export async function createPreviewMachine(
   const idleSuspend = input.idleSuspend !== false; // default ON
   const body = {
     region: input.region,
+    ...(input.skipServiceRegistration
+      ? { skip_service_registration: true }
+      : {}),
     config: {
       image: input.image,
+      ...(input.processGroup
+        ? { metadata: { fly_process_group: input.processGroup } }
+        : {}),
+      ...(input.mounts?.length
+        ? {
+            mounts: input.mounts.map((mount) => ({
+              volume: mount.volumeId,
+              path: mount.path,
+            })),
+          }
+        : {}),
       env: input.env ?? {},
       auto_destroy: false,
       restart: { policy: "always" },
       guest: { cpu_kind: "shared", cpus, memory_mb: memoryMb },
-      services: [
-        {
-          ports: [
-            { port: 443, handlers: ["tls", "http"], force_https: false },
-            { port: 80, handlers: ["http"] },
-          ],
-          protocol: "tcp",
-          internal_port: internalPort,
-          // The Fly *Machines API* names these `autostop`/`autostart`.
-          // The fly.toml names (`auto_stop_machines`/`auto_start_machines`)
-          // are SILENTLY DROPPED here — which is why every preview ran 24/7
-          // (no autostop) and won't wake once stopped (no autostart).
-          autostop: autostopForPreview(idleSuspend, memoryMb),
-          autostart: true,
-          min_machines_running: 0,
-        },
-      ],
+      ...(input.publicServices === false
+        ? {}
+        : {
+            services: [
+              {
+                ports: [
+                  { port: 443, handlers: ["tls", "http"], force_https: false },
+                  { port: 80, handlers: ["http"] },
+                ],
+                protocol: "tcp",
+                internal_port: internalPort,
+                // The Fly *Machines API* names these `autostop`/`autostart`.
+                // The fly.toml names (`auto_stop_machines`/`auto_start_machines`)
+                // are SILENTLY DROPPED here — which is why every preview ran 24/7
+                // (no autostop) and won't wake once stopped (no autostart).
+                autostop: autostopForPreview(idleSuspend, memoryMb),
+                autostart: true,
+                min_machines_running: 0,
+              },
+              ...(input.additionalPorts ?? []).map((port) => ({
+                ports: [{ port, handlers: ["http"] }],
+                protocol: "tcp",
+                internal_port: port,
+                autostop: autostopForPreview(idleSuspend, memoryMb),
+                autostart: true,
+                min_machines_running: 0,
+              })),
+            ],
+          }),
       // By default NO machine-level `checks`: a periodic HTTP check (we had
       // GET / every 15s) issues a request to the machine forever, so Fly
       // never sees it as idle and `autostop: "suspend"` can never fire. Opt
@@ -248,7 +320,7 @@ export async function createPreviewMachine(
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const res = await fetch(
-      `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines?skip_launch=true`,
+      `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
       {
         method: "POST",
         headers: authHeader(token),
@@ -268,4 +340,81 @@ export async function createPreviewMachine(
     await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
   }
   throw lastErr ?? new Error("createPreviewMachine failed (unknown)");
+}
+
+export async function waitForMachineStarted(
+  appName: string,
+  machineId: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/wait?state=started&timeout=60`,
+    { headers: authHeader(token), signal: AbortSignal.timeout(100_000) },
+  );
+  await expectOk(res, "waitForMachineStarted");
+}
+
+async function machineAction(
+  appName: string,
+  machineId: string,
+  action: "start" | "stop" | "cordon" | "uncordon",
+  token: string,
+): Promise<void> {
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/${action}`,
+    {
+      method: "POST",
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+  if (action === "start" && res.status === 409) return;
+  await expectOk(res, action);
+}
+export const startMachine = async (
+  appName: string,
+  machineId: string,
+  token: string,
+) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      return await machineAction(appName, machineId, "start", token);
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("start failed: 412"))
+        throw error;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 2_000));
+    }
+  }
+  throw new Error("start failed: Machine did not become startable within 60s");
+};
+export const stopMachine = (
+  appName: string,
+  machineId: string,
+  token: string,
+) => machineAction(appName, machineId, "stop", token);
+export const cordonMachine = (
+  appName: string,
+  machineId: string,
+  token: string,
+) => machineAction(appName, machineId, "cordon", token);
+export const uncordonMachine = (
+  appName: string,
+  machineId: string,
+  token: string,
+) => machineAction(appName, machineId, "uncordon", token);
+
+export async function snapshotVolume(
+  appName: string,
+  volumeId: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(appName)}/volumes/${encodeURIComponent(volumeId)}/snapshots`,
+    {
+      method: "POST",
+      headers: authHeader(token),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+  await expectOk(res, "snapshotVolume");
 }

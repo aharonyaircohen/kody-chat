@@ -1,7 +1,6 @@
 import {
   expect,
   resolveLiveGitHubUser,
-  signInLiveKodyAccount,
   test,
 } from "./live-test";
 import { openChatSetupSection } from "./support/chat-setup";
@@ -23,16 +22,11 @@ test("real Kody creates, updates, and protects self-configuration", async ({
 }) => {
   test.setTimeout(900_000);
   test.skip(
-    !BASE_URL ||
-      !TOKEN ||
-      !REPOSITORY ||
-      !process.env.E2E_KODY_EMAIL ||
-      !process.env.E2E_KODY_PASSWORD,
+    !BASE_URL || !TOKEN || !REPOSITORY,
     "Requires the live target, QA account, and tester repository",
   );
 
   const { owner, repo } = repositoryParts();
-  await signInLiveKodyAccount(page, BASE_URL);
   const user = await resolveLiveGitHubUser(page, BASE_URL, {
     "x-kody-token": TOKEN,
     "x-kody-owner": owner,

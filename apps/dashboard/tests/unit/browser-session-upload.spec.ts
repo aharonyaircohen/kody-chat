@@ -2,10 +2,39 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   browserUploadEndpoint,
+  resumeBrowserSession,
   stageBrowserUpload,
 } from "@dashboard/lib/previews/browser-session-client";
 
 describe("Fly browser repository upload", () => {
+  it("renews an existing browser through resume without supplying a URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          mode: "remote",
+          sessionId: "browser-fixed",
+          state: "running",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await resumeBrowserSession("octocat", "browser-fixed");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/kody/browser/session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          operation: "resume",
+          actorLogin: "octocat",
+          sessionId: "browser-fixed",
+        }),
+      }),
+    );
+    fetchMock.mockRestore();
+  });
+
   it("converts the authenticated stream URL into the direct upload endpoint", () => {
     expect(
       browserUploadEndpoint(

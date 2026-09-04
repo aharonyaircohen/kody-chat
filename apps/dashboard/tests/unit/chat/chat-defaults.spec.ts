@@ -15,6 +15,7 @@ import {
 } from "@dashboard/lib/chat-defaults";
 import {
   DEFAULT_IDENTITY_MD,
+  FOLLOW_UP_QUESTION_CONTRACT,
   DEFAULT_CHAT_CAPABILITY,
   DEFAULT_WORKFLOWS,
   DEFAULT_SKILLS,
@@ -63,7 +64,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "End prose with direction",
+      FOLLOW_UP_QUESTION_CONTRACT,
       "When no `## Current task` is present",
       "Execute selected issues without another approval",
       "github_search_code",
@@ -471,7 +472,8 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("Content Entries");
     expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
-    expect(CRITICAL_REMINDERS_MD).toContain("End prose with a question");
+    expect(CRITICAL_REMINDERS_MD).toContain("Contextual follow-up");
+    expect(CRITICAL_REMINDERS_MD).toContain(FOLLOW_UP_QUESTION_CONTRACT);
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });
 });

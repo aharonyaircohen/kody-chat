@@ -49,6 +49,9 @@ export const APPROVAL_REQUIRED_TOOL_NAMES = new Set([
   "create_or_update_workflow",
   "configure_kody",
   "guided_flow_create",
+  "create_app",
+  "manage_app",
+  "update_app",
 ]);
 
 function signature(encodedPayload: string, secret: string): Buffer {
@@ -271,6 +274,10 @@ function actionTitle(toolName: string, input: unknown): string {
       : `${verb} ${name}?`;
   }
   if (toolName === "guided_flow_create") return `Save GuidedFlow ${name}?`;
+  if (toolName === "create_app") return `Set up App ${name}?`;
+  if (toolName === "manage_app")
+    return `Run ${String(record.action ?? "action")} for App ${name}?`;
+  if (toolName === "update_app") return `Update App ${name}?`;
   return `Create task ${name}?`;
 }
 

@@ -174,6 +174,18 @@ export async function startBrowserSession(
   return await readResponse(response);
 }
 
+export async function resumeBrowserSession(
+  actorLogin: string,
+  sessionId: string,
+): Promise<BrowserSessionStatus> {
+  const response = await fetch("/api/kody/browser/session", {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify({ operation: "resume", actorLogin, sessionId }),
+  });
+  return await readResponse(response);
+}
+
 export async function actInBrowserSession(
   actorLogin: string,
   sessionId: string,

@@ -666,6 +666,107 @@ export default defineSchema({
     .index("by_scope", ["tenantId", "scopeKind", "scopeId", "status"])
     .index("by_tenant", ["tenantId", "approvedAt"]),
 
+  apps: defineTable({
+    tenantId: v.string(),
+    appId: v.string(),
+    name: v.string(),
+    slug: v.string(),
+    repository: v.string(),
+    branch: v.string(),
+    rootDirectory: v.string(),
+    detectedConfig: v.any(),
+    desiredStatus: v.union(
+      v.literal("running"),
+      v.literal("stopped"),
+      v.literal("deleted"),
+    ),
+    observedStatus: v.union(
+      v.literal("provisioning"),
+      v.literal("deploying"),
+      v.literal("running"),
+      v.literal("sleeping"),
+      v.literal("stopped"),
+      v.literal("unhealthy"),
+      v.literal("failed"),
+      v.literal("deleting"),
+      v.literal("deleted"),
+    ),
+    provider: v.any(),
+    exposure: v.union(v.literal("private"), v.literal("public")),
+    accessTokens: v.array(
+      v.object({
+        tokenId: v.string(),
+        name: v.string(),
+        tokenHash: v.string(),
+        createdAt: v.string(),
+        lastUsedAt: v.optional(v.string()),
+        revokedAt: v.optional(v.string()),
+      }),
+    ),
+    currentDeploymentId: v.optional(v.string()),
+    currentAction: v.optional(
+      v.object({
+        requestId: v.string(),
+        action: v.string(),
+        startedAt: v.string(),
+      }),
+    ),
+    secretNames: v.array(v.string()),
+    domains: v.array(v.any()),
+    storage: v.array(v.any()),
+    createdBy: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_slug", ["tenantId", "slug"])
+    .index("by_app", ["tenantId", "appId"])
+    .index("by_tenant", ["tenantId", "updatedAt"]),
+
+  appDeployments: defineTable({
+    tenantId: v.string(),
+    appId: v.string(),
+    deploymentId: v.string(),
+    requestId: v.string(),
+    commitSha: v.string(),
+    buildPlan: v.any(),
+    imageRef: v.optional(v.string()),
+    builderMachineId: v.optional(v.string()),
+    runtimeMachineId: v.optional(v.string()),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("building"),
+      v.literal("releasing"),
+      v.literal("verifying"),
+      v.literal("running"),
+      v.literal("failed"),
+      v.literal("superseded"),
+      v.literal("rolled_back"),
+    ),
+    stages: v.array(v.any()),
+    error: v.optional(v.any()),
+    requestedBy: v.string(),
+    callbackTokenHash: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    completedAt: v.optional(v.string()),
+  })
+    .index("by_deployment", ["tenantId", "appId", "deploymentId"])
+    .index("by_request", ["tenantId", "appId", "requestId"])
+    .index("by_tenant_request", ["tenantId", "requestId"])
+    .index("by_app", ["tenantId", "appId", "createdAt"]),
+
+  appEvents: defineTable({
+    tenantId: v.string(),
+    appId: v.string(),
+    eventId: v.string(),
+    kind: v.string(),
+    actor: v.any(),
+    payload: v.any(),
+    timestamp: v.string(),
+  })
+    .index("by_event", ["tenantId", "appId", "eventId"])
+    .index("by_app", ["tenantId", "appId", "timestamp"]),
+
   reports: defineTable({
     tenantId: v.string(),
     slug: v.string(),

@@ -83,6 +83,7 @@ describe("settings navigation", () => {
 
   it("groups content entries, models, and settings into one side-panel section", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Content")).toEqual([
+      "/connections",
       "/content/entries",
       "/content/models",
       "/snippets",
@@ -112,6 +113,13 @@ describe("settings navigation", () => {
         }),
       ]),
     );
+  });
+
+  it("exposes repository-scoped agent connections", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Infrastructure")).toContain(
+      "/mcp",
+    );
+    expect(navLabelForPath("/mcp")).toBe("Agent connections");
   });
 
   it("keeps Dashboard as the only attention-style home entry", () => {
@@ -196,11 +204,14 @@ describe("settings navigation", () => {
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Workspace")).toEqual([
       "/org",
+      "/apps",
       "/messages",
       "/reports",
       "/files",
       "/changelog",
     ]);
+    expect(navLabelForPath("/apps")).toBe("Apps");
+    expect(navLabelForPath("/apps/storefront")).toBe("Apps");
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Knowledge")).toEqual([
       "/docs",
       "/context",

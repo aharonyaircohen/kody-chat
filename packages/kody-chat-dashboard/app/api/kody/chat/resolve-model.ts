@@ -68,6 +68,7 @@ async function resolveModelCredential(
 
 export type ResolvedChatModel = {
   model: LanguageModel;
+  plannerModel: LanguageModel;
   resolvedModel: ChatModel;
   apiKey: string;
 };
@@ -302,9 +303,17 @@ export async function resolveChatModel(
         ),
       };
     }
+    const automaticOptions = {
+      onFallback: options.onAutomaticFallback,
+    };
     return {
-      model: createAutomaticLanguageModel(resolvedCandidates, {
-        onFallback: options.onAutomaticFallback,
+      model: createAutomaticLanguageModel(
+        resolvedCandidates,
+        automaticOptions,
+      ) as LanguageModel,
+      plannerModel: createAutomaticLanguageModel(resolvedCandidates, {
+        ...automaticOptions,
+        candidateTimeoutMs: 4_000,
       }) as LanguageModel,
       resolvedModel: {
         ...firstResolvedModel,
@@ -391,5 +400,5 @@ export async function resolveChatModel(
     options,
   ) as LanguageModel;
 
-  return { model, resolvedModel, apiKey };
+  return { model, plannerModel: model, resolvedModel, apiKey };
 }

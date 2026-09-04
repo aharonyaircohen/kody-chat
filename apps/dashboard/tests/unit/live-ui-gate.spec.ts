@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { mkdtempSync } from "node:fs";
 
 import {
   assertLiveGateReport,
   assertLiveJourneyCoverage,
   buildPlaywrightArguments,
   buildLiveGateMetadata,
+  configuredSecretValues,
+  createStreamingSecretRedactor,
   isExpectedBrowserAbort,
   redactDiagnosticText,
+  sanitizeLiveGateArtifacts,
   runLiveServicePreflight,
   sanitizeDiagnosticUrl,
   selectLiveJourneys,
@@ -230,7 +236,7 @@ describe("live UI service preflight", () => {
           { status: 200 },
         );
       }
-      if (url.endsWith("/api/kody/models")) {
+      if (url.endsWith("/api/kody/repository-models")) {
         return new Response(
           JSON.stringify({
             models: [
@@ -273,6 +279,12 @@ describe("live UI service preflight", () => {
       { name: "convex-service-auth", ok: true },
     ]);
     expect(requests).toHaveLength(5);
+    expect(requests.map((request) => request.url)).toContain(
+      "https://preview.example.test/api/kody/repository-models",
+    );
+    expect(requests.map((request) => request.url)).not.toContain(
+      "https://preview.example.test/api/kody/models",
+    );
     expect(JSON.stringify(requests)).toContain("x-kody-token");
     expect(JSON.stringify(requests)).toContain("serviceKey");
   });
@@ -308,6 +320,68 @@ describe("live UI diagnostic redaction", () => {
         "second-secret",
       ]),
     ).toBe("failed with [REDACTED] and [REDACTED]");
+  });
+
+  it("redacts secrets split across streamed process chunks", () => {
+    let output = "";
+    const redactor = createStreamingSecretRedactor([SECRET], (text: string) => {
+      output += text;
+    });
+
+    redactor.write(`authorization: Bearer ${SECRET.slice(0, 12)}`);
+    redactor.write(`${SECRET.slice(12)}\nnext line\n`);
+    redactor.end();
+
+    expect(output).toContain("authorization: Bearer [REDACTED]");
+    expect(output).not.toContain(SECRET);
+  });
+
+  it("collects only populated secret environment values", () => {
+    expect(
+      configuredSecretValues({
+        E2E_GITHUB_TOKEN: SECRET,
+        KODY_MASTER_KEY: "",
+        BASE_URL: "https://example.test",
+      }),
+    ).toEqual([SECRET]);
+  });
+
+  it("sanitizes text artifacts, replaces the unsafe HTML report, and removes unsafe binary artifacts", () => {
+    const root = mkdtempSync(join(tmpdir(), "kody-live-redaction-"));
+    const html = join(root, "html");
+    const artifacts = join(root, "artifacts");
+    mkdirSync(html, { recursive: true });
+    mkdirSync(artifacts, { recursive: true });
+    writeFileSync(
+      join(root, "results.json"),
+      JSON.stringify({ error: `authorization: Bearer ${SECRET}` }),
+    );
+    writeFileSync(
+      join(artifacts, "error-context.md"),
+      `token=${encodeURIComponent(SECRET)}`,
+    );
+    writeFileSync(
+      join(artifacts, "unsafe.bin"),
+      Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(SECRET)]),
+    );
+    writeFileSync(
+      join(html, "index.html"),
+      `<script>report=${Buffer.from(SECRET).toString("base64")}</script>`,
+    );
+
+    const result = sanitizeLiveGateArtifacts(root, [SECRET]);
+
+    expect(readFileSync(join(root, "results.json"), "utf8")).toContain(
+      "[REDACTED]",
+    );
+    expect(
+      readFileSync(join(artifacts, "error-context.md"), "utf8"),
+    ).not.toContain(encodeURIComponent(SECRET));
+    expect(readFileSync(join(html, "index.html"), "utf8")).toContain(
+      "Sanitized live UI report",
+    );
+    expect(result.removedFiles).toContain("artifacts/unsafe.bin");
+    expect(result.remainingSecretMatches).toEqual([]);
   });
 
   it("distinguishes navigation cancellation from real network failure", () => {
@@ -348,11 +422,12 @@ describe("live UI gate manifest", () => {
       "tests/e2e/vibe-live-full-flow.spec.ts",
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
+      "tests/e2e/views-real-browser-live.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(24);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(24);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(25);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(25);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      24,
+      25,
     );
   });
 
@@ -400,5 +475,16 @@ describe("live UI gate manifest", () => {
     expect(packageJson.scripts?.["test:e2e:live:preflight"]).toBe(
       "node scripts/live-ui-gate/run.mjs --preflight-only",
     );
+  });
+
+  it("captures and sanitizes Playwright output and artifacts before reporting", () => {
+    const runner = readFileSync(
+      new URL("../../scripts/live-ui-gate/run.mjs", import.meta.url),
+      "utf8",
+    );
+
+    expect(runner).toContain("createStreamingSecretRedactor");
+    expect(runner).toContain("sanitizeLiveGateArtifacts");
+    expect(runner).not.toContain('stdio: "inherit"');
   });
 });

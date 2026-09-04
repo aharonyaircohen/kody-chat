@@ -49,6 +49,12 @@ describe("dashboard navigation catalog", () => {
     expect(catalog).toContain("secrets: Secrets -> /secrets");
     expect(catalog).toContain("connections: Connections -> /connections");
     expect(catalog).toContain("Aliases: secret, secrets, vault");
+    expect(catalog).toContain(
+      "Aliases: connection, connections, external account, provider connection, facebook page api",
+    );
+    expect(catalog).not.toContain(
+      "Aliases: connection, connections, facebook, facebook page, social publishing",
+    );
     expect(catalog).toContain("task: Task detail -> /:issueNumber");
   });
 

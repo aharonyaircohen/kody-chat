@@ -12,6 +12,7 @@ import { createMacroTools } from "../tools/macros-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createRemoteTools } from "../tools/remote-tools";
 import { createReportTools } from "../tools/reports-tools";
+import { createAppsTools } from "../tools/apps-tools";
 
 const DASHBOARD_HOST_PLUGIN_ID = "dashboard-host";
 
@@ -60,6 +61,7 @@ export const createDashboardHostTools: ChatPluginServerTools = (ctx) => {
   const actorLogin = actorLoginFrom(ctx);
   const octokit = createUserOctokit(ctx.token);
   return adaptTools({
+    ...createAppsTools({ token: ctx.token, owner: ctx.owner, repo: ctx.repo }),
     ...createMacroTools({
       octokit,
       owner: ctx.owner,

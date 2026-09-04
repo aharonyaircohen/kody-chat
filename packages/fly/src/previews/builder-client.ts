@@ -90,6 +90,48 @@ export interface SpawnBuilderResult {
   expectedUrl: string;
 }
 
+export interface SpawnAppBuilderInput {
+  repo: string;
+  ref: string;
+  appName: string;
+  imageTag: string;
+  buildPlan: {
+    kind: string;
+    rootDirectory: string;
+    buildCommand?: string;
+    startCommand?: string;
+    port?: number;
+    apiPort?: number;
+    imageRef?: string;
+    dockerfilePath?: string;
+    dockerBuildTarget?: string;
+    runtimeEnv?: Record<string, string>;
+    generatedSecretNames?: string[];
+    verification?: { path: string; expectedStatus: number };
+  };
+  exposure: "private" | "public";
+  tokenHashes: string[];
+  runtimeSecrets: Record<string, string>;
+  runtimeEnv: Record<string, string>;
+  flyToken: string;
+  flyOrgSlug: string;
+  flyRegion: string;
+  githubToken?: string;
+  gatewayImage?: string;
+  storage?: Array<{ volumeId: string; mountPath: string }>;
+  callback?: {
+    url: string;
+    token: string;
+    tenantId: string;
+    appId: string;
+    deploymentId: string;
+    requestId: string;
+  };
+  launch?: { repository: string; appId: string; verifyKey: string };
+  builderCpus?: number;
+  builderMemoryMb?: number;
+}
+
 export interface PreviewBuilderStatus {
   state: "building" | "failed";
   machineId?: string;
@@ -421,5 +463,91 @@ export async function spawnPreviewBuilder(
   return {
     machineId: created.id,
     expectedUrl,
+  };
+}
+
+export async function spawnAppBuilder(
+  input: SpawnAppBuilderInput,
+): Promise<SpawnBuilderResult> {
+  const existing = await pruneBuilderMachines(
+    input.flyToken,
+    input.appName,
+    input.ref,
+  );
+  if (existing?.id)
+    return {
+      machineId: existing.id,
+      expectedUrl: `https://${input.appName}.fly.dev`,
+    };
+  const body = {
+    config: {
+      image: BUILDER_IMAGE,
+      env: {
+        KODY_BUILDER_KIND: "app",
+        REPO: input.repo,
+        REF: input.ref,
+        APP_NAME: input.appName,
+        IMAGE_TAG: input.imageTag,
+        APP_BUILD_PLAN_JSON: JSON.stringify(input.buildPlan),
+        APP_RUNTIME_SECRETS_JSON: JSON.stringify(input.runtimeSecrets),
+        APP_RUNTIME_ENV_JSON: JSON.stringify(input.runtimeEnv),
+        KODY_APP_EXPOSURE: input.exposure,
+        KODY_APP_TOKEN_HASHES: input.tokenHashes.join(","),
+        FLY_API_TOKEN: input.flyToken,
+        FLY_ORG_SLUG: input.flyOrgSlug,
+        FLY_REGION: input.flyRegion,
+        ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
+        ...(input.gatewayImage
+          ? { KODY_APP_GATEWAY_IMAGE: input.gatewayImage }
+          : {}),
+        ...(input.storage?.length
+          ? { APP_STORAGE_JSON: JSON.stringify(input.storage) }
+          : {}),
+        ...(input.callback
+          ? { APP_CALLBACK_JSON: JSON.stringify(input.callback) }
+          : {}),
+        ...(input.launch
+          ? {
+              KODY_APP_REPOSITORY: input.launch.repository,
+              KODY_APP_ID: input.launch.appId,
+              KODY_APP_LAUNCH_VERIFY_KEY: input.launch.verifyKey,
+            }
+          : {}),
+      },
+      auto_destroy: true,
+      restart: { policy: "no" },
+      guest: {
+        cpu_kind: "shared",
+        cpus: input.builderCpus ?? DEFAULT_BUILDER_CPUS,
+        memory_mb: input.builderMemoryMb ?? DEFAULT_BUILDER_MEMORY_MB,
+      },
+    },
+    region: input.flyRegion,
+  };
+  const res = await fetch(
+    `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(BUILDER_HOST_APP)}/machines`,
+    {
+      method: "POST",
+      headers: builderAuthHeaders(input.flyToken),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
+    },
+  );
+  if (!res.ok) {
+    const responseBody = (await res.text()).slice(0, 300);
+    const envValueLengths = Object.fromEntries(
+      Object.entries(body.config.env).map(([name, value]) => [
+        name,
+        String(value).length,
+      ]),
+    );
+    throw new Error(
+      `app builder spawn failed: ${res.status} ${responseBody}; token fingerprint=${createHash("sha256").update(input.flyToken).digest("hex").slice(0, 12)}; request bytes=${JSON.stringify(body).length}; env value lengths=${JSON.stringify(envValueLengths)}`,
+    );
+  }
+  const created = (await res.json()) as { id: string };
+  return {
+    machineId: created.id,
+    expectedUrl: `https://${input.appName}.fly.dev`,
   };
 }

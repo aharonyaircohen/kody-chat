@@ -73,10 +73,19 @@ let actionWindowStartedAt = Date.now();
 let actionCount = 0;
 let streamInputWindowStartedAt = Date.now();
 let streamInputCount = 0;
+const DIRECT_PAGE_VIEWPORT = { width: 1392, height: 760 } as const;
+let embeddedViewport = { width: 1280, height: 720 };
+let directClientCount = 0;
+
+function normalizedViewport(rawWidth: number, rawHeight: number) {
+  return {
+    width: Math.max(320, Math.min(1920, Math.round(rawWidth / 2) * 2)),
+    height: Math.max(480, Math.min(1800, Math.round(rawHeight / 2) * 2)),
+  };
+}
 
 async function resizePage(rawWidth: number, rawHeight: number) {
-  const width = Math.max(320, Math.min(1920, Math.round(rawWidth / 2) * 2));
-  const height = Math.max(480, Math.min(1800, Math.round(rawHeight / 2) * 2));
+  const { width, height } = normalizedViewport(rawWidth, rawHeight);
   await requirePage().setViewportSize({ width, height });
   return { width, height };
 }
@@ -143,13 +152,40 @@ function ticketFromRequest(req: http.IncomingMessage): string | null {
 function directLoginHtml(): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kody direct browser login</title><style>html,body{width:100%;height:100%;margin:0;background:#111}#screen{width:100%;height:100%}</style></head>
-<body><div id="screen"></div><script type="module">
+<title>Kody direct browser login</title><style>html,body{width:100%;height:100%;margin:0;background:#111}#screen{width:100%;height:100%}#status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#ddd;font:14px system-ui;z-index:1}#status[hidden]{display:none}</style></head>
+<body><div id="screen"></div><div id="status">Connecting browser…</div><script type="module" src="/direct/client.js"></script></body></html>`;
+}
+
+function directClientJavaScript(): string {
+  return `
 import RFB from "/direct/core/rfb.js";
 history.replaceState(null, "", "/direct");
-const rfb = new RFB(document.getElementById("screen"), "wss://" + location.host + "/direct-stream");
-rfb.scaleViewport = true; rfb.resizeSession = true; rfb.showDotCursor = true;
-</script></body></html>`;
+const screen = document.getElementById("screen");
+const status = document.getElementById("status");
+let reconnectTimer;
+let activeRfb;
+function connect() {
+  window.clearTimeout(reconnectTimer);
+  if (activeRfb) return;
+  screen.replaceChildren();
+  status.hidden = false;
+  status.textContent = "Reconnecting browser…";
+  const rfb = new RFB(screen, "wss://" + location.host + "/direct-stream");
+  activeRfb = rfb;
+  rfb.scaleViewport = true; rfb.resizeSession = false; rfb.showDotCursor = true;
+  rfb.addEventListener("connect", () => {
+    if (activeRfb === rfb) status.hidden = true;
+  });
+  rfb.addEventListener("disconnect", () => {
+    if (activeRfb !== rfb) return;
+    activeRfb = undefined;
+    status.hidden = false;
+    status.textContent = "Reconnecting browser…";
+    reconnectTimer = window.setTimeout(connect, 1_000);
+  });
+}
+connect();
+`;
 }
 
 function directContentType(filePath: string): string {
@@ -178,14 +214,24 @@ async function serveDirectAsset(
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
       "Content-Security-Policy":
-        "default-src 'self'; connect-src 'self' wss:; style-src 'unsafe-inline'",
+        "default-src 'self'; connect-src 'self' wss:; img-src 'self' data:; style-src 'unsafe-inline'",
       ...(queryTicket
         ? {
-            "Set-Cookie": `${DIRECT_COOKIE}=${encodeURIComponent(queryTicket)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=300`,
+            "Set-Cookie": `${DIRECT_COOKIE}=${encodeURIComponent(queryTicket)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
           }
         : {}),
     });
     res.end(html);
+    return;
+  }
+  if (pathname === "/direct/client.js") {
+    const client = directClientJavaScript();
+    res.writeHead(200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Content-Length": Buffer.byteLength(client),
+      "Cache-Control": "no-store",
+    });
+    res.end(client);
     return;
   }
   const relative = pathname.slice("/direct/".length);
@@ -384,8 +430,10 @@ async function stagedUploadPaths(uploadId: string): Promise<string[]> {
   return entries.map((entry) => path.join(directory, entry));
 }
 
+const CHROMIUM_READY_ATTEMPTS = 240;
+
 async function waitForChromium(): Promise<void> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < CHROMIUM_READY_ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch("http://127.0.0.1:9222/json/version");
       if (response.ok) return;
@@ -395,6 +443,33 @@ async function waitForChromium(): Promise<void> {
     await delay(250);
   }
   throw new Error("chromium_start_timeout");
+}
+
+async function waitForVnc(): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const socket = net.connect({ host: "127.0.0.1", port: 5900 });
+        const timeout = setTimeout(() => {
+          socket.destroy();
+          reject(new Error("vnc_connect_timeout"));
+        }, 1_000);
+        socket.once("data", (data) => {
+          clearTimeout(timeout);
+          socket.destroy();
+          if (data.toString("ascii", 0, 4) === "RFB ") resolve();
+          else reject(new Error("vnc_handshake_invalid"));
+        });
+        socket.once("error", (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+      return;
+    } catch {}
+    await delay(250);
+  }
+  throw new Error("vnc_start_timeout");
 }
 
 function attachPageEvents(page: Page): void {
@@ -554,6 +629,7 @@ async function installNetworkGuard(context: BrowserContext): Promise<void> {
 
 async function connectBrowser(): Promise<void> {
   await waitForChromium();
+  await waitForVnc();
   const browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
   activeContext = browser.contexts()[0] ?? (await browser.newContext());
   await activeContext.addInitScript({
@@ -616,7 +692,13 @@ async function executeAction(action: Record<string, unknown>) {
       );
       break;
     case "viewport": {
-      await resizePage(Number(action.width), Number(action.height));
+      embeddedViewport = normalizedViewport(
+        Number(action.width),
+        Number(action.height),
+      );
+      if (directClientCount === 0) {
+        await resizePage(embeddedViewport.width, embeddedViewport.height);
+      }
       break;
     }
     case "pointer": {
@@ -718,11 +800,7 @@ async function executeAction(action: Record<string, unknown>) {
           if (element.id) return `#${CSS.escape(element.id)}`;
           const parts: string[] = [];
           let current: Element | null = element;
-          while (
-            current &&
-            current !== document.documentElement &&
-            parts.length < 6
-          ) {
+          while (current && current !== document.documentElement) {
             const siblings = current.parentElement
               ? Array.from(current.parentElement.children).filter(
                   (node) => node.tagName === current!.tagName,
@@ -731,6 +809,10 @@ async function executeAction(action: Record<string, unknown>) {
             parts.unshift(
               `${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(current) + 1})` : ""}`,
             );
+            const candidate = parts.join(" > ");
+            if (document.querySelectorAll(candidate).length === 1) {
+              return candidate;
+            }
             current = current.parentElement;
           }
           return parts.join(" > ");
@@ -992,11 +1074,7 @@ async function executeAction(action: Record<string, unknown>) {
           if (testId) return `[data-testid="${CSS.escape(testId)}"]`;
           const parts: string[] = [];
           let current: Element | null = element;
-          while (
-            current &&
-            current !== document.documentElement &&
-            parts.length < 8
-          ) {
+          while (current && current !== document.documentElement) {
             const siblings = current.parentElement
               ? Array.from(current.parentElement.children).filter(
                   (node) => node.tagName === current!.tagName,
@@ -1005,6 +1083,10 @@ async function executeAction(action: Record<string, unknown>) {
             parts.unshift(
               `${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(current) + 1})` : ""}`,
             );
+            const candidate = parts.join(" > ");
+            if (document.querySelectorAll(candidate).length === 1) {
+              return candidate;
+            }
             current = current.parentElement;
           }
           return parts.join(" > ");
@@ -1152,6 +1234,10 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 directWebsocketServer.on("connection", (websocket) => {
+  directClientCount += 1;
+  if (directClientCount === 1) {
+    void resizePage(DIRECT_PAGE_VIEWPORT.width, DIRECT_PAGE_VIEWPORT.height);
+  }
   const vnc = net.connect({ host: "127.0.0.1", port: 5900 });
   vnc.on("data", (data) => {
     if (websocket.readyState === WebSocket.OPEN)
@@ -1160,8 +1246,18 @@ directWebsocketServer.on("connection", (websocket) => {
   vnc.on("error", () => websocket.close(1011, "direct_browser_unavailable"));
   vnc.on("close", () => websocket.close());
   websocket.on("message", (data) => vnc.write(data));
-  websocket.on("close", () => vnc.destroy());
-  websocket.on("error", () => vnc.destroy());
+  let released = false;
+  const releaseDirectClient = () => {
+    vnc.destroy();
+    if (released) return;
+    released = true;
+    directClientCount = Math.max(0, directClientCount - 1);
+    if (directClientCount === 0) {
+      void resizePage(embeddedViewport.width, embeddedViewport.height);
+    }
+  };
+  websocket.on("close", releaseDirectClient);
+  websocket.on("error", releaseDirectClient);
 });
 
 websocketServer.on("connection", (websocket) => {

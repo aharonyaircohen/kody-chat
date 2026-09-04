@@ -118,6 +118,19 @@ test.describe("Route smoke", () => {
       "src",
       websiteUrl,
     );
+    const browserMenu = page.getByRole("button", { name: "Browser: Iframe" });
+    await expect(browserMenu).toBeVisible();
+    await browserMenu.click();
+    await expect(page.getByText("Iframe fallback")).toBeVisible();
+    await expect(
+      page.getByText("Fly is not configured for this repository."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Open Fly browser" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Open website locally" }),
+    ).toHaveAttribute("href", `${websiteUrl}/`);
     await expect(
       page.getByText("External preview blocked on localhost"),
     ).toHaveCount(0);

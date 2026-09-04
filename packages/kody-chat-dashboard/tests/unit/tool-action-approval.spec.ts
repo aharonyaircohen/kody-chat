@@ -40,24 +40,24 @@ describe("tool action approval", () => {
     "copy_capability",
     "configure_kody",
     "guided_flow_create",
-  ])(
-    "protects %s with the same exact-action approval",
-    async (toolName) => {
-      const execute = vi.fn();
-      const tools = stageToolsForApproval(
-        { [toolName]: { execute } },
-        { secret: "github-token", context },
-      ) as Record<string, { execute(input: unknown): Promise<unknown> }>;
+    "create_app",
+    "manage_app",
+    "update_app",
+  ])("protects %s with the same exact-action approval", async (toolName) => {
+    const execute = vi.fn();
+    const tools = stageToolsForApproval(
+      { [toolName]: { execute } },
+      { secret: "github-token", context },
+    ) as Record<string, { execute(input: unknown): Promise<unknown> }>;
 
-      const result = await tools[toolName]!.execute({ slug: "ci-watch" });
+    const result = await tools[toolName]!.execute({ slug: "ci-watch" });
 
-      expect(result).toMatchObject({
-        action: "render_view",
-        rendererSlug: "approval-card",
-      });
-      expect(execute).not.toHaveBeenCalled();
-    },
-  );
+    expect(result).toMatchObject({
+      action: "render_view",
+      rendererSlug: "approval-card",
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
 
   it("runs the exact server-bound action after approval", async () => {
     const directive = createToolActionApproval({

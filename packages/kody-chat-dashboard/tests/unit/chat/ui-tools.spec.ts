@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { createUiTools } from "../../../app/api/kody/chat/tools/ui-tools";
 import { FINAL_ANSWER_TOOL } from "../../../src/dashboard/lib/chat-output-tools";
+import { FOLLOW_UP_QUESTION_CONTRACT } from "../../../src/dashboard/lib/chat-defaults/defaults";
 import { DASHBOARD_NAVIGATE_DIRECTIVE } from "../../../src/dashboard/lib/chat-ui-actions";
 import type { ViewRendererDefinition } from "../../../src/dashboard/lib/view-renderers/standalone-renderer-store";
 
@@ -197,6 +198,96 @@ describe("ui tools", () => {
     });
   });
 
+  it("rejects proactive dashboard navigation when the user asked only for guidance", async () => {
+    const tools = createUiTools({
+      userText: "i want to post text to fb, guide me how",
+    }) as Record<string, unknown>;
+    const dashboardNavigate = tools.dashboard_navigate as {
+      execute: (value: {
+        routeId: string;
+        reason: string;
+      }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      dashboardNavigate.execute({
+        routeId: "connections",
+        reason: "Opening Connections to configure Facebook.",
+      }),
+    ).resolves.toEqual({ error: "dashboard_navigation_not_requested" });
+  });
+
+  it("allows dashboard navigation when the user explicitly requests it", async () => {
+    const tools = createUiTools({
+      userText: "Open the Views page so I can use the browser.",
+    }) as Record<string, unknown>;
+    const dashboardNavigate = tools.dashboard_navigate as {
+      execute: (value: {
+        routeId: string;
+        reason: string;
+      }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      dashboardNavigate.execute({
+        routeId: "preview",
+        reason: "Opening Views.",
+      }),
+    ).resolves.toMatchObject({
+      action: DASHBOARD_NAVIGATE_DIRECTIVE,
+      routeId: "preview",
+      href: "/preview",
+    });
+  });
+
+  it("rejects a browser URL that Kody inferred instead of reading from the user", async () => {
+    const tools = createUiTools({
+      userText: "Open task 4017 in the page.",
+    }) as Record<string, unknown>;
+    const previewAct = tools.preview_act as {
+      execute: (value: {
+        op: "navigate";
+        url: string;
+        reason: string;
+      }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      previewAct.execute({
+        op: "navigate",
+        url: "/repo/acme/widgets/tasks/4017",
+        reason: "Opening task 4017.",
+      }),
+    ).resolves.toEqual({
+      error: "browser_navigation_url_not_requested",
+    });
+  });
+
+  it("allows browser navigation to an exact URL supplied by the user", async () => {
+    const tools = createUiTools({
+      userText: "Open https://example.com/docs in the page.",
+    }) as Record<string, unknown>;
+    const previewAct = tools.preview_act as {
+      execute: (value: {
+        op: "navigate";
+        url: string;
+        reason: string;
+      }) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(
+      previewAct.execute({
+        op: "navigate",
+        url: "https://example.com/docs",
+        reason: "Opening the requested URL.",
+      }),
+    ).resolves.toMatchObject({
+      action: "preview_act",
+      op: "navigate",
+      url: "https://example.com/docs",
+    });
+  });
+
   it("does not reclassify committed final text into a rendered view", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],
@@ -231,6 +322,17 @@ describe("ui tools", () => {
     ).resolves.toEqual({
       error: expect.stringContaining("follow-up question"),
     });
+  });
+
+  it("gives final-answer retries the self-contained follow-up contract", () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
+    }) as Record<string, unknown>;
+    const finalAnswer = tools[FINAL_ANSWER_TOOL] as {
+      description?: string;
+    };
+
+    expect(finalAnswer.description).toContain(FOLLOW_UP_QUESTION_CONTRACT);
   });
 
   it("returns a model-readable error for the legacy purpose/data shape", async () => {

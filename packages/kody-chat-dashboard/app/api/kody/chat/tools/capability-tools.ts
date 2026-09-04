@@ -49,17 +49,46 @@ const userBrowserRequirementsSchema = z.object({
   browserFileRoots: z.array(z.string().min(1)).optional(),
 });
 
-const browserCapabilityActionSchema = z.object({
+const browserCapabilityActionFields = {
   slug: z.string().min(1).max(64),
-  op: userBrowserActionSchema,
-  selector: z.string().min(1).max(2_000).optional(),
-  value: z.string().max(20_000).optional(),
-  url: z.string().url().max(4_096).optional(),
-  paths: z.array(z.string().min(1).max(500)).min(1).max(10).optional(),
-  dy: z.number().int().optional(),
-  ms: z.number().int().min(0).max(5_000).optional(),
   reason: z.string().min(1).max(200),
-});
+};
+
+export const browserCapabilityActionSchema = z.discriminatedUnion("op", [
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("navigate"),
+    url: z.string().url().max(4_096),
+  }),
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("click"),
+    selector: z.string().min(1).max(2_000),
+  }),
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("fill"),
+    selector: z.string().min(1).max(2_000),
+    value: z.string().max(20_000),
+  }),
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("upload"),
+    selector: z.string().min(1).max(2_000),
+    paths: z.array(z.string().min(1).max(500)).min(1).max(10),
+  }),
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("scroll"),
+    selector: z.string().min(1).max(2_000).optional(),
+    dy: z.number().int().optional(),
+  }),
+  z.object({
+    ...browserCapabilityActionFields,
+    op: z.literal("wait"),
+    ms: z.number().int().min(0).max(5_000).optional(),
+  }),
+]);
 
 function capabilityDetail(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -141,18 +170,13 @@ export function createCapabilityTools(ctx: Ctx) {
           return { error: "browser_action_not_allowed" };
         }
         if (input.op === "navigate") {
-          if (!input.url) return { error: "browser_url_required" };
           const origin = new URL(input.url).origin;
           if (!grant.origins.includes(origin)) {
             return { error: "browser_origin_not_allowed" };
           }
         }
-        if (["click", "fill", "upload"].includes(input.op) && !input.selector) {
-          return { error: "browser_selector_required" };
-        }
         let paths: string[] | undefined;
         if (input.op === "upload") {
-          if (!input.paths?.length) return { error: "browser_files_required" };
           paths = input.paths
             .map(normalizedRepoPath)
             .filter((path): path is string => !!path);
@@ -163,19 +187,37 @@ export function createCapabilityTools(ctx: Ctx) {
             return { error: "browser_file_not_allowed" };
           }
         }
-        return {
+        const directive: PreviewActDirective = {
           action: PREVIEW_ACT_DIRECTIVE,
           capabilitySlug: input.slug,
           allowedOrigins: grant.origins,
           op: input.op,
-          selector: input.selector,
-          value: input.value,
-          url: input.url,
-          paths,
-          dy: input.dy,
-          ms: input.ms,
           reason: input.reason,
         };
+        switch (input.op) {
+          case "navigate":
+            directive.url = input.url;
+            break;
+          case "click":
+            directive.selector = input.selector;
+            break;
+          case "fill":
+            directive.selector = input.selector;
+            directive.value = input.value;
+            break;
+          case "upload":
+            directive.selector = input.selector;
+            directive.paths = paths;
+            break;
+          case "scroll":
+            directive.selector = input.selector;
+            directive.dy = input.dy;
+            break;
+          case "wait":
+            directive.ms = input.ms;
+            break;
+        }
+        return directive;
       },
     }),
 
@@ -222,10 +264,35 @@ export function createCapabilityTools(ctx: Ctx) {
     }),
 
     run_capability: tool({
-      description: `Run one local or active Store Capability now as Kody in ${repoRef} through the Dashboard API.`,
+      description:
+        `Run one local or active Store Capability now as Kody in ${repoRef} through the Dashboard API. ` +
+        "User-session browser Capabilities stay in this chat and return the browser action tool to use next instead of being dispatched to a background runner.",
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
+        const detail = capabilityDetail(await ctx.readCapability(slug));
+        const contract =
+          typeof detail?.contract === "string" ? detail.contract : null;
+        let browserGrant;
+        try {
+          browserGrant = readUserBrowserGrant(contract);
+        } catch {
+          return { error: "invalid_browser_capability_contract" };
+        }
+        if (browserGrant) {
+          return {
+            ok: true,
+            capability: slug,
+            execution: "user_browser" as const,
+            nextTool: "browser_capability_act" as const,
+            instructions:
+              typeof detail?.instructions === "string"
+                ? detail.instructions
+                : undefined,
+            message:
+              "Continue now in this chat with browser_capability_act. Do not dispatch this Capability or call run_capability again.",
+          };
+        }
         return ctx.runCapability(slug);
       },
     }),

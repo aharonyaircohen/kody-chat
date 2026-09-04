@@ -1,3 +1,14 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { extname, join, relative } from "node:path";
+
 const REQUIRED_ENVIRONMENT = [
   "BASE_URL",
   "E2E_GITHUB_TOKEN",
@@ -8,6 +19,30 @@ const REQUIRED_ENVIRONMENT = [
   "KODY_LIVE_MUTATION_TARGET",
   "KODY_LIVE_CONFIRM_MUTATIONS",
 ];
+
+const SECRET_ENVIRONMENT_NAMES = [
+  "E2E_GITHUB_TOKEN",
+  "KODY_SERVICE_KEY",
+  "KODY_MASTER_KEY",
+  "KODY_BOT_TOKEN",
+  "GITHUB_TOKEN",
+  "GH_TOKEN",
+  "FLY_API_TOKEN",
+  "BRAIN_CHAT_API_KEY",
+  "E2E_KODY_EMAIL",
+  "E2E_KODY_PASSWORD",
+];
+
+const TEXT_ARTIFACT_EXTENSIONS = new Set([
+  ".css",
+  ".html",
+  ".json",
+  ".log",
+  ".md",
+  ".svg",
+  ".txt",
+  ".xml",
+]);
 
 function present(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -297,11 +332,102 @@ export function sanitizeDiagnosticUrl(value) {
 
 export function redactDiagnosticText(value, secrets) {
   let redacted = String(value);
-  for (const secret of secrets) {
-    if (!present(secret)) continue;
-    redacted = redacted.split(secret).join("[REDACTED]");
+  for (const variant of secretVariants(secrets)) {
+    redacted = redacted.split(variant).join("[REDACTED]");
   }
   return redacted;
+}
+
+function secretVariants(secrets) {
+  const variants = new Set();
+  for (const secret of secrets) {
+    if (!present(secret)) continue;
+    const value = String(secret);
+    variants.add(value);
+    variants.add(encodeURIComponent(value));
+    variants.add(Buffer.from(value).toString("base64"));
+  }
+  return [...variants]
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+}
+
+export function configuredSecretValues(environment) {
+  return [
+    ...new Set(
+      SECRET_ENVIRONMENT_NAMES.map((name) => environment[name] ?? "").filter(
+        present,
+      ),
+    ),
+  ];
+}
+
+export function createStreamingSecretRedactor(secrets, write) {
+  let pending = "";
+  return {
+    write(chunk) {
+      pending += String(chunk);
+      const lastNewline = pending.lastIndexOf("\n");
+      if (lastNewline < 0) return;
+      const complete = pending.slice(0, lastNewline + 1);
+      pending = pending.slice(lastNewline + 1);
+      write(redactDiagnosticText(complete, secrets));
+    },
+    end() {
+      if (pending) write(redactDiagnosticText(pending, secrets));
+      pending = "";
+    },
+  };
+}
+
+function artifactFiles(root) {
+  if (!existsSync(root)) return [];
+  const files = [];
+  for (const entry of readdirSync(root)) {
+    const path = join(root, entry);
+    const stat = statSync(path);
+    if (stat.isDirectory()) files.push(...artifactFiles(path));
+    if (stat.isFile()) files.push(path);
+  }
+  return files;
+}
+
+function containsVariant(buffer, variants) {
+  return variants.some((variant) => buffer.includes(Buffer.from(variant)));
+}
+
+export function sanitizeLiveGateArtifacts(root, secrets) {
+  const variants = secretVariants(secrets);
+  const removedFiles = [];
+  const htmlRoot = join(root, "html");
+  rmSync(htmlRoot, { recursive: true, force: true });
+  mkdirSync(htmlRoot, { recursive: true });
+  writeFileSync(
+    join(htmlRoot, "index.html"),
+    '<!doctype html><meta charset="utf-8"><title>Sanitized live UI report</title><h1>Sanitized live UI report</h1><p>Detailed results are available in the redacted JSON report and test artifacts.</p>\n',
+    "utf8",
+  );
+
+  for (const file of artifactFiles(root)) {
+    if (file.startsWith(`${htmlRoot}/`)) continue;
+    const buffer = readFileSync(file);
+    if (!containsVariant(buffer, variants)) continue;
+    if (TEXT_ARTIFACT_EXTENSIONS.has(extname(file).toLowerCase())) {
+      writeFileSync(
+        file,
+        redactDiagnosticText(buffer.toString("utf8"), secrets),
+        "utf8",
+      );
+      continue;
+    }
+    rmSync(file, { force: true });
+    removedFiles.push(relative(root, file));
+  }
+
+  const remainingSecretMatches = artifactFiles(root)
+    .filter((file) => containsVariant(readFileSync(file), variants))
+    .map((file) => relative(root, file));
+  return { removedFiles, remainingSecretMatches };
 }
 
 export function isExpectedBrowserAbort(errorText) {
@@ -350,7 +476,7 @@ export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
     "x-kody-repo": repo,
   };
   const [modelPayload, secretPayload] = await Promise.all([
-    readCheckedJson(fetchImpl, `${baseUrl}/api/kody/models`, {
+    readCheckedJson(fetchImpl, `${baseUrl}/api/kody/repository-models`, {
       headers: dashboardHeaders,
     }),
     readCheckedJson(fetchImpl, `${baseUrl}/api/kody/secrets`, {

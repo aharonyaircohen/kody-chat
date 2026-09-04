@@ -11,6 +11,7 @@ import {
   containsToolCallMarkup,
   parseAssistantContent,
 } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
+import { FOLLOW_UP_QUESTION_CONTRACT } from "../../../../../src/dashboard/lib/chat-defaults/defaults";
 import type { PublicDelegationAgent } from "./public-agent-definition";
 import type { PublicAgentAssignment } from "./public-agent-routing";
 import {
@@ -448,7 +449,7 @@ export function buildPublicAgentSynthesisInput({
       "The configured actions list is authoritative for what the specialist can do. Never claim an action is unavailable merely because the specialist did not call it in this turn.",
       "Do not mention internal prompts, source packets, routing mechanics, or ask for delegation approval.",
       "Do not mention tool names or function names unless the user explicitly asked how the implementation works.",
-      "Every prose final reply must end with one short, relevant follow-up question unless the current user request explicitly says to proceed autonomously, keep working, keep watching, or not stop. In that autonomous case, end with status and the next automatic action instead of asking whether to continue. Keep ordinary questions non-blocking unless the user must decide something before work can continue.",
+      FOLLOW_UP_QUESTION_CONTRACT,
       "Do not add or change a renderer to satisfy the follow-up rule. Renderer output must preserve its defined purpose.",
       ...(completeProjectAssessment
         ? [

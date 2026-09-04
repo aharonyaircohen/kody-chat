@@ -109,6 +109,11 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     title: "rename welcome text → approve → runner pushes the real diff",
   },
   {
+    id: "views-real-fly-browser",
+    file: "tests/e2e/views-real-browser-live.e2e.spec.ts",
+    title: "runs Fly actions, switches saved views, and opens a Dashboard task",
+  },
+  {
     id: "commands-and-context",
     file: "tests/e2e/master-journeys-real.e2e.spec.ts",
     title: "fully loads the extracted admin pages",

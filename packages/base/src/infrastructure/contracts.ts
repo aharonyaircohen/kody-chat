@@ -15,6 +15,11 @@ export type InfrastructureCapability =
   | "claim-warm-runner"
   | "expose-http"
   | "deploy-preview"
+  | "deploy-app"
+  | "manage-app"
+  | "app-logs"
+  | "app-domains"
+  | "app-storage"
   | "wake"
   | "suspend"
   | "destroy"
@@ -61,14 +66,21 @@ export interface DeploymentProvider<
   create(input: TCreateInput, config: TConfig): Promise<TDeploymentInfo>;
   get(key: TDeploymentKey, config: TConfig): Promise<TDeploymentInfo | null>;
   destroy(key: TDeploymentKey, config: TConfig): Promise<void>;
-  wake?(
-    key: TDeploymentKey,
-    config: TConfig,
-  ): Promise<TDeploymentInfo | null>;
+  wake?(key: TDeploymentKey, config: TConfig): Promise<TDeploymentInfo | null>;
+  inspectSource?(input: unknown, config: TConfig): Promise<unknown>;
+  deployApp?(input: unknown, config: TConfig): Promise<unknown>;
+  manageApp?(input: unknown, config: TConfig): Promise<unknown>;
+  getAppLogs?(input: unknown, config: TConfig): Promise<unknown>;
+  manageAppDomain?(input: unknown, config: TConfig): Promise<unknown>;
+  manageAppStorage?(input: unknown, config: TConfig): Promise<unknown>;
 }
 
-export interface BrowserProvider<TSessionInput, TSession, TAction, TResult>
-  extends InfrastructureProviderBase {
+export interface BrowserProvider<
+  TSessionInput,
+  TSession,
+  TAction,
+  TResult,
+> extends InfrastructureProviderBase {
   area: "browsers";
   createSession(input: TSessionInput): Promise<TSession>;
   act(session: TSession, action: TAction): Promise<TResult>;

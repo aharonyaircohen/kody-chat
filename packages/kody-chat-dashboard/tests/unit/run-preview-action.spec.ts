@@ -4,15 +4,15 @@
  *
  * This is the glue the user's bug reports kept landing on: the server
  * tool returns a PreviewActDirective, the client must run the action via
- * the inspector extension AND push the post-action DOM snapshot back to
+ * the active preview runtime AND push the post-action DOM snapshot back to
  * the model as a HIDDEN follow-up so the model can chain steps without
  * acting blind (the "URL shows /register but content is landing" loop).
  *
- * We mock the picker.act and chat sendText with spies and assert the
+ * We mock the preview runtime and chat sendText with spies and assert the
  * orchestrator:
  *   - Translates each op shape correctly into a PreviewAction.
  *   - Bails with a useful error when the directive is malformed.
- *   - Bails with a useful error when the inspector extension is missing.
+ *   - Bails with a useful error when no preview runtime is available.
  *   - Sends a HIDDEN follow-up that carries the post-action snapshot —
  *     proving the model receives the new DOM.
  *   - Honors the per-prompt chain-depth cap so a runaway model can't
@@ -21,7 +21,9 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   runPreviewAction,
+  selectPreviewActionRuntime,
   directiveToAction,
+  type PreviewActionRuntime,
   type RunPreviewActionDeps,
 } from "../../src/dashboard/lib/picker/run-preview-action";
 import type { PreviewActDirective } from "../../src/dashboard/lib/chat-ui-actions";
@@ -40,7 +42,7 @@ const directive = (
 
 function makeDeps(
   overrides: Partial<RunPreviewActionDeps> = {},
-  pickerAvailable: boolean = true,
+  actionRuntimeAvailable: boolean = true,
   actResult: PreviewActResult = {
     ok: true,
     info: {
@@ -67,7 +69,7 @@ function makeDeps(
   const toastSuccess = vi.fn();
   const toastError = vi.fn();
   return {
-    pickerAvailable: () => pickerAvailable,
+    actionRuntimeAvailable: () => actionRuntimeAvailable,
     act,
     sendText,
     toastSuccess,
@@ -82,6 +84,33 @@ function makeDeps(
     ...overrides,
   };
 }
+
+describe("selectPreviewActionRuntime", () => {
+  const runtime = (available: boolean): PreviewActionRuntime => ({
+    available: () => available,
+    act: vi.fn(async () => ({ ok: true })),
+  });
+
+  it("uses the page-owned browser before the iframe extension", () => {
+    const flyBrowser = runtime(true);
+    const extension = runtime(true);
+
+    expect(selectPreviewActionRuntime(flyBrowser, extension)).toBe(flyBrowser);
+  });
+
+  it("keeps the iframe extension as the fallback", () => {
+    const flyBrowser = runtime(false);
+    const extension = runtime(true);
+
+    expect(selectPreviewActionRuntime(flyBrowser, extension)).toBe(extension);
+  });
+
+  it("returns null when neither browser path is available", () => {
+    expect(
+      selectPreviewActionRuntime(runtime(false), runtime(false)),
+    ).toBeNull();
+  });
+});
 
 describe("directiveToAction", () => {
   it("translates click", () => {
@@ -115,6 +144,24 @@ describe("directiveToAction", () => {
     expect(
       directiveToAction(directive({ op: "scroll", selector: "#footer" })),
     ).toEqual({ op: "scroll", selector: "#footer", dy: undefined });
+  });
+  it("preserves Capability scope for scrolling", () => {
+    expect(
+      directiveToAction(
+        directive({
+          op: "scroll",
+          dy: 420,
+          capabilitySlug: "draft-facebook-personal-post",
+          allowedOrigins: ["https://www.facebook.com"],
+        }),
+      ),
+    ).toEqual({
+      op: "scroll",
+      selector: undefined,
+      dy: 420,
+      capabilitySlug: "draft-facebook-personal-post",
+      allowedOrigins: ["https://www.facebook.com"],
+    });
   });
   it("translates wait with explicit ms or default", () => {
     expect(directiveToAction(directive({ op: "wait", ms: 500 }))).toEqual({
@@ -200,7 +247,7 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
     expect(deps.spies.sendText.mock.calls[0]![0]).toContain("#missing");
   });
 
-  it("aborts when the inspector extension isn't installed", async () => {
+  it("aborts with a runtime-neutral message when no preview runtime is available", async () => {
     const deps = makeDeps({}, false);
     await runPreviewAction(
       directive({ op: "click", selector: "#start" }),
@@ -208,7 +255,9 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
     );
     expect(deps.spies.act).not.toHaveBeenCalled();
     expect(deps.spies.sendText).not.toHaveBeenCalled();
-    expect(deps.spies.toastError).toHaveBeenCalledOnce();
+    expect(deps.spies.toastError).toHaveBeenCalledWith(
+      "Preview action unavailable — open a browser view and retry.",
+    );
   });
 
   it("aborts before dispatch when the required browser surface is unavailable", async () => {

@@ -112,6 +112,24 @@ describe("public MCP action catalog", () => {
     expect(getKodyAction("missing")).toBeNull();
   });
 
+  it("gives agents an example and field guidance for every action", () => {
+    for (const action of listKodyActions()) {
+      expect(action.examples, `${action.id} needs an example`).not.toHaveLength(
+        0,
+      );
+      const properties = (action.inputSchema.properties ?? {}) as Record<
+        string,
+        { description?: string }
+      >;
+      for (const [field, schema] of Object.entries(properties)) {
+        expect(
+          schema.description,
+          `${action.id}.${field} needs a description`,
+        ).toBeTruthy();
+      }
+    }
+  });
+
   it("persists attributed work with durable idempotency context", async () => {
     services.createWork.mockResolvedValue({ recordId: "phase-3", revision: 1 });
     await expect(
@@ -163,7 +181,7 @@ describe("public MCP action catalog", () => {
     await expect(
       executeKodyAction("mcp.contract.get", {}, principal),
     ).resolves.toMatchObject({
-      contractVersion: "2026-09-03.8",
+      contractVersion: "2026-09-04.1",
       workSystem: "todos",
     });
     await expect(

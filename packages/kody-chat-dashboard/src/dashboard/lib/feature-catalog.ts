@@ -7,6 +7,7 @@
  */
 import {
   Activity,
+  AppWindow,
   Bell,
   Blocks,
   Bot,
@@ -27,6 +28,7 @@ import {
   MonitorPlay,
   Package,
   Palette,
+  Plug,
   Route,
   ScrollText,
   Share2,
@@ -140,6 +142,13 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
+    href: "/apps",
+    label: "Apps",
+    icon: AppWindow,
+    description: "Deploy and manage repository applications.",
+    tint: "text-cyan-300 bg-cyan-500/10",
+  },
+  {
     href: "/org",
     label: "Org",
     icon: Building2,
@@ -194,7 +203,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/connections",
         label: "Connections",
         icon: Share2,
-        description: "Manage the external accounts Kody may use.",
+        description:
+          "Configure external account metadata and API credentials; browser sessions belong to Views.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
@@ -502,6 +512,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Infrastructure",
     items: [
       {
+        href: "/mcp",
+        label: "Agent connections",
+        icon: Plug,
+        description: "Connect any standards-compliant MCP coding agent.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/secrets",
         label: "Secrets",
         icon: KeyRound,
@@ -595,6 +612,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: PRIMARY_NAV_TITLE,
     items: [
       navItemForHref("/org"),
+      navItemForHref("/apps"),
       navItemForHref("/inbox"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),

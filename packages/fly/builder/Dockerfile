@@ -34,7 +34,9 @@ COPY default-Dockerfile.preview ./default-Dockerfile.preview
 COPY default-Dockerfile.preview.dev ./default-Dockerfile.preview.dev
 COPY default-Dockerfile.preview.prod ./default-Dockerfile.preview.prod
 COPY doorman ./doorman
+COPY app-doorman ./app-doorman
+COPY Dockerfile.app-gateway ./Dockerfile.app-gateway
 
 ENV NODE_ENV=production
 
-CMD ["node", "--experimental-strip-types", "src/builder.ts"]
+CMD ["sh", "-c", "if [ \"$KODY_BUILDER_KIND\" = app ]; then exec node --experimental-strip-types src/app-builder.ts; else exec node --experimental-strip-types src/builder.ts; fi"]

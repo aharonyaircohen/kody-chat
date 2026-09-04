@@ -1,4 +1,4 @@
-import { spawnSync, execFileSync } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,10 @@ import {
   assertLiveJourneyCoverage,
   buildLiveGateMetadata,
   buildPlaywrightArguments,
+  configuredSecretValues,
+  createStreamingSecretRedactor,
   runLiveServicePreflight,
+  sanitizeLiveGateArtifacts,
   selectLiveJourneys,
   summarizePlaywrightReport,
   validateLiveGateEnvironment,
@@ -127,7 +130,16 @@ const playwrightEnvironment = {
   PLAYWRIGHT_HTML_OPEN: "never",
 };
 
-const playwright = spawnSync(
+const playwrightSecrets = configuredSecretValues(playwrightEnvironment);
+const stdoutRedactor = createStreamingSecretRedactor(
+  playwrightSecrets,
+  (text) => process.stdout.write(text),
+);
+const stderrRedactor = createStreamingSecretRedactor(
+  playwrightSecrets,
+  (text) => process.stderr.write(text),
+);
+const playwrightChild = spawn(
   "pnpm",
   buildPlaywrightArguments(selectedSpecs, {
     outputDir: outputPath,
@@ -136,9 +148,39 @@ const playwright = spawnSync(
   {
     cwd: dashboardRoot,
     env: playwrightEnvironment,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
   },
 );
+
+playwrightChild.stdout.setEncoding("utf8");
+playwrightChild.stderr.setEncoding("utf8");
+playwrightChild.stdout.on("data", (chunk) => stdoutRedactor.write(chunk));
+playwrightChild.stderr.on("data", (chunk) => stderrRedactor.write(chunk));
+
+const playwright = await new Promise((resolve) => {
+  let settled = false;
+  playwrightChild.once("error", (error) => {
+    if (settled) return;
+    settled = true;
+    resolve({ error, status: null });
+  });
+  playwrightChild.once("close", (status) => {
+    if (settled) return;
+    settled = true;
+    resolve({ error: null, status });
+  });
+});
+stdoutRedactor.end();
+stderrRedactor.end();
+
+const artifactSecurity = sanitizeLiveGateArtifacts(
+  artifactDir,
+  playwrightSecrets,
+);
+if (artifactSecurity.remainingSecretMatches.length > 0) {
+  fail("Secret material remained in live-test artifacts after sanitization");
+  process.exit();
+}
 
 if (playwright.error) {
   fail("Playwright could not start");
@@ -190,7 +232,9 @@ try {
       passed: observedSummary.passed,
       failed: Math.max(
         1,
-        observedSummary.failed + observedSummary.skipped + observedSummary.flaky,
+        observedSummary.failed +
+          observedSummary.skipped +
+          observedSummary.flaky,
       ),
       sourceCommit: metadata.commit,
     };

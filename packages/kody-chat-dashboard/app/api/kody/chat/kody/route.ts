@@ -90,6 +90,7 @@ import {
   filterToolsByAllowlist,
   buildToolIndex,
   CRITICAL_REMINDERS_MD,
+  FOLLOW_UP_QUESTION_CONTRACT,
 } from "../../../../../src/dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
@@ -252,6 +253,13 @@ import {
 } from "./public-agent-chat-runtime";
 import { PUBLIC_AGENT_DEFAULT_MAX_STEPS } from "./public-agent-limits";
 import { createPublicAgentEvidenceTool } from "./public-agent-evidence-tool";
+import {
+  isolateUserBrowserTurnTools,
+  isUserBrowserCapabilityReadResult,
+  isUserBrowserWorkRequest,
+  selectUserBrowserActiveTools,
+} from "./browser-work-routing";
+import { readPreviewCapabilityContinuation } from "../../../../../src/dashboard/lib/picker/protocol";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -719,6 +727,8 @@ async function handleKodyDirectPost(
     capability?: CapabilityContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string; path?: string };
+    /** Safe metadata for the App selected on the Apps page. */
+    app?: import("@kody-ade/base/kody-system-prompt").AppContext;
     /** Org workspace scope from /org/:org. */
     org?: OrgContext;
     /**
@@ -954,7 +964,7 @@ async function handleKodyDirectPost(
   }
   if (isParentOwnedArchitectureAdvice(latestUserText ?? "")) {
     turnSystemInstructions.push(
-      "This is an architecture recommendation, not a request to create anything and not a question about configured chat models. Give a direct verdict instead of an inventory or clarification question. Treat the existing Kody Chat path as the current owner and recommend extending it unless verified repository evidence proves a requirement it cannot satisfy. Explain the ownership tradeoff briefly, do not confuse chat systems with configured models or providers, and end with one relevant non-blocking follow-up question.",
+      `This is an architecture recommendation, not a request to create anything and not a question about configured chat models. Give a direct verdict instead of an inventory or clarification question. Treat the existing Kody Chat path as the current owner and recommend extending it unless verified repository evidence proves a requirement it cannot satisfy. Explain the ownership tradeoff briefly. ${FOLLOW_UP_QUESTION_CONTRACT}`,
     );
   }
   const durableIdentity =
@@ -1984,12 +1994,28 @@ async function handleKodyDirectPost(
         ),
       )
     : bundleFilteredTools;
-  const allowlistedTools: Record<string, unknown> = { ...filteredTools };
+  let allowlistedTools: Record<string, unknown> = { ...filteredTools };
   for (const name of CHAT_OUTPUT_TOOL_NAMES) {
     if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {
       allowlistedTools[name] = mergedTools[name];
     }
   }
+  const browserCapabilityContinuationSlug =
+    readPreviewCapabilityContinuation(latestUserText);
+  const userBrowserWorkRequested = isUserBrowserWorkRequest({
+    userText: latestUserText,
+    previewContext:
+      typeof body.previewContext === "string" ? body.previewContext : null,
+  });
+  const userBrowserTurn =
+    userBrowserWorkRequested || Boolean(browserCapabilityContinuationSlug);
+  // Browser work is its own execution lane. Isolate it before approval,
+  // specialist, and prompt construction so unrelated repository tools never
+  // enter the model's tool index or become callable during this turn.
+  allowlistedTools = isolateUserBrowserTurnTools(
+    allowlistedTools,
+    userBrowserTurn,
+  );
   if (repo && !clientSurface && verifiedActorGithubId !== null) {
     const approvalContext = {
       owner: repo.owner,
@@ -2125,7 +2151,7 @@ async function handleKodyDirectPost(
     typeof body.previewContext === "string" && body.previewContext.trim()
       ? `${latestUserText ?? ""}\n\n${body.previewContext.trim()}`
       : (latestUserText ?? "");
-  if (!clientSurface && assignedSubagentRoster.length > 0) {
+  if (!clientSurface && !userBrowserTurn && assignedSubagentRoster.length > 0) {
     allowlistedTools.request_specialist_evidence =
       createPublicAgentEvidenceTool({
         agents: assignedSubagentRoster,
@@ -2207,11 +2233,15 @@ async function handleKodyDirectPost(
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
   >;
+  const requireBrowserCapabilityDiscovery =
+    userBrowserWorkRequested && allActiveTools.includes("list_capabilities");
   // Some providers stream several tool rounds without reflecting completed
   // results in prepareStep's `steps` array. Track the actual result stream so
   // Agency assessment still reaches its mandatory decision boundary.
   let agencyAssessmentReadResultsSeen = 0;
   let agencyAssessmentUpdatedSeen = false;
+  let browserCapabilitiesListedSeen = false;
+  let userBrowserCapabilityReadSeen = false;
   const forceGuidedFlowIntake =
     (assessmentIntakeRequested ||
       agencyRequestIntakeRequested ||
@@ -2267,6 +2297,7 @@ async function handleKodyDirectPost(
     {
       capability: body.capability,
       report: body.report,
+      app: body.app,
       connectedRepositories,
       org: body.org,
       currentPage: body.currentPage,
@@ -2483,6 +2514,43 @@ This turn includes an image from the user. For questions about what is visible i
                     ),
                   };
                 }
+                if (
+                  requireBrowserCapabilityDiscovery ||
+                  browserCapabilityContinuationSlug
+                ) {
+                  const capabilitiesListed =
+                    browserCapabilitiesListedSeen ||
+                    steps.some((step) =>
+                    step.toolResults.some(
+                      (result) => result.toolName === "list_capabilities",
+                    ),
+                  );
+                  const userBrowserCapabilityRead =
+                    userBrowserCapabilityReadSeen ||
+                    steps.some((step) =>
+                      step.toolResults.some(
+                        (result) =>
+                          result.toolName === "read_capability" &&
+                          isUserBrowserCapabilityReadResult(result.output),
+                      ),
+                    );
+                  const browserActiveTools = selectUserBrowserActiveTools({
+                    requested: requireBrowserCapabilityDiscovery,
+                    continuation: Boolean(browserCapabilityContinuationSlug),
+                    capabilitiesListed,
+                    browserCapabilityRead: userBrowserCapabilityRead,
+                    availableTools: allActiveTools,
+                  }) as Array<keyof NonNullable<typeof tools>> | null;
+                  if (browserActiveTools?.length) {
+                    return {
+                      activeTools: browserActiveTools,
+                      toolChoice: selectChatOutputToolChoice(
+                        browserActiveTools,
+                        providerCapabilities,
+                      ),
+                    };
+                  }
+                }
                 if (agencyAssessmentHandoffRequested) {
                   const agencyAssessmentUpdated =
                     agencyAssessmentUpdatedSeen ||
@@ -2559,7 +2627,7 @@ This turn includes an image from the user. For questions about what is visible i
                       providerCapabilities,
                     ),
                     system: buildTurnSystemPrompt([
-                      "Your final_answer was rejected because it had no follow-up question. Retry final_answer with one short, relevant, non-blocking question at the end. Do not call show_view for this correction.",
+                      `Your final_answer was rejected because it had no follow-up question. ${FOLLOW_UP_QUESTION_CONTRACT} Do not call show_view for this correction.`,
                     ]),
                   };
                 }
@@ -2575,7 +2643,7 @@ This turn includes an image from the user. For questions about what is visible i
                       providerCapabilities,
                     ),
                     system: buildTurnSystemPrompt([
-                      "This is the final available step. Stop researching and call final_answer now with the best verified answer available. End with one short, relevant, non-blocking follow-up question.",
+                      `This is the final available step. Stop researching and call final_answer now with the best verified answer available. ${FOLLOW_UP_QUESTION_CONTRACT}`,
                     ]),
                   };
                 }
@@ -2653,6 +2721,10 @@ This turn includes an image from the user. For questions about what is visible i
         // module level so tests can assert the value.
         stopWhen: [
           permanentToolFailureResult(),
+          // User-browser actions are UI directives, not page results. End
+          // this model turn so the Dashboard can execute exactly one action
+          // and feed its fresh snapshot into the next hidden turn.
+          successfulToolResult("browser_capability_act"),
           ...(agencyAssessmentHandoffRequested
             ? [successfulToolResult("update_agency_request")]
             : []),
@@ -2699,6 +2771,17 @@ This turn includes an image from the user. For questions about what is visible i
             chunk.type === "tool-result" &&
             chunk.toolName !== FINAL_ANSWER_TOOL
           ) {
+            if (
+              chunk.toolName === "list_capabilities" &&
+              !isToolErrorOutput(chunk.output)
+            ) {
+              browserCapabilitiesListedSeen = true;
+            } else if (
+              chunk.toolName === "read_capability" &&
+              isUserBrowserCapabilityReadResult(chunk.output)
+            ) {
+              userBrowserCapabilityReadSeen = true;
+            }
             if (agencyAssessmentHandoffRequested) {
               if (
                 chunk.toolName === "update_agency_request" &&

@@ -10,6 +10,7 @@
 export type ServerProviderFeature =
   | "preview"
   | "preview-base"
+  | "app"
   | "builder"
   | "runner"
   | "brain"
@@ -70,6 +71,7 @@ export const SERVER_PROVIDER_FEATURE_TITLE: Record<
   string
 > = {
   preview: "Previews",
+  app: "Apps",
   runner: "Runners",
   brain: "Brain server",
   browser: "Browsers",

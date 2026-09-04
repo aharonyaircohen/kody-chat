@@ -6,6 +6,7 @@ routes:
   - /backend
   - /capabilities
   - /capabilities/**
+  - /connections
   - /config
   - /content/**
   - /fly/**
@@ -22,6 +23,8 @@ aliases:
   - capabilities page
   - content management
   - cms
+  - connections
+  - facebook page connection
   - engine config
   - fly config
   - notifications
@@ -62,6 +65,13 @@ Use these pages to configure or back up the Dashboard, manage executable definit
 - Define content models and fields.
 - Configure the selected CMS adapter, schema, permissions, and MCP settings.
 - Use built-in or configured remote adapters through the existing CMS contract.
+
+### Connections
+
+- Save external account metadata and references to credentials stored in Secrets.
+- Facebook Page and Instagram professional connections store only account metadata and an access-token reference, then verify the account through the provider API.
+- Instagram Creator and Business publishing is performed by the `publish-instagram-content` Workflow after explicit approval. Media must be available through a public HTTPS URL.
+- Connections do not create browser sessions; website sessions and actions belong to Views.
 
 ### Engine configuration
 
@@ -123,6 +133,7 @@ Use these pages to configure or back up the Dashboard, manage executable definit
 - Store assets cannot be silently edited as local repository definitions.
 - Installing a Store asset or importing a bundle does not prove it can execute.
 - CMS cannot bypass its adapter, schema, permission, or remote-service limits.
+- Connections cannot create a browser login, reuse a Views session, or publish content merely because an account and token were verified; a publishing Workflow must be run and approved.
 - `/config` cannot set the Engine model through a top-level `model` field; that legacy shape is removed.
 - Fly cannot be used without a per-repository token, and Fly setup is not required for the base GitHub Actions runner.
 - Variables cannot safely store API keys, passwords, or tokens; use Secrets.

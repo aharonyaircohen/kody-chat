@@ -519,7 +519,11 @@ export async function updateMachineEnv(
 export async function updateMachineDefinition(
   appName: string,
   machineId: string,
-  update: { image: string; env: Record<string, string> },
+  update: {
+    image: string;
+    env: Record<string, string>;
+    guest?: MachineConfig["guest"];
+  },
   cfg: FlyPreviewConfig,
 ): Promise<void> {
   const machine = await getMachine(appName, machineId, cfg);
@@ -535,6 +539,7 @@ export async function updateMachineDefinition(
       ...machine.config,
       image: update.image,
       env: { ...currentEnv, ...update.env },
+      ...(update.guest ? { guest: update.guest } : {}),
     },
     cfg,
   );

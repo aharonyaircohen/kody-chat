@@ -64,6 +64,7 @@ describe("repository navigation visibility", () => {
     const repositoryItems = sections
       .slice(1)
       .flatMap((section) => section.items);
+    expect(repositoryItems.map((item) => item.href)).toContain("/apps");
     expect(
       sections
         .find((section) => section.title === "Repo Chat")

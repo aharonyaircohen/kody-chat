@@ -149,6 +149,8 @@ describe("fly infrastructure providers", () => {
       expect.objectContaining({
         image: "registry.example/kody-browser:test",
         internalPort: 8080,
+        cpus: 2,
+        memoryMb: 2_048,
         env: expect.objectContaining({
           KODY_BROWSER_SESSION_ID: "session-1",
           KODY_BROWSER_INITIAL_URL: "https://example.com",
@@ -201,15 +203,16 @@ describe("fly infrastructure providers", () => {
     expect(flyPreview.allocateSharedIps).toHaveBeenCalledOnce();
   });
 
-  it("updates a reused browser Machine when its pinned image changes", async () => {
+  it("starts a stopped reused browser Machine before waiting after an update", async () => {
     flyPreview.appExists.mockResolvedValue(true);
     flyPreview.listMachines.mockResolvedValue([
       {
         id: "browser-machine-1",
-        state: "started",
+        state: "stopped",
         region: "fra",
         config: {
           image: "registry.example/kody-browser:old",
+          guest: { cpu_kind: "shared", cpus: 1, memory_mb: 1_024 },
           env: { KODY_BROWSER_ACTOR_ID: "octocat" },
         },
       },
@@ -231,18 +234,66 @@ describe("fly infrastructure providers", () => {
       "browser-machine-1",
       expect.objectContaining({
         image: "registry.example/kody-browser:sha-123",
+        guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2_048 },
         env: expect.objectContaining({
           KODY_BROWSER_VERIFY_KEY: "verify-key-1",
+          KODY_BROWSER_INITIAL_URL: "https://example.com",
         }),
       }),
       expect.objectContaining({ token: "fly-token" }),
     );
     expect(flyPreview.createMachine).not.toHaveBeenCalled();
+    expect(flyPreview.startMachine).toHaveBeenCalledWith(
+      expect.any(String),
+      "browser-machine-1",
+      expect.objectContaining({ token: "fly-token" }),
+    );
     expect(flyPreview.waitForMachineStarted).toHaveBeenCalledWith(
       expect.any(String),
       "browser-machine-1",
       expect.objectContaining({ token: "fly-token" }),
     );
+    expect(
+      flyPreview.updateMachineDefinition.mock.invocationCallOrder[0],
+    ).toBeLessThan(flyPreview.startMachine.mock.invocationCallOrder[0]!);
+    expect(flyPreview.startMachine.mock.invocationCallOrder[0]).toBeLessThan(
+      flyPreview.waitForMachineStarted.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("reuses the browser Machine when only the requested URL changes", async () => {
+    flyPreview.appExists.mockResolvedValue(true);
+    flyPreview.listMachines.mockResolvedValue([
+      {
+        id: "browser-machine-1",
+        state: "started",
+        region: "fra",
+        config: {
+          image: "registry.example/kody-browser:test",
+          guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2_048 },
+          env: {
+            KODY_BROWSER_ACTOR_ID: "octocat",
+            KODY_BROWSER_SESSION_ID: "session-1",
+            KODY_BROWSER_REPOSITORY: "acme/widgets",
+            KODY_BROWSER_VERIFY_KEY: "verify-key-1",
+            KODY_BROWSER_INITIAL_URL: "https://old.example.com",
+          },
+        },
+      },
+    ]);
+
+    await flyBrowserProvider.createSession({
+      owner: "acme",
+      repo: "widgets",
+      actorId: "octocat",
+      sessionId: "session-1",
+      initialUrl: "https://new.example.com",
+      image: "registry.example/kody-browser:test",
+      config: { token: "fly-token", orgSlug: "personal", defaultRegion: "fra" },
+      verifyKey: "verify-key-1",
+    });
+
+    expect(flyPreview.updateMachineDefinition).not.toHaveBeenCalled();
   });
 
   it("waits for an in-flight browser Machine replacement before reconciling it", async () => {
@@ -266,11 +317,13 @@ describe("fly infrastructure providers", () => {
           region: "fra",
           config: {
             image: "registry.example/kody-browser:sha-123",
+            guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2_048 },
             env: {
               KODY_BROWSER_ACTOR_ID: "octocat",
               KODY_BROWSER_SESSION_ID: "session-1",
               KODY_BROWSER_REPOSITORY: "acme/widgets",
               KODY_BROWSER_VERIFY_KEY: "verify-key-1",
+              KODY_BROWSER_INITIAL_URL: "https://example.com",
             },
           },
         },

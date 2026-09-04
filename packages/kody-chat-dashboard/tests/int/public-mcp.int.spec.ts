@@ -113,8 +113,8 @@ describe("public Kody MCP endpoint", () => {
     expect((await mcpPOST(queryCredential)).status).toBe(401);
   });
 
-  it("negotiates stable Streamable HTTP MCP and exposes only four facade tools", async () => {
-    for (const name of ["claude-code", "codex", "opencode", "hermes-agent"]) {
+  it("accepts any standards-compliant client and exposes the stable facade", async () => {
+    for (const name of ["generic-coding-agent", "future-agent-2030"]) {
       const initialized = await mcpPOST(
         request({
           jsonrpc: "2.0",
@@ -150,6 +150,96 @@ describe("public Kody MCP endpoint", () => {
       "kody_get_tool_details",
       "kody_execute_tool",
     ]);
+    for (const tool of body.result.tools as Array<{
+      name: string;
+      outputSchema?: { type?: string };
+    }>) {
+      if (tool.outputSchema)
+        expect(tool.outputSchema.type, tool.name).toBe("object");
+    }
+    expect(
+      body.result.tools.find(
+        (tool: { name: string }) => tool.name === "kody_execute_tool",
+      ).outputSchema,
+    ).toBeUndefined();
+  });
+
+  it("echoes a supported legacy protocol version during negotiation", async () => {
+    const initialized = await mcpPOST(
+      request({
+        jsonrpc: "2.0",
+        id: "legacy-initialize",
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "generic-agent", version: "1.0.0" },
+        },
+      }),
+    );
+
+    await expect(initialized.json()).resolves.toMatchObject({
+      result: { protocolVersion: "2025-06-18" },
+    });
+  });
+
+  it("supports the current stateless protocol without an agent allowlist", async () => {
+    const current = request({
+      jsonrpc: "2.0",
+      id: "current-tools",
+      method: "tools/list",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientInfo": {
+            name: "unknown-standards-client",
+            version: "1.0.0",
+          },
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    });
+    current.headers.set("mcp-protocol-version", "2026-07-28");
+    current.headers.set("mcp-method", "tools/list");
+
+    const response = await mcpPOST(current);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("mcp-session-id")).toBeNull();
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        resultType: "complete",
+        cacheScope: "private",
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: "kody_status" }),
+        ]),
+      },
+    });
+  });
+
+  it("rejects current-protocol routing headers that disagree with the body", async () => {
+    const current = request({
+      jsonrpc: "2.0",
+      id: "mismatched-method",
+      method: "tools/list",
+      params: {
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientInfo": {
+            name: "generic-agent",
+            version: "1.0.0",
+          },
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    });
+    current.headers.set("mcp-protocol-version", "2026-07-28");
+    current.headers.set("mcp-method", "tools/call");
+
+    const response = await mcpPOST(current);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: -32020 },
+    });
   });
 
   it("rejects unsupported protocol headers", async () => {
@@ -278,7 +368,7 @@ describe("public Kody MCP endpoint", () => {
         method: "DELETE",
         headers: {
           authorization: `Bearer ${bearer}`,
-          "mcp-session-id": "run-session-12345678",
+          "mcp-session-id": "run-token-1-session-12345678",
         },
       }),
     );
@@ -287,10 +377,29 @@ describe("public Kody MCP endpoint", () => {
       expect.anything(),
       expect.objectContaining({
         tenantId: "acme/widgets",
-        runId: "run-session-12345678",
+        runId: "run-token-1-session-12345678",
         status: "completed",
       }),
     );
+  });
+
+  it("rejects a session created by another token", async () => {
+    const response = await mcpPOST(
+      new NextRequest(endpoint, {
+        method: "POST",
+        headers: {
+          authorization:
+            "Bearer kody_mcp_0123456789012345678901234567890123456789012",
+          "content-type": "application/json",
+          "mcp-session-id": "run-another-token-session-12345678",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_session",
+    });
   });
 
   it("returns safe protocol and tool errors", async () => {
@@ -322,6 +431,116 @@ describe("public Kody MCP endpoint", () => {
     const badContent = request({ jsonrpc: "2.0", id: 9, method: "ping" });
     badContent.headers.set("content-type", "text/plain");
     expect((await mcpPOST(badContent)).status).toBe(415);
+  });
+
+  it("lets read-only tokens execute read actions but rejects writes", async () => {
+    backend.query.mockResolvedValue({
+      ...activeToken,
+      scopes: ["mcp:read"],
+    });
+
+    const read = await mcpPOST(
+      request({
+        jsonrpc: "2.0",
+        id: "read-only-read",
+        method: "tools/call",
+        params: {
+          name: "kody_execute_tool",
+          arguments: { actionId: "repository.scope.get", input: {} },
+        },
+      }),
+    );
+    await expect(read.json()).resolves.toMatchObject({
+      result: { isError: false },
+    });
+
+    const write = await mcpPOST(
+      request({
+        jsonrpc: "2.0",
+        id: "read-only-write",
+        method: "tools/call",
+        params: {
+          name: "kody_execute_tool",
+          arguments: {
+            actionId: "work.create",
+            idempotencyKey: "read-only-write",
+            input: {
+              recordId: "read-only",
+              title: "Read only",
+              objective: "Must not write",
+            },
+          },
+        },
+      }),
+    );
+    await expect(write.json()).resolves.toMatchObject({
+      result: {
+        isError: true,
+        structuredContent: { error: { code: "insufficient_scope" } },
+      },
+    });
+  });
+
+  it("returns safe field-level validation guidance", async () => {
+    const response = await mcpPOST(
+      request({
+        jsonrpc: "2.0",
+        id: "invalid-action-input",
+        method: "tools/call",
+        params: {
+          name: "kody_execute_tool",
+          arguments: {
+            actionId: "work.get",
+            input: { recordId: "not a valid id" },
+          },
+        },
+      }),
+    );
+    const body = await response.json();
+    expect(body.result.isError).toBe(true);
+    expect(body.result.structuredContent.error).toMatchObject({
+      code: "invalid_input",
+      issues: [expect.objectContaining({ path: "recordId" })],
+    });
+    expect(JSON.stringify(body)).not.toMatch(/stack|tokenHash|kody_mcp_/i);
+  });
+
+  it("does not silently report a write as successful when auditing fails", async () => {
+    phaseFourServices.createWork.mockResolvedValueOnce({
+      recordId: "audit-required",
+      revision: 1,
+    });
+    backend.mutation
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error("audit unavailable"));
+
+    const response = await handleKodyMcpPost(
+      request({
+        jsonrpc: "2.0",
+        id: "audit-required",
+        method: "tools/call",
+        params: {
+          name: "kody_execute_tool",
+          arguments: {
+            actionId: "work.create",
+            idempotencyKey: "audit-required",
+            input: {
+              recordId: "audit-required",
+              title: "Audit required",
+              objective: "Never hide missing audit records",
+            },
+          },
+        },
+      }),
+      { services: phaseFourServices },
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        isError: true,
+        structuredContent: { error: { code: "audit_unavailable" } },
+      },
+    });
   });
 
   it("routes approved Phase 4 requests through injected Kody services", async () => {
@@ -381,6 +600,21 @@ describe("public Kody MCP endpoint", () => {
     ).toBe(429);
   });
 
+  it("accepts a browser request whose Origin matches the forwarded request host", async () => {
+    const sameOrigin = request({ jsonrpc: "2.0", id: 4, method: "ping" });
+    sameOrigin.headers.set("origin", "http://127.0.0.1:3333");
+    sameOrigin.headers.set("host", "127.0.0.1:3333");
+    sameOrigin.headers.set("x-forwarded-proto", "http");
+
+    expect((await mcpPOST(sameOrigin)).status).toBe(200);
+
+    const wrongScheme = request({ jsonrpc: "2.0", id: 5, method: "ping" });
+    wrongScheme.headers.set("origin", "http://dash.test");
+    wrongScheme.headers.set("host", "dash.test");
+    wrongScheme.headers.set("x-forwarded-proto", "https");
+    expect((await mcpPOST(wrongScheme)).status).toBe(403);
+  });
+
   it("fails closed as rate limited when concurrent counter updates conflict", async () => {
     backend.mutation.mockRejectedValueOnce(
       new Error("OptimisticConcurrencyControlFailure"),
@@ -418,6 +652,29 @@ describe("MCP access-token issuance", () => {
         name: "Claude Code",
         tokenHash: expect.not.stringContaining("kody_mcp_"),
       }),
+    );
+  });
+
+  it("issues a least-privilege read-only token when requested", async () => {
+    const req = new NextRequest(`${endpoint}/tokens`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-kody-token": "github-pat",
+        "x-kody-owner": "acme",
+        "x-kody-repo": "widgets",
+      },
+      body: JSON.stringify({
+        name: "Read-only agent",
+        expiresInDays: 30,
+        access: "read",
+      }),
+    });
+
+    expect((await tokenPOST(req)).status).toBe(201);
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ scopes: ["mcp:read"] }),
     );
   });
 

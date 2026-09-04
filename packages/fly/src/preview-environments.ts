@@ -341,9 +341,17 @@ export function addEnvironment(
   label: string,
   url: string,
 ): PreviewEnvironment[] {
-  const cleanLabel = label.trim().slice(0, MAX_LABEL);
+  const preferredLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
-  if (!cleanLabel || !cleanUrl) return list;
+  if (!preferredLabel || !cleanUrl) return list;
+  const usedLabels = new Set(
+    list.map((environment) => environment.label.trim().toLowerCase()),
+  );
+  let cleanLabel = preferredLabel;
+  for (let suffix = 2; usedLabels.has(cleanLabel.toLowerCase()); suffix += 1) {
+    const suffixText = ` ${suffix}`;
+    cleanLabel = `${preferredLabel.slice(0, MAX_LABEL - suffixText.length)}${suffixText}`;
+  }
   return [
     ...list,
     { id: makeEnvId(cleanLabel), label: cleanLabel, url: cleanUrl },

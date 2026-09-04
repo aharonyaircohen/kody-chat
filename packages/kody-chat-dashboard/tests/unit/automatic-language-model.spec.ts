@@ -125,6 +125,40 @@ describe("Automatic language model", () => {
     });
   });
 
+  it("moves to the next configured model when a planning candidate is slow", async () => {
+    vi.useFakeTimers();
+    const slow = model("slow");
+    vi.mocked(slow.doGenerate).mockImplementation(
+      ({ abortSignal }) =>
+        new Promise((_, reject) => {
+          abortSignal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const onFallback = vi.fn();
+    const automatic = createAutomaticLanguageModel(
+      [
+        { id: "slow", model: slow },
+        { id: "fast", model: model("fast") },
+      ],
+      { onFallback, candidateTimeoutMs: 100 },
+    );
+
+    const resultPromise = automatic.doGenerate({ prompt: [] });
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      content: [{ type: "text", text: "fast" }],
+    });
+    expect(onFallback).toHaveBeenCalledWith({
+      from: "slow",
+      to: "fast",
+      reason: "timeout",
+    });
+    vi.useRealTimers();
+  });
+
   it("falls back when a stream reports rate limiting before model output", async () => {
     const onFallback = vi.fn();
     const automatic = createAutomaticLanguageModel(

@@ -2,13 +2,13 @@
 
 ## Destination
 
-Kody becomes the shared online control and knowledge layer used by local coding
-agents such as Claude Code, Codex, and OpenCode. Each agent connects directly to
-one authenticated Kody Streamable HTTP MCP endpoint. Kody does not launch or
-control the local agent and does not require a local connector.
+Kody becomes the shared online control and knowledge layer used by any local
+coding agent that implements MCP Streamable HTTP. Each agent connects directly
+to one authenticated Kody endpoint. Kody does not launch or control the local
+agent and does not require a local connector.
 
 ```text
-Claude Code / Codex / OpenCode
+Any standards-compliant coding agent
               |
               | MCP over HTTPS
               v

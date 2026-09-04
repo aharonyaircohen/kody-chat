@@ -9,6 +9,7 @@
  */
 import {
   Activity,
+  AppWindow,
   Bell,
   Blocks,
   Bot,
@@ -31,6 +32,7 @@ import {
   Network,
   Package,
   Palette,
+  Plug,
   Route,
   Scale,
   ScrollText,
@@ -148,6 +150,13 @@ export const PRIMARY_VIEW_ITEMS: readonly SettingsNavItem[] = [
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/apps",
+    label: "Apps",
+    icon: AppWindow,
+    description: "Deploy and manage repository applications.",
+    tint: "text-cyan-300 bg-cyan-500/10",
+  },
   {
     href: "/org",
     label: "Org",
@@ -556,6 +565,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Infrastructure",
     items: [
       {
+        href: "/mcp",
+        label: "Agent connections",
+        icon: Plug,
+        description: "Connect any standards-compliant MCP coding agent.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/secrets",
         label: "Secrets",
         icon: KeyRound,
@@ -694,6 +710,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/org"),
+      navItemForHref("/apps"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/files"),

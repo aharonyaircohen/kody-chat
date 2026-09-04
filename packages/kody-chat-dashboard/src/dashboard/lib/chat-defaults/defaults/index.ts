@@ -37,7 +37,7 @@ export {
 } from "./skills-operator";
 export { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 export { DEFAULT_SKILL_MEMORY } from "./skills-mem";
-export { DEFAULT_IDENTITY_MD } from "./agent";
+export { DEFAULT_IDENTITY_MD, FOLLOW_UP_QUESTION_CONTRACT } from "./agent";
 
 import { DEFAULT_SKILL_DIAGNOSE_PR } from "./skills-analyzer";
 import { DEFAULT_SKILL_REPORT_ADVISE } from "./skills-analyzer";

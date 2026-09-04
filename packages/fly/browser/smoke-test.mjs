@@ -48,12 +48,29 @@ if (unauthorizedDirect.status !== 401)
 const direct = await fetch(
   `${endpoint}/direct?ticket=${encodeURIComponent(ticket)}`,
 );
+const directHtml = await direct.text();
+const directCookie = direct.headers.get("set-cookie");
 if (
   !direct.ok ||
-  !(await direct.text()).includes("/direct/core/rfb.js") ||
-  !direct.headers.get("set-cookie")?.includes("HttpOnly")
+  !directHtml.includes("/direct/client.js") ||
+  !directCookie?.includes("HttpOnly")
 ) {
   throw new Error("Authenticated direct browser page was unavailable");
+}
+const directClient = await fetch(`${endpoint}/direct/client.js`, {
+  headers: { Cookie: directCookie.split(";", 1)[0] },
+});
+if (
+  !directClient.ok ||
+  !(await directClient.text()).includes("/direct/core/rfb.js")
+) {
+  throw new Error("Authenticated direct browser client was unavailable");
+}
+const directRfb = await fetch(`${endpoint}/direct/core/rfb.js`, {
+  headers: { Cookie: directCookie.split(";", 1)[0] },
+});
+if (!directRfb.ok || !(await directRfb.text()).includes("export default")) {
+  throw new Error("Authenticated direct browser viewer was unavailable");
 }
 
 const directStreamUrl = new URL(endpoint);
@@ -70,8 +87,8 @@ await new Promise((resolve, reject) => {
   directSocket.on("message", (data) => {
     if (!Buffer.from(data).toString("ascii").startsWith("RFB ")) return;
     clearTimeout(timeout);
+    directSocket.once("close", resolve);
     directSocket.close();
-    resolve();
   });
   directSocket.on("error", reject);
 });
@@ -94,11 +111,20 @@ const replay = await fetch(`${endpoint}/api/browser/action`, {
   },
   body: JSON.stringify({ type: "snapshot" }),
 });
-if (
-  replay.status !== 307 ||
-  replay.headers.get("fly-replay") !== `instance=${replayMachineId}`
-) {
-  throw new Error("Exact Fly Machine replay was not requested");
+const replayWasReturned =
+  replay.status === 307 &&
+  replay.headers.get("fly-replay") === `instance=${replayMachineId}`;
+// The public Fly proxy consumes fly-replay itself. A deliberately nonexistent
+// target then becomes its empty 400 response instead of exposing our 307.
+const replayWasAppliedByFlyProxy =
+  new URL(endpoint).hostname.endsWith(".fly.dev") &&
+  replay.status === 400 &&
+  replay.headers.get("fly-replay") === null;
+if (!replayWasReturned && !replayWasAppliedByFlyProxy) {
+  const replayBody = await replay.text();
+  throw new Error(
+    `Exact Fly Machine replay was not requested: status=${replay.status} header=${replay.headers.get("fly-replay") ?? "missing"} body=${replayBody.slice(0, 200)}`,
+  );
 }
 
 async function action(body) {
@@ -172,7 +198,14 @@ await waitFor(
 
 await action({ type: "navigate", url: "https://httpbin.org/forms/post" });
 await action({ type: "recordStart" });
-await action({ type: "click", selector: "input[name=custname]" });
+const formSnapshot = await action({ type: "snapshot" });
+const customerNameControl = formSnapshot.data?.snapshot?.elements?.find(
+  (element) => element.tag === "input" && element.box?.width > 0,
+);
+if (!customerNameControl?.selector) {
+  throw new Error("Snapshot did not expose the customer name control");
+}
+await action({ type: "click", selector: customerNameControl.selector });
 const frameBeforeScroll = Math.max(
   ...messages
     .filter((message) => message.type === "frame")

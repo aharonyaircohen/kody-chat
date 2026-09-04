@@ -68,7 +68,10 @@ vi.mock("@kody-ade/fly/browsers/security", () => ({
 }));
 vi.mock("@kody-ade/fly/browsers/ticket", () => ({
   deriveBrowserKey: () => Buffer.alloc(32, 1),
-  mintBrowserTicket: () => ({ ticket: "ticket-1", expiresAt: 2_000 }),
+  mintBrowserTicket: vi.fn(() => ({
+    ticket: "ticket-1",
+    expiresAt: 2_000,
+  })),
 }));
 
 import { GET, POST } from "../../app/api/kody/browser/session/route";
@@ -133,6 +136,15 @@ describe("browser session route", () => {
         appName: "kody-browser-acme-app",
         machineId: "machine-1",
       }),
+    );
+    const { mintBrowserTicket } = await import("@kody-ade/fly/browsers/ticket");
+    expect(vi.mocked(mintBrowserTicket)).toHaveBeenCalledWith(
+      expect.any(Object),
+      5 * 60,
+    );
+    expect(vi.mocked(mintBrowserTicket)).toHaveBeenCalledWith(
+      expect.any(Object),
+      60 * 60,
     );
     expect(backend.mutation).toHaveBeenCalledTimes(3);
   });
@@ -256,6 +268,64 @@ describe("browser session route", () => {
     expect(browserReadiness.ensure.mock.invocationCallOrder[0]).toBeLessThan(
       provider.act.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("resumes the same expired browser without navigating away from its page", async () => {
+    context.config = {
+      token: "fly-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    };
+    const expiredAtMs = Date.now() - 1;
+    backend.query.mockResolvedValue({
+      sessionId: "browser-fixed",
+      providerId: "fly",
+      appName: "kody-browser-acme-app",
+      machineId: "machine-1",
+      state: "suspended",
+      currentUrl: "https://www.facebook.com/groups/example",
+      viewport: { width: 1280, height: 720 },
+      expiresAtMs: expiredAtMs,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/kody/browser/session", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "resume",
+          actorLogin: "octocat",
+          sessionId: "browser-fixed",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      mode: "remote",
+      sessionId: "browser-fixed",
+      state: "running",
+      currentUrl: "https://www.facebook.com/groups/example",
+      streamUrl: expect.stringContaining("ticket-1"),
+    });
+    expect(browserReadiness.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "browser-fixed",
+        machineId: "machine-1",
+      }),
+    );
+    expect(provider.act).not.toHaveBeenCalled();
+    const mutationCalls = backend.mutation.mock.calls as unknown as Array<
+      [unknown, Record<string, unknown>]
+    >;
+    const touchCall = mutationCalls.find(
+      ([, input]) => input.sessionId === "browser-fixed",
+    );
+    expect(touchCall?.[1]).toMatchObject({
+      sessionId: "browser-fixed",
+      state: "running",
+    });
+    expect(touchCall?.[1].expiresAtMs).toEqual(expect.any(Number));
+    expect(touchCall?.[1].expiresAtMs).toBeGreaterThan(expiredAtMs);
   });
 
   it("aligns a reused browser even when its stored URL already matches", async () => {

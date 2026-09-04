@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createCapabilityTools } from "../../app/api/kody/chat/tools/capability-tools";
+import {
+  browserCapabilityActionSchema,
+  createCapabilityTools,
+} from "../../app/api/kody/chat/tools/capability-tools";
 
 const ctx = {
   owner: "acme",
@@ -28,6 +31,34 @@ describe("capability chat tools", () => {
     ctx.saveCapability.mockResolvedValue({ capability: { slug: "greet" } });
     ctx.removeCapability.mockResolvedValue({ success: true });
     ctx.runCapability.mockResolvedValue({ ok: true, capability: "greet" });
+  });
+
+  it("requires the fields belonging to each browser operation", () => {
+    expect(
+      browserCapabilityActionSchema.safeParse({
+        slug: "prepare-facebook-post",
+        op: "navigate",
+        selector: "https://www.facebook.com",
+        reason: "Open Facebook",
+      }).success,
+    ).toBe(false);
+    expect(
+      browserCapabilityActionSchema.safeParse({
+        slug: "prepare-facebook-post",
+        op: "fill",
+        selector: '[role="textbox"]',
+        reason: "Fill the composer",
+      }).success,
+    ).toBe(false);
+    expect(
+      browserCapabilityActionSchema.safeParse({
+        slug: "prepare-facebook-post",
+        op: "fill",
+        selector: '[role="textbox"]',
+        value: "Exact draft",
+        reason: "Fill the composer",
+      }).success,
+    ).toBe(true);
   });
 
   it("limits user-browser capability actions to the declared grant", async () => {
@@ -173,5 +204,40 @@ describe("capability chat tools", () => {
 
     expect(ctx.removeCapability).toHaveBeenCalledWith("greet");
     expect(ctx.runCapability).toHaveBeenCalledWith("greet");
+  });
+
+  it("keeps a user-browser capability in the current chat instead of dispatching it", async () => {
+    ctx.readCapability.mockResolvedValue({
+      capability: {
+        slug: "prepare-facebook-post",
+        instructions: "Prepare the post in the visible browser.",
+        contract: JSON.stringify({
+          execution: "agent",
+          requirements: {
+            browser: true,
+            browserOnly: true,
+            browserSession: "user",
+            browserActions: ["navigate", "click", "fill", "scroll", "wait"],
+            browserOrigins: ["https://www.facebook.com"],
+          },
+          input: {},
+          output: {},
+        }),
+      },
+    });
+    const tools = createCapabilityTools(ctx as never);
+
+    await expect(
+      tools.run_capability.execute!(
+        { slug: "prepare-facebook-post" },
+        {} as never,
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      capability: "prepare-facebook-post",
+      execution: "user_browser",
+      nextTool: "browser_capability_act",
+    });
+    expect(ctx.runCapability).not.toHaveBeenCalled();
   });
 });

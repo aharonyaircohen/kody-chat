@@ -64,8 +64,14 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     when: "Use when the user asks to configure chat models or providers.",
   },
   "/connections": {
-    aliases: ["connection", "connections", "facebook", "facebook page", "social publishing"],
-    when: "Use when the user asks to manage an external account Kody may use.",
+    aliases: [
+      "connection",
+      "connections",
+      "external account",
+      "provider connection",
+      "facebook page api",
+    ],
+    when: "Use only when the user explicitly asks to configure external account credentials or an API-backed provider connection. Browser sessions and external website actions belong to Views.",
   },
   "/instructions": {
     aliases: ["instructions", "tone", "behavior", "preferences"],

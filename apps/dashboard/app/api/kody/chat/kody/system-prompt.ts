@@ -84,6 +84,24 @@ export function buildSystemPrompt(
   opts?: {
     capability?: CapabilityContext;
     report?: ReportContext;
+    app?: {
+      slug: string;
+      repository: string;
+      name: string;
+      status: string;
+      branch: string;
+      rootDirectory: string;
+      exposure: "private" | "public";
+      currentDeploymentId?: string;
+      secretNames: string[];
+      domains: Array<{ hostname: string; status: string }>;
+      storage: Array<{
+        volumeId: string;
+        name: string;
+        mountPath: string;
+        sizeGb: number;
+      }>;
+    };
     org?: OrgContext;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
@@ -288,6 +306,21 @@ When the user asks what to do with this report, recommend one of three paths and
 2. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
 
 Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
+    sections.push(lines.join("\n"));
+  }
+  if (opts?.app) {
+    const app = opts.app;
+    const lines = [
+      "## Current App",
+      `The user selected **${app.name}** (slug \`${app.slug}\`) on the Apps page.`,
+      `- Status: ${app.status}`,
+      `- Source: ${app.repository}@${app.branch}:${app.rootDirectory}`,
+      `- Access: ${app.exposure}`,
+      `- Runtime secret names: ${app.secretNames.join(", ") || "none"}`,
+      `- Domains: ${app.domains.map((item) => `${item.hostname} (${item.status})`).join(", ") || "none"}`,
+      `- Storage: ${app.storage.map((item) => `${item.name} at ${item.mountPath}`).join(", ") || "none"}`,
+      "Use the Apps tools for current state and actions. Never claim to know secret values or consumer tokens from this context.",
+    ];
     sections.push(lines.join("\n"));
   }
   if (task) {

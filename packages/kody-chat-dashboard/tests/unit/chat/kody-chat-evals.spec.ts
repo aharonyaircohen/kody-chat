@@ -143,6 +143,9 @@ describe("Kody chat evals", () => {
     expect(route).toContain(
       "settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS)",
     );
+    expect(route).toContain(
+      'successfulToolResult("browser_capability_act")',
+    );
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
   });
 

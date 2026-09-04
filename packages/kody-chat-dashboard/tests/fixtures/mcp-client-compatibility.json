@@ -6,11 +6,6 @@
     "scheme": "Bearer",
     "environmentVariable": "KODY_MCP_TOKEN"
   },
-  "protocolVersion": "2025-11-25",
-  "clients": [
-    { "id": "claude-code", "mode": "remote-http", "status": "compatible" },
-    { "id": "codex", "mode": "remote-http", "status": "compatible" },
-    { "id": "opencode", "mode": "remote-http", "status": "compatible" },
-    { "id": "hermes-agent", "mode": "remote-http", "status": "compatible" }
-  ]
+  "protocolVersions": ["2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"],
+  "compatibility": "standards-compliant-client"
 }

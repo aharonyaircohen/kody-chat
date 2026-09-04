@@ -27,7 +27,8 @@ interface FlyRemoteBrowserSurfaceProps {
   onViewportResize?: (width: number, height: number) => void;
   onPageState?: (page: BrowserPageState) => void;
   onConnected?: () => void;
-  onDisconnected?: () => void;
+  onConnectionLost?: () => void;
+  onReconnect?: () => void;
 }
 
 export function FlyRemoteBrowserSurface({
@@ -37,7 +38,8 @@ export function FlyRemoteBrowserSurface({
   onViewportResize,
   onPageState,
   onConnected,
-  onDisconnected,
+  onConnectionLost,
+  onReconnect,
 }: FlyRemoteBrowserSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -45,11 +47,17 @@ export function FlyRemoteBrowserSurface({
   const callbacksRef = useRef({
     onPageState,
     onConnected,
-    onDisconnected,
+    onConnectionLost,
+    onReconnect,
   });
   const [connected, setConnected] = useState(false);
   const [disconnected, setDisconnected] = useState(false);
-  callbacksRef.current = { onPageState, onConnected, onDisconnected };
+  callbacksRef.current = {
+    onPageState,
+    onConnected,
+    onConnectionLost,
+    onReconnect,
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -154,7 +162,7 @@ export function FlyRemoteBrowserSurface({
           return;
         }
         setDisconnected(true);
-        callbacksRef.current.onDisconnected?.();
+        callbacksRef.current.onConnectionLost?.();
       });
       websocket.addEventListener("error", () => websocket?.close());
     };
@@ -296,7 +304,7 @@ export function FlyRemoteBrowserSurface({
               <Button
                 type="button"
                 variant="outline"
-                onClick={callbacksRef.current.onDisconnected}
+                onClick={callbacksRef.current.onReconnect}
               >
                 Reconnect
               </Button>

@@ -5,6 +5,7 @@ import {
   KODY_XKIRO_FREE_CHAT_MODEL,
   KODY_OPENROUTER_FREE_CHAT_MODEL,
   composeChatModelCatalog,
+  isBuiltInChatModelId,
 } from "../../../src/dashboard/lib/chat/model-catalog";
 
 const minimaxModel = (overrides: Partial<ChatModel> = {}): ChatModel => ({
@@ -132,5 +133,16 @@ describe("Kody Chat model catalog", () => {
         KODY_OPENROUTER_FREE_CHAT_MODEL,
       ).map((model) => model.id),
     ).toEqual(["minimax/MiniMax-M3", "openrouter/free"]);
+  });
+
+  it("derives built-in ownership only from the shipped catalog", () => {
+    expect(isBuiltInChatModelId("openrouter/free")).toBe(true);
+    expect(isBuiltInChatModelId("xkiro/deepseek/deepseek-v4-flash")).toBe(true);
+    expect(isBuiltInChatModelId("openai/ox-alpha")).toBe(true);
+    expect(isBuiltInChatModelId("user/openrouter-free-copy")).toBe(false);
+  });
+
+  it("does not treat a user model sharing the label as built in", () => {
+    expect(isBuiltInChatModelId("user/ox-alpha")).toBe(false);
   });
 });

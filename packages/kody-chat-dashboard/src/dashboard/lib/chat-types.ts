@@ -234,4 +234,26 @@ export type ChatContext =
        */
       kind: "report";
       report: { slug: string; title: string; body: string; path?: string };
+    }
+  | {
+      /** Safe operational metadata for the App selected on the Apps page. */
+      kind: "app";
+      app: {
+        slug: string;
+        repository: string;
+        name: string;
+        status: string;
+        branch: string;
+        rootDirectory: string;
+        exposure: "private" | "public";
+        currentDeploymentId?: string;
+        secretNames: string[];
+        domains: Array<{ hostname: string; status: string }>;
+        storage: Array<{
+          volumeId: string;
+          name: string;
+          mountPath: string;
+          sizeGb: number;
+        }>;
+      };
     };

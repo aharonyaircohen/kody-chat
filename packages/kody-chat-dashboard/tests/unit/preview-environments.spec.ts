@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  addEnvironment,
   addBranchPreviewEnvironment,
   addPreviewFolder,
   addRepoViewEnvironment,
@@ -24,6 +25,27 @@ import {
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
+
+describe("addEnvironment", () => {
+  it("keeps saved-view labels unique", () => {
+    const existing: PreviewEnvironment[] = [
+      { id: "docs", label: "example.com docs", url: "https://other.test" },
+      {
+        id: "docs-2",
+        label: "example.com docs 2",
+        url: "https://another.test",
+      },
+    ];
+
+    const next = addEnvironment(
+      existing,
+      "example.com docs",
+      "https://example.com/docs",
+    );
+
+    expect(next.at(-1)?.label).toBe("example.com docs 3");
+  });
+});
 
 function uploaded(id: string, expiresAt: number): PreviewEnvironment {
   return {

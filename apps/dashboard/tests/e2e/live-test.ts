@@ -5,6 +5,10 @@ import {
   redactDiagnosticText,
   sanitizeDiagnosticUrl,
 } from "../../scripts/live-ui-gate/core.mjs";
+import {
+  establishLiveKodyAccountSession,
+  loadLiveKodyAccountCredentials,
+} from "./live-account-session";
 
 const SECRET_ENVIRONMENT_NAMES = [
   "E2E_GITHUB_TOKEN",
@@ -91,7 +95,14 @@ function monitorPage(page: Page, diagnostics: string[]) {
     const expected = process.env.BASE_URL;
     if (!expected) return;
     try {
-      if (new URL(frame.url()).origin !== new URL(expected).origin) {
+      const allowedOrigins = new Set([
+        new URL(expected).origin,
+        ...(process.env.E2E_ALLOWED_NAVIGATION_ORIGINS ?? "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ]);
+      if (!allowedOrigins.has(new URL(frame.url()).origin)) {
         record(
           `[navigation] unexpected origin ${sanitizeDiagnosticUrl(frame.url())}`,
         );
@@ -102,7 +113,25 @@ function monitorPage(page: Page, diagnostics: string[]) {
   });
 }
 
-export const test = base.extend<{ livePageMonitoring: void }>({
+export const test = base.extend<{
+  liveKodyAccountSession: void;
+  livePageMonitoring: void;
+}>({
+  liveKodyAccountSession: [
+    async ({ page }, use) => {
+      const baseUrl = process.env.BASE_URL ?? "";
+      if (!baseUrl) throw new Error("Kody Quality requires BASE_URL");
+      const credentials = await loadLiveKodyAccountCredentials(process.env);
+      await establishLiveKodyAccountSession(
+        page.request,
+        baseUrl,
+        credentials,
+        process.env.E2E_AUTH_ORIGIN,
+      );
+      await use();
+    },
+    { auto: true },
+  ],
   livePageMonitoring: [
     async ({ page }, use, testInfo) => {
       const diagnostics: string[] = [];
@@ -147,38 +176,6 @@ export async function resolveLiveGitHubUser(
     avatar_url: body.user.avatar_url ?? "",
     id: body.user.githubId ?? 0,
   };
-}
-
-export async function signInLiveKodyAccount(
-  page: Page,
-  baseUrl: string,
-): Promise<void> {
-  const email = process.env.E2E_KODY_EMAIL ?? "";
-  const password = process.env.E2E_KODY_PASSWORD ?? "";
-  if (!email || !password) {
-    throw new Error(
-      "Real account-owned Chat tests require E2E_KODY_EMAIL and E2E_KODY_PASSWORD",
-    );
-  }
-  const response = await page.request.post(
-    `${baseUrl}/api/auth/sign-in/email`,
-    {
-      data: { email, password, callbackURL: "/chat" },
-      headers: { Origin: new URL(baseUrl).origin },
-    },
-  );
-  if (!response.ok()) {
-    const reason = await response.text().catch(() => "");
-    throw new Error(
-      `Kody account sign-in failed (${response.status()}): ${reason.slice(0, 300)}`,
-    );
-  }
-  const session = await page.request.get(`${baseUrl}/api/auth/get-session`);
-  if (!session.ok() || (await session.json().catch(() => null)) === null) {
-    throw new Error(
-      `Kody account session was not established (${session.status()})`,
-    );
-  }
 }
 
 export { expect };

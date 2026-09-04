@@ -10,6 +10,7 @@
 export type FlyFeature =
   | "preview"
   | "preview-base"
+  | "app"
   | "runner"
   | "brain"
   | "browser"
@@ -47,6 +48,7 @@ export interface FlyInventory {
 
 export const FLY_FEATURE_TITLE: Record<FlyFeature, string> = {
   preview: "Previews",
+  app: "Apps",
   runner: "Fly runners",
   brain: "Brain server",
   browser: "Browsers",

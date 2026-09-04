@@ -16,6 +16,7 @@ import {
 } from "../../../src/dashboard/lib/chat-defaults";
 import {
   DEFAULT_IDENTITY_MD,
+  FOLLOW_UP_QUESTION_CONTRACT,
   DEFAULT_CHAT_CAPABILITY,
   DEFAULT_WORKFLOWS,
   DEFAULT_SKILLS,
@@ -80,7 +81,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "Every prose final reply must end with one short, relevant follow-up question",
+      FOLLOW_UP_QUESTION_CONTRACT,
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -95,15 +96,10 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("agentIdentity requires a question on every prose reply without changing renderer output", () => {
-    expect(DEFAULT_IDENTITY_MD).toContain(
-      "Every prose final reply must end with one short, relevant follow-up question",
-    );
-    expect(DEFAULT_IDENTITY_MD).toContain(
-      "This includes tiny factual answers and completed tasks",
-    );
-    expect(DEFAULT_IDENTITY_MD).toContain(
-      "Renderer replies are exempt: preserve the renderer's defined purpose",
+  it("agentIdentity requires contextual prose follow-ups without changing renderer output", () => {
+    expect(DEFAULT_IDENTITY_MD).toContain(FOLLOW_UP_QUESTION_CONTRACT);
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain(
+      "Renderer-owned replies remain exempt",
     );
   });
 
@@ -595,6 +591,22 @@ describe("composeBasePrompt toolIndex option", () => {
 });
 
 describe("CRITICAL_REMINDERS_MD", () => {
+  it("uses one self-contained follow-up contract everywhere in the base prompt", () => {
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain("stand on its own");
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain(
+      "name the subject and current result",
+    );
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain(
+      "exact next decision or action",
+    );
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain(
+      "what the answer will enable",
+    );
+    expect(FOLLOW_UP_QUESTION_CONTRACT).toContain("Do not use generic closers");
+    expect(DEFAULT_IDENTITY_MD).toContain(FOLLOW_UP_QUESTION_CONTRACT);
+    expect(CRITICAL_REMINDERS_MD).toContain(FOLLOW_UP_QUESTION_CONTRACT);
+  });
+
   it("is a non-empty markdown string with the key reminders", () => {
     expect(typeof CRITICAL_REMINDERS_MD).toBe("string");
     expect(CRITICAL_REMINDERS_MD.length).toBeGreaterThan(100);
@@ -606,12 +618,8 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("Content Entries");
     expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
-    expect(CRITICAL_REMINDERS_MD).toContain(
-      "End prose with a question when the user leaves the conversation open",
-    );
-    expect(CRITICAL_REMINDERS_MD).toContain(
-      "Do not add a question, control, or prose solely to satisfy this rule when `show_view` owns the reply",
-    );
+    expect(CRITICAL_REMINDERS_MD).toContain("Contextual follow-up");
+    expect(CRITICAL_REMINDERS_MD).toContain(FOLLOW_UP_QUESTION_CONTRACT);
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });
 });

@@ -6,21 +6,44 @@ import { chatModelAdapter } from "../../packages/kody-chat-dashboard/app/api/kod
 import { ChatModelSchema } from "../../packages/base/src/variables/models";
 import { createAutomaticLanguageModel } from "../../packages/kody-chat-dashboard/src/dashboard/lib/chat/core/automatic-language-model";
 
-const apiKey = process.env.MINIMAX_API_KEY;
-if (!apiKey) throw new Error("MINIMAX_API_KEY is required");
+const evaluationModels = {
+  "openrouter/free": {
+    id: "openrouter/free",
+    label: "OpenRouter Free evaluation",
+    provider: "openrouter",
+    adapter: "openai-compatible",
+    adapterBaseURL: "https://openrouter.ai/api/v1",
+    protocol: "openai",
+    baseURL: "https://openrouter.ai/api/v1",
+    modelName: "openrouter/free",
+    apiKeySecret: "OPENROUTER_API_KEY",
+    enabled: true,
+  },
+  "minimax/MiniMax-M3": {
+    id: "minimax/MiniMax-M3",
+    label: "MiniMax M3 evaluation",
+    provider: "minimax",
+    adapter: "openai-compatible",
+    adapterBaseURL: "https://api.minimax.io/v1",
+    protocol: "openai",
+    baseURL: "https://api.minimax.io/v1",
+    modelName: "MiniMax-M3",
+    apiKeySecret: "MINIMAX_API_KEY",
+    enabled: true,
+  },
+} as const;
 
-const modelConfig = ChatModelSchema.parse({
-  id: "minimax/MiniMax-M3",
-  label: "MiniMax M3 evaluation",
-  provider: "minimax",
-  adapter: "openai-compatible",
-  adapterBaseURL: "https://api.minimax.io/v1",
-  protocol: "openai",
-  baseURL: "https://api.minimax.io/v1",
-  modelName: "MiniMax-M3",
-  apiKeySecret: "MINIMAX_API_KEY",
-  enabled: true,
-});
+const evaluationModelId =
+  process.env.KODY_EVAL_MODEL?.trim() || "openrouter/free";
+const selectedModel =
+  evaluationModels[evaluationModelId as keyof typeof evaluationModels];
+if (!selectedModel) {
+  throw new Error(`Unsupported KODY_EVAL_MODEL: ${evaluationModelId}`);
+}
+const apiKey = process.env[selectedModel.apiKeySecret];
+if (!apiKey) throw new Error(`${selectedModel.apiKeySecret} is required`);
+
+const modelConfig = ChatModelSchema.parse(selectedModel);
 const adapter = chatModelAdapter(modelConfig);
 const model = createAutomaticLanguageModel(
   [

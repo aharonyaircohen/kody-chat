@@ -28,6 +28,9 @@ const createRemoteToolsMock = vi.hoisted(() =>
 const createReportToolsMock = vi.hoisted(() =>
   vi.fn(() => ({ list_reports: fakeTool() })),
 );
+const createAppsToolsMock = vi.hoisted(() =>
+  vi.fn(() => ({ list_apps: fakeTool(), create_app: fakeTool() })),
+);
 
 vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: createUserOctokitMock,
@@ -50,6 +53,9 @@ vi.mock("../../../app/api/kody/chat/tools/remote-tools", () => ({
 vi.mock("../../../app/api/kody/chat/tools/reports-tools", () => ({
   createReportTools: createReportToolsMock,
 }));
+vi.mock("../../../app/api/kody/chat/tools/apps-tools", () => ({
+  createAppsTools: createAppsToolsMock,
+}));
 
 import { createDashboardHostTools } from "../../../app/api/kody/chat/kody/dashboard-host-tools";
 
@@ -65,7 +71,9 @@ describe("Dashboard chat host tools", () => {
     });
 
     expect(Object.keys(tools).sort()).toEqual([
+      "create_app",
       "export_company",
+      "list_apps",
       "list_inbox",
       "list_macros",
       "list_notification_rules",
@@ -81,5 +89,6 @@ describe("Dashboard chat host tools", () => {
       }),
     );
     expect(createRemoteToolsMock).toHaveBeenCalledWith("alice");
+    expect(createAppsToolsMock).toHaveBeenCalledWith({ token: "ghp_test", owner: "acme", repo: "app" });
   });
 });

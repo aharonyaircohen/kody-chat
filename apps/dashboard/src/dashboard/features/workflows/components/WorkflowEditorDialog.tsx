@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -270,16 +271,21 @@ export function WorkflowEditorDialog({
                             ? " · starts here"
                             : ` · step ${index + 1}`}
                         </div>
-                        <label className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <input
-                            type="checkbox"
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <Checkbox
+                            id={`workflow-step-approval-${step.id}`}
                             checked={step.approval === "required"}
-                            onChange={(event) =>
-                              setStepApproval(step.id, event.target.checked)
+                            onCheckedChange={(checked) =>
+                              setStepApproval(step.id, checked === true)
                             }
                           />
-                          Require approval before this step
-                        </label>
+                          <Label
+                            htmlFor={`workflow-step-approval-${step.id}`}
+                            className="text-[11px] font-normal text-muted-foreground"
+                          >
+                            Require approval before this step
+                          </Label>
+                        </div>
                       </div>
                       <Button
                         type="button"

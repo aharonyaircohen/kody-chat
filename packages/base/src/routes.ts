@@ -28,6 +28,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/agency",
   "/agent-loops",
   "/agents",
+  "/apps",
   "/brands",
   "/backend",
   ...PACKAGE_ADMIN_PAGE_META.map((page) => page.href),

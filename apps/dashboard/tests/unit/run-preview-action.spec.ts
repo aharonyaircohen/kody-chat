@@ -4,15 +4,15 @@
  *
  * This is the glue the user's bug reports kept landing on: the server
  * tool returns a PreviewActDirective, the client must run the action via
- * the inspector extension AND push the post-action DOM snapshot back to
+ * the active preview runtime AND push the post-action DOM snapshot back to
  * the model as a HIDDEN follow-up so the model can chain steps without
  * acting blind (the "URL shows /register but content is landing" loop).
  *
- * We mock the picker.act and chat sendText with spies and assert the
+ * We mock the preview runtime and chat sendText with spies and assert the
  * orchestrator:
  *   - Translates each op shape correctly into a PreviewAction.
  *   - Bails with a useful error when the directive is malformed.
- *   - Bails with a useful error when the inspector extension is missing.
+ *   - Bails with a useful error when no preview runtime is available.
  *   - Sends a HIDDEN follow-up that carries the post-action snapshot —
  *     proving the model receives the new DOM.
  *   - Honors the per-prompt chain-depth cap so a runaway model can't
@@ -40,7 +40,7 @@ const directive = (
 
 function makeDeps(
   overrides: Partial<RunPreviewActionDeps> = {},
-  pickerAvailable: boolean = true,
+  actionRuntimeAvailable: boolean = true,
   actResult: PreviewActResult = {
     ok: true,
     info: {
@@ -67,7 +67,7 @@ function makeDeps(
   const toastSuccess = vi.fn();
   const toastError = vi.fn();
   return {
-    pickerAvailable: () => pickerAvailable,
+    actionRuntimeAvailable: () => actionRuntimeAvailable,
     act,
     sendText,
     toastSuccess,
@@ -176,7 +176,7 @@ describe("runPreviewAction — chat → action → hidden follow-up", () => {
     expect(deps.spies.sendText.mock.calls[0]![0]).toContain("#missing");
   });
 
-  it("aborts when the inspector extension isn't installed", async () => {
+  it("aborts when no preview runtime is available", async () => {
     const deps = makeDeps({}, false);
     await runPreviewAction(
       directive({ op: "click", selector: "#start" }),
