@@ -179,12 +179,16 @@ describe("PreviewBrowser new-tab action", () => {
       /const connect = \(\): void =>[\s\S]*new WebSocket\(streamUrl\)[\s\S]*setTimeout/,
     );
     expect(REMOTE_SURFACE_SOURCE).toContain("setDisconnected(true)");
+    expect(REMOTE_SURFACE_SOURCE).toContain("onDisconnected?: () => void");
+    expect(REMOTE_SURFACE_SOURCE).toContain(
+      "callbacksRef.current.onDisconnected?.()",
+    );
     expect(REMOTE_SURFACE_SOURCE).toContain("if (disposed) return");
   });
 
   it("keeps the sharp webpage stream separate from direct desktop login", () => {
     expect(BROWSER_START_SOURCE).not.toContain("--headless=new");
-    expect(BROWSER_START_SOURCE).toContain("--window-size=1280,720");
+    expect(BROWSER_START_SOURCE).toContain("--window-size=1440,900");
     expect(BROWSER_START_SOURCE).toMatch(/Xvfb|fluxbox|x11vnc/);
     expect(BROWSER_SERVER_SOURCE).toContain("Page.startScreencast");
     expect(BROWSER_SERVER_SOURCE).toContain('"/direct-stream"');

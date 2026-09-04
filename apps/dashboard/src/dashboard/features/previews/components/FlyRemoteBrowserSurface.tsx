@@ -27,6 +27,7 @@ interface FlyRemoteBrowserSurfaceProps {
   onViewportResize?: (width: number, height: number) => void;
   onPageState?: (page: BrowserPageState) => void;
   onConnected?: () => void;
+  onDisconnected?: () => void;
   onConnectionLost?: () => void;
   onReconnect?: () => void;
 }
@@ -38,6 +39,7 @@ export function FlyRemoteBrowserSurface({
   onViewportResize,
   onPageState,
   onConnected,
+  onDisconnected,
   onConnectionLost,
   onReconnect,
 }: FlyRemoteBrowserSurfaceProps) {
@@ -47,6 +49,7 @@ export function FlyRemoteBrowserSurface({
   const callbacksRef = useRef({
     onPageState,
     onConnected,
+    onDisconnected,
     onConnectionLost,
     onReconnect,
   });
@@ -55,6 +58,7 @@ export function FlyRemoteBrowserSurface({
   callbacksRef.current = {
     onPageState,
     onConnected,
+    onDisconnected,
     onConnectionLost,
     onReconnect,
   };
@@ -162,6 +166,7 @@ export function FlyRemoteBrowserSurface({
           return;
         }
         setDisconnected(true);
+        callbacksRef.current.onDisconnected?.();
         callbacksRef.current.onConnectionLost?.();
       });
       websocket.addEventListener("error", () => websocket?.close());

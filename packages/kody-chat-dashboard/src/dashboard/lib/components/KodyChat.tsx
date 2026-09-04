@@ -233,6 +233,7 @@ export function KodyChat({
   // Report mode: chat scoped to a markdown report on /reports. The agent
   // is framed to advise: create an issue or take no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
+  const selectedApp = context?.kind === "app" ? context.app : null;
 
   // Per-scope (task / capability / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
@@ -1802,6 +1803,7 @@ export function KodyChat({
           selectedCapability,
           selectedOrg,
           selectedReport,
+          selectedApp,
           onIssueCreated,
           vibeMode,
           context,
@@ -1843,6 +1845,7 @@ export function KodyChat({
     [
       selectedTask,
       selectedCapability,
+      selectedApp,
       capabilitySlug,
       setMessagesForSession,
       messages,
