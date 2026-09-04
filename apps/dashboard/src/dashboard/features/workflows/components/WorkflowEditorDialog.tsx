@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -271,11 +272,10 @@ export function WorkflowEditorDialog({
                             : ` · step ${index + 1}`}
                         </div>
                         <label className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={step.approval === "required"}
-                            onChange={(event) =>
-                              setStepApproval(step.id, event.target.checked)
+                            onCheckedChange={(checked) =>
+                              setStepApproval(step.id, checked === true)
                             }
                           />
                           Require approval before this step
