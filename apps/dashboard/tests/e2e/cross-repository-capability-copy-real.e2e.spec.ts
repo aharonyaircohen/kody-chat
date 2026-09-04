@@ -153,10 +153,17 @@ test("real Kody copies and verifies a capability across connected repositories",
     const setup = chat.getByLabel("Chat setup").first();
     await setup.click();
     const models = await openChatSetupSection(chat, "Model");
-    await models
+    const automaticModel = models
       .locator('button[role="option"]')
-      .filter({ hasText: "Automatic" })
-      .click();
+      .filter({ hasText: "Automatic" });
+    if ((await automaticModel.count()) > 0) {
+      await automaticModel.click();
+    } else {
+      // Production may expose only explicitly configured models. Keep the
+      // current selection and close setup instead of coupling this journey to
+      // a development-only model entry.
+      await setup.click();
+    }
 
     const send = async (message: string) => {
       const input = chat.locator("textarea").first();
