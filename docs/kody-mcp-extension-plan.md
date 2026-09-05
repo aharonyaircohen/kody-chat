@@ -46,8 +46,8 @@ never returned through discovery, history, or evidence tools.
 
 ## Public MCP contract
 
-The canonical transport is Streamable HTTP over HTTPS. The initial server
-exposes only four stable facade tools:
+The canonical transport is Streamable HTTP over HTTPS. The server
+exposes five stable facade tools:
 
 1. `kody_status` — server version, authenticated scope, capabilities, and
    service health safe for the caller to see.
@@ -57,6 +57,10 @@ exposes only four stable facade tools:
    approval behavior, and examples for one action.
 4. `kody_execute_tool` — validated execution of an allowed action using a stable
    action identifier, optional idempotency key, and structured result.
+5. `kody_read_tool` — the same validated execution boundary, restricted to
+   actions declaring read permission, no side effects, and no approval. This
+   additive facade lets read-only clients inspect data without approving a
+   potentially mutating tool. Existing execute calls remain compatible.
 
 All responses use versioned schemas and structured errors. Tool definitions
 declare one of four permission classes: `read`, `write`, `approval`, or `admin`.
@@ -117,7 +121,7 @@ actions.
 - Add Kody access-token creation, expiry, revocation, repository scope, and
   hashed-at-rest validation. Credentials are accepted only in the
   `Authorization: Bearer` header, never in URLs.
-- Implement the four facade tools from shared services, not UI components.
+- Implement the facade tools from shared services, not UI components.
 - Enforce permissions, input validation, request limits, rate limits,
   idempotency, redaction, audit events, and safe error responses.
 - Verify MCP initialization, discovery, detail lookup, execution, rejection of

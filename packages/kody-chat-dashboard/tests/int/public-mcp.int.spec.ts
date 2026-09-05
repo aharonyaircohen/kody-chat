@@ -25,7 +25,10 @@ import {
   handleKodyMcpPost,
   POST as mcpPOST,
 } from "../../app/api/kody/mcp/route";
-import type { KodyMcpActionServices } from "../../src/dashboard/lib/mcp/catalog";
+import {
+  listKodyActions,
+  type KodyMcpActionServices,
+} from "../../src/dashboard/lib/mcp/catalog";
 import {
   DELETE as tokenDELETE,
   GET as tokenGET,
@@ -148,6 +151,7 @@ describe("public Kody MCP endpoint", () => {
       "kody_status",
       "kody_search_tools",
       "kody_get_tool_details",
+      "kody_read_tool",
       "kody_execute_tool",
     ]);
     for (const tool of body.result.tools as Array<{
@@ -162,6 +166,135 @@ describe("public Kody MCP endpoint", () => {
         (tool: { name: string }) => tool.name === "kody_execute_tool",
       ).outputSchema,
     ).toBeUndefined();
+  });
+
+  it("advertises a genuinely read-only execution path", async () => {
+    const response = await mcpPOST(
+      request({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    );
+    const { result } = await response.json();
+    expect(
+      result.tools.find(
+        (tool: { name: string }) => tool.name === "kody_read_tool",
+      ),
+    ).toMatchObject({
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    });
+    expect(
+      result.tools.find(
+        (tool: { name: string }) => tool.name === "kody_execute_tool",
+      ),
+    ).toMatchObject({
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    });
+    backend.query.mockResolvedValue({ ...activeToken, scopes: ["mcp:read"] });
+    phaseFourServices.listWork.mockResolvedValueOnce([
+      { recordId: "existing-work" },
+    ]);
+    const read = await handleKodyMcpPost(
+      request({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "kody_read_tool",
+          arguments: { actionId: "work.list", input: {} },
+        },
+      }),
+      { services: phaseFourServices },
+    );
+    expect((await read.json()).result).toMatchObject({
+      isError: false,
+      structuredContent: [{ recordId: "existing-work" }],
+    });
+  });
+
+  it("rejects every mutating catalog action on the read path even with execute scope", async () => {
+    for (const action of listKodyActions().filter(
+      (action) => action.permission !== "read",
+    )) {
+      const response = await handleKodyMcpPost(
+        request({
+          jsonrpc: "2.0",
+          id: action.id,
+          method: "tools/call",
+          params: {
+            name: "kody_read_tool",
+            arguments: {
+              actionId: action.id,
+              input: action.examples[0]?.input ?? {},
+            },
+          },
+        }),
+        { services: phaseFourServices },
+      );
+      expect((await response.json()).result).toMatchObject({
+        isError: true,
+        structuredContent: { error: { code: "read_only_action_required" } },
+      });
+    }
+    for (const service of Object.values(phaseFourServices))
+      expect(service).not.toHaveBeenCalled();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        outcome: "rejected",
+        toolName: "kody_read_tool",
+      }),
+    );
+  });
+
+  it("ranks multiword discovery and explains the catalog boundary and empty results", async () => {
+    async function search(args: Record<string, unknown>) {
+      const response = await mcpPOST(
+        request({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "kody_search_tools", arguments: args },
+        }),
+      );
+      return (await response.json()).result.structuredContent;
+    }
+    const forward = await search({
+      query: "workflow run inspect execution logs",
+    });
+    const reverse = await search({
+      query: "logs execution inspect run workflow",
+    });
+    expect(forward.items.length).toBeGreaterThan(0);
+    expect(reverse.items).toEqual(forward.items);
+    expect((await search({ query: "workflow.list" })).items[0]).toMatchObject({
+      id: "workflow.list",
+      callTool: "kody_read_tool",
+    });
+    const categoryResults = await search({
+      query: "workflows",
+      category: "workflows",
+    });
+    expect(categoryResults.items.length).toBeGreaterThan(0);
+    expect(
+      categoryResults.items.every(
+        (item: { category: string }) => item.category === "workflows",
+      ),
+    ).toBe(true);
+    const firstPage = await search({ query: "workflow", limit: 1 });
+    const secondPage = await search({
+      query: "workflow",
+      limit: 1,
+      cursor: firstPage.nextCursor,
+    });
+    const together = await search({ query: "workflow", limit: 2 });
+    expect([...firstPage.items, ...secondPage.items]).toEqual(together.items);
+    expect(
+      (await search({ cursor: Buffer.from("-1").toString("base64url") })).error
+        .code,
+    ).toBe("invalid_cursor");
+    const empty = await search({ query: "zzzznomatch" });
+    expect(empty.items).toEqual([]);
+    expect(empty.guidance).toContain("empty query");
+    expect(empty.guidance).toContain("resource");
+    expect(empty.categories.length).toBeGreaterThan(0);
   });
 
   it("echoes a supported legacy protocol version during negotiation", async () => {
@@ -322,6 +455,7 @@ describe("public Kody MCP endpoint", () => {
           status: "ready",
           repository: "acme/widgets",
           actor: "octocat",
+          grantedScopes: ["mcp:read", "mcp:execute"],
         },
       },
     });

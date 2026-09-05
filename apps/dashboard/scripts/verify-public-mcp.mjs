@@ -107,6 +107,7 @@ try {
       "kody_status",
       "kody_search_tools",
       "kody_get_tool_details",
+      "kody_read_tool",
       "kody_execute_tool",
     ],
   );
@@ -135,6 +136,34 @@ try {
     repository,
     actor: issued.body.token.actorLogin,
   });
+
+  const readTool = listed.body.result.tools.find(
+    (tool) => tool.name === "kody_read_tool",
+  );
+  assert.equal(readTool.annotations.readOnlyHint, true);
+  assert.equal(readTool.annotations.destructiveHint, false);
+  const read = await callTool(accessToken, "safe-read", "kody_read_tool", {
+    actionId: "repository.scope.get",
+    input: {},
+  });
+  assert.deepEqual(
+    read.body.result.structuredContent,
+    executed.body.result.structuredContent,
+  );
+  const rejectedWrite = await callTool(
+    accessToken,
+    "reject-write-on-read",
+    "kody_read_tool",
+    {
+      actionId: "work.create",
+      input: {},
+    },
+    true,
+  );
+  assert.equal(
+    rejectedWrite.body.result.structuredContent.error.code,
+    "read_only_action_required",
+  );
 
   const installedClients = testInstalledClients
     ? verifyInstalledClients(accessToken, repository)
@@ -1530,7 +1559,7 @@ async function verifyHermesClient(work) {
           'servers["kody_live_test"] = {',
           '  "url": os.environ["KODY_MCP_LIVE_ENDPOINT"],',
           '  "headers": {"Authorization": "Bearer ${KODY_MCP_LIVE_TOKEN}"},',
-          '  "tools": {"include": ["kody_status", "kody_search_tools", "kody_get_tool_details", "kody_execute_tool"], "resources": False, "prompts": False},',
+          '  "tools": {"include": ["kody_status", "kody_search_tools", "kody_get_tool_details", "kody_read_tool", "kody_execute_tool"], "resources": False, "prompts": False},',
           '  "trust": "full",',
           "}",
           'if os.environ.get("HERMES_MCP_TEST_BASE_URL"):',

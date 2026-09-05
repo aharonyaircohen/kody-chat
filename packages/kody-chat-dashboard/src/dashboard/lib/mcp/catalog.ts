@@ -123,6 +123,7 @@ export interface KodyMcpActionServices {
 }
 
 export type ActionExecutionContext = {
+  readOnly?: boolean;
   idempotencyKey?: string;
   services?: KodyMcpActionServices;
 };
@@ -1178,6 +1179,45 @@ export function getKodyAction(id: string): KodyAction | null {
   return action ? publicAction(action) : null;
 }
 
+export function isReadOnlyAction(action: KodyAction): boolean {
+  return (
+    action.permission === "read" &&
+    action.sideEffects === false &&
+    action.approval === "none"
+  );
+}
+
+/** Rank catalog metadata, not repository resource contents. Partial word matches
+ * keep natural-language queries useful without agent-specific routing rules. */
+export function searchKodyActions(query = "", category?: string): KodyAction[] {
+  const actions = listKodyActions().filter(
+    (action) => !category || action.category === category,
+  );
+  const normalize = (value: string) => value.normalize("NFKC").toLowerCase();
+  const words = (value: string) =>
+    new Set(
+      (normalize(value).match(/[\p{L}\p{N}]+/gu) ?? []).map((word) =>
+        word.length > 3 && word.endsWith("s") && !word.endsWith("ss")
+          ? word.slice(0, -1)
+          : word,
+      ),
+    );
+  const terms = words(query);
+  if (!terms.size) return actions;
+  return actions
+    .map((action) => {
+      const identity = words(`${action.id} ${action.title} ${action.category}`);
+      const summary = words(action.summary);
+      let score = normalize(action.id) === normalize(query.trim()) ? 1000 : 0;
+      for (const term of terms)
+        score += identity.has(term) ? 3 : summary.has(term) ? 1 : 0;
+      return { action, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.action.id.localeCompare(b.action.id))
+    .map((entry) => entry.action);
+}
+
 export async function executeKodyAction(
   id: string,
   input: unknown,
@@ -1186,6 +1226,11 @@ export async function executeKodyAction(
 ): Promise<unknown> {
   const action = INTERNAL_ACTIONS.find((candidate) => candidate.id === id);
   if (!action) throw new KodyActionError("action_not_found", "Unknown action.");
+  if (context.readOnly && !isReadOnlyAction(action))
+    throw new KodyActionError(
+      "read_only_action_required",
+      "This tool only accepts actions with read permission, no side effects, and no approval. Use kody_execute_tool for changes, subject to client approval and token scope.",
+    );
   if (action.permission === "read" && !principal.scopes.includes("mcp:read"))
     throw new KodyActionError(
       "insufficient_scope",

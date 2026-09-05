@@ -19,6 +19,8 @@ import {
   getKodyAction,
   KodyActionError,
   listKodyActions,
+  isReadOnlyAction,
+  searchKodyActions,
   type KodyMcpActionServices,
 } from "../../../../src/dashboard/lib/mcp/catalog";
 import {
@@ -43,12 +45,14 @@ const CURRENT_PROTOCOL_VERSION = KODY_MCP_PROTOCOL_VERSION;
 const SERVER_INSTRUCTIONS =
   "Kody is repository-scoped and client-agnostic. Check kody_status first. " +
   "Use kody_search_tools to find an action, kody_get_tool_details to inspect " +
-  "its exact schema and permissions, then kody_execute_tool. Read actions are " +
-  "safe. Write and approval actions require an idempotencyKey.";
+  "its exact schema and permissions. Call kody_read_tool with {actionId, input} " +
+  "for read actions; use kody_execute_tool for changes with an idempotencyKey. " +
+  "Search finds action definitions, not resource contents: use discovered list/get actions to inspect actual work, workflows, or runs.";
 const FACADE_TOOL_NAMES = [
   "kody_status",
   "kody_search_tools",
   "kody_get_tool_details",
+  "kody_read_tool",
   "kody_execute_tool",
 ] as const;
 
@@ -78,6 +82,7 @@ const executeInput = z
     idempotencyKey: z.string().min(8).max(128).optional(),
   })
   .strict();
+const readInput = executeInput.omit({ idempotencyKey: true });
 
 const facadeTools = [
   {
@@ -93,7 +98,7 @@ const facadeTools = [
     name: "kody_search_tools",
     title: "Search Kody actions",
     description:
-      "Search the scoped Kody action catalog without loading every action schema.",
+      "Find action definitions by words in their ID, title, category, or summary, ranked by relevance. This does not search resource contents; use list/get actions to inspect actual resources. Empty query lists the catalog.",
     inputSchema: toJsonSchema(searchInput),
     outputSchema: { type: "object" },
     annotations: { readOnlyHint: true, destructiveHint: false },
@@ -108,10 +113,23 @@ const facadeTools = [
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
   {
+    name: "kody_read_tool",
+    title: "Read Kody data",
+    description:
+      "Run a discovered read-only action using {actionId, input}. Get its exact input schema with kody_get_tool_details first. Cannot change product data or create approval requests, regardless of token scope.",
+    inputSchema: toJsonSchema(readInput),
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  {
     name: "kody_execute_tool",
     title: "Execute a Kody action",
     description:
-      "Execute one discovered Kody action. Read actions are safe; write and approval actions follow the permission and approval metadata returned by kody_get_tool_details.",
+      "Execute a discovered write or approval action using {actionId, input, idempotencyKey}. Follow its permission and approval policy. Use kody_read_tool for reads; legacy read calls here remain supported but clients may require approval for this tool.",
     inputSchema: toJsonSchema(executeInput),
     annotations: {
       readOnlyHint: false,
@@ -427,21 +445,14 @@ async function callFacadeTool(
           actor: principal.actorLogin,
           tokenExpiresAt: principal.expiresAt,
           scope: scopeForPrincipal(principal),
+          grantedScopes: principal.scopes,
           facadeTools: FACADE_TOOL_NAMES,
         };
         break;
       case "kody_search_tools": {
         const parsed = searchInput.parse(args);
         const offset = decodeCursor(parsed.cursor);
-        const needle = parsed.query?.toLocaleLowerCase();
-        const matches = listKodyActions().filter(
-          (action) =>
-            (!parsed.category || action.category === parsed.category) &&
-            (!needle ||
-              `${action.id} ${action.title} ${action.summary}`
-                .toLocaleLowerCase()
-                .includes(needle)),
-        );
+        const matches = searchKodyActions(parsed.query, parsed.category);
         const items = matches
           .slice(offset, offset + parsed.limit)
           .map((action) => ({
@@ -450,9 +461,17 @@ async function callFacadeTool(
             summary: action.summary,
             category: action.category,
             permission: action.permission,
+            callTool: isReadOnlyAction(action)
+              ? "kody_read_tool"
+              : "kody_execute_tool",
           }));
         result = {
           items,
+          categories: [
+            ...new Set(listKodyActions().map((action) => action.category)),
+          ].sort(),
+          guidance:
+            "These are action definitions, not resource search results. Inspect an action's schema, then call its list/get operation to read actual resources. If nothing matches, use an empty query or a listed category.",
           ...(offset + items.length < matches.length
             ? { nextCursor: encodeCursor(offset + items.length) }
             : {}),
@@ -465,15 +484,29 @@ async function callFacadeTool(
         const action = getKodyAction(actionId);
         if (!action)
           throw new KodyActionError("action_not_found", "Unknown action.");
-        result = action;
+        result = {
+          ...action,
+          callTool: isReadOnlyAction(action)
+            ? "kody_read_tool"
+            : "kody_execute_tool",
+        };
         break;
       }
+      case "kody_read_tool":
       case "kody_execute_tool": {
-        const parsed = executeInput.parse(args);
+        const readOnly = payload.data.name === "kody_read_tool";
+        const parsed = readOnly
+          ? { ...readInput.parse(args), idempotencyKey: undefined }
+          : executeInput.parse(args);
         actionId = parsed.actionId;
         workRecordId = linkedWorkRecordId(parsed.input);
         const action = getKodyAction(actionId);
-        if (action && action.permission !== "read" && !parsed.idempotencyKey)
+        if (
+          !readOnly &&
+          action &&
+          action.permission !== "read" &&
+          !parsed.idempotencyKey
+        )
           throw new KodyActionError(
             "idempotency_key_required",
             "Write actions require an idempotency key.",
@@ -481,6 +514,7 @@ async function callFacadeTool(
         result = await executeKodyAction(actionId, parsed.input, principal, {
           idempotencyKey: parsed.idempotencyKey,
           services,
+          readOnly,
         });
         break;
       }

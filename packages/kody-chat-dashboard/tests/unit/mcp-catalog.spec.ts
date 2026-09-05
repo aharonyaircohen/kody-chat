@@ -3,6 +3,8 @@ import {
   executeKodyAction,
   getKodyAction,
   listKodyActions,
+  isReadOnlyAction,
+  searchKodyActions,
 } from "../../src/dashboard/lib/mcp/catalog";
 import type { McpPrincipal } from "../../src/dashboard/lib/mcp/contracts";
 
@@ -60,6 +62,52 @@ const principal: McpPrincipal = {
 
 describe("public MCP action catalog", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("fails closed when any read-safety metadata changes", () => {
+    const read = getKodyAction("work.list")!;
+    expect(isReadOnlyAction(read)).toBe(true);
+    expect(isReadOnlyAction({ ...read, permission: "write" })).toBe(false);
+    expect(isReadOnlyAction({ ...read, permission: "admin" })).toBe(false);
+    expect(isReadOnlyAction({ ...read, sideEffects: true })).toBe(false);
+    expect(isReadOnlyAction({ ...read, approval: "required" })).toBe(false);
+  });
+
+  it("retains token authorization and input validation on read-only execution", async () => {
+    await expect(
+      executeKodyAction(
+        "work.list",
+        {},
+        { ...principal, scopes: ["mcp:execute"] },
+        { readOnly: true, services },
+      ),
+    ).rejects.toMatchObject({ code: "insufficient_scope" });
+    await expect(
+      executeKodyAction("work.get", {}, principal, {
+        readOnly: true,
+        services,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      executeKodyAction("unknown", {}, principal, { readOnly: true, services }),
+    ).rejects.toMatchObject({ code: "action_not_found" });
+    expect(services.listWork).not.toHaveBeenCalled();
+    expect(services.getWork).not.toHaveBeenCalled();
+  });
+
+  it("searches metadata deterministically without query-specific or client-specific mappings", () => {
+    expect(searchKodyActions()).toEqual(listKodyActions());
+    expect(searchKodyActions("WORKFLOW.LIST")[0].id).toBe("workflow.list");
+    expect(searchKodyActions("workflows").map((action) => action.id)).toEqual(
+      searchKodyActions("workflow").map((action) => action.id),
+    );
+    expect(searchKodyActions("work work")).toEqual(searchKodyActions("work"));
+    expect(searchKodyActions("nonexistentzzzz")).toEqual([]);
+    const category = getKodyAction("workflow.list")!.category;
+    const filtered = searchKodyActions("workflow", category);
+    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered.every((action) => action.category === category)).toBe(true);
+    expect(searchKodyActions("", "unknown-category")).toEqual([]);
+  });
 
   it("publishes safe metadata without internal executors", () => {
     const actions = listKodyActions();
