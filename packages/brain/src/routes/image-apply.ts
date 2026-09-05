@@ -24,7 +24,7 @@ interface ApplyBody {
 }
 
 export async function POST(req: NextRequest) {
-  const ctx = await resolvePersonalBrainContext();
+  const ctx = await resolvePersonalBrainContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }

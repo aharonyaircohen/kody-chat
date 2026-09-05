@@ -198,7 +198,7 @@ if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
 fi
 
 if [ -z "\${GHCR_TOKEN:-}" ]; then
-  echo "GHCR_TOKEN missing; GitHub token needs write:packages permission" >&2
+  echo "GitHub PAT missing; reconnect GitHub with write:packages permission" >&2
   exit 1
 fi
 

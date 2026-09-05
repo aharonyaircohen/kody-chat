@@ -1,3 +1,6 @@
+import { resolveActorFromToken } from "@kody-ade/base/auth";
+vi.mock("@kody-ade/base/auth", () => ({ resolveActorFromToken: vi.fn() }));
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -36,6 +39,51 @@ describe("personal Brain context", () => {
       expect(result.context).not.toHaveProperty("repo");
       expect(result.context.account).toMatch(/^user-[a-f0-9]{16}$/);
     }
+  });
+
+  it("uses the existing request PAT and verified GitHub login without changing Brain ownership", async () => {
+    setPersonalBrainServices({
+      resolveUser: vi.fn().mockResolvedValue({ id: "user-1", label: "User" }),
+      getCredential: vi.fn(),
+      getCredentials: vi
+        .fn()
+        .mockResolvedValue({
+          FLY_API_TOKEN: "fly-token",
+          GITHUB_LOGIN: "stale-login",
+        }),
+      loadState: vi.fn(),
+      saveState: vi.fn(),
+    });
+    vi.mocked(resolveActorFromToken).mockResolvedValue({
+      login: "pat-owner",
+      githubId: 123,
+      avatarUrl: "",
+    });
+    const result = await resolvePersonalBrainContext(
+      new Request("https://dashboard.test", {
+        headers: {
+          "x-kody-token": "existing-pat",
+          "x-kody-user-login": "untrusted-login",
+        },
+      }),
+    );
+    expect(resolveActorFromToken).toHaveBeenCalledWith("existing-pat");
+    expect(result).toMatchObject({
+      ok: true,
+      context: {
+        account: "user-c6c289e49e9c05b2",
+        githubToken: "existing-pat",
+        githubAccount: "pat-owner",
+      },
+    });
+    vi.mocked(resolveActorFromToken).mockResolvedValue(null);
+    expect(
+      await resolvePersonalBrainContext(
+        new Request("https://dashboard.test", {
+          headers: { "x-kody-token": "invalid-pat" },
+        }),
+      ),
+    ).toMatchObject({ ok: false, status: 401, error: "github_token_invalid" });
   });
 
   it("rejects unauthenticated requests", async () => {

@@ -52,10 +52,8 @@ export function brainGhcrAuth(input: {
 }): { token: string; user: string } {
   return {
     token:
-      input.allSecrets.GHCR_TOKEN?.trim() ||
-      input.allSecrets.GITHUB_TOKEN?.trim() ||
-      input.githubToken,
-    user: input.allSecrets.GHCR_USER?.trim() || input.account,
+      input.githubToken.trim() || input.allSecrets.GITHUB_TOKEN?.trim() || "",
+    user: input.account,
   };
 }
 
@@ -98,7 +96,7 @@ if ! command -v skopeo >/dev/null 2>&1; then
 fi
 
 if [ -z "\${GHCR_TOKEN:-}" ]; then
-  echo "GHCR_TOKEN missing; GitHub token needs write:packages/read:packages permission" >&2
+  echo "GitHub PAT missing; reconnect GitHub with package read and write permission" >&2
   exit 1
 fi
 

@@ -42,7 +42,7 @@ function providerContextErrorBody(input: { error: string; message?: string }) {
 }
 
 export async function POST(req: NextRequest) {
-  const ctx = await resolvePersonalBrainContext();
+  const ctx = await resolvePersonalBrainContext(req);
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const ctx = await resolvePersonalBrainContext();
+  const ctx = await resolvePersonalBrainContext(req);
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,
@@ -165,7 +165,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const ctx = await resolvePersonalBrainContext();
+  const ctx = await resolvePersonalBrainContext(req);
   if (!ctx.ok) {
     return NextResponse.json(providerContextErrorBody(ctx), {
       status: ctx.status,

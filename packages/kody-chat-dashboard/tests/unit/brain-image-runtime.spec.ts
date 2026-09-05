@@ -21,7 +21,7 @@ describe("Brain image runtime helpers", () => {
     ).toBe("registry.fly.io/kody-brain-alice:20260625t102030z");
   });
 
-  it("prefers explicit GHCR vault auth over the request token", () => {
+  it("uses the existing PAT and its account, ignoring separate registry credentials", () => {
     expect(
       brainGhcrAuth({
         allSecrets: {
@@ -32,17 +32,17 @@ describe("Brain image runtime helpers", () => {
         githubToken: "request-token",
         account: "alice",
       }),
-    ).toEqual({ token: "ghcr-token", user: "package-owner" });
+    ).toEqual({ token: "request-token", user: "alice" });
   });
 
-  it("falls back to vault GitHub token and then request token", () => {
+  it("uses the request PAT before a stored GitHub token", () => {
     expect(
       brainGhcrAuth({
         allSecrets: { GITHUB_TOKEN: "vault-github-token" },
         githubToken: "request-token",
         account: "alice",
       }),
-    ).toEqual({ token: "vault-github-token", user: "alice" });
+    ).toEqual({ token: "request-token", user: "alice" });
 
     expect(
       brainGhcrAuth({

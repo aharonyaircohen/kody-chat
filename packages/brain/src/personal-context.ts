@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { resolveActorFromToken } from "@kody-ade/base/auth";
+import { KODY_AUTH_HEADERS } from "@kody-ade/base/auth-headers";
 
 import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
 import type { ProviderPerfTier } from "@kody-ade/fly/infrastructure/server-operations";
@@ -23,7 +25,9 @@ function accountKey(userId: string): string {
   return `user-${createHash("sha256").update(userId).digest("hex").slice(0, 16)}`;
 }
 
-export async function resolvePersonalBrainContext(): Promise<
+export async function resolvePersonalBrainContext(
+  request?: Request,
+): Promise<
   | { ok: true; context: PersonalBrainContext }
   | { ok: false; status: number; error: string }
 > {
@@ -34,7 +38,16 @@ export async function resolvePersonalBrainContext(): Promise<
   const credentials = await services.getCredentials(user.id);
   const runtimeModel = (await services.getRuntimeModel?.(user.id)) ?? {};
   const flyToken = credentials.FLY_API_TOKEN || credentials.FLY_IO_TOKEN;
-  const githubToken = credentials.GITHUB_TOKEN ?? "";
+  const requestToken = request?.headers.get(KODY_AUTH_HEADERS.token)?.trim();
+  const githubToken = requestToken || credentials.GITHUB_TOKEN || "";
+  const githubIdentity = requestToken
+    ? await resolveActorFromToken(requestToken)
+    : null;
+  if (requestToken && !githubIdentity) {
+    return { ok: false, status: 401, error: "github_token_invalid" };
+  }
+  const githubAccount =
+    githubIdentity?.login ?? credentials.GITHUB_LOGIN?.trim();
   const allSecrets = { ...credentials };
   delete allSecrets.FLY_API_TOKEN;
   delete allSecrets.FLY_IO_TOKEN;
@@ -53,9 +66,7 @@ export async function resolvePersonalBrainContext(): Promise<
       ...(credentials.GITHUB_OWNER?.trim()
         ? { githubOwner: credentials.GITHUB_OWNER.trim() }
         : {}),
-      ...(credentials.GITHUB_LOGIN?.trim()
-        ? { githubAccount: credentials.GITHUB_LOGIN.trim() }
-        : {}),
+      ...(githubAccount ? { githubAccount } : {}),
       allSecrets,
       ...runtimeModel,
       ...(flyToken ? { flyToken } : {}),

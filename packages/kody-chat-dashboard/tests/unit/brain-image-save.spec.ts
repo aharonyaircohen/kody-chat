@@ -96,7 +96,7 @@ describe("Brain image save helpers", () => {
       ghcrUser: "Alice",
     });
 
-    expect(command).toContain("GHCR_TOKEN missing");
+    expect(command).toContain("GitHub PAT missing");
     expect(command).toContain("crane auth login ghcr.io");
     expect(command).toContain("--password-stdin");
   });

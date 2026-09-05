@@ -33,6 +33,11 @@ function registerPersonalBrainServices() {
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
+  resolveActorFromToken: vi.fn(async () => ({
+    login: "pat-owner",
+    githubId: 123,
+    avatarUrl: "",
+  })),
 }));
 
 vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
@@ -865,6 +870,36 @@ describe("POST /api/kody/brain/image", () => {
     expect(mocks.startJob).not.toHaveBeenCalled();
   });
 
+  it("saves using the connected PAT without separate publishing credentials", async () => {
+    personalCredentials = { FLY_API_TOKEN: "fly-token" };
+    const { brainGhcrAuth } = await import("@kody-ade/brain/image-runtime");
+    vi.mocked(brainGhcrAuth).mockImplementationOnce(
+      ({ githubToken, account }) => ({ token: githubToken, user: account }),
+    );
+    const response = await POST(
+      new NextRequest("https://dash.test/api/kody/brain/image", {
+        method: "POST",
+        headers: { "x-kody-token": "connected-pat" },
+      }),
+    );
+    expect(response.status).toBe(202);
+    expect(
+      verifyTerminalBridgeToken(mocks.startJob.mock.calls[0][0].token, {
+        secret: "bridge-secret",
+      }),
+    ).toMatchObject({ ghcrToken: "connected-pat", localExec: true });
+    expect(await response.json()).toMatchObject({
+      imageRef: expect.stringContaining(
+        "ghcr.io/pat-owner/kody-brain-pat-owner:",
+      ),
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "connected-pat",
+      expect.any(Object),
+    );
+  });
+
   it("requires publishing credentials before starting an image job", async () => {
     const { brainGhcrAuth } = await import("@kody-ade/brain/image-runtime");
     vi.mocked(brainGhcrAuth).mockReturnValueOnce({
@@ -874,7 +909,7 @@ describe("POST /api/kody/brain/image", () => {
     const response = await POST(request());
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
-      message: expect.stringContaining("GHCR_TOKEN"),
+      message: expect.stringContaining("classic PAT"),
     });
     expect(mocks.startJob).not.toHaveBeenCalled();
     expect(resolveBrainService).not.toHaveBeenCalled();
@@ -885,7 +920,7 @@ describe("POST /api/kody/brain/image", () => {
     const response = await POST(request());
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
-      message: expect.stringContaining("GHCR_USER"),
+      message: expect.stringContaining("Reconnect your GitHub account"),
     });
     expect(mocks.startJob).not.toHaveBeenCalled();
   });

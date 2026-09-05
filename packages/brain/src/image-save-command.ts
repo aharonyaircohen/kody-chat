@@ -83,15 +83,15 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   if (!ghcr.token.trim()) {
     throw Object.assign(
       new Error(
-        "Add GHCR_TOKEN with write:packages permission to Personal Credentials before saving a Brain image.",
+        "Connect your GitHub account with a classic PAT that has write:packages permission to save a Brain image.",
       ),
       { status: 400 },
     );
   }
-  if (!context.githubAccount && !context.allSecrets.GHCR_USER?.trim()) {
+  if (!context.githubAccount) {
     throw Object.assign(
       new Error(
-        "Add GHCR_USER (your GitHub username) to Personal Credentials before saving a Brain image.",
+        "Reconnect your GitHub account so Kody can identify where to save the Brain image.",
       ),
       { status: 400 },
     );
