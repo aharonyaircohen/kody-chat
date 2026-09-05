@@ -63,3 +63,12 @@ export function openTerminalWebLink(
   const opened = openWindow(uri, "_blank", "noopener,noreferrer");
   if (opened) opened.opener = null;
 }
+
+/** A remote screen replaces the prior screen; local PTY chunks append. */
+export function captureTerminalOutput(previous: string, data: string): string {
+  const snapshot =
+    data.startsWith("\x1b[2J\x1b[H") || data.startsWith("\x1b[3J\x1b[2J\x1b[H");
+  return `${snapshot ? "" : previous}${cleanTerminalText(data)}`.slice(
+    -MAX_CAPTURE_CHARS * 2,
+  );
+}

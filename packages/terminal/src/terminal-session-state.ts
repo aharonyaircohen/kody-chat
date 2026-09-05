@@ -24,6 +24,7 @@ const COMMAND_STATES: Readonly<
   Record<TerminalCommand["type"], ReadonlySet<TerminalSessionState>>
 > = {
   attach: new Set(["starting", "ready", "detached"]),
+  clear: new Set(["ready"]),
   input: new Set(["ready"]),
   resize: new Set(["ready"]),
   detach: new Set(["starting", "ready", "detached"]),

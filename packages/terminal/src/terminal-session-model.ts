@@ -61,6 +61,10 @@ export const TerminalCommandSchema = z.discriminatedUnion("type", [
     sessionId: IdentifierSchema,
   }),
   z.object({
+    type: z.literal("clear"),
+    sessionId: IdentifierSchema,
+  }),
+  z.object({
     type: z.literal("restart"),
     sessionId: IdentifierSchema,
   }),

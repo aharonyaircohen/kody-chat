@@ -30,11 +30,7 @@ import {
   TERMINAL_START_TIMEOUT_MS,
   TERMINAL_STOP_TIMEOUT_MS,
 } from "./terminal-http";
-import {
-  cleanTerminalText,
-  MAX_CAPTURE_CHARS,
-  usefulCapturedOutput,
-} from "./terminal-text";
+import { usefulCapturedOutput, captureTerminalOutput } from "./terminal-text";
 import {
   terminalStartupIssue,
   type VisibleTerminalStartupIssue,
@@ -154,10 +150,9 @@ export const ChatTerminalSurface = forwardRef<
   }, [localSession]);
 
   const appendCapturedOutput = useCallback((data: string) => {
-    const cleaned = cleanTerminalText(data);
-    if (!cleaned) return;
-    outputCaptureRef.current = `${outputCaptureRef.current}${cleaned}`.slice(
-      -MAX_CAPTURE_CHARS * 2,
+    outputCaptureRef.current = captureTerminalOutput(
+      outputCaptureRef.current,
+      data,
     );
   }, []);
   const handleViewReady = useCallback(() => setReady(true), []);
@@ -239,6 +234,7 @@ export const ChatTerminalSurface = forwardRef<
     issue: remoteIssue,
     sendInput: sendRemoteInput,
     resize: resizeRemote,
+    clear: clearRemote,
     restart: restartRemote,
     retry: retryRemote,
     disconnect: disconnectRemote,
@@ -567,9 +563,13 @@ export const ChatTerminalSurface = forwardRef<
 
   const clear = useCallback(() => {
     outputCaptureRef.current = "";
-    viewRef.current?.clear();
+    if (isRemoteTransport(transportRef.current)) {
+      if (!clearRemote()) toast.error("Terminal is not connected yet");
+    } else {
+      viewRef.current?.clear();
+    }
     viewRef.current?.focus();
-  }, []);
+  }, [clearRemote]);
 
   const restart = useCallback(() => {
     outputCaptureRef.current = "";

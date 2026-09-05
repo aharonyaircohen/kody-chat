@@ -79,6 +79,25 @@ function setup() {
 }
 
 describe("TerminalSessionClient", () => {
+  it("clears the connected shell with a typed command, without injecting input or restarting", async () => {
+    const harness = setup();
+    expect(harness.client.clear()).toBe(false);
+    await harness.client.connect();
+    harness.sockets[0]?.open();
+    harness.sockets[0]?.message({
+      type: "state",
+      sessionId: "terminal-1",
+      generation: 1,
+      state: "ready",
+    });
+    expect(harness.client.clear()).toBe(true);
+    expect(JSON.parse(harness.sockets[0]!.sent.at(-1)!)).toEqual({
+      type: "clear",
+      sessionId: "terminal-1",
+    });
+    expect(harness.client.sendInput("ls\r")).toBe(true);
+  });
+
   it("accepts the replacement machine after successful setup without carrying the old revision", async () => {
     const sockets: FakeSocket[] = [];
     const requests: Array<Record<string, unknown>> = [];

@@ -19,6 +19,18 @@ const claims = {
 };
 
 describe("terminal agent proxy", () => {
+  it("binds clear to the authenticated session and rejects other sessions", () => {
+    expect(
+      normalizeBrainTerminalCommand({ type: "clear" }, "terminal-1"),
+    ).toEqual({ type: "clear", sessionId: "terminal-1" });
+    expect(() =>
+      normalizeBrainTerminalCommand(
+        { type: "clear", sessionId: "other" },
+        "terminal-1",
+      ),
+    ).toThrow("session identity");
+  });
+
   it("opens the same Brain session and revision after transport replacement", () => {
     expect(buildBrainTerminalOpenRequest(claims)).toEqual({
       type: "open",
@@ -72,7 +84,11 @@ describe("terminal agent proxy", () => {
     expect(parseBrainTerminalAgentLine("flyctl diagnostic noise")).toBeNull();
     expect(
       parseBrainTerminalAgentLine(
-        JSON.stringify({ type: "output", sessionId: "terminal-1", data: "missing identity" }),
+        JSON.stringify({
+          type: "output",
+          sessionId: "terminal-1",
+          data: "missing identity",
+        }),
       ),
     ).toBeNull();
   });
@@ -82,8 +98,8 @@ describe("terminal agent proxy", () => {
       process.execPath,
       ["--input-type=module", "--check", "-"],
       {
-      input: TERMINAL_BRIDGE_STATELESS_SCRIPT,
-      encoding: "utf8",
+        input: TERMINAL_BRIDGE_STATELESS_SCRIPT,
+        encoding: "utf8",
       },
     );
     expect(checked.stderr).toBe("");

@@ -243,7 +243,7 @@ function normalizeCommand(value, claims) {
     if (!Number.isFinite(cols) || !Number.isFinite(rows)) throw new Error("terminal size invalid");
     return { type: "resize", sessionId: claims.chatSessionId, cols, rows };
   }
-  if (["attach", "detach", "restart"].includes(value.type)) {
+  if (["attach", "detach", "restart", "clear"].includes(value.type)) {
     return { type: value.type, sessionId: claims.chatSessionId, ...(value.afterRevision !== undefined ? { afterRevision: value.afterRevision } : {}) };
   }
   throw new Error("unknown terminal command");

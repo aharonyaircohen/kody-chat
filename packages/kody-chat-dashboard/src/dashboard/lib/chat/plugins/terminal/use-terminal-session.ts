@@ -164,6 +164,7 @@ export function useTerminalSession({
       clientRef.current?.resize(cols, rows) ?? false,
     [],
   );
+  const clear = useCallback(() => clientRef.current?.clear() ?? false, []);
   const restart = useCallback(() => clientRef.current?.restart() ?? false, []);
   const retry = useCallback(
     (options?: { resetSession?: boolean }) =>
@@ -174,5 +175,5 @@ export function useTerminalSession({
     clientRef.current?.disconnect();
   }, []);
 
-  return { ...state, sendInput, resize, restart, retry, disconnect };
+  return { ...state, sendInput, resize, clear, restart, retry, disconnect };
 }

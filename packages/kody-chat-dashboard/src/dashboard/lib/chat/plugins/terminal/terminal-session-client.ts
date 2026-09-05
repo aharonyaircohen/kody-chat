@@ -405,6 +405,19 @@ export class TerminalSessionClient {
     return true;
   }
 
+  clear(): boolean {
+    if (
+      this.socket?.readyState !== SOCKET_OPEN ||
+      !this.identity ||
+      this.session?.state !== "ready"
+    )
+      return false;
+    this.socket.send(
+      JSON.stringify({ type: "clear", sessionId: this.identity.id }),
+    );
+    return true;
+  }
+
   restart(): boolean {
     if (
       this.socket?.readyState !== SOCKET_OPEN ||

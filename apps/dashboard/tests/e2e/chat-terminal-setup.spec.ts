@@ -100,7 +100,29 @@ for (const needsSetup of [false, true]) {
     await page.routeWebSocket("ws://terminal.test/session", (socket) => {
       const ready = setupDone;
       const sessionId = ready && needsSetup ? "terminal-2" : "terminal-1";
-      socket.onMessage(() =>
+      let revision = 0;
+      let cleared = false;
+      socket.onMessage((raw) => {
+        const command = JSON.parse(String(raw));
+        if (ready && ["input", "clear"].includes(command.type)) {
+          if (command.type === "clear") cleared = true;
+          socket.send(
+            JSON.stringify({
+              type: "output",
+              sessionId,
+              generation: 1,
+              revision: ++revision,
+              data:
+                "\x1b[3J\x1b[2J\x1b[H" +
+                (command.type === "clear"
+                  ? "$ "
+                  : cleared
+                    ? "$ ls\r\nAFTER_CLEAR\r\n$ "
+                    : "$ ls\r\nHISTORY_ONCE\r\n$ "),
+            }),
+          );
+          return;
+        }
         socket.send(
           JSON.stringify(
             ready
@@ -115,8 +137,8 @@ for (const needsSetup of [false, true]) {
                   message: "Terminal agent is unavailable",
                 },
           ),
-        ),
-      );
+        );
+      });
     });
 
     // A full load on Personal Credentials initializes the persistent chat with
@@ -148,6 +170,24 @@ for (const needsSetup of [false, true]) {
       page.getByRole("button", { name: "Send command", exact: true }),
     ).toBeEnabled();
     expect(sessionRequests).toBeGreaterThan(0);
+    const terminalInput = page.getByRole("textbox", {
+      name: "Terminal input",
+      exact: true,
+    });
+    await terminalInput.press("l");
+    await terminalInput.press("s");
+    await expect(page.locator(".xterm-rows")).toContainText("HISTORY_ONCE");
+    expect(
+      (await page.locator(".xterm-rows").innerText()).split("HISTORY_ONCE"),
+    ).toHaveLength(2);
+    await page
+      .getByRole("button", { name: "Clear terminal", exact: true })
+      .click();
+    await expect(page.locator(".xterm-rows")).not.toContainText("HISTORY_ONCE");
+    await terminalInput.press("l");
+    await expect(page.locator(".xterm-rows")).toContainText("AFTER_CLEAR");
+    await expect(page.locator(".xterm-rows")).not.toContainText("HISTORY_ONCE");
+
     await page.getByRole("button", { name: "AI chat", exact: true }).click();
     await expect(
       page.getByRole("textbox", { name: "Message", exact: true }),
